@@ -1,13 +1,27 @@
 # TIDE MANIFEST (Project State)
 
 ## 0. Current Phase
-**Phase 0: Definition**
-*Objective*: Define architecture, schema, and protocols.
+**Phase 2: Auth & Crypto**
+*Objective*: Implement Login Flow and Client-Side Encryption.
 
 ## 1. API Contract Hash
-**Hash**: INIT_HASH_000000
-*Status*: Draft
-*Changes*: N/A
+**Hash**: AUTH_PROTO_v1
+*Status*: Active Implementation
+*Changes*: Added Auth Endpoints
+
+### Auth Endpoints (Instance 2)
+1.  `POST /api/v1/auth/register`
+    *   Input: `{ "email": "...", "public_key": "...", "enc_private_key": "..." }`
+    *   Output: `{ "user_id": "...", "status": "created" }`
+2.  `POST /api/v1/auth/login`
+    *   Input: `{ "email": "..." }`
+    *   Output: `{ "message": "Magic link sent" }` (or Challenge)
+3.  `POST /api/v1/auth/verify`
+    *   Input: `{ "token": "..." }` (Magic Link Token)
+    *   Output: `{ "session_token": "JWT...", "enc_private_key": "..." }`
+
+## 2. Data Schema Snapshot
+### Database Strategy: Split-Brain Metadata
 
 ## 2. Data Schema Snapshot
 ### Database Strategy: Split-Brain Metadata
