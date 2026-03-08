@@ -1,0 +1,58 @@
+/* Calendar Layout */
+.calendar-page {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background-color: transparent;
+    color: hsl(var(--foreground));
+}
+
+/* Hide Scrollbars Global utility for Calendar */
+.scrollbar-none::-webkit-scrollbar {
+    display: none;
+}
+
+.scrollbar-none {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+}
+
+/* 
+   The rest of the CSS is largely handled by Tailwind classes in the new WeekView.tsx 
+   (e.g., flex-1, overflow-auto, relative, sticky).
+   Keeping basic button styles for consistency if reused elsewhere.
+*/
+
+.calendar-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: transparent;
+}
+
+.calendar-title {
+    font-size: 1.25rem;
+    font-weight: bold;
+}
+
+.calendar-btn {
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+
+.calendar-btn-primary {
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.calendar-btn-primary:hover {
+    filter: brightness(1.1);
+}

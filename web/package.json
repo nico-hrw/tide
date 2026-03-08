@@ -9,16 +9,46 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@tiptap/core": "^3.20.0",
+    "@tiptap/extension-bold": "^3.20.0",
+    "@tiptap/extension-bubble-menu": "^3.20.0",
+    "@tiptap/extension-color": "^3.20.0",
+    "@tiptap/extension-highlight": "^3.20.0",
+    "@tiptap/extension-italic": "^3.20.0",
+    "@tiptap/extension-placeholder": "^3.20.0",
+    "@tiptap/extension-strike": "^3.20.0",
+    "@tiptap/extension-table": "^3.20.0",
+    "@tiptap/extension-table-cell": "^3.20.0",
+    "@tiptap/extension-table-header": "^3.20.0",
+    "@tiptap/extension-table-row": "^3.20.0",
+    "@tiptap/extension-task-item": "^3.20.0",
+    "@tiptap/extension-task-list": "^3.20.0",
+    "@tiptap/extension-text-style": "^3.20.0",
+    "@tiptap/extension-underline": "^3.20.0",
+    "@tiptap/pm": "^3.20.0",
+    "@tiptap/react": "^3.20.0",
+    "@tiptap/starter-kit": "^3.20.0",
+    "@xyflow/react": "^12.10.1",
+    "date-fns": "^4.1.0",
+    "framer-motion": "^12.34.3",
+    "iconsax-react": "^0.0.8",
+    "katex": "^0.16.28",
+    "lucide-react": "^0.564.0",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "recharts": "^3.7.0"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "autoprefixer": "^10.4.24",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
+    "postcss": "^8.5.6",
+    "postcss-loader": "^8.2.1",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5"
   }
 }

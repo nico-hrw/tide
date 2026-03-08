@@ -1,13 +1,25 @@
 # TIDE MANIFEST (Project State)
 
 ## 0. Current Phase
-**Phase 2: Auth & Crypto**
-*Objective*: Implement Login Flow and Client-Side Encryption.
+**Phase 4: Editor & Linking**
+*Objective*: Implement Block-based Editor and Graph Linking.
 
 ## 1. API Contract Hash
-**Hash**: AUTH_PROTO_v1
+**Hash**: EDITOR_PROTO_v1
 *Status*: Active Implementation
-*Changes*: Added Auth Endpoints
+*Changes*: Added Link Endpoints
+
+### Link Endpoints (Instance 2)
+1.  `GET /api/v1/links?source_id=...` (Outlinks)
+    *   Output: `[ { "target_id": "...", "type": "link" }, ... ]`
+2.  `GET /api/v1/links?target_id=...` (Backlinks)
+    *   Output: `[ { "source_id": "...", "type": "backlink" }, ... ]`
+3.  `POST /api/v1/links` (Create Link)
+    *   Input: `{ "source_id": "...", "target_id": "..." }`
+    *   Output: `201 Created`
+4.  `DELETE /api/v1/links` (Remove Link)
+    *   Input: `{ "source_id": "...", "target_id": "..." }`
+    *   Output: `204 No Content`
 
 ### Auth Endpoints (Instance 2)
 1.  `POST /api/v1/auth/register`
@@ -17,8 +29,21 @@
     *   Input: `{ "email": "..." }`
     *   Output: `{ "message": "Magic link sent" }` (or Challenge)
 3.  `POST /api/v1/auth/verify`
-    *   Input: `{ "token": "..." }` (Magic Link Token)
+    *   Input: `{ "token": "..." }`
     *   Output: `{ "session_token": "JWT...", "enc_private_key": "..." }`
+
+### File Endpoints (Instance 2)
+1.  `GET /api/v1/files` (List)
+    *   Query: `parent_id` (optional, default root)
+    *   Output: `[ { "id": "...", "type": "folder/file", "public_meta": {...} }, ... ]`
+2.  `POST /api/v1/files` (Create Metadata)
+    *   Input: `{ "parent_id": "...", "type": "...", "public_meta": {...}, "secured_meta": "..." }`
+    *   Output: `{ "id": "...", "upload_url": "..." (if file) }`
+3.  `PUT /api/v1/files/{id}/blob` (Upload Content)
+    *   *Direct upload to server for now (MVP), later Presigned URL.*
+    *   Body: Binary Blob (Encrypted).
+4.  `GET /api/v1/files/{id}/blob` (Download Content)
+    *   Output: Binary Blob (Encrypted).
 
 ## 2. Data Schema Snapshot
 ### Database Strategy: Split-Brain Metadata

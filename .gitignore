@@ -1,0 +1,64 @@
+# Dependency directories
+node_modules/
+vendor/
+
+# Build outputs
+.next/
+out/
+build/
+bin/
+obj/
+*.exe
+*.test
+
+# Environment and Logs
+.env*
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+coverage.out
+
+# OS Specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.project
+.classpath
+.settings/
+.vscode/settings.json
+
+# Temporary/Recovery files
+*.tmp
+*.bak
+page_recovery.tsx.tmp
+page_recovery_utf8.tsx.tmp
+DEBUG_STATUS.txt
+ADD_handleMoveFile.txt
+BACKEND_UpdateFile.go
+MANUAL_FIX_handleShare.txt
+
+# Misc
+.DS_Store
+.history/
+
+# Datenbanken ausschließen
+*.db
+*.db-shm
+*.db-wal
+cloud/data/tide.db*
+
+# Hochgeladene Dateien (Blobs) ausschließen
+cloud/data/blobs/
+
+# Ausführbare Dateien
+*.exe
+cloud/server.exe
