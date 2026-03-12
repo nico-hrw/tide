@@ -26,9 +26,12 @@ interface MagnifiedEventViewProps {
 
 const PIXELS_PER_MINUTE = 6;
 
-const Ruler = ({ activeMinute }: { activeMinute: number }) => {
+const Ruler = ({ activeMinute, cursorY }: { activeMinute: number, cursorY: MotionValue<number> }) => {
     // Generate lines around the active minute
     const lines = [];
+
+    // Smooth scroll offset to counter the snapping of activeMinute
+    const yOffset = useTransform(cursorY, (y) => -(y % PIXELS_PER_MINUTE));
 
     // We only need enough lines to cover the 224px height scaled by 1.3 (so roughly 291px height internal). 
     // 291 / 6 = 48 minutes visible. ±30 mins is plenty.
@@ -60,9 +63,9 @@ const Ruler = ({ activeMinute }: { activeMinute: number }) => {
     }
 
     return (
-        <div style={{ width: 88, flexShrink: 0, height: '100%', borderRight: '1px solid rgba(0,0,0,0.08)', position: 'relative', overflow: 'hidden', background: 'rgba(255,255,255,0.97)' }}>
+        <motion.div style={{ y: yOffset, width: 88, flexShrink: 0, height: '100%', borderRight: '1px solid rgba(0,0,0,0.08)', position: 'relative', overflow: 'hidden', background: 'rgba(255,255,255,0.97)', pointerEvents: 'none' }}>
             {lines}
-        </div>
+        </motion.div>
     );
 };
 
@@ -137,8 +140,8 @@ export const MagnifiedEventView = ({
                     className="z-[999] pointer-events-none overflow-hidden border border-white/60 bg-white/15 dark:bg-black/15 backdrop-blur-3xl backdrop-saturate-200 will-change-transform"
                 >
                     {/* The Scale Distortion Mask */}
-                    <div className="absolute inset-0 flex" style={{ transform: 'scale(1.15)', transformOrigin: 'center center' }}>
-                        <Ruler activeMinute={activeMinute} />
+                    <div className="absolute inset-0 flex pointer-events-none" style={{ transform: 'scale(1.15)', transformOrigin: 'center center' }}>
+                        <Ruler activeMinute={activeMinute} cursorY={cursorY} />
 
                         {/* Event Space with Rubber Banding */}
                         <motion.div

@@ -2,6 +2,8 @@ import React, { useMemo } from "react";
 import { format, isSameDay, getHours, getMinutes } from "date-fns";
 import { useHighlight } from "@/components/HighlightContext";
 import { motion, useTransform, MotionValue, useMotionValue } from "framer-motion";
+import { CalendarEventItem } from './CalendarEventItem';
+import { useDataStore } from "@/store/useDataStore";
 
 interface CalendarEvent {
     id: string;
@@ -39,9 +41,14 @@ interface DayColumnProps {
     creationEndYMV?: MotionValue<number>;
     onHeaderClick?: (day: Date) => void;
     onTaskToggle?: (id: string, currentIsCompleted: boolean) => void;
+    onEventRename?: (id: string, title: string) => Promise<void>;
     dayIndexOffset?: number;
     snapInterval?: number;
     isMagnified?: boolean;
+    onEventDrop: (eventId: string, startInitial: Date, endInitial: Date) => void;
+    cursorX: MotionValue<number>;
+    cursorY: MotionValue<number>;
+    allEvents?: CalendarEvent[];
 }
 
 // Layout helper for overlapping events within a single day
@@ -125,7 +132,7 @@ const getEventTheme = (evt: CalendarEvent) => {
     return effectMap[evt.effect || 'none'] || effectMap['none'];
 };
 
-export default function DayColumn({
+const DayColumnBase: React.FC<DayColumnProps> = ({
     day,
     events,
     isToday,
@@ -133,9 +140,9 @@ export default function DayColumn({
     onEventClick,
     onEventShare,
     onEventDelete,
-    onEventMouseDown,
     onGridMouseDown,
     onGridDoubleClick,
+    onEventMouseDown,
     onResizeMouseDown,
     hoveredHour,
     onHourHover,
@@ -148,10 +155,15 @@ export default function DayColumn({
     creationEndYMV,
     onHeaderClick,
     onTaskToggle,
+    onEventRename,
     dayIndexOffset,
     snapInterval = 10,
-    isMagnified = false
-}: DayColumnProps) {
+    isMagnified = false,
+    onEventDrop,
+    cursorX,
+    cursorY,
+    allEvents = [],
+}) => {
     const { highlight, isHighlighted } = useHighlight();
 
     // Separate all-day events from timed events
@@ -186,6 +198,10 @@ export default function DayColumn({
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
             className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-dashed border-gray-200 dark:border-slate-800/50 relative ${isToday ? 'bg-indigo-50/40 dark:bg-indigo-900/20' : 'bg-transparent'}`}
+            onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }}
         >
             {/* Day Header */}
             <div
@@ -254,7 +270,69 @@ export default function DayColumn({
             )}
 
             {/* Grid Area */}
-            <div className="relative" onMouseDown={(e) => onGridMouseDown && onGridMouseDown(e, day)}>
+            <div 
+                className="relative" 
+                onMouseDown={(e) => onGridMouseDown && onGridMouseDown(e, day)}
+                onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const eventId = e.dataTransfer.getData("text/plain");
+                    if (!eventId) return;
+
+                    // ARCHITECTURAL DIRECTION: Use allEvents prop to find the fresh object
+                    const draggedEvent = allEvents.find(ev => ev.id === eventId);
+                    if (!draggedEvent) {
+                        console.error("[DragDrop] Dropped event not found in allEvents:", eventId);
+                        return;
+                    }
+
+                    // SAFE DURATION CALCULATION
+                    const startOrig = new Date(draggedEvent.start);
+                    const endOrig = new Date(draggedEvent.end);
+                    if (isNaN(startOrig.getTime()) || isNaN(endOrig.getTime())) {
+                        console.error("[DragDrop] Dropped event has invalid start/end times:", draggedEvent);
+                        return;
+                    }
+                    const durationMinutes = (endOrig.getTime() - startOrig.getTime()) / 60000;
+                    if (isNaN(durationMinutes) || durationMinutes < 0) {
+                        console.error("[DragDrop] Invalid duration calculated:", { durationMinutes, start: draggedEvent.start, end: draggedEvent.end });
+                        return;
+                    }
+
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const offsetY = parseInt(e.dataTransfer.getData('application/offsetY') || '0', 10);
+                    const y = Math.max(0, e.clientY - rect.top - offsetY);
+                    
+                    // Assuming 1px = 1 minute as per existing logic (60px per hour)
+                    let newStartMinutes = Math.round(y);
+
+                    // Snap to the set interval (e.g., 10 mins)
+                    newStartMinutes = Math.round(newStartMinutes / snapInterval) * snapInterval;
+
+                    // Clamp to within the day
+                    newStartMinutes = Math.max(0, Math.min(newStartMinutes, 1440 - durationMinutes));
+
+                    const baseDate = new Date(day);
+                    if (isNaN(baseDate.getTime())) {
+                        console.error("[DragDrop] Column date is invalid:", day);
+                        return;
+                    }
+
+                    const newStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), Math.floor(newStartMinutes / 60), newStartMinutes % 60);
+                    const newEnd = new Date(newStart.getTime() + durationMinutes * 60000);
+
+                    if (isNaN(newStart.getTime()) || isNaN(newEnd.getTime())) {
+                        console.error("[DragDrop] Math resulted in NaN", { newStartMinutes });
+                        return;
+                    }
+
+                    onEventDrop(draggedEvent.id, newStart, newEnd);
+                }}
+            >
                 {/* Current Time Line */}
                 {/* Current Time Line - REMOVED (Moved to Global) */}
 
@@ -269,209 +347,29 @@ export default function DayColumn({
                 ))}
 
                 {/* Events */}
-                {timedEvents.map(event => {
-                    const start = new Date(event.start);
-                    const end = new Date(event.end);
-                    const startMinutes = start.getHours() * 60 + start.getMinutes();
-                    const durationMinutes = (end.getTime() - start.getTime()) / (1000 * 60);
-
-                    const isDragging = draggingId === event.id;
-                    const isResizing = resizingId === event.id;
-                    const pos = layout.get(event.id) || { left: 0, width: 100 };
-                    const theme = getEventTheme(event);
-                    const zIndex = isDragging ? 50 : 10;
-
-                    let style: any;
-                    if (isDragging) {
-                        style = {
-                            top: `${startMinutes}px`,
-                            height: `${Math.max(durationMinutes, 15)}px`,
-                            left: `${pos.left}%`,
-                            width: `${pos.width}%`,
-                            backgroundColor: theme.bg,
-                            color: theme.text,
-                            opacity: 0.3,
-                            zIndex: 10,
-                            pointerEvents: 'none'
-                        };
-                    } else if (isResizing) {
-                        style = {
-                            top: `${startMinutes}px`,
-                            height: resizeHeightMV || `${Math.max(durationMinutes, 15)}px`,
-                            left: `${pos.left}%`,
-                            width: `${pos.width}%`,
-                            backgroundColor: theme.bg,
-                            color: theme.text,
-                            zIndex: 100,
-                            pointerEvents: 'none'
-                        };
-                    } else {
-                        style = {
-                            top: `${startMinutes}px`,
-                            height: `${Math.max(durationMinutes, 15)}px`,
-                            left: `${pos.left}%`,
-                            width: `${pos.width}%`,
-                            backgroundColor: theme.bg,
-                            color: theme.text,
-                            zIndex: zIndex
-                        };
-                    }
-
-                    const startMs = start.getTime();
-                    const endMs = end.getTime();
-
-                    const isAdjacentTop = timedEvents.some(other => {
-                        if (other.id === event.id) return false;
-                        const otherEndMs = new Date(other.end).getTime();
-                        const isTimeMatch = Math.abs(otherEndMs - startMs) < 60000; // within 1 minute
-
-                        const otherPos = layout.get(other.id) || { left: 0, width: 100 };
-                        // Events must be in strictly the same column to naturally snap
-                        const isHorizontalOverlap = Math.abs(otherPos.left - pos.left) < 5 && Math.abs(otherPos.width - pos.width) < 5;
-
-                        return isTimeMatch && isHorizontalOverlap;
-                    });
-
-                    const isAdjacentBottom = timedEvents.some(other => {
-                        if (other.id === event.id) return false;
-                        const otherStartMs = new Date(other.start).getTime();
-                        const isTimeMatch = Math.abs(otherStartMs - endMs) < 60000; // within 1 minute
-
-                        const otherPos = layout.get(other.id) || { left: 0, width: 100 };
-                        const isHorizontalOverlap = Math.abs(otherPos.left - pos.left) < 5 && Math.abs(otherPos.width - pos.width) < 5;
-
-                        return isTimeMatch && isHorizontalOverlap;
-                    });
-
-                    let roundClass = 'rounded-xl';
-                    if (isAdjacentTop && isAdjacentBottom) {
-                        roundClass = 'rounded-t-sm rounded-b-sm';
-                    } else if (isAdjacentTop) {
-                        roundClass = 'rounded-b-xl rounded-t-sm';
-                    } else if (isAdjacentBottom) {
-                        roundClass = 'rounded-t-xl rounded-b-sm';
-                    }
-
-                    const isHighlightedEvent = isHighlighted(event.id, 'event');
-
-                    return (
-                        <motion.div
-                            initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            style={{
-                                ...style,
-                                borderLeft: `4px solid ${theme.border}`
-                            }}
-                            transition={{
-                                delay: Math.abs(dayIndexOffset || 0) * 0.15 + 0.1,
-                                type: "spring", stiffness: 400, damping: 30
-                            }}
-                            key={event.id}
-                            onMouseDown={(e) => {
-                                // Skip drag setup during magic link selection — let onClick handle it cleanly
-                                if (highlight.isSelectingLink) return;
-                                e.stopPropagation(); // Stop grid creation
-                                if (onEventMouseDown) onEventMouseDown(e, event.id, start);
-                            }}
-                            className={`
-                                event-item group
-                                absolute px-2 py-1.5 cursor-pointer overflow-hidden
-                                ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'}
-                                ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''}
-                                ${event.is_completed ? 'opacity-50' : ''}
-                                ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''}
-                                font-medium transition-all ${roundClass}
-                            `}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (highlight.isSelectingLink && highlight.onLinkSelect) {
-                                    highlight.onLinkSelect({ id: event.id, title: event.title, type: 'event', rect: e.currentTarget.getBoundingClientRect() });
-                                } else if (onEventClick) {
-                                    onEventClick(event.id, e.currentTarget.getBoundingClientRect());
-                                }
-                            }}
-                        >
-
-                            {/* Header Actions */}
-                            {!isDragging && !isResizing && (
-                                <div className="absolute top-1 right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-[70]">
-                                    {/* Share Button */}
-                                    <button
-                                        onMouseDown={(e) => e.stopPropagation()}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onEventShare ? onEventShare(e, event.id) : onEventClick?.(event.id);
-                                        }}
-                                        className="p-1 hover:bg-black/10 rounded-full text-[inherit]"
-                                        title="Share Event"
-                                    >
-                                        <div className="w-3 h-3 flex items-center justify-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" /><polyline points="16 6 12 2 8 6" /><line x1="12" y1="2" x2="12" y2="15" /></svg>
-                                        </div>
-                                    </button>
-
-                                    {/* Delete Button */}
-                                    {onEventDelete && (
-                                        <button
-                                            onMouseDown={(e) => e.stopPropagation()}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onEventDelete(event.id);
-                                            }}
-                                            className="p-1 hover:bg-rose-500/20 rounded-full text-red-500"
-                                            title="Delete Event"
-                                        >
-                                            <div className="w-3 h-3 flex items-center justify-center">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
-                                            </div>
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-
-                            <div className={`relative z-10 font-bold text-sm ${pos.width < 70 ? 'truncate' : ''} leading-tight pr-4 ${event.is_completed ? 'line-through opacity-70' : ''}`}>{event.title}</div>
-                            {pos.width >= 70 && (
-                                <div className="relative z-10 text-xs opacity-90 mt-0.5 font-medium truncate">
-                                    {format(start, "HH:mm")} - {format(end, "HH:mm")}
-                                </div>
-                            )}
-                            {durationMinutes >= 60 && event.description && (
-                                <div className="relative z-10 text-[10px] opacity-80 mt-1 line-clamp-2 leading-tight">
-                                    {event.description.replace(/\[([^\]]+)\]\(tide:\/\/[^/]+\/[^)]+\)/g, "🔗 $1")}
-                                </div>
-                            )}
-
-                            {/* Task Checkbox — 1-click toggle, no popover */}
-                            {event.is_task && !isDragging && !isResizing && (
-                                <button
-                                    onMouseDown={(e) => e.stopPropagation()}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (onTaskToggle) onTaskToggle(event.id, !!event.is_completed);
-                                    }}
-                                    className="absolute bottom-1.5 left-2 z-[75] transition-transform hover:scale-110"
-                                    title={event.is_completed ? 'Mark as incomplete' : 'Mark as complete'}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill={event.is_completed ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={event.is_completed ? 'text-emerald-500' : 'text-white/80'}>
-                                        <circle cx="12" cy="12" r="10" />
-                                        {event.is_completed && <polyline points="9 12 11 14 15 10" stroke="white" strokeWidth="2.5" />}
-                                    </svg>
-                                </button>
-                            )}
-
-                            {/* Resize Handle */}
-                            {!isDragging && !isResizing && (
-                                <div
-                                    className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-[70] hover:bg-white/30"
-                                    onMouseDown={(e) => {
-                                        e.stopPropagation();
-                                        if (onResizeMouseDown) onResizeMouseDown(e, event.id, event.start, event.end);
-                                    }}
-                                />
-                            )}
-                        </motion.div>
-                    );
-                })}
+                {timedEvents.map(event => (
+                    <CalendarEventItem
+                        key={event.id}
+                        event={event}
+                        layout={layout}
+                        timedEvents={timedEvents}
+                        draggingId={draggingId}
+                        resizingId={resizingId}
+                        dayIndexOffset={dayIndexOffset}
+                        isMagnified={isMagnified}
+                        resizeHeightMV={resizeHeightMV}
+                        fallbackMV={fallbackMV}
+                        onEventClick={onEventClick}
+                        onEventShare={onEventShare}
+                        onEventDelete={onEventDelete}
+                        onEventMouseDown={onEventMouseDown}
+                        onResizeMouseDown={onResizeMouseDown}
+                        onTaskToggle={onTaskToggle}
+                        onEventRename={onEventRename}
+                        cursorX={cursorX}
+                        cursorY={cursorY}
+                    />
+                ))}
 
                 {/* Creation Preview */}
                 {creationDrag && isSameDay(creationDrag.startDay, day) && (
@@ -490,4 +388,6 @@ export default function DayColumn({
             </div>
         </div>
     );
-}
+};
+
+export default React.memo(DayColumnBase);

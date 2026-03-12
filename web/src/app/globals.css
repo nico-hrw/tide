@@ -195,3 +195,21 @@ body {
   z-index: 10;
   color: black;
 }
+
+/* Tiptap TaskList / Checkbox Fix */
+ul[data-type="taskList"] li {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start !important;
+  gap: 0.5rem;
+}
+
+ul[data-type="taskList"] li > label {
+  margin-top: 0.25em !important; /* Visual alignment - adjusted */
+  user-select: none;
+}
+
+ul[data-type="taskList"] li > div > p {
+  margin-top: 2px !important;
+  margin-bottom: 0 !important;
+}

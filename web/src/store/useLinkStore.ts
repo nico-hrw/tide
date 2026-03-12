@@ -19,8 +19,11 @@ interface LinkStoreState {
     sourceTabId: string | null;
     /** Full pending link object populated when the user clicks an event in Calendar. */
     pendingLink: PendingLink | null;
+    /** Source note ID for cross-linking (e.g. from -- trigger) */
+    pendingLinkSource: string | null;
     setRange: (range: { from: number; to: number }, tabId: string) => void;
     setPendingLink: (link: PendingLink) => void;
+    setPendingLinkSource: (id: string | null) => void;
     clearPendingLink: () => void;
 }
 
@@ -28,7 +31,9 @@ export const useLinkStore = create<LinkStoreState>((set) => ({
     pendingRange: null,
     sourceTabId: null,
     pendingLink: null,
+    pendingLinkSource: null,
     setRange: (range, tabId) => set({ pendingRange: range, sourceTabId: tabId }),
     setPendingLink: (link) => set({ pendingLink: link }),
-    clearPendingLink: () => set({ pendingLink: null, pendingRange: null, sourceTabId: null }),
+    setPendingLinkSource: (id) => set({ pendingLinkSource: id }),
+    clearPendingLink: () => set({ pendingLink: null, pendingRange: null, sourceTabId: null, pendingLinkSource: null }),
 }));

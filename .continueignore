@@ -1,0 +1,48 @@
+# --- Dokumentation & Logs (Zuviel Text, wenig Logik) ---
+*.md
+!README.md
+!SYSTEM_FLOW.md
+!.continue/rules/*.md
+CHANGELOG.md
+LICENSE
+
+# --- Package Locks (Die größten Token-Killer!) ---
+# Diese Dateien sind riesig und für die KI fast immer irrelevant.
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+
+# --- Assets & Binärdateien ---
+# Gemini kann zwar Bilder sehen, aber das Indexing-Tool liest nur Text.
+# Wir ignorieren sie hier, um den Index schlank zu halten.
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.pdf
+*.zip
+*.tar.gz
+
+# --- Datenbanken & Blobs (Sicherheitshalber nochmal hier) ---
+*.db
+*.db-shm
+*.db-wal
+cloud/data/
+cloud/data/blobs/
+
+# --- Backup & Temp-Dateien aus deiner Liste ---
+*.tmp
+*.bak
+*_recovery.tsx.tmp
+DEBUG_STATUS.txt
+ADD_handleMoveFile.txt
+MANUAL_FIX_handleShare.txt
+
+# --- Build-Reste ---
+.next/
+dist/
+out/
+build/

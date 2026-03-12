@@ -5,8 +5,9 @@ import { format, addDays, subDays, startOfWeek, addWeeks, subWeeks, isSameDay, g
 import { ChevronLeft, ChevronRight, ListPlus } from "lucide-react";
 import { useHighlight } from "@/components/HighlightContext";
 import { ScheduleModal } from './ScheduleModal';
-import { useMotionValue, motion } from 'framer-motion';
+import { useMotionValue, motion, useTransform } from 'framer-motion';
 import { MagnifiedEventView } from './MagnifiedEventView';
+import { DragGhost } from './DragGhost';
 
 interface CalendarEvent {
     id: string;
@@ -79,17 +80,20 @@ export default function CalendarView({
     const isPrependingRef = useRef(false);
     const { highlight } = useHighlight();
 
+    // Unified drop logic is now handled in handleGlobalMouseUp
+
+
     // --- Hover State ---
     const [hoveredHour, setHoveredHour] = useState<number | null>(null);
 
     // --- DnD State ---
     const [draggingId, setDraggingId] = useState<string | null>(null);
-    const [dragState, setDragState] = useState<{ startY: number, startX: number, originalTop: number, currentTop: number, currentLeft: number, originalDayIndex: number, initialX: number, initialWidth: number } | null>(null);
-    const pendingDragRef = useRef<{ id: string, startX: number, startY: number, startMinutes: number, initialX: number, initialWidth: number } | null>(null);
+    const [dragState, setDragState] = useState<{ startY: number, startX: number, originalTop: number, currentTop: number, currentLeft: number, originalDayIndex: number, initialX: number, initialWidth: number, initialScrollTop: number } | null>(null);
+    const pendingDragRef = useRef<{ id: string, startX: number, startY: number, startMinutes: number, initialX: number, initialWidth: number, initialScrollTop: number } | null>(null);
 
     const [creationDrag, setCreationDrag] = useState<{ startDay: Date, startY: number, currentY: number, startX: number, currentX: number } | null>(null);
     const [resizingId, setResizingId] = useState<string | null>(null);
-    const [resizeDragState, setResizeDragState] = useState<{ startY: number, originalTop: number, originalHeight: number, currentHeight: number } | null>(null);
+    const [resizeDragState, setResizeDragState] = useState<{ startY: number, originalTop: number, originalHeight: number, currentHeight: number, initialScrollTop: number } | null>(null);
     const isDraggingRef = useRef(false);
 
     // --- Precise Mode State ---
@@ -126,6 +130,7 @@ export default function CalendarView({
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName || '') || (document.activeElement as HTMLElement)?.isContentEditable) return;
             if (e.key === 'Alt' || e.key === 'Shift') {
                 if (!isPreciseModeRef.current) {
                     setIsPreciseMode(true);
@@ -156,16 +161,23 @@ export default function CalendarView({
                 }
 
                 preciseAnchorRef.current = null;
-                // Note: We DO NOT snap gearedMouseRef.current to physicalMouseRef.current here!
-                // The physical mouse is now allowed to wander, but the next `mousemove` will natively push 
-                // the event forward smoothly because we adjusted the start anchors above.
             }
         };
+
+        const handleFocus = () => {
+             // Reset precise mode on window focus to avoid stuck Loupe after Alt+Tab
+            setIsPreciseMode(false);
+            isPreciseModeRef.current = false;
+            preciseAnchorRef.current = null;
+        };
+
         window.addEventListener('keydown', handleKeyDown);
         window.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('focus', handleFocus);
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
+            window.removeEventListener('focus', handleFocus);
         };
     }, []);
 
@@ -405,8 +417,13 @@ export default function CalendarView({
     }, [editingEventId]);
 
 
-    // --- Infinite Scroll Logic ---
+    // Throttled scroll handler to persist state and trigger infinite loading
+    const lastScrollCallRef = useRef(0);
     const onScroll = useCallback(() => {
+        const now = Date.now();
+        if (now - lastScrollCallRef.current < 100) return; // Throttle to 10fps for scroll metadata persistence
+        lastScrollCallRef.current = now;
+
         const container = scrollContainerRef.current;
         if (!container) return;
 
@@ -622,7 +639,6 @@ export default function CalendarView({
 
                 if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
                     // Start dragging now!
-                    setDraggingId(pendingDragRef.current.id);
                     setDragState({
                         startY: pendingDragRef.current.startY,
                         startX: pendingDragRef.current.startX,
@@ -631,7 +647,8 @@ export default function CalendarView({
                         currentLeft: 0,
                         originalDayIndex: 0,
                         initialX: pendingDragRef.current.initialX,
-                        initialWidth: pendingDragRef.current.initialWidth
+                        initialWidth: pendingDragRef.current.initialWidth,
+                        initialScrollTop: pendingDragRef.current.initialScrollTop
                     });
                     pendingDragRef.current = null;
                     isDraggingRef.current = true;
@@ -652,7 +669,8 @@ export default function CalendarView({
                 }
 
                 if (isDraggingRef.current) {
-                    let newTop = dragState.originalTop + deltaY;
+                    const scrollDelta = (scrollContainerRef.current?.scrollTop || 0) - dragState.initialScrollTop;
+                    let newTop = dragState.originalTop + deltaY + scrollDelta;
                     if (newTop < 0) newTop = 0;
                     if (newTop > 1440 - 15) newTop = 1440 - 15;
                     // Keep Loupe anchored to event's top edge
@@ -680,12 +698,16 @@ export default function CalendarView({
                     isDraggingRef.current = true;
                 }
                 if (isDraggingRef.current) {
-                    let newHeight = resizeDragState.originalHeight + deltaY;
+                    const scrollDelta = (scrollContainerRef.current?.scrollTop || 0) - resizeDragState.initialScrollTop;
+                    let newHeight = resizeDragState.originalHeight + deltaY + scrollDelta;
                     let maxAllowedHeight = 1440 - resizeDragState.originalTop;
                     if (newHeight < 15) newHeight = 15;
                     if (newHeight > maxAllowedHeight) newHeight = maxAllowedHeight;
                     // Keep Loupe anchored to event's BOTTOM edge
                     activeEventEdgeRef.current = resizeDragState.originalTop + newHeight;
+
+                    // Also update the state for the ruler
+                    setResizeDragState(prev => prev ? { ...prev, currentHeight: newHeight } : prev);
 
                     // ✅ Drive resize via MotionValue
                     resizeHeightMV.set(newHeight);
@@ -726,57 +748,32 @@ export default function CalendarView({
 
         window.addEventListener("mousemove", handleMouseMove);
         window.addEventListener("mouseup", handleMouseUp);
+
+        const handleDragEnd = () => {
+            if (isDraggingRef.current) {
+                // This is a safety net in case mouseup doesn't fire (e.g., leaving window)
+                setDraggingId(null);
+                setDragState(null);
+                setCreationDrag(null);
+                setResizingId(null);
+                setResizeDragState(null);
+                setDropBounds(null);
+                isDraggingRef.current = false;
+                pendingDragRef.current = null;
+            }
+        };
+
+        window.addEventListener("dragend", handleDragEnd);
+
         return () => {
             window.removeEventListener("mousemove", handleMouseMove);
             window.removeEventListener("mouseup", handleMouseUp);
+            window.removeEventListener("dragend", handleDragEnd);
         };
     }, [draggingId, dragState, creationDrag, resizingId, resizeDragState, events]);
 
     const handleGlobalMouseUp = async (e: MouseEvent) => {
-        // ... (Logic unchanged except removing duplicate logic if needed) ...
-        if (draggingId && dragState && onEventUpdate) {
-            const dId = draggingId;
-            const dState = dragState;
-            setDraggingId(null);
-            setDragState(null);
-
-            const event = events.find(e => e.id === dId);
-            if (event) {
-                // Determine target day from DOM
-                const dayCols = document.querySelectorAll('[data-day-col]');
-                let targetDay: Date | null = null;
-
-                const { x: gX, y: gY } = gearedMouseRef.current; // Use geared coords for drop target
-
-                dayCols.forEach((col) => {
-                    const rect = col.getBoundingClientRect();
-                    if (gX >= rect.left && gX <= rect.right) {
-                        const iso = col.getAttribute('data-day-col');
-                        if (iso) targetDay = new Date(iso);
-                    }
-                });
-
-                if (targetDay) {
-                    const snapInterval = isPreciseModeRef.current ? 1 : 10;
-                    const snappedTop = Math.round(dState.currentTop / snapInterval) * snapInterval;
-                    const newHours = Math.floor(snappedTop / 60);
-                    const newMinutes = snappedTop % 60;
-
-                    if (newHours >= 0 && newHours < 24) {
-                        const oldStart = new Date(event.start);
-                        const oldEnd = new Date(event.end);
-                        const duration = Math.max(10, oldEnd.getTime() - oldStart.getTime()); // Minimum 10 mins
-
-                        const newStart = new Date(targetDay);
-                        newStart.setHours(newHours, newMinutes, 0, 0);
-                        const newEnd = new Date(newStart.getTime() + duration);
-
-                        await onEventUpdate(dId, newStart, newEnd);
-                    }
-                }
-            }
-
-        } else if (creationDrag && onEventCreate) {
+        if (creationDrag && onEventCreate) {
             const cDrag = creationDrag;
             setCreationDrag(null);
 
@@ -832,16 +829,15 @@ export default function CalendarView({
         } else if (resizingId && resizeDragState && onEventUpdate) {
             const rId = resizingId;
             const rState = resizeDragState;
-            setResizingId(null);
-            setResizeDragState(null);
 
             const event = events.find(e => e.id === rId);
             if (event) {
                 const { y: gY } = gearedMouseRef.current; // Use geared coords for drop target
                 const deltaY = gY - rState.startY;
+                const scrollDelta = (scrollContainerRef.current?.scrollTop || 0) - rState.initialScrollTop;
                 const snapInterval = isPreciseModeRef.current ? 1 : 10;
                 const minDuration = 10;
-                const newHeight = Math.max(minDuration, rState.originalHeight + deltaY);
+                const newHeight = Math.max(minDuration, rState.originalHeight + deltaY + scrollDelta);
                 const snappedHeight = Math.max(minDuration, Math.round(newHeight / snapInterval) * snapInterval);
 
                 const start = new Date(event.start);
@@ -853,6 +849,8 @@ export default function CalendarView({
 
                 await onEventUpdate(rId, start, end);
             }
+            setResizingId(null);
+            setResizeDragState(null);
         }
     };
 
@@ -879,11 +877,13 @@ export default function CalendarView({
             startY: gearedMouseRef.current.y, // Use geared coords for startY
             startMinutes,
             initialX,
-            initialWidth
+            initialWidth,
+            initialScrollTop: scrollContainer.scrollTop
         };
     };
 
     const handleGridMouseDown = (e: React.MouseEvent, day: Date) => {
+        if (isDraggingRef.current) return;
         if (!onEventCreate) return;
         if (e.button !== 0) return;
         e.preventDefault();
@@ -913,18 +913,20 @@ export default function CalendarView({
         e.stopPropagation();
         e.preventDefault(); // Prevent text selection
 
+        const scrollContainer = scrollContainerRef.current;
+        if (!scrollContainer) return;
+
         const start = new Date(eStart);
         const end = new Date(eEnd);
-        const durationMinutes = (end.getTime() - start.getTime()) / 60000;
-        const currentHeight = Math.max(durationMinutes, 10);
+        const startMinutes = start.getHours() * 60 + start.getMinutes();
 
-        const startTop = start.getHours() * 60 + start.getMinutes();
         setResizingId(id);
         setResizeDragState({
-            startY: gearedMouseRef.current.y, // Use geared coords for startY
-            originalHeight: currentHeight,
-            currentHeight: currentHeight,
-            originalTop: startTop
+            startY: gearedMouseRef.current.y,
+            originalTop: startMinutes,
+            originalHeight: (end.getTime() - start.getTime()) / 60000,
+            currentHeight: (end.getTime() - start.getTime()) / 60000,
+            initialScrollTop: scrollContainer.scrollTop
         });
         // Do NOT set isDraggingRef.current = true here. Wait for move.
     };
@@ -1109,6 +1111,7 @@ export default function CalendarView({
                                             key={day.toISOString()}
                                             day={day}
                                             events={[...dayEvents, ...allDayEventsGroup]}
+                                            allEvents={events}
                                             isToday={isSameDay(day, new Date())}
                                             dayIndexOffset={Math.floor((day.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
                                             currentTime={currentTime}
@@ -1173,49 +1176,23 @@ export default function CalendarView({
                                             onTaskToggle={(id, currentIsCompleted) => {
                                                 if (onEventSave) onEventSave(id, { is_completed: !currentIsCompleted });
                                             }}
+                                            onEventRename={onEventRename}
                                             snapInterval={isPreciseModeRef.current ? 1 : 10}
+                                            isMagnified={isPreciseMode}
+                                            onEventDrop={async (eventId, start, end) => {
+                                                if (onEventUpdate) {
+                                                    await onEventUpdate(eventId, start, end);
+                                                }
+                                            }}
+                                            cursorX={cursorX}
+                                            cursorY={cursorY}
                                         />
                                     );
                                 });
                             })
                         }
 
-                        {/* Global Drag Layer */}
-                        {draggingId && dragState && (() => {
-                            const event = events.find(e => e.id === draggingId);
-                            if (!event) return null;
-                            const theme = getEventTheme(event);
-                            const durationMinutes = (new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000;
-
-                            const draggedStart = new Date(event.start);
-                            const currentHours = Math.floor(dragState.currentTop / 60);
-                            const currentMins = Math.round(dragState.currentTop % 60);
-                            draggedStart.setHours(currentHours, currentMins, 0, 0);
-                            const draggedEnd = new Date(draggedStart.getTime() + durationMinutes * 60000);
-
-                            return (
-                                <motion.div
-                                    className={`absolute px-2 py-1.5 cursor-pointer overflow-hidden outline transition-all outline-2 outline-indigo-500/50 shadow-2xl scale-[1.01] z-[1000] font-medium rounded-xl ${isPreciseMode ? 'opacity-0' : 'opacity-100'}`}
-                                    style={{
-                                        top: dragOverlayY,
-                                        left: dragOverlayX,
-                                        height: `${Math.max(durationMinutes, 15)}px`,
-                                        width: `${dragState.initialWidth}px`,
-                                        backgroundColor: theme.bg,
-                                        color: theme.text,
-                                        borderLeft: `3px solid ${theme.border}`,
-                                        pointerEvents: 'none',
-                                    }}
-                                >
-                                    <div className="text-[11px] font-bold leading-tight select-none truncate">
-                                        {event.title || 'Untitled Event'}
-                                    </div>
-                                    <div className="text-[9px] font-medium opacity-80 select-none">
-                                        {format(draggedStart, 'HH:mm')} - {format(draggedEnd, 'HH:mm')}
-                                    </div>
-                                </motion.div>
-                            );
-                        })()}
+                        {/* Native D&D ghost is now used instead of DragGhost */}
                     </div >
                 </div >
 
@@ -1229,7 +1206,7 @@ export default function CalendarView({
                 }
 
                 {/* Visual Projection Layer (Precise Mode) */}
-                {(draggingId || creationDrag || resizingId) && (() => {
+                {isPreciseMode && (draggingId || creationDrag || resizingId) && (() => {
                     let eventObj: CalendarEvent | null = null;
                     let targetStartMins = 0;
                     let targetDuration = 0;

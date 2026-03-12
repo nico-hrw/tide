@@ -27,6 +27,7 @@ import { useHighlight } from "@/components/HighlightContext";
 import { CheckCircle2, Loader2, Plus, ChevronDown, Share } from 'lucide-react';
 import { useIslandStore } from '@/components/extensions/smart_island/useIslandStore';
 import { isSameDay } from 'date-fns';
+import { useDataStore } from "@/store/useDataStore";
 
 interface DecryptedFile {
     id: string;
@@ -405,6 +406,25 @@ export default function Dashboard() {
     // Canvas / Sidecar state
     const [deletedBlockIds, setDeletedBlockIds] = useState<string[]>([]);
     const [editorInstance, setEditorInstance] = useState<any>(null);
+
+    useEffect(() => {
+        const handleInsertMention = (e: any) => {
+            const { noteId, targetId, title } = e.detail;
+            if (editorInstance && activeTabId === noteId) {
+                editorInstance.chain()
+                    .focus()
+                    .insertContent({
+                        type: 'mention',
+                        attrs: { id: targetId, label: title }
+                    })
+                    .insertContent(' ')
+                    .run();
+                console.log(`[CrossLink] Inserted mention of ${targetId} into note ${noteId}`);
+            }
+        };
+        window.addEventListener('dataStore:insertMention', handleInsertMention);
+        return () => window.removeEventListener('dataStore:insertMention', handleInsertMention);
+    }, [editorInstance, activeTabId]);
     const activeNoteId = (activeTabId !== 'calendar' && activeTabId !== 'messages' && !activeTabId.startsWith('chat-'))
         ? activeTabId
         : null;
@@ -696,8 +716,33 @@ export default function Dashboard() {
 
 
     useEffect(() => {
-        if (privateKey) loadFilesAndEvents();
-    }, [privateKey, loadFilesAndEvents]);
+        if (privateKey) {
+            loadFilesAndEvents();
+            // Load sidebar order
+            if (myId) {
+                fetch('/api/v1/files/sidebar_order.info', {
+                    headers: { 'X-User-ID': myId }
+                })
+                    .then(res => {
+                        if (!res.ok) return null;
+                        return res.json();
+                    })
+                    .then(data => {
+                        if (data && data.order) {
+                            const { setOrderedNoteIds } = (require('@/store/useDataStore') as typeof import('@/store/useDataStore')).useDataStore.getState();
+                            setOrderedNoteIds(data.order);
+                        }
+                    })
+                    .catch(e => console.error("Failed to load sidebar order", e));
+            }
+        }
+    }, [privateKey, loadFilesAndEvents, myId]);
+
+    useEffect(() => {
+        const { setNotes: storeSetNotes, setEvents: storeSetEvents } = (require('@/store/useDataStore') as typeof import('@/store/useDataStore')).useDataStore.getState();
+        storeSetNotes(files.filter(f => f.type === 'note').map(f => ({ id: f.id, title: f.title, type: 'note' })));
+        storeSetEvents(events.map(e => ({ id: e.id, title: e.title, type: 'event' })));
+    }, [files, events]);
 
     const { push: islandPush, setIdlePayload, clearAll: islandClearAll } = useIslandStore();
 
@@ -1091,6 +1136,14 @@ export default function Dashboard() {
             alert("Error creating note");
         }
     };
+
+    useEffect(() => {
+        const handleStoreCreate = () => {
+            handleNewNote();
+        };
+        window.addEventListener('dataStore:createNote', handleStoreCreate);
+        return () => window.removeEventListener('dataStore:createNote', handleStoreCreate);
+    }, [handleNewNote]);
 
     const handleDeleteNote = async (e: React.MouseEvent, fileId: string) => {
         e.stopPropagation();
@@ -1500,15 +1553,29 @@ export default function Dashboard() {
     };
 
     const handleMagicLinkClick = (target: any) => {
-        if (target.type === 'event') {
+        if (target.id && target.id.startsWith('ghost-')) {
+            const title = target.title || target.id.replace('ghost-', '');
+
+            const newId = useDataStore.getState().createNote(title);
+            switchTab(newId, 'file', title);
+            useDataStore.getState().setActiveNoteId(newId);
+
+        } else if (target.type === 'event') {
             switchTab('calendar', 'calendar');
             const targetEvent = events.find(e => e.id === target.id);
             if (targetEvent) {
                 setCalendarDate(new Date(targetEvent.start));
                 setActiveEventId(target.id);
             }
-        } else if (target.type === 'file') {
-            switchTab(target.id, 'file', target.title);
+
+        } else if (target.type === 'file' || target.type === 'note') {
+
+            const targetFile = files.find(f => f.id === target.id);
+            const title = target.title || targetFile?.title || "Untitled";
+
+            switchTab(target.id, 'file', title);
+            useDataStore.getState().setActiveNoteId(target.id);
+
         } else if (target.type === 'chat') {
             switchTab(target.id, 'chat', target.title);
         } else {
@@ -1731,14 +1798,21 @@ export default function Dashboard() {
                                                         submitRename(activeNoteId, e.target.value);
                                                     }
                                                 }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        editorInstance?.commands.focus();
+                                                    }
+                                                }}
                                                 placeholder="Untitled Note"
-                                                className="text-4xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-700 mb-6"
+                                                className="text-4xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-700 mb-6 pb-1 leading-normal overflow-visible"
                                             />
                                         )}
+
                                         <Editor
                                             key={activeNoteId || 'fallback'}
                                             initialContent={editorContent}
-                                            onEditorReady={(ed) => setEditorInstance(ed)}
+                                            onEditorReady={(ed) => setTimeout(() => setEditorInstance(ed), 0)}
                                             onChange={(json) => {
                                                 setEditorContent(json);
                                                 setSaveStatus("unsaved");

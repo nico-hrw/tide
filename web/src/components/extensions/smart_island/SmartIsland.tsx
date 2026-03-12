@@ -342,8 +342,20 @@ const EventPreviewView = ({ payload }: { payload: any }) => {
     );
 };
 
+// Decentralized Registry Map
+const registeredPlugins: Record<string, React.FC<{ payload: any }>> = {
+    'welcome': WelcomeView,
+    'morning': WelcomeView,
+    'timeline': TimelineView,
+    'next_event': NextEventView,
+    'message': MessageView,
+    'upload_progress': UploadProgressView,
+    'interactive_card': InteractiveCardView,
+    'event_preview': EventPreviewView,
+};
+
 export default function SmartIsland({ selectedDate, onSelect, userName }: SmartIslandProps) {
-    const { state, toggleDevMode } = useIslandStore();
+    const { state } = useIslandStore();
 
     const sizeClass = state.current?.type === 'timeline'
         ? 'p-5 rounded-[2.5rem] w-[20rem]'
@@ -357,14 +369,6 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
 
     return (
         <div className="select-none relative z-[100]">
-            {/* Dev Mode Toggle */}
-            <button
-                onClick={(e) => { e.stopPropagation(); toggleDevMode(); }}
-                className={`absolute -top-3 -right-3 z-50 w-6 h-6 rounded-full flex items-center justify-center transition-all ${state.devMode ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/50' : 'bg-gray-200/50 text-gray-400 hover:bg-gray-200'}`}
-                title="Toggle Infinite Queue (Dev Mode)"
-            >
-                <TrendingUp size={12} />
-            </button>
 
             {/* The Morphing Liquid Glass Shell */}
             <motion.div
@@ -416,14 +420,15 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                                 }}
                                 layout="position"
                             >
-                                {state.current.type === 'welcome' && <WelcomeView payload={state.current.payload} />}
-                                {state.current.type === 'morning' && <WelcomeView payload={{ ...(state.current.payload ?? {}), userName }} />}
-                                {state.current.type === 'timeline' && <TimelineView payload={state.current.payload} />}
-                                {state.current.type === 'next_event' && <NextEventView payload={state.current.payload} />}
-                                {state.current.type === 'message' && <MessageView payload={state.current.payload} />}
-                                {state.current?.type === 'upload_progress' && <UploadProgressView payload={state.current.payload} />}
-                                {state.current?.type === 'event_preview' && <EventPreviewView payload={state.current.payload} />}
-                                {state.current?.type === 'interactive_card' && <InteractiveCardView payload={state.current.payload} />}
+                                {(() => {
+                                    const ViewComponent = registeredPlugins[state.current.type];
+                                    if (!ViewComponent) return null;
+                                    
+                                    const payload = { ...state.current.payload };
+                                    if (state.current.type === 'morning') payload.userName = userName;
+                                    
+                                    return <ViewComponent payload={payload} />;
+                                })()}
                             </motion.div>
                         )}
                     </AnimatePresence>

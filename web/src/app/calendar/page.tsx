@@ -209,6 +209,10 @@ export default function CalendarPage() {
 
             // Merge updates
             const updatedEvent = { ...event, ...updates };
+
+            // Optimistic Update
+            setEvents(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+
             const meta = {
                 title: updatedEvent.title,
                 start: updatedEvent.start,
@@ -230,11 +234,11 @@ export default function CalendarPage() {
                 body: JSON.stringify(payload)
             });
 
-            if (!res.ok) throw new Error("Failed to update event");
-
-            setEvents(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
-            // Reload to be sure
-            // loadData(); 
+            if (!res.ok) {
+                // Revert on error
+                loadData();
+                throw new Error("Failed to update event");
+            }
         } catch (err) {
             console.error("Update event failed:", err);
         }

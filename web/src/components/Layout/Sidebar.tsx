@@ -2,10 +2,11 @@
 
 import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Calendar as CalendarIcon, Lock, Pin, DollarSign, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, Reorder } from "framer-motion";
 import SmartIsland from "../extensions/smart_island/SmartIsland";
 import MiniCalendar from "../Calendar/MiniCalendar";
 import { useHighlight } from "@/components/HighlightContext";
+import { useDataStore } from "@/store/useDataStore";
 
 interface DecryptedFile {
     id: string;
@@ -76,12 +77,44 @@ export default function Sidebar({
     onOpenSettings
 }: SidebarProps) {
     const { highlight } = useHighlight();
+    const { orderedNoteIds, setOrderedNoteIds } = useDataStore();
     const [chats, setChats] = useState<ChatUser[]>([]);
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
     const [myId, setMyId] = useState<string>("");
     const [userProfile, setUserProfile] = useState<{ username: string, email: string } | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, id: string, type: 'file' | 'folder' } | null>(null);
+
+    const topLevelItems = files.filter(f => f.parent_id === null);
+    const [orderedItems, setOrderedItems] = useState<DecryptedFile[]>([]);
+
+    useEffect(() => {
+        const sorted = [...topLevelItems].sort((a, b) => {
+            const indexA = orderedNoteIds.indexOf(a.id);
+            const indexB = orderedNoteIds.indexOf(b.id);
+            if (indexA === -1 && indexB === -1) return 0;
+            if (indexA === -1) return 1;
+            if (indexB === -1) return -1;
+            return indexA - indexB;
+        });
+        const uniqueItems = Array.from(new Map(sorted.map(item => [item.id, item])).values());
+        setOrderedItems(uniqueItems);
+    }, [files, orderedNoteIds]);
+
+    const handleReorder = (newItems: DecryptedFile[]) => {
+        setOrderedItems(newItems);
+        const newIds = newItems.map(i => i.id);
+        setOrderedNoteIds(newIds);
+
+        // Sync to .info file
+        if (myId) {
+            fetch('/api/v1/files/sidebar_order.info', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'X-User-ID': myId },
+                body: JSON.stringify({ order: newIds })
+            }).catch(e => console.error("Failed to save sidebar order", e));
+        }
+    };
 
     useEffect(() => {
         const id = sessionStorage.getItem('tide_user_id') || localStorage.getItem('tide_user_id') || '';
@@ -217,52 +250,51 @@ export default function Sidebar({
                     </div>
                 </div>
 
-                <div className="space-y-0.5">
-                    {files.filter(f => f.parent_id === null && f.type === 'folder').map((folder, i) => (
-                        <FolderItem
-                            key={folder.id}
-                            index={i}
-                            folder={folder}
-                            allFiles={files}
-                            level={0}
-                            viewMode={'files'}
-                            onSelect={onFileSelect}
-                            onDelete={onDeleteNote}
-                            onRename={onRenameNote}
-                            onVisibility={onToggleVisibility}
-                            onShare={onShare}
-                            editingId={editingFileId}
-                            onRenameSubmit={onRenameSubmit}
-                            onCreateFolder={onCreateFolder}
-                            onMoveItem={onMoveItem}
-                            onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
-                            hiddenThemeIds={hiddenThemeIds}
-                            onToggleThemeVisibility={(id) => onToggleThemeVisibility && onToggleThemeVisibility(id)}
-                            enabledExtensions={enabledExtensions}
-                            myId={myId}
-                            onContextMenu={handleContextMenu}
-                        />
+                <Reorder.Group axis="y" values={orderedItems} onReorder={handleReorder} className="space-y-0.5">
+                    {orderedItems.map((item, i) => (
+                        <Reorder.Item key={item.id} value={item}>
+                            {item.type === 'folder' ? (
+                                <FolderItem
+                                    folder={item}
+                                    allFiles={files}
+                                    level={0}
+                                    viewMode={'files'}
+                                    onSelect={onFileSelect}
+                                    onDelete={onDeleteNote}
+                                    onRename={onRenameNote}
+                                    onVisibility={onToggleVisibility}
+                                    onShare={onShare}
+                                    editingId={editingFileId}
+                                    onRenameSubmit={onRenameSubmit}
+                                    onCreateFolder={onCreateFolder}
+                                    onMoveItem={onMoveItem}
+                                    onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
+                                    hiddenThemeIds={hiddenThemeIds}
+                                    onToggleThemeVisibility={(id) => onToggleThemeVisibility && onToggleThemeVisibility(id)}
+                                    enabledExtensions={enabledExtensions}
+                                    myId={myId}
+                                    onContextMenu={handleContextMenu}
+                                />
+                            ) : (
+                                <FileItem
+                                    file={item}
+                                    level={0}
+                                    onSelect={onFileSelect}
+                                    onDelete={onDeleteNote}
+                                    onRename={onRenameNote}
+                                    onVisibility={onToggleVisibility}
+                                    onShare={onShare}
+                                    editingId={editingFileId}
+                                    onRenameSubmit={onRenameSubmit}
+                                    onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
+                                    enabledExtensions={enabledExtensions}
+                                    myId={myId}
+                                    onContextMenu={handleContextMenu}
+                                />
+                            )}
+                        </Reorder.Item>
                     ))}
-                    {files.filter(f => f.parent_id === null && f.type !== 'folder' && f.type !== 'event').map((file, i) => (
-                        <FileItem
-                            key={file.id}
-                            index={i + files.filter(f => f.parent_id === null && f.type === 'folder').length}
-                            file={file}
-                            level={0}
-                            onSelect={onFileSelect}
-                            onDelete={onDeleteNote}
-                            onRename={onRenameNote}
-                            onVisibility={onToggleVisibility}
-                            onShare={onShare}
-                            editingId={editingFileId}
-                            onRenameSubmit={onRenameSubmit}
-                            onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
-                            enabledExtensions={enabledExtensions}
-                            myId={myId}
-                            onContextMenu={handleContextMenu}
-                        />
-                    ))}
-                </div>
+                </Reorder.Group>
             </div>
 
             {/* Smart Island — absolutely positioned to bottom-left with equal margins */}

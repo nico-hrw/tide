@@ -5,10 +5,13 @@ import React, { createContext, useContext, useReducer, useRef, useCallback, useE
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 export type IslandViewType = 'calendar' | 'message' | 'morning' | 'task_reminder' | 'finance_alert' | 'welcome' | 'timeline' | 'next_event' | 'upload_progress' | 'interactive_card' | 'event_preview';
+export type IslandPriority = 'LOW' | 'DEFAULT' | 'CRITICAL';
+export type IslandFocusMode = 'ALL' | 'IMPORTANT' | 'DND';
 
 export interface IslandView {
     id: string;
     type: IslandViewType;
+    priority?: IslandPriority;
     /** Payload for the view, e.g. message text, task counts, etc. */
     payload?: Record<string, any>;
 }
@@ -27,6 +30,7 @@ interface IslandState {
     devMode: boolean;
     /** Payload for the periodic idle timeline push */
     idlePayload?: Record<string, any>;
+    focusMode: IslandFocusMode;
 }
 
 type IslandAction =
@@ -34,6 +38,7 @@ type IslandAction =
     | { type: 'DISMISS_CURRENT' }
     | { type: 'TOGGLE_DEV_MODE' }
     | { type: 'SET_IDLE_PAYLOAD'; payload: Record<string, any> }
+    | { type: 'SET_FOCUS_MODE'; mode: IslandFocusMode }
     | { type: 'CLEAR_ALL' };
 
 // ─── Reducer ────────────────────────────────────────────────────────────────
@@ -41,6 +46,12 @@ type IslandAction =
 function islandReducer(state: IslandState, action: IslandAction): IslandState {
     switch (action.type) {
         case 'PUSH': {
+            const { priority = 'DEFAULT' } = action.view;
+            
+            // Focus Mode Filtering
+            if (state.focusMode === 'DND' && priority !== 'CRITICAL') return state;
+            if (state.focusMode === 'IMPORTANT' && priority === 'LOW') return state;
+
             // Is this a transient notification?
             const isTransient = action.view.type !== 'timeline' && action.view.type !== 'welcome' && action.view.type !== 'morning';
 
@@ -49,8 +60,8 @@ function islandReducer(state: IslandState, action: IslandAction): IslandState {
                 return { ...state, current: action.view, queue: [], timerActive: true, currentStartedAt: Date.now() };
             }
 
-            // Immediately replace if clicking another event preview
-            if (state.current.type === 'event_preview' && action.view.type === 'event_preview') {
+            // Immediately replace if clicking another event preview or if new item is CRITICAL
+            if ((state.current.type === 'event_preview' && action.view.type === 'event_preview') || priority === 'CRITICAL') {
                 return { ...state, current: action.view, currentStartedAt: Date.now() };
             }
 
@@ -79,6 +90,8 @@ function islandReducer(state: IslandState, action: IslandAction): IslandState {
             }
 
             if (nextQueue.length > 0) {
+                // Priority Sort? Or just FIFO? Assuming FIFO for now, but CRITICAL might jump queue.
+                // For now just take next.
                 const [next, ...remaining] = nextQueue;
                 return { ...state, current: next, queue: remaining, timerActive: true, currentStartedAt: Date.now() };
             }
@@ -113,6 +126,9 @@ function islandReducer(state: IslandState, action: IslandAction): IslandState {
         case 'SET_IDLE_PAYLOAD': {
             return { ...state, idlePayload: action.payload };
         }
+        case 'SET_FOCUS_MODE': {
+            return { ...state, focusMode: action.mode };
+        }
         case 'CLEAR_ALL': {
             return { ...state, current: null, queue: [], timerActive: false, currentStartedAt: null, interruptedView: null };
         }
@@ -127,6 +143,7 @@ const initialState: IslandState = {
     interruptedView: null,
     devMode: false,
     idlePayload: undefined,
+    focusMode: 'ALL',
 };
 
 // ─── Context ────────────────────────────────────────────────────────────────
@@ -138,6 +155,7 @@ interface IslandContextValue {
     clearAll: () => void;
     toggleDevMode: () => void;
     setIdlePayload: (payload: Record<string, any>) => void;
+    setFocusMode: (mode: IslandFocusMode) => void;
 }
 
 const IslandContext = createContext<IslandContextValue | null>(null);
@@ -145,12 +163,10 @@ const IslandContext = createContext<IslandContextValue | null>(null);
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 const DISPLAY_DURATION_MS = 5000;       // 5 seconds per view
-const IDLE_INTERVAL_MS = 3 * 60 * 1000; // Push schedule every 3 minutes in production
 
 export function IslandProvider({ children }: { children: React.ReactNode }) {
     const [state, dispatch] = useReducer(islandReducer, initialState);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const idleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const dismiss = useCallback(() => {
         dispatch({ type: 'DISMISS_CURRENT' });
@@ -171,6 +187,10 @@ export function IslandProvider({ children }: { children: React.ReactNode }) {
 
     const setIdlePayload = useCallback((payload: Record<string, any>) => {
         dispatch({ type: 'SET_IDLE_PAYLOAD', payload });
+    }, []);
+
+    const setFocusMode = useCallback((mode: IslandFocusMode) => {
+        dispatch({ type: 'SET_FOCUS_MODE', mode });
     }, []);
 
     // ── Per-view display timer ─────────────────────────────────────────────
@@ -205,33 +225,8 @@ export function IslandProvider({ children }: { children: React.ReactNode }) {
         };
     }, [state.current?.id, state.timerActive, state.currentStartedAt]);
 
-    // ── Idle timer — push TimelineView periodically ────────────────────────
-    useEffect(() => {
-        // Clear any existing idle interval
-        if (idleIntervalRef.current) clearInterval(idleIntervalRef.current);
-
-        // In dev mode, rotation is handled by the devMode infinite loop already.
-        // In production, push a schedule reminder every IDLE_INTERVAL_MS.
-        if (!state.devMode) {
-            idleIntervalRef.current = setInterval(() => {
-                dispatch({
-                    type: 'PUSH',
-                    view: {
-                        id: `idle_timeline_${Date.now()}`,
-                        type: 'timeline',
-                        payload: state.idlePayload ?? {},
-                    },
-                });
-            }, IDLE_INTERVAL_MS);
-        }
-
-        return () => {
-            if (idleIntervalRef.current) clearInterval(idleIntervalRef.current);
-        };
-    }, [state.devMode, state.idlePayload]);
-
     return (
-        <IslandContext.Provider value={{ state, push, dismiss, clearAll, toggleDevMode, setIdlePayload }}>
+        <IslandContext.Provider value={{ state, push, dismiss, clearAll, toggleDevMode, setIdlePayload, setFocusMode }}>
             {children}
         </IslandContext.Provider>
     );
