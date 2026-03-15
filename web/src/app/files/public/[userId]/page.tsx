@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 
 interface PublicFile {
     id: string;
@@ -33,7 +34,7 @@ export default function PublicProfilePage() {
         setPreviewContent(null);
 
         try {
-            const res = await fetch(`/api/v1/files/${file.id}/download`);
+            const res = await apiFetch(`/api/v1/files/${file.id}/download`);
             if (!res.ok) throw new Error("Failed to download content");
 
             const text = await res.text();
@@ -51,12 +52,12 @@ export default function PublicProfilePage() {
 
         const fetchFiles = async () => {
             try {
-                const res = await fetch(`/api/v1/files/public/${userId}`);
+                const res = await apiFetch(`/api/v1/files/public/${userId}`);
                 if (!res.ok) {
                     if (res.status === 404) throw new Error("User not found or no public files.");
                     throw new Error("Failed to load public files");
                 }
-                const data: PublicFile[] = await res.json();
+                const data: PublicFile[] = await res.json().catch(() => []);
                 const fetchedFiles = data || [];
                 setFiles(fetchedFiles);
 
@@ -95,7 +96,7 @@ export default function PublicProfilePage() {
         }
 
         try {
-            const res = await fetch(`/api/v1/files/${fileId}/copy`, {
+            const res = await apiFetch(`/api/v1/files/${fileId}/copy`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ new_owner_id: myId })

@@ -1,7 +1,8 @@
-import { Node, mergeAttributes } from '@tiptap/core';
+import { Node, mergeAttributes, InputRule } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { useState } from 'react';
 
 const MathNodeView = ({ node, updateAttributes }: any) => {
     return (
@@ -92,5 +93,95 @@ export const MathBlock = Node.create({
                 return commands.insertContent({ type: this.name });
             },
         };
+    },
+
+    addInputRules() {
+        // Typing $$ on a new line triggers block math
+        return [
+            new InputRule({
+                find: /(?:^|\n)\$\$\s*$/,
+                handler: ({ state, range, chain }) => {
+                    chain()
+                        .deleteRange(range)
+                        .insertContent({ type: this.name, attrs: { code: '', editing: true } })
+                        .run();
+                },
+            }),
+        ];
+    },
+});
+
+// ----- Inline Math: $E=mc^2$ -----
+const InlineMathView = ({ node, updateAttributes, selected }: any) => {
+    const [editing, setEditing] = useState(false);
+    const rendered = (() => {
+        try {
+            return katex.renderToString(node.attrs.code || ' ', { throwOnError: false });
+        } catch {
+            return '<span class="text-red-500">Invalid LaTeX</span>';
+        }
+    })();
+
+    if (editing || selected) {
+        return (
+            <NodeViewWrapper as="span" className="inline-block align-baseline">
+                <input
+                    autoFocus
+                    className="font-mono text-sm bg-gray-100 dark:bg-gray-800 border border-indigo-400 rounded px-1 outline-none w-32"
+                    value={node.attrs.code}
+                    onChange={(e) => updateAttributes({ code: e.target.value })}
+                    onBlur={() => setEditing(false)}
+                    onKeyDown={(e) => { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); setEditing(false); } }}
+                />
+            </NodeViewWrapper>
+        );
+    }
+
+    return (
+        <NodeViewWrapper as="span" className="inline-block align-baseline cursor-pointer" onClick={() => setEditing(true)}>
+            <span dangerouslySetInnerHTML={{ __html: rendered }} />
+        </NodeViewWrapper>
+    );
+};
+
+export const InlineMath = Node.create({
+    name: 'inlineMath',
+    group: 'inline',
+    inline: true,
+    atom: true,
+
+    addAttributes() {
+        return {
+            code: { default: '' },
+        };
+    },
+
+    parseHTML() {
+        return [{ tag: 'inline-math' }];
+    },
+
+    renderHTML({ HTMLAttributes }) {
+        return ['inline-math', mergeAttributes(HTMLAttributes)];
+    },
+
+    addNodeView() {
+        return ReactNodeViewRenderer(InlineMathView);
+    },
+
+    addInputRules() {
+        // Typing $...$ triggers inline math: matches $content$ where content is non-empty
+        return [
+            new InputRule({
+                find: /\$([^$\n]+)\$$/,
+                handler: ({ state, range, match, chain }) => {
+                    const code = match[1];
+                    chain()
+                        .deleteRange(range)
+                        .insertContent({ type: this.name, attrs: { code } })
+                        .insertContent(' ')
+                        .run();
+                },
+            }),
+        ];
     },
 });

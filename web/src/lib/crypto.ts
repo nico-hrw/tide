@@ -41,6 +41,19 @@ export function base64ToArrayBuffer(base64: string): ArrayBuffer {
     return bytes.buffer;
 }
 
+// Helper to safely fingerprint a key without exposing its full value
+export async function getKeyFingerprint(key: CryptoKey): Promise<string> {
+    try {
+        // Export to JWK to get a stable representation
+        const exported = await window.crypto.subtle.exportKey("jwk", key);
+        const str = JSON.stringify(exported);
+        // Use a simple hash-like slice (first 4 and last 4 chars of the serialized key)
+        return `${str.slice(0, 10)}...${str.slice(-10)}`;
+    } catch {
+        return "fingerprint-error";
+    }
+}
+
 // --- Auth / Master Keys ---
 
 // 1. Generate Master Key Pair (RSA-OAEP-256, 4096-bit)
@@ -166,8 +179,15 @@ export async function generateFileKey(): Promise<CryptoKey> {
 }
 
 // 6. Encrypt File Content
-export async function encryptFile(file: File | Blob, key: CryptoKey): Promise<EncryptedFile> {
+export async function encryptFile(file: File | Blob, key: CryptoKey, fileId?: string): Promise<EncryptedFile> {
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
+    const fingerprint = await getKeyFingerprint(key);
+    console.log(`[CRYPTO-AUDIT] Encrypting File | ID: ${fileId || "unknown"} | Key: ${fingerprint} | IV Start: ${arrayBufferToBase64(iv.buffer as ArrayBuffer).slice(0, 8)}`);
+
+    if (!file || (file instanceof Blob && file.size === 0 && !fileId)) {
+        console.warn(`[CRYPTO-AUDIT] Encrypting potentially empty file | ID: ${fileId || "unknown"}`);
+    }
+
     const arrayBuffer = await file.arrayBuffer();
 
     const ciphertext = await window.crypto.subtle.encrypt(
@@ -186,7 +206,10 @@ export async function encryptFile(file: File | Blob, key: CryptoKey): Promise<En
 }
 
 // 7. Decrypt File Content
-export async function decryptFile(encryptedBlob: Blob, iv: string, key: CryptoKey): Promise<Blob> {
+export async function decryptFile(encryptedBlob: Blob, iv: string, key: CryptoKey, fileId?: string): Promise<Blob> {
+    const fingerprint = await getKeyFingerprint(key);
+    console.log(`[CRYPTO-AUDIT] Decrypting File | ID: ${fileId || "unknown"} | Key: ${fingerprint} | IV Start: ${iv.slice(0, 8)}`);
+
     const ivBuffer = base64ToArrayBuffer(iv);
     const arrayBuffer = await encryptedBlob.arrayBuffer();
 
@@ -205,9 +228,16 @@ export async function decryptFile(encryptedBlob: Blob, iv: string, key: CryptoKe
 // 8. Encrypt Metadata (SecuredMeta)
 // Encrypts metadata using the User's Master Public Key (RSA-OAEP).
 // This ensures only the user (holding Private Key) can decrypt it.
-export async function encryptMetadata(metadata: Record<string, unknown>, publicKey: CryptoKey): Promise<string> {
+export async function encryptMetadata(metadata: Record<string, unknown>, publicKey: CryptoKey, label?: string): Promise<string> {
+    const fingerprint = await getKeyFingerprint(publicKey);
+    console.log(`[CRYPTO-AUDIT] Encrypting Metadata | Label: ${label || "unknown"} | PublicKey: ${fingerprint}`);
+
+    if (!metadata || Object.keys(metadata).length === 0) {
+        console.warn("[CRYPTO-AUDIT] Encrypting empty metadata object.");
+    }
+
     const enc = new TextEncoder();
-    const encoded = enc.encode(JSON.stringify(metadata));
+    const encoded = enc.encode(JSON.stringify(metadata || {}));
 
     const ciphertext = await window.crypto.subtle.encrypt(
         {
@@ -221,7 +251,10 @@ export async function encryptMetadata(metadata: Record<string, unknown>, publicK
     return arrayBufferToBase64(ciphertext);
 }
 
-export async function decryptMetadata(encryptedBase64: string, privateKey: CryptoKey): Promise<Record<string, unknown>> {
+export async function decryptMetadata(encryptedBase64: string, privateKey: CryptoKey, label?: string): Promise<Record<string, unknown>> {
+    const fingerprint = await getKeyFingerprint(privateKey);
+    console.log(`[CRYPTO-AUDIT] Decrypting Metadata | Label: ${label || "unknown"} | PrivateKey: ${fingerprint} | Ciphertext Sample: ${encryptedBase64.slice(0, 16)}...`);
+
     const ciphertext = base64ToArrayBuffer(encryptedBase64);
 
     const decrypted = await window.crypto.subtle.decrypt(
@@ -233,5 +266,12 @@ export async function decryptMetadata(encryptedBase64: string, privateKey: Crypt
     );
 
     const dec = new TextDecoder();
-    return JSON.parse(dec.decode(decrypted));
+    const decoded = dec.decode(decrypted);
+    if (!decoded) return {};
+    try {
+        return JSON.parse(decoded);
+    } catch (e) {
+        console.error("[CRYPTO-AUDIT] JSON Parse failed in decryptMetadata", e, decoded);
+        return { title: "Error parsing metadata" };
+    }
 }

@@ -1,19 +1,27 @@
-
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { format } from "date-fns";
 import * as cryptoLib from "@/lib/crypto";
-import Editor from "@/components/Editor";
+import { apiFetch } from "@/lib/api";
 import ChatPanel from "@/components/Chat/ChatPanel";
 import Sidebar from "@/components/Layout/Sidebar";
 import TabList, { Tab } from "@/components/Layout/TabList";
 import CalendarView from "@/components/Calendar/CalendarView";
 import WeekView from "@/components/Calendar/WeekView";
 import ShareModal from "@/components/ShareModal";
-import CanvasLayer from "@/components/Canvas/CanvasLayer";
 import SettingsModal from "@/components/Settings/SettingsModal";
 import dynamic from 'next/dynamic';
+
+const Editor = dynamic(() => import('@/components/Editor'), {
+    ssr: false,
+    loading: () => <div className="min-h-[500px] w-full animate-pulse bg-gray-50 dark:bg-gray-800/50 rounded-lg"></div>
+});
+
+const CanvasLayer = dynamic(() => import('@/components/Canvas/CanvasLayer'), {
+    ssr: false
+});
 import DailySummary from "@/components/Calendar/DailySummary";
 
 
@@ -27,7 +35,7 @@ import { useHighlight } from "@/components/HighlightContext";
 import { CheckCircle2, Loader2, Plus, ChevronDown, Share } from 'lucide-react';
 import { useIslandStore } from '@/components/extensions/smart_island/useIslandStore';
 import { isSameDay } from 'date-fns';
-import { useDataStore } from "@/store/useDataStore";
+import { useDataStore, DataItem } from "@/store/useDataStore";
 
 interface DecryptedFile {
     id: string;
@@ -73,7 +81,7 @@ export default function Dashboard() {
     // 0. State & Initialization
     // -------------------------------------------------------------------------
 
-    // Auth State
+    // Auth & User State
     const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
     const [publicKey, setPublicKey] = useState<CryptoKey | null>(null);
     const [myId, setMyId] = useState<string>("");
@@ -81,25 +89,550 @@ export default function Dashboard() {
     const router = useRouter();
     const [status, setStatus] = useState<"loading" | "ready">("loading");
 
-    // UI/Navigation State
+    // UI & Navigation State
     const [openTabs, setOpenTabs] = useState<Tab[]>([{ id: 'calendar', title: 'Calendar', type: 'calendar' }]);
     const [activeTabId, setActiveTabId] = useState<string>('calendar');
-
-    // Sync tabs layout changes to localStorage
-    useEffect(() => {
-        if (status === 'ready' && openTabs.length > 0) {
-            const minifiedTabs = openTabs.map(t => ({ id: t.id, type: t.type, title: t.title }));
-            localStorage.setItem('tide_open_tabs', JSON.stringify(minifiedTabs));
-            localStorage.setItem('tide_active_tab_id', activeTabId);
-        }
-    }, [openTabs, activeTabId, status]);
-
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
-    // Extensions & Settings
-    const [enabledExtensions, setEnabledExtensions] = useState<string[]>([]);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [userProfile, setUserProfile] = useState<{ username: string; email: string } | null>(null);
+    const [streak, setStreak] = useState(0);
+    const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+    const [summaryStats, setSummaryStats] = useState({ events: 0, tasks: 0 });
+
+    // Data State (selectors)
+    const storeFiles = useDataStore(s => s.notes);
+    const storeEvents = useDataStore(s => s.events);
+    const setKeys = useDataStore(s => s.setKeys);
+    const fetchDirectory = useDataStore(s => s.fetchDirectory);
+    const loadedDirectories = useDataStore(s => s.loadedDirectories);
+
+    const files = storeFiles as unknown as DecryptedFile[];
+    const events = storeEvents as unknown as CalendarEvent[];
+
+    // Editor & File State
+    const [editorContent, setEditorContent] = useState<any>(null);
+    const [isLoadingContent, setIsLoadingContent] = useState(false);
+    const [activeFileKey, setActiveFileKey] = useState<CryptoKey | null>(null);
+    const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving">("saved");
+    const [fileName, setFileName] = useState("");
+    const [editorInstance, setEditorInstance] = useState<any>(null);
+    const [editorVersion, setEditorVersion] = useState(0);
+    const lastLoadIdRef = useRef<string | null>(null);
+
+    // Sidebar & Reordering State
+    const [editingFileId, setEditingFileId] = useState<string | null>(null);
+    const [hiddenThemeIds, setHiddenThemeIds] = useState<string[]>([]);
+    const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+
+    // Calendar & Event State
+    const [calendarDate, setCalendarDate] = useState(new Date());
+    const [activeEventId, setActiveEventId] = useState<string | null>(null);
+    const [pinnedEventIds, setPinnedEventIds] = useState<string[]>([]);
+    const [minimizedEventIds, setMinimizedEventIds] = useState<string[]>([]);
+
+    // Canvas & Linking State
+    const [deletedBlockIds, setDeletedBlockIds] = useState<string[]>([]);
+    const [pendingBindBlockId, setPendingBindBlockId] = useState<string | null>(null);
+    const [isLinkingMode, setIsLinkingMode] = useState(false);
+    const [activeLinkBlockId, setActiveLinkBlockId] = useState<string | null>(null);
+    const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
+    const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
+
+    // Extensions State
+    const [enabledExtensions, setEnabledExtensions] = useState<string[]>([]);
+    const { push: islandPush, setIdlePayload, clearAll: islandClearAll } = useIslandStore();
+
+    // Layout Options
+    const [noteLayout, setNoteLayout] = useState<'thin' | 'normal' | 'wide' | 'extra-wide'>('normal');
+    const [isRestored, setIsRestored] = useState(false);
+
+    // Share Modal State
+    const [shareModalFile, setShareModalFile] = useState<{ id: string, title: string } | null>(null);
+
+    const handleToggleExtension = async (extensionId: string, enabled: boolean) => {
+        setEnabledExtensions(prev => {
+            const next = enabled ? [...prev, extensionId] : prev.filter(e => e !== extensionId);
+            localStorage.setItem('tide_enabled_extensions', JSON.stringify(next));
+            return next;
+        });
+        if (!enabled) {
+            if (activeTabId === `ext_${extensionId}`) setActiveTabId('calendar');
+            setOpenTabs(prev => prev.filter(t => t.id !== `ext_${extensionId}`));
+        }
+        try {
+            await apiFetch("/api/v1/user/extensions", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ extension: extensionId, enabled })
+            });
+        } catch (e) { console.error("Failed to toggle extension", e); }
+    };
+
+
+    // Derived State
+    const activeTabIdStr = typeof activeTabId === 'string' ? activeTabId : String(activeTabId || 'calendar');
+    const activeNoteId = (activeTabIdStr !== 'calendar' && activeTabIdStr !== 'messages' && !activeTabIdStr.startsWith('chat-'))
+        ? activeTabIdStr
+        : null;
+
+    const canvasSidecar = useStyleFile({
+        noteId: activeNoteId,
+        userId: myId,
+        privateKey,
+        publicKey,
+    });
+
+    const sidebarFiles = useMemo(() => {
+        if (!files) return [];
+        return files.filter((f: any) => !f.isGroup && !(f.title || '').startsWith('.'));
+    }, [files]);
+
+    // Callbacks
+    const handleEditorReady = useCallback((ed: any) => {
+        setTimeout(() => setEditorInstance(ed), 0);
+    }, []);
+
+    const handleEditorChange = useCallback((json: any) => {
+        setEditorContent(json);
+        setSaveStatus("unsaved");
+        setEditorVersion(v => v + 1);
+    }, []);
+
+    // -------------------------------------------------------------------------
+    // 1. Core Actions & Tab Management
+    // -------------------------------------------------------------------------
+
+    const handleNewNote = async () => {
+        if (!publicKey || !privateKey) return;
+        try {
+            const fileKey = await cryptoLib.generateFileKey();
+            const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", fileKey);
+            const emptyDoc = { type: 'doc', content: [] };
+            const blob = new Blob([JSON.stringify(emptyDoc)], { type: 'application/json' });
+            const { iv, ciphertext } = await cryptoLib.encryptFile(blob, fileKey);
+
+            const metaPayload = { title: "", fileKey: fileKeyJwk, iv: iv };
+            const encryptedMeta = await cryptoLib.encryptMetadata(metaPayload, publicKey);
+            
+            const res = await apiFetch("/api/v1/files", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    type: "note",
+                    size: blob.size,
+                    public_meta: {},
+                    secured_meta: encryptedMeta
+                })
+            });
+
+            if (res.ok) {
+                const newFile = await res.json();
+                await apiFetch(`/api/v1/files/${newFile.id}/upload`, { method: "POST", body: ciphertext });
+                const newFileObj = {
+                    ...newFile, title: "", type: "note",
+                    secured_meta: encryptedMeta, isGroup: false, parent_id: null
+                };
+                useDataStore.getState().appendFiles([newFileObj as any], []);
+                switchTab(newFile.id, 'file', "");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error creating note");
+        }
+    };
+
+    const performSave = async (content: any, fileId: string, fileKey: CryptoKey | null, visibility: string) => {
+        if (!fileId || !content) return;
+        const currentActiveId = useDataStore.getState().activeNoteId;
+        if (fileId !== currentActiveId) return;
+
+        try {
+            const contentString = JSON.stringify(content);
+            const blob = new Blob([contentString], { type: "application/json" });
+            let dataToUpload: Blob;
+            let iv: any = null;
+            let activeKey = fileKey;
+
+            if (visibility === 'public') {
+                dataToUpload = blob;
+            } else {
+                if (!activeKey || !(activeKey instanceof CryptoKey)) {
+                    const currentFile = files.find(f => f.id === fileId);
+                    if (currentFile?.secured_meta && privateKey) {
+                        const meta: any = await cryptoLib.decryptMetadata(currentFile.secured_meta, privateKey, `save-fallback-${fileId}`);
+                        if (meta.fileKey) {
+                            // Check if fileKey is a JSON object (JWK format) or a legacy string.
+                            // The createNote correctly stores JWK format, but we must protect against corruption.
+                            if (typeof meta.fileKey === 'object' && meta.fileKey.kty) {
+                                activeKey = await window.crypto.subtle.importKey(
+                                    "jwk", meta.fileKey as JsonWebKey,
+                                    { name: "AES-GCM" },
+                                    true, ["encrypt", "decrypt"]
+                                );
+                            } else {
+                                throw new Error("FileKey is not a valid JWK");
+                            }
+                        }
+                    }
+                }
+                if (!activeKey) throw new Error("Encryption key missing");
+                const encrypted = await cryptoLib.encryptFile(blob, activeKey, fileId);
+                dataToUpload = encrypted.ciphertext;
+                iv = encrypted.iv;
+            }
+
+            await apiFetch(`/api/v1/files/${fileId}/upload`, { method: "POST", body: dataToUpload });
+
+            const currentFile = files.find(f => f.id === fileId);
+            const title = (fileId === activeTabId ? fileName : currentFile?.title) || "Untitled";
+
+            if (visibility === 'public') {
+                await apiFetch(`/api/v1/files/${fileId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ public_meta: { title: title } })
+                });
+            } else {
+                if (!publicKey || !activeKey) throw new Error("Keys missing");
+                const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", activeKey);
+                const metaPayload = { title: title, fileKey: fileKeyJwk, iv: iv };
+                const encryptedMeta = await cryptoLib.encryptMetadata(metaPayload, publicKey, `save-meta-${fileId}`);
+                await apiFetch(`/api/v1/files/${fileId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ secured_meta: encryptedMeta })
+                });
+            }
+
+            // THE FLUSH: When the backend successfully acknowledges the save (HTTP 200), remove the backup
+            try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (e) {}
+
+        } catch (err) {
+            console.error(`[STATE-AUDIT ERROR] performSave failed | ID: ${fileId}:`, err);
+            throw err;
+        }
+    };
+
+    const loadNoteContent = async (fileId: string, titleFn: string, passedFile?: any) => {
+        if (!privateKey) return;
+        const loadId = crypto.randomUUID();
+        lastLoadIdRef.current = loadId;
+        setIsLoadingContent(true);
+        setEditorContent(null);
+        setFileName(titleFn);
+        setSaveStatus("saved");
+
+        try {
+            // RECOVERY ON LOAD: Check localStorage for a backup of that ID before fetching
+            try {
+                const backupStr = localStorage.getItem(`tide_backup_${fileId}`);
+                if (backupStr) {
+                    console.warn(`[RECOVERY] Found unsaved local backup for ${fileId}. Restoring and pushing to server.`);
+                    const parsedBackup = JSON.parse(backupStr);
+                    setEditorContent(parsedBackup);
+                    setSaveStatus("unsaved"); // This triggers the Auto-Save Effect
+                    
+                    // Clear it so we don't restore it again next time
+                    localStorage.removeItem(`tide_backup_${fileId}`);
+                    
+                    if (lastLoadIdRef.current === loadId) {
+                        setIsLoadingContent(false);
+                    }
+                    return; // Skip server fetch since we have the latest unsaved local data
+                }
+            } catch (backupErr) {
+                console.error("Failed to recover local backup:", backupErr);
+            }
+
+            let target = passedFile || files.find(f => f.id === fileId);
+            if (!target) target = events.find(e => e.id === fileId) as any;
+            if (!target) {
+                const res = await apiFetch(`/api/v1/files/${fileId}`);
+                if (res.ok) target = await res.json().catch(() => null);
+            }
+            if (!target) throw new Error("File not found");
+
+            let contentText = "";
+            let meta: any = null;
+
+            if (target.visibility === 'public') {
+                const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
+                if (resBlob.ok) contentText = await resBlob.text();
+            } else {
+                if (!target.secured_meta) throw new Error("Missing metadata");
+                meta = await cryptoLib.decryptMetadata(target.secured_meta, privateKey, `load-${fileId}`);
+                
+                if (!meta.fileKey || typeof meta.fileKey !== 'object' || !meta.fileKey.kty) {
+                     console.error("Invalid or missing JWK fileKey");
+                     throw new Error("Invalid or missing FileKey structure.");
+                }
+
+                const importedFileKey = await window.crypto.subtle.importKey(
+                    "jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
+                );
+                setActiveFileKey(importedFileKey);
+
+                const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
+                if (resBlob.ok) {
+                    const blob = await resBlob.blob();
+                    if (blob.size > 0) {
+                        try {
+                            const decryptedBlob = await cryptoLib.decryptFile(blob, meta.iv, importedFileKey, fileId);
+                            contentText = await decryptedBlob.text();
+                        } catch (decryptErr) {
+                            console.error(`[CRYPTO-AUDIT] DECRYPTION FAILURE | ID: ${fileId}`, decryptErr);
+                            contentText = JSON.stringify({
+                                type: 'doc',
+                                content: [{
+                                    type: 'paragraph',
+                                    content: [{ type: 'text', marks: [{ type: 'bold' }], text: "⚠️ DECRYPTION ERROR: " }, { type: 'text', text: "Content corrupted or key mismatch." }]
+                                }]
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (lastLoadIdRef.current !== loadId) return;
+
+            if (contentText) {
+                try { setEditorContent(JSON.parse(contentText)); }
+                catch (e) { setEditorContent(contentText); }
+            } else {
+                setEditorContent({ type: 'doc', content: [] });
+            }
+        } catch (err) {
+            if (lastLoadIdRef.current === loadId) console.error("Failed to load note:", err);
+        } finally {
+            if (lastLoadIdRef.current === loadId) setIsLoadingContent(false);
+        }
+    };
+
+    const switchTab = async (newId: string, type: string, forcedTitle?: string, fallbackData?: any) => {
+        if (!newId) return;
+        const isOldAFile = activeTabId !== 'calendar' && activeTabId !== 'messages' && !activeTabId.startsWith('chat-');
+        if (isOldAFile && saveStatus === 'unsaved' && editorContent) {
+            const oldFile = files.find(f => f.id === activeTabId);
+            if (oldFile) performSave(editorContent, activeTabId, activeFileKey, oldFile.visibility).catch(console.error);
+        }
+
+        setOpenTabs(prev => {
+            let nextTabs = [...prev];
+            if (isOldAFile) {
+                nextTabs = nextTabs.map(t => t.id === activeTabId ? {
+                    ...t, content: editorContent, _fileKey: activeFileKey, _saveStatus: 'saved'
+                } : t);
+            }
+            const existingTab = nextTabs.find(t => t.id === newId);
+            nextTabs = nextTabs.filter(t => t.id !== newId);
+            if (type === 'file') {
+                nextTabs.unshift({ ...(existingTab || {}), id: newId, title: forcedTitle || existingTab?.title || "Untitled", type: 'file' });
+            } else if (existingTab) {
+                nextTabs.unshift(existingTab);
+            } else {
+                nextTabs.unshift({ id: newId, title: forcedTitle || "Untitled", type: type as any });
+            }
+            return nextTabs.length > 5 ? nextTabs.slice(0, 5) : nextTabs;
+        });
+
+        setActiveTabId(newId);
+        setEditorContent(null);
+        setActiveFileKey(null);
+        setSaveStatus("saved");
+
+        if (type === 'file') {
+            useDataStore.getState().setActiveNoteId(newId);
+            const existingTab = openTabs.find(t => t.id === newId);
+            const finalTitle = forcedTitle || existingTab?.title || "";
+            setFileName(finalTitle);
+            if (existingTab && existingTab.content) {
+                setEditorContent(existingTab.content);
+                if (existingTab._fileKey) setActiveFileKey(existingTab._fileKey);
+                setSaveStatus(existingTab._saveStatus || 'saved');
+            } else {
+                loadNoteContent(newId, finalTitle, fallbackData);
+            }
+        } else {
+            useDataStore.getState().setActiveNoteId(null);
+        }
+    };
+
+    const handleFileSelect = async (fileId: string, title: string, fileData?: any) => {
+        if (fileId === 'ext_finance') {
+            switchTab('ext_finance', 'ext_finance', 'Finance Tracker', fileData);
+        } else {
+            switchTab(fileId, 'file', title, fileData);
+        }
+    };
+
+    // -------------------------------------------------------------------------
+    // 2. Continuous Hooks (Effects)
+    // -------------------------------------------------------------------------
+
+    // SSE Effect
+    useEffect(() => {
+        const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
+        const eventSource = new EventSource(`http://localhost:8080/api/v1/events?user_id=${myId}&token=${token}`);
+        eventSource.onmessage = (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                if (['file_created', 'file_updated', 'file_deleted', 'file_shared'].includes(data.type)) {
+                    useDataStore.getState().loadedDirectories.clear();
+                    useDataStore.getState().fetchDirectory(null);
+                }
+            } catch (e) { console.error("SSE Parse Error", e); }
+        };
+        return () => eventSource.close();
+    }, [myId]);
+
+    // Auto-Save Effect
+    useEffect(() => {
+        const snapshotContent = editorContent;
+        const snapshotId = activeTabId;
+        const snapshotKey = activeFileKey;
+        if (saveStatus === "unsaved" && snapshotId && snapshotContent && !snapshotId.startsWith('chat-') && snapshotId !== 'calendar' && snapshotId !== 'messages') {
+            const currentFile = files.find(f => f.id === snapshotId);
+            if (!currentFile) return;
+            const canSave = currentFile.visibility === 'public' || snapshotKey;
+            if (canSave) {
+                const timer = setTimeout(async () => {
+                    if (useDataStore.getState().activeNoteId !== snapshotId) return;
+                    setSaveStatus("saving");
+                    try {
+                        await performSave(snapshotContent, snapshotId, snapshotKey, currentFile.visibility);
+                        if (useDataStore.getState().activeNoteId === snapshotId) setSaveStatus("saved");
+                    } catch { if (useDataStore.getState().activeNoteId === snapshotId) setSaveStatus("unsaved"); }
+                }, 1500);
+                return () => clearTimeout(timer);
+            }
+        }
+    }, [editorContent, saveStatus, activeTabId, activeFileKey, files]);
+
+    // Data Load Effect
+    useEffect(() => {
+        if (privateKey && publicKey && myId) {
+            setKeys(privateKey, publicKey, myId);
+            fetchDirectory(null, true);
+            apiFetch('/api/v1/files/sidebar_order.info')
+                .then(res => res.ok ? res.json() : null)
+                .then(data => { if (data?.order) useDataStore.getState().setOrderedNoteIds(data.order); })
+                .catch(() => {});
+        }
+    }, [privateKey, publicKey, myId, setKeys, fetchDirectory]);
+
+    // Session Restoration Effect
+    useEffect(() => {
+        const restoreSession = async () => {
+            const email = sessionStorage.getItem("tide_user_email") || localStorage.getItem("tide_user_email");
+            const userId = sessionStorage.getItem("tide_user_id") || localStorage.getItem("tide_user_id");
+            const privKeyJwkStr = localStorage.getItem("tide_session_key");
+            const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
+
+            if (!email || !userId || !privKeyJwkStr || !token) {
+                setStatus("ready");
+                return;
+            }
+
+            setUserEmail(email);
+            setMyId(userId);
+
+            try {
+                const privKeyJwk = JSON.parse(privKeyJwkStr);
+                const pk = await window.crypto.subtle.importKey("jwk", privKeyJwk, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey", "deriveBits"]);
+                setPrivateKey(pk);
+                const pubKeyJwk = localStorage.getItem(`tide_public_key_${userId}`);
+                if (pubKeyJwk) {
+                    const pubk = await window.crypto.subtle.importKey("jwk", JSON.parse(pubKeyJwk), { name: "ECDH", namedCurve: "P-256" }, true, []);
+                    setPublicKey(pubk);
+                }
+                const profile = localStorage.getItem(`tide_user_${email}`);
+                if (profile) setUserProfile(JSON.parse(profile));
+                
+                const savedTabs = localStorage.getItem('tide_open_tabs');
+                const savedActiveId = localStorage.getItem('tide_active_tab_id');
+                const savedLayout = localStorage.getItem('tide_note_layout');
+                
+                if (savedLayout) setNoteLayout(savedLayout as any);
+                if (savedTabs) setOpenTabs(JSON.parse(savedTabs));
+                
+                // Set restoration flag so Persistence Hooks can start saving
+                setIsRestored(true);
+
+                if (savedActiveId && savedActiveId !== activeTabId) {
+                    const tabs = savedTabs ? JSON.parse(savedTabs) : [];
+                    const activeTab = tabs.find((t: any) => t.id === savedActiveId);
+                    if (activeTab) {
+                        switchTab(savedActiveId, activeTab.type, activeTab.title);
+                    } else {
+                        setActiveTabId(savedActiveId);
+                    }
+                }
+
+            } catch (e) { console.error("Session restoration failed", e); }
+            finally { setStatus("ready"); }
+        };
+        restoreSession();
+    }, []);
+
+    // Persistence Effect for Tabs & Layout
+    useEffect(() => {
+        if (!isRestored) return;
+        localStorage.setItem('tide_open_tabs', JSON.stringify(openTabs));
+        localStorage.setItem('tide_active_tab_id', activeTabId);
+        localStorage.setItem('tide_note_layout', noteLayout);
+    }, [openTabs, activeTabId, noteLayout, isRestored]);
+
+    // Idle Payload Effect
+    useEffect(() => {
+        const today = new Date();
+        const todayEvents = events.filter(e => {
+            try { return isSameDay(new Date(e.start), today); } catch { return false; }
+        });
+        setIdlePayload({ events: todayEvents.map(e => ({ title: e.title, start: e.start })) });
+    }, [events, setIdlePayload]);
+
+    // Island Welcome Effect
+    useEffect(() => {
+        if (!enabledExtensions.includes('smart_island')) return;
+        if (events.length === 0) return;
+        const booted = sessionStorage.getItem('island_boot_done');
+        if (booted) return;
+        sessionStorage.setItem('island_boot_done', '1');
+
+        const today = new Date();
+        const todayEvents = events.filter(e => { try { return isSameDay(new Date(e.start), today); } catch { return false; } });
+        const upcomingEvents = todayEvents.filter(e => new Date(e.start) > today).sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+        const nextEvent = upcomingEvents[0] ?? null;
+
+        const userName = (() => {
+            const email = sessionStorage.getItem('tide_user_email') || localStorage.getItem('tide_user_email');
+            if (!email) return undefined;
+            const rec = localStorage.getItem('tide_user_' + email);
+            if (rec) { try { const p = JSON.parse(rec); if (p.username) return p.username as string; } catch { } }
+            return email.split('@')[0];
+        })();
+
+        if (typeof document !== 'undefined') document.title = `tide - ${userName || 'User'}`;
+
+        const hour = today.getHours();
+        let realVariant = 'morning';
+        if (hour >= 17) realVariant = 'evening';
+        else if (sessionStorage.getItem('tide_returned_today')) realVariant = 'return';
+        sessionStorage.setItem('tide_returned_today', '1');
+
+        setTimeout(() => {
+            islandPush({ type: 'welcome', payload: { userName, eventCount: todayEvents.length, variant: realVariant } });
+            setTimeout(() => islandPush({ type: 'timeline', payload: { events: todayEvents.map(e => ({ title: e.title, start: e.start })), duration: 5000 } }), 100);
+            if (nextEvent) setTimeout(() => islandPush({ type: 'next_event', payload: { event: { title: nextEvent.title, start: nextEvent.start } } }), 200);
+        }, 1500);
+    }, [events, enabledExtensions, islandPush]);
+
+    // Store Event Listener
+    useEffect(() => {
+        const h = () => handleNewNote();
+        window.addEventListener('dataStore:createNote', h);
+        return () => window.removeEventListener('dataStore:createNote', h);
+    }, [handleNewNote]);
 
     const handleLogout = () => {
         sessionStorage.clear();
@@ -108,121 +641,6 @@ export default function Dashboard() {
         localStorage.removeItem("tide_user_email");
         router.push("/auth");
     };
-
-    // Hydrate extension state immediately to prevent layout jumps
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('tide_enabled_extensions');
-            if (saved) {
-                try {
-                    setEnabledExtensions(JSON.parse(saved));
-                } catch (e) { }
-            }
-        }
-    }, []);
-
-    useEffect(() => {
-        if (!myId) return;
-        const fetchExtensions = async () => {
-            try {
-                const res = await fetch("/api/v1/user/extensions", {
-                    headers: { "X-User-ID": myId }
-                });
-                if (res.ok) {
-                    const data = await res.json();
-                    const exts = data.enabled_extensions || [];
-                    setEnabledExtensions(exts);
-                    localStorage.setItem('tide_enabled_extensions', JSON.stringify(exts));
-                }
-            } catch (e) {
-                console.error("Failed to load extensions", e);
-            }
-        };
-        fetchExtensions();
-    }, [myId]);
-
-    const handleToggleExtension = async (extensionId: string, enabled: boolean) => {
-        // Optimistic UI update
-        setEnabledExtensions(prev => {
-            const next = enabled ? [...prev, extensionId] : prev.filter(e => e !== extensionId);
-            localStorage.setItem('tide_enabled_extensions', JSON.stringify(next));
-            return next;
-        });
-
-        // Cleanup open tabs if disabled
-        if (!enabled) {
-            if (activeTabId === `ext_${extensionId}`) {
-                setActiveTabId('calendar');
-            }
-            setOpenTabs(prev => prev.filter(t => t.id !== `ext_${extensionId}`));
-        }
-
-        try {
-            await fetch("/api/v1/user/extensions", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
-                body: JSON.stringify({ extension: extensionId, enabled })
-            });
-        } catch (e) {
-            console.error("Failed to toggle extension", e);
-        }
-    };
-
-    // Share Modal State
-    const [shareModalFile, setShareModalFile] = useState<{ id: string, title: string } | null>(null);
-
-    // Data State
-    const [files, setFiles] = useState<DecryptedFile[]>([]);
-    const [calendarDate, setCalendarDate] = useState(new Date());
-
-    // Streak & Summary State
-    const [streak, setStreak] = useState(0);
-    const [isSummaryOpen, setIsSummaryOpen] = useState(false);
-    const [summaryStats, setSummaryStats] = useState({ events: 0, tasks: 0 });
-    const [events, setEvents] = useState<CalendarEvent[]>([]);
-
-
-    useEffect(() => {
-        if (status !== 'ready') return;
-
-        const lastVisit = localStorage.getItem('tide_last_visit');
-        const today = new Date().toISOString().split('T')[0];
-        const savedStreak = parseInt(localStorage.getItem('tide_streak') || '0');
-
-        if (lastVisit === today) {
-            setStreak(savedStreak);
-        } else {
-            let nextStreak = 1;
-            if (lastVisit) {
-                const lastDate = new Date(lastVisit);
-                const yesterday = new Date();
-                yesterday.setDate(yesterday.getDate() - 1);
-                const yesterdayStr = yesterday.toISOString().split('T')[0];
-
-                if (lastVisit === yesterdayStr) {
-                    nextStreak = savedStreak + 1;
-                }
-            }
-
-            localStorage.setItem('tide_last_visit', today);
-            localStorage.setItem('tide_streak', nextStreak.toString());
-            setStreak(nextStreak);
-
-            // Calculate stats for summary
-            const todayEvents = events.filter(e => {
-                const start = new Date(e.start);
-                return start.toISOString().split('T')[0] === today;
-            }).length;
-            setSummaryStats({ events: todayEvents, tasks: 0 }); // Tasks can be added later
-
-            // Show summary if extension enabled
-            if (enabledExtensions.includes('summary')) {
-                setIsSummaryOpen(true);
-            }
-        }
-    }, [status, enabledExtensions, events]);
-
-
 
     const handleDateSelect = (date: Date) => {
         setCalendarDate(date);
@@ -257,9 +675,9 @@ export default function Dashboard() {
             const meta = { title, parent_id: parentId, color };
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
-            const res = await fetch("/api/v1/files", {
+            const res = await apiFetch("/api/v1/files", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     type: "folder",
                     parent_id: parentId,
@@ -285,8 +703,10 @@ export default function Dashboard() {
                 parent_id: parentId,
                 color: color
             };
-
-            setFiles(prev => [...prev, decFolder]);
+            // Refresh parent
+            const pKey = parentId === null ? 'root' : parentId;
+            useDataStore.getState().loadedDirectories.delete(pKey);
+            useDataStore.getState().fetchDirectory(parentId);
             setEditingFileId(newFolder.id); // Rename immediately
 
         } catch (e) {
@@ -295,17 +715,18 @@ export default function Dashboard() {
         }
     };
 
-    const handleCreateEventGroup = async () => {
+    const handleCreateEventGroup = async (forcedTitle?: string, forcedColor?: string, forcedEffect?: string) => {
         if (!privateKey || !publicKey) return;
-        const title = "New Group";
-        const effect = "none";
+        const title = forcedTitle || "New Group";
+        const effect = forcedEffect || "none";
+        const color = forcedColor || undefined;
         try {
-            const meta = { title, isGroup: true, effect };
+            const meta = { title, isGroup: true, effect, color };
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
-            const res = await fetch("/api/v1/files", {
+            const res = await apiFetch("/api/v1/files", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     type: "folder",
                     parent_id: null,
@@ -318,28 +739,19 @@ export default function Dashboard() {
             if (!res.ok) throw new Error("Failed to create event group");
             const newFolder = await res.json();
 
-            const decFolder: DecryptedFile = {
-                id: newFolder.id,
-                title: title,
-                type: 'folder',
-                size: 0,
-                updated_at: new Date().toISOString(),
-                secured_meta: newFolder.secured_meta,
-                share_status: 'owner',
-                visibility: 'private',
-                parent_id: null,
-                isGroup: true,
-                effect: effect
-            };
+            // Fetch latest root so the UI updates natively 
+            useDataStore.getState().loadedDirectories.delete('root');
+            useDataStore.getState().fetchDirectory(null);
+            
+            return newFolder.id;
 
-            setFiles(prev => [...prev, decFolder]);
         } catch (e) {
             console.error(e);
             alert("Failed to create event group");
         }
     };
 
-    const handleUpdateEventGroup = async (id: string, updates: { title?: string, effect?: string }) => {
+    const handleUpdateEventGroup = async (id: string, updates: { title?: string, effect?: string, color?: string }) => {
         if (!privateKey || !publicKey) return;
         try {
             const group = files.find(f => f.id === id);
@@ -348,35 +760,54 @@ export default function Dashboard() {
             const meta = await cryptoLib.decryptMetadata(group.secured_meta, privateKey);
             if (updates.title !== undefined) meta.title = updates.title;
             if (updates.effect !== undefined) meta.effect = updates.effect;
+            if (updates.color !== undefined) meta.color = updates.color;
 
             const encryptedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
-            await fetch(`/api/v1/files/${id}`, {
+            await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(encryptedMeta))) })
             });
 
-            setFiles(prev => prev.map(f => f.id === id ? { ...f, title: meta.title as string, effect: meta.effect as string } : f));
+            useDataStore.getState().loadedDirectories.delete('root');
+            useDataStore.getState().fetchDirectory(null);
         } catch (e) {
             console.error("Failed to update group", e);
         }
     };
 
     const handleMoveFile = async (fileId: string, newParentId: string | null) => {
-        // Optimistic
-        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, parent_id: newParentId } : f));
-
         try {
-            await fetch(`/api/v1/files/${fileId}`, {
+            const files = useDataStore.getState().notes;
+            const targetFile = files.find(f => f.id === fileId);
+            const oldParentId = targetFile?.parent_id || null;
+
+            await apiFetch(`/api/v1/files/${fileId}`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ parent_id: newParentId || "" })
             });
+            // Update local state directly
+            useDataStore.getState().setNotes(files.map(f => f.id === fileId ? { ...f, parent_id: newParentId } as any : f));
+
+            // Clear cache for old and new parent and refetch both
+            const oldKey = oldParentId === null ? 'root' : oldParentId;
+            const newKey = newParentId === null ? 'root' : newParentId;
+            const state = useDataStore.getState();
+            
+            const newLoaded = new Set(state.loadedDirectories);
+            newLoaded.delete(oldKey);
+            newLoaded.delete(newKey);
+            useDataStore.setState({ loadedDirectories: newLoaded });
+
+            state.fetchDirectory(oldParentId);
+            if (oldParentId !== newParentId) {
+                state.fetchDirectory(newParentId);
+            }
         } catch (e) {
             console.error("Move failed", e);
             alert("Failed to move item");
-            loadFilesAndEvents();
         }
     };
 
@@ -387,85 +818,8 @@ export default function Dashboard() {
 
     // Removed Link Selection Routing at user request
 
-    // Editor State
-    const [editorContent, setEditorContent] = useState<any>(null);
-    const [isLoadingContent, setIsLoadingContent] = useState(false);
-    const [activeFileKey, setActiveFileKey] = useState<CryptoKey | null>(null);
-    const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving">("saved");
-    const [fileName, setFileName] = useState("");
-
     // Theme Visibility State
-    const [hiddenThemeIds, setHiddenThemeIds] = useState<string[]>([]);
-    const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
 
-    // Event Dock State
-    const [activeEventId, setActiveEventId] = useState<string | null>(null);
-    const [pinnedEventIds, setPinnedEventIds] = useState<string[]>([]);
-    const [minimizedEventIds, setMinimizedEventIds] = useState<string[]>([]);
-
-    // Canvas / Sidecar state
-    const [deletedBlockIds, setDeletedBlockIds] = useState<string[]>([]);
-    const [editorInstance, setEditorInstance] = useState<any>(null);
-
-    useEffect(() => {
-        const handleInsertMention = (e: any) => {
-            const { noteId, targetId, title } = e.detail;
-            if (editorInstance && activeTabId === noteId) {
-                editorInstance.chain()
-                    .focus()
-                    .insertContent({
-                        type: 'mention',
-                        attrs: { id: targetId, label: title }
-                    })
-                    .insertContent(' ')
-                    .run();
-                console.log(`[CrossLink] Inserted mention of ${targetId} into note ${noteId}`);
-            }
-        };
-        window.addEventListener('dataStore:insertMention', handleInsertMention);
-        return () => window.removeEventListener('dataStore:insertMention', handleInsertMention);
-    }, [editorInstance, activeTabId]);
-    const activeNoteId = (activeTabId !== 'calendar' && activeTabId !== 'messages' && !activeTabId.startsWith('chat-'))
-        ? activeTabId
-        : null;
-    const canvasSidecar = useStyleFile({
-        noteId: activeNoteId,
-        userId: myId,
-        privateKey,
-        publicKey,
-    });
-
-    const [pendingBindBlockId, setPendingBindBlockId] = useState<string | null>(null);
-
-    // Pin System Pivot State
-    const [isLinkingMode, setIsLinkingMode] = useState(false);
-    const [activeLinkBlockId, setActiveLinkBlockId] = useState<string | null>(null);
-    const [hoveredElementId, setHoveredElementId] = useState<string | null>(null);
-    const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
-    const [editorVersion, setEditorVersion] = useState(0);
-
-    // Abort Linking Mode logic
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isLinkingMode) {
-                setIsLinkingMode(false);
-                setActiveLinkBlockId(null);
-            }
-        };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, [isLinkingMode]);
-
-    // Listen for right-click "Change anchor" requests from canvas elements
-    useEffect(() => {
-        const handler = (e: Event) => {
-            // elementId is available in detail but we don't need it here;
-            // binding mode is activated and the user then selects text → Connect
-            setPendingBindBlockId('__pending_rebind__');
-        };
-        window.addEventListener('canvas:requestRebind', handler);
-        return () => window.removeEventListener('canvas:requestRebind', handler);
-    }, []);
 
     const handleToggleThemeVisibility = (themeId: string) => {
         setHiddenThemeIds(prev => prev.includes(themeId) ? prev.filter(id => id !== themeId) : [...prev, themeId]);
@@ -476,12 +830,15 @@ export default function Dashboard() {
     // -------------------------------------------------------------------------
     useEffect(() => {
         const restoreSession = async () => {
+            console.log("[STATE-AUDIT] Initializing Application | Restore Session Start");
             // 1. Retrieve Config (Try Session first, then Local)
             const email = sessionStorage.getItem("tide_user_email") || localStorage.getItem("tide_user_email");
             const userId = sessionStorage.getItem("tide_user_id") || localStorage.getItem("tide_user_id");
             const privKeyJwkStr = sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
-
-            if (!email || !userId || !privKeyJwkStr) {
+            const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
+            
+            if (!email || !userId || !privKeyJwkStr || !token) {
+                console.warn("[STATE-AUDIT] Session missing or incomplete. Redirecting to auth.");
                 if (window.location.pathname !== '/auth') {
                     router.push("/auth");
                 }
@@ -546,43 +903,15 @@ export default function Dashboard() {
 
                         const parsed = JSON.parse(savedTabs);
                         if (Array.isArray(parsed) && parsed.length > 0) {
-                            // Validate with server
-                            fetch('/api/v1/tabs/validate', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'X-User-ID': userId
-                                },
-                                body: JSON.stringify(parsed)
-                            })
-                                .then(res => res.json())
-                                .then(validTabs => {
-                                    if (validTabs && validTabs.length > 0) {
-                                        setOpenTabs(validTabs);
+                            setOpenTabs(parsed);
 
-                                        // Check if active tab is still valid
-                                        const validActive = validTabs.find((t: any) => t.id === savedActiveId);
-                                        if (validActive) {
-                                            setActiveTabId(validActive.id);
-                                        } else {
-                                            setActiveTabId(validTabs[0].id);
-                                        }
-                                    } else {
-                                        // Server returned empty array (validation failed for all)
-                                        console.warn("All tabs failed validation, falling back to empty state.");
-                                        setOpenTabs([]);
-                                        setActiveTabId('calendar');
-                                        localStorage.removeItem('tide_open_tabs');
-                                        localStorage.removeItem('tide_active_tab_id');
-                                    }
-                                })
-                                .catch(e => {
-                                    console.error("Validation API failed, falling back", e);
-                                    // On offline/network error, we still try to load them 
-                                    // (Decryption will naturally fail if unauthorized)
-                                    setOpenTabs(parsed);
-                                    if (savedActiveId) setActiveTabId(savedActiveId);
-                                });
+                            // Check if active tab is still valid
+                            const validActive = parsed.find((t: any) => t.id === savedActiveId);
+                            if (validActive) {
+                                setActiveTabId(validActive.id);
+                            } else {
+                                setActiveTabId(parsed[0].id);
+                            }
                         }
                     } catch (e) {
                         console.error("Critical Error: Corrupted JSON in tide_open_tabs, resetting UI.", e);
@@ -599,6 +928,12 @@ export default function Dashboard() {
                     catch (e) { console.error("Restore date failed", e); }
                 }
 
+                const savedExt = localStorage.getItem("tide_enabled_extensions");
+                if (savedExt) {
+                    try { setEnabledExtensions(JSON.parse(savedExt) || []); }
+                    catch (e) { console.error("Restore ext failed", e); }
+                }
+
             } catch (e) {
                 console.error("Session restore failed:", e);
                 router.push("/auth");
@@ -610,141 +945,37 @@ export default function Dashboard() {
 
     // ...
 
+    // Removed loadFilesAndEvents since we delegate to store's fetchDirectory
+
+
+    // ...
+
     // -------------------------------------------------------------------------
     // 2. Data Loading (Files & Events)
     // -------------------------------------------------------------------------
-    const loadFilesAndEvents = useCallback(async () => {
-        if (!privateKey) return;
-        try {
-            const finalId = myId;
-            const url = finalId ? `/api/v1/files?user_id=${finalId}&recursive=true` : "/api/v1/files?recursive=true";
-            const res = await fetch(url);
-            if (!res.ok) throw new Error("Failed to fetch files");
-
-            interface RawFile {
-                id: string;
-                visibility?: string;
-                parent_id?: string | null;
-                public_meta?: { title?: string };
-                secured_meta?: string;
-                type: string;
-                updated_at: string;
-                size: number;
-                owner_id: string;
-                owner_email?: string;
-                share_status?: string;
-                is_task?: boolean | number;
-                is_completed?: boolean | number;
-            }
-            const allFiles = await res.json() as RawFile[];
-
-            if (!Array.isArray(allFiles)) {
-                setFiles([]);
-                setEvents([]);
-                return;
-            }
-
-            const decryptedFiles: DecryptedFile[] = [];
-            const decryptedEvents: CalendarEvent[] = [];
-
-            for (const f of allFiles) {
-                try {
-                    let title = "Untitled";
-                    let visibility = f.visibility || 'private';
-                    let meta: Record<string, unknown> = {};
-                    const parentId = f.parent_id || null; // Capture ParentID
-                    let color: string | undefined = undefined;
-
-                    // Decrypt Metadata
-                    if (visibility === 'public') {
-                        if (f.public_meta && f.public_meta.title) title = f.public_meta.title;
-                    } else if (f.secured_meta) {
-                        // ... (Decrypt)
-                        try {
-                            meta = await cryptoLib.decryptMetadata(f.secured_meta, privateKey);
-                            if (typeof meta.title === 'string') title = meta.title;
-                            if (typeof meta.color === 'string') color = meta.color;
-                        } catch (e) {
-                            console.warn("Failed to decrypt meta for", f.id);
-                        }
-                    }
-
-                    if (f.type === 'event') {
-                        decryptedEvents.push({
-                            id: f.id,
-                            title,
-                            start: (meta.start as string) || new Date().toISOString(),
-                            end: (meta.end as string) || new Date().toISOString(),
-                            color: meta.color as string | undefined,
-                            description: meta.description as string | undefined,
-                            secured_meta: f.secured_meta,
-                            share_status: f.share_status || 'owner',
-                            parent_id: parentId,
-                            allDay: meta.allDay as boolean | undefined,
-                            // is_task / is_completed are DB-level (not encrypted), read directly from API
-                            is_task: !!f.is_task,
-                            is_completed: !!f.is_completed,
-                        });
-                    } else {
-                        decryptedFiles.push({
-                            id: f.id,
-                            title,
-                            type: f.type,
-                            size: f.size,
-                            updated_at: f.updated_at,
-                            secured_meta: f.secured_meta,
-                            share_status: f.share_status || 'owner',
-                            visibility,
-                            parent_id: parentId,
-                            color,
-                            isGroup: meta.isGroup as boolean | undefined,
-                            effect: meta.effect as string | undefined
-                        });
-                    }
-                } catch (e) { console.warn("Error processing file", f.id, e); }
-            }
-
-            // Filter out pending shares from main view
-            const visibleFiles = decryptedFiles.filter(f => (f.share_status || 'owner') !== 'pending');
-            const visibleEvents = decryptedEvents.filter(e => (e.share_status || 'owner') !== 'pending');
-            setFiles(visibleFiles);
-            setEvents(visibleEvents);
-        } catch (e) {
-            console.error("Load failed", e);
-        }
-    }, [privateKey, myId]);
-
 
     useEffect(() => {
-        if (privateKey) {
-            loadFilesAndEvents();
-            // Load sidebar order
-            if (myId) {
-                fetch('/api/v1/files/sidebar_order.info', {
-                    headers: { 'X-User-ID': myId }
+        if (privateKey && publicKey && myId) {
+            setKeys(privateKey, publicKey, myId);
+            fetchDirectory(null, true); // Force initial fetch of root to ensure UI update
+
+            // Load sidebar order (silently handle 404/not found)
+            apiFetch('/api/v1/files/sidebar_order.info')
+                .then(async res => {
+                    if (res.status === 404) return null; 
+                    if (!res.ok) return null;
+                    return res.json().catch(() => null);
                 })
-                    .then(res => {
-                        if (!res.ok) return null;
-                        return res.json();
-                    })
-                    .then(data => {
-                        if (data && data.order) {
-                            const { setOrderedNoteIds } = (require('@/store/useDataStore') as typeof import('@/store/useDataStore')).useDataStore.getState();
-                            setOrderedNoteIds(data.order);
-                        }
-                    })
-                    .catch(e => console.error("Failed to load sidebar order", e));
-            }
+                .then(data => {
+                    if (data && data.order) {
+                        const { setOrderedNoteIds } = useDataStore.getState();
+                        setOrderedNoteIds(data.order);
+                    }
+                })
+                .catch(() => { /* Silent proceed */ });
         }
-    }, [privateKey, loadFilesAndEvents, myId]);
+    }, [privateKey, publicKey, myId, setKeys, fetchDirectory]);
 
-    useEffect(() => {
-        const { setNotes: storeSetNotes, setEvents: storeSetEvents } = (require('@/store/useDataStore') as typeof import('@/store/useDataStore')).useDataStore.getState();
-        storeSetNotes(files.filter(f => f.type === 'note').map(f => ({ id: f.id, title: f.title, type: 'note' })));
-        storeSetEvents(events.map(e => ({ id: e.id, title: e.title, type: 'event' })));
-    }, [files, events]);
-
-    const { push: islandPush, setIdlePayload, clearAll: islandClearAll } = useIslandStore();
 
     // Update the idle payload whenever events change so the periodic timeline is accurate
     useEffect(() => {
@@ -809,348 +1040,13 @@ export default function Dashboard() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [events, enabledExtensions]);
 
-    // SSE Listener
-    useEffect(() => {
-        if (!myId) return;
-        const eventSource = new EventSource(`http://localhost:8080/api/v1/events?user_id=${myId}`);
-
-        eventSource.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (['file_created', 'file_updated', 'file_deleted', 'file_shared'].includes(data.type)) {
-                    if (privateKey) loadFilesAndEvents();
-                }
-
-                // The messenger notification logic was moved to ChatPanel.tsx to utilize its contacts state and avoid duplicate pushes.
-            } catch (e) {
-                console.error("SSE Parse Error", e);
-            }
-        };
-
-        return () => eventSource.close();
-    }, [myId, privateKey, loadFilesAndEvents, enabledExtensions, islandPush]);
-
-
-    // Trigger initial load for restored tabs if needed
-    useEffect(() => {
-        if (activeTabId && files.length > 0 && !isLoadingContent && !editorContent) {
-            const isNote = activeTabId !== 'calendar' && activeTabId !== 'messages' && !activeTabId.startsWith('chat-');
-            if (isNote) {
-                const tab = openTabs.find(t => t.id === activeTabId);
-                if (tab && tab.type === 'file' && !tab.content) {
-                    loadNoteContent(activeTabId, tab.title);
-                }
-            }
-        }
-    }, [activeTabId, files, isLoadingContent, editorContent, openTabs]); // eslint-disable-line react-hooks/exhaustive-deps
-
-
-    // -------------------------------------------------------------------------
-    // 3. File Operations (Open, Save, Create, Delete...)
-    // -------------------------------------------------------------------------
-
-    // Unified Tab Switcher
-    const switchTab = (newId: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance', forcedTitle?: string, fallbackData?: any) => {
-        if (activeTabId === newId) return;
-        try { islandClearAll(); } catch (e) { } // Dismiss Smart Island views on navigation!
-
-        // 1. Teardown OLD Tab
-        const isOldAFile = activeTabId !== 'calendar' && activeTabId !== 'messages' && !activeTabId.startsWith('chat-');
-        if (isOldAFile) {
-            if (saveStatus === 'unsaved' && editorContent) {
-                const oldFile = files.find(f => f.id === activeTabId);
-                if (oldFile) performSave(editorContent, activeTabId, activeFileKey, oldFile.visibility).catch(console.error);
-            }
-        }
-
-        setOpenTabs(prev => {
-            let nextTabs = [...prev];
-            // Flush state to the old tab
-            if (isOldAFile) {
-                nextTabs = nextTabs.map(t => t.id === activeTabId ? {
-                    ...t, content: editorContent, _fileKey: activeFileKey, _saveStatus: 'saved'
-                } : t);
-            }
-            // Move activated tab to the front for MRU sorting
-            const existingTab = nextTabs.find(t => t.id === newId);
-            nextTabs = nextTabs.filter(t => t.id !== newId);
-
-            if (type === 'file') {
-                nextTabs.unshift({ ...(existingTab || {}), id: newId, title: forcedTitle || existingTab?.title || "Untitled", type: 'file' });
-            } else if (existingTab) {
-                nextTabs.unshift(existingTab);
-            } else {
-                nextTabs.unshift({ id: newId, title: forcedTitle || "Untitled", type });
-            }
-
-            // Limit to max 5 tabs
-            if (nextTabs.length > 5) {
-                nextTabs = nextTabs.slice(0, 5);
-            }
-
-            return nextTabs;
-        });
-
-        // 2. Setup NEW Tab
-        setActiveTabId(newId);
-
-        if (type === 'file') {
-            const existingTab = openTabs.find(t => t.id === newId);
-            const finalTitle = forcedTitle || existingTab?.title || "";
-            setFileName(finalTitle);
-
-            if (existingTab && existingTab.content) {
-                // If the Editor was mounted in the background for this exact file, editorContent is ALREADY the most up-to-date.
-                // Overwriting it with existingTab.content would destroy any changes made while it was backgrounded (e.g. Magic Links).
-                const backgroundEditorId = (activeTabId !== 'calendar' && activeTabId !== 'messages' && !activeTabId.startsWith('chat-'))
-                    ? activeTabId
-                    : (openTabs.find(t => t.type === 'file')?.id);
-
-                if (newId !== backgroundEditorId) {
-                    setEditorContent(existingTab.content);
-                    setSaveStatus(existingTab._saveStatus || 'saved');
-                }
-                setActiveFileKey(existingTab._fileKey || null);
-                setIsLoadingContent(false);
-            } else {
-                loadNoteContent(newId, finalTitle, fallbackData);
-            }
-        }
-    };
-
-    // Open Note -> Add to Tabs & Activate
-    const handleFileSelect = async (fileId: string, title: string, fileData?: any) => {
-        if (fileId === 'ext_finance') {
-            switchTab('ext_finance', 'ext_finance', 'Finance Tracker', fileData);
-        } else {
-            switchTab(fileId, 'file', title, fileData);
-        }
-    };
-
-    const loadNoteContent = async (fileId: string, titleFn: string, passedFile?: any) => {
-        if (!privateKey) return;
-        setIsLoadingContent(true);
-        setEditorContent(null);
-        setFileName(titleFn);
-        setSaveStatus("saved");
-
-        try {
-            // Use passedFile if available (fix race condition), else find in state
-            let target = passedFile || files.find(f => f.id === fileId);
-
-            // Final fallback: try to find in events if it's an event being opened as a note (rare but possible)
-            if (!target) target = events.find(e => e.id === fileId) as any;
-
-            if (!target) {
-                console.warn("[loadNoteContent] Target not found for", fileId);
-                // Instead of throwing, we can try to fetch the file metadata directly
-                const res = await fetch(`/api/v1/files/${fileId}`, { headers: { "X-User-ID": myId } });
-                if (res.ok) {
-                    target = await res.json();
-                } else {
-                    throw new Error("File not found in state or backend");
-                }
-            }
-
-            let contentText = "";
-            let meta: any = null;
-
-            if (target.visibility === 'public') {
-                const resBlob = await fetch(`/api/v1/files/${fileId}/download`, { headers: { "X-User-ID": myId } });
-                if (resBlob.ok) contentText = await resBlob.text();
-            } else {
-                if (!target.secured_meta) throw new Error("Missing metadata");
-                meta = await cryptoLib.decryptMetadata(target.secured_meta, privateKey);
-
-                const importedFileKey = await window.crypto.subtle.importKey(
-                    "jwk", meta.fileKey,
-                    { name: "AES-GCM" },
-                    true, ["encrypt", "decrypt"]
-                );
-                setActiveFileKey(importedFileKey);
-
-                const resBlob = await fetch(`/api/v1/files/${fileId}/download`, { headers: { "X-User-ID": myId } });
-                if (resBlob.ok) {
-                    const blob = await resBlob.blob();
-                    if (blob.size > 0) {
-                        const decryptedBlob = await cryptoLib.decryptFile(blob, meta.iv, importedFileKey);
-                        contentText = await decryptedBlob.text();
-                    }
-                }
-            }
-
-            if (contentText) {
-                try { setEditorContent(JSON.parse(contentText)); }
-                catch (e) { setEditorContent(contentText); }
-            } else {
-                setEditorContent({ type: 'doc', content: [] });
-            }
-        } catch (err) {
-            console.error("Failed to load note:", err);
-            // alert("Failed to load note content.");
-        } finally {
-            setIsLoadingContent(false);
-        }
-    };
-
-    // Save Logic
-    const performSave = async (content: any, fileId: string, fileKey: CryptoKey | null, visibility: string) => {
-        try {
-            const contentString = JSON.stringify(content);
-            const blob = new Blob([contentString], { type: "application/json" });
-            let dataToUpload: Blob;
-            let iv: any = null;
-            let activeKey = fileKey;
-
-            if (visibility === 'public') {
-                dataToUpload = blob;
-            } else {
-                // Recover key if lost due to serialization (localStorage)
-                if (!activeKey || !(activeKey instanceof CryptoKey)) {
-                    console.log("[Save] Recovering key for", fileId);
-                    const currentFile = files.find(f => f.id === fileId);
-                    if (currentFile?.secured_meta && privateKey) {
-                        try {
-                            const meta = await cryptoLib.decryptMetadata(currentFile.secured_meta, privateKey);
-                            activeKey = await window.crypto.subtle.importKey(
-                                "jwk", meta.fileKey as JsonWebKey,
-                                { name: "AES-GCM" },
-                                true, ["encrypt", "decrypt"]
-                            );
-                            if (fileId === activeTabId) setActiveFileKey(activeKey);
-                        } catch (e) {
-                            console.error("[Save] Key recovery failed", e);
-                        }
-                    }
-                }
-
-                if (!activeKey || !(activeKey instanceof CryptoKey)) {
-                    throw new Error("Encryption key missing or invalid");
-                }
-
-                const encrypted = await cryptoLib.encryptFile(blob, activeKey);
-                dataToUpload = encrypted.ciphertext;
-                iv = encrypted.iv;
-            }
-
-            // Upload Content
-            await fetch(`/api/v1/files/${fileId}/upload`, {
-                method: "POST",
-                headers: { "X-User-ID": myId },
-                body: dataToUpload
-            });
-
-            // Update Metadata (Title etc)
-            const currentFile = files.find(f => f.id === fileId);
-            const title = fileName || currentFile?.title || "Untitled";
-
-            if (visibility === 'public') {
-                await fetch(`/api/v1/files/${fileId}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json", "X-User-ID": myId },
-                    body: JSON.stringify({ public_meta: { title: title } })
-                });
-            } else {
-                if (!publicKey || !activeKey) throw new Error("Keys missing");
-                const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", activeKey);
-                const metaPayload = { title: title, fileKey: fileKeyJwk, iv: iv };
-                const encryptedMeta = await cryptoLib.encryptMetadata(metaPayload, publicKey);
-                await fetch(`/api/v1/files/${fileId}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json", "X-User-ID": myId },
-                    body: JSON.stringify({ secured_meta: encryptedMeta })
-                });
-            }
-        } catch (err) {
-            console.error("Save failed:", err);
-            throw err;
-        }
-    };
-
-    // Auto-Save Effect
-    useEffect(() => {
-        if (saveStatus === "unsaved" && activeTabId !== 'calendar' && activeTabId !== 'messages' && activeTabId && editorContent) {
-            const currentFile = files.find(f => f.id === activeTabId);
-            if (!currentFile) return;
-
-            const canSave = currentFile.visibility === 'public' || activeFileKey;
-            if (canSave) {
-                const timer = setTimeout(async () => {
-                    setSaveStatus("saving");
-                    try {
-                        await performSave(editorContent, activeTabId, activeFileKey, currentFile.visibility);
-                        setSaveStatus("saved");
-                    } catch { setSaveStatus("unsaved"); }
-                }, 1000);
-                return () => clearTimeout(timer);
-            }
-        }
-    }, [editorContent, saveStatus, activeTabId, activeFileKey, files]);
-
-
-    const handleNewNote = async () => {
-        if (!publicKey || !privateKey) return;
-        try {
-            const fileKey = await cryptoLib.generateFileKey();
-            const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", fileKey);
-            const emptyDoc = { type: 'doc', content: [] };
-            const blob = new Blob([JSON.stringify(emptyDoc)], { type: 'application/json' });
-            const { iv, ciphertext } = await cryptoLib.encryptFile(blob, fileKey);
-
-            const metaPayload = {
-                title: "",
-                fileKey: fileKeyJwk,
-                iv: iv
-            };
-            const encryptedMeta = await cryptoLib.encryptMetadata(metaPayload, publicKey);
-
-            const res = await fetch("/api/v1/files", {
-                method: "POST",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
-                body: JSON.stringify({
-                    type: "note",
-                    size: blob.size,
-                    public_meta: {},
-                    secured_meta: encryptedMeta
-                })
-            });
-
-            if (res.ok) {
-                const newFile = await res.json();
-                await fetch(`/api/v1/files/${newFile.id}/upload`, { method: "POST", body: ciphertext });
-
-                // Add optimistic local representation and auto-open
-                const newFileObj = {
-                    ...newFile,
-                    title: "",
-                    type: "note",
-                    secured_meta: encryptedMeta,
-                    isGroup: false,
-                    parent_id: null
-                };
-                setFiles(prev => [...prev, newFileObj]);
-                switchTab(newFile.id, 'file', "");
-            }
-        } catch (e) {
-            console.error(e);
-            alert("Error creating note");
-        }
-    };
-
-    useEffect(() => {
-        const handleStoreCreate = () => {
-            handleNewNote();
-        };
-        window.addEventListener('dataStore:createNote', handleStoreCreate);
-        return () => window.removeEventListener('dataStore:createNote', handleStoreCreate);
-    }, [handleNewNote]);
 
     const handleDeleteNote = async (e: React.MouseEvent, fileId: string) => {
         e.stopPropagation();
         if (!confirm("Delete this note?")) return;
         try {
-            await fetch(`/api/v1/files/${fileId}`, { method: "DELETE", headers: { "X-User-ID": myId } });
-            setFiles(prev => prev.filter(f => f.id !== fileId));
+            await apiFetch(`/api/v1/files/${fileId}`, { method: "DELETE" });
+            useDataStore.getState().setNotes(files.filter(f => f.id !== fileId) as any);
             if (activeTabId === fileId) {
                 handleTabClose(e, fileId);
             }
@@ -1158,7 +1054,6 @@ export default function Dashboard() {
     };
 
     // Rename File
-    const [editingFileId, setEditingFileId] = useState<string | null>(null);
 
     const handleRenameNote = (e: React.MouseEvent, fileId: string, currentTitle: string) => {
         e.stopPropagation();
@@ -1169,58 +1064,65 @@ export default function Dashboard() {
         setEditingFileId(null);
 
         // Optimistic
-        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, title: newTitle } : f));
-        setEvents(prev => prev.map(e => e.id === fileId ? { ...e, title: newTitle } : e));
+        useDataStore.getState().setUpdatingMetadata(fileId, true);
+        useDataStore.getState().updateSpecificMetadataCache(fileId, { title: newTitle });
+        useDataStore.getState().setNotes(useDataStore.getState().notes.map(f => f.id === fileId ? { ...f, title: newTitle } as any : f));
+        useDataStore.getState().setEvents(useDataStore.getState().events.map(e => e.id === fileId ? { ...e, title: newTitle } as any : e));
         setOpenTabs(prev => prev.map(t => t.id === fileId ? { ...t, title: newTitle } : t));
         if (activeTabId === fileId) setFileName(newTitle);
+        
         try {
+            const files = useDataStore.getState().notes;
+            const events = useDataStore.getState().events;
             const target = files.find(f => f.id === fileId) || events.find(e => e.id === fileId);
-            if (!target) return;
+            if (!target) {
+                useDataStore.getState().setUpdatingMetadata(fileId, false);
+                return;
+            }
 
             const isPublic = 'visibility' in target && target.visibility === 'public';
 
             if (isPublic) {
-                await fetch(`/api/v1/files/${fileId}`, {
+                await apiFetch(`/api/v1/files/${fileId}`, {
                     method: "PUT",
-                    headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ public_meta: { title: newTitle } })
                 });
             } else {
-                if (!publicKey || !privateKey) return;
+                if (!publicKey || !privateKey) {
+                    useDataStore.getState().setUpdatingMetadata(fileId, false);
+                    return;
+                }
 
-                // 1. Get current metadata (Prefer state to avoid fetching owner's encrypted data if shared)
                 let currentSecuredMeta = target.secured_meta;
-
-                // Fallback: Fetch fresh meta if missing in state (shouldn't happen with new logic)
                 if (!currentSecuredMeta) {
-                    const res = await fetch(`/api/v1/files/${fileId}`, {
-                        headers: { "X-User-ID": myId } // Pass X-User-ID to get correct share meta!
-                    });
+                    const res = await apiFetch(`/api/v1/files/${fileId}`);
                     const freshFile = await res.json();
                     currentSecuredMeta = freshFile.secured_meta;
                 }
 
                 if (!currentSecuredMeta) throw new Error("Missing metadata");
 
-                // 2. Decrypt, Update, Re-encrypt
                 const meta = await cryptoLib.decryptMetadata(currentSecuredMeta, privateKey);
                 meta.title = newTitle;
                 const encryptedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
-                // 3. Perform update
-                await fetch(`/api/v1/files/${fileId}`, {
+                await apiFetch(`/api/v1/files/${fileId}`, {
                     method: "PUT",
-                    headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(encryptedMeta))) })
                 });
             }
 
-            // Refresh state
-            loadFilesAndEvents();
+            useDataStore.getState().setUpdatingMetadata(fileId, false);
+            useDataStore.getState().loadedDirectories.clear();
+            useDataStore.getState().fetchDirectory(null);
         } catch (e) {
             console.error("Rename failed", e);
             alert("Rename failed");
-            loadFilesAndEvents();
+            useDataStore.getState().setUpdatingMetadata(fileId, false);
+            useDataStore.getState().loadedDirectories.clear();
+            useDataStore.getState().fetchDirectory(null);
         }
     };
 
@@ -1240,7 +1142,7 @@ export default function Dashboard() {
         const isFolder = file.type === 'folder';
 
         // Optimistic update
-        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, visibility: newVisibility } : f));
+        useDataStore.getState().setNotes(files.map(f => f.id === fileId ? { ...f, visibility: newVisibility } : f) as any);
 
         try {
             let contentBlob: Blob | null = null;
@@ -1252,7 +1154,7 @@ export default function Dashboard() {
                 currentMeta = await cryptoLib.decryptMetadata(file.secured_meta, privateKey);
 
                 if (!isFolder) {
-                    const resBlob = await fetch(`/api/v1/files/${fileId}/download`, { headers: { "X-User-ID": myId } });
+                    const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
                     if (resBlob.ok) {
                         const blob = await resBlob.blob();
                         const fileKey = await window.crypto.subtle.importKey(
@@ -1266,7 +1168,7 @@ export default function Dashboard() {
             } else {
                 currentMeta = { title: file.title || "Untitled" };
                 if (!isFolder) {
-                    const resBlob = await fetch(`/api/v1/files/${fileId}/download`, { headers: { "X-User-ID": myId } });
+                    const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
                     if (resBlob.ok) contentBlob = await resBlob.blob();
                 }
             }
@@ -1299,24 +1201,23 @@ export default function Dashboard() {
 
             // 3. Upload (if needed)
             if (uploadBlob) {
-                await fetch(`/api/v1/files/${fileId}/upload`, {
+                await apiFetch(`/api/v1/files/${fileId}/upload`, {
                     method: "POST",
-                    headers: { "X-User-ID": myId },
                     body: uploadBlob
                 });
             }
 
             // 4. Update Main Metadata
-            const updateRes = await fetch(`/api/v1/files/${fileId}`, {
+            const updateRes = await apiFetch(`/api/v1/files/${fileId}`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(updatePayload)
             });
             if (!updateRes.ok) throw new Error("Failed to update visibility");
 
             // 5. If "Contacts" visibility, perform bulk share
             if (newVisibility === 'contacts') {
-                const contactsRes = await fetch("/api/v1/contacts", { headers: { "X-User-ID": myId } });
+                const contactsRes = await apiFetch("/api/v1/contacts");
                 if (contactsRes.ok) {
                     const partnerList = await contactsRes.json();
                     for (const contact of partnerList) {
@@ -1329,9 +1230,9 @@ export default function Dashboard() {
                                 ["encrypt"]
                             );
                             const reEncMeta = await cryptoLib.encryptMetadata(currentMeta, recipientPubKey);
-                            await fetch(`/api/v1/files/${fileId}/share`, {
+                            await apiFetch(`/api/v1/files/${fileId}/share`, {
                                 method: "POST",
-                                headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                                headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
                                     email: contact.partner.email,
                                     secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(reEncMeta)))
@@ -1341,12 +1242,12 @@ export default function Dashboard() {
                     }
                 }
             }
-
-            loadFilesAndEvents();
+            
+            fetchDirectory(null);
         } catch (err) {
             console.error("Visibility toggle failed:", err);
             alert("Failed to change visibility");
-            setFiles(prev => prev.map(f => f.id === fileId ? { ...f, visibility: prevVisibility } : f));
+            useDataStore.getState().setNotes(files.map(f => f.id === fileId ? { ...f, visibility: prevVisibility } as any : f));
         }
     };
     const handleShare = async (e: React.MouseEvent, fileId: string) => {
@@ -1385,6 +1286,24 @@ export default function Dashboard() {
 
 
     // -------------------------------------------------------------------------
+    // DateMention Calendar Navigation
+    // -------------------------------------------------------------------------
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const { isoDate } = (e as CustomEvent).detail || {};
+            if (!isoDate) return;
+            const date = new Date(isoDate);
+            if (isNaN(date.getTime())) return;
+            // Switch to calendar tab
+            switchTab('calendar', 'calendar');
+            // Set the calendar view date
+            setCalendarDate(date);
+        };
+        window.addEventListener('dateMention:click', handler);
+        return () => window.removeEventListener('dateMention:click', handler);
+    }, []);
+
+    // -------------------------------------------------------------------------
     // 4. Calendar Logic
     // -------------------------------------------------------------------------
     const handleEventCreate = async (start: Date, end: Date, isAllDay: boolean = false) => {
@@ -1394,9 +1313,9 @@ export default function Dashboard() {
             const meta = { title, start: start.toISOString(), end: end.toISOString(), allDay: isAllDay };
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
-            const res = await fetch("/api/v1/files", {
+            const res = await apiFetch("/api/v1/files", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     type: "event",
                     parent_id: null,
@@ -1405,29 +1324,18 @@ export default function Dashboard() {
                 })
             });
             if (res.ok) {
-                const newFile = await res.json();
-                setEvents(prev => [...prev, { id: newFile.id, title, start: meta.start, end: meta.end, allDay: isAllDay }]);
-                setActiveEventId(newFile.id);
+                const newFile = await res.json().catch(() => null);
+                if (newFile && newFile.id) {
+                    useDataStore.getState().setEvents([...useDataStore.getState().events, { id: newFile.id, title, start: meta.start, end: meta.end, allDay: isAllDay }] as any);
+                    setActiveEventId(newFile.id);
+                }
             }
         } catch (e) { console.error(e); }
     };
 
     const handleEventUpdate = async (id: string, start: Date, end: Date) => {
-        if (!privateKey || !publicKey) return;
-        try {
-            const event = events.find(e => e.id === id);
-            if (!event) return;
-            const meta = { title: event.title, start: start.toISOString(), end: end.toISOString(), color: event.color, description: event.description };
-            const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
-
-            await fetch(`/api/v1/files/${id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
-                body: JSON.stringify({ secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta))) })
-            });
-
-            setEvents(prev => prev.map(e => e.id === id ? { ...e, start: meta.start, end: meta.end } : e));
-        } catch (e) { console.error(e); }
+        const baseId = id.includes('_') ? id.split('_')[0] : id;
+        await handleEventSave(baseId, { start: start.toISOString(), end: end.toISOString() });
     };
 
     const handleEventRename = async (id: string, newTitle: string) => {
@@ -1435,80 +1343,162 @@ export default function Dashboard() {
         try {
             const event = events.find(e => e.id === id);
             if (!event) return;
-            const meta = { title: newTitle, start: event.start, end: event.end, color: event.color, description: event.description };
+            const meta = { 
+                title: newTitle, 
+                start: event.start, 
+                end: event.end, 
+                color: event.color, 
+                description: event.description,
+                allDay: event.allDay,
+                isGroup: (event as any).isGroup,
+                effect: (event as any).effect,
+                recurrence_rule: (event as any).recurrence_rule,
+                recurrence_end: (event as any).recurrence_end
+            };
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
-            await fetch(`/api/v1/files/${id}`, {
+            await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta))) })
             });
-            setEvents(prev => prev.map(e => e.id === id ? { ...e, title: newTitle } : e));
+            useDataStore.getState().setEvents(useDataStore.getState().events.map(e => e.id === id ? { ...e, title: newTitle } as any : e));
         } catch (e) { console.error(e); }
     };
 
     const handleEventSave = async (id: string, updates: any) => {
         if (!privateKey || !publicKey) return;
         try {
-            const event = events.find(e => e.id === id);
+            const isOccurrence = id.includes('_');
+            const baseId = isOccurrence ? id.split('_')[0] : id;
+            const occurrenceTimestamp = isOccurrence ? parseInt(id.split('_')[1], 10) : null;
+            const occurrenceDateKey = occurrenceTimestamp ? format(new Date(occurrenceTimestamp), "yyyy-MM-dd") : null;
+
+            const currentEvents = useDataStore.getState().events;
+            const event = currentEvents.find(e => e.id === baseId);
             if (!event) return;
 
+            // [TASK 3] Handle recurring cancellation: if it's an occurrence, we update the base event's exdates
+            if (isOccurrence && updates.is_cancelled === true) {
+                let exdates = (event as any).exdates || [];
+                if (occurrenceDateKey && !exdates.includes(occurrenceDateKey)) {
+                    exdates = [...exdates, occurrenceDateKey];
+                }
+                updates = { ...updates, exdates: exdates };
+                delete updates.is_cancelled;
+            } else if (isOccurrence && updates.is_cancelled === false) {
+                let exdates = (event as any).exdates || [];
+                exdates = exdates.filter((d: string) => d !== occurrenceDateKey);
+                updates = { ...updates, exdates: exdates };
+                delete updates.is_cancelled;
+            }
+
+            // [TASK 3] Handle recurring completion: if it's an occurrence, we update the base event's completed_dates
+            if (isOccurrence && updates.is_completed !== undefined) {
+                let completed = (event as any).completed_dates || [];
+                if (updates.is_completed) {
+                    if (occurrenceDateKey && !completed.includes(occurrenceDateKey)) completed = [...completed, occurrenceDateKey];
+                } else {
+                    completed = completed.filter((d: string) => d !== occurrenceDateKey);
+                }
+                updates = { ...updates, completed_dates: completed };
+                delete updates.is_completed;
+            }
+
             // 1. Prepare Metadata
-            const meta = {
-                title: updates.title || event.title,
+            const meta: any = {
+                title: updates.title !== undefined ? updates.title : event.title,
                 start: updates.start || event.start,
                 end: updates.end || event.end,
                 description: updates.description !== undefined ? updates.description : event.description,
                 color: updates.color || event.color,
-                allDay: updates.allDay !== undefined ? updates.allDay : event.allDay
+                allDay: updates.allDay !== undefined ? updates.allDay : event.allDay,
+                isGroup: updates.isGroup !== undefined ? updates.isGroup : (event as any).isGroup,
+                effect: updates.effect !== undefined ? updates.effect : (event as any).effect,
+                is_cancelled: updates.is_cancelled !== undefined ? updates.is_cancelled : (event as any).is_cancelled,
+                exdates: updates.exdates !== undefined ? updates.exdates : (event as any).exdates,
+                is_completed: updates.is_completed !== undefined ? updates.is_completed : (event as any).is_completed,
+                completed_dates: updates.completed_dates !== undefined ? updates.completed_dates : (event as any).completed_dates,
+                is_task: updates.is_task !== undefined ? updates.is_task : event.is_task
             };
+            if (updates.recurrence_rule !== undefined) meta.recurrence_rule = updates.recurrence_rule;
+            else if ((event as any).recurrence_rule) meta.recurrence_rule = (event as any).recurrence_rule;
+            
+            if (updates.recurrence_end !== undefined) meta.recurrence_end = updates.recurrence_end;
+            else if ((event as any).recurrence_end) meta.recurrence_end = (event as any).recurrence_end;
 
+            // 2. IMMEDIATE optimistic update
+            useDataStore.getState().setEvents(currentEvents.map(e => {
+                if (e.id === baseId) {
+                    const evt = { ...e, ...meta } as any;
+                    if (updates.is_task !== undefined) evt.is_task = updates.is_task;
+                    if (updates.is_completed !== undefined) evt.is_completed = updates.is_completed;
+                    if (updates.parent_id !== undefined) evt.parent_id = updates.parent_id;
+                    return evt;
+                }
+                return e;
+            }));
+
+            // Also update the metadata cache
+            useDataStore.getState().updateSpecificMetadataCache(baseId, meta);
+
+            // If theme changed
+            if (updates.parent_id !== undefined) {
+                const currentFiles = useDataStore.getState().notes;
+                useDataStore.getState().setNotes(currentFiles.map((n: any) => n.id === baseId ? { ...n, parent_id: updates.parent_id } : n));
+            }
+
+            // 3. Async crypto & network
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
-            // 2. Build body — task flags are top-level columns (not encrypted)
+            // 4. Build body
             const body: any = {
                 secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)))
             };
 
-            // 3. Handle Theme Change (Move)
+            // 5. Handle Theme Change
             if (updates.parent_id !== undefined) {
                 body.parent_id = updates.parent_id;
             }
 
-            // 4. Handle Task flags
+            // 6. Handle Task flags
             if (updates.is_task !== undefined) {
                 body.is_task = updates.is_task;
             }
             if (updates.is_completed !== undefined) {
                 body.is_completed = updates.is_completed;
             }
-
-            await fetch(`/api/v1/files/${id}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
-                body: JSON.stringify(body)
-            });
-
-            // 5. Update local state
-            setEvents(prev => prev.map(e => e.id === id ? { ...e, ...meta, ...(updates.is_task !== undefined ? { is_task: updates.is_task } : {}), ...(updates.is_completed !== undefined ? { is_completed: updates.is_completed } : {}) } : e));
-
-            // If theme changed, update files state as well
-            if (updates.parent_id !== undefined) {
-                setFiles(prev => prev.map(f => f.id === id ? { ...f, parent_id: updates.parent_id } : f));
+            if (updates.exdates !== undefined) {
+                body.exdates = updates.exdates;
+            }
+            if (updates.completed_dates !== undefined) {
+                body.completed_dates = updates.completed_dates;
             }
 
+            // 7. Fire network call
+            await apiFetch(`/api/v1/files/${baseId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body)
+            });
         } catch (e) { console.error(e); }
     };
 
     const handleDeleteEvent = async (id: string) => {
         if (!myId) return;
+        
+        const isOccurrence = id.includes('_');
+        if (isOccurrence) {
+            handleEventSave(id, { is_cancelled: true });
+            return;
+        }
+
         if (!confirm("Are you sure you want to delete this event?")) return;
         try {
-            const res = await fetch(`/api/v1/files/${id}`, {
-                method: "DELETE",
-                headers: { "X-User-ID": myId }
+            const res = await apiFetch(`/api/v1/files/${id}`, {
+                method: "DELETE"
             });
             if (res.ok) {
-                setEvents(prev => prev.filter(e => e.id !== id));
+                useDataStore.getState().setEvents(useDataStore.getState().events.filter(e => e.id !== id) as any);
             }
         } catch (e) { console.error(e); }
     };
@@ -1552,11 +1542,11 @@ export default function Dashboard() {
         }
     };
 
-    const handleMagicLinkClick = (target: any) => {
+    const handleMagicLinkClick = async (target: any) => {
         if (target.id && target.id.startsWith('ghost-')) {
             const title = target.title || target.id.replace('ghost-', '');
 
-            const newId = useDataStore.getState().createNote(title);
+            const newId = await useDataStore.getState().createNote(title);
             switchTab(newId, 'file', title);
             useDataStore.getState().setActiveNoteId(newId);
 
@@ -1625,7 +1615,7 @@ export default function Dashboard() {
             {/* Left Sidebar Panel */}
             <div className={`flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] shrink-0 z-[100] transition-all duration-300 w-64`}>
                 <Sidebar
-                    files={files.filter(f => !f.isGroup && !f.title.startsWith('.'))}
+                    files={sidebarFiles}
                     onFileSelect={handleFileSelect}
                     onNewNote={handleNewNote}
                     onDeleteNote={handleDeleteNote}
@@ -1642,7 +1632,7 @@ export default function Dashboard() {
                     onDateSelect={handleDateSelect}
                     hiddenThemeIds={hiddenThemeIds}
                     onToggleThemeVisibility={handleToggleThemeVisibility}
-                    eventGroups={files.filter(f => f.type === 'folder' && f.isGroup)}
+                    eventGroups={files?.filter(f => f.type === 'folder' && f.isGroup)}
                     onCreateEventGroup={handleCreateEventGroup}
                     onUpdateEventGroup={handleUpdateEventGroup}
                     enabledExtensions={enabledExtensions}
@@ -1657,7 +1647,7 @@ export default function Dashboard() {
                 >
                     <CalendarView
                         events={events.map(e => {
-                            const parent = files.find(f => f.id === e.parent_id);
+                            const parent = files?.find(f => f.id === e.parent_id);
                             return { ...e, effect: parent?.effect || 'none' };
                         }).filter(e => {
                             const parentId = e.parent_id || 'general-theme';
@@ -1682,7 +1672,8 @@ export default function Dashboard() {
                         editingEventId={activeEventId}
                         date={calendarDate}
                         onDateChange={handleDateSelect}
-                        themes={files.filter(f => f.type === 'folder' && f.isGroup)}
+                        themes={files?.filter(f => f.type === 'folder' && f.isGroup).map(g => ({ id: g.id, title: g.title, effect: g.effect, color: (g as any).color }))}
+                        onCreateEventGroup={handleCreateEventGroup}
                     />
                 </div>
 
@@ -1693,9 +1684,12 @@ export default function Dashboard() {
                             onOpenFile={handleFileSelect}
                             onOpenCalendar={() => switchTab('calendar', 'calendar')}
                             onFileCreated={(newFile: DecryptedFile) => {
-                                setFiles(prev => [...prev, newFile]);
+                                useDataStore.getState().appendFiles([newFile as any], []);
                             }}
-                            onAccept={() => loadFilesAndEvents()}
+                            onAccept={() => {
+                                useDataStore.getState().loadedDirectories.clear();
+                                useDataStore.getState().fetchDirectory(null);
+                            }}
                         />
                     ) : (
                         <div className="flex bg-[var(--background)] h-full w-full items-center justify-center text-gray-500 flex-col gap-4">
@@ -1713,7 +1707,11 @@ export default function Dashboard() {
                     {isLoadingContent ? (
                         <div className="flex items-center justify-center h-full text-gray-400">Loading content...</div>
                     ) : (
-                        <div className="max-w-5xl mx-auto min-h-[500px] py-12 px-8 lg:px-24">
+                        <div className={`mx-auto min-h-[500px] py-12 px-8 lg:px-24 transition-all duration-300 ${
+                            noteLayout === 'thin' ? 'max-w-2xl' : 
+                            noteLayout === 'normal' ? 'max-w-4xl' : 
+                            noteLayout === 'wide' ? 'max-w-6xl' : 'max-w-full'
+                        }`}>
                             <CanvasLayer
                                 elements={canvasSidecar.elements}
                                 isLoaded={canvasSidecar.isLoaded}
@@ -1764,7 +1762,7 @@ export default function Dashboard() {
                                     }
                                 }}
                             >
-                                <div className="w-full max-w-screen-lg mx-auto flex flex-row items-start min-h-[500px] py-12 px-4 sm:px-8">
+                                <div className={`w-full mx-auto flex flex-row items-start min-h-[500px] py-12 px-4 sm:px-8 note-layout-${noteLayout || 'normal'}`}>
                                     <EditorGutter
                                         elements={canvasSidecar.elements}
                                         onPinClick={(bid) => {
@@ -1784,14 +1782,17 @@ export default function Dashboard() {
                                     />
                                     <div className="flex-1 min-w-0 flex flex-col">
                                         {activeNoteId && files.find(f => f.id === activeNoteId) && (
-                                            <input
-                                                type="text"
+                                            <>
+                                                <input
+                                                    type="text"
                                                 autoFocus
                                                 value={fileName}
                                                 onChange={(e) => {
                                                     const newTitle = e.target.value;
                                                     setFileName(newTitle);
-                                                    setFiles(prev => prev.map(f => f.id === activeNoteId ? { ...f, title: newTitle } : f));
+                                                    if (activeNoteId) {
+                                                        useDataStore.getState().setNotes(files.map(f => f.id === activeNoteId ? { ...f, title: newTitle } : f) as any);
+                                                    }
                                                 }}
                                                 onBlur={(e) => {
                                                     if (activeNoteId) {
@@ -1807,17 +1808,14 @@ export default function Dashboard() {
                                                 placeholder="Untitled Note"
                                                 className="text-4xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-700 mb-6 pb-1 leading-normal overflow-visible"
                                             />
+                                            </>
                                         )}
 
                                         <Editor
-                                            key={activeNoteId || 'fallback'}
+                                            key={activeTabId}
                                             initialContent={editorContent}
-                                            onEditorReady={(ed) => setTimeout(() => setEditorInstance(ed), 0)}
-                                            onChange={(json) => {
-                                                setEditorContent(json);
-                                                setSaveStatus("unsaved");
-                                                setEditorVersion(v => v + 1);
-                                            }}
+                                            onEditorReady={handleEditorReady}
+                                            onChange={handleEditorChange}
                                             onLinkClick={handleMagicLinkClick}
                                             onForceSave={(json) => {
                                                 if (activeNoteId) {
@@ -1877,7 +1875,7 @@ export default function Dashboard() {
                         <div className="absolute bottom-16 right-0 w-64 bg-white rounded-lg shadow-xl shadow-gray-200/50 border border-gray-200 p-4 animate-in slide-in-from-bottom-2 fade-in duration-200">
                             <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
                                 <span className="font-semibold text-gray-800 text-sm">Themes</span>
-                                <button onClick={handleCreateEventGroup} className="p-1 hover:bg-gray-100 rounded text-gray-500 transition-colors">
+                                <button onClick={() => handleCreateEventGroup()} className="p-1 hover:bg-gray-100 rounded text-gray-500 transition-colors">
                                     <Plus size={14} />
                                 </button>
                             </div>
@@ -1906,19 +1904,33 @@ export default function Dashboard() {
                                                 <Share size={14} />
                                             </button>
                                         </div>
-                                        <div className="flex items-center px-5 relative">
-                                            <select
-                                                value={group.effect || 'none'}
-                                                onChange={(e) => handleUpdateEventGroup(group.id, { effect: e.target.value })}
-                                                className="appearance-none w-full bg-white border border-gray-200 hover:border-gray-300 rounded px-2 py-1 text-[11px] font-medium text-gray-600 outline-none cursor-pointer transition-all focus:ring-1 focus:ring-blue-500"
-                                            >
-                                                <option value="none">Default Color</option>
-                                                <option value="sky">Sky</option>
-                                                <option value="green">Green</option>
-                                                <option value="orange">Orange</option>
-                                            </select>
-                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                                <ChevronDown size={10} />
+                                        <div className="flex flex-col gap-2 px-1">
+                                            <div className="flex items-center gap-1.5 flex-wrap px-5">
+                                                {['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'].map(c => (
+                                                    <button
+                                                        key={c}
+                                                        onClick={() => handleUpdateEventGroup(group.id, { color: c })}
+                                                        className={`w-3.5 h-3.5 rounded-full transition-all border ${ (group as any).color === c ? 'border-blue-500 ring-1 ring-blue-500/20 scale-110' : 'border-gray-200 hover:scale-105' }`}
+                                                        style={{ backgroundColor: c }}
+                                                    />
+                                                ))}
+                                            </div>
+                                            <div className="flex items-center px-5 relative">
+                                                <select
+                                                    value={group.effect || 'none'}
+                                                    onChange={(e) => handleUpdateEventGroup(group.id, { effect: e.target.value })}
+                                                    className="appearance-none w-full bg-white border border-gray-200 hover:border-gray-300 rounded px-2 py-1 text-[11px] font-medium text-gray-600 outline-none cursor-pointer transition-all focus:ring-1 focus:ring-blue-500"
+                                                >
+                                                    <option value="none">Solid Color</option>
+                                                    <option value="stripes">Stripes</option>
+                                                    <option value="waves">Waves</option>
+                                                    <option value="dots">Dots</option>
+                                                    <option value="chess">Chess</option>
+                                                    <option value="dimmed">Dimmed</option>
+                                                </select>
+                                                <div className="absolute right-7 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                                    <ChevronDown size={10} />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1964,6 +1976,8 @@ export default function Dashboard() {
                 onToggleExtension={handleToggleExtension}
                 userProfile={userProfile || undefined}
                 onLogout={handleLogout}
+                noteLayout={noteLayout}
+                onSetNoteLayout={setNoteLayout}
             />
 
             <DailySummary

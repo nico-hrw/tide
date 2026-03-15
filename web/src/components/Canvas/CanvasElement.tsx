@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { CanvasElement, ImageElement, TextWidgetElement, isImageElement, isTextWidget } from '@/types/canvas';
 import * as cryptoLib from '@/lib/crypto';
+import { apiFetch } from '@/lib/api';
 import { X, GripVertical, Shuffle, MoveUp, MoveDown } from 'lucide-react';
 
 interface CanvasElementProps {
@@ -208,7 +209,7 @@ function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
             try {
                 const meta = await cryptoLib.decryptMetadata(element.encryptedKey, privateKey);
                 const fileKey = await window.crypto.subtle.importKey('jwk', meta.fileKey as JsonWebKey, { name: 'AES-GCM' }, false, ['decrypt']);
-                const res = await fetch(`/api/v1/files/${element.blobId}/download`, { headers: { 'X-User-ID': userId } });
+                const res = await apiFetch(`/api/v1/files/${element.blobId}/download`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const dec = await cryptoLib.decryptFile(await res.blob(), meta.iv as string, fileKey);
                 const url = URL.createObjectURL(new Blob([await dec.arrayBuffer()], { type: element.mimeType }));

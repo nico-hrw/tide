@@ -14,6 +14,7 @@ export interface PendingLink {
 }
 
 interface LinkStoreState {
+    isLinkingMode: boolean;
     /** Range + sourceTabId saved when '--' is triggered. No editor reference stored. */
     pendingRange: { from: number; to: number } | null;
     sourceTabId: string | null;
@@ -24,10 +25,12 @@ interface LinkStoreState {
     setRange: (range: { from: number; to: number }, tabId: string) => void;
     setPendingLink: (link: PendingLink) => void;
     setPendingLinkSource: (id: string | null) => void;
+    setIsLinkingMode: (isLinking: boolean) => void;
     clearPendingLink: () => void;
 }
 
 export const useLinkStore = create<LinkStoreState>((set) => ({
+    isLinkingMode: false,
     pendingRange: null,
     sourceTabId: null,
     pendingLink: null,
@@ -35,5 +38,6 @@ export const useLinkStore = create<LinkStoreState>((set) => ({
     setRange: (range, tabId) => set({ pendingRange: range, sourceTabId: tabId }),
     setPendingLink: (link) => set({ pendingLink: link }),
     setPendingLinkSource: (id) => set({ pendingLinkSource: id }),
-    clearPendingLink: () => set({ pendingLink: null, pendingRange: null, sourceTabId: null, pendingLinkSource: null }),
+    setIsLinkingMode: (isLinking) => set({ isLinkingMode: isLinking }),
+    clearPendingLink: () => set({ pendingLink: null, pendingRange: null, sourceTabId: null, pendingLinkSource: null, isLinkingMode: false }),
 }));

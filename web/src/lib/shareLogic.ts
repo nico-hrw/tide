@@ -1,4 +1,5 @@
 import * as cryptoLib from './crypto';
+import { apiFetch } from './api';
 
 export async function performMessengerShare(
     shareModalFile: { id: string; title: string },
@@ -17,11 +18,10 @@ export async function performMessengerShare(
 
     try {
         // 1. Fetch full file metadata  
-        const res = await fetch(`/api/v1/files/${fileId}`, {
-            headers: { "X-User-ID": myId }
-        });
+        const res = await apiFetch(`/api/v1/files/${fileId}`);
         if (!res.ok) throw new Error("Failed to fetch file");
-        const file = await res.json();
+        const file = await res.json().catch(() => null);
+        if (!file) throw new Error("Failed to parse file metadata");
 
         // 2. Get metadata - NEVER decrypt public files
         let meta;
@@ -56,7 +56,7 @@ export async function performMessengerShare(
 
         // 4. Handle Note Content (Deep copy and re-encrypt images if present)
         if (file.type === 'note') {
-            const resBlob = await fetch(`/api/v1/files/${fileId}/download`, { headers: { "X-User-ID": myId } });
+            const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
             if (resBlob.ok) {
                 const blob = await resBlob.blob();
                 const fileKeyInfo = await window.crypto.subtle.importKey(
@@ -83,7 +83,7 @@ export async function performMessengerShare(
                                         'jwk', imgMeta.fileKey as any,
                                         { name: 'AES-GCM' }, false, ['decrypt']
                                     );
-                                    const imgRes = await fetch(`/api/v1/files/${el.blobId}/download`, { headers: { 'X-User-ID': myId } });
+                                    const imgRes = await apiFetch(`/api/v1/files/${el.blobId}/download`);
                                     if (imgRes.ok) {
                                         const imgDecBlob = await cryptoLib.decryptFile(await imgRes.blob(), imgMeta.iv as string, imgFileKeyInfo);
 
@@ -94,9 +94,9 @@ export async function performMessengerShare(
                                         const newImgEncryptedMeta = await cryptoLib.encryptMetadata({ title: imgMeta.title, fileKey: newImgFileKeyJwk, iv: newImgIv }, recipientPubKey);
 
                                         // 3. Upload as new file for recipient
-                                        const createRes = await fetch('/api/v1/files', {
+                                        const createRes = await apiFetch('/api/v1/files', {
                                             method: 'POST',
-                                            headers: { 'Content-Type': 'application/json', 'X-User-ID': myId },
+                                            headers: { 'Content-Type': 'application/json' },
                                             body: JSON.stringify({
                                                 type: 'note',
                                                 size: newImgCiphertext.size,
@@ -106,9 +106,10 @@ export async function performMessengerShare(
                                             }),
                                         });
                                         if (createRes.ok) {
-                                            const newImgFile = await createRes.json();
-                                            await fetch(`/api/v1/files/${newImgFile.id}/upload`, {
-                                                method: 'POST', headers: { 'X-User-ID': myId }, body: newImgCiphertext
+                                            const newImgFile = await createRes.json().catch(() => null);
+                                            if (!newImgFile) throw new Error("Failed to parse new image file metadata");
+                                            await apiFetch(`/api/v1/files/${newImgFile.id}/upload`, {
+                                                method: 'POST', body: newImgCiphertext
                                             });
 
                                             el.blobId = newImgFile.id;
@@ -131,9 +132,9 @@ export async function performMessengerShare(
                         const newNoteMeta = { ...meta, fileKey: newNoteFileKeyJwk, iv: newNoteIv };
                         const newNoteEncryptedMeta = await cryptoLib.encryptMetadata(newNoteMeta, recipientPubKey);
 
-                        const createNoteRes = await fetch('/api/v1/files', {
+                        const createNoteRes = await apiFetch('/api/v1/files', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-User-ID': myId },
+                            headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 type: 'note',
                                 size: newNoteCiphertext.size,
@@ -144,14 +145,15 @@ export async function performMessengerShare(
                         });
 
                         if (createNoteRes.ok) {
-                            const newNoteFile = await createNoteRes.json();
-                            await fetch(`/api/v1/files/${newNoteFile.id}/upload`, {
-                                method: 'POST', headers: { 'X-User-ID': myId }, body: newNoteCiphertext
+                            const newNoteFile = await createNoteRes.json().catch(() => null);
+                            if (!newNoteFile) throw new Error("Failed to parse new note file metadata");
+                            await apiFetch(`/api/v1/files/${newNoteFile.id}/upload`, {
+                                method: 'POST', body: newNoteCiphertext
                             });
 
-                            const shareRes = await fetch(`/api/v1/files/${newNoteFile.id}/share`, {
+                            const shareRes = await apiFetch(`/api/v1/files/${newNoteFile.id}/share`, {
                                 method: "POST",
-                                headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                                headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
                                     email: recipientEmail,
                                     secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(newNoteEncryptedMeta)))
@@ -160,9 +162,9 @@ export async function performMessengerShare(
 
                             if (!shareRes.ok) throw new Error("Failed to share copied file");
 
-                            await fetch("/api/v1/messages", {
+                            await apiFetch("/api/v1/messages", {
                                 method: "POST",
-                                headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                                headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
                                     recipient_email: recipientEmail,
                                     content: JSON.stringify({
@@ -188,9 +190,9 @@ export async function performMessengerShare(
                 try {
                     const evMeta = { title: ev.title, start: ev.start, end: ev.end, color: ev.color, description: ev.description, allDay: ev.allDay, isGroup: false };
                     const evEncrypted = await cryptoLib.encryptMetadata(evMeta, recipientPubKey);
-                    await fetch(`/api/v1/files/${ev.id}/share`, {
+                    await apiFetch(`/api/v1/files/${ev.id}/share`, {
                         method: "POST",
-                        headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                        headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             email: recipientEmail,
                             secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(evEncrypted)))
@@ -203,9 +205,9 @@ export async function performMessengerShare(
         }
 
         const reEncryptedMeta = await cryptoLib.encryptMetadata(meta, recipientPubKey);
-        const shareRes = await fetch(`/api/v1/files/${fileId}/share`, {
+        const shareRes = await apiFetch(`/api/v1/files/${fileId}/share`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "X-User-ID": myId },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 email: recipientEmail,
                 secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(reEncryptedMeta)))
@@ -214,9 +216,9 @@ export async function performMessengerShare(
 
         if (!shareRes.ok) throw new Error("Failed to share file");
 
-        const messageRes = await fetch("/api/v1/messages", {
+        const messageRes = await apiFetch("/api/v1/messages", {
             method: "POST",
-            headers: { "Content-Type": "application/json", "X-User-ID": myId },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 recipient_email: recipientEmail,
                 content: JSON.stringify({

@@ -26,28 +26,34 @@ func NewFileHandler(s *store.SQLiteStore, b store.BlobStore, broker *Broker) *Fi
 }
 
 func (h *FileHandler) RegisterRoutes(r chi.Router) {
-	r.Get("/", h.ListFiles)
-	r.Post("/", h.CreateFile)
-
-	r.Route("/{fileID}", func(r chi.Router) {
-		r.Get("/", h.GetFileMetadata) // Check access
-		r.Put("/", h.UpdateFile)
-		r.Delete("/", h.DeleteFile)
-
-		r.Post("/upload", h.UploadFile)
-		r.Get("/download", h.DownloadFile)
-	})
-
-	r.Put("/visibility", h.SetVisibility)
-
-	// Routes that take fileID as a direct parameter, not nested
-	r.Post("/{fileID}/share", h.ShareFile)
-	r.Post("/{fileID}/accept", h.AcceptShare)
-	r.Post("/{fileID}/copy", h.CopyFile)
-
-	// Public Profile Files
+	// Public routes
 	r.Get("/public/{userID}", h.ListPublicFiles)
-	r.Post("/purge", h.PurgeFiles)
+
+	// Protected routes
+	r.Group(func(r chi.Router) {
+		r.Use(AuthMiddleware)
+		
+		r.Get("/", h.ListFiles)
+		r.Post("/", h.CreateFile)
+
+		r.Route("/{fileID}", func(r chi.Router) {
+			r.Get("/", h.GetFileMetadata) // Check access
+			r.Put("/", h.UpdateFile)
+			r.Delete("/", h.DeleteFile)
+
+			r.Post("/upload", h.UploadFile)
+			r.Get("/download", h.DownloadFile)
+		})
+
+		r.Put("/visibility", h.SetVisibility)
+
+		// Routes that take fileID as a direct parameter, not nested
+		r.Post("/{fileID}/share", h.ShareFile)
+		r.Post("/{fileID}/accept", h.AcceptShare)
+		r.Post("/{fileID}/copy", h.CopyFile)
+
+		r.Post("/purge", h.PurgeFiles)
+	})
 }
 
 func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
@@ -72,9 +78,9 @@ func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		http.Error(w, "User ID required", http.StatusUnauthorized)
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -107,8 +113,10 @@ type UpdateFileRequest struct {
 	PublicMeta  json.RawMessage `json:"public_meta"`
 	SecuredMeta []byte          `json:"secured_meta"`
 	Visibility  *string         `json:"visibility"`
-	IsTask      *bool           `json:"is_task"`
-	IsCompleted *bool           `json:"is_completed"`
+	IsTask         *bool           `json:"is_task"`
+	IsCompleted    *bool           `json:"is_completed"`
+	Exdates        json.RawMessage `json:"exdates"`
+	CompletedDates json.RawMessage `json:"completed_dates"`
 }
 
 func (h *FileHandler) GetFileMetadata(w http.ResponseWriter, r *http.Request) {
@@ -118,9 +126,10 @@ func (h *FileHandler) GetFileMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		http.Error(w, "Missing X-User-ID header", http.StatusUnauthorized)
+	// Read securely from context (set by AuthMiddleware)
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
@@ -139,9 +148,15 @@ func (h *FileHandler) GetFileMetadata(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(file)
 }
 
-// ListFiles: GET /api/v1/files?user_id=...&parent_id=...&recursive=true
+// ListFiles: GET /api/v1/files?parent_id=...&recursive=true
 func (h *FileHandler) ListFiles(w http.ResponseWriter, r *http.Request) {
-	userID := r.URL.Query().Get("user_id") // In real app, get from Context/JWT
+	// Read securely from context (set by AuthMiddleware)
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	parentID := r.URL.Query().Get("parent_id")
 	typeParam := r.URL.Query().Get("type")
 	recursive := r.URL.Query().Get("recursive") == "true"
@@ -149,6 +164,10 @@ func (h *FileHandler) ListFiles(w http.ResponseWriter, r *http.Request) {
 	var pID *string
 	if parentID != "" {
 		pID = &parentID
+	} else if !recursive && typeParam != "event" {
+		// If not recursive and no parent ID provided (and not events which we might flat fetch),
+		// we explicitly want the root (parent_id IS NULL).
+		// Our SQLite store handles pID == nil as root if recursive is false.
 	}
 
 	var tFilter *string
@@ -169,8 +188,8 @@ func (h *FileHandler) ListFiles(w http.ResponseWriter, r *http.Request) {
 
 func (h *FileHandler) AcceptShare(w http.ResponseWriter, r *http.Request) {
 	fileID := chi.URLParam(r, "fileID")
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -244,10 +263,10 @@ func (h *FileHandler) SetVisibility(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("[DEBUG] SetVisibility: FileID=%s, Visibility=%s", req.FileID, req.Visibility)
 
-	// Get user ID
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		userID = "user-1" // Default for dev
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
 	}
 	log.Printf("[DEBUG] SetVisibility: UserID=%s", userID)
 
@@ -312,9 +331,10 @@ func (h *FileHandler) CopyFile(w http.ResponseWriter, r *http.Request) {
 	// Let's check `ListAccessibleFiles` for this specific ID?
 	// Or simplistic: If Visibility is public OR Shared with me.
 
-	viewerID := r.Header.Get("X-User-ID")
-	if viewerID == "" {
-		viewerID = "user-1"
+	viewerID, ok := r.Context().Value("user_id").(string)
+	if !ok || viewerID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
 	}
 
 	// Manual check (MVP)
@@ -363,7 +383,11 @@ type CreateFileRequest struct {
 	Size        int64           `json:"size"`
 	PublicMeta  json.RawMessage `json:"public_meta"`
 	SecuredMeta []byte          `json:"secured_meta"`
-	Visibility  string          `json:"visibility"`
+	Visibility     string          `json:"visibility"`
+	IsTask         bool            `json:"is_task"`
+	IsCompleted    bool            `json:"is_completed"`
+	Exdates        json.RawMessage `json:"exdates"`
+	CompletedDates json.RawMessage `json:"completed_dates"`
 }
 
 func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
@@ -373,10 +397,10 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract UserID (For MVP testing via Header or default)
-	ownerID := r.Header.Get("X-User-ID")
-	if ownerID == "" {
-		ownerID = "user-1" // Default for single-user dev
+	ownerID, ok := r.Context().Value("user_id").(string)
+	if !ok || ownerID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
 	}
 
 	visibility := req.Visibility
@@ -395,7 +419,11 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:   time.Now(),
 		Visibility:  visibility,
 		PublicMeta:  req.PublicMeta,
-		SecuredMeta: req.SecuredMeta,
+		SecuredMeta:    req.SecuredMeta,
+		IsTask:         req.IsTask,
+		IsCompleted:    req.IsCompleted,
+		Exdates:        req.Exdates,
+		CompletedDates: req.CompletedDates,
 	}
 
 	if err := h.Store.CreateFile(r.Context(), file); err != nil {
@@ -429,9 +457,8 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify Ownership (MVP)
-	ownerID := r.Header.Get("X-User-ID")
-	if ownerID == "" || file.OwnerID != ownerID {
+	ownerID, ok := r.Context().Value("user_id").(string)
+	if !ok || ownerID == "" || file.OwnerID != ownerID {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -454,6 +481,12 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.IsCompleted != nil {
 		file.IsCompleted = *req.IsCompleted
+	}
+	if req.Exdates != nil {
+		file.Exdates = req.Exdates
+	}
+	if req.CompletedDates != nil {
+		file.CompletedDates = req.CompletedDates
 	}
 	file.UpdatedAt = time.Now()
 
@@ -506,42 +539,20 @@ func (h *FileHandler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		userID = "user-1" // Default for dev
-	}
-
-	// Check if user has access to this file
-	file, err := h.Store.GetFile(r.Context(), id)
-	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// Allow access if:
-	// 1. User is the owner
-	// 2. File is public
-	// 3. File is shared with user (check file_shares table)
-	hasAccess := false
-	if file.OwnerID == userID || file.Visibility == "public" {
-		hasAccess = true
-	} else {
-		// Check shares - query file_shares table
-		// For now, use ListAccessibleFiles to verify user has access
-		accessibleFiles, err := h.Store.ListAccessibleFiles(r.Context(), userID, nil, nil, false)
-		if err == nil {
-			for _, f := range accessibleFiles {
-				if f.ID == id {
-					hasAccess = true
-					break
-				}
-			}
+	// Check if user has access to this file
+	file, err := h.Store.GetAccessibleFile(r.Context(), id, userID)
+	if err != nil {
+		if err == store.ErrNotFound {
+			http.Error(w, "File not found or access denied", http.StatusForbidden)
+			return
 		}
-	}
-
-	if !hasAccess {
-		http.Error(w, "Access denied", http.StatusForbidden)
+		http.Error(w, "Failed to verify access", http.StatusInternalServerError)
 		return
 	}
 
@@ -568,8 +579,8 @@ func (h *FileHandler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileHandler) PurgeFiles(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}

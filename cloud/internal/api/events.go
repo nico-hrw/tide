@@ -85,15 +85,19 @@ func (b *Broker) listen() {
 }
 
 func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Check Authentication (Header or Query Param)
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	// Read securely from context (set by AuthMiddleware if wrapped, otherwise query param fallback for direct access if necessary)
+	// Actually, best to wrap it in main.go
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		// Fallback for direct SSE access if query param is provided (though AuthMiddleware is preferred)
 		userID = r.URL.Query().Get("user_id")
 	}
+
 	if userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {

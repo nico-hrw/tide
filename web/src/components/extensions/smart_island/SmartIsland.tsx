@@ -317,15 +317,15 @@ const EventPreviewView = ({ payload }: { payload: any }) => {
         <div className="flex flex-col gap-3 px-3 py-2 w-[18rem]">
             <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${isPast ? 'bg-gray-400' : isNow ? 'bg-indigo-500 animate-pulse' : 'bg-blue-500'}`} />
+                    <div className={`w-2.5 h-2.5 rounded-full ${event.is_cancelled ? 'bg-gray-300' : isPast ? 'bg-gray-400' : isNow ? 'bg-indigo-500 animate-pulse' : 'bg-blue-500'}`} />
                     <div className="text-[12px] font-bold uppercase tracking-wider text-gray-500">
-                        {isPast ? 'Past Event' : isNow ? 'Current Event' : 'Upcoming Event'}
+                        {event.is_cancelled ? 'Cancelled' : isPast ? 'Past Event' : isNow ? 'Current Event' : 'Upcoming Event'}
                     </div>
                 </div>
             </div>
 
             <div className={`p-4 rounded-2xl border ${isPast ? 'bg-gray-50 border-gray-100' : isNow ? 'bg-indigo-500 border-indigo-400 text-white shadow-md shadow-indigo-200' : 'bg-white border-gray-200 shadow-sm'}`}>
-                <div className={`text-[18px] font-black leading-tight mb-2 ${isPast ? 'text-gray-400 line-through' : isNow ? 'text-white' : 'text-gray-900'}`}>
+                <div className={`text-[18px] font-black leading-tight mb-2 ${event.is_cancelled || isPast ? 'text-gray-400 line-through' : isNow ? 'text-white' : 'text-gray-900'}`}>
                     {event.title || 'Untitled Event'}
                 </div>
                 <div className="flex flex-col gap-1">

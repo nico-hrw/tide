@@ -2,6 +2,7 @@
 
 import { X, Users, Mail } from "lucide-react";
 import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api";
 
 interface Contact {
     id: string;
@@ -39,9 +40,7 @@ export default function ShareModal({
 
     const loadContacts = async () => {
         try {
-            const res = await fetch(`/api/v1/contacts`, {
-                headers: { "X-User-ID": myId }
-            });
+            const res = await apiFetch(`/api/v1/contacts`);
             if (res.ok) {
                 interface EnrichedContact {
                     partner: {
@@ -51,7 +50,11 @@ export default function ShareModal({
                         public_key: string;
                     };
                 }
-                const enrichedContacts = await res.json() as EnrichedContact[];
+                const enrichedContacts = await res.json().catch(() => []) as EnrichedContact[];
+                if (!Array.isArray(enrichedContacts)) {
+                    setContacts([]);
+                    return;
+                }
                 // Transform enriched contacts to flat structure
                 const flatContacts = (enrichedContacts || []).map((ec) => ({
                     id: ec.partner.id,
@@ -73,14 +76,14 @@ export default function ShareModal({
         setSearchResult(null);
 
         try {
-            const res = await fetch(`/api/v1/contacts/search`, {
+            const res = await apiFetch(`/api/v1/contacts/search`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: customEmail.trim() })
             });
 
             if (res.ok) {
-                const results = await res.json();
+                const results = await res.json().catch(() => null);
                 if (results && results.length > 0) {
                     setSearchResult(results[0]);
                 } else {

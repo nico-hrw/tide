@@ -16,8 +16,8 @@ export interface ScheduleEventData {
 interface ScheduleModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onApply: (events: ScheduleEventData[], theme: string) => Promise<void>;
-    existingThemes: { id: string; title: string; effect?: string }[];
+    onApply: (events: ScheduleEventData[], theme: string, options?: { color?: string, effect?: string }) => Promise<void>;
+    existingThemes: { id: string; title: string; effect?: string; color?: string }[];
 }
 
 export function ScheduleModal({ isOpen, onClose, onApply, existingThemes }: ScheduleModalProps) {
@@ -26,6 +26,8 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes }: Sche
     ]);
     const [theme, setTheme] = useState(existingThemes.length > 0 ? existingThemes[0].id : 'new-theme');
     const [themeName, setThemeName] = useState('New Theme');
+    const [themeColor, setThemeColor] = useState('#6366f1');
+    const [themeEffect, setThemeEffect] = useState('none');
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [activeDateSettings, setActiveDateSettings] = useState<string | null>(null);
@@ -133,7 +135,8 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes }: Sche
             setIsSaving(true);
             setError(null);
             const appliedTheme = theme === 'new-theme' ? themeName : theme;
-            await onApply(events, appliedTheme);
+            const options = theme === 'new-theme' ? { color: themeColor, effect: themeEffect } : undefined;
+            await onApply(events, appliedTheme, options);
             onClose();
         } catch (e: any) {
             setError(e.message || "Failed to save schedule items.");
@@ -178,14 +181,48 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes }: Sche
                                     </optgroup>
                                 </select>
                                 {theme === 'new-theme' && (
-                                    <input
-                                        type="text"
-                                        placeholder="Theme Name..."
-                                        maxLength={30}
-                                        value={themeName}
-                                        onChange={(e) => setThemeName(e.target.value)}
-                                        className="w-full mt-2 bg-white dark:bg-[#2A2A2A] border border-gray-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                                    />
+                                    <div className="mt-3 flex flex-col gap-3 p-4 bg-gray-50/50 dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-slate-800">
+                                        <input
+                                            type="text"
+                                            placeholder="Theme Name..."
+                                            maxLength={30}
+                                            value={themeName}
+                                            onChange={(e) => setThemeName(e.target.value)}
+                                            className="w-full bg-white dark:bg-[#2A2A2A] border border-gray-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm font-semibold focus:outline-none focus:border-blue-500 shadow-sm"
+                                        />
+                                        
+                                        <div className="flex flex-col md:flex-row gap-4">
+                                            <div className="flex-1">
+                                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Color</label>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'].map(c => (
+                                                        <button
+                                                            key={c}
+                                                            onClick={() => setThemeColor(c)}
+                                                            className={`w-6 h-6 rounded-full transition-all border-2 ${themeColor === c ? 'border-blue-500 scale-110 shadow-md ring-2 ring-blue-500/20' : 'border-transparent hover:scale-105'}`}
+                                                            style={{ backgroundColor: c }}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="w-full md:w-32">
+                                                <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Effect</label>
+                                                <select
+                                                    value={themeEffect}
+                                                    onChange={(e) => setThemeEffect(e.target.value)}
+                                                    className="w-full bg-white dark:bg-[#2A2A2A] border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none cursor-pointer"
+                                                >
+                                                    <option value="none">None</option>
+                                                    <option value="stripes">Stripes</option>
+                                                    <option value="waves">Waves</option>
+                                                    <option value="dots">Dots</option>
+                                                    <option value="chess">Chess</option>
+                                                    <option value="dimmed">Dimmed</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
 

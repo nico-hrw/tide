@@ -17,13 +17,14 @@ func NewExtensionsHandler(s *store.SQLiteStore) *ExtensionsHandler {
 }
 
 func (h *ExtensionsHandler) RegisterRoutes(r chi.Router) {
+	r.Use(AuthMiddleware)
 	r.Put("/", h.ToggleExtension)
 	r.Get("/", h.GetExtensions)
 }
 
 func (h *ExtensionsHandler) GetExtensions(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -53,8 +54,8 @@ type ToggleExtensionRequest struct {
 }
 
 func (h *ExtensionsHandler) ToggleExtension(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}

@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DollarSign, X } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 import { ResponsiveContainer, AreaChart, Area, Tooltip, YAxis } from 'recharts';
+
 
 interface Account {
     id: string;
@@ -35,19 +37,20 @@ export default function FinanceDashboard() {
 
     const assetAccounts = accounts.filter(a => a.type === 'asset');
 
-
     const fetchData = async () => {
         try {
-            const userId = localStorage.getItem('tide_user_id') || 'local-test-user';
-            const accRes = await fetch(`http://localhost:8080/api/v1/finance/accounts`, {
-                headers: { 'X-User-ID': userId }
-            });
-            if (accRes.ok) setAccounts(await accRes.json() || []);
 
-            const txRes = await fetch(`http://localhost:8080/api/v1/finance/transactions`, {
-                headers: { 'X-User-ID': userId }
-            });
-            if (txRes.ok) setTransactions(await txRes.json() || []);
+            const accRes = await apiFetch(`/api/v1/finance/accounts`);
+            if (accRes.ok) {
+                const data = await accRes.json().catch(() => null);
+                if (Array.isArray(data)) setAccounts(data);
+            }
+
+            const txRes = await apiFetch(`/api/v1/finance/transactions`);
+            if (txRes.ok) {
+                const data = await txRes.json().catch(() => null);
+                if (Array.isArray(data)) setTransactions(data);
+            }
         } catch (e) {
             console.error("Failed to fetch finance data", e);
         }
@@ -109,11 +112,10 @@ export default function FinanceDashboard() {
                 };
             }
 
-            const response = await fetch(`http://localhost:8080${endpoint}`, {
+            const response = await apiFetch(endpoint, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-User-ID': userId,
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload)
             });
@@ -201,8 +203,7 @@ export default function FinanceDashboard() {
                                     <span>-&gt; {formatCurrency(a.balance)} {a.name}</span>
                                     <button onClick={async () => {
                                         if (confirm("Delete this account?")) {
-                                            const userId = localStorage.getItem('tide_user_id') || 'local-test-user';
-                                            await fetch(`http://localhost:8080/api/v1/finance/accounts/${a.id}`, { method: 'DELETE', headers: { 'X-User-ID': userId } });
+                                            await apiFetch(`/api/v1/finance/accounts/${a.id}`, { method: 'DELETE' });
                                             fetchData();
                                         }
                                     }} className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"><X size={14} /></button>
@@ -239,8 +240,7 @@ export default function FinanceDashboard() {
                                                     {b.name}
                                                     <button onClick={async () => {
                                                         if (confirm("Delete mapping?")) {
-                                                            const userId = localStorage.getItem('tide_user_id') || 'local-test-user';
-                                                            await fetch(`http://localhost:8080/api/v1/finance/accounts/${b.id}`, { method: 'DELETE', headers: { 'X-User-ID': userId } });
+                                                            await apiFetch(`/api/v1/finance/accounts/${b.id}`, { method: 'DELETE' });
                                                             fetchData();
                                                         }
                                                     }} className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition-opacity"><X size={12} /></button>

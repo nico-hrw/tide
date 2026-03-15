@@ -2,23 +2,36 @@ import { ReactRenderer } from '@tiptap/react';
 import tippy from 'tippy.js';
 import { useDataStore } from '@/store/useDataStore';
 import { useLinkStore } from '@/store/useLinkStore';
-import { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useState, useRef } from 'react';
 
 const MentionList = forwardRef((props: any, ref) => {
     const [selectedIndex, setSelectedIndex] = useState(0);
+    const isCreatingRef = useRef(false);
 
     const selectItem = async (index: number) => {
         const item = props.items[index];
-        if (item) {
-            if (item.id === 'NEW') {
-                const newId = useDataStore.getState().createNote(item.query);
-                props.command({ id: newId, label: item.query });
-            } else {
-                props.command({ id: item.id, label: item.title || item.label });
+        if (!item) return;
+
+        if (item.id === 'NEW') {
+            if (isCreatingRef.current) return;
+            isCreatingRef.current = true;
+            try {
+                // Sanitize title - strip any leading ! prefix, explicitly using props.query
+                const cleanTitle = (props.query || item.query || item.label || 'Untitled')
+                    .replace(/^!+/, '').trim() || 'Untitled';
+
+                // We immediately get the UUID so Tiptap can insert the node.
+                const newId = await useDataStore.getState().createNote(cleanTitle);
+
+                // Insert as a real (non-ghost) link immediately with correct title.
+                props.command({ ...item, id: newId, label: cleanTitle, isGhost: false });
+            } finally {
+                isCreatingRef.current = false;
             }
-            // Clear pendingLinkSource on successful selection
-            useLinkStore.getState().setPendingLinkSource(null);
+        } else {
+            props.command({ ...item, label: item.title || item.label });
         }
+        useLinkStore.getState().setPendingLinkSource(null);
     };
 
     useEffect(() => setSelectedIndex(0), [props.items]);
@@ -71,12 +84,13 @@ export default {
         // 1. Ghost Link Logic
         if (query.startsWith('!')) {
             const cleanQuery = query.substring(1);
-            return [{ id: 'GHOST', label: cleanQuery, rawQuery: cleanQuery, isGhost: true }];
+            return [{ id: 'GHOST', label: cleanQuery, query: cleanQuery, isGhost: true }];
         }
 
         // 2. Strict Aggressive Filtering
         const filteredFiles = files.filter((f: any) => {
             if (!f || !f.title) return false;
+            if (f.isGroup || f.type === 'folder') return false; // Exclude folders and groups
             const titleLower = String(f.title).toLowerCase();
 
             // AGGRESSIVE BLOCKLIST:
@@ -93,25 +107,26 @@ export default {
         // 4. Return formatted
         return [
             ...matched.map((f: any) => ({ id: f.id, label: f.title || f.id, isGhost: false })),
-            { id: 'NEW', label: `Create File '${query}'`, rawQuery: query, isGhost: false }
+            { id: 'NEW', label: `Create File '${query}'`, query: query, isGhost: false }
         ].slice(0, 10);
     },
 
     command: ({ editor, range, props }: any) => {
         if (props.isGhost || props.id === 'GHOST') {
-            editor.chain().focus().insertContentAt(range, {
+            editor.chain().focus().deleteRange(range).insertContent({
                 type: 'mention',
-                attrs: { id: `ghost-${props.rawQuery}`, label: props.rawQuery, isGhost: true }
+                attrs: { id: `ghost-${props.query || props.label}`, label: props.label, isGhost: true }
             }).run();
             return;
         } else if (props.id === 'NEW') {
-            const newId = useDataStore.getState().createNote(props.rawQuery);
-            editor.chain().focus().insertContentAt(range, {
+            // Title comes from the label (already cleaned in selectItem)
+            const label = props.label || props.query || 'Untitled';
+            editor.chain().focus().deleteRange(range).insertContent({
                 type: 'mention',
-                attrs: { id: newId, label: props.rawQuery, isGhost: true }
+                attrs: { id: props.id, label: label, isGhost: false }
             }).run();
         } else {
-            editor.chain().focus().insertContentAt(range, {
+            editor.chain().focus().deleteRange(range).insertContent({
                 type: 'mention',
                 attrs: { id: props.id, label: props.label, isGhost: false }
             }).run();
@@ -126,6 +141,7 @@ export default {
             onStart: (props: any) => {
                 // TRIGGER VISUAL MODE INSTANTLY
                 useLinkStore.getState().setPendingLinkSource(useDataStore.getState().activeNoteId);
+                useLinkStore.getState().setIsLinkingMode(true);
 
                 component = new ReactRenderer(MentionList, {
                     props,
@@ -162,15 +178,17 @@ export default {
             onKeyDown(props: any) {
                 if (props.event.key === 'Escape') {
                     useLinkStore.getState().setPendingLinkSource(null);
+                    useLinkStore.getState().setIsLinkingMode(false);
                     if (popup) popup[0].destroy();
                     return true;
                 }
 
-                return component?.ref?.onKeyDown(props);
+                return (component?.ref as any)?.onKeyDown(props);
             },
 
             onExit() {
                 useLinkStore.getState().setPendingLinkSource(null);
+                useLinkStore.getState().setIsLinkingMode(false);
                 if (popup) {
                     popup[0].destroy();
                     popup = null;

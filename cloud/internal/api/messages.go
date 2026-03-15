@@ -17,6 +17,7 @@ type MessageHandler struct {
 }
 
 func (h *MessageHandler) RegisterRoutes(r chi.Router) {
+	r.Use(AuthMiddleware)
 	r.Post("/", h.SendMessage)
 	r.Get("/", h.GetMessages)
 	r.Get("/conversations", h.ListConversations)
@@ -25,8 +26,8 @@ func (h *MessageHandler) RegisterRoutes(r chi.Router) {
 }
 
 func (h *MessageHandler) DeleteConversation(w http.ResponseWriter, r *http.Request) {
-	senderID := r.Header.Get("X-User-ID")
-	if senderID == "" {
+	senderID, ok := r.Context().Value("user_id").(string)
+	if !ok || senderID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -58,10 +59,10 @@ type SendMessageRequest struct {
 }
 
 func (h *MessageHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
-	// ... (existing logic) ...
-	senderID := r.Header.Get("X-User-ID")
-	if senderID == "" {
-		senderID = "user-1"
+	senderID, ok := r.Context().Value("user_id").(string)
+	if !ok || senderID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
 	}
 
 	var req SendMessageRequest
@@ -124,9 +125,10 @@ func (h *MessageHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *MessageHandler) GetMessages(w http.ResponseWriter, r *http.Request) {
-	senderID := r.Header.Get("X-User-ID")
-	if senderID == "" {
-		senderID = "user-1"
+	senderID, ok := r.Context().Value("user_id").(string)
+	if !ok || senderID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
 	}
 
 	partnerEmail := r.URL.Query().Get("partner_email")
@@ -170,7 +172,11 @@ type UpdateMessageStatusRequest struct {
 
 func (h *MessageHandler) UpdateMessageStatus(w http.ResponseWriter, r *http.Request) {
 	msgID := chi.URLParam(r, "messageID")
-	userID := r.Header.Get("X-User-ID")
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	var req UpdateMessageStatusRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -200,8 +206,8 @@ func (h *MessageHandler) UpdateMessageStatus(w http.ResponseWriter, r *http.Requ
 }
 
 func (h *MessageHandler) ListConversations(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}

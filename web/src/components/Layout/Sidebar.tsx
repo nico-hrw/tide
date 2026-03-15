@@ -1,12 +1,13 @@
 "use client";
 
-import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Calendar as CalendarIcon, Lock, Pin, DollarSign, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Calendar as CalendarIcon, Lock, Pin, DollarSign, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, Reorder } from "framer-motion";
 import SmartIsland from "../extensions/smart_island/SmartIsland";
 import MiniCalendar from "../Calendar/MiniCalendar";
 import { useHighlight } from "@/components/HighlightContext";
 import { useDataStore } from "@/store/useDataStore";
+import { apiFetch } from "@/lib/api";
 
 interface DecryptedFile {
     id: string;
@@ -84,8 +85,11 @@ export default function Sidebar({
     const [myId, setMyId] = useState<string>("");
     const [userProfile, setUserProfile] = useState<{ username: string, email: string } | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, id: string, type: 'file' | 'folder' } | null>(null);
+    const [dropIndicator, setDropIndicator] = useState<{ id: string, half: 'top' | 'bottom' } | null>(null);
 
-    const topLevelItems = files.filter(f => f.parent_id === null);
+    const topLevelItems = useMemo(() => {
+        return files?.filter(f => f.parent_id === null) || [];
+    }, [files]);
     const [orderedItems, setOrderedItems] = useState<DecryptedFile[]>([]);
 
     useEffect(() => {
@@ -108,9 +112,9 @@ export default function Sidebar({
 
         // Sync to .info file
         if (myId) {
-            fetch('/api/v1/files/sidebar_order.info', {
+            apiFetch('/api/v1/files/sidebar_order.info', {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'X-User-ID': myId },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ order: newIds })
             }).catch(e => console.error("Failed to save sidebar order", e));
         }
@@ -153,6 +157,7 @@ export default function Sidebar({
         sessionStorage.clear();
         localStorage.removeItem("tide_user_email");
         localStorage.removeItem("tide_user_id");
+        localStorage.removeItem("tide_session_token");
         window.location.reload();
     };
 
@@ -177,6 +182,15 @@ export default function Sidebar({
                 className="flex-1 overflow-y-auto p-2 no-scrollbar"
                 onDoubleClick={(e) => {
                     if (e.target === e.currentTarget) onNewNote();
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                    e.preventDefault();
+                    const id = e.dataTransfer.getData("text/plain");
+                    if (id && e.target === e.currentTarget) {
+                        onMoveItem?.(id, null);
+                    }
+                    setDropIndicator(null);
                 }}
             >
                 <div className="flex items-center justify-between px-2 py-1 mb-2">
@@ -252,8 +266,35 @@ export default function Sidebar({
 
                 <Reorder.Group axis="y" values={orderedItems} onReorder={handleReorder} className="space-y-0.5">
                     {orderedItems.map((item, i) => (
-                        <Reorder.Item key={item.id} value={item}>
+                        <Reorder.Item
+                            key={item.id}
+                            value={item}
+                            onDragOver={(e: React.DragEvent) => {
+                                e.preventDefault();
+                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                const half = e.clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
+                                setDropIndicator({ id: item.id, half });
+                            }}
+                            onDragLeave={() => setDropIndicator(null)}
+                            onDrop={(e: React.DragEvent) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const half = dropIndicator?.half || 'bottom';
+                                setDropIndicator(null);
+                                const draggedId = e.dataTransfer.getData("text/plain");
+                                if (!draggedId || draggedId === item.id) return;
+                                const newItems = orderedItems.filter(o => o.id !== draggedId);
+                                let dropIdx = newItems.findIndex(o => o.id === item.id);
+                                if (half === 'bottom') dropIdx += 1;
+                                const draggedItem = orderedItems.find(o => o.id === draggedId);
+                                if (draggedItem) {
+                                    newItems.splice(dropIdx, 0, draggedItem);
+                                    handleReorder(newItems);
+                                }
+                            }}
+                        >
                             {item.type === 'folder' ? (
+                                <div className={`relative ${dropIndicator?.id === item.id && dropIndicator.half === 'top' ? 'border-t-2 border-blue-500' : ''} ${dropIndicator?.id === item.id && dropIndicator.half === 'bottom' ? 'border-b-2 border-blue-500' : ''}`}>
                                 <FolderItem
                                     folder={item}
                                     allFiles={files}
@@ -275,6 +316,7 @@ export default function Sidebar({
                                     myId={myId}
                                     onContextMenu={handleContextMenu}
                                 />
+                                </div>
                             ) : (
                                 <FileItem
                                     file={item}
@@ -290,6 +332,7 @@ export default function Sidebar({
                                     enabledExtensions={enabledExtensions}
                                     myId={myId}
                                     onContextMenu={handleContextMenu}
+                                    isDragTarget={dropIndicator?.id === item.id ? dropIndicator.half : undefined}
                                 />
                             )}
                         </Reorder.Item>
@@ -407,7 +450,7 @@ interface FileItemProps {
     index?: number;
 }
 
-const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onDragStart, onContextMenu, enabledExtensions, myId, index }: FileItemProps) => {
+const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onDragStart, onContextMenu, enabledExtensions, myId, index, isDragTarget }: FileItemProps & { isDragTarget?: 'top' | 'bottom' | undefined }) => {
     const { isHighlighted, highlight } = useHighlight();
     return (
         <motion.div
@@ -425,11 +468,11 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                     onSelect(file.id, file.title);
                 }
             }}
-            className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 ${isHighlighted(file.id, 'file') ? 'ring-2 ring-purple-500 bg-purple-50' : 'hover:bg-gray-100'}`}
+            className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 ${isHighlighted(file.id, 'file') ? 'ring-2 ring-purple-500 bg-purple-50' : 'hover:bg-gray-100'} ${isDragTarget === 'top' ? 'border-t-2 border-blue-500' : isDragTarget === 'bottom' ? 'border-b-2 border-blue-500' : ''}`}
             style={{ marginLeft: `${level * 12}px` }}
         >
-            <div className="flex items-center gap-2 truncate flex-1">
-                {file.title.startsWith('#') ? <Lock size={15} className="text-gray-400" /> : <FileText size={15} className="text-gray-400" />}
+            <div className="flex items-center gap-2 truncate flex-1 flex-shrink-0">
+                {file.title.startsWith('#') ? <Lock size={15} className="shrink-0 text-gray-400" /> : <FileText size={15} className="shrink-0 text-gray-400" />}
                 {editingId === file.id ? (
                     <input
                         autoFocus
@@ -475,8 +518,27 @@ interface FolderItemProps {
 
 const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onCreateFolder, onMoveItem, onDragStart, onContextMenu, viewMode, enabledExtensions, myId, index }: FolderItemProps) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const children = allFiles.filter(f => f.parent_id === folder.id);
     const { highlight } = useHighlight();
+    const { fetchDirectory, loadedDirectories } = useDataStore();
+
+    const handleToggle = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+
+        if (!isOpen) {
+            // Expand
+            if (!loadedDirectories.has(folder.id)) {
+                setIsLoading(true);
+                await fetchDirectory(folder.id);
+                setIsLoading(false);
+            }
+            setIsOpen(true);
+        } else {
+            // Collapse
+            setIsOpen(false);
+        }
+    };
 
     return (
         <div>
@@ -490,18 +552,37 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                 onDragOver={(e: any) => e.preventDefault()}
                 onDrop={(e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     const id = e.dataTransfer.getData("text/plain");
                     if (id && id !== folder.id) onMoveItem?.(id, folder.id);
                 }}
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={handleToggle}
                 className="group flex items-center justify-between p-2 rounded-lg cursor-pointer hover:bg-gray-100 transition-all duration-200"
                 style={{ marginLeft: `${level * 12}px` }}
             >
                 <div className="flex items-center gap-2 truncate flex-1">
-                    {isOpen ? <FolderOpen size={15} className="text-gray-400" /> : <Folder size={15} className="text-gray-400" />}
-                    <span className="text-sm font-semibold text-gray-900 truncate">
-                        {folder.title.startsWith('#') ? folder.title.slice(1).trim() : folder.title}
-                    </span>
+                    {isLoading ? (
+                        <Loader2 size={15} className="text-gray-400 animate-spin" />
+                    ) : isOpen ? (
+                        <FolderOpen size={15} className="text-gray-400" />
+                    ) : (
+                        <Folder size={15} className="text-gray-400" />
+                    )}
+                    {editingId === folder.id ? (
+                        <input
+                            autoFocus
+                            onFocus={(e) => e.target.select()}
+                            defaultValue={folder.title}
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={(e) => onRenameSubmit?.(folder.id, e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && onRenameSubmit?.(folder.id, e.currentTarget.value)}
+                            className="w-full bg-white border border-gray-200 rounded px-1 text-sm outline-none font-normal"
+                        />
+                    ) : (
+                        <span className="text-sm font-semibold text-gray-900 truncate">
+                            {folder.title.startsWith('#') ? folder.title.slice(1).trim() : folder.title}
+                        </span>
+                    )}
                 </div>
             </motion.div>
             {isOpen && (

@@ -62,9 +62,11 @@ type File struct {
 	Visibility  string          `json:"visibility" db:"visibility"`     // 'private' or 'public'
 	PublicMeta  json.RawMessage `json:"public_meta" db:"public_meta"`   // JSONB
 	SecuredMeta []byte          `json:"secured_meta" db:"secured_meta"` // BYTEA
-	ShareStatus string          `json:"share_status,omitempty" db:"share_status"`
-	IsTask      bool            `json:"is_task" db:"is_task"`
-	IsCompleted bool            `json:"is_completed" db:"is_completed"`
+	ShareStatus    string          `json:"share_status,omitempty" db:"share_status"`
+	IsTask         bool            `json:"is_task" db:"is_task"`
+	IsCompleted    bool            `json:"is_completed" db:"is_completed"`
+	Exdates        json.RawMessage `json:"exdates" db:"exdates"`
+	CompletedDates json.RawMessage `json:"completed_dates" db:"completed_dates"`
 }
 
 // DB defines the interface for database operations.

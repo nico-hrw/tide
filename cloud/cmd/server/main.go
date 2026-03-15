@@ -82,8 +82,9 @@ func main() {
 		r.Route("/tabs", tabsHandler.RegisterRoutes)
 		r.Route("/finance", financeHandler.RegisterRoutes)
 
-		// SSE Endpoint
-		r.Get("/events", broker.ServeHTTP)
+		// SSE Endpoint (Wrapped with AuthMiddleware for security)
+		r.With(api.AuthMiddleware).Get("/events", broker.ServeHTTP)
+
 	})
 
 	log.Printf("Server starting on port %s...", port)

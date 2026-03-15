@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { MessageSquare, Search, UserPlus, X, Send, FileText, Share2, CheckCircle, XCircle, FolderOpen, ChevronRight, ChevronDown, Folder, Calendar, Trash } from "lucide-react";
 import { useIslandStore } from "@/components/extensions/smart_island/useIslandStore";
+import { apiFetch } from "@/lib/api";
+import * as cryptoLib from "@/lib/crypto";
 
 interface Message {
     id: string;
@@ -152,15 +154,21 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
 
     const fetchContacts = async () => {
         try {
-            const res = await fetch("/api/v1/contacts", { headers: { "X-User-ID": myId } });
-            if (res.ok) setContacts(await res.json());
+            const res = await apiFetch("/api/v1/contacts");
+            if (res.ok) {
+                const data = await res.json().catch(() => null);
+                if (Array.isArray(data)) setContacts(data);
+            }
         } catch (e) { console.error(e); }
     };
 
     const fetchRequests = async () => {
         try {
-            const res = await fetch("/api/v1/contacts/requests", { headers: { "X-User-ID": myId } });
-            if (res.ok) setRequests(await res.json());
+            const res = await apiFetch("/api/v1/contacts/requests");
+            if (res.ok) {
+                const data = await res.json().catch(() => null);
+                if (Array.isArray(data)) setRequests(data);
+            }
         } catch (e) { console.error(e); }
     };
 
@@ -187,9 +195,13 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
     const fetchAllSharedFiles = async () => {
         try {
             const url = myId ? `/api/v1/files?user_id=${myId}` : "/api/v1/files";
-            const res = await fetch(url, { headers: { "X-User-ID": myId } });
+            const res = await apiFetch(url);
             if (res.ok) {
-                const allFiles: FileData[] = await res.json() || [];
+                const allFiles: FileData[] = await res.json().catch(() => []);
+                if (!Array.isArray(allFiles)) {
+                    console.error("[ChatPanel] Expected array for files, got:", allFiles);
+                    return;
+                }
                 // Filter files shared with me (owner_id is not me)
                 // We KEEP pending shares to show them in the list with Accept/Decline options
                 const sharedWithMe = allFiles.filter(f => f.owner_id !== myId);
@@ -239,7 +251,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
         setSearchResult([]);
         setSearchError("");
         try {
-            const res = await fetch("/api/v1/contacts/search", {
+            const res = await apiFetch("/api/v1/contacts/search", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: searchEmail })
@@ -256,11 +268,10 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
 
     const sendRequest = async (targetId: string) => {
         try {
-            const res = await fetch("/api/v1/contacts/request", {
+            const res = await apiFetch("/api/v1/contacts/request", {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
-                    "X-User-ID": myId
+                    "Content-Type": "application/json"
                 },
                 body: JSON.stringify({ target_id: targetId })
             });
@@ -282,11 +293,10 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
     const handleCopyAndOpen = async (file: any) => {
         try {
             // Check if we already have it? (Simplistic: just copy)
-            const res = await fetch(`/api/v1/files/${file.id}/copy`, {
+            const res = await apiFetch(`/api/v1/files/${file.id}/copy`, {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
-                    "X-User-ID": myId
+                    "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
                     new_owner_id: myId,
@@ -321,9 +331,8 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
         if (!confirm(`Are you sure you want to delete the conversation with ${partner.username}? This cannot be undone.`)) return;
 
         try {
-            const res = await fetch(`/api/v1/messages/conversation?partner_email=${partner.email}`, {
-                method: "DELETE",
-                headers: { "X-User-ID": myId }
+            const res = await apiFetch(`/api/v1/messages/conversation?partner_email=${partner.email}`, {
+                method: "DELETE"
             });
 
             if (res.ok) {
@@ -340,16 +349,15 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
 
     const handleAccept = async (fileId: string, messageId?: string) => {
         try {
-            await fetch(`/api/v1/files/${fileId}/accept`, {
-                method: "POST",
-                headers: { "X-User-ID": myId }
+            await apiFetch(`/api/v1/files/${fileId}/accept`, {
+                method: "POST"
             });
 
             // Update persistent status if from a message
             if (messageId) {
-                await fetch(`/api/v1/messages/${messageId}`, {
+                await apiFetch(`/api/v1/messages/${messageId}`, {
                     method: "PATCH",
-                    headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ status: 'accepted' })
                 });
             }
@@ -369,9 +377,8 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
 
     const handleAcceptContact = async (requestId: string) => {
         try {
-            const res = await fetch(`/api/v1/contacts/${requestId}/accept`, {
-                method: "POST",
-                headers: { "X-User-ID": myId }
+            const res = await apiFetch(`/api/v1/contacts/${requestId}/accept`, {
+                method: "POST"
             });
             if (res.ok) {
                 setRequests(prev => prev.filter(r => r.id !== requestId));
@@ -385,9 +392,8 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
     const handleDeclineContact = async (requestId: string) => {
         if (!confirm("Decline this contact request?")) return;
         try {
-            const res = await fetch(`/api/v1/contacts/${requestId}/decline`, {
-                method: "POST",
-                headers: { "X-User-ID": myId }
+            const res = await apiFetch(`/api/v1/contacts/${requestId}/decline`, {
+                method: "POST"
             });
             if (res.ok) {
                 setRequests(prev => prev.filter(r => r.id !== requestId));
@@ -400,16 +406,15 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
     const handleDecline = async (fileId: string, messageId?: string) => {
         if (!confirm("Decline and remove this share?")) return;
         try {
-            const res = await fetch(`/api/v1/files/${fileId}`, {
-                method: "DELETE",
-                headers: { "X-User-ID": myId }
+            const res = await apiFetch(`/api/v1/files/${fileId}`, {
+                method: "DELETE"
             });
             if (res.ok) {
                 // Update persistent status if from a message
                 if (messageId) {
-                    await fetch(`/api/v1/messages/${messageId}`, {
+                    await apiFetch(`/api/v1/messages/${messageId}`, {
                         method: "PATCH",
-                        headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                        headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ status: 'declined' })
                     });
                 }
@@ -437,7 +442,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
     const fetchPartnerFiles = async (partnerId: string) => {
         try {
             // Public Files
-            const resPub = await fetch(`/api/v1/files/public/${partnerId}`);
+            const resPub = await apiFetch(`/api/v1/files/public/${partnerId}`);
             if (resPub.ok) {
                 const results: FileData[] = await resPub.json() || [];
                 const decryptedPublic = results.map(f => {
@@ -459,7 +464,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
 
             // Shared Files
             const url = myId ? `/api/v1/files?user_id=${myId}` : "/api/v1/files";
-            const resShared = await fetch(url, { headers: { "X-User-ID": myId } });
+            const resShared = await apiFetch(url);
             if (resShared.ok) {
                 const allFiles: FileData[] = await resShared.json() || [];
                 const myShares = allFiles.filter(f => f.owner_id === partnerId);
@@ -486,9 +491,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
 
     const fetchMessages = async (email: string) => {
         try {
-            const res = await fetch(`/api/v1/messages?partner_email=${encodeURIComponent(email)}`, {
-                headers: { "X-User-ID": myId }
-            });
+            const res = await apiFetch(`/api/v1/messages?partner_email=${encodeURIComponent(email)}`);
             if (res.ok) {
                 setMessages(await res.json() || []);
             }
@@ -514,9 +517,8 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
 
     // SSE Connection
     useEffect(() => {
-        if (!myId) return;
-
-        const eventSource = new EventSource(`http://localhost:8080/api/v1/events?user_id=${myId}`);
+        const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
+        const eventSource = new EventSource(`http://localhost:8080/api/v1/events?user_id=${myId}&token=${token}`);
 
         eventSource.onmessage = (event) => {
             try {
@@ -602,11 +604,10 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
     const handleSend = async () => {
         if (!newMessage || !partner) return;
         try {
-            const res = await fetch("/api/v1/messages", {
+            const res = await apiFetch("/api/v1/messages", {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
-                    "X-User-ID": myId
+                    "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
                     recipient_email: partner.email,
@@ -1178,9 +1179,8 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
                                         <button
                                             onClick={async () => {
                                                 if (!confirm("This will scan ALL your files and delete records where the content is missing from the server. Scan now?")) return;
-                                                const res = await fetch("/api/v1/files/purge", {
-                                                    method: "POST",
-                                                    headers: { "X-User-ID": myId }
+                                                const res = await apiFetch("/api/v1/files/purge", {
+                                                    method: "POST"
                                                 });
                                                 if (res.ok) {
                                                     const data = await res.json();

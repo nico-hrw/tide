@@ -156,12 +156,16 @@ export const MagnifiedEventView = ({
                                 style={{
                                     top: 65 + (startMinutes - activeMinute) * PIXELS_PER_MINUTE,
                                     height: Math.max(30, durationMinutes * PIXELS_PER_MINUTE), // min 30px height visually
-                                    backgroundColor: theme.bg,
+                                    backgroundColor: event.color || theme.bg,
                                     color: theme.text,
                                     borderLeft: `6px solid ${theme.border}`,
                                 }}
                             >
-                                <div className="text-[15px] font-black tracking-tight leading-tight w-full" style={{ wordBreak: 'break-word', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                                {/* Effect Overlay */}
+                                {event.effect && (
+                                    <div className={`absolute inset-0 pointer-events-none effect-${event.effect}`} style={{ mixBlendMode: 'overlay' }} />
+                                )}
+                                <div className="relative z-10 text-[15px] font-black tracking-tight leading-tight w-full" style={{ wordBreak: 'break-word', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                                     {event.title || 'Untitled Event'}
                                 </div>
                                 <div className="text-[13px] font-bold opacity-90 mt-0.5 truncate drop-shadow-sm">

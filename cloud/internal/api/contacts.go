@@ -15,6 +15,7 @@ type ContactHandler struct {
 }
 
 func (h *ContactHandler) RegisterRoutes(r chi.Router) {
+	r.Use(AuthMiddleware)
 	r.Post("/request", h.SendRequest)
 	r.Get("/requests", h.GetRequests)
 	r.Post("/{contactID}/accept", h.AcceptRequest)
@@ -72,8 +73,8 @@ func (h *ContactHandler) SearchUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ContactHandler) SendRequest(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -108,7 +109,12 @@ func (h *ContactHandler) SendRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ContactHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	requests, err := h.Store.GetContactRequests(r.Context(), userID)
 	if err != nil {
 		http.Error(w, "Failed to fetch requests", http.StatusInternalServerError)
@@ -180,7 +186,12 @@ func (h *ContactHandler) DeclineRequest(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	contacts, err := h.Store.GetContacts(r.Context(), userID)
 	if err != nil {
 		http.Error(w, "Failed to fetch contacts", http.StatusInternalServerError)

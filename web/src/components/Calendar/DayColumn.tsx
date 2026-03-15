@@ -16,6 +16,8 @@ interface CalendarEvent {
     allDay?: boolean;
     is_task?: boolean;
     is_completed?: boolean;
+    is_cancelled?: boolean; // NEW
+    parent_id?: string | null;
 }
 
 interface DayColumnProps {
@@ -52,8 +54,34 @@ interface DayColumnProps {
 }
 
 // Layout helper for overlapping events within a single day
-const arrangeEvents = (events: CalendarEvent[]) => {
-    const sorted = [...events].sort((a, b) => {
+// "Background" events (group parents with children, or multi-day midpoints) are excluded
+// from collision detection so they render full-width behind all other events.
+const arrangeEvents = (events: CalendarEvent[], day: Date, allDayEvents?: CalendarEvent[]) => {
+    const allEvts = allDayEvents || events;
+
+    // Determine which event IDs are "parents" (have children pointing to them)
+    const parentIds = new Set(allEvts.map(e => (e as any).parent_id).filter(Boolean));
+
+    // Separate background events from normal events
+    const bgEvents: CalendarEvent[] = [];
+    const normalEvents: CalendarEvent[] = [];
+
+    events.forEach(evt => {
+        const start = new Date(evt.start);
+        const end = new Date(evt.end);
+        const isMultiDay = !isSameDay(start, end);
+        const isMiddleDay = isMultiDay && !isSameDay(day, start) && !isSameDay(day, end);
+        const isParentWithChildren = parentIds.has(evt.id);
+        const isCancelled = !!evt.is_cancelled;
+
+        if (isMiddleDay || isParentWithChildren || isCancelled) {
+            bgEvents.push(evt);
+        } else {
+            normalEvents.push(evt);
+        }
+    });
+
+    const sorted = [...normalEvents].sort((a, b) => {
         if (a.start === b.start) {
             return new Date(b.end).getTime() - new Date(a.end).getTime();
         }
@@ -85,6 +113,11 @@ const arrangeEvents = (events: CalendarEvent[]) => {
     if (currentCluster.length > 0) clusters.push(currentCluster);
 
     const layout = new Map<string, { left: number, width: number }>();
+
+    // Background events: full width, rendered behind everything
+    bgEvents.forEach(evt => {
+        layout.set(evt.id, { left: 0, width: 100 });
+    });
 
     clusters.forEach(cluster => {
         const lanes: number[] = [];
@@ -123,11 +156,16 @@ const arrangeEvents = (events: CalendarEvent[]) => {
 };
 
 const getEventTheme = (evt: CalendarEvent) => {
+    // If we have an individual color, use it as bg
+    if (evt.color) {
+        return { bg: evt.color, text: '#ffffff', border: evt.color };
+    }
+
     const effectMap: Record<string, { bg: string; text: string; border: string }> = {
-        'sky': { bg: 'var(--event-sky-bg)', text: 'var(--event-sky-text)', border: 'var(--event-sky-border)' },
-        'green': { bg: 'var(--event-green-bg)', text: 'var(--event-green-text)', border: 'var(--event-green-border)' },
-        'orange': { bg: 'var(--event-orange-bg)', text: 'var(--event-orange-text)', border: 'var(--event-orange-border)' },
-        'none': { bg: 'var(--event-default-bg)', text: 'var(--event-default-text)', border: 'var(--event-default-border)' }
+        'sky': { bg: '#e0f2fe', text: '#0369a1', border: '#7dd3fc' },
+        'green': { bg: '#dcfce7', text: '#15803d', border: '#86efac' },
+        'orange': { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' },
+        'none': { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }
     };
     return effectMap[evt.effect || 'none'] || effectMap['none'];
 };
@@ -166,11 +204,24 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
 }) => {
     const { highlight, isHighlighted } = useHighlight();
 
-    // Separate all-day events from timed events
-    const allDayEvents = useMemo(() => events.filter(e => e.allDay), [events]);
-    const timedEvents = useMemo(() => events.filter(e => !e.allDay), [events]);
+    const activeParentId = useDataStore(state => state.activeParentId);
 
-    const layout = useMemo(() => arrangeEvents(timedEvents), [timedEvents]);
+    const visibleEvents = useMemo(() => {
+        const isEvent = (id: string) => allEvents.some(ev => ev.id === id);
+        return events.filter(e => {
+            if (!e.parent_id) return true;
+            if (e.parent_id === activeParentId || e.id === activeParentId) return true;
+            // Hide ONLY if it's a child of another EVENT. If its parent_id is a theme/group, we show it!
+            if (isEvent(e.parent_id)) return false; 
+            return true;
+        });
+    }, [events, activeParentId, allEvents]);
+
+    // Separate all-day events from timed events
+    const allDayEvents = useMemo(() => visibleEvents.filter(e => e.allDay), [visibleEvents]);
+    const timedEvents = useMemo(() => visibleEvents.filter(e => !e.allDay), [visibleEvents]);
+
+    const layout = useMemo(() => arrangeEvents(timedEvents, day, allEvents), [timedEvents, day, allEvents]);
     const currentTimeTop = currentTime ? getHours(currentTime) * 60 + getMinutes(currentTime) : 0;
 
     // ---- 60FPS Visual transforms (bypasses React) ----
@@ -194,6 +245,29 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
         return Math.max(10, Math.abs(snappoints)) + 'px';
     });
 
+    // Live end-time label for the creation preview — driven by the same MotionValue as the ghost block
+    const creationEndTimeLabel = useTransform(creationEndYMV || fallbackMV, (currentY: number) => {
+        if (!creationDrag) return '';
+        const deltaY = currentY - creationDrag.startY;
+        let snapped = Math.floor(deltaY / snapInterval) * snapInterval;
+        if (deltaY < 0) snapped = Math.ceil(deltaY / snapInterval) * snapInterval;
+        const startMins = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
+        const endMins = deltaY >= 0
+            ? startMins + Math.max(snapInterval, snapped)
+            : startMins + snapped - snapInterval;
+        const clamped = Math.max(0, Math.min(1440, endMins));
+        const h = Math.floor(clamped / 60);
+        const m = clamped % 60;
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    });
+
+    const creationStartTimeStr = useMemo(() => {
+        if (!creationDrag) return '';
+        const h = creationDrag.startDay.getHours();
+        const m = creationDrag.startDay.getMinutes();
+        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    }, [creationDrag?.startDay.getTime()]);
+
     return (
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
@@ -203,7 +277,6 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 e.stopPropagation();
             }}
         >
-            {/* Day Header */}
             <div
                 className={`
                  h-[50px] border-b border-gray-100 dark:border-slate-800/50
@@ -211,7 +284,29 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                  flex flex-col items-center justify-center gap-0.5 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors
                  ${isToday ? 'bg-indigo-50 dark:bg-indigo-900/20 ring-1 ring-inset ring-indigo-500/20' : 'bg-[#F4F7F9] dark:bg-[#1A1A1A]'}
              `}
-                onClick={() => onHeaderClick && onHeaderClick(day)}
+                onClick={() => {
+                    useDataStore.getState().setActiveParentId(null);
+                    if (onHeaderClick) onHeaderClick(day);
+                }}
+                onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const eventId = e.dataTransfer.getData("text/plain");
+                    if (!eventId) return;
+
+                    const draggedEvent = allEvents.find(ev => ev.id === eventId || (eventId.includes('_') && eventId.split('_')[0] === ev.id));
+                    if (!draggedEvent) return;
+
+                    const startOrig = new Date(draggedEvent.start);
+                    const endOrig = new Date(draggedEvent.end);
+                    const durationMs = endOrig.getTime() - startOrig.getTime();
+
+                    const baseDate = new Date(day);
+                    const newStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), startOrig.getHours(), startOrig.getMinutes());
+                    const newEnd = new Date(newStart.getTime() + durationMs);
+
+                    onEventDrop(draggedEvent.id, newStart, newEnd);
+                }}
                 title="Click to add all-day event"
             >
                 <div className={`
@@ -233,6 +328,10 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                             return (
                                 <div
                                     key={event.id}
+                                    draggable
+                                    onDragStart={(e) => {
+                                        e.dataTransfer.setData("text/plain", event.id);
+                                    }}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         if (onEventClick) {
@@ -244,6 +343,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                     group flex items-center justify-between
                                     w-full text-xs font-semibold px-2 py-1 rounded cursor-pointer transition-all
                                     ${isHighlightedEvent ? 'ring-2 ring-purple-500 ring-offset-1 dark:ring-offset-[#1A1A1A]' : 'opacity-90 hover:opacity-100'}
+                                    ${event.is_cancelled ? 'opacity-40 line-through grayscale' : ''}
                                 `}
                                     style={{ backgroundColor: theme.bg, color: theme.text, border: `1px solid ${theme.border}` }}
                                     title={event.title}
@@ -269,10 +369,12 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 </div>
             )}
 
-            {/* Grid Area */}
             <div 
-                className="relative" 
-                onMouseDown={(e) => onGridMouseDown && onGridMouseDown(e, day)}
+                className="relative h-[1440px] shrink-0" 
+                onMouseDown={(e) => {
+                    useDataStore.getState().setActiveParentId(null);
+                    if (onGridMouseDown) onGridMouseDown(e, day);
+                }}
                 onDragOver={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
@@ -284,7 +386,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     if (!eventId) return;
 
                     // ARCHITECTURAL DIRECTION: Use allEvents prop to find the fresh object
-                    const draggedEvent = allEvents.find(ev => ev.id === eventId);
+                    const draggedEvent = allEvents.find(ev => ev.id === eventId || (eventId.includes('_') && eventId.split('_')[0] === ev.id));
                     if (!draggedEvent) {
                         console.error("[DragDrop] Dropped event not found in allEvents:", eventId);
                         return;
@@ -347,12 +449,18 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 ))}
 
                 {/* Events */}
-                {timedEvents.map(event => (
+                {timedEvents.map(event => {
+                    // Use the FULL allEvents list (which includes hidden children) to determine if parent
+                    const isParent = allEvents.some(e => (e as any).parent_id === event.id);
+                    return (
                     <CalendarEventItem
                         key={event.id}
+                        day={day}
                         event={event}
                         layout={layout}
                         timedEvents={timedEvents}
+                        allEvents={allEvents}
+                        isParent={isParent}
                         draggingId={draggingId}
                         resizingId={resizingId}
                         dayIndexOffset={dayIndexOffset}
@@ -369,23 +477,30 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         cursorX={cursorX}
                         cursorY={cursorY}
                     />
-                ))}
+                    );
+                })}
 
                 {/* Creation Preview */}
                 {creationDrag && isSameDay(creationDrag.startDay, day) && (
                     <motion.div
-                        className={`absolute left-1 right-1 rounded-lg bg-gray-500/30 border-2 border-dashed border-gray-500 z-50 backdrop-blur-sm pointer-events-none transition-all duration-75 ${isMagnified ? 'opacity-20' : ''}`}
+                        className={`absolute left-1 right-1 rounded-lg bg-gray-500/30 border-2 border-dashed border-gray-500 z-50 backdrop-blur-sm pointer-events-none ${isMagnified ? 'opacity-20' : ''}`}
                         style={{ top: creationPreviewTop, height: creationPreviewHeight }}
                     >
-                        <div className="text-xs font-bold text-gray-700 dark:text-gray-300 p-1">New Event</div>
+                        <div className="flex flex-col gap-0 p-1.5">
+                            <div className="text-[10px] font-bold text-gray-700 dark:text-gray-200 leading-tight">New Event</div>
+                            <div className="flex items-center gap-0.5 mt-0.5">
+                                <span className="text-[10px] font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{creationStartTimeStr}</span>
+                                <span className="text-[9px] text-gray-400 mx-0.5">–</span>
+                                <motion.span className="text-[10px] font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{creationEndTimeLabel}</motion.span>
+                            </div>
+                        </div>
                     </motion.div>
                 )}
-                {/* End of Day visual boundary */}
-                <div className="h-[1px] w-full bg-gray-200 dark:bg-gray-800"></div>
 
-                {/* Spacer to allow scrolling past midnight without hiding content behind dock */}
-                <div className="h-[150px] w-full bg-gradient-to-b from-gray-50/50 to-transparent dark:from-gray-900/50 dark:to-transparent pointer-events-none border-r border-dashed border-gray-100 dark:border-slate-800/50"></div>
             </div>
+            
+            {/* End of Day visual boundary */}
+            <div className="h-[1px] w-[1440px] relative shrink-0 bg-gray-200 dark:bg-gray-800 hidden"></div>
         </div>
     );
 };

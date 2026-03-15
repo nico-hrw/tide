@@ -3,6 +3,7 @@
 import { useState, Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import * as cryptoLib from "@/lib/crypto";
+import { apiFetch } from "@/lib/api";
 
 // CONSTANTS
 const DEV_PHASE_SECRET = "DEV_PHASE_SECRET_FIXED_KEY_123";
@@ -69,10 +70,13 @@ function AuthContent() {
         if (!identifier) return;
 
         setStatus("checking");
+        // Clear stale tokens before starting new login attempt
+        sessionStorage.removeItem("tide_session_token");
+        localStorage.removeItem("tide_session_token");
 
         try {
             // Try Step 1: Check if user exists
-            const res = await fetch("/api/v1/auth/login/step1", {
+            const res = await apiFetch("/api/v1/auth/login/step1", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: identifier })
@@ -106,7 +110,7 @@ function AuthContent() {
         setStatus("checking");
 
         try {
-            const res = await fetch("/api/v1/auth/login/step2", {
+            const res = await apiFetch("/api/v1/auth/login/step2", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: identifier, pin })
@@ -114,8 +118,10 @@ function AuthContent() {
 
             if (res.ok) {
                 const data = await res.json();
-                // Simulation: Notification alert
-                alert(`SIMULATED NOTIFICATION: Your Login-Code is: ${data.login_code}`);
+                if (data.login_code) {
+                    // Simulation: Notification alert
+                    alert(`SIMULATED NOTIFICATION: Your Login-Code is: ${data.login_code}`);
+                }
 
                 setStep("code");
                 setStatus("idle");
@@ -139,13 +145,19 @@ function AuthContent() {
         setStatus("processing");
 
         try {
-            const res = await fetch("/api/v1/auth/login/step3", {
+            const res = await apiFetch("/api/v1/auth/login/step3", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: identifier, code: loginCode })
             });
 
             if (res.ok) {
+                const contentType = res.headers.get("content-type");
+                if (!contentType || !contentType.includes("application/json")) {
+                    const text = await res.text();
+                    console.error("Step 3 non-JSON response:", text);
+                    throw new Error("Invalid server response format");
+                }
                 const signal = await res.json();
                 if (signal.session_token && signal.email) {
                     // Decrypt the Master Private Key using the DEV_PHASE_SECRET
@@ -167,7 +179,14 @@ function AuthContent() {
                     sessionStorage.setItem("tide_user_email", signal.email);
                     sessionStorage.setItem("tide_user_id", signal.user_id);
                     sessionStorage.setItem("tide_user_public_key", signal.public_key);
+                    sessionStorage.setItem("tide_session_token", signal.session_token);
+                    
+                    // Also persist for session restore
+                    localStorage.setItem("tide_user_email", signal.email);
+                    localStorage.setItem("tide_user_id", signal.user_id);
+                    localStorage.setItem("tide_session_token", signal.session_token);
 
+                    setStatus("success");
                     router.push("/");
                 }
             } else {
@@ -222,7 +241,7 @@ function AuthContent() {
                 pin: pin
             };
 
-            const res = await fetch("/api/v1/auth/register", {
+            const res = await apiFetch("/api/v1/auth/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
@@ -235,12 +254,18 @@ function AuthContent() {
 
             const data = await res.json();
             const userId = data.id;
+            const sessionToken = data.session_token;
 
             // Auto-Login Session
             const exportedKey = await window.crypto.subtle.exportKey("jwk", masterKeys.privateKey);
             sessionStorage.setItem("tide_session_key", JSON.stringify(exportedKey));
             sessionStorage.setItem("tide_user_email", identifier);
             sessionStorage.setItem("tide_user_id", userId);
+            
+            if (data.session_token) {
+                sessionStorage.setItem("tide_session_token", data.session_token);
+                localStorage.setItem("tide_session_token", data.session_token);
+            }
 
             // Store Public Key for Dashboard usage
             // The dashboard expects `tide_user_{email}` in localStorage to find public key?
@@ -253,7 +278,8 @@ function AuthContent() {
                 email: identifier
             };
             localStorage.setItem("tide_user_" + identifier, JSON.stringify(userRecord));
-
+            localStorage.setItem("tide_user_email", identifier);
+            localStorage.setItem("tide_user_id", userId);
 
             router.push("/");
 

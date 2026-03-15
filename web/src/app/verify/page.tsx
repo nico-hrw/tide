@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import * as cryptoLib from "@/lib/crypto";
+import { apiFetch } from "@/lib/api";
 
 const DEV_PHASE_SECRET = "DEV_PHASE_SECRET_FIXED_KEY_123";
 
@@ -21,10 +22,11 @@ function VerifyContent() {
         const verifyLogin = async () => {
             try {
                 // 1. Exchange Token for Session & Encrypted Keys
-                const res = await fetch(`/api/v1/auth/verify?token=${token}`);
+                const res = await apiFetch(`/api/v1/auth/verify?token=${token}`);
                 if (!res.ok) throw new Error("Verification failed or expired.");
 
-                const data = await res.json();
+                const data = await res.json().catch(() => null);
+                if (!data) throw new Error("Invalid session data received");
                 // Expect: { session_token, enc_private_key, user_id, email, username }
 
                 // 2. Decrypt Private Key

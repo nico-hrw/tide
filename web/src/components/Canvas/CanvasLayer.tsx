@@ -4,6 +4,7 @@ import { useRef, useCallback, useState, useEffect, useMemo, type ReactNode } fro
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import CanvasElementComponent from './CanvasElement';
 import { CanvasElement, ImageElement, TextWidgetElement } from '@/types/canvas';
+import { apiFetch } from '@/lib/api';
 import * as cryptoLib from '@/lib/crypto';
 
 export interface CanvasLayerProps {
@@ -86,6 +87,75 @@ function computeRelativeOffset(
     };
 }
 
+// ─── Tiptap Canvas Image ────────────────────────────────────────────────────────
+function TiptapCanvasImage({ info, containerRect }: { info: any; containerRect: DOMRect }) {
+    const [isResizing, setIsResizing] = useState(false);
+    const [selected, setSelected] = useState(false);
+    const imgRef = useRef<HTMLImageElement>(null);
+
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (imgRef.current?.contains(e.target as Node)) return;
+            setSelected(false);
+        };
+        window.addEventListener('click', handler);
+        return () => window.removeEventListener('click', handler);
+    }, []);
+
+    const onMouseDown = (e: React.MouseEvent, corner: string) => {
+        e.preventDefault(); e.stopPropagation();
+        const img = imgRef.current;
+        if (!img) return;
+        setIsResizing(true);
+        const startX = e.clientX;
+        const startW = img.offsetWidth;
+        const aspect = img.naturalWidth / img.naturalHeight;
+
+        const onMv = (me: MouseEvent) => {
+            const dx = me.clientX - startX;
+            let newW = Math.max(80, startW + dx);
+            let newH = Math.round(newW / aspect);
+            img.style.width = `${newW}px`;
+            img.style.height = `${newH}px`;
+        };
+        const onUp = (me: MouseEvent) => {
+            setIsResizing(false);
+            window.removeEventListener('mousemove', onMv);
+            window.removeEventListener('mouseup', onUp);
+            const dx = me.clientX - startX;
+            const finalW = Math.max(80, startW + dx);
+            const finalH = Math.round(finalW / aspect);
+            window.dispatchEvent(new CustomEvent('canvas:resize-tiptap-image', { detail: { src: info.src, width: finalW, height: finalH }}));
+        };
+        window.addEventListener('mousemove', onMv);
+        window.addEventListener('mouseup', onUp);
+    };
+
+    const top = info.rect.top - containerRect.top;
+    const left = info.rect.left - containerRect.left;
+    const w = info.width;
+    const h = info.height;
+
+    return (
+        <div style={{ position: 'absolute', top, left, zIndex: 15, userSelect: 'none', pointerEvents: 'auto' }} className={`group ${selected ? 'ring-2 ring-indigo-400 ring-offset-1' : ''}`}>
+            <img 
+                ref={imgRef} src={info.src} alt={info.alt} 
+                style={{ width: w || 'auto', height: h || 'auto', display: 'block', maxWidth: '100%', cursor: isResizing ? 'se-resize' : 'default' }}
+                onClick={(e) => { e.stopPropagation(); setSelected(true); }}
+            />
+            <div 
+                className={`absolute bottom-[-5px] right-[-5px] w-4 h-4 bg-blue-500 rounded-full cursor-se-resize z-50 transition-opacity ${selected || isResizing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} 
+                onMouseDown={(e) => onMouseDown(e, 'br')} 
+            />
+            {w && (selected || isResizing) && (
+                <span className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[10px] font-mono bg-black/60 text-white px-1.5 py-0.5 rounded pointer-events-none opacity-80">
+                    {w} × {h}
+                </span>
+            )}
+        </div>
+    );
+}
+
 // ─── CanvasLayer ──────────────────────────────────────────────────────────────
 
 export default function CanvasLayer({
@@ -98,6 +168,46 @@ export default function CanvasLayer({
     const shellRef = useRef<HTMLDivElement>(null);
     const imageBlobCache = useRef(new Map<string, string>());
     const [activeElementId] = useState<string | null>(null);
+    const [tiptapImageAnchors, setTiptapImageAnchors] = useState<Array<{ src: string, alt: string, width: number | null, height: number | null, rect: DOMRect, el: HTMLElement }>>([]);
+
+    const computeTiptapImages = useCallback(() => {
+        const anchors = document.querySelectorAll('div[data-type="image-anchor"]');
+        const sr = shellRef.current?.getBoundingClientRect();
+        if (!sr) return;
+
+        const list: typeof tiptapImageAnchors = [];
+        anchors.forEach(el => {
+            const hEl = el as HTMLElement;
+            const src = hEl.getAttribute('src');
+            if (!src) return;
+            const ar = hEl.getBoundingClientRect();
+            list.push({
+                src,
+                alt: hEl.getAttribute('alt') || '',
+                width: hEl.getAttribute('width') ? parseInt(hEl.getAttribute('width')!) : null,
+                height: hEl.getAttribute('height') ? parseInt(hEl.getAttribute('height')!) : null,
+                rect: ar,
+                el: hEl
+            });
+        });
+        
+        setTiptapImageAnchors(prev => {
+            if (prev.length !== list.length) return list;
+            const changed = list.some((item, i) => {
+                const p = prev[i];
+                return p.src !== item.src || p.width !== item.width || p.height !== item.height ||
+                       p.rect.top !== item.rect.top || p.rect.left !== item.rect.left;
+            });
+            return changed ? list : prev;
+        });
+    }, []);
+
+    useEffect(() => {
+        let rafId: number;
+        const loop = () => { computeTiptapImages(); rafId = requestAnimationFrame(loop); };
+        rafId = requestAnimationFrame(loop);
+        return () => cancelAnimationFrame(rafId);
+    }, [computeTiptapImages]);
 
     // When user right-clicks "Change anchor", we store (elementId, currentRect) here.
     // As soon as pendingBindBlockId becomes a real block ID, we auto-bind this element.
@@ -236,14 +346,14 @@ export default function CanvasLayer({
             const fileKeyJwk = await window.crypto.subtle.exportKey('jwk', fileKey);
             const { iv, ciphertext } = await cryptoLib.encryptFile(file, fileKey);
             const encryptedMeta = await cryptoLib.encryptMetadata({ title: `.canvas-img-${elementId}`, fileKey: fileKeyJwk, iv }, publicKey);
-            const createRes = await fetch('/api/v1/files', {
+            const createRes = await apiFetch('/api/v1/files', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-User-ID': userId },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ type: 'note', size: ciphertext.size, public_meta: {}, secured_meta: encryptedMeta, visibility: 'private' }),
             });
             if (!createRes.ok) throw new Error('Failed to create image record');
             const newFile = await createRes.json() as { id: string };
-            await fetch(`/api/v1/files/${newFile.id}/upload`, { method: 'POST', headers: { 'X-User-ID': userId }, body: ciphertext });
+            await apiFetch(`/api/v1/files/${newFile.id}/upload`, { method: 'POST', body: ciphertext });
             await onElementRemove(elementId);
             await onElementAdd({
                 id: crypto.randomUUID(), type: 'image',
@@ -333,6 +443,13 @@ export default function CanvasLayer({
             {/* Editor Layer */}
             <div className="relative z-10">
                 {children}
+            </div>
+
+            {/* Tiptap Internal Images Layer */}
+            <div className="absolute inset-0 pointer-events-none z-[15] overflow-hidden">
+                {shellRef.current && tiptapImageAnchors.map((info, idx) => (
+                    <TiptapCanvasImage key={`${info.src}-${idx}`} info={info} containerRect={shellRef.current!.getBoundingClientRect()} />
+                ))}
             </div>
 
             {/* Drawing Layer (Above Editor) */}

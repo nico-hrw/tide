@@ -10,6 +10,8 @@ interface SettingsModalProps {
     onToggleExtension: (extensionId: string, enabled: boolean) => void;
     userProfile?: { username: string; email: string };
     onLogout?: () => void;
+    noteLayout?: 'thin' | 'normal' | 'wide' | 'extra-wide';
+    onSetNoteLayout?: (layout: 'thin' | 'normal' | 'wide' | 'extra-wide') => void;
 }
 
 export default function SettingsModal({
@@ -18,7 +20,9 @@ export default function SettingsModal({
     enabledExtensions,
     onToggleExtension,
     userProfile,
-    onLogout
+    onLogout,
+    noteLayout = 'normal',
+    onSetNoteLayout
 }: SettingsModalProps) {
 
     const [activeTab, setActiveTab] = useState<'account' | 'extensions' | 'appearance' | 'info'>('account');
@@ -109,6 +113,28 @@ export default function SettingsModal({
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Interface Options</h3>
 
+            <div className="p-6 bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
+                <div className="mb-4">
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-white">Note Layout</h4>
+                    <p className="text-xs text-gray-500 mt-1">Control how wide your notes are displayed in the editor.</p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {(['thin', 'normal', 'wide', 'extra-wide'] as const).map((l) => (
+                        <button
+                            key={l}
+                            onClick={() => onSetNoteLayout?.(l)}
+                            className={`px-4 py-3 rounded-xl border text-xs font-bold capitalize transition-all ${
+                                noteLayout === l 
+                                ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20' 
+                                : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20'
+                            }`}
+                        >
+                            {l.replace('-', ' ')}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
             <div className="p-4 flex items-center justify-between bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-xl opacity-60 grayscale cursor-not-allowed">
                 <div>
                     <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">Language <span className="px-2 py-0.5 rounded-md bg-gray-200 dark:bg-gray-800 text-[10px]">Coming Soon</span></h4>
@@ -127,14 +153,6 @@ export default function SettingsModal({
                 <select disabled className="bg-gray-100 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm outline-none">
                     <option>Medium</option>
                 </select>
-            </div>
-
-            <div className="p-4 flex items-center justify-between bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-xl opacity-60 grayscale cursor-not-allowed">
-                <div>
-                    <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">Accessibility <span className="px-2 py-0.5 rounded-md bg-gray-200 dark:bg-gray-800 text-[10px]">Coming Soon</span></h4>
-                    <p className="text-xs text-gray-500 mt-1">High contrast mode and reduced motion.</p>
-                </div>
-                <div className="w-11 h-6 rounded-full bg-gray-200 dark:bg-gray-700"></div>
             </div>
         </div>
     );

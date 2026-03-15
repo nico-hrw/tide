@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import * as cryptoLib from "@/lib/crypto";
+import { apiFetch } from "@/lib/api";
 import CalendarView from "@/components/Calendar/CalendarView";
 import "./calendar.css";
 
@@ -71,14 +72,14 @@ export default function CalendarPage() {
             const urlFolders = myId ? `/api/v1/files?type=folder&user_id=${myId}` : "/api/v1/files?type=folder";
 
             const [resEvents, resFolders] = await Promise.all([
-                fetch(urlEvents, { headers: { "X-User-ID": myId } }),
-                fetch(urlFolders, { headers: { "X-User-ID": myId } })
+                apiFetch(urlEvents),
+                apiFetch(urlFolders)
             ]);
 
             if (!resEvents.ok || !resFolders.ok) throw new Error("Failed to fetch data");
 
-            const eventFiles = await resEvents.json() || [];
-            const folderFiles = await resFolders.json() || [];
+            const eventFiles = await resEvents.json().catch(() => []);
+            const folderFiles = await resFolders.json().catch(() => []);
 
             // Decrypt Events
             const decryptedEvents: CalendarEvent[] = [];
@@ -149,9 +150,9 @@ export default function CalendarPage() {
 
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
-            const res = await fetch("/api/v1/files", {
+            const res = await apiFetch("/api/v1/files", {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     type: "event",
                     parent_id: null,
@@ -184,9 +185,8 @@ export default function CalendarPage() {
 
     // 4. Update Event (DnD)
     const handleEventUpdate = async (id: string, newStart: Date, newEnd: Date) => {
-        const event = events.find(e => e.id === id);
-        if (!event) return;
-        await handleSaveEvent(id, { start: newStart.toISOString(), end: newEnd.toISOString() });
+        const baseId = id.includes('_') ? id.split('_')[0] : id;
+        await handleSaveEvent(baseId, { start: newStart.toISOString(), end: newEnd.toISOString() });
     };
 
     // 5. Rename (or full save)
@@ -228,9 +228,9 @@ export default function CalendarPage() {
             };
             if (updates.parent_id !== undefined) payload.parent_id = updates.parent_id;
 
-            const res = await fetch(`/api/v1/files/${id}`, {
+            const res = await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json", "X-User-ID": myId },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
             });
 
@@ -247,9 +247,8 @@ export default function CalendarPage() {
     const handleEventDelete = async (id: string) => {
         if (!confirm("Delete this event?")) return;
         try {
-            const res = await fetch(`/api/v1/files/${id}`, {
-                method: "DELETE",
-                headers: { "X-User-ID": myId }
+            const res = await apiFetch(`/api/v1/files/${id}`, {
+                method: "DELETE"
             });
             if (!res.ok) throw new Error("Failed to delete");
             setEvents(prev => prev.filter(e => e.id !== id));

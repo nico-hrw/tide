@@ -38,10 +38,12 @@ export const InlineCommentNode = Node.create({
     addKeyboardShortcuts() {
         return {
             'Enter': () => {
+                if (!this.editor.isActive('inlineComment')) return false;
                 // Break out of the comment and create a new paragraph below
                 return this.editor.chain().insertContentAt(this.editor.state.selection.to, { type: 'paragraph' }).focus().run();
             },
             'Shift-Enter': () => {
+                if (!this.editor.isActive('inlineComment')) return false;
                 // Insert a hard break (newline) INSIDE the comment
                 return this.editor.chain().setHardBreak().run();
             }

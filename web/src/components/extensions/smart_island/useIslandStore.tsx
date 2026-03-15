@@ -208,7 +208,7 @@ export function IslandProvider({ children }: { children: React.ReactNode }) {
                     duration = Math.max(5000, duration - elapsed);
                 }
             } else if (state.current.type === 'event_preview') {
-                duration = 20 * 1000; // 20 seconds for event preview
+                duration = 5 * 60 * 1000; // 5 minutes for event preview
             }
 
             timerRef.current = setTimeout(() => {

@@ -20,6 +20,7 @@ func NewFinanceHandler(s *store.SQLiteStore, b *Broker) *FinanceHandler {
 }
 
 func (h *FinanceHandler) RegisterRoutes(r chi.Router) {
+	r.Use(AuthMiddleware)
 	r.Get("/accounts", h.GetAccounts)
 	r.Post("/accounts", h.CreateAccount)
 	r.Delete("/accounts/{id}", h.DeleteAccount)
@@ -34,8 +35,8 @@ type CreateAccountRequest struct {
 }
 
 func (h *FinanceHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -76,9 +77,9 @@ func (h *FinanceHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FinanceHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
+	userID, ok := r.Context().Value("user_id").(string)
 	accountID := chi.URLParam(r, "id")
-	if userID == "" || accountID == "" {
+	if !ok || userID == "" || accountID == "" {
 		http.Error(w, "Unauthorized or Invalid Request", http.StatusUnauthorized)
 		return
 	}
@@ -116,8 +117,8 @@ type CreateTransactionRequest struct {
 }
 
 func (h *FinanceHandler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -225,8 +226,8 @@ type AccountResponse struct {
 }
 
 func (h *FinanceHandler) GetAccounts(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -267,8 +268,8 @@ type TransactionResponse struct {
 }
 
 func (h *FinanceHandler) GetTransactions(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}

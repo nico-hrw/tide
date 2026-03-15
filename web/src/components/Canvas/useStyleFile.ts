@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { StyleFile, CanvasElement, createEmptyStyleFile } from '@/types/canvas';
+import { apiFetch } from '@/lib/api';
 
 export interface UseStyleFileReturn {
     elements: CanvasElement[];
@@ -27,11 +28,10 @@ const SIDECAR_ID_CACHE = new Map<string, string>(); // noteId → DB file UUID
 async function findSidecarFileId(noteId: string, userId: string): Promise<string | null> {
     if (SIDECAR_ID_CACHE.has(noteId)) return SIDECAR_ID_CACHE.get(noteId)!;
     try {
-        const res = await fetch(`/api/v1/files?user_id=${userId}&recursive=true`, {
-            headers: { 'X-User-ID': userId },
-        });
+        const res = await apiFetch(`/api/v1/files?user_id=${userId}&recursive=true`);
         if (!res.ok) return null;
-        const files = await res.json() as Array<{ id: string; public_meta?: { title?: string } }>;
+        const results = await res.json().catch(() => []);
+        const files = (Array.isArray(results) ? results : []) as Array<{ id: string; public_meta?: { title?: string } }>;
         const sidecarTitle = `.${noteId}_style`;
         const found = files.find(f => f.public_meta?.title === sidecarTitle);
         if (found) { SIDECAR_ID_CACHE.set(noteId, found.id); return found.id; }
@@ -41,9 +41,9 @@ async function findSidecarFileId(noteId: string, userId: string): Promise<string
 
 async function createSidecarFileRecord(noteId: string, userId: string, size: number): Promise<string | null> {
     try {
-        const res = await fetch('/api/v1/files', {
+        const res = await apiFetch('/api/v1/files', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-User-ID': userId },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 type: 'note',
                 size,
@@ -53,7 +53,8 @@ async function createSidecarFileRecord(noteId: string, userId: string, size: num
             }),
         });
         if (!res.ok) return null;
-        const file = await res.json() as { id: string };
+        const file = await res.json().catch(() => null) as { id: string } | null;
+        if (!file || !file.id) return null;
         SIDECAR_ID_CACHE.set(noteId, file.id);
         return file.id;
     } catch { return null; }
@@ -81,7 +82,7 @@ export function useStyleFile({ noteId, userId }: UseStyleFileProps): UseStyleFil
             }
 
             try {
-                const res = await fetch(`/api/v1/files/${fileId}/download`, { headers: { 'X-User-ID': userId } });
+                const res = await apiFetch(`/api/v1/files/${fileId}/download`);
                 if (!res.ok) {
                     if (!cancelled) { setStyleFile(createEmptyStyleFile(noteId!)); setIsLoaded(true); }
                     return;
@@ -112,9 +113,8 @@ export function useStyleFile({ noteId, userId }: UseStyleFileProps): UseStyleFil
         }
         if (!fileId) { console.error('[Sidecar] Failed to get/create sidecar record'); return; }
 
-        await fetch(`/api/v1/files/${fileId}/upload`, {
+        await apiFetch(`/api/v1/files/${fileId}/upload`, {
             method: 'POST',
-            headers: { 'X-User-ID': userId },
             body: blob,
         });
     }, [userId]);

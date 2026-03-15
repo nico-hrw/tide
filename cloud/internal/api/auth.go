@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -237,7 +238,11 @@ func (h *AuthHandler) generateSession(w http.ResponseWriter, user *db.User) {
 		return
 	}
 
-	jwtKey := []byte("super-secret-jwt-key")
+	jwtKeyStr := os.Getenv("JWT_SECRET")
+	if jwtKeyStr == "" {
+		jwtKeyStr = "super-secret-jwt-key" // Fallback for dev
+	}
+	jwtKey := []byte(jwtKeyStr)
 	claims := jwt.MapClaims{
 		"sub": user.ID,
 		"exp": time.Now().Add(24 * time.Hour).Unix(),
@@ -298,8 +303,12 @@ func (h *AuthHandler) Verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT
-	// Key should come from env var, hardcoded for MVP
-	jwtKey := []byte("super-secret-jwt-key")
+	// Key should come from env var
+	jwtKeyStr := os.Getenv("JWT_SECRET")
+	if jwtKeyStr == "" {
+		jwtKeyStr = "super-secret-jwt-key" // Fallback for dev
+	}
+	jwtKey := []byte(jwtKeyStr)
 	claims := jwt.MapClaims{
 		"sub": userID,
 		"exp": time.Now().Add(24 * time.Hour).Unix(),

@@ -24,12 +24,13 @@ func NewTabsHandler(s *store.SQLiteStore) *TabsHandler {
 }
 
 func (h *TabsHandler) RegisterRoutes(r chi.Router) {
+	r.Use(AuthMiddleware)
 	r.Post("/validate", h.ValidateTabs)
 }
 
 func (h *TabsHandler) ValidateTabs(w http.ResponseWriter, r *http.Request) {
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}

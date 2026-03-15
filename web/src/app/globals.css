@@ -213,3 +213,9 @@ ul[data-type="taskList"] li > div > p {
   margin-top: 2px !important;
   margin-bottom: 0 !important;
 }
+
+/* Note Layout Options */
+.note-layout-thin { max-width: 650px !important; }
+.note-layout-normal { max-width: 850px !important; }
+.note-layout-wide { max-width: 1200px !important; }
+.note-layout-extra-wide { max-width: 100% !important; }
