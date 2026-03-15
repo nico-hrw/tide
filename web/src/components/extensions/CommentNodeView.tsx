@@ -27,7 +27,7 @@ const CommentNodeView = (props: any) => {
     };
 
     return (
-        <NodeViewWrapper as="span" className="inline-comment relative group">
+        <NodeViewWrapper className="inline-comment relative group" as="span" style={{ display: "inline" }}>
             {/* The Asterisk Button */}
             <span contentEditable={false} onClick={() => setIsOpen(!isOpen)} style={{ color: randomColor }} className="cursor-pointer font-bold px-1 select-none">*</span>
             
@@ -35,7 +35,6 @@ const CommentNodeView = (props: any) => {
             {isOpen && (
                 <span className="block mt-1 mb-2 pl-3 border-l-2 border-dashed text-sm italic" style={{ borderColor: randomColor, color: '#555' }}>
                     <NodeViewContent 
-                        as="span" 
                         className="inline-block min-w-[50px] min-h-[1.5em] outline-none cursor-text" 
                     />
                 </span>

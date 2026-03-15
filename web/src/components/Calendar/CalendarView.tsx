@@ -1538,7 +1538,7 @@ const EventPopover = ({ event, rect, themes, onEventSave, onClose, enabledExtens
                                     end = new Date(`${targetDateStr}T${ev.endTime}:00`).toISOString();
                                 }
 
-                                const mappedEvent = {
+                                const mappedEvent: any = {
                                     id: newId,
                                     title: ev.title || 'New Event',
                                     description: ev.description || '',

@@ -1377,28 +1377,31 @@ export default function Dashboard() {
             const event = currentEvents.find(e => e.id === baseId);
             if (!event) return;
 
-            // [TASK 3] Handle recurring cancellation: if it's an occurrence, we update the base event's exdates
-            if (isOccurrence && updates.is_cancelled === true) {
+            const isRecurring = !!((event as any).recurrence_rule && (event as any).recurrence_rule !== 'none');
+            const targetDateKey = isOccurrence ? occurrenceDateKey : format(new Date(event.start), "yyyy-MM-dd");
+
+            // [TASK 3] Handle recurring cancellation: if it's an occurrence or the first event of a recurring series, we update the base event's exdates
+            if (isRecurring && updates.is_cancelled === true) {
                 let exdates = (event as any).exdates || [];
-                if (occurrenceDateKey && !exdates.includes(occurrenceDateKey)) {
-                    exdates = [...exdates, occurrenceDateKey];
+                if (targetDateKey && !exdates.includes(targetDateKey)) {
+                    exdates = [...exdates, targetDateKey];
                 }
                 updates = { ...updates, exdates: exdates };
                 delete updates.is_cancelled;
-            } else if (isOccurrence && updates.is_cancelled === false) {
+            } else if (isRecurring && updates.is_cancelled === false) {
                 let exdates = (event as any).exdates || [];
-                exdates = exdates.filter((d: string) => d !== occurrenceDateKey);
+                exdates = exdates.filter((d: string) => d !== targetDateKey);
                 updates = { ...updates, exdates: exdates };
                 delete updates.is_cancelled;
             }
 
-            // [TASK 3] Handle recurring completion: if it's an occurrence, we update the base event's completed_dates
-            if (isOccurrence && updates.is_completed !== undefined) {
+            // [TASK 3] Handle recurring completion: if it's an occurrence or the first event of a recurring series, we update the base event's completed_dates
+            if (isRecurring && updates.is_completed !== undefined) {
                 let completed = (event as any).completed_dates || [];
                 if (updates.is_completed) {
-                    if (occurrenceDateKey && !completed.includes(occurrenceDateKey)) completed = [...completed, occurrenceDateKey];
+                    if (targetDateKey && !completed.includes(targetDateKey)) completed = [...completed, targetDateKey];
                 } else {
-                    completed = completed.filter((d: string) => d !== occurrenceDateKey);
+                    completed = completed.filter((d: string) => d !== targetDateKey);
                 }
                 updates = { ...updates, completed_dates: completed };
                 delete updates.is_completed;
@@ -1487,7 +1490,14 @@ export default function Dashboard() {
         if (!myId) return;
         
         const isOccurrence = id.includes('_');
-        if (isOccurrence) {
+        const baseId = isOccurrence ? id.split('_')[0] : id;
+        const currentEvents = useDataStore.getState().events;
+        const event = currentEvents.find(e => e.id === baseId);
+
+        const isRecurring = event && !!((event as any).recurrence_rule && (event as any).recurrence_rule !== 'none');
+
+        if (isOccurrence || isRecurring) {
+            // Cancel the specific occurrence
             handleEventSave(id, { is_cancelled: true });
             return;
         }
