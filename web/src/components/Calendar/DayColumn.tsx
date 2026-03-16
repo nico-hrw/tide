@@ -224,6 +224,25 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     const layout = useMemo(() => arrangeEvents(timedEvents, day, allEvents), [timedEvents, day, allEvents]);
     const currentTimeTop = currentTime ? getHours(currentTime) * 60 + getMinutes(currentTime) : 0;
 
+    const now = currentTime || new Date();
+    let currentEventInfo: string | null = null;
+    let nextEventInfo: string | null = null;
+
+    if (isToday) {
+        const sortedTodayEvents = [...timedEvents].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+        const activeEvent = sortedTodayEvents.find(e => new Date(e.start) <= now && new Date(e.end) >= now);
+        const upcomingEvent = sortedTodayEvents.find(e => new Date(e.start) > now);
+
+        if (activeEvent) {
+            const diff = Math.floor((new Date(activeEvent.end).getTime() - now.getTime()) / 60000);
+            currentEventInfo = diff >= 60 ? `${Math.floor(diff/60)}h ${diff%60}m` : `${diff}m`;
+        }
+        if (upcomingEvent) {
+            const diff = Math.floor((new Date(upcomingEvent.start).getTime() - now.getTime()) / 60000);
+            nextEventInfo = diff >= 60 ? `in ${Math.floor(diff/60)}h ${diff%60}m` : `in ${diff}m`;
+        }
+    }
+
     // ---- 60FPS Visual transforms (bypasses React) ----
     // We use a dummy MV if props are missing to satisfy the 'useTransform' requirement (never null)
     const fallbackMV = useMotionValue(0);
@@ -497,8 +516,40 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     </motion.div>
                 )}
 
+                {isToday && (
+                    <div 
+                        className="absolute left-0 right-0 z-[60] pointer-events-none flex flex-col items-start"
+                        style={{ top: `${currentTimeTop}px` }}
+                    >
+                        {/* Minimal pulse line */}
+                        <div className="absolute left-0 right-0 h-[2px] bg-red-500 z-40 opacity-40 animate-pulse"></div>
+                        
+                        {/* Minimal Label */}
+                        {currentEventInfo && (
+                            <div className="absolute left-1 -top-[16px] text-[10px] font-medium text-gray-500 dark:text-gray-400">
+                                {currentEventInfo} left
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Minimal Next Event Label positioned at its own start time */}
+                {isToday && nextEventInfo && (() => {
+                    const upcomingEvent = [...timedEvents].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()).find(e => new Date(e.start) > now);
+                    if (!upcomingEvent) return null;
+                    const nextTimeTop = getHours(new Date(upcomingEvent.start)) * 60 + getMinutes(new Date(upcomingEvent.start));
+                    return (
+                        <div 
+                            className="absolute left-1 z-[60] pointer-events-none text-[10px] font-medium text-gray-400 dark:text-gray-500"
+                            style={{ top: `${nextTimeTop - 16}px` }}
+                        >
+                            {nextEventInfo}
+                        </div>
+                    );
+                })()}
+
             </div>
-            
+
             {/* End of Day visual boundary */}
             <div className="h-[1px] w-[1440px] relative shrink-0 bg-gray-200 dark:bg-gray-800 hidden"></div>
         </div>

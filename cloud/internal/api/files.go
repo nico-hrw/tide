@@ -36,22 +36,18 @@ func (h *FileHandler) RegisterRoutes(r chi.Router) {
 		r.Get("/", h.ListFiles)
 		r.Post("/", h.CreateFile)
 
-		r.Route("/{fileID}", func(r chi.Router) {
-			r.Get("/", h.GetFileMetadata) // Check access
-			r.Put("/", h.UpdateFile)
-			r.Delete("/", h.DeleteFile)
-
-			r.Post("/upload", h.UploadFile)
-			r.Get("/download", h.DownloadFile)
-		})
-
-		r.Put("/visibility", h.SetVisibility)
-
-		// Routes that take fileID as a direct parameter, not nested
+		// Specific actions on files
 		r.Post("/{fileID}/share", h.ShareFile)
 		r.Post("/{fileID}/accept", h.AcceptShare)
 		r.Post("/{fileID}/copy", h.CopyFile)
 
+		r.Get("/{fileID}", h.GetFileMetadata)
+		r.Put("/{fileID}", h.UpdateFile)
+		r.Delete("/{fileID}", h.DeleteFile)
+		r.Post("/{fileID}/upload", h.UploadFile)
+		r.Get("/{fileID}/download", h.DownloadFile)
+
+		r.Put("/visibility", h.SetVisibility)
 		r.Post("/purge", h.PurgeFiles)
 	})
 }

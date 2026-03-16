@@ -10,6 +10,7 @@ export interface LinkTarget {
     title: string;
     type: 'file' | 'event' | 'chat' | 'tab' | 'calendar' | 'messages';
     rect?: DOMRect;
+    start?: string;
 }
 
 interface HighlightState {

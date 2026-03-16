@@ -186,9 +186,9 @@ const renderItems = () => {
                 return true;
             }
             if (props.event.key === 'Enter') {
-                return component?.ref?.onKeyDown(props) || false;
+                return (component?.ref as any)?.onKeyDown(props) || false;
             }
-            return component?.ref?.onKeyDown?.(props) || false;
+            return (component?.ref as any)?.onKeyDown?.(props) || false;
         },
         onExit: () => {
             popup?.[0]?.destroy();

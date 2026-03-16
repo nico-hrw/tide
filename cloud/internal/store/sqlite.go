@@ -320,9 +320,18 @@ func (s *SQLiteStore) UpdateUserExtensions(ctx context.Context, id string, exten
 
 func (s *SQLiteStore) CreateFile(ctx context.Context, file *db.File) error {
 	query := `
-		INSERT INTO files (id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, visibility, public_meta, secured_meta, is_task, is_completed, exdates, completed_dates)
+		INSERT INTO files (id, owner_id, parent_id, type, mime_type, size, 
+created_at, updated_at, blob_path, visibility, public_meta, secured_meta, is_task, is_completed, exdates, completed_dates)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
+	exd := string(file.Exdates)
+	if exd == "" {
+		exd = "[]"
+	}
+	cd := string(file.CompletedDates)
+	if cd == "" {
+		cd = "[]"
+	}
 	_, err := s.DB.ExecContext(ctx, query,
 		file.ID,
 		file.OwnerID,
@@ -338,14 +347,14 @@ func (s *SQLiteStore) CreateFile(ctx context.Context, file *db.File) error {
 		file.SecuredMeta,
 		file.IsTask,
 		file.IsCompleted,
-		string(file.Exdates),
-		string(file.CompletedDates),
+		exd,
+		cd,
 	)
 	return err
 }
 
 func (s *SQLiteStore) GetFile(ctx context.Context, id string) (*db.File, error) {
-	query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, visibility, public_meta, secured_meta, COALESCE(is_task, 0) as is_task, COALESCE(is_completed, 0) as is_completed, COALESCE(exdates, '[]') as exdates, COALESCE(completed_dates, '[]') as completed_dates FROM files WHERE id = ?`
+	query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, visibility, public_meta, secured_meta, COALESCE(is_task, 0) as is_task, COALESCE(is_completed, 0) as is_completed, COALESCE(NULLIF(exdates, ''), '[]') as exdates, COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates FROM files WHERE id = ?`
 	row := s.DB.QueryRowContext(ctx, query, id)
 
 	var file db.File
@@ -421,8 +430,8 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 			   COALESCE(fs.status, 'owner') as share_status,
 			   COALESCE(f.is_task, 0) as is_task,
 			   COALESCE(f.is_completed, 0) as is_completed,
-			   COALESCE(f.exdates, '[]') as exdates,
-			   COALESCE(f.completed_dates, '[]') as completed_dates
+			   COALESCE(NULLIF(exdates, ''), '[]') as exdates,
+			   COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates
 		FROM files f
 		LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 		WHERE f.id = ? AND (
@@ -469,10 +478,19 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 
 func (s *SQLiteStore) UpdateFile(ctx context.Context, file *db.File) error {
 	query := `
-		UPDATE files 
-		SET owner_id=?, parent_id=?, type=?, mime_type=?, size=?, updated_at=?, blob_path=?, visibility=?, public_meta=?, secured_meta=?, is_task=?, is_completed=?, exdates=?, completed_dates=?
+		UPDATE files
+		SET owner_id=?, parent_id=?, type=?, mime_type=?, size=?, updated_at=?, 
+blob_path=?, visibility=?, public_meta=?, secured_meta=?, is_task=?, is_completed=?, exdates=?, completed_dates=?
 		WHERE id=?
 	`
+	exd := string(file.Exdates)
+	if exd == "" {
+		exd = "[]"
+	}
+	cd := string(file.CompletedDates)
+	if cd == "" {
+		cd = "[]"
+	}
 	_, err := s.DB.ExecContext(ctx, query,
 		file.OwnerID,
 		file.ParentID,
@@ -486,8 +504,8 @@ func (s *SQLiteStore) UpdateFile(ctx context.Context, file *db.File) error {
 		file.SecuredMeta,
 		file.IsTask,
 		file.IsCompleted,
-		string(file.Exdates),
-		string(file.CompletedDates),
+		exd,
+		cd,
 		file.ID,
 	)
 	return err
@@ -583,8 +601,8 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(f.is_task, 0) as is_task,
 			       COALESCE(f.is_completed, 0) as is_completed,
-			       COALESCE(f.exdates, '[]') as exdates,
-			       COALESCE(f.completed_dates, '[]') as completed_dates
+			       COALESCE(NULLIF(exdates, ''), '[]') as exdates,
+			       COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE (
@@ -605,8 +623,8 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(f.is_task, 0) as is_task,
 			       COALESCE(f.is_completed, 0) as is_completed,
-			       COALESCE(f.exdates, '[]') as exdates,
-			       COALESCE(f.completed_dates, '[]') as completed_dates
+			       COALESCE(NULLIF(exdates, ''), '[]') as exdates,
+			       COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE f.parent_id = ? ` + typeFilter + ` AND (
@@ -615,10 +633,11 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 				OR f.visibility = 'public'
 			)
 		`
-		args = append(args, *parentID, viewerID, viewerID)
+		args = append(args, *parentID)
 		if filterType != nil {
 			args = append(args, *filterType)
 		}
+		args = append(args, viewerID, viewerID)
 		rows, err = s.DB.QueryContext(ctx, query, args...)
 	} else {
 		// Root (Traditional)
@@ -630,8 +649,8 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(f.is_task, 0) as is_task,
 			       COALESCE(f.is_completed, 0) as is_completed,
-			       COALESCE(f.exdates, '[]') as exdates,
-			       COALESCE(f.completed_dates, '[]') as completed_dates
+			       COALESCE(NULLIF(exdates, ''), '[]') as exdates,
+			       COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE f.type = ? AND (f.owner_id = ? OR fs.user_id = ?)
@@ -645,8 +664,8 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(f.is_task, 0) as is_task,
 			       COALESCE(f.is_completed, 0) as is_completed,
-			       COALESCE(f.exdates, '[]') as exdates,
-			       COALESCE(f.completed_dates, '[]') as completed_dates
+			       COALESCE(NULLIF(exdates, ''), '[]') as exdates,
+			       COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE (f.owner_id = ? AND f.parent_id IS NULL)
@@ -696,7 +715,9 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 // ListPublicFiles returns public files owned by specific user.
 func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string) ([]*db.File, error) {
 	query := `
-		SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, visibility, public_meta, secured_meta, COALESCE(exdates, '[]') as exdates, COALESCE(completed_dates, '[]') as completed_dates
+		SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, visibility, public_meta, secured_meta, 
+		       COALESCE(is_task, 0), COALESCE(is_completed, 0),
+		       COALESCE(NULLIF(exdates, ''), '[]') as exdates, COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates
 		FROM files 
 		WHERE owner_id = ? AND visibility = 'public'
 	`
@@ -723,6 +744,8 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string) ([]*d
 			&f.Visibility,
 			&f.PublicMeta,
 			&f.SecuredMeta,
+			&f.IsTask,
+			&f.IsCompleted,
 			&exd,
 			&cd,
 		); err != nil {

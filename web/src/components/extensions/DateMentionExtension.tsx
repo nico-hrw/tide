@@ -73,7 +73,7 @@ const DateMentionNodeView: React.FC<NodeViewProps> = ({ node }) => {
 
     const parsedDate = isoDate ? new Date(isoDate) : null;
 
-    const dayEvents = parsedDate ? getEventsForDate(parsedDate, events) : [];
+    const dayEvents = parsedDate ? getEventsForDate(parsedDate, events as any) : [];
 
     const handleMouseEnter = useCallback(() => {
         if (hideTimeout.current) clearTimeout(hideTimeout.current);

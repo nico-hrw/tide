@@ -468,7 +468,10 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                     onSelect(file.id, file.title);
                 }
             }}
-            className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 ${isHighlighted(file.id, 'file') ? 'ring-2 ring-purple-500 bg-purple-50' : 'hover:bg-gray-100'} ${isDragTarget === 'top' ? 'border-t-2 border-blue-500' : isDragTarget === 'bottom' ? 'border-b-2 border-blue-500' : ''}`}
+            className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 
+                ${isHighlighted(file.id, 'file') ? 'ring-2 ring-purple-500 bg-purple-50' : 'hover:bg-gray-100'} 
+                ${highlight.isSelectingLink ? 'ring-2 ring-purple-400/50 bg-purple-50/30' : ''} 
+                ${isDragTarget === 'top' ? 'border-t-2 border-blue-500' : isDragTarget === 'bottom' ? 'border-b-2 border-blue-500' : ''}`}
             style={{ marginLeft: `${level * 12}px` }}
         >
             <div className="flex items-center gap-2 truncate flex-1 flex-shrink-0">
@@ -557,7 +560,9 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                     if (id && id !== folder.id) onMoveItem?.(id, folder.id);
                 }}
                 onClick={handleToggle}
-                className="group flex items-center justify-between p-2 rounded-lg cursor-pointer hover:bg-gray-100 transition-all duration-200"
+                className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200
+                    ${highlight.isSelectingLink ? 'ring-2 ring-purple-400/30 bg-purple-50/20' : 'hover:bg-gray-100'}
+                `}
                 style={{ marginLeft: `${level * 12}px` }}
             >
                 <div className="flex items-center gap-2 truncate flex-1">

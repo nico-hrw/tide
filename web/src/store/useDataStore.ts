@@ -37,6 +37,7 @@ interface DataState {
     metadataCache: Record<string, any>;
     setKeys: (privateKey: CryptoKey, publicKey: CryptoKey, myId: string) => void;
     fetchDirectory: (parentId: string | null, forceRefresh?: boolean) => Promise<void>;
+    loadAllMetadata: () => Promise<void>;
 }
 
 export const useDataStore = create<DataState>((set, get) => ({
@@ -200,29 +201,51 @@ export const useDataStore = create<DataState>((set, get) => ({
             console.log(`[STATE-AUDIT] fetchDirectory START | ParentID: ${dirKey}`);
             let allFiles: any[] = [];
 
+            const parseSafeJson = async (res: Response) => {
+                try {
+                    const text = await res.text();
+                    return text ? JSON.parse(text) : [];
+                } catch (e) {
+                    console.warn("[STATE-AUDIT] Failed to parse JSON, returning empty array", e);
+                    return [];
+                }
+            };
+
             if (parentId === null) {
-                const [resRoot, resEvents] = await Promise.all([
+                const results = await Promise.allSettled([
                     apiFetch(`/api/v1/files`),
                     apiFetch(`/api/v1/files?type=event`)
                 ]);
 
-                if (resRoot.ok && resEvents.ok) {
-                    const rootFiles = await resRoot.json();
-                    const eventsFiles = await resEvents.json();
-                    const seen = new Set();
-                    for (const f of [...(Array.isArray(rootFiles) ? rootFiles : []), ...(Array.isArray(eventsFiles) ? eventsFiles : [])]) {
-                        if (!seen.has(f.id)) {
-                            seen.add(f.id);
-                            allFiles.push(f);
-                        }
-                    }
-                } else if (resRoot.status === 401 || resEvents.status === 401) {
-                    console.warn("[STATE-AUDIT] fetchDirectory | Unauthorized. Redirecting.");
+                const rootFiles: any[] = [];
+                const eventsFiles: any[] = [];
+
+                if (results[0].status === 'fulfilled' && results[0].value.ok) {
+                    rootFiles.push(...(await parseSafeJson(results[0].value)));
+                } else if (results[0].status === 'fulfilled' && results[0].value.status === 401) {
+                    console.warn("[STATE-AUDIT] fetchDirectory | Root Files Unauthorized.");
                     if (typeof window !== 'undefined') window.location.href = '/auth';
                     return;
                 } else {
-                    console.error(`[STATE-AUDIT ERROR] fetchDirectory | Failed to fetch multi`);
+                    console.error(`[STATE-AUDIT ERROR] fetchDirectory | Failed to fetch root files`);
+                }
+
+                if (results[1].status === 'fulfilled' && results[1].value.ok) {
+                    eventsFiles.push(...(await parseSafeJson(results[1].value)));
+                } else if (results[1].status === 'fulfilled' && results[1].value.status === 401) {
+                    console.warn("[STATE-AUDIT] fetchDirectory | Events Unauthorized.");
+                    if (typeof window !== 'undefined') window.location.href = '/auth';
                     return;
+                } else {
+                    console.error(`[STATE-AUDIT ERROR] fetchDirectory | Failed to fetch root events`);
+                }
+
+                const seen = new Set();
+                for (const f of [...rootFiles, ...eventsFiles]) {
+                    if (!seen.has(f.id)) {
+                        seen.add(f.id);
+                        allFiles.push(f);
+                    }
                 }
             } else {
                 const res = await apiFetch(`/api/v1/files?parent_id=${parentId}`);
@@ -236,7 +259,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                     console.error(`[STATE-AUDIT ERROR] fetchDirectory | ${res.status} ${errorText}`);
                     return;
                 }
-                allFiles = await res.json();
+                allFiles = await parseSafeJson(res);
             }
 
             if (!Array.isArray(allFiles)) throw new Error("Expected array of files");
@@ -277,7 +300,12 @@ export const useDataStore = create<DataState>((set, get) => ({
                             isGroup: meta.isGroup,
                             effect: meta.effect,
                             recurrence_rule: meta.recurrence_rule,
-                            recurrence_end: meta.recurrence_end
+                            recurrence_end: meta.recurrence_end,
+                            exdates: meta.exdates,
+                            completed_dates: meta.completed_dates,
+                            is_task: meta.is_task,
+                            is_completed: meta.is_completed,
+                            is_cancelled: meta.is_cancelled
                         };
                         newMetaCache[f.id] = metaData;
                     } catch (e) {
@@ -322,6 +350,113 @@ export const useDataStore = create<DataState>((set, get) => ({
                 next.delete(dirKey);
                 return { fetchingDirectories: next };
             });
+        }
+    },
+    loadAllMetadata: async () => {
+        const state = get();
+        if (!state.privateKey || !state.myId) return;
+
+        try {
+            const results = await Promise.allSettled([
+                apiFetch(`/api/v1/files?recursive=true`),
+                apiFetch(`/api/v1/files?type=event&recursive=true`)
+            ]);
+
+            const parseSafeJson = async (res: Response) => {
+                try {
+                    const text = await res.text();
+                    return text ? JSON.parse(text) : [];
+                } catch (e) {
+                    return [];
+                }
+            };
+
+            const allFiles: any[] = [];
+            const allEvents: any[] = [];
+
+            if (results[0].status === 'fulfilled' && results[0].value.ok) {
+                allFiles.push(...(await parseSafeJson(results[0].value)));
+            }
+            if (results[1].status === 'fulfilled' && results[1].value.ok) {
+                allEvents.push(...(await parseSafeJson(results[1].value)));
+            }
+            
+            const decryptedNotes: DataItem[] = [];
+            const decryptedEvents: DataItem[] = [];
+            const newMetaCache: Record<string, any> = { ...get().metadataCache };
+
+            const cryptoLib = await import('@/lib/crypto');
+
+            const processItems = async (items: any[], targetArr: DataItem[], type: string) => {
+                for (const f of items) {
+                    if (newMetaCache[f.id]) {
+                        const cached = newMetaCache[f.id];
+                        targetArr.push({ ...f, ...cached, parent_id: f.parent_id || null });
+                        continue;
+                    }
+
+                    let metaData: any = { title: "Untitled" };
+                    if (f.visibility === 'public') {
+                        if (f.public_meta?.title) metaData.title = f.public_meta.title;
+                    } else if (f.secured_meta) {
+                        try {
+                            const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey!, `lazy-${f.id}`);
+                            metaData = {
+                                title: meta.title || "Untitled",
+                                color: meta.color,
+                                description: meta.description,
+                                start: meta.start,
+                                end: meta.end,
+                                allDay: meta.allDay,
+                                isGroup: meta.isGroup,
+                                effect: meta.effect,
+                                recurrence_rule: meta.recurrence_rule,
+                                recurrence_end: meta.recurrence_end,
+                                exdates: meta.exdates,
+                                completed_dates: meta.completed_dates,
+                                is_task: meta.is_task,
+                                is_completed: meta.is_completed,
+                                is_cancelled: meta.is_cancelled
+                            };
+                            newMetaCache[f.id] = metaData;
+                        } catch (e) {
+                            metaData = { title: "Unknown (Decryption Error)" };
+                        }
+                    }
+
+                    if (f.type === 'event') {
+                        targetArr.push({
+                            ...f,
+                            ...metaData,
+                            start: metaData.start || new Date().toISOString(),
+                            end: metaData.end || new Date().toISOString(),
+                            parent_id: f.parent_id || null
+                        });
+                    } else {
+                        targetArr.push({
+                            ...f,
+                            ...metaData,
+                            parent_id: f.parent_id || null
+                        });
+                    }
+                }
+            };
+
+            await processItems(allFiles, decryptedNotes, 'note');
+            await processItems(allEvents, decryptedEvents, 'event');
+
+            const visibleNotes = decryptedNotes.filter(f => (f.share_status || 'owner') !== 'pending' && f.type !== 'folder');
+            const visibleEvents = decryptedEvents.filter(e => (e.share_status || 'owner') !== 'pending');
+
+            set(s => ({
+                notes: visibleNotes,
+                events: visibleEvents,
+                metadataCache: newMetaCache,
+                // We don't mark directories as loaded here because we only grabbed files, 
+                // but this makes them available for suggestions.
+            }));
+        } catch (e) {
+            console.error("[STATE-AUDIT ERROR] loadAllMetadata |", e);
         }
     }
 }));

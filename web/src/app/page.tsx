@@ -471,7 +471,10 @@ export default function Dashboard() {
 
     // SSE Effect
     useEffect(() => {
+        if (!myId) return;
         const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
+        if (!token) return;
+
         const eventSource = new EventSource(`http://localhost:8080/api/v1/events?user_id=${myId}&token=${token}`);
         eventSource.onmessage = (event) => {
             try {
@@ -519,60 +522,6 @@ export default function Dashboard() {
                 .catch(() => {});
         }
     }, [privateKey, publicKey, myId, setKeys, fetchDirectory]);
-
-    // Session Restoration Effect
-    useEffect(() => {
-        const restoreSession = async () => {
-            const email = sessionStorage.getItem("tide_user_email") || localStorage.getItem("tide_user_email");
-            const userId = sessionStorage.getItem("tide_user_id") || localStorage.getItem("tide_user_id");
-            const privKeyJwkStr = localStorage.getItem("tide_session_key");
-            const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
-
-            if (!email || !userId || !privKeyJwkStr || !token) {
-                setStatus("ready");
-                return;
-            }
-
-            setUserEmail(email);
-            setMyId(userId);
-
-            try {
-                const privKeyJwk = JSON.parse(privKeyJwkStr);
-                const pk = await window.crypto.subtle.importKey("jwk", privKeyJwk, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey", "deriveBits"]);
-                setPrivateKey(pk);
-                const pubKeyJwk = localStorage.getItem(`tide_public_key_${userId}`);
-                if (pubKeyJwk) {
-                    const pubk = await window.crypto.subtle.importKey("jwk", JSON.parse(pubKeyJwk), { name: "ECDH", namedCurve: "P-256" }, true, []);
-                    setPublicKey(pubk);
-                }
-                const profile = localStorage.getItem(`tide_user_${email}`);
-                if (profile) setUserProfile(JSON.parse(profile));
-                
-                const savedTabs = localStorage.getItem('tide_open_tabs');
-                const savedActiveId = localStorage.getItem('tide_active_tab_id');
-                const savedLayout = localStorage.getItem('tide_note_layout');
-                
-                if (savedLayout) setNoteLayout(savedLayout as any);
-                if (savedTabs) setOpenTabs(JSON.parse(savedTabs));
-                
-                // Set restoration flag so Persistence Hooks can start saving
-                setIsRestored(true);
-
-                if (savedActiveId && savedActiveId !== activeTabId) {
-                    const tabs = savedTabs ? JSON.parse(savedTabs) : [];
-                    const activeTab = tabs.find((t: any) => t.id === savedActiveId);
-                    if (activeTab) {
-                        switchTab(savedActiveId, activeTab.type, activeTab.title);
-                    } else {
-                        setActiveTabId(savedActiveId);
-                    }
-                }
-
-            } catch (e) { console.error("Session restoration failed", e); }
-            finally { setStatus("ready"); }
-        };
-        restoreSession();
-    }, []);
 
     // Persistence Effect for Tabs & Layout
     useEffect(() => {
@@ -823,39 +772,33 @@ export default function Dashboard() {
 
     const handleToggleThemeVisibility = (themeId: string) => {
         setHiddenThemeIds(prev => prev.includes(themeId) ? prev.filter(id => id !== themeId) : [...prev, themeId]);
-    };
-
-    // -------------------------------------------------------------------------
+    };    // -------------------------------------------------------------------------
     // 1. Session & Initialization
     // -------------------------------------------------------------------------
     useEffect(() => {
         const restoreSession = async () => {
             console.log("[STATE-AUDIT] Initializing Application | Restore Session Start");
-            // 1. Retrieve Config (Try Session first, then Local)
             const email = sessionStorage.getItem("tide_user_email") || localStorage.getItem("tide_user_email");
             const userId = sessionStorage.getItem("tide_user_id") || localStorage.getItem("tide_user_id");
             const privKeyJwkStr = sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
             const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
             
             if (!email || !userId || !privKeyJwkStr || !token) {
-                console.warn("[STATE-AUDIT] Session missing or incomplete. Redirecting to auth.");
-                if (window.location.pathname !== '/auth') {
-                    router.push("/auth");
+                console.warn("[STATE-AUDIT] Session missing or incomplete.");
+                setStatus("ready");
+                if (window.location.pathname !== '/auth' && window.location.pathname !== '/login') {
+                     router.push("/auth");
                 }
                 return;
             }
 
-            // 2. Retrieve Public Key (from User Record)
             let pubKeySpkiStr = "";
             try {
-                // Try localStorage first (Persistent)
                 const userRecordStr = localStorage.getItem("tide_user_" + email);
                 if (userRecordStr) {
                     const record = JSON.parse(userRecordStr);
                     pubKeySpkiStr = record.public_key;
                 }
-
-                // Fallback: Check sessionStorage (Ephemeral from Login)
                 if (!pubKeySpkiStr) {
                     const sessionPubKey = sessionStorage.getItem("tide_user_public_key");
                     if (sessionPubKey) pubKeySpkiStr = sessionPubKey;
@@ -864,12 +807,12 @@ export default function Dashboard() {
 
             if (!pubKeySpkiStr) {
                 console.error("Public key not found for user", email);
+                setStatus("ready");
                 router.push("/auth");
                 return;
             }
 
             try {
-                // 3. Import Keys
                 const privKey = await window.crypto.subtle.importKey(
                     "jwk",
                     JSON.parse(privKeyJwkStr),
@@ -888,60 +831,73 @@ export default function Dashboard() {
 
                 setPrivateKey(privKey);
                 setPublicKey(pubKey);
+                setKeys(privKey, pubKey, userId);
                 setMyId(userId);
                 setUserEmail(email);
-                setUserProfile({ username: email.split('@')[0], email: email }); // Default for now
-                setStatus("ready");
-
+                setUserProfile({ username: email.split('@')[0], email: email });
+                
                 // Persistence: Restore tabs
                 const savedTabs = localStorage.getItem("tide_open_tabs");
                 const savedActiveId = localStorage.getItem("tide_active_tab_id");
 
                 if (savedTabs) {
                     try {
-                        if (savedTabs === 'undefined' || savedTabs === 'null' || savedTabs === '[object Object]') throw new Error("Corrupt tabs payload");
-
                         const parsed = JSON.parse(savedTabs);
                         if (Array.isArray(parsed) && parsed.length > 0) {
                             setOpenTabs(parsed);
-
-                            // Check if active tab is still valid
                             const validActive = parsed.find((t: any) => t.id === savedActiveId);
-                            if (validActive) {
-                                setActiveTabId(validActive.id);
+                            const activeIdToSet = validActive ? validActive.id : parsed[0].id;
+                            const activeTypeToSet = validActive ? validActive.type : parsed[0].type;
+                            setActiveTabId(activeIdToSet);
+                            
+                            // Initialize content load if it's a file tab that needs fetching
+                            if (activeTypeToSet === 'file') {
+                                const activeTitle = validActive ? validActive.title : parsed[0].title;
+                                useDataStore.getState().setActiveNoteId(activeIdToSet);
+                                const content = validActive?.content || parsed[0].content;
+                                if (content) {
+                                    setEditorContent(content);
+                                    if (validActive?._fileKey || parsed[0]._fileKey) {
+                                        setActiveFileKey(validActive?._fileKey || parsed[0]._fileKey);
+                                    }
+                                    setFileName(activeTitle);
+                                } else {
+                                    // Let loadNoteContent handle the fetching with the activeTitle
+                                    // Note: loadNoteContent captures variables from render scope, 
+                                    // but calling it here with the primitive strings will trigger the async flow correctly.
+                                    setTimeout(() => {
+                                        loadNoteContent(activeIdToSet, activeTitle);
+                                    }, 50);
+                                }
                             } else {
-                                setActiveTabId(parsed[0].id);
+                                useDataStore.getState().setActiveNoteId(null);
                             }
                         }
                     } catch (e) {
-                        console.error("Critical Error: Corrupted JSON in tide_open_tabs, resetting UI.", e);
-                        localStorage.removeItem('tide_open_tabs');
-                        localStorage.removeItem('tide_active_tab_id');
-                        setOpenTabs([]);
-                        setActiveTabId('calendar');
+                         console.error("Corrupted tabs payload", e);
                     }
                 }
 
                 const savedDate = localStorage.getItem("tide_calendar_date");
-                if (savedDate) {
-                    try { setCalendarDate(new Date(savedDate)); }
-                    catch (e) { console.error("Restore date failed", e); }
-                }
+                if (savedDate) setCalendarDate(new Date(savedDate));
 
                 const savedExt = localStorage.getItem("tide_enabled_extensions");
-                if (savedExt) {
-                    try { setEnabledExtensions(JSON.parse(savedExt) || []); }
-                    catch (e) { console.error("Restore ext failed", e); }
-                }
+                if (savedExt) setEnabledExtensions(JSON.parse(savedExt) || []);
 
+                const savedLayout = localStorage.getItem("tide_note_layout");
+                if (savedLayout) setNoteLayout(savedLayout as any);
+
+                setIsRestored(true);
+                setStatus("ready");
             } catch (e) {
                 console.error("Session restore failed:", e);
+                setStatus("ready");
                 router.push("/auth");
             }
         };
 
         restoreSession();
-    }, [router]);
+    }, [router, setKeys]);
 
     // ...
 
@@ -1370,38 +1326,42 @@ export default function Dashboard() {
         try {
             const isOccurrence = id.includes('_');
             const baseId = isOccurrence ? id.split('_')[0] : id;
-            const occurrenceTimestamp = isOccurrence ? parseInt(id.split('_')[1], 10) : null;
-            const occurrenceDateKey = occurrenceTimestamp ? format(new Date(occurrenceTimestamp), "yyyy-MM-dd") : null;
-
             const currentEvents = useDataStore.getState().events;
             const event = currentEvents.find(e => e.id === baseId);
             if (!event) return;
 
-            // [TASK 3] Handle recurring cancellation: if it's an occurrence, we update the base event's exdates
-            if (isOccurrence && updates.is_cancelled === true) {
-                let exdates = (event as any).exdates || [];
-                if (occurrenceDateKey && !exdates.includes(occurrenceDateKey)) {
-                    exdates = [...exdates, occurrenceDateKey];
-                }
-                updates = { ...updates, exdates: exdates };
-                delete updates.is_cancelled;
-            } else if (isOccurrence && updates.is_cancelled === false) {
-                let exdates = (event as any).exdates || [];
-                exdates = exdates.filter((d: string) => d !== occurrenceDateKey);
-                updates = { ...updates, exdates: exdates };
-                delete updates.is_cancelled;
+            // Determine specific date key for this instance
+            let occurrenceDateKey: string | null = null;
+            if (isOccurrence) {
+                const timestamp = parseInt(id.split('_')[1], 10);
+                if (!isNaN(timestamp)) occurrenceDateKey = format(new Date(timestamp), "yyyy-MM-dd");
+            } else if ((event as any).recurrence_rule && (event as any).recurrence_rule !== 'none') {
+                // If base ID of a recurring event, treat as the first occurrence date
+                occurrenceDateKey = format(new Date(event.start), "yyyy-MM-dd");
             }
 
-            // [TASK 3] Handle recurring completion: if it's an occurrence, we update the base event's completed_dates
-            if (isOccurrence && updates.is_completed !== undefined) {
-                let completed = (event as any).completed_dates || [];
-                if (updates.is_completed) {
-                    if (occurrenceDateKey && !completed.includes(occurrenceDateKey)) completed = [...completed, occurrenceDateKey];
-                } else {
-                    completed = completed.filter((d: string) => d !== occurrenceDateKey);
+            const isInstanceSpecific = occurrenceDateKey !== null;
+
+            // [TASK 3] Handle recurring cancellation & completion
+            if (isInstanceSpecific) {
+                if (updates.is_cancelled !== undefined) {
+                    let exdates = [...((event as any).exdates || [])];
+                    if (updates.is_cancelled) {
+                        if (occurrenceDateKey && !exdates.includes(occurrenceDateKey)) exdates.push(occurrenceDateKey);
+                    } else {
+                        exdates = exdates.filter((d: string) => d !== occurrenceDateKey);
+                    }
+                    updates = { ...updates, exdates: exdates, is_cancelled: (event as any).is_cancelled || false };
                 }
-                updates = { ...updates, completed_dates: completed };
-                delete updates.is_completed;
+                if (updates.is_completed !== undefined) {
+                    let completed = [...((event as any).completed_dates || [])];
+                    if (updates.is_completed) {
+                        if (occurrenceDateKey && !completed.includes(occurrenceDateKey)) completed.push(occurrenceDateKey);
+                    } else {
+                        completed = completed.filter((d: string) => d !== occurrenceDateKey);
+                    }
+                    updates = { ...updates, completed_dates: completed, is_completed: (event as any).is_completed || false };
+                }
             }
 
             // 1. Prepare Metadata
@@ -1498,13 +1458,12 @@ export default function Dashboard() {
                 method: "DELETE"
             });
             if (res.ok) {
-                useDataStore.getState().setEvents(useDataStore.getState().events.filter(e => e.id !== id) as any);
+                const state = useDataStore.getState();
+                state.setEvents(state.events.filter(e => e.id !== id));
             }
         } catch (e) { console.error(e); }
     };
 
-
-    // -------------------------------------------------------------------------
     // 5. Tab Management & Messages
     // -------------------------------------------------------------------------
     const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance') => {
@@ -1662,11 +1621,6 @@ export default function Dashboard() {
                         onEventClick={(id) => {
                             setActiveEventId(id);
                             setMinimizedEventIds(prev => prev.filter(mId => mId !== id));
-
-                            const clickedEvent = events.find(e => e.id === id);
-                            if (clickedEvent && enabledExtensions.includes('smart_island')) {
-                                islandPush({ type: 'event_preview', payload: { event: clickedEvent } });
-                            }
                         }}
                         onEventShare={(e, id) => handleShare(e, id)}
                         editingEventId={activeEventId}

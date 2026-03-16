@@ -59,7 +59,7 @@ export function getEventsForDate(targetDate: string | Date, allEvents: CalendarE
             let current = new Date(start);
             let safety = 0;
             
-            while (current <= targetStart && current <= recEndOrig && safety < 1000) {
+            while (startOfDay(current) <= targetStart && current <= recEndOrig && safety < 1000) {
                 const occStart = startOfDay(current);
                 const occEnd = startOfDay(new Date(current.getTime() + duration));
                 
@@ -67,6 +67,9 @@ export function getEventsForDate(targetDate: string | Date, allEvents: CalendarE
                     const occDateKey = format(current, "yyyy-MM-dd");
 
                     // [TASK 2] Cancel Check: Option B - Mark as cancelled
+                    // [TASK 2] Cancel Check: If it's in exdates, it's definitely cancelled.
+                    // If e.is_cancelled is true, the whole series is cancelled UNLESS we wanted independent control.
+                    // But for now, we'll treat e.is_cancelled as "Whole series cancelled".
                     const isCancelled = e.exdates?.includes(occDateKey) || !!e.is_cancelled;
 
                     const occId = current.getTime() === start.getTime() ? e.id : `${e.id}_${current.getTime()}`;
@@ -74,9 +77,14 @@ export function getEventsForDate(targetDate: string | Date, allEvents: CalendarE
                     // [TASK 2] Completion Check: Override if in completed_dates
                     const isCompleted = e.completed_dates?.includes(occDateKey) || !!e.is_completed;
 
+                    const occurrenceStart = new Date(current);
+                    const occurrenceEnd = new Date(current.getTime() + duration);
+
                     dayEvents.push({
                         ...e,
                         id: occId,
+                        start: occurrenceStart.toISOString(),
+                        end: occurrenceEnd.toISOString(),
                         is_completed: isCompleted,
                         is_task: !!e.is_task,
                         is_cancelled: isCancelled,

@@ -44,6 +44,7 @@ func main() {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
+	r.Use(middleware.RedirectSlashes)
 
 	// CORS Middleware
 	r.Use(func(next http.Handler) http.Handler {

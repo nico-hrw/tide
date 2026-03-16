@@ -201,6 +201,14 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                         default: false,
                         parseHTML: element => element.getAttribute('data-is-ghost') === 'true',
                     },
+                    type: {
+                        default: 'note',
+                        parseHTML: element => element.getAttribute('data-type-link') || 'note',
+                    },
+                    start: {
+                        default: null,
+                        parseHTML: element => element.getAttribute('data-start'),
+                    }
                 };
             },
             parseHTML() {
@@ -211,22 +219,25 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                 ];
             },
             renderHTML({ node, HTMLAttributes }) {
-                // TASK 1 & 2: Decouple & Safe-Render. 
-                // Statically renders using only id and label. No decryption or fetch logic here.
                 const id = node.attrs.id || '';
                 const label = node.attrs.label || 'Unknown';
                 const isGhost = node.attrs.isGhost === true || node.attrs.isGhost === 'true' || String(id).startsWith('ghost-');
+                const type = node.attrs.type || 'note';
+                const start = node.attrs.start;
                 
                 const baseClass = 'px-1.5 py-0.5 rounded-md font-medium cursor-pointer mention transition-colors';
-                const colorClass = isGhost ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 'bg-purple-100 text-purple-700 hover:bg-purple-200';
+                const colorClass = isGhost ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 
+                                   (type === 'event' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-purple-100 text-purple-700 hover:bg-purple-200');
 
                 return [
-                    'mark', // Gracefully render the last known label as a standard HTML <mark>
+                    'mark',
                     mergeAttributes(HTMLAttributes, {
                         'data-type': 'mention',
                         'data-id': id,
                         'data-label': label,
                         'data-is-ghost': isGhost ? 'true' : 'false',
+                        'data-type-link': type,
+                        'data-start': start,
                         class: `${baseClass} ${colorClass}`
                     }),
                     `@${label}`
@@ -294,8 +305,21 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                 const mentionNode = target.closest('.mention');
                 if (mentionNode) {
                     const targetId = mentionNode.getAttribute('data-id');
+                    const type = mentionNode.getAttribute('data-type-link');
+                    const start = mentionNode.getAttribute('data-start');
+
                     if (targetId) {
-                        // TASK 3: Dead Links & Stale Title Sync
+                        if (type === 'event') {
+                            if (onEventClick) {
+                                onEventClick(targetId);
+                            }
+                            // Custom event for calendar scrolling
+                            window.dispatchEvent(new CustomEvent('calendar:scroll-to', { 
+                                detail: { id: targetId, start } 
+                            }));
+                            return true;
+                        }
+
                         const state = useDataStore.getState();
                         const realFile = state.notes?.find((f: any) => f.id === targetId);
 

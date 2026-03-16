@@ -64,7 +64,12 @@ const MentionList = forwardRef((props: any, ref) => {
                         onClick={() => selectItem(index)}
                     >
                         <div className="font-medium">{item.label || item.title}</div>
-                        {item.type && <div className="text-[10px] opacity-50 uppercase tracking-wider">{item.type}</div>}
+                        {(item.type || item.start) && (
+                            <div className="flex items-center gap-2 text-[10px] opacity-50 uppercase tracking-wider">
+                                <span>{item.type}</span>
+                                {item.start && <span>• {new Date(item.start).toLocaleDateString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>}
+                            </div>
+                        )}
                     </button>
                 ))
             ) : (
@@ -104,14 +109,31 @@ export default {
         const lowQuery = query.toLowerCase();
         const matched = filteredFiles.filter((f: any) => (f.title || f.id).toLowerCase().includes(lowQuery));
 
-        // 4. Return formatted
+        // 4. Search Matching for Events
+        const events = state.events || [];
+        const matchedEvents = events.filter((e: any) => {
+            if (!e || !e.title) return false;
+            return e.title.toLowerCase().includes(lowQuery);
+        });
+
+        // 5. Return formatted
         return [
-            ...matched.map((f: any) => ({ id: f.id, label: f.title || f.id, isGhost: false })),
-            { id: 'NEW', label: `Create File '${query}'`, query: query, isGhost: false }
-        ].slice(0, 10);
+            ...matched.map((f: any) => ({ id: f.id, label: f.title || f.id, type: 'note', isGhost: false })),
+            ...matchedEvents.map((e: any) => ({ 
+                id: e.id, 
+                label: e.title || e.id, 
+                type: 'event', 
+                start: e.start,
+                isGhost: false 
+            })),
+            { id: 'NEW', label: `Create File '${query}'`, query: query, type: 'action', isGhost: false }
+        ].slice(0, 15);
     },
 
     command: ({ editor, range, props }: any) => {
+        useLinkStore.getState().setIsLinkingMode(false);
+        useLinkStore.getState().setPendingLinkSource(null);
+
         if (props.isGhost || props.id === 'GHOST') {
             editor.chain().focus().deleteRange(range).insertContent({
                 type: 'mention',
@@ -119,7 +141,6 @@ export default {
             }).run();
             return;
         } else if (props.id === 'NEW') {
-            // Title comes from the label (already cleaned in selectItem)
             const label = props.label || props.query || 'Untitled';
             editor.chain().focus().deleteRange(range).insertContent({
                 type: 'mention',
@@ -128,7 +149,13 @@ export default {
         } else {
             editor.chain().focus().deleteRange(range).insertContent({
                 type: 'mention',
-                attrs: { id: props.id, label: props.label, isGhost: false }
+                attrs: { 
+                    id: props.id, 
+                    label: props.label, 
+                    isGhost: false,
+                    type: props.type,
+                    start: props.start 
+                }
             }).run();
         }
     },
@@ -139,9 +166,32 @@ export default {
 
         return {
             onStart: (props: any) => {
-                // TRIGGER VISUAL MODE INSTANTLY
-                useLinkStore.getState().setPendingLinkSource(useDataStore.getState().activeNoteId);
+                // 1. Fetch all metadata for comprehensive discovery (Task 3)
+                useDataStore.getState().loadAllMetadata().catch(console.error);
+
+                // 2. TRIGGER VISUAL MODE INSTANTLY (Task 4)
+                const startId = useDataStore.getState().activeNoteId;
+                useLinkStore.getState().setPendingLinkSource(startId);
                 useLinkStore.getState().setIsLinkingMode(true);
+
+                // Start Visual Highlight with SVG line support
+                const rect = props.clientRect?.();
+                if (rect && (window as any).startLinkSelection) {
+                    (window as any).startLinkSelection((target: any) => {
+                        // User clicked something in Sidebar or Calendar
+                        props.editor.chain().focus().deleteRange(props.range).insertContent({
+                            type: 'mention',
+                            attrs: { 
+                                id: target.id, 
+                                label: target.title || target.label, 
+                                isGhost: false,
+                                type: target.type,
+                                start: target.start 
+                            }
+                        }).run();
+                        useLinkStore.getState().setIsLinkingMode(false);
+                    }, { x: rect.left, y: rect.top });
+                }
 
                 component = new ReactRenderer(MentionList, {
                     props,

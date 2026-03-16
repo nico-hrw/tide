@@ -284,7 +284,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 e.stopPropagation();
 
                 if (highlight.isSelectingLink && highlight.onLinkSelect) {
-                    highlight.onLinkSelect({ id: event.id, title: event.title, type: 'event', rect: e.currentTarget.getBoundingClientRect() });
+                    highlight.onLinkSelect({ id: event.id, title: event.title, type: 'event', start: event.start, rect: e.currentTarget.getBoundingClientRect() });
                 } else {
                     if (activeParentId === event.id) {
                         setActiveParentId(null);

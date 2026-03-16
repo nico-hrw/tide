@@ -6,8 +6,8 @@ import { ChevronLeft, ChevronRight, ListPlus } from "lucide-react";
 import { useHighlight } from "@/components/HighlightContext";
 import { ScheduleModal } from './ScheduleModal';
 import { useMotionValue, motion, useTransform } from 'framer-motion';
-import { MagnifiedEventView } from './MagnifiedEventView';
 import { DragGhost } from './DragGhost';
+import { MagnifiedEventView } from './MagnifiedEventView';
 import { getEventsForDate } from "@/lib/calendarUtils";
 
 interface CalendarEvent {
@@ -21,9 +21,12 @@ interface CalendarEvent {
     effect?: string;
     allDay?: boolean;
     recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
-    is_cancelled?: boolean;
+    recurrence_rule?: string;
     exdates?: string[];
     completed_dates?: string[];
+    is_task?: boolean;
+    is_completed?: boolean;
+    is_cancelled?: boolean;
 }
 
 interface CalendarViewProps {
@@ -60,6 +63,311 @@ const getEventTheme = (evt: CalendarEvent) => {
     return effectMap[evt.effect || 'none'] || effectMap['none'];
 };
 
+// --- Event Popover Component (Moved outside to prevent re-mounting on parent render) ---
+const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose, enabledExtensions }: {
+    event: CalendarEvent, rect: DOMRect, themes: any[], onEventSave: any, onEventDelete?: (id: string) => void, onClose: () => void, enabledExtensions: string[]
+}) => {
+    const [title, setTitle] = useState(event.title);
+    const [description, setDescription] = useState(event.description || '');
+    const [isTask, setIsTask] = useState(!!event.is_task);
+    const [isCompleted, setIsCompleted] = useState(!!event.is_completed);
+    
+    // Check if this specific occurrence is cancelled
+    const occurrenceDateKey = format(new Date(event.start), "yyyy-MM-dd");
+    const isThisOccCancelled = (event.exdates || []).includes(occurrenceDateKey) || !!event.is_cancelled;
+    
+    const [isCancelled, setIsCancelled] = useState(isThisOccCancelled);
+    const [color, setColor] = useState(event.color || '#6366f1');
+    const [showColorPicker, setShowColorPicker] = useState(false);
+    
+    const eventColors = [
+        '#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'
+    ];
+
+    const recurrence_rule = (event as any).recurrence_rule || '';
+    const rruleMatch = String(recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`).match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY|NONE)(?:;INTERVAL=(\d+))?/i);
+    const rruleFreq = rruleMatch ? rruleMatch[1].toLowerCase() : 'none';
+    const rruleInterval = rruleMatch && rruleMatch[2] ? parseInt(rruleMatch[2], 10) : 1;
+    
+    const [freq, setFreq] = useState(rruleFreq);
+    const [interval, setIntervalVal] = useState(rruleInterval);
+
+    useEffect(() => {
+        setTitle(event.title);
+        setDescription(event.description || '');
+        setIsTask(!!event.is_task);
+        setIsCompleted(!!event.is_completed);
+        
+        const occKey = format(new Date(event.start), "yyyy-MM-dd");
+        setIsCancelled((event.exdates || []).includes(occKey) || !!event.is_cancelled);
+        
+        const rMatch = String((event as any).recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`).match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY|NONE)(?:;INTERVAL=(\d+))?/i);
+        if (rMatch) {
+            setFreq(rMatch[1].toLowerCase());
+            if (rMatch[2]) setIntervalVal(parseInt(rMatch[2], 10));
+        }
+    }, [event.id, event.start]); // Critical: Only reset on ID or Start change, preserving local edits while typing
+
+
+    const handleTitleBlur = () => { if (title !== event.title) onEventSave(event.id, { title }); };
+    const handleDescBlur = () => { if (description !== (event.description || '')) onEventSave(event.id, { description }); };
+
+    const handleTaskToggle = (newIsTask: boolean) => {
+        setIsTask(newIsTask);
+        if (!newIsTask) setIsCompleted(false);
+    };
+
+    const updateRecurrence = (newFreq: string, newInterval: number) => {
+        setFreq(newFreq);
+        setIntervalVal(newInterval);
+    };
+
+    const handleCompleteToggle = (newIsCompleted: boolean) => {
+        setIsCompleted(newIsCompleted);
+    };
+
+    const handleCancelToggle = (newIsCancelled: boolean) => {
+        setIsCancelled(newIsCancelled);
+    };
+
+    const handleSave = () => {
+        const updates: Partial<CalendarEvent> & { parent_id?: string | null } = {};
+        if (title !== event.title) updates.title = title;
+        if (description !== (event.description || '')) updates.description = description;
+        if (isTask !== !!event.is_task) updates.is_task = isTask;
+        if (isCompleted !== !!event.is_completed) updates.is_completed = isCompleted;
+        if (isCancelled !== isThisOccCancelled) updates.is_cancelled = isCancelled;
+        if (color !== event.color) updates.color = color;
+
+        const newRecurrenceRule = freq === 'none' ? 'NONE' : `FREQ=${freq.toUpperCase()};INTERVAL=${interval}`;
+        if (newRecurrenceRule !== (event as any).recurrence_rule) (updates as any).recurrence_rule = newRecurrenceRule;
+        
+        if (Object.keys(updates).length > 0) {
+            onEventSave(event.id, updates);
+        }
+    };
+
+    const handleClose = () => {
+        handleSave();
+        onClose();
+    };
+
+    // Smart Positioning
+    const width = 340;
+    const height = isTask ? 440 : 400;
+    let left = rect.right + 12;
+    let top = rect.top;
+
+    if (left + width > window.innerWidth) {
+        left = rect.left - width - 12;
+    }
+    if (left < 10) left = 10;
+    
+    if (top + height > window.innerHeight) {
+        top = window.innerHeight - height - 12;
+    }
+    if (top < 60) top = 60;
+
+    return (
+        <div
+            id="active-event-popover"
+            className="fixed z-[100] w-[340px] bg-white dark:bg-[#1C1C1C] rounded-3xl shadow-float border border-gray-100 dark:border-white/10 p-5 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
+            style={{ top: `${top}px`, left: `${left}px` }}
+        >
+            {/* Header Row */}
+            <div className="flex items-center gap-3">
+                <div 
+                    className="w-4 h-4 rounded-full shrink-0 cursor-pointer hover:scale-110 transition-transform shadow-sm"
+                    style={{ backgroundColor: color }}
+                    onClick={() => setShowColorPicker(!showColorPicker)}
+                    title="Pick Individual Color"
+                />
+                <input
+                    autoFocus
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    onBlur={handleTitleBlur}
+                    className="flex-1 text-base font-bold text-gray-900 dark:text-gray-100 bg-transparent border-none focus:ring-0 p-0 outline-none placeholder:text-gray-400"
+                    placeholder="What's happening?"
+                />
+                <button onClick={handleClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all">
+                    <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+
+            {/* Color Grid (Toggleable) */}
+            {showColorPicker && (
+                <div className="bg-gray-50 dark:bg-black/20 p-3 rounded-2xl flex flex-wrap gap-2.5 animate-in slide-in-from-top-2 duration-200">
+                    {eventColors.map(c => (
+                        <button
+                            key={c}
+                            onClick={() => { setColor(c); onEventSave(event.id, { color: c }); }}
+                            className={`w-6 h-6 rounded-full transition-all ${color === c ? 'ring-2 ring-violet-500 ring-offset-2 dark:ring-offset-[#1C1C1C] scale-110 shadow-sm' : 'hover:scale-110 shadow-xs'}`}
+                            style={{ backgroundColor: c }}
+                        />
+                    ))}
+                </div>
+            )}
+
+            {/* Time & Date Info */}
+            <div className="flex flex-col gap-0.5 bg-gray-50/50 dark:bg-white/5 rounded-xl p-3 border border-gray-100/50 dark:border-white/5 shadow-sm">
+                <div className="font-semibold text-sm flex items-center justify-between text-gray-800 dark:text-gray-200">
+                    <span>{format(new Date(event.start), "MMM d, yyyy")}</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-200 dark:bg-white/10 px-2 py-0.5 rounded-full">
+                        {event.allDay ? 'All Day' : (() => {
+                            const m = Math.round((new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000);
+                            return m >= 60 ? `${Math.floor(m/60)}h ${m%60 > 0 ? m%60 + 'm' : ''}` : `${m}m`;
+                        })()}
+                    </span>
+                </div>
+                {!event.allDay && (
+                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <span>{format(new Date(event.start), "h:mm a")}</span>
+                        <span className="text-gray-300 dark:text-gray-600 px-0.5">→</span>
+                        <span>{format(new Date(event.end), "h:mm a")}</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Settings Grid */}
+            <div className="grid grid-cols-2 gap-3 pb-1">
+                {/* Theme/Effect */}
+                <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Theme</span>
+                    <div className="relative group">
+                        <select
+                            value={event.parent_id || 'general-theme'}
+                            onChange={(e) => {
+                                const val = e.target.value === 'general-theme' ? null : e.target.value;
+                                if (onEventSave) onEventSave(event.id, { parent_id: val });
+                            }}
+                            className="w-full bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 dark:text-gray-300 outline-none cursor-pointer appearance-none transition-all hover:bg-gray-100 dark:hover:bg-white/10"
+                        >
+                            <option value="general-theme">No Theme</option>
+                            {themes.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-gray-600 transition-colors">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Recurrence */}
+                <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Repeat</span>
+                    <div className="flex items-center bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl pr-2 transition-all hover:bg-gray-100 dark:hover:bg-white/10">
+                        <select
+                            value={freq}
+                            onChange={(e) => updateRecurrence(e.target.value, interval)}
+                            className="flex-1 bg-transparent border-none text-xs font-bold text-gray-700 dark:text-gray-300 outline-none cursor-pointer appearance-none px-3 py-2"
+                        >
+                            <option value="none">None</option>
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                        {freq !== 'none' && (
+                            <input
+                                type="number"
+                                min="1"
+                                max="99"
+                                value={interval}
+                                onChange={(e) => {
+                                    let val = parseInt(e.target.value, 10);
+                                    if (isNaN(val) || val < 1) val = 1;
+                                    updateRecurrence(freq, val);
+                                }}
+                                className="w-5 text-center bg-transparent border-none p-0 text-[10px] font-bold text-violet-500 font-mono outline-none"
+                            />
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Description */}
+            <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                onBlur={handleDescBlur}
+                placeholder="Add notes..."
+                rows={2}
+                className="w-full bg-transparent border border-gray-100 dark:border-white/5 rounded-2xl p-3 text-xs leading-relaxed text-gray-600 dark:text-gray-400 focus:ring-1 focus:ring-violet-500/20 outline-none resize-none transition-all placeholder:text-gray-300 dark:placeholder:text-gray-700"
+            />
+
+            {/* Controls */}
+            <div className="flex items-center justify-between pt-2 border-t border-gray-50 dark:border-white/5">
+                <div className="flex items-center gap-1">
+                    {/* Add any left-aligned controls here, e.g., Share button */}
+                </div>
+                <div>
+                    <button 
+                        onClick={() => onEventDelete && onEventDelete(event.id)}
+                        className="p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                        title="Delete Event"
+                    >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            <line x1="10" y1="11" x2="10" y2="17"></line>
+                            <line x1="14" y1="11" x2="14" y2="17"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            {/* Extra Row for Task/Cancel toggles */}
+            <div className="flex flex-col gap-1 pt-1 border-t border-gray-50 dark:border-white/5">
+                <div 
+                    onClick={() => { const next = !isTask; handleTaskToggle(next); onEventSave(event.id, { is_task: next }); }}
+                    className="flex items-center justify-between py-1.5 px-0.5 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group/row"
+                >
+                    <div className="flex items-center gap-2.5">
+                        <div className={`p-1.5 rounded-lg transition-colors ${isTask ? 'bg-violet-100 text-violet-600 dark:bg-violet-500/10' : 'bg-gray-100 text-gray-400 dark:bg-white/5 group-hover/row:bg-gray-200'}`}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                        </div>
+                        <span className="text-[13px] font-bold text-gray-700 dark:text-gray-300 tracking-tight">Convert to Task</span>
+                    </div>
+                    <div className={`relative w-10 h-6 rounded-full transition-all duration-300 ${isTask ? 'bg-violet-500 shadow-sm shadow-violet-500/20' : 'bg-gray-200 dark:bg-white/10'}`}>
+                        <div className={`absolute top-1 left-1.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${isTask ? 'translate-x-3' : 'translate-x-0'}`} />
+                    </div>
+                </div>
+
+                {isTask && (
+                    <div 
+                        onClick={() => { const next = !isCompleted; handleCompleteToggle(next); onEventSave(event.id, { is_completed: next }); }}
+                        className="flex items-center justify-between py-1.5 px-0.5 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group/row animate-in slide-in-from-bottom-2 duration-200"
+                    >
+                        <div className="flex items-center gap-2.5">
+                            <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isCompleted ? 'bg-green-500' : 'bg-violet-400'}`} />
+                            <span className="text-[13px] font-bold text-gray-700 dark:text-gray-300 tracking-tight">Task Completed</span>
+                        </div>
+                        <div className={`relative w-10 h-6 rounded-full transition-all duration-300 ${isCompleted ? 'bg-green-500 shadow-sm shadow-green-500/20' : 'bg-gray-200 dark:bg-white/10'}`}>
+                            <div className={`absolute top-1 left-1.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${isCompleted ? 'translate-x-3' : 'translate-x-0'}`} />
+                        </div>
+                    </div>
+                )}
+
+                <div 
+                    onClick={() => { const next = !isCancelled; handleCancelToggle(next); onEventSave(event.id, { is_cancelled: next }); }}
+                    className="flex items-center justify-between py-1.5 px-0.5 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group/row"
+                >
+                    <div className="flex items-center gap-2.5">
+                        <div className={`p-1.5 rounded-lg transition-colors ${isCancelled ? 'bg-gray-200 text-gray-600 dark:bg-white/20' : 'bg-gray-100 text-gray-400 dark:bg-white/5 group-hover/row:bg-gray-200'}`}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+                        </div>
+                        <span className="text-[13px] font-bold text-gray-700 dark:text-gray-300 tracking-tight">Cancel Event</span>
+                    </div>
+                    <div className={`relative w-10 h-6 rounded-full transition-all duration-300 ${isCancelled ? 'bg-gray-500 shadow-sm shadow-gray-500/20' : 'bg-gray-200 dark:bg-white/10'}`}>
+                        <div className={`absolute top-1 left-1.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${isCancelled ? 'translate-x-3' : 'translate-x-0'}`} />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function CalendarView({
     events,
     onEventCreate,
@@ -90,7 +398,12 @@ export default function CalendarView({
     const [currentTime, setCurrentTime] = useState(new Date());
 
     const isPrependingRef = useRef(false);
-    const { highlight } = useHighlight();
+    const { highlight, startLinkSelection } = useHighlight();
+
+    useEffect(() => {
+        (window as any).startLinkSelection = startLinkSelection;
+        return () => { delete (window as any).startLinkSelection; };
+    }, [startLinkSelection]);
 
 
     // Unified drop logic is now handled in handleGlobalMouseUp
@@ -142,6 +455,38 @@ export default function CalendarView({
     const gridDaysRef = useRef<HTMLDivElement>(null);
 
     const [dropBounds, setDropBounds] = useState<DOMRect | null>(null);
+
+    useEffect(() => {
+        const handleScrollTo = (e: any) => {
+            const { id, start } = e.detail;
+            if (start) {
+                const targetDate = new Date(start);
+                onDateChange(targetDate);
+                
+                // After date change, scroll to event
+                setTimeout(() => {
+                    const el = document.getElementById(`event-${id}`);
+                    const container = scrollContainerRef.current;
+                    if (el && container) {
+                        const eventTop = el.offsetTop;
+                        container.scrollTop = Math.max(0, eventTop - 150);
+                        
+                        // Also horizontal scroll
+                        const dayCol = el.closest('[data-day-col]') as HTMLElement;
+                        if (dayCol) {
+                             const colLeft = dayCol.offsetLeft;
+                             const colWidth = dayCol.offsetWidth;
+                             const containerWidth = container.clientWidth;
+                             const targetScrollX = colLeft - (containerWidth / 2) + (colWidth / 2) - 30;
+                             container.scrollLeft = Math.max(0, targetScrollX);
+                        }
+                    }
+                }, 400); // Increased delay for network/decryption
+            }
+        };
+        window.addEventListener('calendar:scroll-to', handleScrollTo);
+        return () => window.removeEventListener('calendar:scroll-to', handleScrollTo);
+    }, [onDateChange]);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -212,270 +557,9 @@ export default function CalendarView({
 
     // Auto-update current time
     useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(new Date()), 60000 * 5); // 5 mins is enough for a red line indicator
+        const timer = setInterval(() => setCurrentTime(new Date()), 15000); // 15 seconds to keep the pulse fresh
         return () => clearInterval(timer);
-    }, []);// --- Event Popover Component (Moved outside to prevent re-mounting on parent render) ---
-const EventPopover = ({ event, rect, themes, onEventSave, onClose, enabledExtensions }: {
-    event: CalendarEvent, rect: DOMRect, themes: any[], onEventSave: any, onClose: () => void, enabledExtensions: string[]
-}) => {
-    const [title, setTitle] = useState(event.title);
-    const [description, setDescription] = useState(event.description || '');
-    const [isTask, setIsTask] = useState(!!event.is_task);
-    const [isCompleted, setIsCompleted] = useState(!!event.is_completed);
-    const [isCancelled, setIsCancelled] = useState(!!event.is_cancelled);
-    const [color, setColor] = useState(event.color || '#6366f1'); // Default indigo
-    const [showColorPicker, setShowColorPicker] = useState(false);
-    
-    const eventColors = [
-        '#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'
-    ];
-
-    const rruleMatch = String((event as any).recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`).match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY|NONE)(?:;INTERVAL=(\d+))?/i);
-    const rruleFreq = rruleMatch ? rruleMatch[1].toLowerCase() : 'none';
-    const rruleInterval = rruleMatch && rruleMatch[2] ? parseInt(rruleMatch[2], 10) : 1;
-    
-    const [freq, setFreq] = useState(rruleFreq);
-    const [interval, setIntervalVal] = useState(rruleInterval);
-
-    useEffect(() => {
-        setTitle(event.title);
-        setDescription(event.description || '');
-        setIsTask(!!event.is_task);
-        setIsCompleted(!!event.is_completed);
-        setIsCancelled(!!event.is_cancelled);
-        
-        const rMatch = String((event as any).recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`).match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY|NONE)(?:;INTERVAL=(\d+))?/i);
-        if (rMatch) {
-            setFreq(rMatch[1].toLowerCase());
-            if (rMatch[2]) setIntervalVal(parseInt(rMatch[2], 10));
-        }
-    }, [event.id]);
-
-    const getSaveId = () => event.id; // User occurrence ID for persistence hooks
-
-    const updateRecurrence = (newFreq: string, newInt: number) => {
-        setFreq(newFreq);
-        setIntervalVal(newInt);
-        if (onEventSave) {
-            const saveId = getSaveId();
-            if (newFreq === 'none') {
-                onEventSave(saveId, { recurrence_rule: 'none', recurrence: 'none' } as any);
-            } else {
-                const rule = `FREQ=${newFreq.toUpperCase()};INTERVAL=${newInt}`;
-                onEventSave(saveId, { recurrence_rule: rule, recurrence: newFreq } as any);
-            }
-        }
-    };
-
-    const handleTitleBlur = () => { if (title !== event.title) onEventSave(getSaveId(), { title }); };
-    const handleDescBlur = () => { if (description !== (event.description || '')) onEventSave(getSaveId(), { description }); };
-
-    const handleTaskToggle = (newIsTask: boolean) => {
-        setIsTask(newIsTask);
-        if (!newIsTask) {
-            setIsCompleted(false);
-            onEventSave(getSaveId(), { is_task: false, is_completed: false });
-        } else {
-            onEventSave(getSaveId(), { is_task: true });
-        }
-    };
-
-    const handleCompleteToggle = (newIsCompleted: boolean) => {
-        setIsCompleted(newIsCompleted);
-        onEventSave(getSaveId(), { is_completed: newIsCompleted });
-    };
-
-    const handleCancelToggle = (newIsCancelled: boolean) => {
-        setIsCancelled(newIsCancelled);
-        onEventSave(getSaveId(), { is_cancelled: newIsCancelled });
-    };
-
-    // Smart Positioning
-    const width = 340;
-    const height = isTask ? 440 : 400;
-    let left = rect.right + 12;
-    let top = rect.top;
-
-    if (left + width > window.innerWidth) {
-        left = rect.left - width - 12;
-    }
-    if (left < 10) left = 10;
-    
-    if (top + height > window.innerHeight) {
-        top = window.innerHeight - height - 12;
-    }
-    if (top < 60) top = 60;
-
-    return (
-        <div
-            id="active-event-popover"
-            className="fixed z-[100] w-[340px] bg-white dark:bg-[#1C1C1C] rounded-3xl shadow-float border border-gray-100 dark:border-white/10 p-5 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
-            style={{ top: `${top}px`, left: `${left}px` }}
-        >
-            {/* Header Row */}
-            <div className="flex items-center gap-3">
-                <div 
-                    className="w-4 h-4 rounded-full shrink-0 cursor-pointer hover:scale-110 transition-transform shadow-sm"
-                    style={{ backgroundColor: color }}
-                    onClick={() => setShowColorPicker(!showColorPicker)}
-                    title="Pick Individual Color"
-                />
-                <input
-                    autoFocus
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    onBlur={handleTitleBlur}
-                    className="flex-1 text-base font-bold text-gray-900 dark:text-gray-100 bg-transparent border-none focus:ring-0 p-0 outline-none placeholder:text-gray-400"
-                    placeholder="What's happening?"
-                />
-                <button onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all">
-                    <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-            </div>
-
-            {/* Color Grid (Toggleable) */}
-            {showColorPicker && (
-                <div className="bg-gray-50 dark:bg-black/20 p-3 rounded-2xl flex flex-wrap gap-2.5 animate-in slide-in-from-top-2 duration-200">
-                    {eventColors.map(c => (
-                        <button
-                            key={c}
-                            onClick={() => {
-                                setColor(c);
-                                if (onEventSave) onEventSave(getSaveId(), { color: c });
-                            }}
-                            className={`w-6 h-6 rounded-full transition-all ${color === c ? 'ring-2 ring-violet-500 ring-offset-2 dark:ring-offset-[#1C1C1C] scale-110 shadow-sm' : 'hover:scale-110 shadow-xs'}`}
-                            style={{ backgroundColor: c }}
-                        />
-                    ))}
-                </div>
-            )}
-
-            {/* Settings Grid */}
-            <div className="grid grid-cols-2 gap-3 pb-1">
-                {/* Theme/Effect */}
-                <div className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Theme</span>
-                    <div className="relative group">
-                        <select
-                            value={event.parent_id || 'general-theme'}
-                            onChange={(e) => {
-                                const val = e.target.value === 'general-theme' ? null : e.target.value;
-                                if (onEventSave) onEventSave(getSaveId(), { parent_id: val });
-                            }}
-                            className="w-full bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 dark:text-gray-300 outline-none cursor-pointer appearance-none transition-all hover:bg-gray-100 dark:hover:bg-white/10"
-                        >
-                            <option value="general-theme">No Theme</option>
-                            {themes.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-gray-600 transition-colors">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Recurrence */}
-                <div className="flex flex-col gap-1.5">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">Repeat</span>
-                    <div className="flex items-center bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl pr-2 transition-all hover:bg-gray-100 dark:hover:bg-white/10">
-                        <select
-                            value={freq}
-                            onChange={(e) => updateRecurrence(e.target.value, interval)}
-                            className="flex-1 bg-transparent border-none text-xs font-bold text-gray-700 dark:text-gray-300 outline-none cursor-pointer appearance-none px-3 py-2"
-                        >
-                            <option value="none">None</option>
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
-                            <option value="monthly">Monthly</option>
-                            <option value="yearly">Yearly</option>
-                        </select>
-                        {freq !== 'none' && (
-                            <input
-                                type="number"
-                                min="1"
-                                max="99"
-                                value={interval}
-                                onChange={(e) => {
-                                    let val = parseInt(e.target.value, 10);
-                                    if (isNaN(val) || val < 1) val = 1;
-                                    updateRecurrence(freq, val);
-                                }}
-                                className="w-5 text-center bg-transparent border-none p-0 text-[10px] font-bold text-violet-500 font-mono outline-none"
-                            />
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* Description */}
-            <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                onBlur={handleDescBlur}
-                placeholder="Add notes..."
-                rows={2}
-                className="w-full bg-transparent border border-gray-100 dark:border-white/5 rounded-2xl p-3 text-xs leading-relaxed text-gray-600 dark:text-gray-400 focus:ring-1 focus:ring-violet-500/20 outline-none resize-none transition-all placeholder:text-gray-300 dark:placeholder:text-gray-700"
-            />
-
-            {/* Controls */}
-            <div className="flex flex-col gap-1 pt-1 border-t border-gray-50 dark:border-white/5">
-                {/* Task Toggle */}
-                {/* Task Toggle Row */}
-                <div 
-                    onClick={() => handleTaskToggle(!isTask)}
-                    className="flex items-center justify-between py-1.5 px-0.5 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group/row"
-                >
-                    <div className="flex items-center gap-2.5">
-                        <div className={`p-1.5 rounded-lg transition-colors ${isTask ? 'bg-violet-100 text-violet-600 dark:bg-violet-500/10' : 'bg-gray-100 text-gray-400 dark:bg-white/5 group-hover/row:bg-gray-200'}`}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
-                        </div>
-                        <span className="text-[13px] font-bold text-gray-700 dark:text-gray-300 tracking-tight">Convert to Task</span>
-                    </div>
-                    <div
-                        className={`relative w-10 h-6 rounded-full transition-all duration-300 ${isTask ? 'bg-violet-500 shadow-sm shadow-violet-500/20' : 'bg-gray-200 dark:bg-white/10'}`}
-                    >
-                        <div className={`absolute top-1 left-1.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${isTask ? 'translate-x-3' : 'translate-x-0'}`} />
-                    </div>
-                </div>
-
-                {isTask && (
-                    <div 
-                        onClick={() => handleCompleteToggle(!isCompleted)}
-                        className="flex items-center justify-between py-1.5 px-0.5 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group/row animate-in slide-in-from-bottom-2 duration-200"
-                    >
-                        <div className="flex items-center gap-2.5">
-                            <div className={`w-1.5 h-1.5 rounded-full animate-pulse ${isCompleted ? 'bg-green-500' : 'bg-violet-400'}`} />
-                            <span className="text-[13px] font-bold text-gray-700 dark:text-gray-300 tracking-tight">Task Completed</span>
-                        </div>
-                        <div
-                            className={`relative w-10 h-6 rounded-full transition-all duration-300 ${isCompleted ? 'bg-green-500 shadow-sm shadow-green-500/20' : 'bg-gray-200 dark:bg-white/10'}`}
-                        >
-                            <div className={`absolute top-1 left-1.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${isCompleted ? 'translate-x-3' : 'translate-x-0'}`} />
-                        </div>
-                    </div>
-                )}
-
-                {/* Cancel Toggle */}
-                {/* Cancel Toggle Row */}
-                <div 
-                    onClick={() => handleCancelToggle(!isCancelled)}
-                    className="flex items-center justify-between py-1.5 px-0.5 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group/row"
-                >
-                    <div className="flex items-center gap-2.5">
-                        <div className={`p-1.5 rounded-lg transition-colors ${isCancelled ? 'bg-gray-200 text-gray-600 dark:bg-white/20' : 'bg-gray-100 text-gray-400 dark:bg-white/5 group-hover/row:bg-gray-200'}`}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
-                        </div>
-                        <span className="text-[13px] font-bold text-gray-700 dark:text-gray-300 tracking-tight">Cancel Event</span>
-                    </div>
-                    <div
-                        className={`relative w-10 h-6 rounded-full transition-all duration-300 ${isCancelled ? 'bg-gray-500 shadow-sm shadow-gray-500/20' : 'bg-gray-200 dark:bg-white/10'}`}
-                    >
-                        <div className={`absolute top-1 left-1.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${isCancelled ? 'translate-x-3' : 'translate-x-0'}`} />
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
+    }, []);
 
     // --- Initial Scroll ---
     const hasInitializedScroll = useRef(false);
@@ -1139,7 +1223,8 @@ const EventPopover = ({ event, rect, themes, onEventSave, onClose, enabledExtens
             const occDateKey = format(occurrenceStart, "yyyy-MM-dd");
 
             // [TASK 2] Cancel Check: Option B - Mark as cancelled
-            const isCancelled = e.exdates?.includes(occDateKey) || !!e.is_cancelled;
+            // [TASK 2] Cancel Check
+            const isCancelled = (Array.isArray(e.exdates) && e.exdates.includes(occDateKey)) || !!e.is_cancelled;
 
             // Inherit effect from theme if present
             let inheritedEffect = e.effect;
@@ -1339,6 +1424,7 @@ const EventPopover = ({ event, rect, themes, onEventSave, onClose, enabledExtens
                                                             id: e.id,
                                                             title: e.title,
                                                             type: 'event',
+                                                            start: e.start,
                                                             rect: rect
                                                         });
                                                         return;
@@ -1391,7 +1477,7 @@ const EventPopover = ({ event, rect, themes, onEventSave, onClose, enabledExtens
                                             onEventRename={onEventRename}
                                             snapInterval={isPreciseModeRef.current ? 1 : 10}
                                             isMagnified={isPreciseMode}
-                                            onEventDrop={async (eventId, start, end) => {
+                                            onEventDrop={async (eventId: string, start: Date, end: Date) => {
                                                 if (onEventUpdate) {
                                                     await onEventUpdate(eventId, start, end);
                                                 }
@@ -1493,70 +1579,29 @@ const EventPopover = ({ event, rect, themes, onEventSave, onClose, enabledExtens
             {/* Global Floating Event Popover */}
             {
                 activePopover && (() => {
-                    const baseEvent = events.find(e => e.id === activePopover.id || activePopover.id.startsWith(e.id + "_"));
-                    if (!baseEvent) return null;
+                    const event = events.find(e => e.id === activePopover.id || activePopover.id.startsWith(e.id + '_'));
+                    if (!event) return null;
+                    return (
+                        <EventPopover
+                            event={event}
+                            rect={activePopover.rect}
+                            themes={themes}
+                            onEventSave={onEventSave}
+                            onEventDelete={onEventDelete}
+                            onClose={() => setActivePopover(null)}
+                            enabledExtensions={enabledExtensions}
+                        />
+                    );
+                })()}
 
-                    let displayEvent = baseEvent;
-                    if (activePopover.id.includes('_')) {
-                        const timestamp = parseInt(activePopover.id.split('_')[1], 10);
-                        const occDate = new Date(timestamp);
-                        const resolvedOccurrences = getEventsForDate(occDate, [baseEvent]);
-                        const match = resolvedOccurrences.find(occ => occ.id === activePopover.id);
-                        if (match) displayEvent = match;
-                    }
+            {isScheduleModalOpen && (
+                <ScheduleModal
+                    isOpen={isScheduleModalOpen}
+                    onClose={() => setIsScheduleModalOpen(false)}
+                    onSchedule={(text) => console.log("Scheduling:", text)}
+                />
+            )}
 
-                    return <EventPopover event={{...displayEvent, id: activePopover.id}} rect={activePopover.rect} themes={themes} onEventSave={onEventSave} onClose={() => setActivePopover(null)} enabledExtensions={enabledExtensions} />;
-                })()
-            }
-            <ScheduleModal
-                isOpen={isScheduleModalOpen}
-                onClose={() => setIsScheduleModalOpen(false)}
-                existingThemes={themes.map(t => ({ id: t.id, title: t.title, effect: t.effect }))}
-                onApply={async (newEvents, appliedTheme, options) => {
-                    if (onEventSave) {
-                        try {
-                            const defaultDateStr = format(date, "yyyy-MM-dd");
-                            let targetThemeId = appliedTheme;
-
-                            // If it's a new theme title, create it first
-                            if (options && typeof onCreateEventGroup === 'function') {
-                                const newId = await onCreateEventGroup(appliedTheme, options.color, options.effect);
-                                if (newId) targetThemeId = newId;
-                            }
-
-                            const promises = newEvents.map(ev => {
-                                const newId = `temp-${Date.now()}-${Math.random()}`;
-                                const targetDateStr = ev.dateOverride || defaultDateStr;
-
-                                let start, end;
-
-                                if (ev.allDay) {
-                                    start = new Date(`${targetDateStr}T00:00:00`).toISOString();
-                                    end = new Date(`${targetDateStr}T23:59:59`).toISOString();
-                                } else {
-                                    start = new Date(`${targetDateStr}T${ev.startTime}:00`).toISOString();
-                                    end = new Date(`${targetDateStr}T${ev.endTime}:00`).toISOString();
-                                }
-
-                                const mappedEvent = {
-                                    id: newId,
-                                    title: ev.title || 'New Event',
-                                    description: ev.description || '',
-                                    start,
-                                    end,
-                                    allDay: ev.allDay,
-                                    recurrence: ev.recurrence,
-                                    parent_id: targetThemeId
-                                };
-                                return onEventSave(newId, mappedEvent);
-                            });
-                            await Promise.all(promises);
-                        } catch (e) {
-                            console.error("Error bulk saving schedule", e);
-                        }
-                    }
-                }}
-            />
         </React.Fragment>
     );
 }
