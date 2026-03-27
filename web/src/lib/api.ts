@@ -1,23 +1,13 @@
 // Basic API wrapper
 export async function apiFetch(url: string, options: RequestInit = {}) {
     try {
-        // Inject Auth Token
-        const token = typeof window !== 'undefined' ? (sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token")) : null;
-        
-        const headers = new Headers(options.headers || {});
-        if (token) {
-            headers.set("Authorization", `Bearer ${token}`);
-        }
-
         const res = await fetch(url, {
             ...options,
-            headers: headers
+            credentials: 'include' // Use httpOnly cookie
         });
 
         if (res.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth')) {
-            console.warn("[apiFetch] 401 Unauthorized. Clearing session and redirecting.");
-            sessionStorage.clear();
-            localStorage.removeItem("tide_session_token");
+            console.warn("[apiFetch] 401 Unauthorized. Redirecting.");
             window.location.href = '/auth';
         }
 

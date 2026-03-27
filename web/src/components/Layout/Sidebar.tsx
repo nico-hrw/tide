@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Calendar as CalendarIcon, Lock, Pin, DollarSign, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2 } from "lucide-react";
+import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, DollarSign, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, Reorder } from "framer-motion";
 import SmartIsland from "../extensions/smart_island/SmartIsland";
@@ -48,7 +48,7 @@ interface SidebarProps {
 
 interface ChatUser {
     id: string;
-    encrypted_data: string;
+    public_key: string;
     username?: string;
     email?: string;
 }
@@ -78,7 +78,7 @@ export default function Sidebar({
     onOpenSettings
 }: SidebarProps) {
     const { highlight } = useHighlight();
-    const { orderedNoteIds, setOrderedNoteIds } = useDataStore();
+    const { orderedNoteIds, setOrderedNoteIds, setSettingsModalOpen } = useDataStore();
     const [chats, setChats] = useState<ChatUser[]>([]);
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -88,7 +88,7 @@ export default function Sidebar({
     const [dropIndicator, setDropIndicator] = useState<{ id: string, half: 'top' | 'bottom' } | null>(null);
 
     const topLevelItems = useMemo(() => {
-        return files?.filter(f => f.parent_id === null) || [];
+        return files?.filter(f => f.parent_id === null && f.type !== 'event') || [];
     }, [files]);
     const [orderedItems, setOrderedItems] = useState<DecryptedFile[]>([]);
 
@@ -168,18 +168,14 @@ export default function Sidebar({
 
     return (
         <div className="w-64 h-full flex flex-col shrink-0 relative z-[100] transition-all duration-300">
-            {highlight.isSelectingLink && (
-                <div className="bg-purple-600 text-white p-3 flex flex-col gap-1 items-center justify-center animate-in slide-in-from-top duration-300">
-                    <div className="flex items-center gap-2">
-                        <CalendarIcon size={16} />
-                        <span className="text-xs font-bold uppercase tracking-wider">Linking Mode</span>
-                    </div>
-                    <span className="text-[10px] opacity-90 text-center leading-tight">Pick an event or note to link</span>
-                </div>
-            )}
+            {/* VLM banner removed — linking mode logic stays active in HighlightContext */}
 
             <div
-                className="flex-1 overflow-y-auto p-2 no-scrollbar"
+                className="max-h-[58%] overflow-y-auto p-2 no-scrollbar"
+                style={{ 
+                    maskImage: 'linear-gradient(to bottom, black 85%, transparent 100%)',
+                    WebkitMaskImage: 'linear-gradient(to bottom, black 85%, transparent 100%)'
+                }}
                 onDoubleClick={(e) => {
                     if (e.target === e.currentTarget) onNewNote();
                 }}
@@ -225,11 +221,11 @@ export default function Sidebar({
                                         <Users size={18} className="text-gray-400 group-hover:text-blue-500" />
                                         <span className="font-semibold flex-1 text-left">Community</span>
                                     </button>
-                                    <button onClick={() => { setIsProfileMenuOpen(false); onOpenSettings?.(); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all group">
+                                    <button onClick={() => { setIsProfileMenuOpen(false); setSettingsModalOpen(true); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all group">
                                         <Puzzle size={18} className="text-gray-400 group-hover:text-blue-500" />
                                         <span className="font-semibold flex-1 text-left">Extensions</span>
                                     </button>
-                                    <button onClick={() => { setIsProfileMenuOpen(false); onOpenSettings?.(); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all group">
+                                    <button onClick={() => { setIsProfileMenuOpen(false); setSettingsModalOpen(true); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all group">
                                         <Settings size={18} className="text-gray-400 group-hover:text-blue-500" />
                                         <span className="font-semibold flex-1 text-left">Settings</span>
                                     </button>
@@ -520,11 +516,11 @@ interface FolderItemProps {
 }
 
 const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onCreateFolder, onMoveItem, onDragStart, onContextMenu, viewMode, enabledExtensions, myId, index }: FolderItemProps) => {
-    const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const children = allFiles.filter(f => f.parent_id === folder.id);
     const { highlight } = useHighlight();
-    const { fetchDirectory, loadedDirectories } = useDataStore();
+    const { fetchDirectory, loadedDirectories, openFolderIds, toggleFolder } = useDataStore();
+    const isOpen = openFolderIds.has(folder.id);
 
     const handleToggle = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -536,10 +532,10 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                 await fetchDirectory(folder.id);
                 setIsLoading(false);
             }
-            setIsOpen(true);
+            toggleFolder(folder.id, true);
         } else {
             // Collapse
-            setIsOpen(false);
+            toggleFolder(folder.id, false);
         }
     };
 

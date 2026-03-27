@@ -17,6 +17,16 @@ func main() {
 		port = envPort
 	}
 
+	masterKeyStr := os.Getenv("SERVER_MASTER_KEY")
+	if masterKeyStr == "" {
+		log.Println("WARNING: SERVER_MASTER_KEY not set. Using insecure dev key.")
+		masterKeyStr = "12345678901234567890123456789012" // 32 bytes for DEV ONLY!
+	}
+	if len(masterKeyStr) != 32 {
+		log.Fatalf("SERVER_MASTER_KEY must be exactly 32 bytes, got %d", len(masterKeyStr))
+	}
+	masterKey := []byte(masterKeyStr)
+
 	// 1. Initialize Stores
 	// memStore := store.NewMemoryStore() // Deprecated
 	sqliteStore, err := store.NewSQLiteStore("data")
@@ -28,12 +38,13 @@ func main() {
 
 	// 2. Initialize Handlers
 	broker := api.NewBroker()
-	authHandler := api.NewAuthHandler(sqliteStore)
+	authHandler := api.NewAuthHandler(sqliteStore, masterKey)
 	fileHandler := api.NewFileHandler(sqliteStore, blobStore, broker)
 	linkHandler := api.NewLinkHandler(sqliteStore)
 	messageHandler := &api.MessageHandler{Store: sqliteStore, Broker: broker}
 	contactHandler := &api.ContactHandler{Store: sqliteStore}
 	extensionsHandler := api.NewExtensionsHandler(sqliteStore)
+	taskHandler := api.NewTaskHandler(sqliteStore)
 
 	tabsHandler := api.NewTabsHandler(sqliteStore)
 	financeHandler := api.NewFinanceHandler(sqliteStore, broker)
@@ -49,7 +60,14 @@ func main() {
 	// CORS Middleware
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
+			origin := r.Header.Get("Origin")
+			if origin != "" {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			} else {
+				w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000") // Fallback
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, Authorization")
 			w.Header().Set("Access-Control-Max-Age", "3600")
@@ -74,18 +92,23 @@ func main() {
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Route("/auth", authHandler.RegisterRoutes)
+		// Flattened Auth routes to avoid sub-router 404 confusion
+		r.Post("/auth/register", authHandler.Register)
+		r.Post("/auth/request-otp", authHandler.RequestOTP)
+		r.Post("/auth/verify-otp", authHandler.VerifyOTP)
+		r.With(api.AuthMiddleware).Get("/auth/me", authHandler.Me)
+
 		r.Route("/files", fileHandler.RegisterRoutes)
 		r.Route("/links", linkHandler.RegisterRoutes)
 		r.Route("/messages", messageHandler.RegisterRoutes)
 		r.Route("/contacts", contactHandler.RegisterRoutes)
 		r.Route("/user/extensions", extensionsHandler.RegisterRoutes)
 		r.Route("/tabs", tabsHandler.RegisterRoutes)
+		r.Route("/tasks", taskHandler.RegisterRoutes)
 		r.Route("/finance", financeHandler.RegisterRoutes)
 
 		// SSE Endpoint (Wrapped with AuthMiddleware for security)
 		r.With(api.AuthMiddleware).Get("/events", broker.ServeHTTP)
-
 	})
 
 	log.Printf("Server starting on port %s...", port)

@@ -2,13 +2,14 @@ import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMe
 import DayColumn from "@/components/Calendar/DayColumn";
 import "@/app/calendar/calendar.css";
 import { format, addDays, subDays, startOfWeek, addWeeks, subWeeks, isSameDay, getMinutes, getHours, startOfDay } from "date-fns";
-import { ChevronLeft, ChevronRight, ListPlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, ListPlus, Plus, X } from "lucide-react";
 import { useHighlight } from "@/components/HighlightContext";
 import { ScheduleModal } from './ScheduleModal';
 import { useMotionValue, motion, useTransform } from 'framer-motion';
 import { DragGhost } from './DragGhost';
 import { MagnifiedEventView } from './MagnifiedEventView';
 import { getEventsForDate } from "@/lib/calendarUtils";
+import { useDataStore } from "@/store/useDataStore";
 
 interface CalendarEvent {
     id: string;
@@ -27,6 +28,8 @@ interface CalendarEvent {
     is_task?: boolean;
     is_completed?: boolean;
     is_cancelled?: boolean;
+    shading?: number; // 0-4 for gray-layers
+    tags?: string[];
 }
 
 interface CalendarViewProps {
@@ -36,7 +39,7 @@ interface CalendarViewProps {
     onEventRename: (id: string, title: string) => Promise<void>;
     onEventDelete?: (id: string) => Promise<void>;
     onEventSave?: (id: string, updates: Partial<CalendarEvent> & { parent_id?: string | null; is_task?: boolean; is_completed?: boolean }) => void;
-    onEventClick?: (id: string, rect?: DOMRect) => void;
+    onEventClick?: (evt: CalendarEvent, rect?: DOMRect) => void;
     onEventShare?: (e: React.MouseEvent, id: string) => void;
     editingEventId?: string | null;
     date: Date; // Initial View Date
@@ -54,7 +57,7 @@ const getEventTheme = (evt: CalendarEvent) => {
         'orange': { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' },
         'none': { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }
     };
-    
+
     // If we have an individual color, use it as bg
     if (evt.color) {
         return { bg: evt.color, text: '#ffffff', border: evt.color };
@@ -71,15 +74,22 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
     const [description, setDescription] = useState(event.description || '');
     const [isTask, setIsTask] = useState(!!event.is_task);
     const [isCompleted, setIsCompleted] = useState(!!event.is_completed);
-    
+
     // Check if this specific occurrence is cancelled
-    const occurrenceDateKey = format(new Date(event.start), "yyyy-MM-dd");
-    const isThisOccCancelled = (event.exdates || []).includes(occurrenceDateKey) || !!event.is_cancelled;
-    
+    let isThisOccCancelled = !!event.is_cancelled;
+    try {
+        if (event.start) {
+            const occurrenceDateKey = format(new Date(event.start), "yyyy-MM-dd");
+            isThisOccCancelled = (event.exdates || []).includes(occurrenceDateKey) || !!event.is_cancelled;
+        }
+    } catch (e) {
+        console.error("Invalid event start date for cancellation check:", event.start);
+    }
+
     const [isCancelled, setIsCancelled] = useState(isThisOccCancelled);
     const [color, setColor] = useState(event.color || '#6366f1');
     const [showColorPicker, setShowColorPicker] = useState(false);
-    
+
     const eventColors = [
         '#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'
     ];
@@ -88,25 +98,35 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
     const rruleMatch = String(recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`).match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY|NONE)(?:;INTERVAL=(\d+))?/i);
     const rruleFreq = rruleMatch ? rruleMatch[1].toLowerCase() : 'none';
     const rruleInterval = rruleMatch && rruleMatch[2] ? parseInt(rruleMatch[2], 10) : 1;
-    
+
     const [freq, setFreq] = useState(rruleFreq);
     const [interval, setIntervalVal] = useState(rruleInterval);
+    const [shading, setShading] = useState((event as any).shading || 0);
+    const [tags, setTags] = useState<string[]>(event.tags || []);
 
     useEffect(() => {
         setTitle(event.title);
         setDescription(event.description || '');
         setIsTask(!!event.is_task);
         setIsCompleted(!!event.is_completed);
-        
-        const occKey = format(new Date(event.start), "yyyy-MM-dd");
-        setIsCancelled((event.exdates || []).includes(occKey) || !!event.is_cancelled);
-        
+        setShading((event as any).shading || 0);
+        setTags(event.tags || []);
+
+        try {
+            if (event.start) {
+                const occKey = format(new Date(event.start), "yyyy-MM-dd");
+                setIsCancelled((event.exdates || []).includes(occKey) || !!event.is_cancelled);
+            }
+        } catch (e) {
+            console.error("Invalid event start date in popover transition:", event.start);
+        }
+
         const rMatch = String((event as any).recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`).match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY|NONE)(?:;INTERVAL=(\d+))?/i);
         if (rMatch) {
             setFreq(rMatch[1].toLowerCase());
             if (rMatch[2]) setIntervalVal(parseInt(rMatch[2], 10));
         }
-    }, [event.id, event.start]); // Critical: Only reset on ID or Start change, preserving local edits while typing
+    }, [event.id, event.start, (event as any).recurrence_rule]); // Critical: Reset on prop change to sync with store
 
 
     const handleTitleBlur = () => { if (title !== event.title) onEventSave(event.id, { title }); };
@@ -120,6 +140,8 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
     const updateRecurrence = (newFreq: string, newInterval: number) => {
         setFreq(newFreq);
         setIntervalVal(newInterval);
+        const newRule = newFreq === 'none' ? 'NONE' : `FREQ=${newFreq.toUpperCase()};INTERVAL=${newInterval}`;
+        onEventSave(event.id, { recurrence_rule: newRule });
     };
 
     const handleCompleteToggle = (newIsCompleted: boolean) => {
@@ -138,13 +160,38 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
         if (isCompleted !== !!event.is_completed) updates.is_completed = isCompleted;
         if (isCancelled !== isThisOccCancelled) updates.is_cancelled = isCancelled;
         if (color !== event.color) updates.color = color;
+        if (JSON.stringify(tags) !== JSON.stringify(event.tags || [])) updates.tags = tags;
 
         const newRecurrenceRule = freq === 'none' ? 'NONE' : `FREQ=${freq.toUpperCase()};INTERVAL=${interval}`;
         if (newRecurrenceRule !== (event as any).recurrence_rule) (updates as any).recurrence_rule = newRecurrenceRule;
-        
+
         if (Object.keys(updates).length > 0) {
             onEventSave(event.id, updates);
         }
+    };
+
+    const handleAddTag = () => {
+        if (tags.length < 3) {
+            const newTags = [...tags, ''];
+            setTags(newTags);
+            onEventSave(event.id, { tags: newTags });
+        }
+    };
+
+    const handleUpdateTag = (index: number, value: string) => {
+        const newTags = [...tags];
+        newTags[index] = value;
+        setTags(newTags);
+    };
+
+    const handleTagBlur = (index: number) => {
+        onEventSave(event.id, { tags });
+    };
+
+    const handleRemoveTag = (index: number) => {
+        const newTags = tags.filter((_, i) => i !== index);
+        setTags(newTags);
+        onEventSave(event.id, { tags: newTags });
     };
 
     const handleClose = () => {
@@ -162,7 +209,7 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
         left = rect.left - width - 12;
     }
     if (left < 10) left = 10;
-    
+
     if (top + height > window.innerHeight) {
         top = window.innerHeight - height - 12;
     }
@@ -176,7 +223,7 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
         >
             {/* Header Row */}
             <div className="flex items-center gap-3">
-                <div 
+                <div
                     className="w-4 h-4 rounded-full shrink-0 cursor-pointer hover:scale-110 transition-transform shadow-sm"
                     style={{ backgroundColor: color }}
                     onClick={() => setShowColorPicker(!showColorPicker)}
@@ -187,45 +234,100 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     onBlur={handleTitleBlur}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            handleSave();
+                            onClose();
+                        } else if (e.key === 'Escape') {
+                            onClose();
+                        }
+                    }}
                     className="flex-1 text-base font-bold text-gray-900 dark:text-gray-100 bg-transparent border-none focus:ring-0 p-0 outline-none placeholder:text-gray-400"
                     placeholder="What's happening?"
                 />
-                <button onClick={handleClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all">
-                    <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                    {onEventDelete && (
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm("Delete this event?")) {
+                                    onEventDelete(event.id);
+                                    onClose();
+                                }
+                            }}
+                            className="p-1 min-w-[28px] h-7 flex items-center justify-center rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-all"
+                            title="Delete Event"
+                        >
+                            <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                        </button>
+                    )}
+                    <button onClick={handleClose} className="p-1 min-w-[28px] h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all">
+                        <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
             </div>
 
             {/* Color Grid (Toggleable) */}
             {showColorPicker && (
-                <div className="bg-gray-50 dark:bg-black/20 p-3 rounded-2xl flex flex-wrap gap-2.5 animate-in slide-in-from-top-2 duration-200">
-                    {eventColors.map(c => (
-                        <button
-                            key={c}
-                            onClick={() => { setColor(c); onEventSave(event.id, { color: c }); }}
-                            className={`w-6 h-6 rounded-full transition-all ${color === c ? 'ring-2 ring-violet-500 ring-offset-2 dark:ring-offset-[#1C1C1C] scale-110 shadow-sm' : 'hover:scale-110 shadow-xs'}`}
-                            style={{ backgroundColor: c }}
-                        />
-                    ))}
+                <div className="bg-gray-50 dark:bg-black/20 p-3 rounded-2xl flex flex-col gap-3 animate-in slide-in-from-top-2 duration-200">
+                    <div className="flex flex-wrap gap-2.5">
+                        {eventColors.map(c => (
+                            <button
+                                key={c}
+                                onClick={() => { setColor(c); onEventSave(event.id, { color: c }); }}
+                                className={`w-6 h-6 rounded-full transition-all ${color === c ? 'ring-2 ring-violet-500 ring-offset-2 dark:ring-offset-[#1C1C1C] scale-110 shadow-sm' : 'hover:scale-110 shadow-xs'}`}
+                                style={{ backgroundColor: c }}
+                            />
+                        ))}
+                    </div>
+                    
+                    {/* Shading Contextual Picker */}
+                    <div className="flex flex-col gap-2 pt-2 border-t border-gray-200/50 dark:border-white/5">
+                        <span className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest px-1">Shading / Hue Mute</span>
+                        <div className="flex items-center gap-1.5 p-0.5">
+                            {[0, 1, 2, 3, 4].map(s => (
+                                <button
+                                    key={s}
+                                    onClick={() => { setShading(s); onEventSave(event.id, { shading: s }); }}
+                                    className={`flex-1 h-7 rounded-lg border transition-all text-[10px] font-bold ${shading === s ? 'bg-gray-900 text-white border-gray-900 dark:bg-white dark:text-black dark:border-white shadow-md' : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 dark:text-gray-500'}`}
+                                >
+                                    {s === 0 ? 'Pure' : `Lvl ${s}`}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             )}
 
             {/* Time & Date Info */}
             <div className="flex flex-col gap-0.5 bg-gray-50/50 dark:bg-white/5 rounded-xl p-3 border border-gray-100/50 dark:border-white/5 shadow-sm">
                 <div className="font-semibold text-sm flex items-center justify-between text-gray-800 dark:text-gray-200">
-                    <span>{format(new Date(event.start), "MMM d, yyyy")}</span>
+                    <span>{(() => {
+                        try { return format(new Date(event.start), "MMM d, yyyy"); }
+                        catch (e) { return "Invalid Date"; }
+                    })()}</span>
                     <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500 bg-gray-200 dark:bg-white/10 px-2 py-0.5 rounded-full">
                         {event.allDay ? 'All Day' : (() => {
-                            const m = Math.round((new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000);
-                            return m >= 60 ? `${Math.floor(m/60)}h ${m%60 > 0 ? m%60 + 'm' : ''}` : `${m}m`;
+                            try {
+                                const m = Math.round((new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000);
+                                if (isNaN(m)) return "Unknown";
+                                return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 > 0 ? m % 60 + 'm' : ''}` : `${m}m`;
+                            } catch (e) { return "Unknown"; }
                         })()}
                     </span>
                 </div>
                 {!event.allDay && (
                     <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1.5">
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        <span>{format(new Date(event.start), "h:mm a")}</span>
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                        <span>{(() => {
+                            try { return format(new Date(event.start), "h:mm a"); }
+                            catch (e) { return "??:??"; }
+                        })()}</span>
                         <span className="text-gray-300 dark:text-gray-600 px-0.5">→</span>
-                        <span>{format(new Date(event.end), "h:mm a")}</span>
+                        <span>{(() => {
+                            try { return format(new Date(event.end), "h:mm a"); }
+                            catch (e) { return "??:??"; }
+                        })()}</span>
                     </div>
                 )}
             </div>
@@ -248,7 +350,7 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                             {themes.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
                         </select>
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover:text-gray-600 transition-colors">
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
                         </div>
                     </div>
                 </div>
@@ -284,16 +386,45 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                         )}
                     </div>
                 </div>
+                <div className="flex flex-col gap-1.5 pt-2 border-t border-gray-100 dark:border-white/5 col-span-2">
+                    <div className="flex items-center justify-between px-1">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Tags / Sub-titles</span>
+                        {tags.length < 3 && (
+                            <button onClick={handleAddTag} className="p-1 text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-500/10 rounded-lg transition-all">
+                                <Plus size={12} strokeWidth={3} />
+                            </button>
+                        )}
+                    </div>
+                    {tags.length > 0 && (
+                        <div className="flex flex-col gap-2 mt-1">
+                            {tags.map((tag, idx) => (
+                                <div key={idx} className="flex items-center gap-2 group/tag">
+                                    <input
+                                        value={tag}
+                                        onChange={(e) => handleUpdateTag(idx, e.target.value)}
+                                        onBlur={() => handleTagBlur(idx)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleTagBlur(idx)}
+                                        placeholder={`Tag ${idx + 1}...`}
+                                        className="flex-1 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/5 rounded-xl px-3 py-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200 outline-none focus:ring-1 focus:ring-violet-500/50"
+                                    />
+                                    <button onClick={() => handleRemoveTag(idx)} className="opacity-0 group-hover/tag:opacity-100 p-1 text-gray-400 hover:text-red-500 transition-all">
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Description */}
             <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                onBlur={handleDescBlur}
+                onBlur={() => onEventSave(event.id, { description })}
                 placeholder="Add notes..."
-                rows={2}
-                className="w-full bg-transparent border border-gray-100 dark:border-white/5 rounded-2xl p-3 text-xs leading-relaxed text-gray-600 dark:text-gray-400 focus:ring-1 focus:ring-violet-500/20 outline-none resize-none transition-all placeholder:text-gray-300 dark:placeholder:text-gray-700"
+                rows={4}
+                className="w-full bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-2xl p-3 text-xs text-gray-600 dark:text-gray-300 outline-none focus:ring-1 focus:ring-violet-500 transition-all placeholder:text-gray-400"
             />
 
             {/* Controls */}
@@ -302,7 +433,7 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                     {/* Add any left-aligned controls here, e.g., Share button */}
                 </div>
                 <div>
-                    <button 
+                    <button
                         onClick={() => onEventDelete && onEventDelete(event.id)}
                         className="p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-all"
                         title="Delete Event"
@@ -319,7 +450,7 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
 
             {/* Extra Row for Task/Cancel toggles */}
             <div className="flex flex-col gap-1 pt-1 border-t border-gray-50 dark:border-white/5">
-                <div 
+                <div
                     onClick={() => { const next = !isTask; handleTaskToggle(next); onEventSave(event.id, { is_task: next }); }}
                     className="flex items-center justify-between py-1.5 px-0.5 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group/row"
                 >
@@ -335,7 +466,7 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                 </div>
 
                 {isTask && (
-                    <div 
+                    <div
                         onClick={() => { const next = !isCompleted; handleCompleteToggle(next); onEventSave(event.id, { is_completed: next }); }}
                         className="flex items-center justify-between py-1.5 px-0.5 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group/row animate-in slide-in-from-bottom-2 duration-200"
                     >
@@ -349,7 +480,7 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                     </div>
                 )}
 
-                <div 
+                <div
                     onClick={() => { const next = !isCancelled; handleCancelToggle(next); onEventSave(event.id, { is_cancelled: next }); }}
                     className="flex items-center justify-between py-1.5 px-0.5 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group/row"
                 >
@@ -398,12 +529,17 @@ export default function CalendarView({
     const [currentTime, setCurrentTime] = useState(new Date());
 
     const isPrependingRef = useRef(false);
-    const { highlight, startLinkSelection } = useHighlight();
+    const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
+    const tasks = useDataStore((state) => state.tasks) || [];
 
     useEffect(() => {
         (window as any).startLinkSelection = startLinkSelection;
-        return () => { delete (window as any).startLinkSelection; };
-    }, [startLinkSelection]);
+        (window as any).cancelLinkSelection = cancelLinkSelection;
+        return () => { 
+            delete (window as any).startLinkSelection; 
+            delete (window as any).cancelLinkSelection;
+        };
+    }, [startLinkSelection, cancelLinkSelection]);
 
 
     // Unified drop logic is now handled in handleGlobalMouseUp
@@ -462,7 +598,7 @@ export default function CalendarView({
             if (start) {
                 const targetDate = new Date(start);
                 onDateChange(targetDate);
-                
+
                 // After date change, scroll to event
                 setTimeout(() => {
                     const el = document.getElementById(`event-${id}`);
@@ -470,15 +606,15 @@ export default function CalendarView({
                     if (el && container) {
                         const eventTop = el.offsetTop;
                         container.scrollTop = Math.max(0, eventTop - 150);
-                        
+
                         // Also horizontal scroll
                         const dayCol = el.closest('[data-day-col]') as HTMLElement;
                         if (dayCol) {
-                             const colLeft = dayCol.offsetLeft;
-                             const colWidth = dayCol.offsetWidth;
-                             const containerWidth = container.clientWidth;
-                             const targetScrollX = colLeft - (containerWidth / 2) + (colWidth / 2) - 30;
-                             container.scrollLeft = Math.max(0, targetScrollX);
+                            const colLeft = dayCol.offsetLeft;
+                            const colWidth = dayCol.offsetWidth;
+                            const containerWidth = container.clientWidth;
+                            const targetScrollX = colLeft - (containerWidth / 2) + (colWidth / 2) - 30;
+                            container.scrollLeft = Math.max(0, targetScrollX);
                         }
                     }
                 }, 400); // Increased delay for network/decryption
@@ -525,7 +661,7 @@ export default function CalendarView({
         };
 
         const handleFocus = () => {
-             // Reset precise mode on window focus to avoid stuck Loupe after Alt+Tab
+            // Reset precise mode on window focus to avoid stuck Loupe after Alt+Tab
             setIsPreciseMode(false);
             isPreciseModeRef.current = false;
             preciseAnchorRef.current = null;
@@ -542,7 +678,7 @@ export default function CalendarView({
     }, []);
 
     // --- Popover State ---
-    const [activePopover, setActivePopover] = useState<{ id: string, rect: DOMRect } | null>(null);
+    const [activePopover, setActivePopover] = useState<{ event: CalendarEvent, rect: DOMRect } | null>(null);
 
     // Initialize with current, prev, and next week
     useEffect(() => {
@@ -615,7 +751,18 @@ export default function CalendarView({
 
                     // Open Popover
                     const rect = element.getBoundingClientRect();
-                    setActivePopover({ id: editingEventId, rect });
+                    const baseEvent = events.find(e => e.id === editingEventId || (editingEventId && editingEventId.startsWith(e.id + "_")));
+                    if (baseEvent) {
+                        let instanceEvent = { ...baseEvent };
+                        if (editingEventId.includes('_')) {
+                            const timestamp = parseInt(editingEventId.split('_')[1], 10);
+                            const duration = new Date(baseEvent.end).getTime() - new Date(baseEvent.start).getTime();
+                            instanceEvent.id = editingEventId;
+                            instanceEvent.start = new Date(timestamp).toISOString();
+                            instanceEvent.end = new Date(timestamp + duration).toISOString();
+                        }
+                        setActivePopover({ event: instanceEvent, rect });
+                    }
                 }
             }, 100);
             return () => clearTimeout(timer);
@@ -677,7 +824,13 @@ export default function CalendarView({
 
         // Also capture window-level or document-level scrolling just in case trackpad causes body scroll
         const globalScrollHandler = (e: Event) => {
-            if (activePopover && !(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement)) {
+            if (activePopover) {
+                // If the scroll is coming from an input/textarea inside our popover, ignore it
+                if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLInputElement) {
+                    return;
+                }
+                
+                // If it's a general window scroll, close the popover
                 setActivePopover(null);
             }
         };
@@ -877,10 +1030,10 @@ export default function CalendarView({
 
                 if (isDraggingRef.current) {
                     const scrollDelta = (scrollContainerRef.current?.scrollTop || 0) - dragState.initialScrollTop;
-                    
+
                     const draggingEvent = events.find(e => e.id === draggingId || draggingId?.startsWith(e.id + "_"));
                     const durationMins = draggingEvent ? (new Date(draggingEvent.end).getTime() - new Date(draggingEvent.start).getTime()) / 60000 : 15;
-                    
+
                     let newTop = dragState.originalTop + deltaY + scrollDelta;
                     if (newTop < 0) newTop = 0;
                     if (newTop > 1440 - durationMins) newTop = 1440 - durationMins;
@@ -888,7 +1041,7 @@ export default function CalendarView({
                     // Snap to interval so MagnifiedEventView sees the correct snapped minute
                     const snapInterval = isPreciseModeRef.current ? 1 : 10;
                     const snappedTop = Math.round(newTop / snapInterval) * snapInterval;
-                    
+
                     // Keep Loupe anchored to event's top (start) edge
                     activeEventEdgeRef.current = snappedTop;
 
@@ -942,7 +1095,11 @@ export default function CalendarView({
             // Clear pending drag if any (was just a click)
             if (pendingDragRef.current) {
                 // If we haven't moved enough to drag, treat this as a CLICK.
-                if (onEventClick) onEventClick(pendingDragRef.current.id);
+                if (onEventClick) {
+                    const evtId = pendingDragRef.current.id;
+                    const eventObj = events.find(ev => ev.id === evtId || (evtId.includes('_') && ev.id === evtId.split('_')[0]));
+                    if (eventObj) onEventClick(eventObj);
+                }
                 pendingDragRef.current = null;
                 return;
             }
@@ -1238,9 +1395,9 @@ export default function CalendarView({
             // [TASK 2] Completion Check: Override if in completed_dates
             const isCompleted = e.completed_dates?.includes(occDateKey) || !!e.is_completed;
 
-            const processedEvent = { 
-                ...e, 
-                start: occurrenceStart.toISOString(), 
+            const processedEvent = {
+                ...e,
+                start: occurrenceStart.toISOString(),
                 end: occurrenceEnd.toISOString(),
                 effect: inheritedEffect,
                 is_cancelled: isCancelled,
@@ -1272,10 +1429,10 @@ export default function CalendarView({
 
         events.forEach(e => {
             const start = new Date(e.start);
-            
+
             const rule = (e as any).recurrence_rule;
             const rrule = rule || `FREQ=${(e.recurrence && e.recurrence !== 'none') ? e.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`;
-            
+
             let freq = 'none';
             let interval = 1;
             const matchFreq = rrule.match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY|NONE)/i);
@@ -1328,17 +1485,17 @@ export default function CalendarView({
             )}
 
             <div
-                className="h-full flex flex-col bg-transparent select-none relative z-0"
+                className="h-full flex flex-col bg-white dark:bg-[#111111] select-none relative z-0"
                 style={{
-                    maskImage: 'linear-gradient(to right, transparent, black 3%, black 97%, transparent), linear-gradient(to bottom, transparent, black 3%, black 97%, transparent)',
+                    maskImage: 'linear-gradient(to right, transparent, black 1%, black 99%, transparent), linear-gradient(to bottom, transparent, black 1%, black 99%, transparent)',
                     maskComposite: 'intersect',
-                    WebkitMaskImage: 'linear-gradient(to right, transparent, black 3%, black 97%, transparent), linear-gradient(to bottom, transparent, black 3%, black 97%, transparent)',
+                    WebkitMaskImage: 'linear-gradient(to right, transparent, black 1%, black 99%, transparent), linear-gradient(to bottom, transparent, black 1%, black 99%, transparent)',
                     WebkitMaskComposite: 'source-in'
                 }}
             >
                 {/* Toolbar */}
-                < div className="flex items-center justify-between px-4 py-3 bg-transparent z-20" >
-                    <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 capitalize">
+                <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-black border-b border-gray-300 dark:border-slate-700 z-20">
+                    <h2 className="text-lg font-extrabold text-gray-900 dark:text-gray-100 capitalize">
                         {format(date, "MMMM yyyy")}
                     </h2>
                     <div className="flex items-center gap-2">
@@ -1346,34 +1503,35 @@ export default function CalendarView({
                             onClick={() => {
                                 onDateChange(new Date());
                             }}
-                            className="px-4 py-2 bg-white dark:bg-black border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-medium hover:bg-gray-50 dark:hover:bg-slate-900 transition-colors shadow-sm"
+                            className="px-4 py-2 bg-white dark:bg-black border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-900 transition-all shadow-sm"
                         >
                             Today
                         </button>
                         <button
                             onClick={() => setIsScheduleModalOpen(true)}
-                            className="hidden md:flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                            className="hidden md:flex items-center gap-2 px-4 py-2 bg-white dark:bg-black border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-900 transition-all shadow-sm"
                             title="Bulk Schedule Events"
                         >
                             <ListPlus size={16} />
                             <span>Schedule</span>
                         </button>
                     </div>
-                </div >
+                </div>
 
                 {/* Main Scroll Area */}
-                < div
-                    ref={scrollContainerRef}
-                    className="flex-1 relative flex trackpad-scroll-free"
-                    style={{ touchAction: 'none', overscrollBehavior: 'none' }}
-                >
+                <div className="flex-1 flex overflow-hidden">
+                    <div
+                        ref={scrollContainerRef}
+                        className="flex-1 relative flex trackpad-scroll-free"
+                        style={{ touchAction: 'none', overscrollBehavior: 'none' }}
+                    >
                     {/* Time Column (Sticky Left) */}
-                    < div className="w-[60px] flex-shrink-0 sticky left-0 z-[150] bg-white border-r border-gray-100 dark:border-slate-800/50 h-fit min-h-full pb-[150px]" >
+                    <div className="w-[60px] flex-shrink-0 sticky left-0 z-[150] bg-white border-r border-gray-200 dark:border-slate-800 h-fit min-h-full pb-[150px]">
                         {/* Corner */}
-                        < div className="h-[50px] border-b border-gray-100 dark:border-slate-800/50 sticky top-0 z-[160] bg-white" ></div >
+                        <div className="h-[50px] border-b border-gray-200 dark:border-slate-800 sticky top-0 z-[160] bg-white"></div>
                         {
                             Array.from({ length: 24 }).map((_, i) => (
-                                <div key={i} className="h-[60px] relative group border-b border-dashed border-gray-100 dark:border-slate-800/50">
+                                <div key={i} className="h-[60px] relative group border-b border-dashed border-gray-200 dark:border-slate-800">
                                     <span className="absolute -top-3 right-3 text-[11px] font-semibold text-gray-400 z-[10]">{i}:00</span>
                                 </div>
                             ))
@@ -1414,35 +1572,24 @@ export default function CalendarView({
                                             currentTime={currentTime}
                                             hoveredHour={hoveredHour}
                                             onHourHover={setHoveredHour}
-                                            onEventClick={(id, rect) => {
+                                            onEventClick={(clickedEvent, rect) => {
                                                 if (!isDraggingRef.current) {
-                                                    const e = events.find(ev => ev.id === id || (id && id.startsWith(ev.id + "_")));
-
                                                     // Intercept for magic link
-                                                    if (highlight.isSelectingLink && highlight.onLinkSelect && e) {
+                                                    if (highlight.isSelectingLink && highlight.onLinkSelect) {
+                                                        const baseId = clickedEvent.id.includes('_') ? clickedEvent.id.split('_')[0] : clickedEvent.id;
                                                         highlight.onLinkSelect({
-                                                            id: e.id,
-                                                            title: e.title,
+                                                            id: baseId,
+                                                            title: clickedEvent.title,
                                                             type: 'event',
-                                                            start: e.start,
+                                                            start: clickedEvent.start,
                                                             rect: rect
                                                         });
                                                         return;
                                                     }
-
-                                                    if (e?.allDay) {
-                                                        // Handle all-day click: could be popover, could be external
-                                                        if (rect) {
-                                                            setActivePopover({ id, rect });
-                                                        } else if (onEventClick) {
-                                                            onEventClick(id); // fallback
-                                                        }
-                                                    } else {
-                                                        if (rect) {
-                                                            setActivePopover({ id, rect });
-                                                        } else if (onEventClick) {
-                                                            onEventClick(id); // fallback
-                                                        }
+                                                    
+                                                    if (rect) {
+                                                        setActivePopover({ event: clickedEvent, rect });
+                                                        if (onEventClick) onEventClick(clickedEvent, rect);
                                                     }
                                                 }
                                             }}
@@ -1482,6 +1629,7 @@ export default function CalendarView({
                                                     await onEventUpdate(eventId, start, end);
                                                 }
                                             }}
+                                            onEventCreate={onEventCreate}
                                             cursorX={cursorX}
                                             cursorY={cursorY}
                                         />
@@ -1500,8 +1648,9 @@ export default function CalendarView({
                                 cursorY={cursorY}
                             />
                         )}
-                    </div >
-                </div >
+                    </div>
+                    </div>
+                </div>
 
                 {/* Visual Projection Layer (Precise Mode) */}
                 {isPreciseMode && (draggingId || creationDrag || resizingId) && (() => {
@@ -1577,28 +1726,26 @@ export default function CalendarView({
             </div >
 
             {/* Global Floating Event Popover */}
-            {
-                activePopover && (() => {
-                    const event = events.find(e => e.id === activePopover.id || activePopover.id.startsWith(e.id + '_'));
-                    if (!event) return null;
-                    return (
-                        <EventPopover
-                            event={event}
-                            rect={activePopover.rect}
-                            themes={themes}
-                            onEventSave={onEventSave}
-                            onEventDelete={onEventDelete}
-                            onClose={() => setActivePopover(null)}
-                            enabledExtensions={enabledExtensions}
-                        />
-                    );
-                })()}
+            {activePopover && (
+                <EventPopover
+                    event={activePopover.event}
+                    rect={activePopover.rect}
+                    themes={themes}
+                    onEventSave={onEventSave}
+                    onEventDelete={onEventDelete}
+                    onClose={() => setActivePopover(null)}
+                    enabledExtensions={enabledExtensions}
+                />
+            )}
 
             {isScheduleModalOpen && (
                 <ScheduleModal
                     isOpen={isScheduleModalOpen}
                     onClose={() => setIsScheduleModalOpen(false)}
-                    onSchedule={(text) => console.log("Scheduling:", text)}
+                    existingThemes={themes}
+                    onApply={async (schedEvents, theme, options) => {
+                        console.log("Applying schedule:", { schedEvents, theme, options });
+                    }}
                 />
             )}
 

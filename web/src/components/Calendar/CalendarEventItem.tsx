@@ -21,6 +21,9 @@ interface CalendarEvent {
     is_cancelled?: boolean;
     exdates?: string[];
     completed_dates?: string[];
+    shading?: number; // 0-4 for gray-layers
+    linkedTaskId?: string; // UUID of the source Task — authoritative for completion state
+    tags?: string[];
 }
 
 const getEventTheme = (evt: CalendarEvent) => {
@@ -52,7 +55,7 @@ interface CalendarEventItemProps {
     isMagnified?: boolean;
     resizeHeightMV?: MotionValue<number>;
     fallbackMV: MotionValue<number>;
-    onEventClick?: (id: string, rect?: DOMRect) => void;
+    onEventClick?: (event: CalendarEvent, rect?: DOMRect) => void;
     onEventShare?: (e: React.MouseEvent, id: string) => void;
     onEventDelete?: (id: string) => void;
     onEventMouseDown?: (e: React.MouseEvent, id: string, start: Date) => void;
@@ -89,6 +92,14 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const { highlight, isHighlighted } = useHighlight();
     const activeParentId = useDataStore(state => state.activeParentId);
     const setActiveParentId = useDataStore(state => state.setActiveParentId);
+
+    // If the event has a linkedTaskId, read completion state from the task store (source of truth)
+    // so all taskMention nodes in notes update instantly via the same Zustand selector.
+    const linkedTaskIsCompleted = useDataStore(state => {
+        if (!(event as any).linkedTaskId) return undefined;
+        return state.tasks.find(t => t.id === (event as any).linkedTaskId)?.isCompleted;
+    });
+    const isCompleted = linkedTaskIsCompleted !== undefined ? linkedTaskIsCompleted : !!event.is_completed;
 
     const start = new Date(event.start);
     const end = new Date(event.end);
@@ -223,26 +234,47 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const isAdjacentTop = timedEvents.some(other => {
         if (other.id === event.id) return false;
         const otherEndMs = new Date(other.end).getTime();
-        return Math.abs(otherEndMs - startMs) < 60000 && Math.abs((layout.get(other.id)?.left || 0) - pos.left) < 5;
+        const otherPos = layout.get(other.id) || { left: 0, width: 100 };
+        const timeDiff = Math.abs(otherEndMs - startMs);
+        const leftDiff = Math.abs(otherPos.left - pos.left);
+        const widthDiff = Math.abs(otherPos.width - pos.width);
+        return timeDiff < 61000 && leftDiff < 3 && widthDiff < 3;
     });
 
     const isAdjacentBottom = timedEvents.some(other => {
         if (other.id === event.id) return false;
         const otherStartMs = new Date(other.start).getTime();
-        return Math.abs(otherStartMs - endMs) < 60000 && Math.abs((layout.get(other.id)?.left || 0) - pos.left) < 5;
+        const otherPos = layout.get(other.id) || { left: 0, width: 100 };
+        const timeDiff = Math.abs(otherStartMs - endMs);
+        const leftDiff = Math.abs(otherPos.left - pos.left);
+        const widthDiff = Math.abs(otherPos.width - pos.width);
+        return timeDiff < 61000 && leftDiff < 3 && widthDiff < 3;
     });
 
-    let roundClass = 'rounded-xl';
+    // Base Radius
+    const R = '7px'; // Normal radius
+    const adjR = '4px'; // Attached radius (1/3 of normal)
 
-    // Override corners if multi-day
+    const borderRadiusStyle = {
+        borderTopLeftRadius: isAdjacentTop ? adjR : R,
+        borderTopRightRadius: isAdjacentTop ? adjR : R,
+        borderBottomLeftRadius: isAdjacentBottom ? adjR : R,
+        borderBottomRightRadius: isAdjacentBottom ? adjR : R,
+    };
+
     if (isMultiDay) {
-        if (isStartDay) roundClass = 'rounded-t-xl rounded-b-none';
-        else if (isEndDay) roundClass = 'rounded-b-xl rounded-t-none';
-        else roundClass = 'rounded-none';
-    } else {
-        if (isAdjacentTop && isAdjacentBottom) roundClass = 'rounded-sm';
-        else if (isAdjacentTop) roundClass = 'rounded-b-xl rounded-t-sm';
-        else if (isAdjacentBottom) roundClass = 'rounded-t-xl rounded-b-sm';
+        if (isStartDay) {
+            borderRadiusStyle.borderBottomLeftRadius = adjR;
+            borderRadiusStyle.borderBottomRightRadius = adjR;
+        } else if (isEndDay) {
+            borderRadiusStyle.borderTopLeftRadius = adjR;
+            borderRadiusStyle.borderTopRightRadius = adjR;
+        } else {
+            borderRadiusStyle.borderTopLeftRadius = adjR;
+            borderRadiusStyle.borderTopRightRadius = adjR;
+            borderRadiusStyle.borderBottomLeftRadius = adjR;
+            borderRadiusStyle.borderBottomRightRadius = adjR;
+        }
     }
 
     const isHighlightedEvent = isHighlighted(event.id, 'event');
@@ -251,7 +283,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            style={{ ...style, borderLeft: `4px solid ${theme.border}` }}
+            style={{ ...style, ...borderRadiusStyle, borderLeft: `4px solid ${theme.border}` }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
             key={event.id}
             draggable={false}
@@ -279,7 +311,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     setIsLinkingMode(false);
                 }
             }}
-            className={`event-item group absolute px-2 py-1.5 cursor-pointer overflow-hidden ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${event.is_completed ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-all ${roundClass} ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''}`}
+            className={`event-item group absolute px-2 py-1.5 cursor-pointer overflow-hidden ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-all ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''}`}
             onClick={(e) => {
                 e.stopPropagation();
 
@@ -293,7 +325,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                         setActiveParentId(event.id);
                     }
                     if (onEventClick) {
-                        onEventClick(event.id, e.currentTarget.getBoundingClientRect());
+                        onEventClick(event, e.currentTarget.getBoundingClientRect());
                     }
                 }
             }}
@@ -301,6 +333,21 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             {/* Effect Overlay Layer */}
             {!isActiveParent && effectClass && (
                 <div className={`absolute inset-0 pointer-events-none ${effectClass}`} style={{ mixBlendMode: 'overlay' }} />
+            )}
+
+            {/* Shading Overlay Layer */}
+            {!isActiveParent && event.shading && event.shading > 0 && (
+                <div 
+                    className="absolute inset-0 pointer-events-none" 
+                    style={{ 
+                        backgroundColor: 
+                            event.shading === 1 ? 'rgba(90, 90, 90, 0.2)' :
+                            event.shading === 2 ? 'rgba(130, 130, 130, 0.4)' :
+                            event.shading === 3 ? 'rgba(170, 170, 170, 0.6)' :
+                            'rgba(210, 210, 210, 0.8)',
+                        mixBlendMode: 'saturation'
+                    }} 
+                />
             )}
 
             {isMiddleDay && (
@@ -335,26 +382,53 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onTaskToggle?.(event.id, !!event.is_completed);
+                                const linkedTaskId = (event as any).linkedTaskId;
+                                if (linkedTaskId) {
+                                    // Route through task store so all taskMention nodes update instantly
+                                    useDataStore.getState().toggleTask(linkedTaskId);
+                                } else {
+                                    // Legacy event-only task (no linked task record)
+                                    onTaskToggle?.(event.id, isCompleted);
+                                }
                             }}
-                            className={`mt-[2px] w-3 h-3 rounded-[3px] border border-current flex-shrink-0 flex items-center justify-center cursor-pointer transition-all hover:scale-110 z-[80] ${event.is_completed ? 'opacity-40' : 'opacity-100'}`}
-                            style={{ 
+                            className={`mt-[2px] w-3 h-3 rounded-[3px] border border-current flex-shrink-0 flex items-center justify-center cursor-pointer transition-all hover:scale-110 z-[80] ${isCompleted ? 'opacity-40' : 'opacity-100'}`}
+                            style={{
                                 borderColor: theme.text,
-                                color: theme.text 
+                                color: theme.text
                             }}
                         >
-                            {event.is_completed && (
+                            {isCompleted && (
                                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             )}
                         </button>
                     )}
-                    <div className={`text-[11px] font-bold leading-tight truncate pointer-events-none ${isCancelled || event.is_completed ? 'line-through opacity-60' : ''}`}>
+                <div className={`text-[11px] font-bold leading-tight truncate pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}
                     </div>
                 </div>
 
+                {/* Sub-titles (Tags) - Feature Requirement */}
+                {event.tags && event.tags.length > 0 && durationMinutes > 40 && (
+                    <div className="flex flex-wrap gap-1 mt-1 mb-1 relative z-[90]">
+                        {event.tags.filter(t => t.trim() !== '').map((tag, idx) => (
+                            <div 
+                                key={idx} 
+                                className="px-2 py-0.5 rounded-full text-[9px] font-black text-white shadow-md border"
+                                style={{ 
+                                    backgroundColor: event.color || theme.text,
+                                    borderColor: 'rgba(255,255,255,0.1)',
+                                    backgroundImage: 'linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.15))',
+                                    textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                                }}
+                            >
+                                {tag}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {/* Description - shown if there's space and text exists */}
-                {event.description && durationMinutes > 40 && (
+                {event.description && durationMinutes > 60 && (
                     <div className="text-[10px] opacity-80 leading-tight mt-0.5 overflow-hidden line-clamp-2 pointer-events-none font-medium">
                         {event.description?.split(';').map((part, index, array) => (
                             <React.Fragment key={index}>

@@ -8,9 +8,20 @@ export interface DataItem {
     [key: string]: any; // Allow extra properties like visibility, secured_meta for file UI
 }
 
+export interface TaskItem {
+    id: string;
+    title: string;
+    description?: string;
+    color?: string;
+    isCompleted: boolean;
+    linkedNoteId?: string;
+    scheduledDate?: string;
+}
+
 interface DataState {
     notes: DataItem[];
     events: DataItem[];
+    tasks: TaskItem[];
     setNotes: (notes: DataItem[]) => void;
     setEvents: (events: DataItem[]) => void;
     appendFiles: (files: DataItem[], events: DataItem[]) => void;
@@ -28,6 +39,13 @@ interface DataState {
     setUpdatingMetadata: (id: string, updating: boolean) => void;
     updateSpecificMetadataCache: (id: string, updates: any) => void;
 
+    // Tasks Actions
+    setTasks: (tasks: TaskItem[]) => void;
+    addTask: (task: Omit<TaskItem, 'id'>) => Promise<string>;
+    updateTask: (id: string, updates: Partial<TaskItem>) => void;
+    toggleTask: (id: string) => void;
+    deleteTask: (id: string) => Promise<void>;
+
     // Lazy Loading File System State
     privateKey: CryptoKey | null;
     publicKey: CryptoKey | null;
@@ -38,13 +56,59 @@ interface DataState {
     setKeys: (privateKey: CryptoKey, publicKey: CryptoKey, myId: string) => void;
     fetchDirectory: (parentId: string | null, forceRefresh?: boolean) => Promise<void>;
     loadAllMetadata: () => Promise<void>;
+    openFolderIds: Set<string>;
+    toggleFolder: (id: string, open?: boolean) => void;
+
+    isSettingsModalOpen: boolean;
+    setSettingsModalOpen: (open: boolean) => void;
+
+    enabledExtensions: string[];
+    setEnabledExtensions: (extensions: string[] | ((prev: string[]) => string[])) => void;
+    noteLayout: 'thin' | 'normal' | 'wide' | 'extra-wide';
+    setNoteLayout: (layout: 'thin' | 'normal' | 'wide' | 'extra-wide' | ((prev: 'thin' | 'normal' | 'wide' | 'extra-wide') => 'thin' | 'normal' | 'wide' | 'extra-wide')) => void;
 }
 
 export const useDataStore = create<DataState>((set, get) => ({
     notes: [],
     events: [],
+    tasks: [],
     metadataCache: {},
+    isSettingsModalOpen: false,
+    setSettingsModalOpen: (open: boolean) => set({ isSettingsModalOpen: open }),
+    enabledExtensions: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('tide_enabled_extensions') || '[]') : [],
+    setEnabledExtensions: (extensions) => set(s => {
+        const next = typeof extensions === 'function' ? extensions(s.enabledExtensions) : extensions;
+        localStorage.setItem('tide_enabled_extensions', JSON.stringify(next));
+        return { enabledExtensions: next };
+    }),
+    noteLayout: (typeof window !== 'undefined' ? (localStorage.getItem('tide_note_layout') as any) : null) || 'normal',
+    setNoteLayout: (layout) => set(s => {
+        const next = typeof layout === 'function' ? layout(s.noteLayout) : layout;
+        localStorage.setItem('tide_note_layout', next);
+        return { noteLayout: next };
+    }),
     isUpdatingMetadata: new Set(),
+    openFolderIds: new Set(
+        typeof window !== 'undefined' 
+        ? JSON.parse(localStorage.getItem('tide_open_folders') || '[]') 
+        : []
+    ),
+    toggleFolder: (id, open) => set(s => {
+        const next = new Set(s.openFolderIds);
+        const shouldOpen = open !== undefined ? open : !next.has(id);
+        if (shouldOpen) {
+            next.add(id);
+            // Fire and forget fetch
+            get().fetchDirectory(id);
+        } else {
+            next.delete(id);
+        }
+        
+        // Persist to local storage
+        localStorage.setItem('tide_open_folders', JSON.stringify(Array.from(next)));
+        
+        return { openFolderIds: next };
+    }),
     setUpdatingMetadata: (id, updating) => set(s => {
         const next = new Set(s.isUpdatingMetadata);
         if (updating) next.add(id);
@@ -56,6 +120,149 @@ export const useDataStore = create<DataState>((set, get) => ({
     })),
     setNotes: (notes) => set({ notes }),
     setEvents: (events) => set({ events }),
+    setTasks: (tasks) => set({ tasks }),
+    addTask: async (taskDraft) => {
+        const state = get();
+        const fallbackId = crypto.randomUUID();
+        const newTask: TaskItem = { id: fallbackId, ...taskDraft, isCompleted: false };
+        set(s => ({ tasks: [...s.tasks, newTask] }));
+        
+        if (!state.publicKey) return fallbackId;
+        
+        try {
+            const cryptoLib = await import('@/lib/crypto');
+            // Include all fields (including scheduledDate) in the vault
+            const vaultPayload: Record<string, any> = {
+                title: newTask.title,
+                isCompleted: newTask.isCompleted,
+                description: newTask.description,
+                color: newTask.color,
+                linkedNoteId: newTask.linkedNoteId,
+                scheduledDate: newTask.scheduledDate,
+            };
+            const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, state.publicKey);
+            
+            const res = await apiFetch("/api/v1/tasks", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    encrypted_vault: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)))
+                })
+            });
+
+            if (res.ok) {
+                const createdTask = await res.json();
+                if (createdTask.id !== fallbackId) {
+                    set(s => ({ tasks: s.tasks.map(t => t.id === fallbackId ? { ...t, id: createdTask.id } : t) }));
+                    return createdTask.id;
+                }
+            }
+        } catch (e) {
+            console.error("Failed to sync task", e);
+        }
+        return fallbackId;
+    },
+    updateTask: async (id, updates) => {
+        // 1. Optimistic local update immediately
+        set(s => ({ 
+            tasks: s.tasks.map(t => t.id === id ? { ...t, ...updates } : t) 
+        }));
+
+        // 2. Get the fully merged task for encryption
+        const state = get();
+        const task = state.tasks.find(t => t.id === id);
+        if (!task) return;
+        const mergedTask = { ...task, ...updates };
+
+        // 3. Resolve publicKey — prefer store, fall back to sessionStorage
+        let publicKey = state.publicKey;
+        if (!publicKey) {
+            try {
+                const cryptoLib = await import('@/lib/crypto');
+                const pubKeyStr = sessionStorage.getItem('tide_user_public_key');
+                if (pubKeyStr) {
+                    publicKey = await window.crypto.subtle.importKey(
+                        'spki',
+                        cryptoLib.base64ToArrayBuffer(pubKeyStr),
+                        { name: 'RSA-OAEP', hash: 'SHA-256' },
+                        true,
+                        ['encrypt']
+                    );
+                }
+            } catch (e) {
+                console.error('[updateTask] Failed to recover public key from sessionStorage', e);
+            }
+        }
+        if (!publicKey) {
+            console.warn('[updateTask] publicKey unavailable — task update NOT persisted to backend:', id);
+            return;
+        }
+
+        try {
+            const cryptoLib = await import('@/lib/crypto');
+            // Explicitly include all persistent fields so scheduledDate survives reloads
+            const vaultPayload: Record<string, any> = {
+                title: mergedTask.title,
+                isCompleted: mergedTask.isCompleted,
+                description: mergedTask.description,
+                color: mergedTask.color,
+                linkedNoteId: mergedTask.linkedNoteId,
+                scheduledDate: mergedTask.scheduledDate,
+            };
+            const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, publicKey);
+
+            const res = await apiFetch(`/api/v1/tasks/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    encrypted_vault: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)))
+                })
+            });
+            if (!res.ok) {
+                if (res.status === 404) {
+                    // Task doesn't exist in backend yet (optimistic ID was never persisted).
+                    // Create it via POST and reconcile the ID.
+                    console.warn('[updateTask] Task not found in backend (404) — creating via POST');
+                    const createRes = await apiFetch('/api/v1/tasks', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            encrypted_vault: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)))
+                        })
+                    });
+                    if (createRes.ok) {
+                        const created = await createRes.json();
+                        if (created.id && created.id !== id) {
+                            // Reconcile local ID with the new backend ID
+                            set(s => ({ tasks: s.tasks.map(t => t.id === id ? { ...t, id: created.id } : t) }));
+                            console.log('[updateTask] ID reconciled:', id, '->', created.id);
+                        }
+                    } else {
+                        console.error('[updateTask] POST fallback also failed:', createRes.status);
+                    }
+                } else {
+                    console.error('[updateTask] API returned non-OK status:', res.status);
+                }
+            }
+        } catch (e) {
+            console.error('Failed to sync task update', e);
+        }
+    },
+    toggleTask: async (id) => {
+        const state = get();
+        const task = state.tasks.find(t => t.id === id);
+        if (!task) return;
+        get().updateTask(id, { isCompleted: !task.isCompleted });
+    },
+    deleteTask: async (id) => {
+        // Optimistic removal
+        set(s => ({ tasks: s.tasks.filter(t => t.id !== id) }));
+        try {
+            await apiFetch(`/api/v1/tasks/${id}`, { method: 'DELETE' });
+        } catch (e) {
+            console.error('[deleteTask] Failed to delete task from backend', e);
+        }
+    },
     appendFiles: (newNotes, newEvents) => set((state) => {
         // Prevent duplicates by ID
         const existingNoteIds = new Set(state.notes.map(n => n.id));
@@ -179,7 +386,16 @@ export const useDataStore = create<DataState>((set, get) => ({
     myId: null,
     loadedDirectories: new Set(),
     fetchingDirectories: new Set(),
-    setKeys: (privateKey, publicKey, myId) => set({ privateKey, publicKey, myId }),
+    setKeys: (privateKey, publicKey, myId) => {
+        set({ privateKey, publicKey, myId });
+        // Proactively load all currently open folders from persisted state
+        const state = get();
+        if (state.openFolderIds.size > 0) {
+            Array.from(state.openFolderIds).forEach(id => {
+                state.fetchDirectory(id === 'root' ? null : id);
+            });
+        }
+    },
     fetchDirectory: async (parentId, forceRefresh = false) => {
         const state = get();
         if (!state.privateKey || !state.myId) return;
@@ -214,11 +430,13 @@ export const useDataStore = create<DataState>((set, get) => ({
             if (parentId === null) {
                 const results = await Promise.allSettled([
                     apiFetch(`/api/v1/files`),
-                    apiFetch(`/api/v1/files?type=event`)
+                    apiFetch(`/api/v1/files?type=event`),
+                    apiFetch(`/api/v1/tasks`)
                 ]);
 
                 const rootFiles: any[] = [];
                 const eventsFiles: any[] = [];
+                const tasksList: any[] = [];
 
                 if (results[0].status === 'fulfilled' && results[0].value.ok) {
                     rootFiles.push(...(await parseSafeJson(results[0].value)));
@@ -240,6 +458,10 @@ export const useDataStore = create<DataState>((set, get) => ({
                     console.error(`[STATE-AUDIT ERROR] fetchDirectory | Failed to fetch root events`);
                 }
 
+                if (results[2].status === 'fulfilled' && results[2].value.ok) {
+                    tasksList.push(...(await parseSafeJson(results[2].value)));
+                }
+
                 const seen = new Set();
                 for (const f of [...rootFiles, ...eventsFiles]) {
                     if (!seen.has(f.id)) {
@@ -247,6 +469,32 @@ export const useDataStore = create<DataState>((set, get) => ({
                         allFiles.push(f);
                     }
                 }
+                
+                // Decrypt initial tasks
+                const cryptoLib = await import('@/lib/crypto');
+                const loadedTasks: TaskItem[] = [];
+                for (const t of tasksList) {
+                    if (t.encrypted_vault) {
+                        try {
+                            const meta = await cryptoLib.decryptMetadata(t.encrypted_vault, state.privateKey!, `task-${t.id}`);
+                            loadedTasks.push({ id: t.id, ...meta } as TaskItem);
+                        } catch (e) {
+                            loadedTasks.push({ id: t.id, title: "Unknown (Decryption Error)", isCompleted: false });
+                        }
+                    }
+                }
+                // MERGE: keep any locally-updated tasks (optimistic) that are newer than the backend state
+                set(s => {
+                    const localMap = new Map(s.tasks.map(t => [t.id, t]));
+                    const merged = loadedTasks.map(bt => {
+                        const local = localMap.get(bt.id);
+                        // If the local task has a scheduledDate that the backend doesn't know yet, keep it
+                        if (local && local.scheduledDate && !bt.scheduledDate) return { ...bt, scheduledDate: local.scheduledDate };
+                        if (local && local.isCompleted !== bt.isCompleted) return local; // prefer local toggle
+                        return bt;
+                    });
+                    return { tasks: merged };
+                });
             } else {
                 const res = await apiFetch(`/api/v1/files?parent_id=${parentId}`);
                 if (!res.ok) {
@@ -305,7 +553,10 @@ export const useDataStore = create<DataState>((set, get) => ({
                             completed_dates: meta.completed_dates,
                             is_task: meta.is_task,
                             is_completed: meta.is_completed,
-                            is_cancelled: meta.is_cancelled
+                            is_cancelled: meta.is_cancelled,
+                            shading: meta.shading,
+                            linkedTaskId: meta.linkedTaskId,
+                            tags: meta.tags,
                         };
                         newMetaCache[f.id] = metaData;
                     } catch (e) {
@@ -373,12 +624,19 @@ export const useDataStore = create<DataState>((set, get) => ({
 
             const allFiles: any[] = [];
             const allEvents: any[] = [];
+            let allTasks: any[] = [];
 
             if (results[0].status === 'fulfilled' && results[0].value.ok) {
                 allFiles.push(...(await parseSafeJson(results[0].value)));
             }
             if (results[1].status === 'fulfilled' && results[1].value.ok) {
                 allEvents.push(...(await parseSafeJson(results[1].value)));
+            }
+            try {
+                const tasksRes = await apiFetch(`/api/v1/tasks`);
+                if (tasksRes.ok) allTasks = await parseSafeJson(tasksRes);
+            } catch (e) {
+                console.error("Failed to fetch tasks", e);
             }
             
             const decryptedNotes: DataItem[] = [];
@@ -416,7 +674,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                                 completed_dates: meta.completed_dates,
                                 is_task: meta.is_task,
                                 is_completed: meta.is_completed,
-                                is_cancelled: meta.is_cancelled
+                                is_cancelled: meta.is_cancelled,
+                                shading: meta.shading,
+                                tags: meta.tags
                             };
                             newMetaCache[f.id] = metaData;
                         } catch (e) {
@@ -455,6 +715,30 @@ export const useDataStore = create<DataState>((set, get) => ({
                 // We don't mark directories as loaded here because we only grabbed files, 
                 // but this makes them available for suggestions.
             }));
+
+            // Decrypt Tasks
+            const loadedTasks: TaskItem[] = [];
+            for (const t of allTasks) {
+                if (t.encrypted_vault) {
+                    try {
+                        const meta = await cryptoLib.decryptMetadata(t.encrypted_vault, state.privateKey!, `task-${t.id}`);
+                        loadedTasks.push({ id: t.id, ...meta } as TaskItem);
+                    } catch (e) {
+                        loadedTasks.push({ id: t.id, title: "Unknown (Decryption Error)", isCompleted: false });
+                    }
+                }
+            }
+            // MERGE: keep locally-updated task fields (optimistic updates from drag-drop, toggles)
+            set(s => {
+                const localMap = new Map(s.tasks.map(t => [t.id, t]));
+                const merged = loadedTasks.map(bt => {
+                    const local = localMap.get(bt.id);
+                    if (local && local.scheduledDate && !bt.scheduledDate) return { ...bt, scheduledDate: local.scheduledDate };
+                    if (local && local.isCompleted !== bt.isCompleted) return local;
+                    return bt;
+                });
+                return { tasks: merged };
+            });
         } catch (e) {
             console.error("[STATE-AUDIT ERROR] loadAllMetadata |", e);
         }

@@ -27,7 +27,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		// 3. Fallback to session cookie
 		if tokenString == "" {
-			if cookie, err := r.Cookie("session_token"); err == nil {
+			if cookie, err := r.Cookie("tide_session"); err == nil {
 				tokenString = cookie.Value
 			}
 		}

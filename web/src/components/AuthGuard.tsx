@@ -11,22 +11,37 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const [authorized, setAuthorized] = useState(false);
 
     useEffect(() => {
-        // Check session
-        const sessionKey = sessionStorage.getItem("tide_session_key");
-        const isPublic = PUBLIC_PATHS.includes(pathname);
-
-        if (isPublic) {
-            setAuthorized(true);
-            // Optional: If already logged in and visiting /, redirect to dashboard?
-            // For now, keep it simple.
-        } else {
-            if (sessionKey) {
+        const checkAuth = async () => {
+            const isPublic = PUBLIC_PATHS.includes(pathname);
+            if (isPublic) {
                 setAuthorized(true);
-            } else {
-                setAuthorized(false);
-                router.push("/");
+                return;
             }
-        }
+
+            const vaultKey = sessionStorage.getItem("tide_session_key");
+            if (!vaultKey) {
+                setAuthorized(false);
+                router.push("/auth");
+                return;
+            }
+
+            try {
+                const { apiFetch } = await import("@/lib/api");
+                const res = await apiFetch("/api/v1/auth/me");
+                if (res.ok) {
+                    setAuthorized(true);
+                } else {
+                    setAuthorized(false);
+                    router.push("/auth");
+                }
+            } catch (err) {
+                console.error("Auth check failed:", err);
+                // If offline, maybe allow if vault key exists?
+                setAuthorized(true); 
+            }
+        };
+
+        checkAuth();
     }, [pathname, router]);
 
     // Offline / Error State

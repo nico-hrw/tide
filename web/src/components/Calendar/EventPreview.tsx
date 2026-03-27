@@ -1,8 +1,8 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { X, Minus, Pin, Calendar, AlignLeft, Folder, ChevronDown, Check } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { X, Minus, Pin, Calendar, Folder, ChevronDown } from "lucide-react";
 import { useHighlight, LinkTarget } from "../HighlightContext";
 
 interface DecryptedFile {
@@ -10,6 +10,7 @@ interface DecryptedFile {
     title: string;
     type: string;
     color?: string;
+    effect?: string;
 }
 
 interface CalendarEvent {
@@ -20,6 +21,7 @@ interface CalendarEvent {
     description?: string;
     color?: string;
     share_status?: string;
+    effect?: string;
 }
 
 interface EventPreviewProps {
@@ -52,26 +54,36 @@ export default function EventPreview({
     const [title, setTitle] = useState(event.title);
     const [description, setDescription] = useState(event.description || "");
     const [selectedThemeId, setSelectedThemeId] = useState<string | null>(currentThemeId || null);
-    const [isTitleFocused, setIsTitleFocused] = useState(false);
     const [isDescFocused, setIsDescFocused] = useState(false);
 
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
 
+    // Refs to hold latest values for cleanup/debounce closures (avoids stale state)
+    const titleRef = useRef(title);
+    const descriptionRef = useRef(description);
+    const selectedThemeIdRef = useRef(selectedThemeId);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const eventIdRef = useRef(event.id);
+    const onSaveRef = useRef(onSave);
+
+    // Keep refs in sync with state
+    useEffect(() => { titleRef.current = title; }, [title]);
+    useEffect(() => { descriptionRef.current = description; }, [description]);
+    useEffect(() => { selectedThemeIdRef.current = selectedThemeId; }, [selectedThemeId]);
+    useEffect(() => { eventIdRef.current = event.id; }, [event.id]);
+    useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
+
     // Color Logic
     const getEventTheme = (evt: CalendarEvent) => {
-        // Find if parent theme applies
         let effect = 'none';
         if (selectedThemeId) {
             const themeNode = themes.find(t => t.id === selectedThemeId);
-            // event.effect comes from parent. If we have a selectedThemeId (which means it's assigned to a group),
-            // we should ideally read the effect from the group. Since EventPreview gets `themes`, we can look it up.
-            // Wait, does EventPreview have access to `effect` on the theme? We mapped `effect` in page.tsx for `themes` which are DecryptedFiles.
-            // In DecryptedFile interface the effect is present.
-            if (themeNode && (themeNode as any).effect) {
-                effect = (themeNode as any).effect;
+            if (themeNode?.effect) {
+                effect = themeNode.effect;
             }
         } else {
-            effect = (evt as any).effect || 'none';
+            effect = evt.effect || 'none';
         }
 
         const effectMap: Record<string, { bg: string; text: string; border: string }> = {
@@ -85,21 +97,35 @@ export default function EventPreview({
 
     const theme = getEventTheme(event);
 
-    const descriptionRef = React.useRef<HTMLTextAreaElement>(null);
+    // Debounced save — fires 500ms after last change
+    const scheduleSave = useCallback(() => {
+        if (debounceTimer.current) clearTimeout(debounceTimer.current);
+        debounceTimer.current = setTimeout(() => {
+            onSaveRef.current(eventIdRef.current, {
+                title: titleRef.current,
+                description: descriptionRef.current,
+                parent_id: selectedThemeIdRef.current,
+            });
+        }, 500);
+    }, []);
 
-    // Auto-save debounce could be added here, or save on blur/change
-    // For now, let's trigger save on blur of inputs to keep it responsive but persistent
-    const handleSave = async () => {
-        await onSave(event.id, {
-            title,
-            description,
-            parent_id: selectedThemeId
-        });
-    };
+    // CRITICAL: Flush save on unmount so closing the popup never loses data
+    useEffect(() => {
+        return () => {
+            if (debounceTimer.current) clearTimeout(debounceTimer.current);
+            // Flush immediately with latest ref values
+            onSaveRef.current(eventIdRef.current, {
+                title: titleRef.current,
+                description: descriptionRef.current,
+                parent_id: selectedThemeIdRef.current,
+            });
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const val = e.target.value;
-        const prevVal = description;
+        const prevVal = descriptionRef.current;
         setDescription(val);
 
         if (!highlight.isSelectingLink) {
@@ -125,35 +151,38 @@ export default function EventPreview({
                             }
                         }
 
-                        // Force an explicit save of the final generated string to backend
                         setTimeout(() => {
-                            onSave(event.id, { title, description: finalDesc, parent_id: selectedThemeId });
+                            onSaveRef.current(eventIdRef.current, { title: titleRef.current, description: finalDesc, parent_id: selectedThemeIdRef.current });
                         }, 0);
 
                         return finalDesc;
                     });
                 }, { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
-            }
-        } else {
-            if (!val.includes('--')) {
-                cancelLinkSelection();
+                return; // Don't schedule debounce for link selection
+            } else {
+                if (!val.includes('--')) {
+                    cancelLinkSelection();
+                }
             }
         }
+
+        scheduleSave();
     };
 
-    // Update local state if event changes externally (e.g. from calendar drag)
-    useEffect(() => {
-        // Only update if ID changed or if we are not editing (to avoid race conditions)
-        // Actually, for "real-time" feeling we usually want to sync, but if the save is async...
-        // Let's just trust the prop, but maybe the prop is coming in stale?
+    const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setTitle(e.target.value);
+        scheduleSave();
+    };
 
-        // Fix: If descriptions match, do nothing. 
-        if (event.description !== description) {
+    // Sync local state if the event changes externally (e.g. calendar drag)
+    useEffect(() => {
+        if (event.description !== descriptionRef.current) {
             setDescription(event.description || "");
         }
-        if (event.title !== title) {
+        if (event.title !== titleRef.current) {
             setTitle(event.title);
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [event.id, event.title, event.description]);
 
     // Update theme selection when prop changes
@@ -188,15 +217,14 @@ export default function EventPreview({
                 <div className="flex-1 min-w-0">
                     <input
                         autoFocus
-                        onFocus={(e) => { e.target.select(); setIsTitleFocused(true); }}
+                        onFocus={(e) => { e.target.select(); }}
                         type="text"
                         value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        onBlur={(e) => { setIsTitleFocused(false); handleSave(); }}
+                        onChange={handleTitleChange}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                                 e.preventDefault();
-                                descriptionRef.current?.focus();
+                                textareaRef.current?.focus();
                             }
                         }}
                         style={{ color: theme.text }}
@@ -231,7 +259,7 @@ export default function EventPreview({
 
             <div className="p-4 flex flex-col h-full gap-4 relative z-10">
 
-                {/* Time Display - Moved out of header */}
+                {/* Time Display */}
                 <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 p-2 rounded-lg">
                     <Calendar size={14} />
                     <span>
@@ -239,7 +267,7 @@ export default function EventPreview({
                     </span>
                 </div>
 
-                {/* Theme Selector - Clean Borderless Design */}
+                {/* Theme Selector */}
                 <div className="relative group flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 bg-transparent px-2">
                     <Folder size={14} className="flex-shrink-0" />
                     <select
@@ -248,14 +276,16 @@ export default function EventPreview({
                         onChange={(e) => {
                             const newVal = e.target.value || null;
                             setSelectedThemeId(newVal);
+                            selectedThemeIdRef.current = newVal;
 
-                            // Find theme color and update event color
-                            const theme = themes.find(t => t.id === newVal);
-                            const newColor = theme?.color;
+                            const selectedTheme = themes.find(t => t.id === newVal);
+                            const newColor = selectedTheme?.color;
 
-                            onSave(event.id, {
-                                title,
-                                description,
+                            // Theme change is immediate — no debounce
+                            if (debounceTimer.current) clearTimeout(debounceTimer.current);
+                            onSaveRef.current(event.id, {
+                                title: titleRef.current,
+                                description: descriptionRef.current,
                                 parent_id: newVal,
                                 ...(newColor ? { color: newColor } : {})
                             });
@@ -269,36 +299,34 @@ export default function EventPreview({
                     <ChevronDown size={14} className="pointer-events-none flex-shrink-0" />
                 </div>
 
-
-
                 {/* Description */}
                 <div
                     className="flex-1 min-h-[80px]"
-                    onClick={() => { if (!isDescFocused) setIsDescFocused(true); }}
+                    onClick={() => { if (!isDescFocused) { setIsDescFocused(true); } }}
                 >
                     {isDescFocused || !description ? (
                         <textarea
                             autoFocus={isDescFocused}
-                            ref={descriptionRef}
+                            ref={textareaRef}
                             value={description}
                             onChange={handleDescriptionChange}
-                            onBlur={() => { handleSave(); setIsDescFocused(false); }}
+                            onBlur={() => { setIsDescFocused(false); }}
                             placeholder="Add details..."
                             className="w-full h-full bg-transparent border-none p-0 text-sm px-2 focus:ring-0 outline-none text-gray-700 dark:text-gray-300 resize-none placeholder:text-gray-400 leading-relaxed"
                         />
                     ) : (
                         <div className="w-full h-full text-sm px-2 text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap cursor-text">
-                            {description.split(/(\[[^[\]]+\]\(tide:\/\/[^/]+\/[^)]+\))/g).map((part, i) => {
-                                const match = part.match(/\[([^[\]]+)\]\(tide:\/\/([^/]+)\/([^)]+)\)/);
+                            {description.split(/(\[[^\[\]]+\]\(tide:\/\/[^/]+\/[^)]+\))/g).map((part, i) => {
+                                const match = part.match(/\[([^\[\]]+)\]\(tide:\/\/([^/]+)\/([^)]+)\)/);
                                 if (match) {
-                                    const [, title, type, targetId] = match;
+                                    const [, matchTitle, type, targetId] = match;
                                     return (
                                         <span
                                             key={i}
-                                            onClick={(e) => { e.stopPropagation(); onLinkClick({ id: targetId, type, title }); }}
+                                            onClick={(e) => { e.stopPropagation(); onLinkClick({ id: targetId, type, title: matchTitle }); }}
                                             className="text-purple-500 bg-purple-500/10 px-1 rounded cursor-pointer hover:bg-purple-500/20 font-medium z-50 relative"
                                         >
-                                            @{title}
+                                            @{matchTitle}
                                         </span>
                                     );
                                 }
@@ -311,4 +339,3 @@ export default function EventPreview({
         </div>
     );
 }
-

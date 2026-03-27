@@ -19,6 +19,7 @@ function AuthContent() {
     const [name, setName] = useState("");
     const [isLoginMode, setIsLoginMode] = useState(false);
     const [status, setStatus] = useState("idle"); // idle, checking, processing, success, error
+    const [loginData, setLoginData] = useState<any>(null); // Store pepper and vault
 
     // Listen for Magic Link success in another tab
     useEffect(() => {
@@ -56,41 +57,33 @@ function AuthContent() {
         return () => window.removeEventListener("storage", handleStorage);
     }, [router]);
 
-    // Step 1: Check Identifier / Start Flow
-    // In real flow, we don't know if user exists until we try to login or register.
-    // But for UI, we might blindly assume "Register" if they type a name, or "Login" if they don't?
-    // Let's ask the user "Login or Register" or try Login first.
-    // Logic: 
-    // 1. User enters Email. Click Continue.
-    // 2. We Try `POST /login`. 
-    //    - If 200 OK -> It was a login. Show "Magic link sent".
-    //    - If 401/404 -> User not found. Switch to Register mode.
+    // Step 1: Identifier (Email)
     const handleIdentifierSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!identifier) return;
 
-        setStatus("checking");
-        // Clear stale tokens before starting new login attempt
-        sessionStorage.removeItem("tide_session_token");
+        setStatus("processing");
+        sessionStorage.clear();
         localStorage.removeItem("tide_session_token");
 
         try {
-            // Try Step 1: Check if user exists
-            const res = await apiFetch("/api/v1/auth/login/step1", {
+            const res = await apiFetch("/api/v1/auth/request-otp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: identifier })
             });
 
             if (res.ok) {
-                // User exists -> Proceed to PIN Step
-                setIsLoginMode(true);
-                setStep("pin");
-                setStatus("idle");
-            } else if (res.status === 404) {
-                // User not found -> Register Flow (Ask for Name & PIN)
-                setIsLoginMode(false);
-                setStep("details");
+                const data = await res.json();
+                if (data.user_exists) {
+                    // User exists -> Proceed to OTP Step
+                    setIsLoginMode(true);
+                    setStep("code"); // OTP code
+                } else {
+                    // User not found -> Register Flow
+                    setIsLoginMode(false);
+                    setStep("details");
+                }
                 setStatus("idle");
             } else {
                 throw new Error("Server error");
@@ -102,32 +95,29 @@ function AuthContent() {
         }
     };
 
-    // Step 2: Verify 5-digit PIN
-    const handlePinSubmit = async (e: React.FormEvent) => {
+    // Step 2 Login: Verify OTP
+    const handleCodeSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (pin.length !== 5) return;
+        if (!loginCode) return;
 
-        setStatus("checking");
+        setStatus("processing");
 
         try {
-            const res = await apiFetch("/api/v1/auth/login/step2", {
+            const res = await apiFetch("/api/v1/auth/verify-otp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: identifier, pin })
+                body: JSON.stringify({ email: identifier, otp: loginCode })
             });
 
             if (res.ok) {
                 const data = await res.json();
-                if (data.login_code) {
-                    // Simulation: Notification alert
-                    alert(`SIMULATED NOTIFICATION: Your Login-Code is: ${data.login_code}`);
-                }
-
-                setStep("code");
+                // We got the JWT in httpOnly cookie automatically!
+                // We also got the pepper, encrypted_vault, user_id, public_key
+                setLoginData(data);
+                setStep("pin");
                 setStatus("idle");
             } else {
-                const errorData = await res.text();
-                alert("Invalid PIN: " + errorData);
+                alert("Invalid OTP");
                 setStatus("idle");
             }
         } catch (err) {
@@ -137,107 +127,83 @@ function AuthContent() {
         }
     };
 
-    // Step 3: Verify Alphanumeric Login-Code
-    const handleCodeSubmit = async (e: React.FormEvent) => {
+    // Step 3 Login: PIN Unlock
+    const handlePinSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!loginCode) return;
+        if (pin.length !== 5 || !loginData) return;
 
         setStatus("processing");
 
         try {
-            const res = await apiFetch("/api/v1/auth/login/step3", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: identifier, code: loginCode })
-            });
+            const decryptedKey = await cryptoLib.unlockVault(
+                pin,
+                loginData.pepper,
+                typeof loginData.encrypted_vault === 'string' ? JSON.parse(loginData.encrypted_vault) : loginData.encrypted_vault
+            );
 
-            if (res.ok) {
-                const contentType = res.headers.get("content-type");
-                if (!contentType || !contentType.includes("application/json")) {
-                    const text = await res.text();
-                    console.error("Step 3 non-JSON response:", text);
-                    throw new Error("Invalid server response format");
-                }
-                const signal = await res.json();
-                if (signal.session_token && signal.email) {
-                    // Decrypt the Master Private Key using the DEV_PHASE_SECRET
-                    try {
-                        const encryptedData = typeof signal.enc_private_key === 'string'
-                            ? JSON.parse(signal.enc_private_key)
-                            : signal.enc_private_key;
-
-                        const decryptedKey = await cryptoLib.decryptPrivateKey(encryptedData, DEV_PHASE_SECRET);
-
-                        const exportedKey = await window.crypto.subtle.exportKey("jwk", decryptedKey);
-                        sessionStorage.setItem("tide_session_key", JSON.stringify(exportedKey));
-                    } catch (e) {
-                        console.error("Failed to decrypt private key. Using raw (might fail on dashboard):", e);
-                        // Fallback, though likely to fail in dashboard
-                        sessionStorage.setItem("tide_session_key", typeof signal.enc_private_key === 'string' ? signal.enc_private_key : JSON.stringify(signal.enc_private_key));
-                    }
-
-                    sessionStorage.setItem("tide_user_email", signal.email);
-                    sessionStorage.setItem("tide_user_id", signal.user_id);
-                    sessionStorage.setItem("tide_user_public_key", signal.public_key);
-                    sessionStorage.setItem("tide_session_token", signal.session_token);
-                    
-                    // Also persist for session restore
-                    localStorage.setItem("tide_user_email", signal.email);
-                    localStorage.setItem("tide_user_id", signal.user_id);
-                    localStorage.setItem("tide_session_token", signal.session_token);
-
-                    setStatus("success");
-                    router.push("/");
-                }
-            } else {
-                alert("Invalid Code");
-                setStatus("idle");
+            // Export to JWK to persist in sessionStorage for reloads
+            const exportedKey = await window.crypto.subtle.exportKey("jwk", decryptedKey);
+            sessionStorage.setItem("tide_session_key", JSON.stringify(exportedKey));
+            
+            sessionStorage.setItem("tide_user_email", identifier);
+            sessionStorage.setItem("tide_user_id", loginData.user_id);
+            sessionStorage.setItem("tide_user_public_key", loginData.public_key);
+            if (loginData.token) {
+                sessionStorage.setItem("tide_session_token", loginData.token);
             }
-        } catch (err) {
-            console.error(err);
-            setStatus("error");
-            alert("Login failed");
+
+            setStatus("success");
+            router.push("/");
+        } catch (err: any) {
+            console.error("Failed to decrypt vault:", err);
+            alert(`Incorrect PIN (System Error: ${err.name || err.message || JSON.stringify(err)})`);
+            setStatus("idle");
         }
     };
 
-    // Step 2: Finalize Auth (Register Only)
-    // If Login, we already sent magic link in Step 1.
+    // Step 2 Register: Finalize Auth
     const handleFinalSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (isLoginMode) return; // Should not happen
+        if (isLoginMode) return;
 
         setStatus("processing");
 
         try {
-            // --- REGISTER FLOW ---
             if (!name || pin.length !== 5) {
                 alert("Please enter your Name and a 5-digit PIN.");
                 setStatus("idle");
                 return;
             }
 
-            // Generate Keys
-            const masterKeys = await cryptoLib.generateMasterKeys();
+            // Generate Client Pepper
+            const pepperBuffer = new Uint8Array(32);
+            window.crypto.getRandomValues(pepperBuffer);
+            const pepperBase64 = cryptoLib.arrayBufferToBase64(pepperBuffer.buffer);
 
-            // Encrypt with DEV SECRET
-            const salt = window.crypto.getRandomValues(new Uint8Array(16));
-            const derivedKey = await cryptoLib.deriveKeyFromPassword(DEV_PHASE_SECRET, salt.buffer);
-
-            const encryptedPrivateKey = await cryptoLib.encryptPrivateKey(
-                masterKeys.privateKey,
-                derivedKey,
-                salt.buffer
-            );
-
+            // Generate Vault
+            const { masterKeys, encryptedVault } = await cryptoLib.generateUserVault(pin, pepperBase64);
             const publicKeySpki = await cryptoLib.exportPublicKey(masterKeys.publicKey);
+
+            // Sanity Check Decrypt (Verifies local WebCrypto integrity before sending)
+            try {
+                console.log("[SANITY CHECK] Testing local vault decryption...");
+                await cryptoLib.unlockVault(pin, pepperBase64, encryptedVault);
+                console.log("[SANITY CHECK] Passed. Vault is healthy.");
+            } catch (sanityErr: any) {
+                console.error("[SANITY CHECK FAILED]", sanityErr);
+                alert(`CRITICAL ERROR: Browser failed to decrypt the vault it just generated. Error: ${sanityErr.name || sanityErr.message}`);
+                setStatus("idle");
+                return;
+            }
 
             // Payload
             const payload = {
                 email: identifier,
                 username: name,
-                phone: "000000000", // MVP Placeholder
+                phone: "000000000",
                 public_key: publicKeySpki,
-                enc_private_key: JSON.stringify(encryptedPrivateKey),
+                encrypted_vault: JSON.stringify(encryptedVault),
+                pepper: pepperBase64,
                 pin: pin
             };
 
@@ -247,46 +213,20 @@ function AuthContent() {
                 body: JSON.stringify(payload)
             });
 
-            if (!res.ok) {
-                const errorMsg = await res.text();
-                throw new Error(errorMsg || "Registration failed");
+            if (res.ok) {
+                alert("Account created! Please log in with your new PIN.");
+                setStep("identifier");
+                setStatus("idle");
+                setPin("");
+            } else {
+                const errText = await res.text();
+                alert("Registration failed: " + errText);
+                setStatus("idle");
             }
-
-            const data = await res.json();
-            const userId = data.id;
-            const sessionToken = data.session_token;
-
-            // Auto-Login Session
-            const exportedKey = await window.crypto.subtle.exportKey("jwk", masterKeys.privateKey);
-            sessionStorage.setItem("tide_session_key", JSON.stringify(exportedKey));
-            sessionStorage.setItem("tide_user_email", identifier);
-            sessionStorage.setItem("tide_user_id", userId);
-            
-            if (data.session_token) {
-                sessionStorage.setItem("tide_session_token", data.session_token);
-                localStorage.setItem("tide_session_token", data.session_token);
-            }
-
-            // Store Public Key for Dashboard usage
-            // The dashboard expects `tide_user_{email}` in localStorage to find public key?
-            // Yes, `dashboard/page.tsx` reads it. We must polyfill this behavior for now.
-            // Ideally should fetch from API, but let's persist local compatibility.
-            const userRecord = {
-                id: userId,
-                name: name,
-                public_key: publicKeySpki,
-                email: identifier
-            };
-            localStorage.setItem("tide_user_" + identifier, JSON.stringify(userRecord));
-            localStorage.setItem("tide_user_email", identifier);
-            localStorage.setItem("tide_user_id", userId);
-
-            router.push("/");
-
         } catch (err) {
             console.error(err);
             setStatus("error");
-            alert("Registration failed: " + (err as Error).message);
+            alert("Registration failed");
         }
     };
 
@@ -316,19 +256,51 @@ function AuthContent() {
                     </div>
                     <button
                         type="submit"
-                        disabled={status === 'checking'}
+                        disabled={status === 'processing'}
                         className="px-8 py-4 glass-pill-blue font-bold text-gray-800 tracking-wide text-lg w-full flex items-center justify-center mt-4"
                     >
-                        {status === 'checking' ? 'Checking...' : 'Continue'}
+                        {status === 'processing' ? 'Processing...' : 'Continue'}
                     </button>
+                </form>
+            )}
+
+            {step === "code" && (
+                <form onSubmit={handleCodeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '320px' }}>
+                    <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+                        <h3>Login-Code</h3>
+                        <p className="text-sm text-gray-500">Enter the 6-digit OTP from your email.</p>
+                    </div>
+                    <div>
+                        <input
+                            type="text"
+                            placeholder="123456"
+                            maxLength={6}
+                            value={loginCode}
+                            autoFocus
+                            onChange={e => setLoginCode(e.target.value)}
+                            required
+                            style={{
+                                width: '100%', padding: '1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)',
+                                textAlign: 'center', fontSize: '1.5rem', fontWeight: 'bold'
+                            }}
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={status === 'processing' || loginCode.length !== 6}
+                        className="px-8 py-4 glass-pill-pink font-bold text-gray-800 tracking-wide text-lg w-full flex items-center justify-center mt-4"
+                    >
+                        {status === 'processing' ? 'Verifying...' : 'Verify OTP'}
+                    </button>
+                    <button type="button" onClick={() => setStep("identifier")} className="text-sm underline text-center">Back</button>
                 </form>
             )}
 
             {step === "pin" && (
                 <form onSubmit={handlePinSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '320px' }}>
                     <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-                        <h3>Enter your PIN</h3>
-                        <p className="text-sm text-muted-foreground">Please enter your 5-digit security PIN.</p>
+                        <h3>Verify PIN</h3>
+                        <p className="text-sm text-gray-500">Enter your 5-digit PIN to unlock your vault.</p>
                     </div>
                     <div>
                         <input
@@ -347,91 +319,54 @@ function AuthContent() {
                     </div>
                     <button
                         type="submit"
-                        disabled={status === 'checking' || pin.length !== 5}
+                        disabled={status === 'processing' || pin.length !== 5}
                         className="px-8 py-4 glass-pill-blue font-bold text-gray-800 tracking-wide text-lg w-full flex items-center justify-center mt-4"
                     >
-                        {status === 'checking' ? 'Verifying...' : 'Verify PIN'}
+                        {status === 'processing' ? 'Unlocking...' : 'Unlock Vault'}
                     </button>
-                    <button type="button" onClick={() => setStep("identifier")} className="text-sm underline">Back</button>
-                </form>
-            )}
-
-            {step === "code" && (
-                <form onSubmit={handleCodeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '320px' }}>
-                    <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-                        <h3>Login-Code</h3>
-                        <p className="text-sm text-muted-foreground">Enter the alphanumeric code from your notification.</p>
-                    </div>
-                    <div>
-                        <input
-                            type="text"
-                            placeholder="A1B2C3"
-                            value={loginCode}
-                            autoFocus
-                            onChange={e => setLoginCode(e.target.value.toUpperCase())}
-                            required
-                            style={{
-                                width: '100%', padding: '1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)',
-                                textAlign: 'center', fontSize: '1.5rem', fontWeight: 'bold'
-                            }}
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={status === 'processing' || !loginCode}
-                        className="px-8 py-4 glass-pill-pink font-bold text-gray-800 tracking-wide text-lg w-full flex items-center justify-center mt-4"
-                    >
-                        {status === 'processing' ? 'Logging in...' : 'Login'}
-                    </button>
-                    <button type="button" onClick={() => setStep("pin")} className="text-sm underline">Back to PIN</button>
+                    <button type="button" onClick={() => setStep("code")} className="text-sm underline text-center">Back</button>
                 </form>
             )}
 
             {step === "details" && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '320px' }}>
-                    <form onSubmit={handleFinalSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        <div style={{ padding: '0.75rem', background: 'hsl(var(--secondary))', borderRadius: 'var(--radius)', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span>{identifier}</span>
-                            <button type="button" onClick={() => setStep("identifier")} style={{ fontSize: '0.8rem', color: 'hsl(var(--primary))', textDecoration: 'underline' }}>Change</button>
-                        </div>
-
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 'bold' }}>Your Name</label>
-                            <input
-                                type="text"
-                                placeholder="Jane Doe"
-                                value={name}
-                                autoFocus
-                                onChange={e => setName(e.target.value)}
-                                required
-                                style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
-                            />
-                        </div>
-
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 'bold' }}>Create 5-digit PIN</label>
-                            <input
-                                type="password"
-                                placeholder="00000"
-                                maxLength={5}
-                                value={pin}
-                                onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
-                                required
-                                style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', textAlign: 'center', fontSize: '1.2rem', letterSpacing: '0.5rem' }}
-                            />
-                        </div>
-
-                        <button
-                            type="submit"
-                            disabled={status === 'processing'}
-                            className="px-8 py-4 glass-pill-pink font-bold text-gray-800 tracking-wide text-lg w-full flex items-center justify-center mt-4"
-                        >
-                            {status === 'processing' ? 'Creating Account...' : 'Start using Tide'}
-                        </button>
-                    </form>
-                </div>
+                <form onSubmit={handleFinalSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '320px' }}>
+                    <div style={{ padding: '0.75rem', background: '#3c3c3a', borderRadius: 'var(--radius)', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{identifier}</span>
+                        <button type="button" onClick={() => setStep("identifier")} className="text-sm underline text-blue-400">Change</button>
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 'bold' }}>Your Name</label>
+                        <input
+                            type="text"
+                            placeholder="Jane Doe"
+                            value={name}
+                            autoFocus
+                            onChange={e => setName(e.target.value)}
+                            required
+                            style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
+                        />
+                    </div>
+                    <div>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 'bold' }}>Create 5-digit PIN</label>
+                        <input
+                            type="password"
+                            placeholder="00000"
+                            maxLength={5}
+                            value={pin}
+                            onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+                            required
+                            style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', textAlign: 'center', fontSize: '1.2rem', letterSpacing: '0.5rem' }}
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={status === 'processing'}
+                        className="px-8 py-4 glass-pill-pink font-bold text-gray-800 tracking-wide text-lg w-full flex items-center justify-center mt-4"
+                    >
+                        {status === 'processing' ? 'Creating Account...' : 'Start using Tide'}
+                    </button>
+                </form>
             )}
-
         </div>
     );
 }

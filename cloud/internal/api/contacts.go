@@ -57,15 +57,12 @@ func (h *ContactHandler) SearchUser(w http.ResponseWriter, r *http.Request) {
 	results := []UserInfo{}
 
 	if err == nil {
-		var sensitiveData map[string]string
-		if err := json.Unmarshal(user.EncryptedData, &sensitiveData); err == nil {
-			results = append(results, UserInfo{
-				ID:        user.ID,
-				Username:  sensitiveData["username"],
-				Email:     sensitiveData["email"],
-				PublicKey: user.PublicKey,
-			})
-		}
+		results = append(results, UserInfo{
+			ID:        user.ID,
+			Username:  "User_" + user.ID[:8],
+			Email:     "Hidden",
+			PublicKey: user.PublicKey,
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -143,9 +140,6 @@ func (h *ContactHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		var sensitiveData map[string]string
-		json.Unmarshal(user.EncryptedData, &sensitiveData)
-
 		enriched = append(enriched, EnrichedRequest{
 			ID: req.ID,
 			Requester: struct {
@@ -155,8 +149,8 @@ func (h *ContactHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
 				PublicKey string `json:"public_key"`
 			}{
 				ID:        user.ID,
-				Username:  sensitiveData["username"],
-				Email:     sensitiveData["email"],
+				Username:  "User_" + user.ID[:8],
+				Email:     "Hidden",
 				PublicKey: user.PublicKey,
 			},
 			CreatedAt: req.CreatedAt,
@@ -221,9 +215,6 @@ func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		var sensitiveData map[string]string
-		json.Unmarshal(user.EncryptedData, &sensitiveData)
-
 		enriched = append(enriched, EnrichedContact{
 			ID: c.ID,
 			Partner: struct {
@@ -233,8 +224,8 @@ func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
 				PublicKey string `json:"public_key"`
 			}{
 				ID:        user.ID,
-				Username:  sensitiveData["username"],
-				Email:     sensitiveData["email"],
+				Username:  "User_" + user.ID[:8],
+				Email:     "Hidden",
 				PublicKey: user.PublicKey,
 			},
 		})

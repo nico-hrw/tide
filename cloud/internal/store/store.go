@@ -58,6 +58,13 @@ type Store interface {
 	GetOutlinks(ctx context.Context, sourceID string) ([]db.Link, error)
 	GetBacklinks(ctx context.Context, targetID string) ([]db.Link, error)
 
+	// Tasks
+	CreateTask(ctx context.Context, task *db.Task) error
+	GetTask(ctx context.Context, id, userID string) (*db.Task, error)
+	ListTasks(ctx context.Context, userID string) ([]*db.Task, error)
+	UpdateTask(ctx context.Context, task *db.Task) error
+	DeleteTask(ctx context.Context, id, userID string) error
+
 	// Token
 	SetToken(ctx context.Context, token string, userID string, ttl time.Duration) error
 	GetToken(ctx context.Context, token string) (string, error)

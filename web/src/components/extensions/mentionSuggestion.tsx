@@ -28,6 +28,16 @@ const MentionList = forwardRef((props: any, ref) => {
             } finally {
                 isCreatingRef.current = false;
             }
+        } else if (item.id === 'NEW_TASK') {
+            if (isCreatingRef.current) return;
+            isCreatingRef.current = true;
+            try {
+                const cleanTitle = (props.query || item.query || item.label || 'New Task').replace(/^!+/, '').trim() || 'New Task';
+                const newId = await useDataStore.getState().addTask({ title: cleanTitle, isCompleted: false });
+                props.command({ ...item, id: newId, label: cleanTitle, type: 'task', isGhost: false });
+            } finally {
+                isCreatingRef.current = false;
+            }
         } else {
             props.command({ ...item, label: item.title || item.label });
         }
@@ -61,7 +71,10 @@ const MentionList = forwardRef((props: any, ref) => {
                     <button
                         className={`flex flex-col items-start px-2 py-1.5 text-left rounded-lg transition-colors ${index === selectedIndex ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' : 'text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'}`}
                         key={index}
-                        onClick={() => selectItem(index)}
+                        onMouseDown={(e) => {
+                            e.preventDefault();
+                            selectItem(index);
+                        }}
                     >
                         <div className="font-medium">{item.label || item.title}</div>
                         {(item.type || item.start) && (
@@ -116,9 +129,25 @@ export default {
             return e.title.toLowerCase().includes(lowQuery);
         });
 
-        // 5. Return formatted
+        // 4.5 Search Matching for Tasks — only show UNSCHEDULED tasks here.
+        // Tasks with a scheduledDate already appear in the calendar as events.
+        const tasks = state.tasks || [];
+        const matchedTasks = tasks.filter((t: any) => {
+            if (!t || !t.title) return false;
+            if (!t.title.toLowerCase().includes(lowQuery)) return false;
+            // If the task has been given a scheduled date it lives in the calendar as an event
+            if (t.scheduledDate) return false;
+            return true;
+        });
+
+        // Build a set of task IDs so we don't show a task as a 'note' in the files list
+        const taskIdSet = new Set(tasks.map((t: any) => t.id));
+
+        // 5. Return formatted — notes must not contain task IDs
         return [
-            ...matched.map((f: any) => ({ id: f.id, label: f.title || f.id, type: 'note', isGhost: false })),
+            ...matched
+                .filter((f: any) => !taskIdSet.has(f.id)) // exclude tasks from note results
+                .map((f: any) => ({ id: f.id, label: f.title || f.id, type: 'note', isGhost: false })),
             ...matchedEvents.map((e: any) => ({ 
                 id: e.id, 
                 label: e.title || e.id, 
@@ -126,13 +155,21 @@ export default {
                 start: e.start,
                 isGhost: false 
             })),
-            { id: 'NEW', label: `Create File '${query}'`, query: query, type: 'action', isGhost: false }
+            ...matchedTasks.map((t: any) => ({
+                id: t.id,
+                label: t.title || t.id,
+                type: 'task',
+                isGhost: false
+            })),
+            { id: 'NEW', label: `Create File '${query}'`, query: query, type: 'action', isGhost: false },
+            { id: 'NEW_TASK', label: `Create Task '${query}'`, query: query, type: 'action', isGhost: false }
         ].slice(0, 15);
     },
 
     command: ({ editor, range, props }: any) => {
         useLinkStore.getState().setIsLinkingMode(false);
         useLinkStore.getState().setPendingLinkSource(null);
+        if ((window as any).cancelLinkSelection) (window as any).cancelLinkSelection();
 
         if (props.isGhost || props.id === 'GHOST') {
             editor.chain().focus().deleteRange(range).insertContent({
@@ -145,6 +182,11 @@ export default {
             editor.chain().focus().deleteRange(range).insertContent({
                 type: 'mention',
                 attrs: { id: props.id, label: label, isGhost: false }
+            }).run();
+        } else if (props.type === 'task' || props.id === 'NEW_TASK') {
+            editor.chain().focus().deleteRange(range).insertContent({
+                type: 'taskMention',
+                attrs: { id: props.id, label: props.label || props.query || 'New Task' }
             }).run();
         } else {
             editor.chain().focus().deleteRange(range).insertContent({
@@ -229,6 +271,7 @@ export default {
                 if (props.event.key === 'Escape') {
                     useLinkStore.getState().setPendingLinkSource(null);
                     useLinkStore.getState().setIsLinkingMode(false);
+                    if ((window as any).cancelLinkSelection) (window as any).cancelLinkSelection();
                     if (popup) popup[0].destroy();
                     return true;
                 }
@@ -239,6 +282,7 @@ export default {
             onExit() {
                 useLinkStore.getState().setPendingLinkSource(null);
                 useLinkStore.getState().setIsLinkingMode(false);
+                if ((window as any).cancelLinkSelection) (window as any).cancelLinkSelection();
                 if (popup) {
                     popup[0].destroy();
                     popup = null;

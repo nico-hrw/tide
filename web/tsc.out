@@ -1,0 +1,11 @@
+src/app/auth/page.tsx(113,17): error TS2304: Cannot find name 'setLoginData'.
+src/app/auth/page.tsx(130,34): error TS2304: Cannot find name 'loginData'.
+src/app/auth/page.tsx(137,17): error TS2304: Cannot find name 'loginData'.
+src/app/auth/page.tsx(138,24): error TS2304: Cannot find name 'loginData'.
+src/app/auth/page.tsx(138,76): error TS2304: Cannot find name 'loginData'.
+src/app/auth/page.tsx(138,105): error TS2304: Cannot find name 'loginData'.
+src/app/auth/page.tsx(146,52): error TS2304: Cannot find name 'loginData'.
+src/app/auth/page.tsx(147,60): error TS2304: Cannot find name 'loginData'.
+src/app/calendar/page.tsx(387,61): error TS2345: Argument of type 'CalendarEvent' is not assignable to parameter of type 'SetStateAction<string | null>'.
+src/app/page.tsx(1876,61): error TS2552: Cannot find name 'handleDeleteFile'. Did you mean 'handleDeleteNote'?
+src/app/page.tsx(1882,54): error TS2304: Cannot find name 'Trash'.

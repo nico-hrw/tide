@@ -17,6 +17,7 @@ interface CalendarEvent {
     is_task?: boolean;
     is_completed?: boolean;
     is_cancelled?: boolean; // NEW
+    shading?: number;
     parent_id?: string | null;
 }
 
@@ -25,7 +26,7 @@ interface DayColumnProps {
     events: CalendarEvent[];
     isToday: boolean;
     currentTime?: Date;
-    onEventClick?: (id: string, rect?: DOMRect) => void;
+    onEventClick?: (event: CalendarEvent, rect?: DOMRect) => void;
     onEventShare?: (e: React.MouseEvent, id: string) => void;
     onEventDelete?: (id: string) => void;
     onGridMouseDown?: (e: React.MouseEvent, day: Date) => void;
@@ -48,6 +49,7 @@ interface DayColumnProps {
     snapInterval?: number;
     isMagnified?: boolean;
     onEventDrop: (eventId: string, startInitial: Date, endInitial: Date) => void;
+    onEventCreate?: (start: Date, end: Date, isAllDay: boolean, extraMeta?: any) => Promise<void>;
     cursorX: MotionValue<number>;
     cursorY: MotionValue<number>;
     allEvents?: CalendarEvent[];
@@ -74,7 +76,7 @@ const arrangeEvents = (events: CalendarEvent[], day: Date, allDayEvents?: Calend
         const isParentWithChildren = parentIds.has(evt.id);
         const isCancelled = !!evt.is_cancelled;
 
-        if (isMiddleDay || isParentWithChildren || isCancelled) {
+        if (isMiddleDay || isParentWithChildren) {
             bgEvents.push(evt);
         } else {
             normalEvents.push(evt);
@@ -198,6 +200,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     snapInterval = 10,
     isMagnified = false,
     onEventDrop,
+    onEventCreate,
     cursorX,
     cursorY,
     allEvents = [],
@@ -290,7 +293,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     return (
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
-            className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-dashed border-gray-200 dark:border-slate-800/50 relative ${isToday ? 'bg-indigo-50/40 dark:bg-indigo-900/20' : 'bg-transparent'}`}
+            className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-gray-300 dark:border-slate-700 relative ${isToday ? 'bg-indigo-50/60 dark:bg-indigo-900/40 shadow-[inset_0_0_20px_rgba(79,70,229,0.05)]' : 'bg-transparent'}`}
             onDragOver={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -312,6 +315,33 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     e.stopPropagation();
                     const eventId = e.dataTransfer.getData("text/plain");
                     if (!eventId) return;
+
+                    const jsonPayload = e.dataTransfer.getData('application/json');
+                    let isTaskDrop = false;
+                    let draggedTask = null;
+                    if (jsonPayload) {
+                        try {
+                            const data = JSON.parse(jsonPayload);
+                            if (data.type === 'task') {
+                                isTaskDrop = true;
+                                draggedTask = useDataStore.getState().tasks.find(t => t.id === data.id);
+                            }
+                        } catch(err) {}
+                    }
+
+                    if (isTaskDrop && draggedTask) {
+                        const baseDate = new Date(day);
+                        const newStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 0, 0);
+                        const newEnd = new Date(newStart.getTime() + 24 * 60 * 60000 - 1);
+                        
+                        // use onEventCreate passed from parent
+                        if (onEventCreate) {
+                            onEventCreate(newStart, newEnd, true, { title: draggedTask.title, is_task: true, linkedTaskId: draggedTask.id, description: draggedTask.description, color: draggedTask.color });
+                        }
+                        
+                        useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString() });
+                        return;
+                    }
 
                     const draggedEvent = allEvents.find(ev => ev.id === eventId || (eventId.includes('_') && eventId.split('_')[0] === ev.id));
                     if (!draggedEvent) return;
@@ -340,7 +370,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             {/* All-Day Events Area */}
             {allDayEvents.length > 0 && (
                 <div className="sticky top-[50px] z-[65] w-full h-0 pointer-events-auto">
-                    <div className="absolute top-0 left-0 right-0 w-[150px] md:w-[200px] bg-[#F4F7F9]/95 dark:bg-[#1A1A1A]/95 p-1 flex flex-col gap-1 backdrop-blur-sm border-b border-dashed border-gray-200 dark:border-slate-800/50">
+                    <div className="absolute top-0 left-0 right-0 w-[150px] md:w-[200px] bg-white dark:bg-black p-1 flex flex-col gap-1 backdrop-blur-sm border-b border-gray-200 dark:border-slate-800">
                         {allDayEvents.map(event => {
                             const theme = getEventTheme(event);
                             const isHighlightedEvent = isHighlighted(event.id, 'event');
@@ -355,19 +385,37 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                         e.stopPropagation();
                                         if (onEventClick) {
                                             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                            onEventClick(event.id, rect);
+                                            onEventClick(event, rect);
                                         }
                                     }}
                                     className={`
-                                    group flex items-center justify-between
+                                    group flex items-center justify-between relative overflow-hidden
                                     w-full text-xs font-semibold px-2 py-1 rounded cursor-pointer transition-all
                                     ${isHighlightedEvent ? 'ring-2 ring-purple-500 ring-offset-1 dark:ring-offset-[#1A1A1A]' : 'opacity-90 hover:opacity-100'}
-                                    ${event.is_cancelled ? 'opacity-40 line-through grayscale' : ''}
+                                    ${event.is_cancelled ? 'opacity-40 line-through grayscale font-normal' : ''}
                                 `}
-                                    style={{ backgroundColor: theme.bg, color: theme.text, border: `1px solid ${theme.border}` }}
+                                    style={{ 
+                                        backgroundColor: theme.bg, 
+                                        color: theme.text, 
+                                        border: `1px solid ${theme.border}` 
+                                    }}
                                     title={event.title}
                                 >
-                                    <span className="truncate pr-1">{event.title}</span>
+                                    {/* Shading Overlay Layer */}
+                                    {event.shading && event.shading > 0 && (
+                                        <div 
+                                            className="absolute inset-0 pointer-events-none" 
+                                            style={{ 
+                                                backgroundColor: 
+                                                    event.shading === 1 ? 'rgba(90, 90, 90, 0.2)' :
+                                                    event.shading === 2 ? 'rgba(130, 130, 130, 0.4)' :
+                                                    event.shading === 3 ? 'rgba(170, 170, 170, 0.6)' :
+                                                    'rgba(210, 210, 210, 0.8)',
+                                                mixBlendMode: 'saturation'
+                                            }} 
+                                        />
+                                    )}
+                                    <span className="truncate pr-1 relative z-10">{event.title}</span>
                                     {onEventDelete && (
                                         <button
                                             onMouseDown={(e) => e.stopPropagation()}
@@ -404,6 +452,40 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     const eventId = e.dataTransfer.getData("text/plain");
                     if (!eventId) return;
 
+                    const jsonPayload = e.dataTransfer.getData('application/json');
+                    let isTaskDrop = false;
+                    let draggedTask = null;
+                    if (jsonPayload) {
+                        try {
+                            const data = JSON.parse(jsonPayload);
+                            if (data.type === 'task') {
+                                isTaskDrop = true;
+                                draggedTask = useDataStore.getState().tasks.find(t => t.id === data.id);
+                            }
+                        } catch(err) {}
+                    }
+
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const offsetY = parseInt(e.dataTransfer.getData('application/offsetY') || '0', 10);
+                    const y = Math.max(0, e.clientY - rect.top - offsetY);
+                    
+                    // Assuming 1px = 1 minute as per existing logic (60px per hour)
+                    let newStartMinutes = Math.round(y);
+                    newStartMinutes = Math.round(newStartMinutes / snapInterval) * snapInterval;
+
+                    if (isTaskDrop && draggedTask) {
+                        const baseDate = new Date(day);
+                        const newStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), Math.floor(newStartMinutes / 60), newStartMinutes % 60);
+                        const newEnd = new Date(newStart.getTime() + 60 * 60000); // 1 hour default
+                        
+                        if (onEventCreate) {
+                            onEventCreate(newStart, newEnd, false, { title: draggedTask.title, is_task: true, linkedTaskId: draggedTask.id, description: draggedTask.description, color: draggedTask.color });
+                        }
+                        
+                        useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString() });
+                        return;
+                    }
+
                     // ARCHITECTURAL DIRECTION: Use allEvents prop to find the fresh object
                     const draggedEvent = allEvents.find(ev => ev.id === eventId || (eventId.includes('_') && eventId.split('_')[0] === ev.id));
                     if (!draggedEvent) {
@@ -423,16 +505,6 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         console.error("[DragDrop] Invalid duration calculated:", { durationMinutes, start: draggedEvent.start, end: draggedEvent.end });
                         return;
                     }
-
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const offsetY = parseInt(e.dataTransfer.getData('application/offsetY') || '0', 10);
-                    const y = Math.max(0, e.clientY - rect.top - offsetY);
-                    
-                    // Assuming 1px = 1 minute as per existing logic (60px per hour)
-                    let newStartMinutes = Math.round(y);
-
-                    // Snap to the set interval (e.g., 10 mins)
-                    newStartMinutes = Math.round(newStartMinutes / snapInterval) * snapInterval;
 
                     // Clamp to within the day
                     newStartMinutes = Math.max(0, Math.min(newStartMinutes, 1440 - durationMinutes));
@@ -461,7 +533,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 {Array.from({ length: 24 }).map((_, i) => (
                     <div
                         key={i}
-                        className={`h-[60px] border-b border-dashed border-gray-100 dark:border-slate-800/50 ${hoveredHour === i ? 'bg-black/[0.01] dark:bg-white/[0.01]' : 'bg-transparent'}`}
+                        className={`h-[60px] border-b border-dashed ${isToday ? 'border-indigo-200 dark:border-indigo-800' : 'border-gray-200 dark:border-slate-800'} ${hoveredHour === i ? 'bg-black/[0.01] dark:bg-white/[0.01]' : 'bg-transparent'}`}
                         onMouseEnter={() => onHourHover && onHourHover(i)}
                         onMouseLeave={() => onHourHover && onHourHover(null)}
                     ></div>

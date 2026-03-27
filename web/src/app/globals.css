@@ -77,7 +77,6 @@ body {
 /* Event Item Styling */
 .event-item {
   transition: all 0.2s ease-out;
-  border-radius: 8px;
   user-select: none;
 }
 
@@ -126,7 +125,7 @@ body {
 .glass-pill-blue,
 .glass-pill-pink {
   background-color: #F9FAFB;
-  border: 1px solid var(--border-color);
+  border: 1px none var(--border-color);
   border-radius: 9999px;
   color: var(--foreground);
   transition: all 0.2s ease;
@@ -204,18 +203,160 @@ ul[data-type="taskList"] li {
   gap: 0.5rem;
 }
 
-ul[data-type="taskList"] li > label {
-  margin-top: 0.25em !important; /* Visual alignment - adjusted */
+ul[data-type="taskList"] li>label {
+  margin-top: 0.25em !important;
+  /* Visual alignment - adjusted */
   user-select: none;
 }
 
-ul[data-type="taskList"] li > div > p {
+ul[data-type="taskList"] li>div>p {
   margin-top: 2px !important;
   margin-bottom: 0 !important;
 }
 
-/* Note Layout Options */
-.note-layout-thin { max-width: 650px !important; }
-.note-layout-normal { max-width: 850px !important; }
-.note-layout-wide { max-width: 1200px !important; }
-.note-layout-extra-wide { max-width: 100% !important; }
+.note-layout-thin {
+  max-width: 650px !important;
+}
+
+.note-layout-normal {
+  max-width: 850px !important;
+}
+
+.note-layout-wide {
+  max-width: 1200px !important;
+}
+
+.note-layout-extra-wide {
+  max-width: 100% !important;
+}
+
+/* ─── Tiptap Node View Wrapper Reset ─────────────────────────────────────── */
+/* By default Tiptap wraps ReactNodeView in an inline-block div which causes   */
+/* the "box" appearance. Override to make it behave like an inline span.        */
+.ProseMirror span[data-node-view-wrapper] {
+  display: inline-flex !important;
+  vertical-align: middle;
+  align-items: center;
+}
+
+.ProseMirror div[data-node-view-wrapper] {
+  display: flex !important;
+  flex-direction: column;
+}
+
+/* ─── Standard Mention Pill (@note, @event) ─────────────────────────────── */
+.mention {
+  display: inline-flex;
+  align-items: center;
+  background-color: #ede9fe;
+  /* violet-100 */
+  color: #5b21b6;
+  /* violet-800 */
+  border-radius: 6px;
+  /* moderate rounding, not full pill */
+  padding: 1px 8px;
+  font-size: inherit;
+  /* same as surrounding text */
+  font-weight: 500;
+  border: none !important;
+  box-shadow: none !important;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.15s ease;
+  line-height: normal;
+}
+
+.dark .mention {
+  background-color: rgba(139, 92, 246, 0.2);
+  color: #c4b5fd;
+  border: none !important;
+}
+
+.mention:hover {
+  background-color: #ddd6fe;
+  /* violet-200 */
+}
+
+/* Event mentions are blue */
+.mention[data-type="event"] {
+  background-color: #dbeafe;
+  /* blue-100 */
+  color: #1d4ed8;
+  /* blue-700 */
+}
+
+.dark .mention[data-type="event"] {
+  background-color: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+}
+
+.mention[data-type="event"]:hover {
+  background-color: #bfdbfe;
+  /* blue-200 */
+}
+
+/* ─── Task Mention Pill ───────────────────────────────────────────────────── */
+/* Blue pill with border, moderate rounding, full body font size, checkbox     */
+span.task-mention-pill,
+.task-mention-pill {
+  display: inline-flex !important;
+  align-items: center;
+  background-color: #dbeafe;
+  /* blue-100 */
+  color: #1d4ed8;
+  /* blue-700 */
+  border-radius: 6px;
+  /* moderate — matches screenshot */
+  padding: 1px 8px 1px 6px;
+  /* slightly more left padding for checkbox breathing room */
+  font-size: inherit;
+  /* same size as surrounding text — critical fix */
+  font-weight: 500;
+  /* subtle blue border — matches screenshot */
+  box-shadow: none !important;
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+  line-height: normal;
+  vertical-align: middle;
+}
+
+.dark span.task-mention-pill,
+.dark .task-mention-pill {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Checkbox — same size as surrounding text, tight spacing */
+.task-mention-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: inherit;
+  /* critical: match surrounding text size */
+  margin-right: 4px;
+  cursor: pointer;
+  user-select: none;
+  line-height: 1;
+  vertical-align: middle;
+  opacity: 0.8;
+  transition: opacity 0.1s;
+}
+
+.task-mention-checkbox:hover {
+  opacity: 1;
+}
+
+/* Label for the task title */
+.task-mention-label {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+.task-mention-label.completed {
+  text-decoration: line-through;
+  opacity: 0.55;
+}

@@ -15,19 +15,16 @@ type User struct {
 	UsernameHash *string `json:"-" db:"username_blind_index"`
 	PhoneHash    *string `json:"-" db:"phone_blind_index"`
 
-	// Encrypted Data Blob (Contains JSON of: Email, Username, Phone, MasterKey)
-	EncryptedData []byte `json:"encrypted_data" db:"encrypted_data"`
+	// Zero-Knowledge Encrypted Values
+	EncryptedVault  []byte `json:"encrypted_vault" db:"encrypted_vault"`
+	EncryptedPepper []byte `json:"encrypted_pepper" db:"encrypted_pepper"`
 
-	// Legacy/Direct Access (To be deprecated or mapped from EncryptedData in app layer)
-	// For now, we keep these structs but they won't be columns in the new DB schema directly
-	// except IDs.
-	// Actually, for the API response, we might still want to populate these after decryption.
+	// Legacy/Direct Access (May be mapped from API tokens rather than DB directly)
 	Email    string `json:"email,omitempty" db:"-"`
 	Username string `json:"username,omitempty" db:"-"`
 	Phone    string `json:"phone,omitempty" db:"-"`
 
-	PublicKey     string `json:"public_key" db:"public_key"` // Public known
-	EncPrivateKey string `json:"enc_private_key" db:"-"`     // Inside EncryptedData? Or separate?
+	PublicKey string `json:"public_key" db:"public_key"` // Public known
 
 	// PIN fields
 	PinHash   *string `json:"-" db:"pin_hash"`
@@ -68,6 +65,16 @@ type File struct {
 	Exdates        json.RawMessage `json:"exdates" db:"exdates"`
 	CompletedDates json.RawMessage `json:"completed_dates" db:"completed_dates"`
 }
+
+// Task represents the tasks table for E2EE tasks
+type Task struct {
+	ID             string    `json:"id" db:"id"`
+	UserID         string    `json:"user_id" db:"user_id"`
+	EncryptedVault []byte    `json:"encrypted_vault" db:"encrypted_vault"`
+	CreatedAt      time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
+}
+
 
 // DB defines the interface for database operations.
 type DB interface {

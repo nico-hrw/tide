@@ -445,12 +445,12 @@ export default function WeekView({
                         <div className="w-[60px] flex-shrink-0 sticky left-0 z-[70] bg-white dark:bg-black border-r border-gray-100 dark:border-slate-800/50">
                             <div className="h-[50px] border-b border-gray-100 dark:border-slate-800/50 bg-white dark:bg-black sticky top-0 z-[70]"></div>
                             {Array.from({ length: 24 }).map((_, i) => (
-                                <div key={i} className="h-[60px] border-b border-gray-100/70 dark:border-slate-800/50 relative">
+                                <div key={i} className="h-[60px] border-b border-dashed border-gray-200 dark:border-slate-800/50 relative">
                                     <span className="absolute -top-3 right-2 text-xs font-medium text-gray-400">{i}:00</span>
                                 </div>
                             ))}
                             <div className="h-[150px] w-full border-r border-gray-100 dark:border-slate-800/50 relative">
-                                <div className="absolute top-2 right-2 text-[10px] font-bold text-gray-400">0:00</div>
+                                <div className="absolute top-2 right-2 text-[10px] font-medium text-gray-400">0:00</div>
                             </div>
                         </div>
 
@@ -494,8 +494,8 @@ export default function WeekView({
                                          ${isDayToday ? 'bg-rose-50 dark:bg-rose-950/20 ring-1 ring-inset ring-rose-500/20' : 'bg-[#F4F7F9] dark:bg-[#1A1A1A]'}
                                      `}>
                                         <div className={`
-                                             text-base font-bold
-                                             ${isDayToday ? 'text-rose-700 dark:text-rose-300' : 'text-gray-900 dark:text-gray-100'}
+                                             text-base font-medium
+                                             ${isDayToday ? 'text-rose-700 dark:text-rose-300' : 'text-gray-500 dark:text-gray-400'}
                                          `}>
                                             {format(day, "d")}
                                         </div>
@@ -506,7 +506,7 @@ export default function WeekView({
                                     {/* Grid Area */}
                                     <div className="relative" onMouseDown={(e) => handleGridMouseDown(e, day)}>
                                         {Array.from({ length: 24 }).map((_, i) => (
-                                            <div key={i} className="h-[60px] border-b border-gray-100/70 dark:border-slate-800/50"></div>
+                                            <div key={i} className="h-[60px] border-b border-dashed border-gray-200 dark:border-slate-800/50"></div>
                                         ))}
 
                                         {/* Events */}
@@ -645,7 +645,7 @@ export default function WeekView({
                                                         </div>
                                                     )}
 
-                                                    <div className="font-bold text-sm truncate leading-tight pr-8">{event.title}</div>
+                                                    <div className="font-medium text-sm truncate leading-tight pr-8">{event.title}</div>
                                                     {currentDuration > 30 && (
                                                         <div className="text-xs opacity-90 mt-0.5 font-medium truncate">
                                                             {format(start, "HH:mm")} - {format(new Date(start.getTime() + currentDuration * 60000), "HH:mm")}
@@ -687,7 +687,7 @@ export default function WeekView({
                                                     className="absolute left-1 right-1 rounded-lg bg-gray-500/30 border-2 border-dashed border-gray-500 z-50 backdrop-blur-sm pointer-events-none transition-all duration-75"
                                                     style={{ top: `${top}px`, height: `${height}px` }}
                                                 >
-                                                    <div className="text-xs font-bold text-gray-700 dark:text-gray-300 p-1">New Event</div>
+                                                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 p-1">New Event</div>
                                                 </div>
                                             );
                                         })()}
@@ -726,7 +726,7 @@ export default function WeekView({
                                         pointerEvents: 'none',
                                     }}
                                 >
-                                    <div className="text-xs font-bold leading-tight select-none">
+                                    <div className="text-xs font-medium leading-tight select-none">
                                         {event.title || 'Untitled Event'}
                                     </div>
                                     <div className="text-[10px] font-medium opacity-80 select-none">

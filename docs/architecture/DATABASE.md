@@ -9,7 +9,8 @@ The application uses **SQLite** as its primary data store, managed via the `mode
 - `email_blind_index` (TEXT, UNIQUE): Blind index for email lookups.
 - `username_blind_index` (TEXT, UNIQUE): Blind index for username lookups.
 - `phone_blind_index` (TEXT, UNIQUE): Blind index for phone lookups.
-- `encrypted_data` (BLOB): Encrypted user profile data.
+- `encrypted_vault` (BLOB): RSA private key encrypted by KEK.
+- `encrypted_pepper` (BLOB): AES-GCM encrypted server pepper.
 - `public_key` (TEXT): User's public key for e2e encryption purposes.
 - `enabled_extensions` (TEXT): JSON array of enabled extensions (e.g. `["finance", "calendar"]`).
 - `pin_hash` (TEXT): Hashed PIN for lockscreen/auth.

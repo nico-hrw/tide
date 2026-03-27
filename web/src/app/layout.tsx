@@ -7,6 +7,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Tide",
   description: "Minimalist, Local-First, Encrypted.",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

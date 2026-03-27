@@ -37,6 +37,13 @@ import { useIslandStore } from '@/components/extensions/smart_island/useIslandSt
 import { isSameDay } from 'date-fns';
 import { useDataStore, DataItem } from "@/store/useDataStore";
 
+// Stable ref to avoid stale closures in event-listener callbacks
+function useLatestRef<T>(value: T) {
+    const ref = useRef<T>(value);
+    ref.current = value;
+    return ref;
+}
+
 interface DecryptedFile {
     id: string;
     title: string;
@@ -76,6 +83,88 @@ interface CalendarEvent {
 
 
 
+const ThemeItem = ({ group, hiddenThemeIds, onToggleVisibility, onUpdate, onShare, onDelete }: any) => {
+    const [localTitle, setLocalTitle] = useState(group.title);
+    
+    useEffect(() => {
+        setLocalTitle(group.title);
+    }, [group.title]);
+
+    const handleBlur = () => {
+        if (localTitle !== group.title) {
+            onUpdate(group.id, { title: localTitle });
+        }
+    };
+
+    return (
+        <div className="group relative flex flex-col gap-2.5 p-3 rounded-xl bg-gray-50/50 hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-100 transition-all">
+            <div className="flex items-center gap-2">
+                <input
+                    type="checkbox"
+                    checked={!(hiddenThemeIds || []).includes(group.id)}
+                    onChange={() => onToggleVisibility(group.id)}
+                    className="w-4 h-4 rounded-md border-gray-300 text-indigo-600 focus:ring-indigo-500/20 bg-white cursor-pointer"
+                    title="Toggle Visibility"
+                />
+                <input
+                    type="text"
+                    value={localTitle}
+                    onChange={(e) => setLocalTitle(e.target.value)}
+                    onBlur={handleBlur}
+                    onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
+                    className="bg-transparent border-none p-0 text-[13px] font-bold focus:ring-0 outline-none text-gray-800 flex-1 placeholder:text-gray-400"
+                    placeholder="Theme name..."
+                />
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                    <button
+                        onClick={(e) => onShare(e, group.id)}
+                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-indigo-600 transition-all"
+                        title="Share Theme"
+                    >
+                        <Share size={12} />
+                    </button>
+                    <button
+                        onClick={(e) => onDelete(e, group.id, group.title)}
+                        className="p-1.5 hover:bg-rose-50 rounded-lg text-gray-400 hover:text-rose-500 transition-all font-bold"
+                        title="Delete Theme"
+                    >
+                        ✗
+                    </button>
+                </div>
+            </div>
+            <div className="flex flex-col gap-2.5 pl-6">
+                <div className="flex flex-wrap gap-1.5">
+                    {['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'].map(c => (
+                        <button
+                            key={c}
+                            onClick={() => onUpdate(group.id, { color: c })}
+                            className={`w-4 h-4 rounded-full transition-all border-2 ${ (group as any).color === c ? 'border-white ring-2 ring-indigo-500 scale-110 shadow-sm' : 'border-transparent hover:scale-110' }`}
+                            style={{ backgroundColor: c }}
+                        />
+                    ))}
+                </div>
+                <div className="relative group/select w-full">
+                    <select
+                        value={group.effect || 'none'}
+                        onChange={(e) => onUpdate(group.id, { effect: e.target.value })}
+                        className="appearance-none w-full bg-white dark:bg-black/20 border border-gray-200 group-hover/select:border-indigo-200 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-gray-600 outline-none cursor-pointer transition-all focus:ring-1 focus:ring-indigo-500"
+                    >
+                        <option value="none">Solid Finish</option>
+                        <option value="stripes">Striped Texture</option>
+                        <option value="waves">Wave Pattern</option>
+                        <option value="dots">Dotted Grain</option>
+                        <option value="chess">Chess Board</option>
+                        <option value="dimmed">Soft Dimmed</option>
+                    </select>
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover/select:text-indigo-400 transition-colors">
+                        <ChevronDown size={12} />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function Dashboard() {
     // -------------------------------------------------------------------------
     // 0. State & Initialization
@@ -92,22 +181,30 @@ export default function Dashboard() {
     // UI & Navigation State
     const [openTabs, setOpenTabs] = useState<Tab[]>([{ id: 'calendar', title: 'Calendar', type: 'calendar' }]);
     const [activeTabId, setActiveTabId] = useState<string>('calendar');
+    const [isSharingDisabled, setIsSharingDisabled] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [userProfile, setUserProfile] = useState<{ username: string; email: string } | null>(null);
     const [streak, setStreak] = useState(0);
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const [summaryStats, setSummaryStats] = useState({ events: 0, tasks: 0 });
 
     // Data State (selectors)
-    const storeFiles = useDataStore(s => s.notes);
-    const storeEvents = useDataStore(s => s.events);
-    const setKeys = useDataStore(s => s.setKeys);
-    const fetchDirectory = useDataStore(s => s.fetchDirectory);
-    const loadedDirectories = useDataStore(s => s.loadedDirectories);
+    const {
+        notes: storeFiles,
+        events: storeEvents,
+        tasks: storeTasks,
+        setKeys,
+        fetchDirectory,
+        loadedDirectories,
+        enabledExtensions, setEnabledExtensions,
+        noteLayout, setNoteLayout,
+        isSettingsModalOpen, setSettingsModalOpen
+    } = useDataStore();
+    const deleteTask = useDataStore(s => s.deleteTask);
 
     const files = storeFiles as unknown as DecryptedFile[];
     const events = storeEvents as unknown as CalendarEvent[];
+    const tasks = storeTasks as any[];
 
     // Editor & File State
     const [editorContent, setEditorContent] = useState<any>(null);
@@ -139,11 +236,9 @@ export default function Dashboard() {
     const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
 
     // Extensions State
-    const [enabledExtensions, setEnabledExtensions] = useState<string[]>([]);
     const { push: islandPush, setIdlePayload, clearAll: islandClearAll } = useIslandStore();
 
     // Layout Options
-    const [noteLayout, setNoteLayout] = useState<'thin' | 'normal' | 'wide' | 'extra-wide'>('normal');
     const [isRestored, setIsRestored] = useState(false);
 
     // Share Modal State
@@ -243,8 +338,6 @@ export default function Dashboard() {
 
     const performSave = async (content: any, fileId: string, fileKey: CryptoKey | null, visibility: string) => {
         if (!fileId || !content) return;
-        const currentActiveId = useDataStore.getState().activeNoteId;
-        if (fileId !== currentActiveId) return;
 
         try {
             const contentString = JSON.stringify(content);
@@ -408,19 +501,20 @@ export default function Dashboard() {
         }
     };
 
-    const switchTab = async (newId: string, type: string, forcedTitle?: string, fallbackData?: any) => {
+    const switchTab = async (newId: string, type: string, forcedTitle?: string, fallbackData?: any, currentOverride?: any) => {
         if (!newId) return;
-        const isOldAFile = activeTabId !== 'calendar' && activeTabId !== 'messages' && !activeTabId.startsWith('chat-');
-        if (isOldAFile && saveStatus === 'unsaved' && editorContent) {
+        const currentContentToUse = currentOverride || editorContent;
+        const isOldAFile = activeTabId !== 'calendar' && activeTabId !== 'messages' && !activeTabId.startsWith('chat-') && activeTabId !== 'ext_finance';
+        if (isOldAFile && (saveStatus === 'unsaved' || currentOverride) && currentContentToUse) {
             const oldFile = files.find(f => f.id === activeTabId);
-            if (oldFile) performSave(editorContent, activeTabId, activeFileKey, oldFile.visibility).catch(console.error);
+            if (oldFile) performSave(currentContentToUse, activeTabId, activeFileKey, oldFile.visibility).catch(console.error);
         }
 
         setOpenTabs(prev => {
             let nextTabs = [...prev];
             if (isOldAFile) {
                 nextTabs = nextTabs.map(t => t.id === activeTabId ? {
-                    ...t, content: editorContent, _fileKey: activeFileKey, _saveStatus: 'saved'
+                    ...t, content: currentContentToUse, _fileKey: activeFileKey, _saveStatus: 'saved'
                 } : t);
             }
             const existingTab = nextTabs.find(t => t.id === newId);
@@ -499,12 +593,15 @@ export default function Dashboard() {
             const canSave = currentFile.visibility === 'public' || snapshotKey;
             if (canSave) {
                 const timer = setTimeout(async () => {
-                    if (useDataStore.getState().activeNoteId !== snapshotId) return;
-                    setSaveStatus("saving");
+                    const isTabStillActive = useDataStore.getState().activeNoteId === snapshotId;
+                    
+                    if (isTabStillActive) setSaveStatus("saving");
                     try {
                         await performSave(snapshotContent, snapshotId, snapshotKey, currentFile.visibility);
                         if (useDataStore.getState().activeNoteId === snapshotId) setSaveStatus("saved");
-                    } catch { if (useDataStore.getState().activeNoteId === snapshotId) setSaveStatus("unsaved"); }
+                    } catch { 
+                        if (useDataStore.getState().activeNoteId === snapshotId) setSaveStatus("unsaved"); 
+                    }
                 }, 1500);
                 return () => clearTimeout(timer);
             }
@@ -526,8 +623,10 @@ export default function Dashboard() {
     // Persistence Effect for Tabs & Layout
     useEffect(() => {
         if (!isRestored) return;
-        localStorage.setItem('tide_open_tabs', JSON.stringify(openTabs));
-        localStorage.setItem('tide_active_tab_id', activeTabId);
+        // Tabs are sessionStorage only — each browser window stays independent
+        sessionStorage.setItem('tide_open_tabs', JSON.stringify(openTabs));
+        sessionStorage.setItem('tide_active_tab_id', activeTabId);
+        // Layout stays in localStorage — it's a cross-window preference
         localStorage.setItem('tide_note_layout', noteLayout);
     }, [openTabs, activeTabId, noteLayout, isRestored]);
 
@@ -586,6 +685,7 @@ export default function Dashboard() {
     const handleLogout = () => {
         sessionStorage.clear();
         localStorage.removeItem("tide_session_key");
+        localStorage.removeItem("tide_session_token");
         localStorage.removeItem("tide_user_id");
         localStorage.removeItem("tide_user_email");
         router.push("/auth");
@@ -703,7 +803,11 @@ export default function Dashboard() {
     const handleUpdateEventGroup = async (id: string, updates: { title?: string, effect?: string, color?: string }) => {
         if (!privateKey || !publicKey) return;
         try {
-            const group = files.find(f => f.id === id);
+            // Optimistic Update
+            const currentFiles = useDataStore.getState().notes;
+            useDataStore.getState().setNotes(currentFiles.map(f => f.id === id ? { ...f, ...updates } as any : f));
+
+            const group = currentFiles.find(f => f.id === id);
             if (!group || !group.secured_meta) return;
 
             const meta = await cryptoLib.decryptMetadata(group.secured_meta, privateKey);
@@ -719,6 +823,7 @@ export default function Dashboard() {
                 body: JSON.stringify({ secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(encryptedMeta))) })
             });
 
+            // Re-fetch root to ensure consistency, but optimistic update already made it smooth
             useDataStore.getState().loadedDirectories.delete('root');
             useDataStore.getState().fetchDirectory(null);
         } catch (e) {
@@ -836,9 +941,9 @@ export default function Dashboard() {
                 setUserEmail(email);
                 setUserProfile({ username: email.split('@')[0], email: email });
                 
-                // Persistence: Restore tabs
-                const savedTabs = localStorage.getItem("tide_open_tabs");
-                const savedActiveId = localStorage.getItem("tide_active_tab_id");
+                // Persistence: Restore tabs (from sessionStorage — per-window)
+                const savedTabs = sessionStorage.getItem("tide_open_tabs");
+                const savedActiveId = sessionStorage.getItem("tide_active_tab_id");
 
                 if (savedTabs) {
                     try {
@@ -848,9 +953,15 @@ export default function Dashboard() {
                             const validActive = parsed.find((t: any) => t.id === savedActiveId);
                             const activeIdToSet = validActive ? validActive.id : parsed[0].id;
                             const activeTypeToSet = validActive ? validActive.type : parsed[0].type;
-                            setActiveTabId(activeIdToSet);
-                            
-                            // Initialize content load if it's a file tab that needs fetching
+                            // Initialize content load for ALL open file tabs to ensure they are ready
+                            parsed.forEach((t: any) => {
+                                if (t.type === 'file' && !t.content && t.id !== activeIdToSet) {
+                                    setTimeout(() => {
+                                        loadNoteContent(t.id, t.title);
+                                    }, 100);
+                                }
+                            });
+
                             if (activeTypeToSet === 'file') {
                                 const activeTitle = validActive ? validActive.title : parsed[0].title;
                                 useDataStore.getState().setActiveNoteId(activeIdToSet);
@@ -862,9 +973,6 @@ export default function Dashboard() {
                                     }
                                     setFileName(activeTitle);
                                 } else {
-                                    // Let loadNoteContent handle the fetching with the activeTitle
-                                    // Note: loadNoteContent captures variables from render scope, 
-                                    // but calling it here with the primitive strings will trigger the async flow correctly.
                                     setTimeout(() => {
                                         loadNoteContent(activeIdToSet, activeTitle);
                                     }, 50);
@@ -881,11 +989,8 @@ export default function Dashboard() {
                 const savedDate = localStorage.getItem("tide_calendar_date");
                 if (savedDate) setCalendarDate(new Date(savedDate));
 
-                const savedExt = localStorage.getItem("tide_enabled_extensions");
-                if (savedExt) setEnabledExtensions(JSON.parse(savedExt) || []);
-
-                const savedLayout = localStorage.getItem("tide_note_layout");
-                if (savedLayout) setNoteLayout(savedLayout as any);
+                // Note: enabledExtensions and noteLayout are already loaded from localStorage
+                // by the Zustand store initializer — no need to call setEnabledExtensions/setNoteLayout here.
 
                 setIsRestored(true);
                 setStatus("ready");
@@ -1259,14 +1364,16 @@ export default function Dashboard() {
         return () => window.removeEventListener('dateMention:click', handler);
     }, []);
 
+
+
     // -------------------------------------------------------------------------
     // 4. Calendar Logic
     // -------------------------------------------------------------------------
-    const handleEventCreate = async (start: Date, end: Date, isAllDay: boolean = false) => {
+    const handleEventCreate = async (start: Date, end: Date, isAllDay: boolean = false, extraMeta: any = {}) => {
         if (!privateKey || !publicKey) return;
-        const title = "New Event";
+        const title = extraMeta.title || "New Event";
         try {
-            const meta = { title, start: start.toISOString(), end: end.toISOString(), allDay: isAllDay };
+            const meta = { title, start: start.toISOString(), end: end.toISOString(), allDay: isAllDay, ...extraMeta };
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
             const res = await apiFetch("/api/v1/files", {
@@ -1282,7 +1389,7 @@ export default function Dashboard() {
             if (res.ok) {
                 const newFile = await res.json().catch(() => null);
                 if (newFile && newFile.id) {
-                    useDataStore.getState().setEvents([...useDataStore.getState().events, { id: newFile.id, title, start: meta.start, end: meta.end, allDay: isAllDay }] as any);
+                    useDataStore.getState().setEvents([...useDataStore.getState().events, { id: newFile.id, title, start: meta.start, end: meta.end, allDay: isAllDay, is_task: extraMeta.is_task, linkedTaskId: extraMeta.linkedTaskId }] as any);
                     setActiveEventId(newFile.id);
                 }
             }
@@ -1297,6 +1404,9 @@ export default function Dashboard() {
     const handleEventRename = async (id: string, newTitle: string) => {
         if (!privateKey || !publicKey) return;
         try {
+            // Optimistic update
+            useDataStore.getState().setEvents(useDataStore.getState().events.map(e => e.id === id ? { ...e, title: newTitle } as any : e));
+
             const event = events.find(e => e.id === id);
             if (!event) return;
             const meta = { 
@@ -1309,7 +1419,8 @@ export default function Dashboard() {
                 isGroup: (event as any).isGroup,
                 effect: (event as any).effect,
                 recurrence_rule: (event as any).recurrence_rule,
-                recurrence_end: (event as any).recurrence_end
+                recurrence_end: (event as any).recurrence_end,
+                tags: (event as any).tags
             };
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
             await apiFetch(`/api/v1/files/${id}`, {
@@ -1317,7 +1428,6 @@ export default function Dashboard() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta))) })
             });
-            useDataStore.getState().setEvents(useDataStore.getState().events.map(e => e.id === id ? { ...e, title: newTitle } as any : e));
         } catch (e) { console.error(e); }
     };
 
@@ -1378,7 +1488,10 @@ export default function Dashboard() {
                 exdates: updates.exdates !== undefined ? updates.exdates : (event as any).exdates,
                 is_completed: updates.is_completed !== undefined ? updates.is_completed : (event as any).is_completed,
                 completed_dates: updates.completed_dates !== undefined ? updates.completed_dates : (event as any).completed_dates,
-                is_task: updates.is_task !== undefined ? updates.is_task : event.is_task
+                is_task: updates.is_task !== undefined ? updates.is_task : event.is_task,
+                shading: updates.shading !== undefined ? updates.shading : (event as any).shading,
+                linkedTaskId: (event as any).linkedTaskId,
+                tags: updates.tags !== undefined ? updates.tags : (event as any).tags
             };
             if (updates.recurrence_rule !== undefined) meta.recurrence_rule = updates.recurrence_rule;
             else if ((event as any).recurrence_rule) meta.recurrence_rule = (event as any).recurrence_rule;
@@ -1442,6 +1555,20 @@ export default function Dashboard() {
             });
         } catch (e) { console.error(e); }
     };
+    // Use a stable ref so the listener always calls the latest handleEventSave
+    // even if the events array changed since the listener was registered.
+    const handleEventSaveRef = useLatestRef(handleEventSave);
+    useEffect(() => {
+        const handleEventTaskToggle = (e: Event) => {
+            const { id, is_completed } = (e as CustomEvent).detail;
+            if (id) {
+                handleEventSaveRef.current(id, { is_completed });
+            }
+        };
+        window.addEventListener('event-task:toggle', handleEventTaskToggle);
+        return () => window.removeEventListener('event-task:toggle', handleEventTaskToggle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // intentionally empty — ref always has the latest version
 
     const handleDeleteEvent = async (id: string) => {
         if (!myId) return;
@@ -1503,10 +1630,39 @@ export default function Dashboard() {
 
     const handleMagicLinkClick = async (target: any) => {
         if (target.id && target.id.startsWith('ghost-')) {
+            const ghostId = target.id;
             const title = target.title || target.id.replace('ghost-', '');
 
+            // 1. Create the new note
             const newId = await useDataStore.getState().createNote(title);
-            switchTab(newId, 'file', title);
+
+            // 2. Resolve the ghost link in the CURRENT editor (ensure the mention is updated to the real ID)
+            if (activeNoteId && editorInstance) {
+                const { tr } = editorInstance.state;
+                let ghostOccurrences = 0;
+
+                editorInstance.state.doc.descendants((node, pos) => {
+                    if (node.type.name === 'mention' && node.attrs.id === ghostId) {
+                        tr.setNodeMarkup(pos, null, { ...node.attrs, id: newId, isGhost: false });
+                        ghostOccurrences++;
+                    }
+                });
+
+                if (ghostOccurrences > 0) {
+                    editorInstance.view.dispatch(tr);
+                    const freshJson = editorInstance.getJSON();
+                    // Local state update – but we'll also pass it to switchTab to avoid staleness
+                    handleEditorChange(freshJson);
+                    
+                    // 3. Navigate to the new identity, passing the fresh JSON to ensure Note A is saved correctly
+                    switchTab(newId, 'file', title, null, freshJson);
+                } else {
+                    switchTab(newId, 'file', title);
+                }
+            } else {
+                switchTab(newId, 'file', title);
+            }
+            
             useDataStore.getState().setActiveNoteId(newId);
 
         } else if (target.type === 'event') {
@@ -1516,6 +1672,16 @@ export default function Dashboard() {
                 setCalendarDate(new Date(targetEvent.start));
                 setActiveEventId(target.id);
             }
+
+        } else if (target.type === 'task') {
+            // Find the calendar event that was created from this task (via linkedTaskId)
+            const linkedEvent = useDataStore.getState().events.find((e: any) => e.linkedTaskId === target.id);
+            if (linkedEvent) {
+                switchTab('calendar', 'calendar');
+                setCalendarDate(new Date(linkedEvent.start));
+                setActiveEventId(linkedEvent.id);
+            }
+            // If no linked event yet (task is still unscheduled), do nothing
 
         } else if (target.type === 'file' || target.type === 'note') {
 
@@ -1595,12 +1761,42 @@ export default function Dashboard() {
                     onCreateEventGroup={handleCreateEventGroup}
                     onUpdateEventGroup={handleUpdateEventGroup}
                     enabledExtensions={enabledExtensions}
-                    onOpenSettings={() => setIsSettingsOpen(true)}
                 />
             </div>
 
             {/* Right: Workspace */}
             <div className={`flex-1 flex flex-col min-w-0 bg-[var(--background)] relative overflow-hidden`}>
+
+                {/* Unscheduled Tasks Panel — top-left corner, below calendar toolbar, only when calendar is active */}
+                {activeTabId === 'calendar' && tasks && tasks.filter(t => !t.isCompleted && !t.scheduledDate).length > 0 && (
+                    <div className="absolute left-16 top-[52px] z-[55] pointer-events-none flex flex-col max-h-[calc(100%-60px)]">
+                        <div className="flex flex-col gap-1.5 p-2 overflow-y-auto pointer-events-none max-h-full">
+                            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 px-1 pointer-events-none">Tasks</h3>
+                            {tasks.filter(t => !t.isCompleted && !t.scheduledDate).map(t => (
+                                <div 
+                                    key={t.id} 
+                                    draggable 
+                                    className="bg-white/90 dark:bg-[#1c1c1c]/95 backdrop-blur-sm border border-gray-200/80 dark:border-white/10 px-2.5 py-1.5 rounded-xl shadow-sm cursor-grab active:cursor-grabbing flex gap-1.5 items-center transition-all hover:shadow-md hover:-translate-y-0.5 pointer-events-auto w-48 group" 
+                                    onDragStart={(e) => {
+                                        e.dataTransfer.setData('text/plain', t.id);
+                                        e.dataTransfer.setData('application/json', JSON.stringify({ type: 'task', id: t.id }));
+                                    }}
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" className="shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+                                    <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight truncate flex-1">{t.title}</span>
+                                    <button
+                                        title="Delete task"
+                                        className="opacity-0 group-hover:opacity-100 ml-auto shrink-0 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition-all"
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                        onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 <div
                     className={`absolute inset-0 z-10 bg-[var(--background)] transition-opacity duration-200 ${activeTabId === 'calendar' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
                 >
@@ -1618,9 +1814,10 @@ export default function Dashboard() {
                         onEventDelete={handleDeleteEvent}
                         onEventRename={handleEventRename}
                         onEventSave={handleEventSave}
-                        onEventClick={(id) => {
-                            setActiveEventId(id);
-                            setMinimizedEventIds(prev => prev.filter(mId => mId !== id));
+                        onEventClick={(evt) => {
+                            if (!evt) return;
+                            setActiveEventId(evt.id);
+                            setMinimizedEventIds(prev => prev.filter(mId => mId !== evt.id));
                         }}
                         onEventShare={(e, id) => handleShare(e, id)}
                         editingEventId={activeEventId}
@@ -1648,7 +1845,7 @@ export default function Dashboard() {
                     ) : (
                         <div className="flex bg-[var(--background)] h-full w-full items-center justify-center text-gray-500 flex-col gap-4">
                             <p>Messenger is disabled.</p>
-                            <button className="px-4 py-2 border dark:border-white/20 border-black/20 text-[var(--foreground)] rounded-md hover:bg-black/5 dark:hover:bg-white/5" onClick={() => setIsSettingsOpen(true)}>Enable in Settings</button>
+                            <button className="px-4 py-2 border dark:border-white/20 border-black/20 text-[var(--foreground)] rounded-md hover:bg-black/5 dark:hover:bg-white/5" onClick={() => setSettingsModalOpen(true)}>Enable in Settings</button>
                         </div>
                     )}
                 </div>
@@ -1704,8 +1901,7 @@ export default function Dashboard() {
                                         editorInstance.chain()
                                             .insertContentAt(pos.pos, {
                                                 type: 'anchor',
-                                                attrs: { anchorId },
-                                                content: [{ type: 'text', text: '⚓' }]
+                                                attrs: { anchorId }
                                             })
                                             .run();
 
@@ -1791,7 +1987,7 @@ export default function Dashboard() {
                                                     offsetX: 24,
                                                     offsetY: 0,
                                                     content: text,
-                                                    backgroundColor: 'rgba(99,102,241,0.15)',
+                                                    backgroundColor: 'transparent',
                                                 };
                                                 canvasSidecar.addElement(widget);
                                             }}
@@ -1812,85 +2008,53 @@ export default function Dashboard() {
                         </div>
                     )}
                 </div>
-            </div>
-
-            {/* FAB Theme Menu */}
+            </div>            {/* FAB Theme Menu */}
             {activeTabId === 'calendar' && (
                 <div className="fixed bottom-6 right-6 z-[80]">
                     <button
                         onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
-                        className="w-12 h-12 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-800 hover:scale-105 transition-all focus:outline-none"
+                        className={`w-12 h-12 rounded-full bg-white shadow-xl border border-gray-100 flex items-center justify-center transition-all focus:outline-none ${isThemeMenuOpen ? 'rotate-45 text-rose-500 scale-110' : 'text-indigo-500 hover:scale-110'}`}
                         title="Manage Themes"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+                        {isThemeMenuOpen ? (
+                            <Plus size={24} />
+                        ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+                        )}
                     </button>
 
                     {isThemeMenuOpen && (
-                        <div className="absolute bottom-16 right-0 w-64 bg-white rounded-lg shadow-xl shadow-gray-200/50 border border-gray-200 p-4 animate-in slide-in-from-bottom-2 fade-in duration-200">
-                            <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
-                                <span className="font-semibold text-gray-800 text-sm">Themes</span>
-                                <button onClick={() => handleCreateEventGroup()} className="p-1 hover:bg-gray-100 rounded text-gray-500 transition-colors">
-                                    <Plus size={14} />
+                        <div className="absolute bottom-16 right-0 w-72 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl shadow-indigo-200/40 border border-gray-100 p-4 animate-in slide-in-from-bottom-2 fade-in duration-300">
+                            <div className="flex items-center justify-between mb-4 px-1">
+                                <span className="font-extrabold text-gray-900 text-sm tracking-tight">Schedule Themes</span>
+                                <button 
+                                    onClick={() => handleCreateEventGroup()} 
+                                    className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all"
+                                    title="New Theme"
+                                >
+                                    <Plus size={16} strokeWidth={3} />
                                 </button>
                             </div>
-                            <div className="flex flex-col gap-2 max-h-64 overflow-y-auto no-scrollbar">
+                            <div className="flex flex-col gap-3 max-h-80 overflow-y-auto no-scrollbar pr-1">
                                 {files.filter(f => f.type === 'folder' && f.isGroup).map(group => (
-                                    <div key={group.id} className="group flex flex-col gap-2 p-2 rounded hover:bg-gray-50 transition-colors border-l-2 border-transparent">
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="checkbox"
-                                                checked={!(hiddenThemeIds || []).includes(group.id)}
-                                                onChange={() => handleToggleThemeVisibility(group.id)}
-                                                className="w-3.5 h-3.5 rounded border-gray-300 text-blue-500 focus:ring-blue-500/20 bg-transparent cursor-pointer"
-                                                title="Toggle Visibility"
-                                            />
-                                            <input
-                                                type="text"
-                                                value={group.title}
-                                                onChange={(e) => handleUpdateEventGroup(group.id, { title: e.target.value })}
-                                                className="bg-transparent border-none p-0 text-[13px] font-medium focus:ring-0 outline-none text-gray-700 flex-1"
-                                            />
-                                            <button
-                                                onClick={(e) => handleShare(e, group.id)}
-                                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 rounded text-gray-500 transition-all ml-1"
-                                                title="Share Theme"
-                                            >
-                                                <Share size={14} />
-                                            </button>
-                                        </div>
-                                        <div className="flex flex-col gap-2 px-1">
-                                            <div className="flex items-center gap-1.5 flex-wrap px-5">
-                                                {['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'].map(c => (
-                                                    <button
-                                                        key={c}
-                                                        onClick={() => handleUpdateEventGroup(group.id, { color: c })}
-                                                        className={`w-3.5 h-3.5 rounded-full transition-all border ${ (group as any).color === c ? 'border-blue-500 ring-1 ring-blue-500/20 scale-110' : 'border-gray-200 hover:scale-105' }`}
-                                                        style={{ backgroundColor: c }}
-                                                    />
-                                                ))}
-                                            </div>
-                                            <div className="flex items-center px-5 relative">
-                                                <select
-                                                    value={group.effect || 'none'}
-                                                    onChange={(e) => handleUpdateEventGroup(group.id, { effect: e.target.value })}
-                                                    className="appearance-none w-full bg-white border border-gray-200 hover:border-gray-300 rounded px-2 py-1 text-[11px] font-medium text-gray-600 outline-none cursor-pointer transition-all focus:ring-1 focus:ring-blue-500"
-                                                >
-                                                    <option value="none">Solid Color</option>
-                                                    <option value="stripes">Stripes</option>
-                                                    <option value="waves">Waves</option>
-                                                    <option value="dots">Dots</option>
-                                                    <option value="chess">Chess</option>
-                                                    <option value="dimmed">Dimmed</option>
-                                                </select>
-                                                <div className="absolute right-7 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                                    <ChevronDown size={10} />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                                    <ThemeItem
+                                        key={group.id}
+                                        group={group}
+                                        hiddenThemeIds={hiddenThemeIds}
+                                        onToggleVisibility={handleToggleThemeVisibility}
+                                        onUpdate={handleUpdateEventGroup}
+                                        onShare={handleShare}
+                                        onDelete={(e: any, id: string, title: string) => {
+                                            if (confirm(`Delete theme "${title}"? This won't delete events in it.`)) {
+                                                handleDeleteNote(e, id);
+                                            }
+                                        }}
+                                    />
                                 ))}
                                 {files.filter(f => f.type === 'folder' && f.isGroup).length === 0 && (
-                                    <div className="text-xs text-gray-400 text-center py-2">No themes created yet.</div>
+                                    <div className="text-xs text-gray-400 text-center py-6 leading-relaxed">
+                                        No themes defined.<br/>Create one to group subjects!
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -1924,8 +2088,8 @@ export default function Dashboard() {
             )}
 
             <SettingsModal
-                isOpen={isSettingsOpen}
-                onClose={() => setIsSettingsOpen(false)}
+                isOpen={isSettingsModalOpen}
+                onClose={() => setSettingsModalOpen(false)}
                 enabledExtensions={enabledExtensions}
                 onToggleExtension={handleToggleExtension}
                 userProfile={userProfile || undefined}

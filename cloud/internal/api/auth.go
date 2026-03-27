@@ -1,14 +1,20 @@
 package api
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -18,30 +24,43 @@ import (
 	"github.com/nicoh/tide/internal/store"
 )
 
-type AuthHandler struct {
-	Store *store.SQLiteStore
+type otpEntry struct {
+	Code      string
+	ExpiresAt time.Time
 }
 
-func NewAuthHandler(s *store.SQLiteStore) *AuthHandler {
-	return &AuthHandler{Store: s}
+type AuthHandler struct {
+	Store           *store.SQLiteStore
+	ServerMasterKey []byte
+	otpCache        map[string]otpEntry
+	mu              sync.Mutex
+}
+
+func NewAuthHandler(s *store.SQLiteStore, masterKey []byte) *AuthHandler {
+	return &AuthHandler{
+		Store:           s,
+		ServerMasterKey: masterKey,
+		otpCache:        make(map[string]otpEntry),
+	}
 }
 
 func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 	r.Post("/register", h.Register)
-	r.Post("/login/step1", h.LoginStep1)
-	r.Post("/login/step2", h.VerifyPin)
-	r.Post("/login/step3", h.VerifyCode)
-	r.Get("/verify", h.Verify) // Legacy magic link verify for backward compatibility if needed
+	r.Post("/request-otp", h.RequestOTP)
+	r.Post("/verify-otp", h.VerifyOTP)
+	
+	// Legacy routes mapped or kept dummy if needed, omitting for now or keeping step1/step2
 }
 
 // RegisterRequest payload
 type RegisterRequest struct {
-	Email         string `json:"email"`
-	Username      string `json:"username"`
-	Phone         string `json:"phone"`
-	PublicKey     string `json:"public_key"`
-	EncPrivateKey string `json:"enc_private_key"`
-	Pin           string `json:"pin"` // 5-digit PIN
+	Email          string `json:"email"`
+	Username       string `json:"username"`
+	Phone          string `json:"phone"`
+	PublicKey      string `json:"public_key"`
+	EncryptedVault string `json:"encrypted_vault"`
+	Pepper         string `json:"pepper"` // Base64 or Hex, client generated
+	Pin            string `json:"pin"`
 }
 
 func hashString(s string) string {
@@ -56,7 +75,9 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Email == "" || req.PublicKey == "" || req.EncPrivateKey == "" {
+	if req.Email == "" || req.PublicKey == "" || req.EncryptedVault == "" {
+		log.Printf("REGISTRATION FAILED: Missing required fields. Email: %s, PubKey: %d chars, Vault: %d chars", 
+			req.Email, len(req.PublicKey), len(req.EncryptedVault))
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
@@ -77,36 +98,56 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		phoneHash = &h
 	}
 
-	// Simulate "Encryption" of sensitive data for the encrypted_data blob
-	// In real life, this is done by client or using a KMS.
-	// Here we just JSON encode and pretend it's encrypted bytes.
-	sensitiveData := map[string]string{
-		"email":      req.Email,
-		"username":   req.Username,
-		"phone":      req.Phone,
-		"master_key": req.EncPrivateKey,
+	// Decode client-provided pepper
+	pepper, err := base64.StdEncoding.DecodeString(req.Pepper)
+	if err != nil || len(pepper) == 0 {
+		// Fallback to hex if base64 fails
+		pepper, err = hex.DecodeString(req.Pepper)
+		if err != nil || len(pepper) == 0 {
+			http.Error(w, "Invalid pepper format", http.StatusBadRequest)
+			return
+		}
 	}
-	encDataBytes, _ := json.Marshal(sensitiveData)
+
+	// Encrypt pepper with SERVER_MASTER_KEY using AES-GCM
+	block, err := aes.NewCipher(h.ServerMasterKey)
+	if err != nil {
+		http.Error(w, "Encryption setup failed", http.StatusInternalServerError)
+		return
+	}
+
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		http.Error(w, "GCM setup failed", http.StatusInternalServerError)
+		return
+	}
+
+	nonce := make([]byte, aesGCM.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		http.Error(w, "Nonce generation failed", http.StatusInternalServerError)
+		return
+	}
+
+	encryptedPepper := aesGCM.Seal(nonce, nonce, pepper, nil)
 
 	pinHash := hashString(req.Pin)
 
 	user := &db.User{
-		ID:            uuid.New().String(),
-		EmailHash:     emailHash,
-		UsernameHash:  usernameHash,
-		PhoneHash:     phoneHash,
-		EncryptedData: encDataBytes,
-		PublicKey:     req.PublicKey,
-		PinHash:       &pinHash,
-		CreatedAt:     time.Now(),
+		ID:              uuid.New().String(),
+		EmailHash:       emailHash,
+		UsernameHash:    usernameHash,
+		PhoneHash:       phoneHash,
+		EncryptedVault:  []byte(req.EncryptedVault),
+		EncryptedPepper: encryptedPepper,
+		PublicKey:       req.PublicKey,
+		PinHash:         &pinHash,
+		CreatedAt:       time.Now(),
 	}
 
 	if err := h.Store.CreateUser(r.Context(), user); err != nil {
 		log.Printf("REGISTRATION FAILED (Conflict?): %v", err)
 		errMsg := err.Error()
-		if strings.Contains(errMsg, "users.username_blind_index") {
-			http.Error(w, "Username already taken", http.StatusConflict)
-		} else if strings.Contains(errMsg, "users.email_blind_index") {
+		if strings.Contains(errMsg, "users.email_blind_index") {
 			http.Error(w, "Email already registered", http.StatusConflict)
 		} else {
 			http.Error(w, fmt.Sprintf("User already exists or conflict: %v", err), http.StatusConflict)
@@ -118,13 +159,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"id": user.ID})
 }
 
-type LoginRequest struct {
+type OTPRequest struct {
 	Email string `json:"email"`
 }
 
-// LoginStep1 (Identifier verification)
-func (h *AuthHandler) LoginStep1(w http.ResponseWriter, r *http.Request) {
-	var req LoginRequest
+func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
+	var req OTPRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -132,30 +172,60 @@ func (h *AuthHandler) LoginStep1(w http.ResponseWriter, r *http.Request) {
 
 	emailHash := hashString(req.Email)
 	user, err := h.Store.GetUserByEmailHash(r.Context(), emailHash)
+	
+	// Prepare response
+	resp := map[string]interface{}{
+		"user_exists": false,
+	}
+
 	if err != nil {
 		if err == store.ErrNotFound {
-			http.Error(w, "User not found", http.StatusNotFound)
+			// Not an error, just user_exists = false
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
 			return
 		}
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
+	resp["user_exists"] = true
+
+	// Basic rate limiting / existing code check
+	h.mu.Lock()
+	if entry, exists := h.otpCache[user.ID]; exists && time.Now().Before(entry.ExpiresAt) {
+		h.mu.Unlock()
+		// Re-send or just tell them to wait - let's just generate a new one and overwrite for MVP simplicity
+		// Or return early. For simplicity we overwrite.
+	} else {
+		h.mu.Unlock()
+	}
+
+	otpCode := uuid.New().String()[:6] // 6-digit alphanumeric
+	h.mu.Lock()
+	h.otpCache[user.ID] = otpEntry{
+		Code:      otpCode,
+		ExpiresAt: time.Now().Add(5 * time.Minute),
+	}
+	h.mu.Unlock()
+
+	log.Printf("--------------------------------------------------")
+	log.Printf("OTP for %s: %s", req.Email, otpCode)
+	log.Printf("--------------------------------------------------")
+
+	resp["message"] = "OTP sent successfully"
+	resp["otp"] = otpCode // Temp for testing
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "User found, proceed to PIN entry",
-		"id":      user.ID,
-	})
+	json.NewEncoder(w).Encode(resp)
 }
 
-// LoginStep2: Verify 5-digit PIN -> Send Alphanumeric Code
-type VerifyPinRequest struct {
+type VerifyOTPRequest struct {
 	Email string `json:"email"`
-	Pin   string `json:"pin"`
+	OTP   string `json:"otp"`
 }
 
-func (h *AuthHandler) VerifyPin(w http.ResponseWriter, r *http.Request) {
-	var req VerifyPinRequest
+func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
+	var req VerifyOTPRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -164,80 +234,50 @@ func (h *AuthHandler) VerifyPin(w http.ResponseWriter, r *http.Request) {
 	emailHash := hashString(req.Email)
 	user, err := h.Store.GetUserByEmailHash(r.Context(), emailHash)
 	if err != nil {
+		log.Printf("VerifyOTP: Invalid credentials - user not found. Error: %v", err)
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}
 
-	if user.PinHash == nil {
-		// Legacy user has no PIN - set it now!
-		newPinHash := hashString(req.Pin)
-		if err := h.Store.UpdateUserPin(r.Context(), user.ID, newPinHash); err != nil {
-			http.Error(w, "Failed to set PIN for legacy user", http.StatusInternalServerError)
-			return
-		}
-		user.PinHash = &newPinHash
-	} else if hashString(req.Pin) != *user.PinHash {
-		http.Error(w, "Invalid PIN", http.StatusUnauthorized)
+	h.mu.Lock()
+	entry, exists := h.otpCache[user.ID]
+	if !exists || time.Now().After(entry.ExpiresAt) || !strings.EqualFold(req.OTP, entry.Code) {
+		h.mu.Unlock()
+		log.Printf("VerifyOTP: Invalid or expired OTP. exists: %v, expired: %v, code_match: %v (req: %s, cache: %s)", exists, time.Now().After(entry.ExpiresAt), strings.EqualFold(req.OTP, entry.Code), req.OTP, entry.Code)
+		http.Error(w, "Invalid or expired OTP", http.StatusUnauthorized)
 		return
 	}
+	delete(h.otpCache, user.ID)
+	h.mu.Unlock()
 
-	// Generate 6-char alphanumeric code (Simulated)
-	code := uuid.New().String()[:6]
-	if err := h.Store.SetLoginCode(r.Context(), user.ID, code); err != nil {
-		http.Error(w, "Failed to generate login code", http.StatusInternalServerError)
-		return
-	}
-
-	// Simulation: Notification via Website (returned in response for now)
-	log.Printf("NOTIFICATION for %s: Your Login-Code is %s", req.Email, code)
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message":    "PIN verified. Login-Code sent via notification.",
-		"login_code": code, // Returning for simulation as requested
-	})
-}
-
-// LoginStep3: Verify Alphanumeric Code -> Return JWT
-type VerifyCodeRequest struct {
-	Email string `json:"email"`
-	Code  string `json:"code"`
-}
-
-func (h *AuthHandler) VerifyCode(w http.ResponseWriter, r *http.Request) {
-	var req VerifyCodeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	emailHash := hashString(req.Email)
-	user, err := h.Store.GetUserByEmailHash(r.Context(), emailHash)
+	// Decrypt Pepper
+	block, err := aes.NewCipher(h.ServerMasterKey)
 	if err != nil {
-		http.Error(w, "Invalid session", http.StatusUnauthorized)
+		http.Error(w, "Decryption setup failed", http.StatusInternalServerError)
+		return
+	}
+	aesGCM, err := cipher.NewGCM(block)
+	if err != nil {
+		http.Error(w, "GCM setup failed", http.StatusInternalServerError)
 		return
 	}
 
-	if user.LoginCode == nil || !strings.EqualFold(req.Code, *user.LoginCode) {
-		http.Error(w, "Invalid code", http.StatusUnauthorized)
+	nonceSize := aesGCM.NonceSize()
+	if len(user.EncryptedPepper) < nonceSize {
+		http.Error(w, "Corrupted pepper data", http.StatusInternalServerError)
 		return
 	}
 
-	// Invalidate code after use
-	_ = h.Store.SetLoginCode(r.Context(), user.ID, "")
-
-	// Generate session response (Reuse Verify logic basically)
-	h.generateSession(w, user)
-}
-
-func (h *AuthHandler) generateSession(w http.ResponseWriter, user *db.User) {
-	// Decrypt sensitive data to get master key (Simulation)
-	var sensitiveData map[string]string
-	if err := json.Unmarshal(user.EncryptedData, &sensitiveData); err != nil {
-		http.Error(w, "Data corruption", http.StatusInternalServerError)
+	nonce, ciphertext := user.EncryptedPepper[:nonceSize], user.EncryptedPepper[nonceSize:]
+	pepper, err := aesGCM.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		log.Printf("VerifyOTP: Failed to decrypt pepper. Error: %v", err)
+		http.Error(w, "Failed to decrypt pepper", http.StatusUnauthorized)
 		return
 	}
+	log.Printf("VerifyOTP: Pepper successfully decrypted. Length: %d", len(pepper))
 
+	// Generate JWT
 	jwtKeyStr := os.Getenv("JWT_SECRET")
 	if jwtKeyStr == "" {
 		jwtKeyStr = "super-secret-jwt-key" // Fallback for dev
@@ -245,7 +285,7 @@ func (h *AuthHandler) generateSession(w http.ResponseWriter, user *db.User) {
 	jwtKey := []byte(jwtKeyStr)
 	claims := jwt.MapClaims{
 		"sub": user.ID,
-		"exp": time.Now().Add(24 * time.Hour).Unix(),
+		"exp": time.Now().Add(7 * 24 * time.Hour).Unix(),
 	}
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := t.SignedString(jwtKey)
@@ -254,12 +294,22 @@ func (h *AuthHandler) generateSession(w http.ResponseWriter, user *db.User) {
 		return
 	}
 
-	resp := map[string]string{
-		"session_token":   tokenString,
-		"enc_private_key": sensitiveData["master_key"],
+	// Set httpOnly cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "tide_session",
+		Value:    tokenString,
+		Expires:  time.Now().Add(7 * 24 * time.Hour),
+		HttpOnly: true,
+		Secure:   false, // Set true in production over HTTPS
+		SameSite: http.SameSiteLaxMode,
+		Path:     "/",
+	})
+
+	resp := map[string]interface{}{
+		"token":           tokenString,
+		"pepper":          base64.StdEncoding.EncodeToString(pepper),
+		"encrypted_vault": string(user.EncryptedVault), // Sent back as string
 		"user_id":         user.ID,
-		"email":           sensitiveData["email"],
-		"username":        sensitiveData["username"],
 		"public_key":      user.PublicKey,
 	}
 
@@ -267,68 +317,28 @@ func (h *AuthHandler) generateSession(w http.ResponseWriter, user *db.User) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	// Deprecated, use Step 1
-	h.LoginStep1(w, r)
-}
-
-func (h *AuthHandler) Verify(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		http.Error(w, "Missing token", http.StatusBadRequest)
+func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	userID, err := h.Store.GetToken(r.Context(), token)
-	if err != nil {
-		http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
-		return
-	}
-
-	// Invalidate token (one-time use)
-	h.Store.DeleteToken(r.Context(), token)
-
-	// Get User Details to extract EncPrivateKey from EncryptedData
 	user, err := h.Store.GetUser(r.Context(), userID)
 	if err != nil {
-		http.Error(w, "User not found", http.StatusInternalServerError)
+		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
 
-	// Decrypt sensitive data to get master key (Simulation)
-	var sensitiveData map[string]string
-	if err := json.Unmarshal(user.EncryptedData, &sensitiveData); err != nil {
-		http.Error(w, "Data corruption", http.StatusInternalServerError)
-		return
-	}
-
-	// Generate JWT
-	// Key should come from env var
-	jwtKeyStr := os.Getenv("JWT_SECRET")
-	if jwtKeyStr == "" {
-		jwtKeyStr = "super-secret-jwt-key" // Fallback for dev
-	}
-	jwtKey := []byte(jwtKeyStr)
-	claims := jwt.MapClaims{
-		"sub": userID,
-		"exp": time.Now().Add(24 * time.Hour).Unix(),
-	}
-	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := t.SignedString(jwtKey)
-	if err != nil {
-		http.Error(w, "Failed to generate JWT", http.StatusInternalServerError)
-		return
-	}
-
-	resp := map[string]string{
-		"session_token":   tokenString,
-		"enc_private_key": sensitiveData["master_key"],
-		"user_id":         user.ID,
-		"email":           sensitiveData["email"],
-		"username":        sensitiveData["username"], // In real app, might just return ID/Pub data
-		"public_key":      user.PublicKey,
+	resp := map[string]interface{}{
+		"id":         user.ID,
+		"public_key": user.PublicKey,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
+
+// Legacy auth code has been removed.
+
+

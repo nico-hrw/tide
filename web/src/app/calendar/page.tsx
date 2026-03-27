@@ -21,6 +21,7 @@ interface CalendarEvent {
     is_task?: boolean;
     is_completed?: boolean;
     is_cancelled?: boolean;
+    shading?: number;
     parent_id?: string | null;
 }
 
@@ -383,7 +384,7 @@ export default function CalendarPage() {
                     onEventRename={handleEventRename}
                     onEventDelete={handleEventDelete}
                     onEventSave={handleSaveEvent}
-                    onEventClick={(id) => setEditingEventId(id)}
+                    onEventClick={(evt: any) => setEditingEventId(evt?.id || null)}
                     editingEventId={editingEventId}
                     date={currentViewDate}
                     onDateChange={setCurrentViewDate}

@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/nicoh/tide/internal/db"
@@ -51,9 +53,10 @@ func (s *SQLiteStore) migrate() error {
 	CREATE TABLE IF NOT EXISTS users (
 		id TEXT PRIMARY KEY,
 		email_blind_index TEXT UNIQUE,
-		username_blind_index TEXT UNIQUE,
+		username_blind_index TEXT,
 		phone_blind_index TEXT UNIQUE,
-		encrypted_data BLOB NOT NULL,
+		encrypted_vault BLOB NOT NULL,
+		encrypted_pepper BLOB NOT NULL,
 		public_key TEXT NOT NULL,
 		enabled_extensions TEXT DEFAULT '[]',
 		pin_hash TEXT,
@@ -152,27 +155,38 @@ func (s *SQLiteStore) migrate() error {
 		FOREIGN KEY(transaction_id) REFERENCES ext_finance_transactions(id),
 		FOREIGN KEY(account_id) REFERENCES ext_finance_accounts(id)
 	);
+
+	CREATE TABLE IF NOT EXISTS tasks (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL,
+		encrypted_vault BLOB NOT NULL,
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL,
+		FOREIGN KEY(user_id) REFERENCES users(id)
+	);
 	`
 	if _, err := s.DB.Exec(tables); err != nil {
 		return err
 	}
 
-	// 2. Migrations (Add columns safely)
+	// 2. Robust Migrations (Handle legacy encrypted_data column by recreation)
+	if err := s.handleUserSchemaMigration(); err != nil {
+		return fmt.Errorf("failed to migrate users table: %w", err)
+	}
+
+	// 3. Additional safely added columns for other tables
 	// Ignore errors if column already exists
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN visibility TEXT DEFAULT 'private'")
 	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN secured_meta BLOB")
 	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN status TEXT DEFAULT 'pending'")
 	_, _ = s.DB.Exec("ALTER TABLE messages ADD COLUMN status TEXT DEFAULT 'pending'")
-	_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN enabled_extensions TEXT DEFAULT '[]'")
-	_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN pin_hash TEXT")
-	_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN login_code TEXT")
 	_, _ = s.DB.Exec("ALTER TABLE ext_finance_accounts ADD COLUMN linked_account_id TEXT")
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN is_task INTEGER DEFAULT 0")
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN is_completed INTEGER DEFAULT 0")
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN exdates TEXT DEFAULT '[]'")
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN completed_dates TEXT DEFAULT '[]'")
 
-	// 3. Create Indices (Now that columns exist)
+	// 4. Create Indices (Now that columns exist)
 	indices := `
 	CREATE INDEX IF NOT EXISTS idx_files_parent ON files(parent_id);
 	CREATE INDEX IF NOT EXISTS idx_files_owner ON files(owner_id);
@@ -188,19 +202,128 @@ func (s *SQLiteStore) migrate() error {
 	return nil
 }
 
+func (s *SQLiteStore) handleUserSchemaMigration() error {
+	// Check if legacy column exists
+	rows, err := s.DB.Query("PRAGMA table_info(users)")
+	if err != nil {
+		// Table might not exist yet if this is first run, handled by tables creation above
+		return nil
+	}
+	defer rows.Close()
+
+	hasLegacy := false
+	hasEncryptedData := false
+	hasLegacyVault := false
+
+	for rows.Next() {
+		var cid int
+		var name, dtype string
+		var notnull, pk int
+		var dfltValue interface{}
+		if err := rows.Scan(&cid, &name, &dtype, &notnull, &dfltValue, &pk); err != nil {
+			return err
+		}
+		if name == "encrypted_data" {
+			hasEncryptedData = true
+			hasLegacy = true
+		}
+		if name == "encrypted_vault" {
+			hasLegacyVault = true
+		}
+	}
+
+	// Check if the table still has the old UNIQUE constraint on username
+	var tableSQL string
+	err = s.DB.QueryRow("SELECT sql FROM sqlite_schema WHERE type='table' AND name='users'").Scan(&tableSQL)
+	if err == nil && strings.Contains(tableSQL, "username_blind_index TEXT UNIQUE") {
+		log.Println("CRITICAL MIGRATION: Legacy UNIQUE constraint detected on username_blind_index.")
+		hasLegacy = true
+	}
+
+	if !hasLegacy {
+		// Still try to add new columns if they don't exist (ALTER TABLE is safer for small updates)
+		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN encrypted_vault BLOB")
+		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN encrypted_pepper BLOB")
+		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN enabled_extensions TEXT DEFAULT '[]'")
+		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN pin_hash TEXT")
+		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN login_code TEXT")
+		return nil
+	}
+
+	log.Println("CRITICAL MIGRATION: Legacy 'encrypted_data' column detected in 'users' table. Recreating table to ensure schema consistency.")
+
+	// Standard SQLite table recreation pattern
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. Rename existing table
+	if _, err := tx.Exec("ALTER TABLE users RENAME TO users_old"); err != nil {
+		return err
+	}
+
+	// 2. Create new table (same as in tables definition)
+	newTable := `
+	CREATE TABLE users (
+		id TEXT PRIMARY KEY,
+		email_blind_index TEXT UNIQUE,
+		username_blind_index TEXT,
+		phone_blind_index TEXT UNIQUE,
+		encrypted_vault BLOB NOT NULL,
+		encrypted_pepper BLOB NOT NULL,
+		public_key TEXT NOT NULL,
+		enabled_extensions TEXT DEFAULT '[]',
+		pin_hash TEXT,
+		login_code TEXT,
+		created_at DATETIME NOT NULL
+	);`
+	if _, err := tx.Exec(newTable); err != nil {
+		return err
+	}
+
+	// 3. Move data (Mapping old fields, initializing new ones with empty values since they are broken anyway)
+	var copyData string
+	if hasLegacyVault && !hasEncryptedData {
+		log.Println("CRITICAL MIGRATION: Preserving existing encrypted_vault and encrypted_pepper data.")
+		copyData = `
+		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, created_at)
+		SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]'), pin_hash, login_code, created_at
+		FROM users_old;`
+	} else {
+		log.Println("CRITICAL MIGRATION: Initializing empty vaults for legacy encrypted_data users.")
+		copyData = `
+		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, created_at)
+		SELECT id, email_blind_index, username_blind_index, phone_blind_index, '', '', public_key, COALESCE(enabled_extensions, '[]'), pin_hash, login_code, created_at
+		FROM users_old;`
+	}
+	if _, err := tx.Exec(copyData); err != nil {
+		return err
+	}
+
+	// 4. Drop old table
+	if _, err := tx.Exec("DROP TABLE users_old"); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 // --- User Operations ---
 
 func (s *SQLiteStore) CreateUser(ctx context.Context, user *db.User) error {
 	query := `
-		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_data, public_key, enabled_extensions, pin_hash, login_code, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, '[]'), ?, ?, ?)
+		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, '[]'), ?, ?, ?)
 	`
 	_, err := s.DB.ExecContext(ctx, query,
 		user.ID,
 		user.EmailHash,
 		user.UsernameHash,
 		user.PhoneHash,
-		user.EncryptedData,
+		user.EncryptedVault,
+		user.EncryptedPepper,
 		user.PublicKey,
 		user.EnabledExtensions,
 		user.PinHash,
@@ -216,7 +339,7 @@ func (s *SQLiteStore) CreateUser(ctx context.Context, user *db.User) error {
 }
 
 func (s *SQLiteStore) GetUser(ctx context.Context, id string) (*db.User, error) {
-	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_data, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, created_at FROM users WHERE id = ?`
+	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, created_at FROM users WHERE id = ?`
 	row := s.DB.QueryRowContext(ctx, query, id)
 
 	var user db.User
@@ -226,7 +349,8 @@ func (s *SQLiteStore) GetUser(ctx context.Context, id string) (*db.User, error) 
 		&user.EmailHash,
 		&user.UsernameHash,
 		&user.PhoneHash,
-		&user.EncryptedData,
+		&user.EncryptedVault,
+		&user.EncryptedPepper,
 		&user.PublicKey,
 		&ext,
 		&user.PinHash,
@@ -269,7 +393,7 @@ func (s *SQLiteStore) GetUserExtensions(ctx context.Context, id string) ([]strin
 
 func (s *SQLiteStore) GetUserByEmailHash(ctx context.Context, emailHash string) (*db.User, error) {
 	// We query by the Blind Index
-	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_data, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, created_at FROM users WHERE email_blind_index = ?`
+	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, created_at FROM users WHERE email_blind_index = ?`
 	row := s.DB.QueryRowContext(ctx, query, emailHash)
 
 	var user db.User
@@ -279,7 +403,8 @@ func (s *SQLiteStore) GetUserByEmailHash(ctx context.Context, emailHash string) 
 		&user.EmailHash,
 		&user.UsernameHash,
 		&user.PhoneHash,
-		&user.EncryptedData,
+		&user.EncryptedVault,
+		&user.EncryptedPepper,
 		&user.PublicKey,
 		&ext,
 		&user.PinHash,
@@ -860,7 +985,7 @@ func (s *SQLiteStore) GetBacklinks(ctx context.Context, targetID string) ([]db.L
 
 func (s *SQLiteStore) GetConversations(ctx context.Context, userID string) ([]*db.User, error) {
 	query := `
-		SELECT u.id, u.email_blind_index, u.username_blind_index, u.phone_blind_index, u.encrypted_data, u.public_key, COALESCE(u.enabled_extensions, '[]') as enabled_extensions, u.created_at
+		SELECT u.id, u.email_blind_index, u.username_blind_index, u.phone_blind_index, u.encrypted_vault, u.encrypted_pepper, u.public_key, COALESCE(u.enabled_extensions, '[]') as enabled_extensions, u.created_at
 		FROM users u
 		JOIN (
 			SELECT 
@@ -887,7 +1012,8 @@ func (s *SQLiteStore) GetConversations(ctx context.Context, userID string) ([]*d
 			&u.EmailHash,
 			&u.UsernameHash,
 			&u.PhoneHash,
-			&u.EncryptedData,
+			&u.EncryptedVault,
+			&u.EncryptedPepper,
 			&u.PublicKey,
 			&ext,
 			&u.CreatedAt,

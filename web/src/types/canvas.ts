@@ -61,6 +61,8 @@ export interface TextWidgetElement extends BaseCanvasElement {
     backgroundColor?: string;
     /** Optional text color override */
     color?: string;
+    /** Standard color modes for readability on images/backgrounds */
+    colorMode?: 'black' | 'white' | 'inverse';
 }
 
 export type CanvasElement = ImageElement | TextWidgetElement;

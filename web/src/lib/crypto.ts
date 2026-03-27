@@ -89,7 +89,7 @@ export async function deriveKeyFromPassword(password: string, salt: ArrayBuffer)
         {
             name: "PBKDF2",
             salt: salt,
-            iterations: 250000,
+            iterations: 100000,
             hash: "SHA-256",
         },
         passwordKey,
@@ -161,6 +161,55 @@ export async function decryptPrivateKey(encryptedKey: EncryptedPrivateKey, passw
 export async function exportPublicKey(publicKey: CryptoKey): Promise<string> {
     const exported = await window.crypto.subtle.exportKey("spki", publicKey);
     return arrayBufferToBase64(exported);
+}
+
+// 5. Generate User Vault (Zero-Knowledge Architecture)
+export async function generateUserVault(pin: string, pepperBase64: string): Promise<{ masterKeys: MasterKeys, encryptedVault: EncryptedPrivateKey }> {
+    // 1. Generate RSA-OAEP-256 Keypair
+    const masterKeys = await generateMasterKeys();
+
+    // 2. Decode pepper to use as salt
+    const salt = base64ToArrayBuffer(pepperBase64);
+
+    // 3. Derive KEK via PBKDF2 (pin is password, pepper is salt)
+    const derivedKey = await deriveKeyFromPassword(pin, salt);
+
+    // 4. Encrypt Private Key with KEK
+    const encryptedVault = await encryptPrivateKey(masterKeys.privateKey, derivedKey, salt);
+
+    return { masterKeys, encryptedVault };
+}
+
+// 6. Unlock User Vault
+export async function unlockVault(pin: string, pepperBase64: string, encryptedVault: EncryptedPrivateKey): Promise<CryptoKey> {
+    const salt = base64ToArrayBuffer(pepperBase64);
+    
+    // Re-derive KEK via PBKDF2
+    const derivedKey = await deriveKeyFromPassword(pin, salt);
+
+    // Decrypt the vault
+    const iv = base64ToArrayBuffer(encryptedVault.iv);
+    const ciphertext = base64ToArrayBuffer(encryptedVault.ciphertext);
+
+    const privateKeyData = await window.crypto.subtle.decrypt(
+        {
+            name: "AES-GCM",
+            iv: iv,
+        },
+        derivedKey,
+        ciphertext
+    );
+
+    return window.crypto.subtle.importKey(
+        "pkcs8",
+        privateKeyData,
+        {
+            name: "RSA-OAEP",
+            hash: "SHA-256",
+        },
+        true,
+        ["decrypt"]
+    );
 }
 
 

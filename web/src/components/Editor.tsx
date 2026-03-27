@@ -35,6 +35,7 @@ import { TableHeader } from '@tiptap/extension-table-header';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { SlashCommand, slashCommandSuggestion } from './extensions/SlashCommand';
 import { DateMentionExtension } from './extensions/DateMentionExtension';
+import { TaskMentionExtension } from './extensions/TaskMentionExtension';
 import { useMemo } from 'react';
 
 // Module-level store for a pending magic link insertion.
@@ -55,18 +56,47 @@ const MentionNodeView = ({ node }: any) => {
     const id = node.attrs.id || '';
     const label = node.attrs.label || 'Unknown';
     const isGhost = node.attrs.isGhost === true || node.attrs.isGhost === 'true' || String(id).startsWith('ghost-');
-    
-    // Dynamically look up live title
-    const liveFile = useDataStore((s) => s.notes.find(f => f.id === id) || s.events.find(e => e.id === id));
-    const title = liveFile?.title || label;
 
-    const baseClass = 'px-1.5 py-0.5 rounded-md font-medium cursor-pointer mention transition-colors';
-    const colorClass = isGhost ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 'bg-purple-100 text-purple-700 hover:bg-purple-200';
+    // Dynamically look up live title
+    const liveFile = useDataStore((s) => s.notes.find(f => f.id === id) || s.events.find(e => e.id === id)) as any;
+    const title = liveFile?.title || label;
+    const type = node.attrs.type || 'note';
+    const start = node.attrs.start;
+    const isCompleted = liveFile?.is_completed || false;
+
+    // Moderate rounding (not full-pill), inherit font size, tight horizontal padding
+    const baseClass = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium cursor-pointer transition-colors leading-snug align-middle border';
+
+    let colorClass = '';
+    let styleObj: any = {
+        cursor: 'pointer',
+        fontSize: 'inherit',
+        border: 'none',
+        display: 'inline-flex',
+        alignItems: 'center',
+        verticalAlign: 'middle',
+    };
+
+    if (isGhost) {
+        colorClass = 'bg-gray-100 text-gray-500 hover:bg-gray-200 border-gray-200';
+    } else if (type === 'event') {
+        if (liveFile?.color) {
+            styleObj = {
+                ...styleObj,
+                backgroundColor: "rgba(98, 54, 255, 0.14)",
+                color: "#7C3AED"
+            };
+        } else {
+            colorClass = 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-900/40';
+        }
+    } else {
+        colorClass = 'bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/40';
+    }
 
     return (
-        <NodeViewWrapper 
-            as="mark"
-            className={`${baseClass} ${colorClass} inline-block`}
+        <NodeViewWrapper
+            as="span"
+            className={`${baseClass} ${colorClass}`}
             data-type="mention"
             data-id={id}
             data-label={label}
@@ -74,11 +104,25 @@ const MentionNodeView = ({ node }: any) => {
             onClick={(e: React.MouseEvent) => {
                 e.stopPropagation();
                 e.preventDefault();
-                window.dispatchEvent(new CustomEvent('editor:mention-click', { detail: { id, title } }));
+                window.dispatchEvent(new CustomEvent('editor:mention-click', { detail: { id, title, type, start } }));
             }}
-            style={{ cursor: 'pointer' }}
+            style={styleObj}
         >
-            @{title}
+            {type === 'event' && liveFile?.is_task && (
+                <input
+                    type="checkbox"
+                    checked={isCompleted}
+                    onChange={(e) => {
+                        e.stopPropagation();
+                        window.dispatchEvent(new CustomEvent('event-task:toggle', { detail: { id, is_completed: !isCompleted } }));
+                    }}
+                    className="w-3.5 h-3.5 rounded-sm cursor-pointer border-blue-300 dark:border-blue-600 focus:ring-0 m-0"
+                    style={liveFile?.color ? { accentColor: liveFile.color, marginTop: '-1px' } : { marginTop: '-1px' }}
+                />
+            )}
+            <span className={type === 'event' && liveFile?.is_task && isCompleted ? 'line-through opacity-60' : ''}>
+                @{title}
+            </span>
         </NodeViewWrapper>
     );
 };
@@ -141,6 +185,11 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         isSelectingLinkRef.current = highlight.isSelectingLink;
     }, [highlight.isSelectingLink]);
 
+    const onEventClickRef = useRef(onEventClick);
+    useEffect(() => {
+        onEventClickRef.current = onEventClick;
+    }, [onEventClick]);
+
     const onBlocksDeletedRef = useRef(onBlocksDeleted);
     useEffect(() => { onBlocksDeletedRef.current = onBlocksDeleted; }, [onBlocksDeleted]);
 
@@ -189,15 +238,15 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         Mention.extend({
             addAttributes() {
                 return {
-                    id: { 
+                    id: {
                         default: null,
                         parseHTML: element => element.getAttribute('data-id'),
                     },
-                    label: { 
+                    label: {
                         default: null,
                         parseHTML: element => element.getAttribute('data-label') || element.innerText.replace(/^@/, ''),
                     },
-                    isGhost: { 
+                    isGhost: {
                         default: false,
                         parseHTML: element => element.getAttribute('data-is-ghost') === 'true',
                     },
@@ -224,10 +273,10 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                 const isGhost = node.attrs.isGhost === true || node.attrs.isGhost === 'true' || String(id).startsWith('ghost-');
                 const type = node.attrs.type || 'note';
                 const start = node.attrs.start;
-                
+
                 const baseClass = 'px-1.5 py-0.5 rounded-md font-medium cursor-pointer mention transition-colors';
-                const colorClass = isGhost ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' : 
-                                   (type === 'event' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-purple-100 text-purple-700 hover:bg-purple-200');
+                const colorClass = isGhost ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' :
+                    (type === 'event' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-purple-100 text-purple-700 hover:bg-purple-200');
 
                 return [
                     'mark',
@@ -255,13 +304,13 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         InlineCommentNode,
         MathBlock,
         InlineMath,
-        ResizableImage,
 
         BlockId.configure({
             onBlocksDeleted: (ids) => onBlocksDeletedRef.current?.(ids),
         }),
         Anchor,
         DateMentionExtension,
+        TaskMentionExtension,
         Table.configure({
             resizable: true,
         }),
@@ -304,6 +353,7 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                 const target = event.target as HTMLElement;
                 const mentionNode = target.closest('.mention');
                 if (mentionNode) {
+                    event.preventDefault(); // Prevent default URL navigation
                     const targetId = mentionNode.getAttribute('data-id');
                     const type = mentionNode.getAttribute('data-type-link');
                     const start = mentionNode.getAttribute('data-start');
@@ -314,8 +364,8 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                                 onEventClick(targetId);
                             }
                             // Custom event for calendar scrolling
-                            window.dispatchEvent(new CustomEvent('calendar:scroll-to', { 
-                                detail: { id: targetId, start } 
+                            window.dispatchEvent(new CustomEvent('calendar:scroll-to', {
+                                detail: { id: targetId, start }
                             }));
                             return true;
                         }
@@ -334,12 +384,39 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                             const label = realFile.title || mentionNode.textContent?.replace(/^@/, '') || '';
                             onLinkClickRef.current({ id: targetId, type: 'file', title: label });
                         }
-                        
+
                         // Explicitly call the store to ensure tab recovery
                         useDataStore.getState().setActiveNoteId(targetId);
 
                         return true; // Stop propagation, handle click
                     }
+                }
+
+                // Generic Link Intercept (Task 3 complete coverage)
+                const linkNode = target.closest('a');
+                if (linkNode) {
+                    event.preventDefault();
+                    // Let default window.open handle it or let Tiptap handle it but don't navigate SPA
+                    const href = linkNode.getAttribute('href');
+                    if (href) {
+                        window.open(href, '_blank', 'noopener,noreferrer');
+                        return true;
+                    }
+                }
+
+                return false;
+            },
+            handleDrop: (view, event, slice, moved) => {
+                if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+                    return true; // Inform Tiptap we handled it
+                }
+                return false;
+            },
+            handlePaste: (view, event) => {
+                const isFile = event.clipboardData?.files?.length ?? 0 > 0;
+                const isImage = Array.from(event.clipboardData?.items || []).some(item => item.type.startsWith('image/'));
+                if (isFile || isImage) {
+                    return true; // Inform Tiptap we handled it
                 }
                 return false;
             }
@@ -364,7 +441,15 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         window.addEventListener('canvas:resize-tiptap-image', handleResizeImage as EventListener);
 
         const handleMentionClick = (e: CustomEvent) => {
-            const { id, title } = e.detail;
+            const { id, title, type, start } = e.detail;
+
+            if (type === 'event') {
+                if (onEventClickRef.current) onEventClickRef.current(id);
+                if (onLinkClickRef.current) onLinkClickRef.current({ id, type: 'event', title });
+                window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id, start } }));
+                return;
+            }
+
             if (onLinkClickRef.current) {
                 onLinkClickRef.current({ id, type: 'file', title });
             }
@@ -401,10 +486,10 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                 console.log('[Mention] Cross-tab pendingLink flushed on mount at pos:', insertPos);
             }, 50);
         }
-        return () => { 
+        return () => {
             window.removeEventListener('canvas:resize-tiptap-image', handleResizeImage as EventListener);
             window.removeEventListener('editor:mention-click', handleMentionClick as EventListener);
-            if (timer) clearTimeout(timer); 
+            if (timer) clearTimeout(timer);
         };
     }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -650,8 +735,7 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                                             .deleteSelection()
                                             .insertContent({
                                                 type: 'anchor',
-                                                attrs: { anchorId },
-                                                content: [{ type: 'text', text: '⚓' }]
+                                                attrs: { anchorId }
                                             })
                                             .run();
                                         onPopOut(selectedText, anchorId);

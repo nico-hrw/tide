@@ -238,16 +238,94 @@ function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
 
 // ─── Text widget ──────────────────────────────────────────────────────────────
 
-function TextWidget({ element }: { element: TextWidgetElement }) {
+// ─── Text widget ──────────────────────────────────────────────────────────────
+
+function TextWidget({ element, onUpdate }: { element: TextWidgetElement; onUpdate: (id: string, updates: Partial<TextWidgetElement>) => void }) {
+    const [isEditing, setIsEditing] = useState(false);
+    const contentRef = useRef<HTMLDivElement>(null);
+
+    const handleBlur = () => {
+        setIsEditing(false);
+        const newContent = contentRef.current?.innerText || '';
+        if (newContent !== element.content) {
+            onUpdate(element.id, { content: newContent });
+        }
+    };
+
+    const colorMode = element.colorMode || 'inverse';
+    
+    const textStyle: React.CSSProperties = {
+        maxWidth: 320,
+        backgroundColor: 'transparent',
+        padding: '8px 12px',
+        fontSize: '14px',
+        lineHeight: '1.6',
+        outline: 'none',
+        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        cursor: isEditing ? 'text' : 'default',
+        borderRadius: '8px',
+        boxSizing: 'border-box',
+    };
+
+    if (colorMode === 'inverse') {
+        textStyle.color = 'white';
+        textStyle.mixBlendMode = 'difference';
+    } else if (colorMode === 'white') {
+        textStyle.color = '#ffffff';
+    } else {
+        textStyle.color = '#000000';
+    }
+
     return (
-        <div style={{
-            maxWidth: 280,
-            backgroundColor: element.backgroundColor ?? 'rgba(99,102,241,0.12)',
-            color: element.color ?? 'inherit',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(99,102,241,0.2)',
-        }} className="p-3 rounded-xl text-sm leading-relaxed">
-            {element.content}
+        <div className="relative group/text">
+            {/* Color Controls Toolbar - shows on hover when not editing */}
+            {!isEditing && (
+                <div className="absolute -bottom-10 left-0 hidden group-hover/text:flex items-center gap-1.5 p-1 rounded-lg bg-gray-900/90 border border-white/10 backdrop-blur-md z-[1001] shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
+                    <button 
+                        onClick={() => onUpdate(element.id, { colorMode: 'black' })}
+                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 ${colorMode === 'black' ? 'ring-2 ring-indigo-500 ring-offset-1 ring-offset-gray-900' : ''}`}
+                        style={{ background: '#000' }}
+                        title="Black"
+                    />
+                    <button 
+                        onClick={() => onUpdate(element.id, { colorMode: 'white' })}
+                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 ${colorMode === 'white' ? 'ring-2 ring-indigo-500 ring-offset-1 ring-offset-gray-900' : ''}`}
+                        style={{ background: '#fff' }}
+                        title="White"
+                    />
+                    <button 
+                        onClick={() => onUpdate(element.id, { colorMode: 'inverse' })}
+                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 flex items-center justify-center overflow-hidden group/inv ${colorMode === 'inverse' ? 'ring-2 ring-indigo-500 ring-offset-1 ring-offset-gray-900' : ''}`}
+                        title="Smart Inverse"
+                    >
+                        <div className="w-full h-full flex flex-col">
+                            <div className="flex-1 bg-white" />
+                            <div className="flex-1 bg-black" />
+                        </div>
+                    </button>
+                </div>
+            )}
+
+            <div
+                ref={contentRef}
+                contentEditable
+                suppressContentEditableWarning
+                onFocus={() => setIsEditing(true)}
+                onBlur={handleBlur}
+                style={textStyle}
+                className={`transition-all duration-200 ${isEditing ? 'ring-1 ring-indigo-500/50 bg-indigo-500/[0.02]' : 'hover:ring-1 hover:ring-white/10'}`}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.currentTarget.blur();
+                    }
+                    // Prevent common editor shortcuts from bubbling if we want it minimal
+                    if (e.ctrlKey && (e.key === 'b' || e.key === 'i')) {
+                        e.preventDefault();
+                    }
+                }}
+            >
+                {element.content}
+            </div>
         </div>
     );
 }
@@ -430,7 +508,7 @@ export default function CanvasElementComponent({
                     </div>
                 )}
                 {isImageElement(element) && <ImageWidget element={element} userId={userId} privateKey={privateKey} imageBlobCache={imageBlobCache} />}
-                {isTextWidget(element) && <TextWidget element={element} />}
+                {isTextWidget(element) && <TextWidget element={element} onUpdate={onUpdate} />}
             </div>
         </>
     );
