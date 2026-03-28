@@ -293,7 +293,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     return (
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
-            className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-gray-300 dark:border-slate-700 relative ${isToday ? 'bg-indigo-50/60 dark:bg-indigo-900/40 shadow-[inset_0_0_20px_rgba(79,70,229,0.05)]' : 'bg-transparent'}`}
+            className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-gray-300 dark:border-slate-700 relative ${isToday ? 'bg-gray-100 dark:bg-white/[0.03]' : 'bg-transparent'}`}
             onDragOver={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -302,9 +302,9 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             <div
                 className={`
                  h-[50px] border-b border-gray-100 dark:border-slate-800/50
-                 sticky top-0 z-[70] 
+                 sticky top-0 z-[80] 
                  flex flex-col items-center justify-center gap-0.5 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors
-                 ${isToday ? 'bg-indigo-50 dark:bg-indigo-900/20 ring-1 ring-inset ring-indigo-500/20' : 'bg-[#F4F7F9] dark:bg-[#1A1A1A]'}
+                 ${isToday ? 'glass-red-glow-effect' : 'bg-[#F4F7F9] dark:bg-[#1A1A1A]'}
              `}
                 onClick={() => {
                     useDataStore.getState().setActiveParentId(null);
@@ -360,11 +360,11 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             >
                 <div className={`
                      text-base font-bold leading-tight
-                     ${isToday ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-900 dark:text-gray-100'}
+                     ${isToday ? 'text-white' : 'text-gray-900 dark:text-gray-100'}
                  `}>
                     {format(day, "d")}
                 </div>
-                <span className={`text-[10px] uppercase tracking-wider font-semibold ${isToday ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-500'}`}>{format(day, "EEEE")}</span>
+                <span className={`text-[10px] uppercase tracking-wider font-semibold ${isToday ? 'text-white/80' : 'text-gray-500'}`}>{format(day, "EEEE")}</span>
             </div>
 
             {/* All-Day Events Area */}

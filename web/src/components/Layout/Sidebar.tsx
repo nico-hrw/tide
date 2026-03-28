@@ -166,6 +166,8 @@ export default function Sidebar({
         setContextMenu({ x: e.clientX, y: e.clientY, id, type });
     };
 
+    const effectiveUserName = userProfile?.username || (typeof window !== 'undefined' ? sessionStorage.getItem('tide_user_name') : null) || (userProfile?.email || "").split('@')[0] || "User";
+
     return (
         <div className="w-64 h-full flex flex-col shrink-0 relative z-[100] transition-all duration-300">
             {/* VLM banner removed — linking mode logic stays active in HighlightContext */}
@@ -197,18 +199,18 @@ export default function Sidebar({
                             onContextMenu={(e) => { e.preventDefault(); setIsProfileMenuOpen(!isProfileMenuOpen); }}
                             className="w-8 h-8 shrink-0 rounded-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 flex items-center justify-center text-gray-700 dark:text-gray-300 font-bold uppercase text-sm shadow-sm cursor-pointer hover:shadow-md transition-all hover:scale-105 active:scale-95 overflow-hidden"
                         >
-                            {userProfile?.username?.[0] || "U"}
+                            {effectiveUserName[0]?.toUpperCase() || "U"}
                         </div>
 
                         {isProfileMenuOpen && (
                             <div className="absolute left-0 top-10 w-64 bg-white dark:bg-[#1C1C1E] border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-top-2 fade-in duration-200 z-[100] origin-top-left">
                                 <div className="p-4 bg-gray-50/50 dark:bg-white/5 flex items-center justify-between gap-3">
                                     <div className="flex-1 min-w-0">
-                                        <div className="text-base font-bold text-gray-900 dark:text-white truncate leading-tight">{userProfile?.username || "User"}</div>
+                                        <div className="text-base font-bold text-gray-900 dark:text-white truncate leading-tight">{effectiveUserName}</div>
                                         <div className="text-xs text-gray-500 truncate mt-0.5">{userProfile?.email || ""}</div>
                                     </div>
                                     <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 flex items-center justify-center text-gray-700 dark:text-gray-300 text-base font-bold shadow-sm">
-                                        {userProfile?.username?.[0] || "U"}
+                                        {effectiveUserName[0]?.toUpperCase() || "U"}
                                     </div>
                                 </div>
                                 <div className="h-px bg-gray-100 dark:bg-white/5" />
@@ -342,7 +344,7 @@ export default function Sidebar({
                     <SmartIsland
                         selectedDate={selectedDate || new Date()}
                         onSelect={(date: Date) => onDateSelect && onDateSelect(date)}
-                        userName={userProfile?.username}
+                        userName={effectiveUserName}
                     />
                 ) : (
                     <div className="px-2 pb-2">

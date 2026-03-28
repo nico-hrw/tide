@@ -70,7 +70,7 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
                     }
 
                     if (isDayToday) {
-                        className += " bg-blue-50 text-blue-600 font-bold ring-1 ring-blue-500/50";
+                        className = "text-xs w-7 h-7 flex items-center justify-center rounded-lg cursor-pointer transition-all glass-red-glow-effect";
                     } else if (isSelected) {
                         className += " bg-gray-900 text-white font-bold shadow-sm";
                     } else {

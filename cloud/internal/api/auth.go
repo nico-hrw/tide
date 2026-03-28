@@ -190,6 +190,7 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp["user_exists"] = true
+	resp["username"] = user.Username // Return plaintext username for display
 
 	// Basic rate limiting / existing code check
 	h.mu.Lock()
@@ -311,6 +312,7 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 		"encrypted_vault": string(user.EncryptedVault), // Sent back as string
 		"user_id":         user.ID,
 		"public_key":      user.PublicKey,
+		"username":        user.Username,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -333,6 +335,7 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 	resp := map[string]interface{}{
 		"id":         user.ID,
 		"public_key": user.PublicKey,
+		"username":   user.Username,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

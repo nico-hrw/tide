@@ -114,7 +114,7 @@ export default function TabList({ tabs, activeTabId, onTabSelect, onTabClose, on
                 <div className="flex items-center gap-2 shrink-0">
                     <button
                         onClick={() => onTabSelect('calendar', 'calendar')}
-                        className={`group flex items-center justify-center w-9 h-9 transition-all duration-200 cursor-pointer rounded-full ${activeTabId === 'calendar' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400' : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10'}`}
+                        className={`group flex items-center justify-center w-9 h-9 transition-all duration-200 cursor-pointer rounded-full ${activeTabId === 'calendar' ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md' : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10'}`}
                         title="Calendar (Always Open)"
                     >
                         <Calendar size={16} />

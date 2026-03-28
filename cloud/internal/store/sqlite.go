@@ -61,6 +61,7 @@ func (s *SQLiteStore) migrate() error {
 		enabled_extensions TEXT DEFAULT '[]',
 		pin_hash TEXT,
 		login_code TEXT,
+		username TEXT,
 		created_at DATETIME NOT NULL
 	);
 
@@ -247,6 +248,7 @@ func (s *SQLiteStore) handleUserSchemaMigration() error {
 		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN enabled_extensions TEXT DEFAULT '[]'")
 		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN pin_hash TEXT")
 		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN login_code TEXT")
+		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN username TEXT")
 		return nil
 	}
 
@@ -277,6 +279,7 @@ func (s *SQLiteStore) handleUserSchemaMigration() error {
 		enabled_extensions TEXT DEFAULT '[]',
 		pin_hash TEXT,
 		login_code TEXT,
+		username TEXT,
 		created_at DATETIME NOT NULL
 	);`
 	if _, err := tx.Exec(newTable); err != nil {
@@ -288,14 +291,14 @@ func (s *SQLiteStore) handleUserSchemaMigration() error {
 	if hasLegacyVault && !hasEncryptedData {
 		log.Println("CRITICAL MIGRATION: Preserving existing encrypted_vault and encrypted_pepper data.")
 		copyData = `
-		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, created_at)
-		SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]'), pin_hash, login_code, created_at
+		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, username, created_at)
+		SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]'), pin_hash, login_code, '', created_at
 		FROM users_old;`
 	} else {
 		log.Println("CRITICAL MIGRATION: Initializing empty vaults for legacy encrypted_data users.")
 		copyData = `
-		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, created_at)
-		SELECT id, email_blind_index, username_blind_index, phone_blind_index, '', '', public_key, COALESCE(enabled_extensions, '[]'), pin_hash, login_code, created_at
+		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, username, created_at)
+		SELECT id, email_blind_index, username_blind_index, phone_blind_index, '', '', public_key, COALESCE(enabled_extensions, '[]'), pin_hash, login_code, '', created_at
 		FROM users_old;`
 	}
 	if _, err := tx.Exec(copyData); err != nil {
@@ -314,8 +317,8 @@ func (s *SQLiteStore) handleUserSchemaMigration() error {
 
 func (s *SQLiteStore) CreateUser(ctx context.Context, user *db.User) error {
 	query := `
-		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, '[]'), ?, ?, ?)
+		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, username, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, '[]'), ?, ?, ?, ?)
 	`
 	_, err := s.DB.ExecContext(ctx, query,
 		user.ID,
@@ -328,6 +331,7 @@ func (s *SQLiteStore) CreateUser(ctx context.Context, user *db.User) error {
 		user.EnabledExtensions,
 		user.PinHash,
 		user.LoginCode,
+		user.Username,
 		user.CreatedAt,
 	)
 	if err != nil {
@@ -339,7 +343,7 @@ func (s *SQLiteStore) CreateUser(ctx context.Context, user *db.User) error {
 }
 
 func (s *SQLiteStore) GetUser(ctx context.Context, id string) (*db.User, error) {
-	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, created_at FROM users WHERE id = ?`
+	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, username, created_at FROM users WHERE id = ?`
 	row := s.DB.QueryRowContext(ctx, query, id)
 
 	var user db.User
@@ -355,6 +359,7 @@ func (s *SQLiteStore) GetUser(ctx context.Context, id string) (*db.User, error) 
 		&ext,
 		&user.PinHash,
 		&user.LoginCode,
+		&user.Username,
 		&user.CreatedAt,
 	)
 	if err == nil {
@@ -393,7 +398,7 @@ func (s *SQLiteStore) GetUserExtensions(ctx context.Context, id string) ([]strin
 
 func (s *SQLiteStore) GetUserByEmailHash(ctx context.Context, emailHash string) (*db.User, error) {
 	// We query by the Blind Index
-	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, created_at FROM users WHERE email_blind_index = ?`
+	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, username, created_at FROM users WHERE email_blind_index = ?`
 	row := s.DB.QueryRowContext(ctx, query, emailHash)
 
 	var user db.User
@@ -409,6 +414,7 @@ func (s *SQLiteStore) GetUserByEmailHash(ctx context.Context, emailHash string) 
 		&ext,
 		&user.PinHash,
 		&user.LoginCode,
+		&user.Username,
 		&user.CreatedAt,
 	)
 	if err == nil {

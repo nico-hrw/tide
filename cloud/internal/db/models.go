@@ -20,8 +20,8 @@ type User struct {
 	EncryptedPepper []byte `json:"encrypted_pepper" db:"encrypted_pepper"`
 
 	// Legacy/Direct Access (May be mapped from API tokens rather than DB directly)
+	Username string `json:"username,omitempty" db:"username"`
 	Email    string `json:"email,omitempty" db:"-"`
-	Username string `json:"username,omitempty" db:"-"`
 	Phone    string `json:"phone,omitempty" db:"-"`
 
 	PublicKey string `json:"public_key" db:"public_key"` // Public known

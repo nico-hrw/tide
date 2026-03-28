@@ -1503,13 +1503,13 @@ export default function CalendarView({
                             onClick={() => {
                                 onDateChange(new Date());
                             }}
-                            className="px-4 py-2 bg-white dark:bg-black border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-900 transition-all shadow-sm"
+                            className="px-4 py-2 bg-white dark:bg-black border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-semibold text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-900 transition-all shadow-sm"
                         >
                             Today
                         </button>
                         <button
                             onClick={() => setIsScheduleModalOpen(true)}
-                            className="hidden md:flex items-center gap-2 px-4 py-2 bg-white dark:bg-black border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-bold text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-900 transition-all shadow-sm"
+                            className="hidden md:flex items-center gap-2 px-4 py-2 bg-white dark:bg-black border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-semibold text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-900 transition-all shadow-sm"
                             title="Bulk Schedule Events"
                         >
                             <ListPlus size={16} />

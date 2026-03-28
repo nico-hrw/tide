@@ -149,6 +149,12 @@ function AuthContent() {
             
             sessionStorage.setItem("tide_user_email", identifier);
             sessionStorage.setItem("tide_user_id", loginData.user_id);
+            if (loginData.username) {
+                sessionStorage.setItem("tide_user_name", loginData.username);
+                // Also update local record for persistent sessions/fallback
+                const localRec = JSON.parse(localStorage.getItem("tide_user_" + identifier) || "{}");
+                localStorage.setItem("tide_user_" + identifier, JSON.stringify({ ...localRec, username: loginData.username }));
+            }
             sessionStorage.setItem("tide_user_public_key", loginData.public_key);
             if (loginData.token) {
                 sessionStorage.setItem("tide_session_token", loginData.token);

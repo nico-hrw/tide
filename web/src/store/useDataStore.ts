@@ -75,13 +75,13 @@ export const useDataStore = create<DataState>((set, get) => ({
     metadataCache: {},
     isSettingsModalOpen: false,
     setSettingsModalOpen: (open: boolean) => set({ isSettingsModalOpen: open }),
-    enabledExtensions: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('tide_enabled_extensions') || '[]') : [],
+    enabledExtensions: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('tide_enabled_extensions') || '["smart_island", "summary"]') : ['smart_island', 'summary'],
     setEnabledExtensions: (extensions) => set(s => {
         const next = typeof extensions === 'function' ? extensions(s.enabledExtensions) : extensions;
         localStorage.setItem('tide_enabled_extensions', JSON.stringify(next));
         return { enabledExtensions: next };
     }),
-    noteLayout: (typeof window !== 'undefined' ? (localStorage.getItem('tide_note_layout') as any) : null) || 'normal',
+    noteLayout: (typeof window !== 'undefined' ? (localStorage.getItem('tide_note_layout') as any) : null) || 'wide',
     setNoteLayout: (layout) => set(s => {
         const next = typeof layout === 'function' ? layout(s.noteLayout) : layout;
         localStorage.setItem('tide_note_layout', next);

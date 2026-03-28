@@ -112,7 +112,7 @@ const ThemeItem = ({ group, hiddenThemeIds, onToggleVisibility, onUpdate, onShar
                     onChange={(e) => setLocalTitle(e.target.value)}
                     onBlur={handleBlur}
                     onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
-                    className="bg-transparent border-none p-0 text-[13px] font-bold focus:ring-0 outline-none text-gray-800 flex-1 placeholder:text-gray-400"
+                    className="bg-transparent border-none p-0 text-[13px] font-semibold focus:ring-0 outline-none text-gray-800 flex-1 placeholder:text-gray-400"
                     placeholder="Theme name..."
                 />
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
@@ -125,7 +125,7 @@ const ThemeItem = ({ group, hiddenThemeIds, onToggleVisibility, onUpdate, onShar
                     </button>
                     <button
                         onClick={(e) => onDelete(e, group.id, group.title)}
-                        className="p-1.5 hover:bg-rose-50 rounded-lg text-gray-400 hover:text-rose-500 transition-all font-bold"
+                        className="p-1.5 hover:bg-rose-50 rounded-lg text-gray-400 hover:text-rose-500 transition-all font-semibold"
                         title="Delete Theme"
                     >
                         ✗
@@ -654,6 +654,9 @@ export default function Dashboard() {
         const nextEvent = upcomingEvents[0] ?? null;
 
         const userName = (() => {
+            const sName = sessionStorage.getItem('tide_user_name');
+            if (sName) return sName;
+            
             const email = sessionStorage.getItem('tide_user_email') || localStorage.getItem('tide_user_email');
             if (!email) return undefined;
             const rec = localStorage.getItem('tide_user_' + email);
@@ -670,9 +673,11 @@ export default function Dashboard() {
         sessionStorage.setItem('tide_returned_today', '1');
 
         setTimeout(() => {
-            islandPush({ type: 'welcome', payload: { userName, eventCount: todayEvents.length, variant: realVariant } });
-            setTimeout(() => islandPush({ type: 'timeline', payload: { events: todayEvents.map(e => ({ title: e.title, start: e.start })), duration: 5000 } }), 100);
-            if (nextEvent) setTimeout(() => islandPush({ type: 'next_event', payload: { event: { title: nextEvent.title, start: nextEvent.start } } }), 200);
+            if (enabledExtensions.includes('smart_island') && enabledExtensions.includes('summary')) {
+                islandPush({ type: 'welcome', payload: { userName, eventCount: todayEvents.length, variant: realVariant } });
+                setTimeout(() => islandPush({ type: 'timeline', payload: { events: todayEvents.map(e => ({ title: e.title, start: e.start })), duration: 5000 } }), 100);
+                if (nextEvent) setTimeout(() => islandPush({ type: 'next_event', payload: { event: { title: nextEvent.title, start: nextEvent.start } } }), 200);
+            }
         }, 1500);
     }, [events, enabledExtensions, islandPush]);
 
@@ -2027,7 +2032,7 @@ export default function Dashboard() {
                     {isThemeMenuOpen && (
                         <div className="absolute bottom-16 right-0 w-72 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl shadow-indigo-200/40 border border-gray-100 p-4 animate-in slide-in-from-bottom-2 fade-in duration-300">
                             <div className="flex items-center justify-between mb-4 px-1">
-                                <span className="font-extrabold text-gray-900 text-sm tracking-tight">Schedule Themes</span>
+                                <span className="font-semibold text-gray-900 text-sm tracking-tight">Schedule Themes</span>
                                 <button 
                                     onClick={() => handleCreateEventGroup()} 
                                     className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all"
