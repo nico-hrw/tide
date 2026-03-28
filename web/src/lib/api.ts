@@ -2,19 +2,24 @@
 
 const getApiBase = () => {
     if (typeof window !== 'undefined') {
-        // Nimmt den aktuellen Hostnamen (raspi.local oder localhost) und setzt Port 8080
-        return `${window.location.protocol}//${window.location.hostname}:8080`;
+        const hostname = window.location.hostname;
+        const protocol = window.location.protocol;
+
+        return `${protocol}//${hostname}:8080`;
     }
+
     return ''; 
 };
 
 export async function apiFetch(url: string, options: RequestInit = {}) {
-    const baseUrl = getApiBase();
-    const fullUrl = url.startsWith('http') ? url  : `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+    const cleanEndpoint = url.startsWith('/') ? url : `/${url}`;
+    const fullUrl = url.startsWith('http') ? url : `${url}${cleanEndpoint}`;
+
+    console.log("[apiFetch] Requesting:", fullUrl);
     
     
     try {
-        const res = await fetch(url, {
+        const res = await fetch(fullUrl, {
             ...options,
             credentials: 'include' // Use httpOnly cookie
         });
