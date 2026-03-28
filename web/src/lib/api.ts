@@ -1,5 +1,18 @@
 // Basic API wrapper
+
+const getApiBase = () => {
+    if (typeof window !== 'undefined') {
+        // Nimmt den aktuellen Hostnamen (raspi.local oder localhost) und setzt Port 8080
+        return `${window.location.protocol}//${window.location.hostname}:8080`;
+    }
+    return ''; 
+};
+
 export async function apiFetch(url: string, options: RequestInit = {}) {
+    const baseUrl = getApiBase();
+    const fullUrl = url.startsWith('http') ? url  : `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+    
+    
     try {
         const res = await fetch(url, {
             ...options,
