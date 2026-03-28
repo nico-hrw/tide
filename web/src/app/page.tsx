@@ -390,6 +390,13 @@ export default function Dashboard() {
                 const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", activeKey);
                 const metaPayload = { title: title, fileKey: fileKeyJwk, iv: iv };
                 const encryptedMeta = await cryptoLib.encryptMetadata(metaPayload, publicKey, `save-meta-${fileId}`);
+
+                // Update local state immediately so subsequent operations have the correct IV
+                useDataStore.getState().updateSpecificMetadataCache(fileId, metaPayload);
+                useDataStore.getState().setNotes(
+                    useDataStore.getState().notes.map(f => f.id === fileId ? { ...f, secured_meta: encryptedMeta } : f) as any
+                );
+
                 await apiFetch(`/api/v1/files/${fileId}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
@@ -781,7 +788,7 @@ export default function Dashboard() {
                     type: "folder",
                     parent_id: null,
                     public_meta: {},
-                    secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta))),
+                    secured_meta: securedMeta,
                     visibility: 'private'
                 })
             });
@@ -808,20 +815,30 @@ export default function Dashboard() {
             const currentFiles = useDataStore.getState().notes;
             useDataStore.getState().setNotes(currentFiles.map(f => f.id === id ? { ...f, ...updates } as any : f));
 
-            const group = currentFiles.find(f => f.id === id);
-            if (!group || !group.secured_meta) return;
+            // Fetch fresh metadata to prevent race conditions
+            const res = await apiFetch(`/api/v1/files/${id}`);
+            if (!res.ok) throw new Error("Failed to fetch fresh metadata for update group");
+            const freshFile = await res.json();
 
-            const meta = await cryptoLib.decryptMetadata(group.secured_meta, privateKey);
+            if (!freshFile.secured_meta) return;
+
+            const meta = await cryptoLib.decryptMetadata(freshFile.secured_meta, privateKey);
             if (updates.title !== undefined) meta.title = updates.title;
             if (updates.effect !== undefined) meta.effect = updates.effect;
             if (updates.color !== undefined) meta.color = updates.color;
 
             const encryptedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
+            // Update local state with the latest encryptedMeta
+            useDataStore.getState().updateSpecificMetadataCache(id, meta);
+            useDataStore.getState().setNotes(
+                useDataStore.getState().notes.map(f => f.id === id ? { ...f, secured_meta: encryptedMeta } : f) as any
+            );
+
             await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(encryptedMeta))) })
+                body: JSON.stringify({ secured_meta: encryptedMeta })
             });
 
             // Re-fetch root to ensure consistency, but optimistic update already made it smooth
@@ -1156,12 +1173,10 @@ export default function Dashboard() {
                     return;
                 }
 
-                let currentSecuredMeta = target.secured_meta;
-                if (!currentSecuredMeta) {
-                    const res = await apiFetch(`/api/v1/files/${fileId}`);
-                    const freshFile = await res.json();
-                    currentSecuredMeta = freshFile.secured_meta;
-                }
+                const res = await apiFetch(`/api/v1/files/${fileId}`);
+                if (!res.ok) throw new Error("Failed to fetch fresh metadata");
+                const freshFile = await res.json();
+                const currentSecuredMeta = freshFile.secured_meta;
 
                 if (!currentSecuredMeta) throw new Error("Missing metadata");
 
@@ -1169,10 +1184,16 @@ export default function Dashboard() {
                 meta.title = newTitle;
                 const encryptedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
+                // Update local state to match the fresh IV and new title
+                useDataStore.getState().updateSpecificMetadataCache(fileId, meta);
+                useDataStore.getState().setNotes(
+                    useDataStore.getState().notes.map(f => f.id === fileId ? { ...f, secured_meta: encryptedMeta, title: newTitle } : f) as any
+                );
+
                 await apiFetch(`/api/v1/files/${fileId}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(encryptedMeta))) })
+                    body: JSON.stringify({ secured_meta: encryptedMeta })
                 });
             }
 
@@ -1197,11 +1218,23 @@ export default function Dashboard() {
             return;
         }
 
-        const file = files.find(f => f.id === fileId);
-        const prevVisibility = file?.visibility || 'private';
-        if (!file) return;
+        const optimisticFile = files.find(f => f.id === fileId);
+        const prevVisibility = optimisticFile?.visibility || 'private';
+        if (!optimisticFile) return;
 
-        const isFolder = file.type === 'folder';
+        const isFolder = optimisticFile.type === 'folder';
+
+        // Fetch fresh metadata from backend
+        let file: any;
+        try {
+            const res = await apiFetch(`/api/v1/files/${fileId}`);
+            if (!res.ok) throw new Error("Failed to fetch fresh metadata");
+            file = await res.json();
+        } catch (fetchErr) {
+            console.error("Fetch failed", fetchErr);
+            alert("Failed to change visibility");
+            return;
+        }
 
         // Optimistic update
         useDataStore.getState().setNotes(files.map(f => f.id === fileId ? { ...f, visibility: newVisibility } : f) as any);
@@ -1228,7 +1261,7 @@ export default function Dashboard() {
                     }
                 }
             } else {
-                currentMeta = { title: file.title || "Untitled" };
+                currentMeta = { title: file.public_meta?.title || optimisticFile.title || "Untitled" };
                 if (!isFolder) {
                     const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
                     if (resBlob.ok) contentBlob = await resBlob.blob();
@@ -1297,7 +1330,7 @@ export default function Dashboard() {
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
                                     email: contact.partner.email,
-                                    secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(reEncMeta)))
+                                    secured_meta: reEncMeta
                                 })
                             });
                         } catch (e) { console.error("Failed to share with contact", contact.partner.email, e); }
@@ -1384,7 +1417,7 @@ export default function Dashboard() {
                     type: "event",
                     parent_id: null,
                     public_meta: {},
-                    secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)))
+                    secured_meta: securedMeta
                 })
             });
             if (res.ok) {
@@ -1427,7 +1460,7 @@ export default function Dashboard() {
             await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta))) })
+                body: JSON.stringify({ secured_meta: securedMeta })
             });
         } catch (e) { console.error(e); }
     };
@@ -1438,15 +1471,24 @@ export default function Dashboard() {
             const isOccurrence = id.includes('_');
             const baseId = isOccurrence ? id.split('_')[0] : id;
             const currentEvents = useDataStore.getState().events;
-            const event = currentEvents.find(e => e.id === baseId);
-            if (!event) return;
+            const optimisticEvent = currentEvents.find(e => e.id === baseId);
+            if (!optimisticEvent) return;
+
+            // Fetch fresh metadata from backend
+            const res = await apiFetch(`/api/v1/files/${baseId}`);
+            if (!res.ok) throw new Error("Failed to fetch fresh event metadata");
+            const freshFile = await res.json();
+
+            if (!freshFile.secured_meta) return;
+            const eventMeta = await cryptoLib.decryptMetadata(freshFile.secured_meta, privateKey);
+            const event = { ...freshFile, ...eventMeta };
 
             // Determine specific date key for this instance
             let occurrenceDateKey: string | null = null;
             if (isOccurrence) {
                 const timestamp = parseInt(id.split('_')[1], 10);
                 if (!isNaN(timestamp)) occurrenceDateKey = format(new Date(timestamp), "yyyy-MM-dd");
-            } else if ((event as any).recurrence_rule && (event as any).recurrence_rule !== 'none') {
+            } else if (event.recurrence_rule && event.recurrence_rule !== 'none') {
                 // If base ID of a recurring event, treat as the first occurrence date
                 occurrenceDateKey = format(new Date(event.start), "yyyy-MM-dd");
             }
@@ -1456,22 +1498,22 @@ export default function Dashboard() {
             // [TASK 3] Handle recurring cancellation & completion
             if (isInstanceSpecific) {
                 if (updates.is_cancelled !== undefined) {
-                    let exdates = [...((event as any).exdates || [])];
+                    let exdates = [...(event.exdates || [])];
                     if (updates.is_cancelled) {
                         if (occurrenceDateKey && !exdates.includes(occurrenceDateKey)) exdates.push(occurrenceDateKey);
                     } else {
                         exdates = exdates.filter((d: string) => d !== occurrenceDateKey);
                     }
-                    updates = { ...updates, exdates: exdates, is_cancelled: (event as any).is_cancelled || false };
+                    updates = { ...updates, exdates: exdates, is_cancelled: event.is_cancelled || false };
                 }
                 if (updates.is_completed !== undefined) {
-                    let completed = [...((event as any).completed_dates || [])];
+                    let completed = [...(event.completed_dates || [])];
                     if (updates.is_completed) {
                         if (occurrenceDateKey && !completed.includes(occurrenceDateKey)) completed.push(occurrenceDateKey);
                     } else {
                         completed = completed.filter((d: string) => d !== occurrenceDateKey);
                     }
-                    updates = { ...updates, completed_dates: completed, is_completed: (event as any).is_completed || false };
+                    updates = { ...updates, completed_dates: completed, is_completed: event.is_completed || false };
                 }
             }
 
@@ -1483,27 +1525,30 @@ export default function Dashboard() {
                 description: updates.description !== undefined ? updates.description : event.description,
                 color: updates.color || event.color,
                 allDay: updates.allDay !== undefined ? updates.allDay : event.allDay,
-                isGroup: updates.isGroup !== undefined ? updates.isGroup : (event as any).isGroup,
-                effect: updates.effect !== undefined ? updates.effect : (event as any).effect,
-                is_cancelled: updates.is_cancelled !== undefined ? updates.is_cancelled : (event as any).is_cancelled,
-                exdates: updates.exdates !== undefined ? updates.exdates : (event as any).exdates,
-                is_completed: updates.is_completed !== undefined ? updates.is_completed : (event as any).is_completed,
-                completed_dates: updates.completed_dates !== undefined ? updates.completed_dates : (event as any).completed_dates,
+                isGroup: updates.isGroup !== undefined ? updates.isGroup : event.isGroup,
+                effect: updates.effect !== undefined ? updates.effect : event.effect,
+                is_cancelled: updates.is_cancelled !== undefined ? updates.is_cancelled : event.is_cancelled,
+                exdates: updates.exdates !== undefined ? updates.exdates : event.exdates,
+                is_completed: updates.is_completed !== undefined ? updates.is_completed : event.is_completed,
+                completed_dates: updates.completed_dates !== undefined ? updates.completed_dates : event.completed_dates,
                 is_task: updates.is_task !== undefined ? updates.is_task : event.is_task,
-                shading: updates.shading !== undefined ? updates.shading : (event as any).shading,
-                linkedTaskId: (event as any).linkedTaskId,
-                tags: updates.tags !== undefined ? updates.tags : (event as any).tags
+                shading: updates.shading !== undefined ? updates.shading : event.shading,
+                linkedTaskId: event.linkedTaskId,
+                tags: updates.tags !== undefined ? updates.tags : event.tags
             };
             if (updates.recurrence_rule !== undefined) meta.recurrence_rule = updates.recurrence_rule;
-            else if ((event as any).recurrence_rule) meta.recurrence_rule = (event as any).recurrence_rule;
+            else if (event.recurrence_rule) meta.recurrence_rule = event.recurrence_rule;
             
             if (updates.recurrence_end !== undefined) meta.recurrence_end = updates.recurrence_end;
-            else if ((event as any).recurrence_end) meta.recurrence_end = (event as any).recurrence_end;
+            else if (event.recurrence_end) meta.recurrence_end = event.recurrence_end;
+
+            // 3. Async crypto
+            const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
             // 2. IMMEDIATE optimistic update
             useDataStore.getState().setEvents(currentEvents.map(e => {
                 if (e.id === baseId) {
-                    const evt = { ...e, ...meta } as any;
+                    const evt = { ...e, ...meta, secured_meta: securedMeta } as any;
                     if (updates.is_task !== undefined) evt.is_task = updates.is_task;
                     if (updates.is_completed !== undefined) evt.is_completed = updates.is_completed;
                     if (updates.parent_id !== undefined) evt.parent_id = updates.parent_id;
@@ -1521,12 +1566,10 @@ export default function Dashboard() {
                 useDataStore.getState().setNotes(currentFiles.map((n: any) => n.id === baseId ? { ...n, parent_id: updates.parent_id } : n));
             }
 
-            // 3. Async crypto & network
-            const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
             // 4. Build body
             const body: any = {
-                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)))
+                secured_meta: securedMeta
             };
 
             // 5. Handle Theme Change

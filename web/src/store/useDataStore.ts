@@ -146,7 +146,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    encrypted_vault: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)))
+                    encrypted_vault: securedMeta
                 })
             });
 
@@ -215,7 +215,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    encrypted_vault: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)))
+                    encrypted_vault: securedMeta
                 })
             });
             if (!res.ok) {
@@ -227,7 +227,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            encrypted_vault: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)))
+                            encrypted_vault: securedMeta
                         })
                     });
                     if (createRes.ok) {
@@ -310,7 +310,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                     parent_id: state.activeParentId || null,
                     size: blob.size,
                     public_meta: {},
-                    secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta))),
+                    secured_meta: securedMeta,
                     visibility: 'private'
                 })
             });
