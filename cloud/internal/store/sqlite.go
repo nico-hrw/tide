@@ -35,6 +35,11 @@ func NewSQLiteStore(dataDir string) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("failed to open db: %w", err)
 	}
 
+	// SQLite-specific optimizations for concurrency
+	conn.SetMaxOpenConns(1)
+	conn.SetMaxIdleConns(1)
+	conn.SetConnMaxLifetime(time.Hour)
+
 	if err := conn.Ping(); err != nil {
 		return nil, fmt.Errorf("failed to ping db: %w", err)
 	}
@@ -398,7 +403,7 @@ func (s *SQLiteStore) GetUserExtensions(ctx context.Context, id string) ([]strin
 
 func (s *SQLiteStore) GetUserByEmailHash(ctx context.Context, emailHash string) (*db.User, error) {
 	// We query by the Blind Index
-	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, username, created_at FROM users WHERE email_blind_index = ?`
+	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, COALESCE(username, '') as username, created_at FROM users WHERE email_blind_index = ?`
 	row := s.DB.QueryRowContext(ctx, query, emailHash)
 
 	var user db.User

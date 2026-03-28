@@ -142,6 +142,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		PublicKey:       req.PublicKey,
 		PinHash:         &pinHash,
 		CreatedAt:       time.Now(),
+		Username:        req.Username,
 	}
 
 	if err := h.Store.CreateUser(r.Context(), user); err != nil {
@@ -185,6 +186,7 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(resp)
 			return
 		}
+		log.Printf("ERROR in RequestOTP (GetUserByEmailHash): %v for email %s", err, req.Email)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
