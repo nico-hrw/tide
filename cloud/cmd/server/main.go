@@ -61,15 +61,42 @@ func main() {
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
-			if origin != "" {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-			} else {
-				w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000") // Fallback
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			trustedOrigins := []string{
+				"http://localhost:3000",
+				"http://localhost:3001",
+				"https://hrw-tide.duckdns.org",
+				"http://hrw-tide.duckdns.org",
 			}
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, Authorization")
+
+			isTrusted := false
+			if origin == "" {
+				// Non-CORS request (like a simple browser navigation or backend-to-backend)
+				// We still set a default for safety, but origin is empty
+				isTrusted = true 
+			} else {
+				for _, tr := range trustedOrigins {
+					if origin == tr || strings.HasPrefix(origin, "http://localhost") {
+						isTrusted = true
+						break
+					}
+				}
+			}
+
+			if isTrusted && origin != "" {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+			} else if origin == "" {
+				// No origin header, might be a proxy. 
+				// To be safe with Credentials, we can't use "*". 
+				// We'll echo the Host if it looks like ours or just allow localhost as fallback.
+				w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
+			} else {
+				// Origin present but not explicitly in list – for ease of testing on Raspi, let's be permissive
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+			}
+
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, Authorization, X-Requested-With, Accept, Origin")
 			w.Header().Set("Access-Control-Max-Age", "3600")
 
 			if r.Method == "OPTIONS" {
