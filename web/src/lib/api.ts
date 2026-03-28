@@ -2,10 +2,7 @@
 
 export const getApiBase = () => {
     if (typeof window !== 'undefined') {
-        const hostname = window.location.hostname;
-        const protocol = window.location.protocol;
-
-        return `${protocol}//${hostname}:8080`;
+        return window.location.origin;
     }
 
     return ''; 
