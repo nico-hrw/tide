@@ -75,6 +75,8 @@ function AuthContent() {
 
             if (res.ok) {
                 const data = await res.json();
+                if (data.otp) alert(`Your Login Code: ${data.otp}`);
+                
                 if (data.user_exists) {
                     // User exists -> Proceed to OTP Step
                     setIsLoginMode(true);
