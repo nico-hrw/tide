@@ -1,6 +1,6 @@
 // Basic API wrapper
 
-const getApiBase = () => {
+export const getApiBase = () => {
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
         const protocol = window.location.protocol;
@@ -12,11 +12,11 @@ const getApiBase = () => {
 };
 
 export async function apiFetch(url: string, options: RequestInit = {}) {
+    const base = getApiBase();
     const cleanEndpoint = url.startsWith('/') ? url : `/${url}`;
-    const fullUrl = url.startsWith('http') ? url : `${url}${cleanEndpoint}`;
+    const fullUrl = url.startsWith('http') ? url : `${base}${cleanEndpoint}`;
 
     console.log("[apiFetch] Requesting:", fullUrl);
-    
     
     try {
         const res = await fetch(fullUrl, {

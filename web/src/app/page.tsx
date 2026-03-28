@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import * as cryptoLib from "@/lib/crypto";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getApiBase } from "@/lib/api";
 import ChatPanel from "@/components/Chat/ChatPanel";
 import Sidebar from "@/components/Layout/Sidebar";
 import TabList, { Tab } from "@/components/Layout/TabList";
@@ -569,7 +569,8 @@ export default function Dashboard() {
         const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
         if (!token) return;
 
-        const eventSource = new EventSource(`http://localhost:8080/api/v1/events?user_id=${myId}&token=${token}`);
+        const base = getApiBase();
+        const eventSource = new EventSource(`${base}/api/v1/events?user_id=${myId}&token=${token}`);
         eventSource.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
