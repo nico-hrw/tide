@@ -23,6 +23,7 @@ const CanvasLayer = dynamic(() => import('@/components/Canvas/CanvasLayer'), {
     ssr: false
 });
 import DailySummary from "@/components/Calendar/DailySummary";
+import MobileLayout from "@/components/Layout/MobileLayout";
 
 
 const FinanceDashboard = dynamic(() => import('@/components/Finance/FinanceDashboard'), {
@@ -302,7 +303,10 @@ export default function Dashboard() {
         try {
             const fileKey = await cryptoLib.generateFileKey();
             const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", fileKey);
-            const emptyDoc = { type: 'doc', content: [] };
+            const emptyDoc = { 
+                type: 'doc', 
+                content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }] 
+            };
             const blob = new Blob([JSON.stringify(emptyDoc)], { type: 'application/json' });
             const { iv, ciphertext } = await cryptoLib.encryptFile(blob, fileKey);
 
@@ -492,7 +496,10 @@ export default function Dashboard() {
                 try { setEditorContent(JSON.parse(contentText)); }
                 catch (e) { setEditorContent(contentText); }
             } else {
-                setEditorContent({ type: 'doc', content: [] });
+                setEditorContent({ 
+                    type: 'doc', 
+                    content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }] 
+                });
             }
         } catch (err) {
             if (lastLoadIdRef.current === loadId) console.error("Failed to load note:", err);
@@ -1743,8 +1750,84 @@ export default function Dashboard() {
     // -------------------------------------------------------------------------
     return (
         <div className="flex h-screen w-full bg-[var(--background)] text-foreground overflow-hidden">
+            {/* Mobile Layout Wrapper */}
+            <MobileLayout
+                events={events}
+                files={files.filter((f: any) => !f.isGroup && !(f.title || '').startsWith('.'))}
+                folders={files.filter((f: any) => f.type === 'folder' && !f.isGroup)}
+                onNoteSelect={(id, title) => {
+                    handleFileSelect(id, title);
+                }}
+                onNewNote={() => handleNewNote()}
+                activeNoteId={activeNoteId}
+                activeNoteTitle={fileName}
+                onNewEvent={(date) => {
+                    setScheduleInitialStart(date);
+                    setScheduleModalOpen(true);
+                }}
+                onEventClick={(id) => {
+                    const evt = events.find((e: any) => e.id === id);
+                    if (evt) { setActiveEventId(id); }
+                }}
+                onEventUpdate={(id, newStart, newEnd) => {
+                    handleEventUpdate(id, newStart, newEnd);
+                }}
+                onEventDelete={(id) => {
+                    handleDeleteEvent(id);
+                }}
+                editorElement={
+                    editorContent === null ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
+                            <span className="font-medium text-sm">Lade...</span>
+                        </div>
+                    ) : (
+                        <Editor
+                            key={activeTabId}
+                            initialContent={editorContent}
+                            onEditorReady={handleEditorReady}
+                            onChange={handleEditorChange}
+                            onLinkClick={handleMagicLinkClick}
+                            onForceSave={(json) => {
+                                if (activeNoteId) {
+                                    const currentFile = files.find(f => f.id === activeNoteId);
+                                    if (currentFile) {
+                                        setSaveStatus("saving");
+                                        performSave(json, activeNoteId, activeFileKey, currentFile.visibility)
+                                            .then(() => setSaveStatus("saved"))
+                                            .catch(() => setSaveStatus("unsaved"));
+                                    }
+                                }
+                            }}
+                            onBlocksDeleted={(ids) => setDeletedBlockIds(ids)}
+                            onPopOut={(text, anchorBlockId) => {
+                                const widget: TextWidgetElement = {
+                                    id: crypto.randomUUID(),
+                                    type: 'text-widget',
+                                    anchorBlockId,
+                                    offsetX: 24,
+                                    offsetY: 0,
+                                    content: text,
+                                    backgroundColor: 'transparent',
+                                };
+                                canvasSidecar.addElement(widget);
+                            }}
+                            onConnectImage={(blockId) => setPendingBindBlockId(blockId)}
+                            onBlockHover={setHoveredBlockId}
+                            onAbortLinking={() => {
+                                if (isLinkingMode) {
+                                    setIsLinkingMode(false);
+                                    setActiveLinkBlockId(null);
+                                }
+                            }}
+                            activeTabId={activeTabId}
+                            onReturnToTab={(tabId) => setActiveTabId(tabId)}
+                        />
+                    )
+                }
+            />
+
             {/* Left Sidebar Panel */}
-            <div className={`flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] shrink-0 z-[100] transition-all duration-300 w-64`}>
+            <div className={`hidden md:flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] shrink-0 z-[100] transition-all duration-300 w-64`}>
                 <Sidebar
                     files={sidebarFiles}
                     onFileSelect={handleFileSelect}
@@ -1771,7 +1854,7 @@ export default function Dashboard() {
             </div>
 
             {/* Right: Workspace */}
-            <div className={`flex-1 flex flex-col min-w-0 bg-[var(--background)] relative overflow-hidden`}>
+            <div className={`hidden md:flex flex-1 flex-col min-w-0 bg-[var(--background)] relative overflow-hidden`}>
 
                 {/* Unscheduled Tasks Panel — top-left corner, below calendar toolbar, only when calendar is active */}
                 {activeTabId === 'calendar' && tasks && tasks.filter(t => !t.isCompleted && !t.scheduledDate).length > 0 && (
@@ -2016,7 +2099,7 @@ export default function Dashboard() {
                 </div>
             </div>            {/* FAB Theme Menu */}
             {activeTabId === 'calendar' && (
-                <div className="fixed bottom-6 right-6 z-[80]">
+                <div className="hidden md:block fixed bottom-6 right-6 z-[80]">
                     <button
                         onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
                         className={`w-12 h-12 rounded-full bg-white shadow-xl border border-gray-100 flex items-center justify-center transition-all focus:outline-none ${isThemeMenuOpen ? 'rotate-45 text-rose-500 scale-110' : 'text-indigo-500 hover:scale-110'}`}
@@ -2069,7 +2152,7 @@ export default function Dashboard() {
             )}
 
             {/* Bottom Dock Navigation */}
-            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[60] pointer-events-none flex flex-col items-center">
+            <div className="hidden md:flex absolute bottom-6 left-1/2 -translate-x-1/2 z-[60] pointer-events-none flex-col items-center">
                 <TabList
                     tabs={openTabs}
                     activeTabId={activeTabId}

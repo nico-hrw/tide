@@ -25,10 +25,12 @@ export default function EditorGutter({
     const containerRef = useRef<HTMLDivElement>(null);
 
     const refreshPositions = useCallback(() => {
-        const blockNodes = document.querySelectorAll('[data-block-id]');
-        // We calculate positions relative to the .tiptap editor's top
-        const editor = document.querySelector('.tiptap');
-        if (!editor) return;
+        if (!containerRef.current) return;
+        const editorContainer = containerRef.current.closest('.editor-container');
+        const editor = editorContainer ? editorContainer.querySelector('.tiptap') : document.querySelector('.tiptap');
+        if (!editor || !editorContainer) return;
+
+        const blockNodes = editor.querySelectorAll('[data-block-id]');
 
         const er = editor.getBoundingClientRect();
         const newBlocks: { id: string; top: number; height: number }[] = [];
@@ -48,9 +50,10 @@ export default function EditorGutter({
         setBlocks(newBlocks);
     }, []);
 
-    // Effect for ResizeObserver on the editor container
     useEffect(() => {
-        const editor = document.querySelector('.tiptap');
+        if (!containerRef.current) return;
+        const editorContainer = containerRef.current.closest('.editor-container');
+        const editor = editorContainer ? editorContainer.querySelector('.tiptap') : document.querySelector('.tiptap');
         if (!editor) return;
 
         const obs = new ResizeObserver(() => {
