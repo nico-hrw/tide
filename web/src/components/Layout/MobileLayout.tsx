@@ -120,7 +120,7 @@ export default function MobileLayout({
       <div className="fixed top-0 left-0 w-full z-50 rounded-b-[40px] shadow-2xl bg-gradient-to-b from-[#4F5474]/95 via-[#393C52]/90 to-[#232536]/80 backdrop-blur-3xl border-b border-white/10 transition-all duration-300">
         <AnimatePresence mode="wait">
            {activeTab === 'calendar' ? (
-              <motion.div key="header-calendar" initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}} className="px-6 pt-16 pb-8">
+              <motion.div key="header-calendar" initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}} className="px-6 pt-12 pb-6">
                  <div className="flex justify-between items-center mb-6">
                      <span className="text-white font-bold text-2xl tracking-wide">{format(activeDate, "MMMM yyyy")}</span>
                      <div 
@@ -170,13 +170,13 @@ export default function MobileLayout({
                  </AnimatePresence>
               </motion.div>
            ) : activeTab === 'notes' ? (
-              <motion.div key="header-notes" initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}} className="px-6 pt-16 pb-8 flex items-center justify-center relative">
+              <motion.div key="header-notes" initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}} className="px-6 pt-12 pb-6 flex items-center justify-center relative">
                  <span className="text-white font-bold text-xl tracking-wide drop-shadow-sm">
                      {isEditingNote ? (activeNoteTitle || 'Untitled Note') : 'My Notes'}
                  </span>
               </motion.div>
            ) : (
-              <motion.div key="header-other" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="px-6 pt-16 pb-8 flex items-center justify-center">
+              <motion.div key="header-other" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="px-6 pt-12 pb-6 flex items-center justify-center">
                  <span className="text-white font-bold text-xl tracking-wide capitalize">{activeTab}</span>
               </motion.div>
            )}
@@ -185,7 +185,7 @@ export default function MobileLayout({
 
       {/* Main Content Area */}
       <div 
-        className="flex-1 w-full relative overflow-y-auto no-scrollbar pt-[150px] pb-32"
+        className="flex-1 w-full relative overflow-y-auto no-scrollbar pt-[120px] pb-32"
         onScroll={(e) => {
           if (activeTab === 'calendar') {
              if (e.currentTarget.scrollTop > 10) {
@@ -245,27 +245,7 @@ export default function MobileLayout({
                      return (
                          <motion.div 
                             key={event.id}
-                            drag="y"
-                            dragConstraints={{ top: 0, bottom: 1920 - height }}
-                            dragElastic={0}
-                            dragMomentum={false}
-                            whileDrag={{ scale: 1.05, zIndex: 100, boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4)' }}
-                            onDragEnd={(e, info) => {
-                                if (onEventUpdate) {
-                                    const newTop = top + info.offset.y;
-                                    const snappedTop = Math.round(newTop / 20) * 20; // Snap to 15 min
-                                    const newTotalMinutes = (snappedTop / 80) * 60;
-                                    
-                                    // Use activeDate, mapped to the correct visual target
-                                    const newStart = new Date(activeDate);
-                                    newStart.setHours(Math.floor(newTotalMinutes / 60), newTotalMinutes % 60, 0, 0);
-                                    const newEnd = new Date(newStart.getTime() + durationMins * 60000);
-                                    
-                                    if (newTop >= 0 && newTop <= 1920 - height) {
-                                       onEventUpdate(event.id, newStart, newEnd);
-                                    }
-                                }
-                            }}
+                            /* drag="y" deactivated temporarily */
                             onClick={() => {
                                 setExpandedEventId(expandedEventId === event.id ? null : event.id);
                                 if (onEventClick) onEventClick(event.id);
