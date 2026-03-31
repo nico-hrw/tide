@@ -11,8 +11,11 @@ import {
     Table as TableIcon,
     Bold,
     Italic,
-    Strikethrough
+    Strikethrough,
+    Bookmark
 } from 'lucide-react';
+
+import { useDataStore } from '@/store/useDataStore';
 
 // Command List Component
 const CommandList = forwardRef((props: any, ref) => {
@@ -71,7 +74,7 @@ CommandList.displayName = 'CommandList';
 
 // Command Items Definition
 const getSuggestionItems = ({ query }: { query: string }) => {
-    return [
+    const items = [
         {
             title: 'Heading 1',
             icon: <Heading1 size={16} />,
@@ -128,10 +131,26 @@ const getSuggestionItems = ({ query }: { query: string }) => {
             command: ({ editor, range }: any) => {
                 editor.chain().focus().deleteRange(range).toggleStrike().run();
             },
-        },
-    ].filter(item =>
+        }
+    ];
+
+    if (useDataStore.getState().enabledExtensions.includes('references')) {
+        items.push({
+            title: 'Scan References',
+            aliases: ['ref'],
+            icon: <Bookmark size={16} />,
+            command: ({ editor, range }: any) => {
+                editor.chain().focus().deleteRange(range).run();
+                if (editor.commands.scanReferences) {
+                    editor.commands.scanReferences();
+                }
+            },
+        } as any);
+    }
+
+    return items.filter((item: any) =>
         item.title.toLowerCase().startsWith(query.toLowerCase()) ||
-        (item.aliases && item.aliases.some(alias => alias.startsWith(query.toLowerCase())))
+        (item.aliases && item.aliases.some((alias: string) => alias.startsWith(query.toLowerCase())))
     );
 };
 
@@ -165,7 +184,7 @@ const renderItems = () => {
                 interactive: true,
                 trigger: 'manual',
                 placement: 'bottom-start',
-                theme: 'light',
+                theme: 'headless',
                 zIndex: 9999, // Ensure it's above everything
             });
         },

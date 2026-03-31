@@ -13,7 +13,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import { Highlight } from './extensions/Highlight';
 import { useEffect, useState, useRef } from 'react';
-import { Highlighter, Type, Sigma, Eraser, Bold, Italic, Underline as UnderlineIcon, PinIcon, Link2, Table as TableIcon, ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, Trash2 } from 'lucide-react';
+import { Highlighter, Type, Sigma, Eraser, Bold, Italic, Underline as UnderlineIcon, PinIcon, Link2, Table as TableIcon, ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, Trash2, Bookmark } from 'lucide-react';
 import { FontSize } from './extensions/FontSize';
 import { MathBlock, InlineMath } from './extensions/MathBlock';
 import { ResizableImage } from './extensions/ResizableImage';
@@ -29,6 +29,7 @@ import { Anchor } from './extensions/Anchor';
 import { useHighlight, LinkTarget } from './HighlightContext';
 import { useDataStore } from '@/store/useDataStore';
 import { useLinkStore } from '@/store/useLinkStore';
+import { useReferenceStore } from '@/store/useReferenceStore';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
@@ -36,6 +37,8 @@ import { TableCell } from '@tiptap/extension-table-cell';
 import { SlashCommand, slashCommandSuggestion } from './extensions/SlashCommand';
 import { DateMentionExtension } from './extensions/DateMentionExtension';
 import { TaskMentionExtension } from './extensions/TaskMentionExtension';
+import { ReferenceMark } from './extensions/ReferenceMark';
+import { ReferenceScannerMode, ReferenceAutopilotMode } from './extensions/ReferenceModes';
 import { useMemo } from 'react';
 
 // Module-level store for a pending magic link insertion.
@@ -199,10 +202,14 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
     // Track the block ID at the cursor ($head = visual cursor position, not selection start)
     // Updated on every selection change so the Connect button always gets the right block.
     const currentBlockIdRef = useRef<string | null>(null);
+    const referencePreviewTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+    const enabledExtensions = useDataStore((s) => s.enabledExtensions);
+    const autoScanEnabled = useReferenceStore((s) => s.autoScanEnabled);
 
-    const extensions = useMemo(() => [
-        StarterKit.configure({
+    const extensions = useMemo(() => {
+        const baseExtensions = [
+            StarterKit.configure({
             italic: false,
             bold: false,
             strike: false,
@@ -317,12 +324,26 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         TableRow,
         TableHeader,
         TableCell,
-        Placeholder.configure({
-            placeholder: () => {
-                return PLACELHODER_QUOTES[Math.floor(Math.random() * PLACELHODER_QUOTES.length)];
-            },
-        }),
-    ], [onFileClick, onEventClick]); // Only re-create if these specific props change
+            Placeholder.configure({
+                placeholder: () => {
+                    return PLACELHODER_QUOTES[Math.floor(Math.random() * PLACELHODER_QUOTES.length)];
+                },
+            }),
+            ReferenceMark, // ALWAYS added so documents don't crash and marks parse correctly
+        ];
+
+        // Add optional Reference modes
+        if (enabledExtensions.includes('references')) {
+            baseExtensions.push(ReferenceScannerMode);
+
+            if (autoScanEnabled) {
+                baseExtensions.push(ReferenceAutopilotMode);
+            }
+        }
+
+        return baseExtensions;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [enabledExtensions, autoScanEnabled]); // Only re-create extensions if the enabled set changes
 
     const editor = useEditor({
         extensions: extensions,
@@ -330,9 +351,66 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         editable: editable,
         immediatelyRender: false,
         onUpdate: ({ editor, transaction }) => {
+            // Skip transactions that only update decorations (e.g. autopilot reference scan).
+            // These don't change the document content and should NOT trigger a save or reset the save timer.
+            if (!transaction.docChanged) return;
+
             const content = editor.getJSON();
             if (onChangeRef.current) {
                 onChangeRef.current(content);
+            }
+
+            // Feature: Dynamically update reference previews (the 'next line')
+            if (enabledExtensions.includes('references')) {
+                if (referencePreviewTimerRef.current) clearTimeout(referencePreviewTimerRef.current);
+                referencePreviewTimerRef.current = setTimeout(() => {
+                    const activeId = activeTabIdRef.current;
+                    if (!activeId || activeId.startsWith('chat-') || activeId === 'calendar') return;
+                    
+                    const store = useReferenceStore.getState();
+                    const myRefs = store.references.filter(r => r.sourceNoteId === activeId);
+                    if (myRefs.length === 0) return;
+
+                    let changed = false;
+                    const newRefs = [...store.references];
+
+                    // Get all block-level text content from document
+                    const blocks: string[] = [];
+                    editor.state.doc.forEach((node) => {
+                        if (node.textContent.trim()) {
+                            blocks.push(node.textContent.trim());
+                        }
+                    });
+
+                    newRefs.forEach((r, idx) => {
+                        if (r.sourceNoteId !== activeId) return;
+                        
+                        // Note: We use the *first* block containing the exact term as the definition location.
+                        for (let i = 0; i < blocks.length; i++) {
+                            if (blocks[i].includes(r.term)) {
+                                // "Darauffolgende Zeile" -> next non-empty block
+                                let nextBlockStr = blocks[i]; // Fallback to current line if it's the last line
+                                for (let j = i + 1; j < blocks.length; j++) {
+                                    if (blocks[j]) {
+                                        nextBlockStr = blocks[j];
+                                        break;
+                                    }
+                                }
+                                // Only update if it actually changed
+                                if (newRefs[idx].previewText !== nextBlockStr && nextBlockStr) {
+                                    newRefs[idx] = { ...r, previewText: nextBlockStr };
+                                    changed = true;
+                                }
+                                break; // Stop after first match for this term
+                            }
+                        }
+                    });
+
+                    if (changed) {
+                        console.log("[References] Auto-updated previews for", myRefs.length, "references based on document updates.");
+                        store.setReferences(newRefs);
+                    }
+                }, 2000);
             }
 
             // Local Fallback: Synchronous save to localStorage every time the editor content updates
@@ -714,6 +792,63 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                     {onPopOut && (
                         <>
                             <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1" />
+                            {/* Save as Reference Button */}
+                            {enabledExtensions.includes('references') && (
+                            <>
+                                <button
+                                    title="Als Referenz speichern"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={(e) => {
+                                        const { from, to, empty } = editor.state.selection;
+                                        if (empty) return;
+                                        const term = editor.state.doc.textBetween(from, to, ' ').trim();
+                                        if (!term) return;
+
+                                        const activeNoteId = useDataStore.getState().activeNoteId;
+                                        const refId = crypto.randomUUID();
+                                        
+                                        // Calculate immediate preview layout: find the next block
+                                        let previewText = term;
+                                        const blocks: string[] = [];
+                                        editor.state.doc.forEach((node) => {
+                                            if (node.textContent.trim()) blocks.push(node.textContent.trim());
+                                        });
+                                        for (let i = 0; i < blocks.length; i++) {
+                                            if (blocks[i].includes(term)) {
+                                                for (let j = i + 1; j < blocks.length; j++) {
+                                                    if (blocks[j]) {
+                                                        previewText = blocks[j];
+                                                        break;
+                                                    }
+                                                }
+                                                break;
+                                            }
+                                        }
+
+                                        console.log("[References] Saving new reference term:", term);
+                                        useReferenceStore.getState().addReference({
+                                            id: refId,
+                                            term,
+                                            previewText: previewText,
+                                            sourceNoteId: activeNoteId || 'unknown',
+                                        });
+
+                                        // Give instant visual feedback on the button itself
+                                        const btn = e.currentTarget;
+                                        const originalClass = btn.className;
+                                        btn.className = "p-1.5 rounded-lg transition-colors bg-emerald-500 text-white";
+                                        setTimeout(() => {
+                                            if (btn) btn.className = originalClass;
+                                        }, 800);
+                                    }}
+                                    className="p-1.5 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                                >
+                                    <Bookmark size={14} />
+                                </button>
+                                <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1" />
+                            </>
+                            )}
+
                             {/* Pop-out to canvas button */}
                             <button
                                 title="Pop out to canvas"

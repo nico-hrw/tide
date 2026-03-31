@@ -38,6 +38,7 @@ interface DataState {
     isUpdatingMetadata: Set<string>;
     setUpdatingMetadata: (id: string, updating: boolean) => void;
     updateSpecificMetadataCache: (id: string, updates: any) => void;
+    updateFileRaw: (id: string, updates: Partial<DataItem>) => void;
 
     // Tasks Actions
     setTasks: (tasks: TaskItem[]) => void;
@@ -118,6 +119,26 @@ export const useDataStore = create<DataState>((set, get) => ({
     updateSpecificMetadataCache: (id, updates) => set(s => ({
         metadataCache: { ...s.metadataCache, [id]: { ...(s.metadataCache[id] || {}), ...updates } }
     })),
+    updateFileRaw: (id, updates) => set(s => {
+        const isNote = s.notes.some(n => n.id === id);
+        // Important: Update metadataCache too, as fetchDirectory uses it.
+        // If we don't update this, the next directory refresh will overwrite the file with stale metadata.
+        const nextCache = { ...s.metadataCache };
+        if (nextCache[id]) {
+            nextCache[id] = { ...nextCache[id], ...updates };
+        }
+        
+        if (isNote) {
+            return { 
+                notes: s.notes.map(n => n.id === id ? { ...n, ...updates } : n),
+                metadataCache: nextCache
+            };
+        }
+        return { 
+            events: s.events.map(e => e.id === id ? { ...e, ...updates } : e),
+            metadataCache: nextCache
+        };
+    }),
     setNotes: (notes) => set({ notes }),
     setEvents: (events) => set({ events }),
     setTasks: (tasks) => set({ tasks }),
@@ -264,16 +285,16 @@ export const useDataStore = create<DataState>((set, get) => ({
         }
     },
     appendFiles: (newNotes, newEvents) => set((state) => {
-        // Prevent duplicates by ID
-        const existingNoteIds = new Set(state.notes.map(n => n.id));
-        const filteredNotes = newNotes.filter(n => !existingNoteIds.has(n.id));
+        // Merge strategy: Replace existing items, append new ones
+        const noteMap = new Map(state.notes.map(n => [n.id, n]));
+        newNotes.forEach(n => noteMap.set(n.id, { ...noteMap.get(n.id), ...n }));
         
-        const existingEventIds = new Set(state.events.map(e => e.id));
-        const filteredEvents = newEvents.filter(e => !existingEventIds.has(e.id));
+        const eventMap = new Map(state.events.map(e => [e.id, e]));
+        newEvents.forEach(e => eventMap.set(e.id, { ...eventMap.get(e.id), ...e }));
         
         return {
-            notes: [...state.notes, ...filteredNotes],
-            events: [...state.events, ...filteredEvents]
+            notes: Array.from(noteMap.values()),
+            events: Array.from(eventMap.values())
         };
     }),
     orderedNoteIds: [],

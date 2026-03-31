@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound } from 'lucide-react';
+import { useReferenceStore } from '@/store/useReferenceStore';
+import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark } from 'lucide-react';
 
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -27,6 +28,13 @@ export default function SettingsModal({
 
     const [activeTab, setActiveTab] = useState<'account' | 'extensions' | 'appearance' | 'info'>('account');
     const [pinInputValue, setPinInputValue] = useState("");
+    const autoScanEnabled = useReferenceStore((state) => state.autoScanEnabled);
+    const references = useReferenceStore((state) => state.references);
+    const removeReference = useReferenceStore((state) => state.removeReference);
+    
+    const [showDictionary, setShowDictionary] = useState(false);
+    const [editRefId, setEditRefId] = useState<string | null>(null);
+    const [editRefTerm, setEditRefTerm] = useState("");
 
     // Reset state when modal opens/closes
     useEffect(() => {
@@ -169,8 +177,10 @@ export default function SettingsModal({
                 { id: 'messenger', title: 'Messenger', desc: 'Real-time chat and collaboration', version: 'v0.9.5-beta', updated: 'Mar 3, 2026', icon: User, color: 'text-blue-500' },
                 { id: 'summary', title: 'Daily Summary', desc: 'Duolingo-style daily recap & streaks', version: 'v2.0.1', updated: 'Feb 28, 2026', icon: Flame, color: 'text-orange-500' },
                 { id: 'smart_island', title: 'Smart Island', desc: 'Context-aware sidebar assistant', version: 'v1.0.0', updated: 'Feb 26, 2026', icon: Sparkles, color: 'text-violet-500' },
+                { id: 'references', title: 'References', desc: 'Auto-link definitions across notes', version: 'v1.0.0', updated: 'Today', icon: Bookmark, color: 'text-emerald-500' },
             ].map((ext) => (
-                <div key={ext.id} className="p-4 flex items-start justify-between bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-xl hover:border-blue-200 dark:hover:border-blue-500/30 transition-colors">
+                <div key={ext.id} className="p-4 flex flex-col bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-xl hover:border-blue-200 dark:hover:border-blue-500/30 transition-colors">
+                    <div className="flex items-start justify-between w-full">
                     <div className="flex gap-4">
                         <div className={`p-3 rounded-xl bg-gray-50 dark:bg-white/5 ${ext.color} shrink-0`}>
                             <ext.icon className="w-6 h-6" />
@@ -185,15 +195,80 @@ export default function SettingsModal({
                         </div>
                     </div>
 
-                    <button
-                        onClick={() => onToggleExtension(ext.id, !enabledExtensions.includes(ext.id))}
-                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none mt-1 ${enabledExtensions.includes(ext.id) ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'}`}
-                    >
-                        <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${enabledExtensions.includes(ext.id) ? 'translate-x-5' : 'translate-x-0'}`}>
-                            {enabledExtensions.includes(ext.id) && <Check className="absolute inset-0 m-auto h-3 w-3 text-blue-500" />}
-                        </span>
-                    </button>
+                    <div className="flex flex-col items-end gap-2 mt-1 shrink-0 ml-4">
+                        <button
+                            onClick={() => onToggleExtension(ext.id, !enabledExtensions.includes(ext.id))}
+                            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${enabledExtensions.includes(ext.id) ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'}`}
+                        >
+                            <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${enabledExtensions.includes(ext.id) ? 'translate-x-5' : 'translate-x-0'}`}>
+                                {enabledExtensions.includes(ext.id) && <Check className="absolute inset-0 m-auto h-3 w-3 text-blue-500" />}
+                            </span>
+                        </button>
+                        
+                        {ext.id === 'references' && enabledExtensions.includes('references') && (
+                            <div className="flex flex-col items-end gap-2 mt-2 w-full">
+                                <label className="flex items-center gap-2 cursor-pointer bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded-md border border-emerald-100 dark:border-emerald-800">
+                                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">Autopilot Scanner</span>
+                                    <input 
+                                        type="checkbox" 
+                                        checked={autoScanEnabled}
+                                        onChange={(e) => useReferenceStore.getState().setAutoScanEnabled(e.target.checked)}
+                                        className="rounded border-gray-300 text-emerald-500 focus:ring-emerald-500 w-3 h-3 cursor-pointer" 
+                                    />
+                                </label>
+                                <button 
+                                    onClick={() => setShowDictionary(!showDictionary)}
+                                    className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide px-2 py-1 rounded-md border border-blue-100 dark:border-blue-900/30 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                >
+                                    {showDictionary ? 'Hide Dictionary' : 'Manage Dictionary'}
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
+
+                {ext.id === 'references' && showDictionary && enabledExtensions.includes('references') && (
+                    <div className="w-full mt-4 pt-4 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-2">
+                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Reference Dictionary ({references.length})</h4>
+                        <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2">
+                            {references.length === 0 ? (
+                                <p className="text-xs text-gray-400 italic">No references saved yet.</p>
+                            ) : references.map(r => (
+                                <div key={r.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5">
+                                    {editRefId === r.id ? (
+                                        <input 
+                                            autoFocus
+                                            value={editRefTerm}
+                                            onChange={(e) => setEditRefTerm(e.target.value)}
+                                            onBlur={() => {
+                                                useReferenceStore.getState().setReferences(references.map(x => x.id === r.id ? {...x, term: editRefTerm} : x));
+                                                setEditRefId(null);
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    useReferenceStore.getState().setReferences(references.map(x => x.id === r.id ? {...x, term: editRefTerm} : x));
+                                                    setEditRefId(null);
+                                                }
+                                            }}
+                                            className="bg-white dark:bg-black/40 border border-blue-500 rounded px-2 py-1 text-sm font-bold outline-none w-full mr-2"
+                                        />
+                                    ) : (
+                                        <div className="flex-1 min-w-0 mr-2 cursor-text" onClick={() => { setEditRefId(r.id); setEditRefTerm(r.term); }}>
+                                            <div className="text-sm font-bold text-gray-900 dark:text-white truncate">{r.term}</div>
+                                            <div className="text-xs text-gray-500 truncate">{r.previewText || 'No custom preview generated'}</div>
+                                        </div>
+                                    )}
+                                    {editRefId !== r.id && (
+                                        <button onClick={() => removeReference(r.id)} className="p-1.5 shrink-0 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-md transition-colors">
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
             ))}
         </div>
     );

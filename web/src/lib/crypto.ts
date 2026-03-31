@@ -43,6 +43,10 @@ export function base64ToArrayBuffer(base64: string): ArrayBuffer {
 
 // Helper to safely fingerprint a key without exposing its full value
 export async function getKeyFingerprint(key: CryptoKey): Promise<string> {
+    if (!key || !(key instanceof CryptoKey)) {
+        console.warn("[CRYPTO-WARN] getKeyFingerprint called with non-CryptoKey:", key);
+        return "not-a-cryptokey";
+    }
     try {
         // Export to JWK to get a stable representation
         const exported = await window.crypto.subtle.exportKey("jwk", key);
@@ -229,6 +233,9 @@ export async function generateFileKey(): Promise<CryptoKey> {
 
 // 6. Encrypt File Content
 export async function encryptFile(file: File | Blob, key: CryptoKey, fileId?: string): Promise<EncryptedFile> {
+    if (!key || !(key instanceof CryptoKey)) {
+        throw new TypeError(`[CRYPTO-ERROR] encryptFile called with invalid key type for ID: ${fileId || "unknown"}`);
+    }
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
     const fingerprint = await getKeyFingerprint(key);
     console.log(`[CRYPTO-AUDIT] Encrypting File | ID: ${fileId || "unknown"} | Key: ${fingerprint} | IV Start: ${arrayBufferToBase64(iv.buffer as ArrayBuffer).slice(0, 8)}`);
@@ -256,6 +263,9 @@ export async function encryptFile(file: File | Blob, key: CryptoKey, fileId?: st
 
 // 7. Decrypt File Content
 export async function decryptFile(encryptedBlob: Blob, iv: string, key: CryptoKey, fileId?: string): Promise<Blob> {
+    if (!key || !(key instanceof CryptoKey)) {
+        throw new TypeError(`[CRYPTO-ERROR] decryptFile called with invalid key type for ID: ${fileId || "unknown"}`);
+    }
     const fingerprint = await getKeyFingerprint(key);
     console.log(`[CRYPTO-AUDIT] Decrypting File | ID: ${fileId || "unknown"} | Key: ${fingerprint} | IV Start: ${iv.slice(0, 8)}`);
 

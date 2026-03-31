@@ -289,10 +289,130 @@ export default function Dashboard() {
     }, []);
 
     const handleEditorChange = useCallback((json: any) => {
+        // console.log("[Pulse] Editor changed, scheduling save...");
         setEditorContent(json);
         setSaveStatus("unsaved");
         setEditorVersion(v => v + 1);
     }, []);
+
+    // ── Auto-Save ──────────────────────────────────────────────────────────────────────
+    const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const activeNoteIdRef = useRef<string | null>(null);
+    const activeFileKeyRef = useRef<CryptoKey | null>(null);
+    // Refs always have the latest value — safe to use inside setTimeout callbacks
+    const editorContentRef = useRef<any>(null);
+    const saveStatusRef = useRef<string>('saved');
+    const fileNameRef = useRef<string>("");
+
+    useEffect(() => { activeNoteIdRef.current = activeNoteId ?? null; }, [activeNoteId]);
+    useEffect(() => { activeFileKeyRef.current = activeFileKey; }, [activeFileKey]);
+    useEffect(() => { editorContentRef.current = editorContent; }, [editorContent]);
+    useEffect(() => { saveStatusRef.current = saveStatus; }, [saveStatus]);
+    useEffect(() => { fileNameRef.current = fileName; }, [fileName]);
+
+    // Always-current ref to performSave so triggerSave (stable useCallback) never
+    // calls a stale closure where privateKey / publicKey / files are still null.
+    // Declared here (before triggerSave) so it can be referenced inside.
+    const performSaveRef = useRef<((content: any, fileId: string, fileKey: CryptoKey | null, visibility: string) => Promise<void>) | null>(null);
+
+    // Core save function — calls performSaveRef.current so it always uses the
+    // latest closure (fresh privateKey, publicKey, files, etc.) even though
+    // triggerSave itself is a stable useCallback with [] deps.
+    const triggerSave = useCallback(async (noteId: string, fileKey: CryptoKey | null, content: any) => {
+        if (!noteId || !content) return;
+        if (noteId === 'calendar' || noteId === 'messages' || noteId.startsWith('chat-')) return;
+
+        // Broaden search to all files and events to ensure items like event-notes are saved
+        const allFiles = useDataStore.getState().notes;
+        const allEvents = useDataStore.getState().events;
+        const currentFile = allFiles.find((f: any) => f.id === noteId) || allEvents.find((e: any) => e.id === noteId);
+        
+        if (!currentFile) {
+            console.warn(`[AutoSave] Aborting save: File ${noteId} not found in store.`);
+            return;
+        }
+
+        if (!performSaveRef.current) {
+            console.warn("[AutoSave] Aborting save: performSaveRef.current is null.");
+            return;
+        }
+
+        console.log(`[AutoSave] Triggering save for ${noteId} ("${(currentFile as any).title || 'Untitled'}")`);
+        setSaveStatus('saving');
+        try {
+            await performSaveRef.current(content, noteId, fileKey, (currentFile as any).visibility ?? 'private');
+            console.log(`[AutoSave] Successfully saved ${noteId}`);
+            setSaveStatus('saved');
+        } catch (e) {
+            console.error(`[AutoSave] Save FAILED for ${noteId}:`, e);
+            setSaveStatus('unsaved');
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Debounced auto-save: 3s after last content change, or when saveStatus flips back to
+    // 'unsaved' after a failed save attempt (so it retries without requiring further edits).
+    useEffect(() => {
+        if (saveStatus !== 'unsaved' || !editorContent) return;
+
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
+        saveTimerRef.current = setTimeout(() => {
+            // Use refs here — closures would be stale by the time the timer fires
+            const content = editorContentRef.current;
+            const noteId = activeNoteIdRef.current;
+            const fileKey = activeFileKeyRef.current;
+            
+            if (saveStatusRef.current !== 'unsaved') {
+                console.log("[AutoSave] 1s idle timer fired but status is no longer 'unsaved'. skipping.");
+                return; 
+            }
+            
+            console.log(`[AutoSave] 1s idle detected for ${noteId}. Starting save pulse...`);
+            triggerSave(noteId!, fileKey, content);
+        }, 1000);
+
+        return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [editorContent, saveStatus]);
+
+    // Save immediately when switching away from a note with unsaved changes
+    const prevNoteIdRef = useRef<string | null>(null);
+    useEffect(() => {
+        const prev = prevNoteIdRef.current;
+        prevNoteIdRef.current = activeNoteId ?? null;
+
+        if (!prev || prev === activeNoteId) return;
+        if (saveStatusRef.current !== 'unsaved') return;
+
+        // User switched away — save previous note's content RIGHT NOW (don't wait for timer)
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        console.log(`[Lifecycle] Tab switched from ${prev}. Flushing save...`);
+        triggerSave(prev, activeFileKeyRef.current, editorContentRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeNoteId]);
+
+    // ULTIMATE PROTECTION: Save when the window is hidden (e.g. user switches browser tab)
+    // or when the window is about to be closed.
+    useEffect(() => {
+        const flushUnsavedToDisk = () => {
+            if (saveStatusRef.current === 'unsaved' && activeNoteIdRef.current) {
+                console.log(`[Lifecycle] Window/Tab losing focus. EMERGENCY FLUSH for ${activeNoteIdRef.current}`);
+                triggerSave(activeNoteIdRef.current, activeFileKeyRef.current, editorContentRef.current);
+            }
+        };
+
+        const handleVisibilityChange = () => { if (document.visibilityState === 'hidden') flushUnsavedToDisk(); };
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => { flushUnsavedToDisk(); };
+
+        window.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => {
+            window.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+        };
+    }, [triggerSave]); // Stable triggerSave
+    // ────────────────────────────────────────────────────────────────────────────
 
     // -------------------------------------------------------------------------
     // 1. Core Actions & Tab Management
@@ -354,25 +474,27 @@ export default function Dashboard() {
                 dataToUpload = blob;
             } else {
                 if (!activeKey || !(activeKey instanceof CryptoKey)) {
-                    const currentFile = files.find(f => f.id === fileId);
-                    if (currentFile?.secured_meta && privateKey) {
-                        const meta: any = await cryptoLib.decryptMetadata(currentFile.secured_meta, privateKey, `save-fallback-${fileId}`);
+                    // REACHING INTO THE STORE FOR THE MOST UP-TO-DATE DATA
+                    const freshNotes = useDataStore.getState().notes;
+                    const freshPK = useDataStore.getState().privateKey;
+                    
+                    const currentFile = freshNotes.find((f: any) => f.id === fileId);
+                    if (currentFile?.secured_meta && freshPK) {
+                        const meta: any = await cryptoLib.decryptMetadata(currentFile.secured_meta, freshPK, `save-fallback-${fileId}`);
                         if (meta.fileKey) {
-                            // Check if fileKey is a JSON object (JWK format) or a legacy string.
-                            // The createNote correctly stores JWK format, but we must protect against corruption.
                             if (typeof meta.fileKey === 'object' && meta.fileKey.kty) {
                                 activeKey = await window.crypto.subtle.importKey(
                                     "jwk", meta.fileKey as JsonWebKey,
                                     { name: "AES-GCM" },
                                     true, ["encrypt", "decrypt"]
                                 );
-                            } else {
-                                throw new Error("FileKey is not a valid JWK");
                             }
                         }
                     }
                 }
-                if (!activeKey) throw new Error("Encryption key missing");
+                if (!activeKey || !(activeKey instanceof CryptoKey)) {
+                    throw new Error("Encryption key missing or invalid (Recovery Failed)");
+                }
                 const encrypted = await cryptoLib.encryptFile(blob, activeKey, fileId);
                 dataToUpload = encrypted.ciphertext;
                 iv = encrypted.iv;
@@ -380,8 +502,11 @@ export default function Dashboard() {
 
             await apiFetch(`/api/v1/files/${fileId}/upload`, { method: "POST", body: dataToUpload });
 
-            const currentFile = files.find(f => f.id === fileId);
-            const title = (fileId === activeTabId ? fileName : currentFile?.title) || "Untitled";
+            const currentFileAtUpload = useDataStore.getState().notes.find(f => f.id === fileId) || useDataStore.getState().events.find((e: any) => e.id === fileId);
+            const freshTitle = fileNameRef.current;
+            const freshActiveNoteId = activeNoteIdRef.current;
+
+            const title = (fileId === freshActiveNoteId ? freshTitle : (currentFileAtUpload as any)?.title) || "Untitled";
 
             if (visibility === 'public') {
                 await apiFetch(`/api/v1/files/${fileId}`, {
@@ -389,16 +514,21 @@ export default function Dashboard() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ public_meta: { title: title } })
                 });
+                useDataStore.getState().updateFileRaw(fileId, { public_meta: { title: title }, title: title });
             } else {
-                if (!publicKey || !activeKey) throw new Error("Keys missing");
+                const freshPubKey = useDataStore.getState().publicKey;
+                if (!freshPubKey || !activeKey) throw new Error("Public/Active Keys missing on metadata upload");
                 const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", activeKey);
                 const metaPayload = { title: title, fileKey: fileKeyJwk, iv: iv };
-                const encryptedMeta = await cryptoLib.encryptMetadata(metaPayload, publicKey, `save-meta-${fileId}`);
+                const encryptedMeta = await cryptoLib.encryptMetadata(metaPayload, freshPubKey, `save-meta-${fileId}`);
                 await apiFetch(`/api/v1/files/${fileId}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ secured_meta: encryptedMeta })
                 });
+                // CRITICAL: Update local store state so subsequent loadNoteContent (which uses files.find)
+                // doesn't see stale metadata (old IV) and fail to decrypt the new blob.
+                useDataStore.getState().updateFileRaw(fileId, { secured_meta: encryptedMeta, title: title });
             }
 
             // THE FLUSH: When the backend successfully acknowledges the save (HTTP 200), remove the backup
@@ -409,6 +539,10 @@ export default function Dashboard() {
             throw err;
         }
     };
+    // Keep the ref in sync with the latest render's closure so triggerSave
+    // (which is a stable useCallback) always calls the CURRENT performSave
+    // and never a stale version with empty privateKey / publicKey / files.
+    performSaveRef.current = performSave;
 
     const loadNoteContent = async (fileId: string, titleFn: string, passedFile?: any) => {
         if (!privateKey) return;
@@ -420,22 +554,17 @@ export default function Dashboard() {
         setSaveStatus("saved");
 
         try {
+            let recoveredBackup: any = null;
             // RECOVERY ON LOAD: Check localStorage for a backup of that ID before fetching
             try {
                 const backupStr = localStorage.getItem(`tide_backup_${fileId}`);
                 if (backupStr) {
-                    console.warn(`[RECOVERY] Found unsaved local backup for ${fileId}. Restoring and pushing to server.`);
-                    const parsedBackup = JSON.parse(backupStr);
-                    setEditorContent(parsedBackup);
-                    setSaveStatus("unsaved"); // This triggers the Auto-Save Effect
-                    
-                    // Clear it so we don't restore it again next time
-                    localStorage.removeItem(`tide_backup_${fileId}`);
-                    
-                    if (lastLoadIdRef.current === loadId) {
-                        setIsLoadingContent(false);
-                    }
-                    return; // Skip server fetch since we have the latest unsaved local data
+                    console.warn(`[RECOVERY] Found unsaved local backup for ${fileId}. Restoring content, but still loading keys.`);
+                    recoveredBackup = JSON.parse(backupStr);
+                    setEditorContent(recoveredBackup);
+                    setSaveStatus("unsaved"); 
+                    // We DO NOT return here anymore. We need to load the metadata to get the FileKey,
+                    // otherwise subsequent saves will fail due to missing keys.
                 }
             } catch (backupErr) {
                 console.error("Failed to recover local backup:", backupErr);
@@ -469,22 +598,27 @@ export default function Dashboard() {
                 );
                 setActiveFileKey(importedFileKey);
 
-                const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
-                if (resBlob.ok) {
-                    const blob = await resBlob.blob();
-                    if (blob.size > 0) {
-                        try {
-                            const decryptedBlob = await cryptoLib.decryptFile(blob, meta.iv, importedFileKey, fileId);
-                            contentText = await decryptedBlob.text();
-                        } catch (decryptErr) {
-                            console.error(`[CRYPTO-AUDIT] DECRYPTION FAILURE | ID: ${fileId}`, decryptErr);
-                            contentText = JSON.stringify({
-                                type: 'doc',
-                                content: [{
-                                    type: 'paragraph',
-                                    content: [{ type: 'text', marks: [{ type: 'bold' }], text: "⚠️ DECRYPTION ERROR: " }, { type: 'text', text: "Content corrupted or key mismatch." }]
-                                }]
-                            });
+                // PERFORMANCE: If we already have the content from a local backup, we don't need to download the blob from the server.
+                if (recoveredBackup) {
+                    console.log("[RECOVERY] Skipping server blob download, using recovered backup.");
+                } else {
+                    const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
+                    if (resBlob.ok) {
+                        const blob = await resBlob.blob();
+                        if (blob.size > 0) {
+                            try {
+                                const decryptedBlob = await cryptoLib.decryptFile(blob, meta.iv, importedFileKey, fileId);
+                                contentText = await decryptedBlob.text();
+                            } catch (decryptErr) {
+                                console.error(`[CRYPTO-AUDIT] DECRYPTION FAILURE | ID: ${fileId}`, decryptErr);
+                                contentText = JSON.stringify({
+                                    type: 'doc',
+                                    content: [{
+                                        type: 'paragraph',
+                                        content: [{ type: 'text', marks: [{ type: 'bold' }], text: "⚠️ DECRYPTION ERROR: " }, { type: 'text', text: "Content corrupted or key mismatch." }]
+                                    }]
+                                });
+                            }
                         }
                     }
                 }
@@ -511,10 +645,14 @@ export default function Dashboard() {
     const switchTab = async (newId: string, type: string, forcedTitle?: string, fallbackData?: any, currentOverride?: any) => {
         if (!newId) return;
         const currentContentToUse = currentOverride || editorContent;
-        const isOldAFile = activeTabId !== 'calendar' && activeTabId !== 'messages' && !activeTabId.startsWith('chat-') && activeTabId !== 'ext_finance';
+        const currentTabId = useDataStore.getState().activeNoteId || activeTabId; // Use ref-like safety
+        
+        const isOldAFile = currentTabId !== 'calendar' && currentTabId !== 'messages' && !currentTabId.startsWith('chat-');
+        
         if (isOldAFile && (saveStatus === 'unsaved' || currentOverride) && currentContentToUse) {
-            const oldFile = files.find(f => f.id === activeTabId);
-            if (oldFile) performSave(currentContentToUse, activeTabId, activeFileKey, oldFile.visibility).catch(console.error);
+            console.log(`[Lifecycle] Tab switch: Forcing final save of ${currentTabId}`);
+            // Use triggerSave for the latest logic and keys
+            triggerSave(currentTabId, activeFileKeyRef.current, currentContentToUse);
         }
 
         setOpenTabs(prev => {
@@ -590,31 +728,12 @@ export default function Dashboard() {
         return () => eventSource.close();
     }, [myId]);
 
-    // Auto-Save Effect
-    useEffect(() => {
-        const snapshotContent = editorContent;
-        const snapshotId = activeTabId;
-        const snapshotKey = activeFileKey;
-        if (saveStatus === "unsaved" && snapshotId && snapshotContent && !snapshotId.startsWith('chat-') && snapshotId !== 'calendar' && snapshotId !== 'messages') {
-            const currentFile = files.find(f => f.id === snapshotId);
-            if (!currentFile) return;
-            const canSave = currentFile.visibility === 'public' || snapshotKey;
-            if (canSave) {
-                const timer = setTimeout(async () => {
-                    const isTabStillActive = useDataStore.getState().activeNoteId === snapshotId;
-                    
-                    if (isTabStillActive) setSaveStatus("saving");
-                    try {
-                        await performSave(snapshotContent, snapshotId, snapshotKey, currentFile.visibility);
-                        if (useDataStore.getState().activeNoteId === snapshotId) setSaveStatus("saved");
-                    } catch { 
-                        if (useDataStore.getState().activeNoteId === snapshotId) setSaveStatus("unsaved"); 
-                    }
-                }, 1500);
-                return () => clearTimeout(timer);
-            }
-        }
-    }, [editorContent, saveStatus, activeTabId, activeFileKey, files]);
+    // Auto-Save Effect — intentionally removed: the ref-based triggerSave system above
+    // (lines 297-363) is the single, canonical auto-save path. Having a second effect
+    // that also depends on `files` caused a race condition: every successful save fired
+    // an SSE `file_updated` event → fetchDirectory() updated `files` → this effect
+    // re-ran, sometimes spawning a new 1500ms timer on stale content that overwrote the
+    // recently saved version. All auto-save is now handled by triggerSave + its effects.
 
     // Data Load Effect
     useEffect(() => {
@@ -1583,6 +1702,20 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // intentionally empty — ref always has the latest version
 
+    const switchTabRef = useLatestRef(switchTab);
+
+    useEffect(() => {
+        const handleNavigate = (e: Event) => {
+            const { noteId } = (e as CustomEvent).detail;
+            if (noteId) {
+                switchTabRef.current(noteId, 'file');
+            }
+        };
+        window.addEventListener('tide:navigate', handleNavigate);
+        return () => window.removeEventListener('tide:navigate', handleNavigate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const handleDeleteEvent = async (id: string) => {
         if (!myId) return;
         
@@ -2022,31 +2155,57 @@ export default function Dashboard() {
                                     <div className="flex-1 min-w-0 flex flex-col">
                                         {activeNoteId && files.find(f => f.id === activeNoteId) && (
                                             <>
-                                                <input
-                                                    type="text"
-                                                autoFocus
-                                                value={fileName}
-                                                onChange={(e) => {
-                                                    const newTitle = e.target.value;
-                                                    setFileName(newTitle);
-                                                    if (activeNoteId) {
-                                                        useDataStore.getState().setNotes(files.map(f => f.id === activeNoteId ? { ...f, title: newTitle } : f) as any);
-                                                    }
-                                                }}
-                                                onBlur={(e) => {
-                                                    if (activeNoteId) {
-                                                        submitRename(activeNoteId, e.target.value);
-                                                    }
-                                                }}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        e.preventDefault();
-                                                        editorInstance?.commands.focus();
-                                                    }
-                                                }}
-                                                placeholder="Untitled Note"
-                                                className="text-4xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-700 mb-6 pb-1 leading-normal overflow-visible"
-                                            />
+                                                <div className="flex items-center gap-2 mb-6">
+                                                    <input
+                                                        type="text"
+                                                        autoFocus
+                                                        value={fileName}
+                                                        onChange={(e) => {
+                                                            const newTitle = e.target.value;
+                                                            setFileName(newTitle);
+                                                            if (activeNoteId) {
+                                                                useDataStore.getState().setNotes(files.map(f => f.id === activeNoteId ? { ...f, title: newTitle } : f) as any);
+                                                            }
+                                                        }}
+                                                        onBlur={(e) => {
+                                                            if (activeNoteId) {
+                                                                submitRename(activeNoteId, e.target.value);
+                                                            }
+                                                        }}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault();
+                                                                editorInstance?.commands.focus();
+                                                            }
+                                                        }}
+                                                        placeholder="Untitled Note"
+                                                        className="text-4xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-700 pb-1 leading-normal overflow-visible flex-1"
+                                                    />
+                                                    {/* Save status indicator */}
+                                                    <span
+                                                        title={saveStatus === 'saved' ? 'Gespeichert' : saveStatus === 'saving' ? 'Wird gespeichert…' : 'Nicht gespeichert'}
+                                                        className="shrink-0 self-end mb-2 transition-all duration-300"
+                                                    >
+                                                        {saveStatus === 'saved' && (
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400 opacity-60">
+                                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                                                <polyline points="22 4 12 14.01 9 11.01"/>
+                                                            </svg>
+                                                        )}
+                                                        {saveStatus === 'saving' && (
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 opacity-60 animate-spin">
+                                                                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                                                            </svg>
+                                                        )}
+                                                        {saveStatus === 'unsaved' && (
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400 opacity-70">
+                                                                <circle cx="12" cy="12" r="10"/>
+                                                                <line x1="12" y1="8" x2="12" y2="12"/>
+                                                                <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                                            </svg>
+                                                        )}
+                                                    </span>
+                                                </div>
                                             </>
                                         )}
 
