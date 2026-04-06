@@ -1,12 +1,12 @@
 import React from 'react';
-import { X, Calendar, FileText, MessageSquare, DollarSign } from 'lucide-react';
+import { X, Calendar, FileText, MessageSquare, DollarSign, User } from 'lucide-react';
 import { useHighlight } from '../HighlightContext';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
 
 export interface Tab {
     id: string;
     title: string;
-    type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance';
+    type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile';
     content?: any;
     _fileKey?: CryptoKey | null;
     _saveStatus?: "saved" | "unsaved" | "saving";
@@ -15,7 +15,7 @@ export interface Tab {
 interface TabListProps {
     tabs: Tab[];
     activeTabId: string;
-    onTabSelect: (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance') => void;
+    onTabSelect: (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile') => void;
     onTabClose: (e: React.MouseEvent, id: string) => void;
     onTabsReorder?: (newTabs: Tab[]) => void;
     enabledExtensions?: string[];
@@ -26,8 +26,8 @@ interface TabListProps {
 export default function TabList({ tabs, activeTabId, onTabSelect, onTabClose, onTabsReorder, enabledExtensions, onOpenMessages, onOpenFinance }: TabListProps) {
     const { highlight, isHighlighted } = useHighlight();
 
-    const documentTabs = tabs.filter(t => ['file', 'chat'].includes(t.type));
-    const systemTabs = tabs.filter(t => !['file', 'chat'].includes(t.type));
+    const documentTabs = tabs.filter(t => ['file', 'chat', 'profile'].includes(t.type));
+    const systemTabs = tabs.filter(t => !['file', 'chat', 'profile'].includes(t.type));
 
     const handleReorder = (newDocTabs: Tab[]) => {
         if (onTabsReorder) {
@@ -86,10 +86,10 @@ export default function TabList({ tabs, activeTabId, onTabSelect, onTabClose, on
                                                 }`}
                                         >
                                             <div className={`shrink-0 ${isActive ? 'opacity-100' : 'opacity-60 group-hover:opacity-90'}`}>
-                                                {tab.type === 'chat' ? <MessageSquare size={14} /> : <FileText size={14} />}
+                                                {tab.type === 'chat' ? <MessageSquare size={14} /> : tab.type === 'profile' ? <User size={14} /> : <FileText size={14} />}
                                             </div>
                                             <span className="text-xs font-semibold max-w-[90px] truncate block pointer-events-none select-none">
-                                                {tab.title && tab.title !== "Untitled" ? tab.title : (tab.type === 'chat' ? 'Chat' : 'Untitled')}
+                                                {tab.title && tab.title !== "Untitled" ? tab.title : (tab.type === 'chat' ? 'Chat' : tab.type === 'profile' ? 'Profile' : 'Untitled')}
                                             </span>
                                             <button
                                                 onClick={(e) => { e.stopPropagation(); onTabClose(e, tab.id); }}

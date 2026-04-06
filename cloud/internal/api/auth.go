@@ -49,7 +49,8 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 	r.Post("/request-otp", h.RequestOTP)
 	r.Post("/verify-otp", h.VerifyOTP)
 	
-	// Legacy routes mapped or kept dummy if needed, omitting for now or keeping step1/step2
+	r.With(AuthMiddleware).Get("/me", h.Me)
+	r.With(AuthMiddleware).Put("/me", h.UpdateMe)
 }
 
 // RegisterRequest payload
@@ -342,6 +343,35 @@ func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		Username string `json:"username"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Username == "" {
+		http.Error(w, "Username cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	// Update in store
+	if err := h.Store.UpdateUserUsername(r.Context(), userID, req.Username); err != nil {
+		http.Error(w, "Failed to update username", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 // Legacy auth code has been removed.

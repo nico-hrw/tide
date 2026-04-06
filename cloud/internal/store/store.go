@@ -42,7 +42,7 @@ type Store interface {
 	GetAccessibleFile(ctx context.Context, id string, viewerID string) (*db.File, error)
 	SetVisibility(ctx context.Context, fileID string, visibility string) error
 	SetVisibilityRecursive(ctx context.Context, folderID string, visibility string) error
-	ListPublicFiles(ctx context.Context, ownerID string) ([]*db.File, error)
+	ListPublicFiles(ctx context.Context, ownerID string, viewerID string) ([]*db.File, error)
 	UserHasFileAccess(ctx context.Context, userID, fileID string) (bool, error)
 
 	// Sharing
@@ -91,4 +91,9 @@ type Store interface {
 	GetMessage(ctx context.Context, id string) (*Message, error)
 	UpdateMessageStatus(ctx context.Context, id string, status string) error
 	DeleteConversation(ctx context.Context, user1, user2 string) error
+
+	// Profiles & Social
+	GetProfile(ctx context.Context, userID string) (*db.Profile, error)
+	UpsertProfile(ctx context.Context, profile *db.Profile) error
+	SearchPublicData(ctx context.Context, query string) ([]*db.SearchResult, error)
 }

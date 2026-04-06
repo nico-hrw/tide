@@ -1076,7 +1076,7 @@ export default function CalendarView({
                 if (isDraggingRef.current) {
                     const scrollDelta = (scrollContainerRef.current?.scrollTop || 0) - resizeDragState.initialScrollTop;
                     let newHeight = resizeDragState.originalHeight + deltaY + scrollDelta;
-                    let maxAllowedHeight = 1440 - resizeDragState.originalTop;
+                    let maxAllowedHeight = 1439 - resizeDragState.originalTop; // Strict: max 23:59, not midnight
                     if (newHeight < 15) newHeight = 15;
                     if (newHeight > maxAllowedHeight) newHeight = maxAllowedHeight;
                     // Keep Loupe anchored to event's BOTTOM edge
@@ -1242,14 +1242,22 @@ export default function CalendarView({
 
                 const newStart = new Date(base.getFullYear(), base.getMonth(), base.getDate(),
                     Math.floor(newStartMins / 60), newStartMins % 60, 0, 0);
-                const newEnd = new Date(newStart.getTime() + durationMins * 60000);
+                let newEnd = new Date(newStart.getTime() + durationMins * 60000);
 
-                // Final midnight clamp
-                const maxEnd = startOfDay(newEnd).getTime() + 24 * 60 * 60 * 1000;
-                const safeEnd = newEnd.getTime() > maxEnd ? new Date(maxEnd) : newEnd;
-                const safeStart = new Date(safeEnd.getTime() - durationMins * 60000);
+                // STRICT MIDNIGHT CLAMP: end must never cross into the next day
+                const sameDayMidnight = new Date(newStart.getFullYear(), newStart.getMonth(), newStart.getDate(), 23, 59, 59, 999);
+                if (newEnd > sameDayMidnight) {
+                    newEnd = sameDayMidnight;
+                }
+                // NO INVERSION: end must be at least 15 min after start
+                const minEnd = new Date(newStart.getTime() + 15 * 60 * 1000);
+                if (newEnd <= newStart || newEnd < minEnd) {
+                    newEnd = minEnd;
+                    // Re-clamp after minimum enforcement
+                    if (newEnd > sameDayMidnight) newEnd = sameDayMidnight;
+                }
 
-                await onEventUpdate(dId, safeStart, safeEnd);
+                await onEventUpdate(dId, newStart, newEnd);
             }
 
         } else if (resizingId && resizeDragState && onEventUpdate) {
@@ -1260,15 +1268,24 @@ export default function CalendarView({
             if (event) {
                 const scrollDelta = (scrollContainerRef.current?.scrollTop || 0) - rState.initialScrollTop;
                 const snapInterval = isPreciseModeRef.current ? 1 : 10;
-                const minDuration = 10;
+                const minDuration = 15; // Strict: minimum 15 minutes
                 const newHeight = Math.max(minDuration, rState.currentHeight + scrollDelta);
                 const snappedHeight = Math.max(minDuration, Math.round(newHeight / snapInterval) * snapInterval);
 
                 const start = new Date(event.start);
-                // MIDNIGHT SWAP FIX: ensure end can never exceed midnight
-                const maxEndMs = startOfDay(start).getTime() + 24 * 60 * 60 * 1000;
-                const rawEnd = new Date(start.getTime() + snappedHeight * 60000);
-                const end = rawEnd.getTime() > maxEndMs ? new Date(maxEndMs) : rawEnd;
+
+                // STRICT MIDNIGHT CLAMP: end must stay within the same calendar day (max 23:59:59)
+                const sameDayMidnight = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 23, 59, 59, 999);
+                let end = new Date(start.getTime() + snappedHeight * 60000);
+                if (end > sameDayMidnight) {
+                    end = sameDayMidnight;
+                }
+                // NO INVERSION: enforce minimum 15 min even after midnight clamp
+                const minEnd = new Date(start.getTime() + 15 * 60 * 1000);
+                if (end <= start || end < minEnd) {
+                    end = minEnd;
+                    if (end > sameDayMidnight) end = sameDayMidnight;
+                }
 
                 await onEventUpdate(rId, start, end);
             }
@@ -1525,29 +1542,16 @@ export default function CalendarView({
                         className="flex-1 relative flex trackpad-scroll-free"
                         style={{ touchAction: 'none', overscrollBehavior: 'none' }}
                     >
-                    {/* Time Column (Sticky Left) */}
-                    <div className="w-[60px] flex-shrink-0 sticky left-0 z-[150] bg-white border-r border-gray-200 dark:border-slate-800 h-fit min-h-full pb-[150px]">
-                        {/* Corner */}
-                        <div className="h-[50px] border-b border-gray-200 dark:border-slate-800 sticky top-0 z-[160] bg-white"></div>
-                        {
-                            Array.from({ length: 24 }).map((_, i) => (
-                                <div key={i} className="h-[60px] relative group border-b border-dashed border-gray-200 dark:border-slate-800">
-                                    <span className="absolute -top-3 right-3 text-[11px] font-semibold text-gray-400 z-[10]">{i}:00</span>
-                                </div>
-                            ))
-                        }
-                    </div >
-
                     {/* Days Wrapper with Relative positioning for the Time Line */}
                     <div className="flex relative items-start pb-[150px]" ref={gridDaysRef}>
 
-                        {/* Global Current Time Line - Now Inside the relative flex container */}
-                        < div
+                        {/* Global Current Time Line - extends to cover days only (time col is now on the right) */}
+                        <div
                             className="absolute z-[155] pointer-events-none"
-                            style={{ top: `${globalTimeTop + 50}px`, left: '-60px', width: 'calc(100% + 60px)' }}
+                            style={{ top: `${globalTimeTop + 50}px`, left: '0', right: '0', width: '100%' }}
                         >
                             <div className="h-[2px] bg-black w-full relative">
-                                <div className="w-10 h-5 rounded-full bg-black text-white text-[10px] font-bold flex items-center justify-center absolute left-0 -top-2.5 shadow-sm">
+                                <div className="w-10 h-5 rounded-full bg-black text-white text-[10px] font-bold flex items-center justify-center absolute right-0 -top-2.5 shadow-sm">
                                     {format(currentTime, "HH:mm")}
                                 </div>
                             </div>
@@ -1648,6 +1652,19 @@ export default function CalendarView({
                                 cursorY={cursorY}
                             />
                         )}
+                    </div>
+
+                    {/* Time Column (Sticky Right) */}
+                    <div className="w-[60px] flex-shrink-0 sticky right-0 z-[150] bg-white border-l border-gray-200 dark:border-slate-800 h-fit min-h-full pb-[150px]">
+                        {/* Corner */}
+                        <div className="h-[50px] border-b border-gray-200 dark:border-slate-800 sticky top-0 z-[160] bg-white"></div>
+                        {
+                            Array.from({ length: 24 }).map((_, i) => (
+                                <div key={i} className="h-[60px] relative group border-b border-dashed border-gray-200 dark:border-slate-800">
+                                    <span className="absolute -top-3 left-3 text-[11px] font-semibold text-gray-400 z-[10]">{i}:00</span>
+                                </div>
+                            ))
+                        }
                     </div>
                     </div>
                 </div>

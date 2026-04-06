@@ -44,6 +44,7 @@ func main() {
 	linkHandler := api.NewLinkHandler(sqliteStore)
 	messageHandler := &api.MessageHandler{Store: sqliteStore, Broker: broker}
 	contactHandler := &api.ContactHandler{Store: sqliteStore}
+	profileHandler := &api.ProfileHandler{Store: sqliteStore}
 	extensionsHandler := api.NewExtensionsHandler(sqliteStore)
 	taskHandler := api.NewTaskHandler(sqliteStore)
 
@@ -125,11 +126,14 @@ func main() {
 		r.Post("/auth/request-otp", authHandler.RequestOTP)
 		r.Post("/auth/verify-otp", authHandler.VerifyOTP)
 		r.With(api.AuthMiddleware).Get("/auth/me", authHandler.Me)
+		r.With(api.AuthMiddleware).Put("/auth/me", authHandler.UpdateMe)
 
 		r.Route("/files", fileHandler.RegisterRoutes)
 		r.Route("/links", linkHandler.RegisterRoutes)
 		r.Route("/messages", messageHandler.RegisterRoutes)
 		r.Route("/contacts", contactHandler.RegisterRoutes)
+		r.Route("/profiles", profileHandler.RegisterRoutes)
+		r.Get("/search", profileHandler.Search)
 		r.Route("/user/extensions", extensionsHandler.RegisterRoutes)
 		r.Route("/tabs", tabsHandler.RegisterRoutes)
 		r.Route("/tasks", taskHandler.RegisterRoutes)

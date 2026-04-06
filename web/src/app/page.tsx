@@ -12,6 +12,7 @@ import CalendarView from "@/components/Calendar/CalendarView";
 import WeekView from "@/components/Calendar/WeekView";
 import ShareModal from "@/components/ShareModal";
 import SettingsModal from "@/components/Settings/SettingsModal";
+import ProfilePage from "@/components/Profile/ProfilePage";
 import dynamic from 'next/dynamic';
 
 const Editor = dynamic(() => import('@/components/Editor'), {
@@ -184,7 +185,7 @@ export default function Dashboard() {
     const [activeTabId, setActiveTabId] = useState<string>('calendar');
     const [isSharingDisabled, setIsSharingDisabled] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [userProfile, setUserProfile] = useState<{ username: string; email: string } | null>(null);
+    const [userProfile, setUserProfile] = useState<{ username: string; email: string; avatar_seed?: string; avatar_salt?: string; bio?: string; title?: string } | null>(null);
     const [streak, setStreak] = useState(0);
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const [summaryStats, setSummaryStats] = useState({ events: 0, tasks: 0 });
@@ -1071,7 +1072,24 @@ export default function Dashboard() {
                 setKeys(privKey, pubKey, userId);
                 setMyId(userId);
                 setUserEmail(email);
+                // Set a quick initial profile from stored data
                 setUserProfile({ username: email.split('@')[0], email: email });
+                // Then fetch the real profile (avatar_seed, bio, title) from the public endpoint
+                fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/profiles/${userId}`)
+                    .then(r => r.ok ? r.json() : null)
+                    .then(profile => {
+                        if (profile) {
+                            setUserProfile(prev => ({
+                                ...prev,
+                                username: profile.username || email.split('@')[0],
+                                avatar_seed: profile.avatar_seed || userId,
+                                avatar_salt: profile.avatar_salt || '',
+                                bio: profile.bio || '',
+                                title: profile.title || '',
+                            }));
+                        }
+                    })
+                    .catch(() => { /* non-critical, keep fallback */ });
                 
                 // Persistence: Restore tabs (from sessionStorage — per-window)
                 const savedTabs = sessionStorage.getItem("tide_open_tabs");
@@ -1739,7 +1757,7 @@ export default function Dashboard() {
 
     // 5. Tab Management & Messages
     // -------------------------------------------------------------------------
-    const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance') => {
+    const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile') => {
         switchTab(id, type);
     };
 
@@ -1962,6 +1980,7 @@ export default function Dashboard() {
             {/* Left Sidebar Panel */}
             <div className={`hidden md:flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] shrink-0 z-[100] transition-all duration-300 w-64`}>
                 <Sidebar
+                    userProfile={userProfile || undefined}
                     files={sidebarFiles}
                     onFileSelect={handleFileSelect}
                     onNewNote={handleNewNote}
@@ -2056,6 +2075,7 @@ export default function Dashboard() {
                             privateKey={privateKey}
                             onOpenFile={handleFileSelect}
                             onOpenCalendar={() => switchTab('calendar', 'calendar')}
+                            onOpenProfile={(userId, username) => switchTab(`profile:${userId}`, 'profile', username)}
                             onFileCreated={(newFile: DecryptedFile) => {
                                 useDataStore.getState().appendFiles([newFile as any], []);
                             }}
@@ -2076,7 +2096,16 @@ export default function Dashboard() {
                     {enabledExtensions.includes('finance') ? <FinanceDashboard /> : null}
                 </div>
 
-                <div className={`flex-1 min-h-0 relative overflow-y-auto ${activeTabId === 'calendar' || activeTabId === 'messages' || activeTabId.startsWith('chat-') || activeTabId === 'ext_finance' ? 'hidden' : 'block'}`}>
+                <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId.startsWith('profile:') ? 'block' : 'hidden'}`}>
+                    {activeTabId.startsWith('profile:') && (
+                        <ProfilePage 
+                            userId={activeTabId.split(':')[1]} 
+                            onOpenFile={(fileId, title) => switchTab(fileId, 'file', title)}
+                        />
+                    )}
+                </div>
+
+                <div className={`flex-1 min-h-0 relative overflow-y-auto ${activeTabId === 'calendar' || activeTabId === 'messages' || activeTabId.startsWith('chat-') || activeTabId === 'ext_finance' || activeTabId.startsWith('profile:') ? 'hidden' : 'block'}`}>
                     {isLoadingContent ? (
                         <div className="flex items-center justify-center h-full text-gray-400">Loading content...</div>
                     ) : (

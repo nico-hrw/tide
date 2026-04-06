@@ -8,6 +8,7 @@ import MiniCalendar from "../Calendar/MiniCalendar";
 import { useHighlight } from "@/components/HighlightContext";
 import { useDataStore } from "@/store/useDataStore";
 import { apiFetch } from "@/lib/api";
+import Avatar from "@/components/Profile/Avatar";
 
 interface DecryptedFile {
     id: string;
@@ -44,6 +45,7 @@ interface SidebarProps {
     onUpdateEventGroup?: (id: string, updates: any) => void;
     enabledExtensions?: string[];
     onOpenSettings?: () => void;
+    userProfile?: { id?: string; user_id?: string; username: string; email: string; bio?: string; title?: string; avatar_seed?: string; avatar_salt?: string };
 }
 
 interface ChatUser {
@@ -75,7 +77,8 @@ export default function Sidebar({
     onCreateEventGroup,
     onUpdateEventGroup,
     enabledExtensions,
-    onOpenSettings
+    onOpenSettings,
+    userProfile: propProfile
 }: SidebarProps) {
     const { highlight } = useHighlight();
     const { orderedNoteIds, setOrderedNoteIds, setSettingsModalOpen } = useDataStore();
@@ -83,9 +86,11 @@ export default function Sidebar({
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
     const [myId, setMyId] = useState<string>("");
-    const [userProfile, setUserProfile] = useState<{ username: string, email: string } | null>(null);
+    const [sidebarUserProfile, setSidebarUserProfile] = useState<{ username: string, email: string, avatar_seed?: string, avatar_salt?: string } | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, id: string, type: 'file' | 'folder' } | null>(null);
     const [dropIndicator, setDropIndicator] = useState<{ id: string, half: 'top' | 'bottom' } | null>(null);
+
+    const userProfile = propProfile || sidebarUserProfile;
 
     const topLevelItems = useMemo(() => {
         return files?.filter(f => f.parent_id === null && f.type !== 'event') || [];
@@ -136,7 +141,24 @@ export default function Sidebar({
                     if (record.username) username = record.username;
                 } catch (e) { }
             }
-            setUserProfile({ username, email });
+            setSidebarUserProfile({ username, email });
+
+            // Fetch real profile (avatar_seed + avatar_salt) from backend
+            if (id) {
+                fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/profiles/${id}`)
+                    .then(r => r.ok ? r.json() : null)
+                    .then(profile => {
+                        if (profile) {
+                            setSidebarUserProfile({
+                                username: profile.username || username,
+                                email,
+                                avatar_seed: profile.avatar_seed || id,
+                                avatar_salt: profile.avatar_salt || '',
+                            });
+                        }
+                    })
+                    .catch(() => {});
+            }
         }
     }, []);
 
@@ -195,52 +217,16 @@ export default function Sidebar({
                     {/* Avatar at top-left */}
                     <div className="relative" ref={profileMenuRef}>
                         <div
-                            onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-                            onContextMenu={(e) => { e.preventDefault(); setIsProfileMenuOpen(!isProfileMenuOpen); }}
-                            className="w-8 h-8 shrink-0 rounded-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 flex items-center justify-center text-gray-700 dark:text-gray-300 font-bold uppercase text-sm shadow-sm cursor-pointer hover:shadow-md transition-all hover:scale-105 active:scale-95 overflow-hidden"
+                            onClick={() => setSettingsModalOpen(true)}
+                            onContextMenu={(e) => { e.preventDefault(); setSettingsModalOpen(true); }}
+                            className="w-8 h-8 shrink-0 rounded-full cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all hover:scale-105 active:scale-95 overflow-hidden"
+                            title="Settings"
                         >
-                            {effectiveUserName[0]?.toUpperCase() || "U"}
+                            <Avatar
+                                seed={(userProfile?.avatar_seed || userProfile?.user_id || userProfile?.id || myId || 'default') + (userProfile?.avatar_salt || '')}
+                                size={32}
+                            />
                         </div>
-
-                        {isProfileMenuOpen && (
-                            <div className="absolute left-0 top-10 w-64 bg-white dark:bg-[#1C1C1E] border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-top-2 fade-in duration-200 z-[100] origin-top-left">
-                                <div className="p-4 bg-gray-50/50 dark:bg-white/5 flex items-center justify-between gap-3">
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-base font-bold text-gray-900 dark:text-white truncate leading-tight">{effectiveUserName}</div>
-                                        <div className="text-xs text-gray-500 truncate mt-0.5">{userProfile?.email || ""}</div>
-                                    </div>
-                                    <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 flex items-center justify-center text-gray-700 dark:text-gray-300 text-base font-bold shadow-sm">
-                                        {effectiveUserName[0]?.toUpperCase() || "U"}
-                                    </div>
-                                </div>
-                                <div className="h-px bg-gray-100 dark:bg-white/5" />
-                                <div className="p-2 flex flex-col gap-1">
-                                    <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all group">
-                                        <User size={18} className="text-gray-400 group-hover:text-blue-500" />
-                                        <span className="font-semibold flex-1 text-left">Profile</span>
-                                    </button>
-                                    <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all group">
-                                        <Users size={18} className="text-gray-400 group-hover:text-blue-500" />
-                                        <span className="font-semibold flex-1 text-left">Community</span>
-                                    </button>
-                                    <button onClick={() => { setIsProfileMenuOpen(false); setSettingsModalOpen(true); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all group">
-                                        <Puzzle size={18} className="text-gray-400 group-hover:text-blue-500" />
-                                        <span className="font-semibold flex-1 text-left">Extensions</span>
-                                    </button>
-                                    <button onClick={() => { setIsProfileMenuOpen(false); setSettingsModalOpen(true); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all group">
-                                        <Settings size={18} className="text-gray-400 group-hover:text-blue-500" />
-                                        <span className="font-semibold flex-1 text-left">Settings</span>
-                                    </button>
-                                </div>
-                                <div className="h-px bg-gray-100 dark:bg-white/5" />
-                                <div className="p-2">
-                                    <button onClick={handleSignOut} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all font-semibold group">
-                                        <LogOut size={18} className="text-gray-400 group-hover:text-rose-500" />
-                                        <span className="flex-1 text-left">Sign out</span>
-                                    </button>
-                                </div>
-                            </div>
-                        )}
                     </div>
 
                     {/* Right-side action buttons */}
@@ -377,18 +363,35 @@ export default function Sidebar({
                                 <ChevronRight size={14} className="text-gray-400" />
                             </button>
                             <div className="hidden group-hover/sub:block absolute left-full top-0 ml-1 w-48 bg-white border border-gray-200 rounded-xl shadow-xl py-1">
-                                <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'private'); }} className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group">
-                                    <span>Private</span>
-                                    <Lock size={14} className="text-gray-400" />
-                                </button>
-                                <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'contacts'); }} className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group">
-                                    <span>For Contacts</span>
-                                    <Users size={14} className="text-gray-400" />
-                                </button>
-                                <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'public'); }} className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group">
-                                    <span>Public link</span>
-                                    <Globe size={14} className="text-gray-400" />
-                                </button>
+                                {(() => {
+                                    const currentFile = allFiles.find(f => f.id === contextMenu.id);
+                                    const v = currentFile?.visibility || 'private';
+                                    return (
+                                        <>
+                                            <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'private'); }} className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 rounded-lg transition-colors group ${v === 'private' ? 'text-blue-600 bg-blue-50/50' : 'text-gray-700'}`}>
+                                                <span className="font-medium">Private</span>
+                                                <div className="flex items-center gap-2">
+                                                    {v === 'private' && <Check size={14} className="text-blue-600" />}
+                                                    <Lock size={14} className="text-gray-400" />
+                                                </div>
+                                            </button>
+                                            <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'contacts'); }} className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 rounded-lg transition-colors group ${v === 'contacts' ? 'text-blue-600 bg-blue-50/50' : 'text-gray-700'}`}>
+                                                <span className="font-medium">For Contacts</span>
+                                                <div className="flex items-center gap-2">
+                                                    {v === 'contacts' && <Check size={14} className="text-blue-600" />}
+                                                    <Users size={14} className="text-gray-400" />
+                                                </div>
+                                            </button>
+                                            <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'public'); }} className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 rounded-lg transition-colors group ${v === 'public' ? 'text-blue-600 bg-blue-50/50' : 'text-gray-700'}`}>
+                                                <span className="font-medium">Public link</span>
+                                                <div className="flex items-center gap-2">
+                                                    {v === 'public' && <Check size={14} className="text-blue-600" />}
+                                                    <Globe size={14} className="text-gray-400" />
+                                                </div>
+                                            </button>
+                                        </>
+                                    );
+                                })()}
                             </div>
                         </div>
 

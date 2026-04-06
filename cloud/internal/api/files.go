@@ -113,6 +113,9 @@ type UpdateFileRequest struct {
 	IsCompleted    *bool           `json:"is_completed"`
 	Exdates        json.RawMessage `json:"exdates"`
 	CompletedDates json.RawMessage `json:"completed_dates"`
+	Version        *int            `json:"version"`
+	Metadata       json.RawMessage `json:"metadata"`
+	AccessKeys     json.RawMessage `json:"access_keys"`
 }
 
 func (h *FileHandler) GetFileMetadata(w http.ResponseWriter, r *http.Request) {
@@ -138,6 +141,9 @@ func (h *FileHandler) GetFileMetadata(w http.ResponseWriter, r *http.Request) {
 		}
 		http.Error(w, "Failed to retrieve file metadata", http.StatusInternalServerError)
 		return
+	}
+	if file.Version == 0 {
+		file.Version = 1
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -178,6 +184,12 @@ func (h *FileHandler) ListFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	for _, f := range files {
+		if f.Version == 0 {
+			f.Version = 1
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(files)
 }
@@ -202,10 +214,21 @@ func (h *FileHandler) AcceptShare(w http.ResponseWriter, r *http.Request) {
 func (h *FileHandler) ListPublicFiles(w http.ResponseWriter, r *http.Request) {
 	targetUserID := chi.URLParam(r, "userID")
 
-	files, err := h.Store.ListPublicFiles(r.Context(), targetUserID)
+	viewerID, _ := r.Context().Value("user_id").(string)
+	files, err := h.Store.ListPublicFiles(r.Context(), targetUserID, viewerID)
 	if err != nil {
 		http.Error(w, "Failed to list public files", http.StatusInternalServerError)
 		return
+	}
+
+	if files == nil {
+		files = []*db.File{}
+	}
+
+	for _, f := range files {
+		if f.Version == 0 {
+			f.Version = 1
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -384,6 +407,9 @@ type CreateFileRequest struct {
 	IsCompleted    bool            `json:"is_completed"`
 	Exdates        json.RawMessage `json:"exdates"`
 	CompletedDates json.RawMessage `json:"completed_dates"`
+	Version        int             `json:"version"`
+	Metadata       json.RawMessage `json:"metadata"`
+	AccessKeys     json.RawMessage `json:"access_keys"`
 }
 
 func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
@@ -420,6 +446,12 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		IsCompleted:    req.IsCompleted,
 		Exdates:        req.Exdates,
 		CompletedDates: req.CompletedDates,
+		Version:        req.Version,
+		Metadata:       req.Metadata,
+		AccessKeys:     req.AccessKeys,
+	}
+	if file.Version == 0 {
+		file.Version = 1
 	}
 
 	if err := h.Store.CreateFile(r.Context(), file); err != nil {
@@ -483,6 +515,15 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.CompletedDates != nil {
 		file.CompletedDates = req.CompletedDates
+	}
+	if req.Version != nil {
+		file.Version = *req.Version
+	}
+	if req.Metadata != nil {
+		file.Metadata = req.Metadata
+	}
+	if req.AccessKeys != nil {
+		file.AccessKeys = req.AccessKeys
 	}
 	file.UpdatedAt = time.Now()
 

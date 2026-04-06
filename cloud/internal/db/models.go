@@ -32,6 +32,8 @@ type User struct {
 
 	EnabledExtensions json.RawMessage `json:"enabled_extensions" db:"enabled_extensions"`
 
+	IsVerified bool `json:"is_verified" db:"is_verified"`
+
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
@@ -64,6 +66,9 @@ type File struct {
 	IsCompleted    bool            `json:"is_completed" db:"is_completed"`
 	Exdates        json.RawMessage `json:"exdates" db:"exdates"`
 	CompletedDates json.RawMessage `json:"completed_dates" db:"completed_dates"`
+	Version        int             `json:"version" db:"version"`
+	Metadata       json.RawMessage `json:"metadata" db:"metadata"`
+	AccessKeys     json.RawMessage `json:"access_keys" db:"access_keys"`
 }
 
 // Task represents the tasks table for E2EE tasks
@@ -81,4 +86,25 @@ type DB interface {
 	CreateUser(ctx context.Context, user *User) error
 	GetUser(ctx context.Context, id string) (*User, error)
 	// Add other methods as needed
+}
+
+// Profile represents the user's public profile data
+type Profile struct {
+	UserID        string `json:"user_id" db:"user_id"`
+	AvatarSeed    string `json:"avatar_seed" db:"avatar_seed"`
+	AvatarSalt    string `json:"avatar_salt" db:"avatar_salt"`
+	Bio           string `json:"bio" db:"bio"`
+	Title         string `json:"title" db:"title"`
+	ProfileStatus int    `json:"profile_status" db:"profile_status"`
+}
+
+// SearchResult represents an item found via global search.
+type SearchResult struct {
+	Type            string `json:"type"` // "profile" or "note"
+	ID              string `json:"id"`
+	Title           string `json:"title"`
+	OwnerID         string `json:"owner_id"`
+	OwnerIsVerified bool   `json:"owner_is_verified"`
+	Bio             string `json:"bio,omitempty"`
+	AvatarSeed      string `json:"avatar_seed,omitempty"`
 }

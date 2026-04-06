@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"database/sql"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -170,6 +172,15 @@ func (s *SQLiteStore) migrate() error {
 		updated_at DATETIME NOT NULL,
 		FOREIGN KEY(user_id) REFERENCES users(id)
 	);
+
+	CREATE TABLE IF NOT EXISTS profiles (
+		user_id TEXT PRIMARY KEY,
+		avatar_seed TEXT NOT NULL,
+		bio TEXT NOT NULL,
+		title TEXT NOT NULL,
+		profile_status INTEGER NOT NULL DEFAULT 0,
+		FOREIGN KEY(user_id) REFERENCES users(id)
+	);
 	`
 	if _, err := s.DB.Exec(tables); err != nil {
 		return err
@@ -191,6 +202,11 @@ func (s *SQLiteStore) migrate() error {
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN is_completed INTEGER DEFAULT 0")
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN exdates TEXT DEFAULT '[]'")
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN completed_dates TEXT DEFAULT '[]'")
+	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN version INTEGER DEFAULT 1")
+	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN metadata TEXT")
+	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN access_keys TEXT")
+	_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0")
+	_, _ = s.DB.Exec("ALTER TABLE profiles ADD COLUMN avatar_salt TEXT NOT NULL DEFAULT ''")
 
 	// 4. Create Indices (Now that columns exist)
 	indices := `
@@ -296,14 +312,14 @@ func (s *SQLiteStore) handleUserSchemaMigration() error {
 	if hasLegacyVault && !hasEncryptedData {
 		log.Println("CRITICAL MIGRATION: Preserving existing encrypted_vault and encrypted_pepper data.")
 		copyData = `
-		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, username, created_at)
-		SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]'), pin_hash, login_code, '', created_at
+		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, username, created_at, is_verified)
+		SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]'), pin_hash, login_code, '', created_at, 0
 		FROM users_old;`
 	} else {
 		log.Println("CRITICAL MIGRATION: Initializing empty vaults for legacy encrypted_data users.")
 		copyData = `
-		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, username, created_at)
-		SELECT id, email_blind_index, username_blind_index, phone_blind_index, '', '', public_key, COALESCE(enabled_extensions, '[]'), pin_hash, login_code, '', created_at
+		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, username, created_at, is_verified)
+		SELECT id, email_blind_index, username_blind_index, phone_blind_index, '', '', public_key, COALESCE(enabled_extensions, '[]'), pin_hash, login_code, '', created_at, 0
 		FROM users_old;`
 	}
 	if _, err := tx.Exec(copyData); err != nil {
@@ -322,8 +338,8 @@ func (s *SQLiteStore) handleUserSchemaMigration() error {
 
 func (s *SQLiteStore) CreateUser(ctx context.Context, user *db.User) error {
 	query := `
-		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, username, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, '[]'), ?, ?, ?, ?)
+		INSERT INTO users (id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, enabled_extensions, pin_hash, login_code, username, created_at, is_verified)
+		VALUES (?, ?, ?, ?, ?, ?, ?, COALESCE(?, '[]'), ?, ?, ?, ?, ?)
 	`
 	_, err := s.DB.ExecContext(ctx, query,
 		user.ID,
@@ -338,6 +354,7 @@ func (s *SQLiteStore) CreateUser(ctx context.Context, user *db.User) error {
 		user.LoginCode,
 		user.Username,
 		user.CreatedAt,
+		user.IsVerified,
 	)
 	if err != nil {
 		// Detect unique constraint violation
@@ -348,7 +365,7 @@ func (s *SQLiteStore) CreateUser(ctx context.Context, user *db.User) error {
 }
 
 func (s *SQLiteStore) GetUser(ctx context.Context, id string) (*db.User, error) {
-	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, username, created_at FROM users WHERE id = ?`
+	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, username, created_at, is_verified FROM users WHERE id = ?`
 	row := s.DB.QueryRowContext(ctx, query, id)
 
 	var user db.User
@@ -366,6 +383,7 @@ func (s *SQLiteStore) GetUser(ctx context.Context, id string) (*db.User, error) 
 		&user.LoginCode,
 		&user.Username,
 		&user.CreatedAt,
+		&user.IsVerified,
 	)
 	if err == nil {
 		user.EnabledExtensions = []byte(ext)
@@ -403,7 +421,7 @@ func (s *SQLiteStore) GetUserExtensions(ctx context.Context, id string) ([]strin
 
 func (s *SQLiteStore) GetUserByEmailHash(ctx context.Context, emailHash string) (*db.User, error) {
 	// We query by the Blind Index
-	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, COALESCE(username, '') as username, created_at FROM users WHERE email_blind_index = ?`
+	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, pin_hash, login_code, COALESCE(username, '') as username, created_at, is_verified FROM users WHERE email_blind_index = ?`
 	row := s.DB.QueryRowContext(ctx, query, emailHash)
 
 	var user db.User
@@ -421,6 +439,7 @@ func (s *SQLiteStore) GetUserByEmailHash(ctx context.Context, emailHash string) 
 		&user.LoginCode,
 		&user.Username,
 		&user.CreatedAt,
+		&user.IsVerified,
 	)
 	if err == nil {
 		user.EnabledExtensions = []byte(ext)
@@ -432,6 +451,16 @@ func (s *SQLiteStore) GetUserByEmailHash(ctx context.Context, emailHash string) 
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (s *SQLiteStore) UpdateUserUsername(ctx context.Context, id string, username string) error {
+	// Update both the plaintext username and the blind index
+	h := sha256.Sum256([]byte(username))
+	usernameHash := hex.EncodeToString(h[:])
+
+	query := `UPDATE users SET username = ?, username_blind_index = ? WHERE id = ?`
+	_, err := s.DB.ExecContext(ctx, query, username, usernameHash, id)
+	return err
 }
 
 func (s *SQLiteStore) SetLoginCode(ctx context.Context, userID, code string) error {
@@ -457,8 +486,8 @@ func (s *SQLiteStore) UpdateUserExtensions(ctx context.Context, id string, exten
 func (s *SQLiteStore) CreateFile(ctx context.Context, file *db.File) error {
 	query := `
 		INSERT INTO files (id, owner_id, parent_id, type, mime_type, size, 
-created_at, updated_at, blob_path, visibility, public_meta, secured_meta, is_task, is_completed, exdates, completed_dates)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+created_at, updated_at, blob_path, visibility, public_meta, secured_meta, is_task, is_completed, exdates, completed_dates, version, metadata, access_keys)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	exd := string(file.Exdates)
 	if exd == "" {
@@ -467,6 +496,14 @@ created_at, updated_at, blob_path, visibility, public_meta, secured_meta, is_tas
 	cd := string(file.CompletedDates)
 	if cd == "" {
 		cd = "[]"
+	}
+	md := string(file.Metadata)
+	if md == "" {
+		md = "{}"
+	}
+	ak := string(file.AccessKeys)
+	if ak == "" {
+		ak = "{}"
 	}
 	_, err := s.DB.ExecContext(ctx, query,
 		file.ID,
@@ -485,16 +522,19 @@ created_at, updated_at, blob_path, visibility, public_meta, secured_meta, is_tas
 		file.IsCompleted,
 		exd,
 		cd,
+		file.Version,
+		md,
+		ak,
 	)
 	return err
 }
 
 func (s *SQLiteStore) GetFile(ctx context.Context, id string) (*db.File, error) {
-	query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, visibility, public_meta, secured_meta, COALESCE(is_task, 0) as is_task, COALESCE(is_completed, 0) as is_completed, COALESCE(NULLIF(exdates, ''), '[]') as exdates, COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates FROM files WHERE id = ?`
+	query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, visibility, public_meta, secured_meta, COALESCE(is_task, 0) as is_task, COALESCE(is_completed, 0) as is_completed, COALESCE(NULLIF(exdates, ''), '[]') as exdates, COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates, COALESCE(version, 1) as version, COALESCE(NULLIF(metadata, ''), '{}') as metadata, COALESCE(NULLIF(access_keys, ''), '{}') as access_keys FROM files WHERE id = ?`
 	row := s.DB.QueryRowContext(ctx, query, id)
 
 	var file db.File
-	var exd, cd string
+	var exd, cd, md, ak string
 	err := row.Scan(
 		&file.ID,
 		&file.OwnerID,
@@ -512,10 +552,15 @@ func (s *SQLiteStore) GetFile(ctx context.Context, id string) (*db.File, error) 
 		&file.IsCompleted,
 		&exd,
 		&cd,
+		&file.Version,
+		&md,
+		&ak,
 	)
 	if err == nil {
 		file.Exdates = json.RawMessage(exd)
 		file.CompletedDates = json.RawMessage(cd)
+		file.Metadata = json.RawMessage(md)
+		file.AccessKeys = json.RawMessage(ak)
 	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -566,20 +611,24 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 			   COALESCE(fs.status, 'owner') as share_status,
 			   COALESCE(f.is_task, 0) as is_task,
 			   COALESCE(f.is_completed, 0) as is_completed,
-			   COALESCE(NULLIF(exdates, ''), '[]') as exdates,
-			   COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates
+			   COALESCE(NULLIF(f.exdates, ''), '[]') as exdates,
+			   COALESCE(NULLIF(f.completed_dates, ''), '[]') as completed_dates,
+			   COALESCE(f.version, 1) as version,
+			   COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
+			   COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
 		FROM files f
 		LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 		WHERE f.id = ? AND (
 			f.owner_id = ? 
 			OR fs.user_id = ?
 			OR f.visibility = 'public'
+			OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL
 		)
 	`
-	row := s.DB.QueryRowContext(ctx, query, viewerID, id, viewerID, viewerID)
+	row := s.DB.QueryRowContext(ctx, query, viewerID, id, viewerID, viewerID, viewerID)
 
 	var f db.File
-	var exd, cd string
+	var exd, cd, md, ak string
 	err := row.Scan(
 		&f.ID,
 		&f.OwnerID,
@@ -598,10 +647,15 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 		&f.IsCompleted,
 		&exd,
 		&cd,
+		&f.Version,
+		&md,
+		&ak,
 	)
 	if err == nil {
 		f.Exdates = json.RawMessage(exd)
 		f.CompletedDates = json.RawMessage(cd)
+		f.Metadata = json.RawMessage(md)
+		f.AccessKeys = json.RawMessage(ak)
 	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -616,7 +670,7 @@ func (s *SQLiteStore) UpdateFile(ctx context.Context, file *db.File) error {
 	query := `
 		UPDATE files
 		SET owner_id=?, parent_id=?, type=?, mime_type=?, size=?, updated_at=?, 
-blob_path=?, visibility=?, public_meta=?, secured_meta=?, is_task=?, is_completed=?, exdates=?, completed_dates=?
+blob_path=?, visibility=?, public_meta=?, secured_meta=?, is_task=?, is_completed=?, exdates=?, completed_dates=?, version=?, metadata=?, access_keys=?
 		WHERE id=?
 	`
 	exd := string(file.Exdates)
@@ -626,6 +680,14 @@ blob_path=?, visibility=?, public_meta=?, secured_meta=?, is_task=?, is_complete
 	cd := string(file.CompletedDates)
 	if cd == "" {
 		cd = "[]"
+	}
+	md := string(file.Metadata)
+	if md == "" {
+		md = "{}"
+	}
+	ak := string(file.AccessKeys)
+	if ak == "" {
+		ak = "{}"
 	}
 	_, err := s.DB.ExecContext(ctx, query,
 		file.OwnerID,
@@ -642,6 +704,9 @@ blob_path=?, visibility=?, public_meta=?, secured_meta=?, is_task=?, is_complete
 		file.IsCompleted,
 		exd,
 		cd,
+		file.Version,
+		md,
+		ak,
 		file.ID,
 	)
 	return err
@@ -737,17 +802,21 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(f.is_task, 0) as is_task,
 			       COALESCE(f.is_completed, 0) as is_completed,
-			       COALESCE(NULLIF(exdates, ''), '[]') as exdates,
-			       COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates
+			       COALESCE(NULLIF(f.exdates, ''), '[]') as exdates,
+			       COALESCE(NULLIF(f.completed_dates, ''), '[]') as completed_dates,
+			       COALESCE(f.version, 1) as version,
+			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
+			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE (
 				f.owner_id = ? 
 				OR fs.user_id = ?
 				OR f.visibility = 'public'
+				OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL
 			) ` + typeFilter
 
-		args = append(args, viewerID, viewerID)
+		args = append(args, viewerID, viewerID, viewerID)
 		if filterType != nil {
 			args = append(args, *filterType)
 		}
@@ -759,21 +828,25 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(f.is_task, 0) as is_task,
 			       COALESCE(f.is_completed, 0) as is_completed,
-			       COALESCE(NULLIF(exdates, ''), '[]') as exdates,
-			       COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates
+			       COALESCE(NULLIF(f.exdates, ''), '[]') as exdates,
+			       COALESCE(NULLIF(f.completed_dates, ''), '[]') as completed_dates,
+			       COALESCE(f.version, 1) as version,
+			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
+			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE f.parent_id = ? ` + typeFilter + ` AND (
 				f.owner_id = ? 
 				OR fs.user_id = ?
 				OR f.visibility = 'public'
+				OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL
 			)
 		`
 		args = append(args, *parentID)
 		if filterType != nil {
 			args = append(args, *filterType)
 		}
-		args = append(args, viewerID, viewerID)
+		args = append(args, viewerID, viewerID, viewerID)
 		rows, err = s.DB.QueryContext(ctx, query, args...)
 	} else {
 		// Root (Traditional)
@@ -785,13 +858,16 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(f.is_task, 0) as is_task,
 			       COALESCE(f.is_completed, 0) as is_completed,
-			       COALESCE(NULLIF(exdates, ''), '[]') as exdates,
-			       COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates
+			       COALESCE(NULLIF(f.exdates, ''), '[]') as exdates,
+			       COALESCE(NULLIF(f.completed_dates, ''), '[]') as completed_dates,
+			       COALESCE(f.version, 1) as version,
+			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
+			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
-			WHERE f.type = ? AND (f.owner_id = ? OR fs.user_id = ?)
+			WHERE f.type = ? AND (f.owner_id = ? OR fs.user_id = ? OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL)
 			`
-			rows, err = s.DB.QueryContext(ctx, query, viewerID, *filterType, viewerID, viewerID)
+			rows, err = s.DB.QueryContext(ctx, query, viewerID, *filterType, viewerID, viewerID, viewerID)
 		} else {
 			// Normal folder listing
 			query := `
@@ -800,14 +876,18 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(f.is_task, 0) as is_task,
 			       COALESCE(f.is_completed, 0) as is_completed,
-			       COALESCE(NULLIF(exdates, ''), '[]') as exdates,
-			       COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates
+			       COALESCE(NULLIF(f.exdates, ''), '[]') as exdates,
+			       COALESCE(NULLIF(f.completed_dates, ''), '[]') as completed_dates,
+			       COALESCE(f.version, 1) as version,
+			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
+			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE (f.owner_id = ? AND f.parent_id IS NULL)
 			OR fs.user_id = ?
+			OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL
 			`
-			rows, err = s.DB.QueryContext(ctx, query, viewerID, viewerID, viewerID)
+			rows, err = s.DB.QueryContext(ctx, query, viewerID, viewerID, viewerID, viewerID)
 		}
 	}
 
@@ -817,7 +897,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 	defer rows.Close()
 
 	results := make([]*db.File, 0)
-	var exd, cd string
+	var exd, cd, md, ak string
 	for rows.Next() {
 		var f db.File
 		if err := rows.Scan(
@@ -838,61 +918,23 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			&f.IsCompleted,
 			&exd,
 			&cd,
+			&f.Version,
+			&md,
+			&ak,
 		); err != nil {
 			return nil, err
 		}
 		f.Exdates = json.RawMessage(exd)
 		f.CompletedDates = json.RawMessage(cd)
+		f.Metadata = json.RawMessage(md)
+		f.AccessKeys = json.RawMessage(ak)
 		results = append(results, &f)
 	}
 	return results, nil
 }
 
-// ListPublicFiles returns public files owned by specific user.
-func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string) ([]*db.File, error) {
-	query := `
-		SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, visibility, public_meta, secured_meta, 
-		       COALESCE(is_task, 0), COALESCE(is_completed, 0),
-		       COALESCE(NULLIF(exdates, ''), '[]') as exdates, COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates
-		FROM files 
-		WHERE owner_id = ? AND visibility = 'public'
-	`
-	rows, err := s.DB.QueryContext(ctx, query, ownerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var results []*db.File
-	var exd, cd string
-	for rows.Next() {
-		var f db.File
-		if err := rows.Scan(
-			&f.ID,
-			&f.OwnerID,
-			&f.ParentID,
-			&f.Type,
-			&f.MIMEType,
-			&f.Size,
-			&f.CreatedAt,
-			&f.UpdatedAt,
-			&f.BlobPath,
-			&f.Visibility,
-			&f.PublicMeta,
-			&f.SecuredMeta,
-			&f.IsTask,
-			&f.IsCompleted,
-			&exd,
-			&cd,
-		); err != nil {
-			return nil, err
-		}
-		f.Exdates = json.RawMessage(exd)
-		f.CompletedDates = json.RawMessage(cd)
-		results = append(results, &f)
-	}
-	return results, nil
-}
+// SetLoginCode ... (remaining code)
+// SetLoginCode ... (remaining code)
 
 // Legacy ListFiles (update or remove? Update to point to ListAccessibleFiles wrapper)
 func (s *SQLiteStore) ListFiles(ctx context.Context, ownerID string, parentID *string) ([]*db.File, error) {
@@ -1170,3 +1212,150 @@ func (s *SQLiteStore) GetContact(ctx context.Context, user1, user2 string) (*Con
 	}
 	return &c, nil
 }
+
+// --- Profiles & Social ---
+
+func (s *SQLiteStore) GetProfile(ctx context.Context, userID string) (*db.Profile, error) {
+	query := `SELECT user_id, avatar_seed, COALESCE(avatar_salt, '') as avatar_salt, bio, title, profile_status FROM profiles WHERE user_id = ?`
+	row := s.DB.QueryRowContext(ctx, query, userID)
+	
+	var p db.Profile
+	if err := row.Scan(&p.UserID, &p.AvatarSeed, &p.AvatarSalt, &p.Bio, &p.Title, &p.ProfileStatus); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Return a default profile instead of 404 so we can at least show name/verified status if they exist
+			p.UserID = userID
+			p.AvatarSeed = userID
+		} else {
+			return nil, err
+		}
+	}
+	return &p, nil
+}
+
+func (s *SQLiteStore) UpsertProfile(ctx context.Context, profile *db.Profile) error {
+	query := `
+		INSERT INTO profiles (user_id, avatar_seed, avatar_salt, bio, title, profile_status) 
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(user_id) DO UPDATE SET 
+			avatar_seed = excluded.avatar_seed,
+			avatar_salt = excluded.avatar_salt,
+			bio = excluded.bio,
+			title = excluded.title,
+			profile_status = excluded.profile_status
+	`
+	_, err := s.DB.ExecContext(ctx, query, profile.UserID, profile.AvatarSeed, profile.AvatarSalt, profile.Bio, profile.Title, profile.ProfileStatus)
+	return err
+}
+
+// ListPublicFiles returns public and contact-shared files owned by specific user.
+func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewerID string) ([]*db.File, error) {
+	// Check if viewer is a contact of the owner
+	isContact := false
+	if viewerID != "" && viewerID != ownerID {
+		c, err := s.GetContact(ctx, ownerID, viewerID)
+		if err == nil && c != nil && c.Status == "accepted" {
+			isContact = true
+		}
+	}
+
+	query := `
+		SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, f.visibility, f.public_meta, f.secured_meta, 
+		       COALESCE(fs.status, 'owner') as share_status,
+		       COALESCE(f.is_task, 0), COALESCE(f.is_completed, 0),
+		       COALESCE(NULLIF(f.exdates, ''), '[]') as exdates, COALESCE(NULLIF(f.completed_dates, ''), '[]') as completed_dates,
+			   COALESCE(f.version, 1) as version, COALESCE(NULLIF(f.metadata, ''), '{}') as metadata, COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
+		FROM files f
+		LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
+		WHERE f.owner_id = ? AND (
+			f.visibility = 'public' 
+			OR (? = 1 AND f.visibility = 'contacts')
+			OR f.owner_id = ?
+		)
+	`
+	isContactVal := 0
+	if isContact {
+		isContactVal = 1
+	}
+
+	rows, err := s.DB.QueryContext(ctx, query, viewerID, ownerID, isContactVal, viewerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []*db.File
+	for rows.Next() {
+		var f db.File
+		var exd, cd, md, ak string
+		if err := rows.Scan(
+			&f.ID,
+			&f.OwnerID,
+			&f.ParentID,
+			&f.Type,
+			&f.MIMEType,
+			&f.Size,
+			&f.CreatedAt,
+			&f.UpdatedAt,
+			&f.BlobPath,
+			&f.Visibility,
+			&f.PublicMeta,
+			&f.SecuredMeta,
+			&f.ShareStatus,
+			&f.IsTask,
+			&f.IsCompleted,
+			&exd,
+			&cd,
+			&f.Version,
+			&md,
+			&ak,
+		); err != nil {
+			return nil, err
+		}
+		f.Exdates = json.RawMessage(exd)
+		f.CompletedDates = json.RawMessage(cd)
+		f.Metadata = json.RawMessage(md)
+		f.AccessKeys = json.RawMessage(ak)
+		results = append(results, &f)
+	}
+	return results, nil
+}
+
+func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string) ([]*db.SearchResult, error) {
+	likeQuery := "%" + searchQuery + "%"
+
+	// Search Profiles and Notes
+	query := `
+		SELECT 'profile' as type, u.id, p.title as title, p.user_id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, p.bio, p.avatar_seed
+		FROM profiles p
+		JOIN users u ON p.user_id = u.id
+		WHERE p.title LIKE ? OR p.bio LIKE ? OR u.username LIKE ?
+		
+		UNION ALL
+		
+		SELECT 'note' as type, f.id, json_extract(f.metadata, '$.title') as title, f.owner_id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, '' as bio, '' as avatar_seed
+		FROM files f
+		JOIN users u ON f.owner_id = u.id
+		WHERE (json_extract(f.metadata, '$.is_public') = 1 OR json_extract(f.metadata, '$.is_public') = 'true' OR json_extract(f.metadata, '$.is_public') = true)
+		AND json_extract(f.metadata, '$.title') LIKE ?
+	`
+	
+	rows, err := s.DB.QueryContext(ctx, query, likeQuery, likeQuery, likeQuery, likeQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []*db.SearchResult
+	for rows.Next() {
+		var r db.SearchResult
+		var isVerified int
+		if err := rows.Scan(&r.Type, &r.ID, &r.Title, &r.OwnerID, &isVerified, &r.Bio, &r.AvatarSeed); err != nil {
+			return nil, err
+		}
+		r.OwnerIsVerified = (isVerified == 1)
+		results = append(results, &r)
+	}
+	return results, nil
+}
+
+

@@ -5,6 +5,7 @@ import { MessageSquare, Search, UserPlus, X, Send, FileText, Share2, CheckCircle
 import { useIslandStore } from "@/components/extensions/smart_island/useIslandStore";
 import { apiFetch, getApiBase } from "@/lib/api";
 import * as cryptoLib from "@/lib/crypto";
+import Avatar from '@/components/Profile/Avatar';
 
 interface Message {
     id: string;
@@ -19,6 +20,8 @@ interface UserBasic {
     id: string;
     username: string;
     email: string;
+    avatar_seed?: string;
+    avatar_salt?: string;
 }
 
 interface ContactRequest {
@@ -40,6 +43,7 @@ interface ChatPanelProps {
     onChatSelect?: (partnerId: string, partnerName: string, partnerEmail: string) => void;
     onAccept?: () => void;
     onOpenCalendar?: () => void;
+    onOpenProfile?: (userId: string, username: string) => void;
 }
 
 interface ProfileTreeProps {
@@ -98,9 +102,8 @@ function ProfileTree({ items, parentId, onSelect, level = 0 }: ProfileTreeProps)
     );
 }
 
-export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFileCreated, activePartner, onChatSelect, onAccept }: ChatPanelProps) {
+export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOpenProfile, onFileCreated, activePartner, onChatSelect, onAccept }: ChatPanelProps) {
     const [view, setView] = useState<'contacts' | 'requests' | 'search' | 'shared'>('contacts');
-    const [showProfile, setShowProfile] = useState(false);
     const [showActionsMenu, setShowActionsMenu] = useState(false);
 
     // Data
@@ -114,7 +117,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
 
     // Search State
     const [searchEmail, setSearchEmail] = useState("");
-    const [searchResult, setSearchResult] = useState<UserBasic[]>([]);
+    const [searchResult, setSearchResult] = useState<any[]>([]);
     const [searchError, setSearchError] = useState("");
 
     // Profile State
@@ -251,15 +254,11 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
         setSearchResult([]);
         setSearchError("");
         try {
-            const res = await apiFetch("/api/v1/contacts/search", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: searchEmail })
-            });
+            const res = await apiFetch(`/api/v1/search?q=${encodeURIComponent(searchEmail)}`);
             if (res.ok) {
                 const results = await res.json();
                 setSearchResult(results);
-                if (results.length === 0) setSearchError("User not found");
+                if (results.length === 0) setSearchError("No results found");
             } else {
                 setSearchError("Error searching");
             }
@@ -434,7 +433,6 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
 
     const startChat = (user: UserBasic) => {
         setPartner(user);
-        setShowProfile(false);
         fetchMessages(user.email);
         fetchPartnerFiles(user.id);
     };
@@ -518,8 +516,8 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
     // SSE Connection
     useEffect(() => {
         const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
-        const base = getApiBase();
-        const eventSource = new EventSource(`${base}/api/v1/events?user_id=${myId}&token=${token}`);
+        // Bypass Next.js proxy rewrite by calling the backend URL directly to prevent Next.js proxy timeout (ECONNRESET)
+        const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/events?user_id=${myId}&token=${token}`);
 
         eventSource.onmessage = (event) => {
             try {
@@ -715,22 +713,14 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
                                     >
                                         <div className="flex items-center gap-3">
                                             <div
-                                                className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg cursor-pointer hover:ring-2 hover:ring-gray-400 transition-all ${partner?.id === c.partner.id
-                                                    ? 'bg-white/20 dark:bg-black/20'
-                                                    : 'bg-gray-200 dark:bg-gray-800'
-                                                    }`}
+                                                className="cursor-pointer hover:opacity-80 transition-opacity shrink-0"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    if (onChatSelect) {
-                                                        onChatSelect(c.partner.id, c.partner.username, c.partner.email);
-                                                    } else {
-                                                        startChat(c.partner);
-                                                    }
-                                                    setShowProfile(true);
+                                                    if (onOpenProfile) onOpenProfile(c.partner.id, c.partner.username);
                                                 }}
                                                 title="View Profile"
                                             >
-                                                {c.partner.username.charAt(0).toUpperCase()}
+                                                <Avatar seed={(c.partner.avatar_seed || c.partner.id) + (c.partner.avatar_salt || '')} size={40} className="border border-gray-200 dark:border-gray-800" />
                                             </div>
                                             <div className="flex-1 overflow-hidden" onClick={() => {
                                                 if (onChatSelect) {
@@ -761,7 +751,10 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
                                 requests.map(r => (
                                     <div key={r.id} className="p-3 mb-2 border border-gray-200 dark:border-gray-800 rounded-lg">
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className="font-semibold text-sm">{r.requester.username}</span>
+                                            <div className="flex items-center gap-2">
+                                                <Avatar seed={(r.requester.avatar_seed || r.requester.id) + (r.requester.avatar_salt || '')} size={24} />
+                                                <span className="font-semibold text-sm">{r.requester.username}</span>
+                                            </div>
                                             <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
                                         </div>
                                         <p className="text-xs text-gray-500 mb-3">{r.requester.email}</p>
@@ -809,18 +802,53 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
                                 </button>
                             </div>
                             {searchError && <p className="text-sm text-red-500 mb-4">{searchError}</p>}
-                            {searchResult.map(u => (
-                                <div key={u.id} className="p-3 mb-2 border border-gray-200 dark:border-gray-800 rounded-lg">
-                                    <div className="font-semibold text-sm mb-1">{u.username}</div>
-                                    <div className="text-xs text-gray-500 mb-3">{u.email}</div>
-                                    <button
-                                        onClick={() => sendRequest(u.id)}
-                                        className="w-full bg-gray-800 dark:bg-gray-200 text-white dark:text-black py-2 rounded-lg text-xs font-medium hover:opacity-80 transition-opacity"
-                                    >
-                                        Send Request
-                                    </button>
-                                </div>
-                            ))}
+                            {searchResult.map(res => {
+                                if (res.type === 'profile') {
+                                    return (
+                                        <div key={`profile-${res.owner_id}`} className="p-3 mb-2 border border-gray-200 dark:border-gray-800 rounded-lg flex flex-col gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <div className="font-semibold text-sm">{res.title || "User"}</div>
+                                                {res.owner_is_verified && <CheckCircle size={14} className="text-green-500" />}
+                                            </div>
+                                            <div className="text-xs text-gray-500">{res.bio}</div>
+                                            <div className="flex gap-2 mt-1">
+                                                <button
+                                                    onClick={() => sendRequest(res.owner_id)}
+                                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-xs font-bold transition-all shadow-md shadow-blue-500/20"
+                                                >
+                                                    Send Request
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        if (onOpenProfile) onOpenProfile(res.owner_id, res.title || "User");
+                                                    }}
+                                                    className="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-900 dark:text-white py-2 rounded-lg text-xs font-bold transition-all"
+                                                >
+                                                    View Profile
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                } else {
+                                    return (
+                                        <div key={`note-${res.id}`} className="p-3 mb-2 border border-gray-200 dark:border-gray-800 rounded-lg flex flex-col gap-2 bg-gray-50 dark:bg-black/20">
+                                            <div className="flex items-center gap-2">
+                                                <FileText size={16} className="text-blue-500" />
+                                                <div className="font-semibold text-sm truncate">{res.title}</div>
+                                            </div>
+                                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                                                Owner verified: {res.owner_is_verified ? <CheckCircle size={12} className="text-green-500" /> : <XCircle size={12} className="text-gray-400" />}
+                                            </div>
+                                            <button
+                                                onClick={() => onOpenFile(res.id, res.title, null)}
+                                                className="mt-1 w-full border border-blue-500 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 py-2 rounded-lg text-xs font-bold transition-colors"
+                                            >
+                                                View Public File
+                                            </button>
+                                        </div>
+                                    );
+                                }
+                            })}
                         </div>
                     ) : (
                         <div className="p-4">
@@ -903,11 +931,11 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div
-                                        className="w-10 h-10 rounded-full bg-gray-800 dark:bg-gray-200 text-white dark:text-black flex items-center justify-center font-bold text-lg cursor-pointer hover:ring-2 hover:ring-gray-400 transition-all"
-                                        onClick={() => setShowProfile(true)}
+                                        className="cursor-pointer hover:opacity-80 transition-opacity shrink-0"
+                                        onClick={() => { if (onOpenProfile && partner) onOpenProfile(partner.id, partner.username); }}
                                         title="View Profile"
                                     >
-                                        {partner?.username?.charAt(0)?.toUpperCase()}
+                                        <Avatar seed={(partner?.avatar_seed || partner?.id || "Unknown") + (partner?.avatar_salt || '')} size={40} className="border border-gray-200 dark:border-gray-800" />
                                     </div>
                                     <div>
                                         <h3 className="font-semibold text-gray-900 dark:text-gray-100">{partner?.username}</h3>
@@ -1147,107 +1175,6 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onFi
                 )}
             </div>
 
-            {/* Profile Modal Overlay */}
-            {
-                showProfile && partner && (
-                    <div
-                        className="absolute inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-                        onClick={() => setShowProfile(false)}
-                    >
-                        <div
-                            className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] overflow-y-auto"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {/* Profile Header */}
-                            <div className="p-6 border-b border-gray-200 dark:border-gray-800">
-                                <div className="flex justify-between items-start mb-4">
-                                    <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Profile</h3>
-                                    <button
-                                        onClick={() => setShowProfile(false)}
-                                        className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                                    >
-                                        <X size={20} className="text-gray-600 dark:text-gray-400" />
-                                    </button>
-                                </div>
-                                <div className="text-center">
-                                    <div className="w-20 h-20 rounded-full bg-gray-800 dark:bg-gray-200 text-white dark:text-black flex items-center justify-center font-bold text-3xl mx-auto mb-3">
-                                        {partner.username.charAt(0).toUpperCase()}
-                                    </div>
-                                    <h4 className="font-bold text-xl text-gray-900 dark:text-gray-100">{partner.username}</h4>
-                                    <p className="text-sm text-gray-500 mb-4">{partner.email}</p>
-
-                                    {myId === partner.id && (
-                                        <button
-                                            onClick={async () => {
-                                                if (!confirm("This will scan ALL your files and delete records where the content is missing from the server. Scan now?")) return;
-                                                const res = await apiFetch("/api/v1/files/purge", {
-                                                    method: "POST"
-                                                });
-                                                if (res.ok) {
-                                                    const data = await res.json();
-                                                    alert(data.message);
-                                                    window.location.reload();
-                                                } else {
-                                                    alert("Failed to purge files");
-                                                }
-                                            }}
-                                            className="text-xs bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-full font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
-                                        >
-                                            Cleanup Broken Files
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Shared Files Section */}
-                            <div className="p-6 border-b border-gray-200 dark:border-gray-800">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <Share2 size={16} className="text-gray-600 dark:text-gray-400" />
-                                    <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100">Shared with you</h4>
-                                </div>
-                                {sharedFiles.length === 0 ? (
-                                    <p className="text-xs text-gray-400 italic py-2">No shared files</p>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {sharedFiles.map(f => (
-                                            <div
-                                                key={f.id}
-                                                onClick={() => onOpenFile(f.id, f.title || "Untitled")}
-                                                className="flex items-center gap-2 p-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-                                            >
-                                                <FileText size={16} className="text-gray-600 dark:text-gray-400" />
-                                                <div className="flex-1 overflow-hidden">
-                                                    <div className="text-sm font-medium truncate">{f.title || "Untitled"}</div>
-                                                    <div className="text-xs text-gray-500">{f.type}</div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Public Files Section */}
-                            <div className="p-6">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <FileText size={16} className="text-gray-600 dark:text-gray-400" />
-                                    <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100">Public files</h4>
-                                </div>
-                                {publicFiles.length === 0 ? (
-                                    <p className="text-xs text-gray-400 italic py-2">No public files</p>
-                                ) : (
-                                    <div className="space-y-1">
-                                        <ProfileTree
-                                            items={publicFiles}
-                                            parentId={null}
-                                            onSelect={(f) => handleCopyAndOpen(f)}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
         </div>
     );
 }

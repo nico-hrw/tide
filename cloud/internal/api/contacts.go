@@ -124,10 +124,12 @@ func (h *ContactHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
 	type EnrichedRequest struct {
 		ID        string `json:"id"`
 		Requester struct {
-			ID        string `json:"id"`
-			Username  string `json:"username"`
-			Email     string `json:"email"`
-			PublicKey string `json:"public_key"`
+			ID         string `json:"id"`
+			Username   string `json:"username"`
+			Email      string `json:"email"`
+			PublicKey  string `json:"public_key"`
+			AvatarSeed string `json:"avatar_seed"`
+			AvatarSalt string `json:"avatar_salt"`
 		} `json:"requester"`
 		CreatedAt time.Time `json:"created_at"`
 	}
@@ -139,19 +141,33 @@ func (h *ContactHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
+		
+		profile, _ := h.Store.GetProfile(r.Context(), req.UserID)
+		avatarSeed := req.UserID
+		avatarSalt := ""
+		if profile != nil {
+			if profile.AvatarSeed != "" {
+				avatarSeed = profile.AvatarSeed
+			}
+			avatarSalt = profile.AvatarSalt
+		}
 
 		enriched = append(enriched, EnrichedRequest{
 			ID: req.ID,
 			Requester: struct {
-				ID        string `json:"id"`
-				Username  string `json:"username"`
-				Email     string `json:"email"`
-				PublicKey string `json:"public_key"`
+				ID         string `json:"id"`
+				Username   string `json:"username"`
+				Email      string `json:"email"`
+				PublicKey  string `json:"public_key"`
+				AvatarSeed string `json:"avatar_seed"`
+				AvatarSalt string `json:"avatar_salt"`
 			}{
-				ID:        user.ID,
-				Username:  "User_" + user.ID[:8],
-				Email:     "Hidden",
-				PublicKey: user.PublicKey,
+				ID:         user.ID,
+				Username:   user.Username,
+				Email:      "Hidden",
+				PublicKey:  user.PublicKey,
+				AvatarSeed: avatarSeed,
+				AvatarSalt: avatarSalt,
 			},
 			CreatedAt: req.CreatedAt,
 		})
@@ -196,10 +212,12 @@ func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
 	type EnrichedContact struct {
 		ID      string `json:"contact_row_id"`
 		Partner struct {
-			ID        string `json:"id"`
-			Username  string `json:"username"`
-			Email     string `json:"email"`
-			PublicKey string `json:"public_key"`
+			ID         string `json:"id"`
+			Username   string `json:"username"`
+			Email      string `json:"email"`
+			PublicKey  string `json:"public_key"`
+			AvatarSeed string `json:"avatar_seed"`
+			AvatarSalt string `json:"avatar_salt"`
 		} `json:"partner"`
 	}
 
@@ -215,18 +233,32 @@ func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		profile, _ := h.Store.GetProfile(r.Context(), partnerID)
+		avatarSeed := partnerID
+		avatarSalt := ""
+		if profile != nil {
+			if profile.AvatarSeed != "" {
+				avatarSeed = profile.AvatarSeed
+			}
+			avatarSalt = profile.AvatarSalt
+		}
+
 		enriched = append(enriched, EnrichedContact{
 			ID: c.ID,
 			Partner: struct {
-				ID        string `json:"id"`
-				Username  string `json:"username"`
-				Email     string `json:"email"`
-				PublicKey string `json:"public_key"`
+				ID         string `json:"id"`
+				Username   string `json:"username"`
+				Email      string `json:"email"`
+				PublicKey  string `json:"public_key"`
+				AvatarSeed string `json:"avatar_seed"`
+				AvatarSalt string `json:"avatar_salt"`
 			}{
-				ID:        user.ID,
-				Username:  "User_" + user.ID[:8],
-				Email:     "Hidden",
-				PublicKey: user.PublicKey,
+				ID:         user.ID,
+				Username:   user.Username,
+				Email:      "Hidden",
+				PublicKey:  user.PublicKey,
+				AvatarSeed: avatarSeed,
+				AvatarSalt: avatarSalt,
 			},
 		})
 	}
