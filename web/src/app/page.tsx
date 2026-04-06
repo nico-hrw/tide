@@ -14,6 +14,7 @@ import ShareModal from "@/components/ShareModal";
 import SettingsModal from "@/components/Settings/SettingsModal";
 import ProfilePage from "@/components/Profile/ProfilePage";
 import dynamic from 'next/dynamic';
+import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 
 const Editor = dynamic(() => import('@/components/Editor'), {
     ssr: false,
@@ -87,7 +88,7 @@ interface CalendarEvent {
 
 const ThemeItem = ({ group, hiddenThemeIds, onToggleVisibility, onUpdate, onShare, onDelete }: any) => {
     const [localTitle, setLocalTitle] = useState(group.title);
-    
+
     useEffect(() => {
         setLocalTitle(group.title);
     }, [group.title]);
@@ -140,7 +141,7 @@ const ThemeItem = ({ group, hiddenThemeIds, onToggleVisibility, onUpdate, onShar
                         <button
                             key={c}
                             onClick={() => onUpdate(group.id, { color: c })}
-                            className={`w-4 h-4 rounded-full transition-all border-2 ${ (group as any).color === c ? 'border-white ring-2 ring-indigo-500 scale-110 shadow-sm' : 'border-transparent hover:scale-110' }`}
+                            className={`w-4 h-4 rounded-full transition-all border-2 ${(group as any).color === c ? 'border-white ring-2 ring-indigo-500 scale-110 shadow-sm' : 'border-transparent hover:scale-110'}`}
                             style={{ backgroundColor: c }}
                         />
                     ))}
@@ -327,7 +328,7 @@ export default function Dashboard() {
         const allFiles = useDataStore.getState().notes;
         const allEvents = useDataStore.getState().events;
         const currentFile = allFiles.find((f: any) => f.id === noteId) || allEvents.find((e: any) => e.id === noteId);
-        
+
         if (!currentFile) {
             console.warn(`[AutoSave] Aborting save: File ${noteId} not found in store.`);
             return;
@@ -348,7 +349,7 @@ export default function Dashboard() {
             console.error(`[AutoSave] Save FAILED for ${noteId}:`, e);
             setSaveStatus('unsaved');
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // Debounced auto-save: 3s after last content change, or when saveStatus flips back to
@@ -363,18 +364,18 @@ export default function Dashboard() {
             const content = editorContentRef.current;
             const noteId = activeNoteIdRef.current;
             const fileKey = activeFileKeyRef.current;
-            
+
             if (saveStatusRef.current !== 'unsaved') {
                 console.log("[AutoSave] 1s idle timer fired but status is no longer 'unsaved'. skipping.");
-                return; 
+                return;
             }
-            
+
             console.log(`[AutoSave] 1s idle detected for ${noteId}. Starting save pulse...`);
             triggerSave(noteId!, fileKey, content);
         }, 1000);
 
         return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [editorContent, saveStatus]);
 
     // Save immediately when switching away from a note with unsaved changes
@@ -390,7 +391,7 @@ export default function Dashboard() {
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         console.log(`[Lifecycle] Tab switched from ${prev}. Flushing save...`);
         triggerSave(prev, activeFileKeyRef.current, editorContentRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeNoteId]);
 
     // ULTIMATE PROTECTION: Save when the window is hidden (e.g. user switches browser tab)
@@ -424,16 +425,16 @@ export default function Dashboard() {
         try {
             const fileKey = await cryptoLib.generateFileKey();
             const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", fileKey);
-            const emptyDoc = { 
-                type: 'doc', 
-                content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }] 
+            const emptyDoc = {
+                type: 'doc',
+                content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }]
             };
             const blob = new Blob([JSON.stringify(emptyDoc)], { type: 'application/json' });
             const { iv, ciphertext } = await cryptoLib.encryptFile(blob, fileKey);
 
             const metaPayload = { title: "", fileKey: fileKeyJwk, iv: iv };
             const encryptedMeta = await cryptoLib.encryptMetadata(metaPayload, publicKey);
-            
+
             const res = await apiFetch("/api/v1/files", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -478,7 +479,7 @@ export default function Dashboard() {
                     // REACHING INTO THE STORE FOR THE MOST UP-TO-DATE DATA
                     const freshNotes = useDataStore.getState().notes;
                     const freshPK = useDataStore.getState().privateKey;
-                    
+
                     const currentFile = freshNotes.find((f: any) => f.id === fileId);
                     if (currentFile?.secured_meta && freshPK) {
                         const meta: any = await cryptoLib.decryptMetadata(currentFile.secured_meta, freshPK, `save-fallback-${fileId}`);
@@ -533,7 +534,7 @@ export default function Dashboard() {
             }
 
             // THE FLUSH: When the backend successfully acknowledges the save (HTTP 200), remove the backup
-            try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (e) {}
+            try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (e) { }
 
         } catch (err) {
             console.error(`[STATE-AUDIT ERROR] performSave failed | ID: ${fileId}:`, err);
@@ -563,7 +564,7 @@ export default function Dashboard() {
                     console.warn(`[RECOVERY] Found unsaved local backup for ${fileId}. Restoring content, but still loading keys.`);
                     recoveredBackup = JSON.parse(backupStr);
                     setEditorContent(recoveredBackup);
-                    setSaveStatus("unsaved"); 
+                    setSaveStatus("unsaved");
                     // We DO NOT return here anymore. We need to load the metadata to get the FileKey,
                     // otherwise subsequent saves will fail due to missing keys.
                 }
@@ -588,10 +589,10 @@ export default function Dashboard() {
             } else {
                 if (!target.secured_meta) throw new Error("Missing metadata");
                 meta = await cryptoLib.decryptMetadata(target.secured_meta, privateKey, `load-${fileId}`);
-                
+
                 if (!meta.fileKey || typeof meta.fileKey !== 'object' || !meta.fileKey.kty) {
-                     console.error("Invalid or missing JWK fileKey");
-                     throw new Error("Invalid or missing FileKey structure.");
+                    console.error("Invalid or missing JWK fileKey");
+                    throw new Error("Invalid or missing FileKey structure.");
                 }
 
                 const importedFileKey = await window.crypto.subtle.importKey(
@@ -631,9 +632,9 @@ export default function Dashboard() {
                 try { setEditorContent(JSON.parse(contentText)); }
                 catch (e) { setEditorContent(contentText); }
             } else {
-                setEditorContent({ 
-                    type: 'doc', 
-                    content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }] 
+                setEditorContent({
+                    type: 'doc',
+                    content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }]
                 });
             }
         } catch (err) {
@@ -647,9 +648,9 @@ export default function Dashboard() {
         if (!newId) return;
         const currentContentToUse = currentOverride || editorContent;
         const currentTabId = useDataStore.getState().activeNoteId || activeTabId; // Use ref-like safety
-        
+
         const isOldAFile = currentTabId !== 'calendar' && currentTabId !== 'messages' && !currentTabId.startsWith('chat-');
-        
+
         if (isOldAFile && (saveStatus === 'unsaved' || currentOverride) && currentContentToUse) {
             console.log(`[Lifecycle] Tab switch: Forcing final save of ${currentTabId}`);
             // Use triggerSave for the latest logic and keys
@@ -744,7 +745,7 @@ export default function Dashboard() {
             apiFetch('/api/v1/files/sidebar_order.info')
                 .then(res => res.ok ? res.json() : null)
                 .then(data => { if (data?.order) useDataStore.getState().setOrderedNoteIds(data.order); })
-                .catch(() => {});
+                .catch(() => { });
         }
     }, [privateKey, publicKey, myId, setKeys, fetchDirectory]);
 
@@ -783,7 +784,7 @@ export default function Dashboard() {
         const userName = (() => {
             const sName = sessionStorage.getItem('tide_user_name');
             if (sName) return sName;
-            
+
             const email = sessionStorage.getItem('tide_user_email') || localStorage.getItem('tide_user_email');
             if (!email) return undefined;
             const rec = localStorage.getItem('tide_user_' + email);
@@ -924,7 +925,7 @@ export default function Dashboard() {
             // Fetch latest root so the UI updates natively 
             useDataStore.getState().loadedDirectories.delete('root');
             useDataStore.getState().fetchDirectory(null);
-            
+
             return newFolder.id;
 
         } catch (e) {
@@ -982,7 +983,7 @@ export default function Dashboard() {
             const oldKey = oldParentId === null ? 'root' : oldParentId;
             const newKey = newParentId === null ? 'root' : newParentId;
             const state = useDataStore.getState();
-            
+
             const newLoaded = new Set(state.loadedDirectories);
             newLoaded.delete(oldKey);
             newLoaded.delete(newKey);
@@ -1020,12 +1021,12 @@ export default function Dashboard() {
             const userId = sessionStorage.getItem("tide_user_id") || localStorage.getItem("tide_user_id");
             const privKeyJwkStr = sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
             const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
-            
+
             if (!email || !userId || !privKeyJwkStr || !token) {
                 console.warn("[STATE-AUDIT] Session missing or incomplete.");
                 setStatus("ready");
                 if (window.location.pathname !== '/auth' && window.location.pathname !== '/login') {
-                     router.push("/auth");
+                    router.push("/auth");
                 }
                 return;
             }
@@ -1094,7 +1095,7 @@ export default function Dashboard() {
                         }
                     })
                     .catch(() => { /* non-critical, keep fallback */ });
-                
+
                 // Persistence: Restore tabs (from sessionStorage — per-window)
                 const savedTabs = sessionStorage.getItem("tide_open_tabs");
                 const savedActiveId = sessionStorage.getItem("tide_active_tab_id");
@@ -1136,7 +1137,7 @@ export default function Dashboard() {
                             }
                         }
                     } catch (e) {
-                         console.error("Corrupted tabs payload", e);
+                        console.error("Corrupted tabs payload", e);
                     }
                 }
 
@@ -1177,7 +1178,7 @@ export default function Dashboard() {
             // Load sidebar order (silently handle 404/not found)
             apiFetch('/api/v1/files/sidebar_order.info')
                 .then(async res => {
-                    if (res.status === 404) return null; 
+                    if (res.status === 404) return null;
                     if (!res.ok) return null;
                     return res.json().catch(() => null);
                 })
@@ -1285,7 +1286,7 @@ export default function Dashboard() {
         useDataStore.getState().setEvents(useDataStore.getState().events.map(e => e.id === fileId ? { ...e, title: newTitle } as any : e));
         setOpenTabs(prev => prev.map(t => t.id === fileId ? { ...t, title: newTitle } : t));
         if (activeTabId === fileId) setFileName(newTitle);
-        
+
         try {
             const files = useDataStore.getState().notes;
             const events = useDataStore.getState().events;
@@ -1457,7 +1458,7 @@ export default function Dashboard() {
                     }
                 }
             }
-            
+
             fetchDirectory(null);
         } catch (err) {
             console.error("Visibility toggle failed:", err);
@@ -1563,11 +1564,11 @@ export default function Dashboard() {
 
             const event = events.find(e => e.id === id);
             if (!event) return;
-            const meta = { 
-                title: newTitle, 
-                start: event.start, 
-                end: event.end, 
-                color: event.color, 
+            const meta = {
+                title: newTitle,
+                start: event.start,
+                end: event.end,
+                color: event.color,
                 description: event.description,
                 allDay: event.allDay,
                 isGroup: (event as any).isGroup,
@@ -1649,7 +1650,7 @@ export default function Dashboard() {
             };
             if (updates.recurrence_rule !== undefined) meta.recurrence_rule = updates.recurrence_rule;
             else if ((event as any).recurrence_rule) meta.recurrence_rule = (event as any).recurrence_rule;
-            
+
             if (updates.recurrence_end !== undefined) meta.recurrence_end = updates.recurrence_end;
             else if ((event as any).recurrence_end) meta.recurrence_end = (event as any).recurrence_end;
 
@@ -1721,7 +1722,7 @@ export default function Dashboard() {
         };
         window.addEventListener('event-task:toggle', handleEventTaskToggle);
         return () => window.removeEventListener('event-task:toggle', handleEventTaskToggle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // intentionally empty — ref always has the latest version
 
     const switchTabRef = useLatestRef(switchTab);
@@ -1735,12 +1736,12 @@ export default function Dashboard() {
         };
         window.addEventListener('tide:navigate', handleNavigate);
         return () => window.removeEventListener('tide:navigate', handleNavigate);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleDeleteEvent = async (id: string) => {
         if (!myId) return;
-        
+
         const isOccurrence = id.includes('_');
         if (isOccurrence) {
             handleEventSave(id, { is_cancelled: true });
@@ -1809,7 +1810,7 @@ export default function Dashboard() {
                 const { tr } = editorInstance.state;
                 let ghostOccurrences = 0;
 
-                editorInstance.state.doc.descendants((node, pos) => {
+                editorInstance.state.doc.descendants((node: ProseMirrorNode, pos: number) => {
                     if (node.type.name === 'mention' && node.attrs.id === ghostId) {
                         tr.setNodeMarkup(pos, null, { ...node.attrs, id: newId, isGhost: false });
                         ghostOccurrences++;
@@ -1821,7 +1822,7 @@ export default function Dashboard() {
                     const freshJson = editorInstance.getJSON();
                     // Local state update – but we'll also pass it to switchTab to avoid staleness
                     handleEditorChange(freshJson);
-                    
+
                     // 3. Navigate to the new identity, passing the fresh JSON to ensure Note A is saved correctly
                     switchTab(newId, 'file', title, null, freshJson);
                 } else {
@@ -1830,7 +1831,7 @@ export default function Dashboard() {
             } else {
                 switchTab(newId, 'file', title);
             }
-            
+
             useDataStore.getState().setActiveNoteId(newId);
 
         } else if (target.type === 'event') {
@@ -2018,16 +2019,16 @@ export default function Dashboard() {
                         <div className="flex flex-col gap-1.5 p-2 overflow-y-auto pointer-events-none max-h-full">
                             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 px-1 pointer-events-none">Tasks</h3>
                             {tasks.filter(t => !t.isCompleted && !t.scheduledDate).map(t => (
-                                <div 
-                                    key={t.id} 
-                                    draggable 
-                                    className="bg-white/90 dark:bg-[#1c1c1c]/95 backdrop-blur-sm border border-gray-200/80 dark:border-white/10 px-2.5 py-1.5 rounded-xl shadow-sm cursor-grab active:cursor-grabbing flex gap-1.5 items-center transition-all hover:shadow-md hover:-translate-y-0.5 pointer-events-auto w-48 group" 
+                                <div
+                                    key={t.id}
+                                    draggable
+                                    className="bg-white/90 dark:bg-[#1c1c1c]/95 backdrop-blur-sm border border-gray-200/80 dark:border-white/10 px-2.5 py-1.5 rounded-xl shadow-sm cursor-grab active:cursor-grabbing flex gap-1.5 items-center transition-all hover:shadow-md hover:-translate-y-0.5 pointer-events-auto w-48 group"
                                     onDragStart={(e) => {
                                         e.dataTransfer.setData('text/plain', t.id);
                                         e.dataTransfer.setData('application/json', JSON.stringify({ type: 'task', id: t.id }));
                                     }}
                                 >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" className="shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" className="shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="5" r="1" /><circle cx="9" cy="12" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="19" r="1" /></svg>
                                     <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight truncate flex-1">{t.title}</span>
                                     <button
                                         title="Delete task"
@@ -2035,7 +2036,7 @@ export default function Dashboard() {
                                         onMouseDown={(e) => e.stopPropagation()}
                                         onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                                     </button>
                                 </div>
                             ))}
@@ -2102,8 +2103,8 @@ export default function Dashboard() {
 
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId.startsWith('profile:') ? 'block' : 'hidden'}`}>
                     {activeTabId.startsWith('profile:') && (
-                        <ProfilePage 
-                            userId={activeTabId.split(':')[1]} 
+                        <ProfilePage
+                            userId={activeTabId.split(':')[1]}
                             onOpenFile={(fileId, title) => switchTab(fileId, 'file', title)}
                         />
                     )}
@@ -2113,11 +2114,10 @@ export default function Dashboard() {
                     {isLoadingContent ? (
                         <div className="flex items-center justify-center h-full text-gray-400">Loading content...</div>
                     ) : (
-                        <div className={`mx-auto min-h-[500px] py-12 px-8 lg:px-24 transition-all duration-300 ${
-                            noteLayout === 'thin' ? 'max-w-2xl' : 
-                            noteLayout === 'normal' ? 'max-w-4xl' : 
-                            noteLayout === 'wide' ? 'max-w-6xl' : 'max-w-full'
-                        }`}>
+                        <div className={`mx-auto min-h-[500px] py-12 px-8 lg:px-24 transition-all duration-300 ${noteLayout === 'thin' ? 'max-w-2xl' :
+                                noteLayout === 'normal' ? 'max-w-4xl' :
+                                    noteLayout === 'wide' ? 'max-w-6xl' : 'max-w-full'
+                            }`}>
                             <CanvasLayer
                                 elements={canvasSidecar.elements}
                                 isLoaded={canvasSidecar.isLoaded}
@@ -2221,20 +2221,20 @@ export default function Dashboard() {
                                                     >
                                                         {saveStatus === 'saved' && (
                                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400 opacity-60">
-                                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                                                                <polyline points="22 4 12 14.01 9 11.01"/>
+                                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                                                <polyline points="22 4 12 14.01 9 11.01" />
                                                             </svg>
                                                         )}
                                                         {saveStatus === 'saving' && (
                                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 opacity-60 animate-spin">
-                                                                <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+                                                                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                                                             </svg>
                                                         )}
                                                         {saveStatus === 'unsaved' && (
                                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400 opacity-70">
-                                                                <circle cx="12" cy="12" r="10"/>
-                                                                <line x1="12" y1="8" x2="12" y2="12"/>
-                                                                <line x1="12" y1="16" x2="12.01" y2="16"/>
+                                                                <circle cx="12" cy="12" r="10" />
+                                                                <line x1="12" y1="8" x2="12" y2="12" />
+                                                                <line x1="12" y1="16" x2="12.01" y2="16" />
                                                             </svg>
                                                         )}
                                                     </span>
@@ -2308,8 +2308,8 @@ export default function Dashboard() {
                         <div className="absolute bottom-16 right-0 w-72 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl shadow-indigo-200/40 border border-gray-100 p-4 animate-in slide-in-from-bottom-2 fade-in duration-300">
                             <div className="flex items-center justify-between mb-4 px-1">
                                 <span className="font-semibold text-gray-900 text-sm tracking-tight">Schedule Themes</span>
-                                <button 
-                                    onClick={() => handleCreateEventGroup()} 
+                                <button
+                                    onClick={() => handleCreateEventGroup()}
                                     className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all"
                                     title="New Theme"
                                 >
@@ -2334,7 +2334,7 @@ export default function Dashboard() {
                                 ))}
                                 {files.filter(f => f.type === 'folder' && f.isGroup).length === 0 && (
                                     <div className="text-xs text-gray-400 text-center py-6 leading-relaxed">
-                                        No themes defined.<br/>Create one to group subjects!
+                                        No themes defined.<br />Create one to group subjects!
                                     </div>
                                 )}
                             </div>
