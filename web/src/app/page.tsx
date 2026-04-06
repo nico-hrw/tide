@@ -1079,14 +1079,18 @@ export default function Dashboard() {
                     .then(r => r.ok ? r.json() : null)
                     .then(profile => {
                         if (profile) {
-                            setUserProfile(prev => ({
-                                ...prev,
-                                username: profile.username || email.split('@')[0],
-                                avatar_seed: profile.avatar_seed || userId,
-                                avatar_salt: profile.avatar_salt || '',
-                                bio: profile.bio || '',
-                                title: profile.title || '',
-                            }));
+                            setUserProfile(prev => {
+                                if (!prev) return null;
+                                return {
+                                    ...prev,
+                                    username: profile.username || prev.username || email.split('@')[0],
+                                    avatar_seed: profile.avatar_seed || prev.avatar_seed || userId,
+                                    avatar_salt: profile.avatar_salt || prev.avatar_salt || '',
+                                    bio: profile.bio || prev.bio || '',
+                                    title: profile.title || prev.title || '',
+                                    email: prev.email // Ensure email is preserved and type-safe
+                                };
+                            });
                         }
                     })
                     .catch(() => { /* non-critical, keep fallback */ });
