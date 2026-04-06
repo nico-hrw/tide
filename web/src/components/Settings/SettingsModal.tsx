@@ -11,7 +11,6 @@ interface SettingsModalProps {
     onClose: () => void;
     enabledExtensions: string[];
     onToggleExtension: (extensionId: string, enabled: boolean) => void;
-    onToggleExtension: (extensionId: string, enabled: boolean) => void;
     userProfile?: { id?: string; user_id?: string; username: string; email: string; bio?: string; title?: string; avatar_seed?: string; avatar_salt?: string };
     onLogout?: () => void;
     noteLayout?: 'thin' | 'normal' | 'wide' | 'extra-wide';

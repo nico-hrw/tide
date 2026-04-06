@@ -86,7 +86,7 @@ export default function Sidebar({
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
     const [myId, setMyId] = useState<string>("");
-    const [sidebarUserProfile, setSidebarUserProfile] = useState<{ username: string, email: string, avatar_seed?: string, avatar_salt?: string } | null>(null);
+    const [sidebarUserProfile, setSidebarUserProfile] = useState<{ id?: string, user_id?: string, username: string, email: string, avatar_seed?: string, avatar_salt?: string } | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, id: string, type: 'file' | 'folder' } | null>(null);
     const [dropIndicator, setDropIndicator] = useState<{ id: string, half: 'top' | 'bottom' } | null>(null);
 
@@ -364,7 +364,7 @@ export default function Sidebar({
                             </button>
                             <div className="hidden group-hover/sub:block absolute left-full top-0 ml-1 w-48 bg-white border border-gray-200 rounded-xl shadow-xl py-1">
                                 {(() => {
-                                    const currentFile = allFiles.find(f => f.id === contextMenu.id);
+                                    const currentFile = files.find((f: any) => f.id === contextMenu.id);
                                     const v = currentFile?.visibility || 'private';
                                     return (
                                         <>

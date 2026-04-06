@@ -14,6 +14,7 @@ interface MobileLayoutProps {
   folders: any[];
   onNoteSelect: (id: string, title: string) => void;
   onNewNote: () => void;
+  onDeleteNote?: (id: string) => void;
   editorElement: React.ReactNode; 
   activeNoteId: string | null;
   activeNoteTitle: string;
@@ -21,6 +22,7 @@ interface MobileLayoutProps {
   onEventClick?: (id: string) => void;
   onEventUpdate?: (id: string, newStart: Date, newEnd: Date) => void;
   onEventDelete?: (id: string) => void;
+  userProfile?: { username: string; email: string; avatar_seed?: string; avatar_salt?: string; bio?: string; title?: string; id?: string; user_id?: string } | null;
 }
 
 export default function MobileLayout({
@@ -32,10 +34,11 @@ export default function MobileLayout({
   editorElement,
   activeNoteId,
   activeNoteTitle,
+  onEventUpdate,
+  onEventDelete,
   onNewEvent,
   onEventClick,
-  onEventUpdate,
-  onEventDelete
+  userProfile
 }: MobileLayoutProps) {
   const [activeTab, setActiveTab] = useState<'notes' | 'calendar' | 'plugins' | 'profile'>('calendar');
   const [isEditingNote, setIsEditingNote] = useState(false);
@@ -448,13 +451,13 @@ export default function MobileLayout({
                  {/* Avatar & Info */}
                  <div className="flex flex-col items-center mt-6">
                     <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#4A3AFF] to-[#8B5CF6] flex items-center justify-center text-white text-3xl font-bold shadow-lg shadow-indigo-500/30 mb-4 uppercase">
-                       {useDataStore.getState().userProfile?.username?.[0] || sessionStorage.getItem('tide_user_name')?.[0] || useDataStore.getState().userProfile?.email?.[0] || "U"}
+                       {userProfile?.username?.[0] || sessionStorage.getItem('tide_user_name')?.[0] || userProfile?.email?.[0] || "U"}
                     </div>
                     <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                        {useDataStore.getState().userProfile?.username || sessionStorage.getItem('tide_user_name') || useDataStore.getState().userProfile?.email?.split('@')[0] || "User"}
+                        {userProfile?.username || sessionStorage.getItem('tide_user_name') || userProfile?.email?.split('@')[0] || "User"}
                     </h2>
                     <span className="text-gray-500 dark:text-gray-400 font-medium">
-                        {useDataStore.getState().userProfile?.email || "No email linked"}
+                        {userProfile?.email || "No email linked"}
                     </span>
                  </div>
 
@@ -517,7 +520,7 @@ export default function MobileLayout({
   );
 }
 
-const NavIcon = ({ active, icon, onClick }: { active: boolean, icon: React.ReactNode, onClick: () => void }) => {
+const NavIcon = ({ active, icon, onClick }: { tab?: string, active: boolean, icon: React.ReactNode, onClick: () => void }) => {
    if (active) {
       return (
          <div onClick={onClick} className="w-14 h-14 rounded-full flex items-center justify-center bg-[#4A3AFF] text-white shadow-lg shadow-indigo-500/40 -translate-y-4 cursor-pointer transition-all duration-300">

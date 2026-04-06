@@ -315,7 +315,6 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                 // Use newFile.id and ensure we use the title from public_meta or title prop
                 const title = newFile.public_meta?.title || file.title || "Untitled";
                 onOpenFile(newFile.id, title, newFile);
-                setShowProfile(false);
             } else {
                 alert("Failed to copy file");
             }

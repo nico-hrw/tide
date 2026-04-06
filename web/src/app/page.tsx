@@ -15,6 +15,7 @@ import SettingsModal from "@/components/Settings/SettingsModal";
 import ProfilePage from "@/components/Profile/ProfilePage";
 import dynamic from 'next/dynamic';
 import { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import { ScheduleModal, ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 
 const Editor = dynamic(() => import('@/components/Editor'), {
     ssr: false,
@@ -186,7 +187,7 @@ export default function Dashboard() {
     const [activeTabId, setActiveTabId] = useState<string>('calendar');
     const [isSharingDisabled, setIsSharingDisabled] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [userProfile, setUserProfile] = useState<{ username: string; email: string; avatar_seed?: string; avatar_salt?: string; bio?: string; title?: string } | null>(null);
+    const [userProfile, setUserProfile] = useState<{ username: string; email: string; avatar_seed?: string; avatar_salt?: string; bio?: string; title?: string; id?: string; user_id?: string } | null>(null);
     const [streak, setStreak] = useState(0);
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const [summaryStats, setSummaryStats] = useState({ events: 0, tasks: 0 });
@@ -226,6 +227,9 @@ export default function Dashboard() {
 
     // Calendar & Event State
     const [calendarDate, setCalendarDate] = useState(new Date());
+
+    const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+    const [scheduleInitialStart, setScheduleInitialStart] = useState<Date | null>(null);
     const [activeEventId, setActiveEventId] = useState<string | null>(null);
     const [pinnedEventIds, setPinnedEventIds] = useState<string[]>([]);
     const [minimizedEventIds, setMinimizedEventIds] = useState<string[]>([]);
@@ -1551,6 +1555,32 @@ export default function Dashboard() {
         } catch (e) { console.error(e); }
     };
 
+    const handleScheduleApply = async (schedEvents: ScheduleEventData[], themeIdOrName: string, options?: { color?: string, effect?: string }) => {
+        let targetThemeId = themeIdOrName;
+        if (options) {
+            targetThemeId = await handleCreateEventGroup(themeIdOrName, options.color, options.effect) || 'none';
+        }
+
+        for (const ev of schedEvents) {
+            const baseDate = ev.dateOverride ? new Date(ev.dateOverride) : (scheduleInitialStart || new Date());
+            const [hStart, mStart] = ev.startTime.split(':').map(Number);
+            const [hEnd, mEnd] = ev.endTime.split(':').map(Number);
+
+            const start = new Date(baseDate);
+            start.setHours(hStart || 9, mStart || 0, 0, 0);
+
+            const end = new Date(baseDate);
+            end.setHours(hEnd || 10, mEnd || 0, 0, 0);
+
+            await handleEventCreate(start, end, ev.allDay, {
+                title: ev.title || "New Event",
+                description: ev.description,
+                parent_id: targetThemeId === 'none' ? null : targetThemeId,
+                recurrence_rule: ev.recurrence !== 'none' ? `FREQ=${ev.recurrence.toUpperCase()};INTERVAL=1` : undefined
+            });
+        }
+    };
+
     const handleEventUpdate = async (id: string, start: Date, end: Date) => {
         const baseId = id.includes('_') ? id.split('_')[0] : id;
         await handleEventSave(baseId, { start: start.toISOString(), end: end.toISOString() });
@@ -1911,26 +1941,29 @@ export default function Dashboard() {
                 events={events}
                 files={files.filter((f: any) => !f.isGroup && !(f.title || '').startsWith('.'))}
                 folders={files.filter((f: any) => f.type === 'folder' && !f.isGroup)}
-                onNoteSelect={(id, title) => {
+                onNoteSelect={(id: string, title: string) => {
                     handleFileSelect(id, title);
                 }}
                 onNewNote={() => handleNewNote()}
+                onDeleteNote={(id: string) => {
+                    handleDeleteNote({ stopPropagation: () => { } } as any, id);
+                }}
                 activeNoteId={activeNoteId}
                 activeNoteTitle={fileName}
-                onNewEvent={(date) => {
+                onNewEvent={(date: Date) => {
                     setScheduleInitialStart(date);
                     setScheduleModalOpen(true);
                 }}
-                onEventClick={(id) => {
-                    const evt = events.find((e: any) => e.id === id);
-                    if (evt) { setActiveEventId(id); }
+                onEventClick={(id: string) => {
+                    setActiveEventId(id);
                 }}
-                onEventUpdate={(id, newStart, newEnd) => {
+                onEventUpdate={(id: string, newStart: Date, newEnd: Date) => {
                     handleEventUpdate(id, newStart, newEnd);
                 }}
-                onEventDelete={(id) => {
+                onEventDelete={(id: string) => {
                     handleDeleteEvent(id);
                 }}
+                userProfile={userProfile}
                 editorElement={
                     editorContent === null ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
@@ -2377,6 +2410,13 @@ export default function Dashboard() {
                 onLogout={handleLogout}
                 noteLayout={noteLayout}
                 onSetNoteLayout={setNoteLayout}
+            />
+
+            <ScheduleModal
+                isOpen={scheduleModalOpen}
+                onClose={() => setScheduleModalOpen(false)}
+                onApply={handleScheduleApply}
+                existingThemes={files?.filter(f => f.type === 'folder' && f.isGroup).map(g => ({ id: g.id, title: g.title, effect: g.effect, color: (g as any).color })) || []}
             />
 
             <DailySummary
