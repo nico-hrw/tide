@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useRef, useEffect } from "react";
 import { format, isSameDay, getHours, getMinutes } from "date-fns";
 import { useHighlight } from "@/components/HighlightContext";
 import { motion, useTransform, MotionValue, useMotionValue } from "framer-motion";
@@ -206,9 +206,36 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     cursorX,
     cursorY,
     allEvents = [],
-    readOnly = false
+    readOnly = false,
+    hourHeight = 60
 }: DayColumnProps) => {
     const { highlight, isHighlighted } = useHighlight();
+
+    const gearedMouseRef = useRef({ x: 0, y: 0 });
+    const physicalMouseRef = useRef({ x: 0, y: 0 });
+    const isPreciseModeRef = useRef(false);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName || '') || (document.activeElement as HTMLElement)?.isContentEditable) return;
+            if (e.key === 'Alt' || e.key === 'Shift') {
+                isPreciseModeRef.current = true;
+            }
+        };
+
+        const handleKeyUp = (e: KeyboardEvent) => {
+            if (e.key === 'Alt' || e.key === 'Shift') {
+                isPreciseModeRef.current = false;
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, []);
 
     const activeParentId = useDataStore(state => state.activeParentId);
 
@@ -297,6 +324,10 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
             className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-gray-300 dark:border-slate-700 relative ${isToday ? 'bg-gray-100 dark:bg-white/[0.03]' : 'bg-transparent'}`}
+            onMouseMove={(e) => {
+                physicalMouseRef.current = { x: e.clientX, y: e.clientY };
+                gearedMouseRef.current = { x: e.clientX, y: e.clientY };
+            }}
             onDragOver={(e) => {
                 if (readOnly) return;
                 e.preventDefault();
