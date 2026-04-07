@@ -14,15 +14,15 @@ type ProfileHandler struct {
 }
 
 func (h *ProfileHandler) RegisterRoutes(r chi.Router) {
-	// Public routes
-	r.Get("/search", h.Search)
-	r.Get("/{userID}", h.GetProfile)
-
 	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(AuthMiddleware)
+		r.Get("/search", h.Search)
+		r.Get("/suggestions", h.Suggestions)
 		r.Put("/", h.UpsertProfile)
 	})
+	
+	r.Get("/{userID}", h.GetProfile)
 }
 
 func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
@@ -95,9 +95,25 @@ func (h *ProfileHandler) Search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	results, err := h.Store.SearchPublicData(r.Context(), query)
+	userID, _ := r.Context().Value("user_id").(string)
+	results, err := h.Store.SearchPublicData(r.Context(), query, userID)
 	if err != nil {
 		http.Error(w, "Search failed", http.StatusInternalServerError)
+		return
+	}
+
+	if results == nil {
+		results = []*db.SearchResult{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
+}
+func (h *ProfileHandler) Suggestions(w http.ResponseWriter, r *http.Request) {
+	userID, _ := r.Context().Value("user_id").(string)
+	results, err := h.Store.GetRandomProfiles(r.Context(), 6, userID) // Increase limit to 6
+	if err != nil {
+		http.Error(w, "Failed to fetch suggestions", http.StatusInternalServerError)
 		return
 	}
 

@@ -53,6 +53,8 @@ interface DayColumnProps {
     cursorX: MotionValue<number>;
     cursorY: MotionValue<number>;
     allEvents?: CalendarEvent[];
+    readOnly?: boolean;
+    hourHeight?: number;
 }
 
 // Layout helper for overlapping events within a single day
@@ -204,7 +206,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     cursorX,
     cursorY,
     allEvents = [],
-}) => {
+    readOnly = false
+}: DayColumnProps) => {
     const { highlight, isHighlighted } = useHighlight();
 
     const activeParentId = useDataStore(state => state.activeParentId);
@@ -295,6 +298,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             data-day-col={format(day, "yyyy-MM-dd")}
             className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-gray-300 dark:border-slate-700 relative ${isToday ? 'bg-gray-100 dark:bg-white/[0.03]' : 'bg-transparent'}`}
             onDragOver={(e) => {
+                if (readOnly) return;
                 e.preventDefault();
                 e.stopPropagation();
             }}
@@ -307,10 +311,12 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                  ${isToday ? 'glass-red-glow-effect' : 'bg-[#F4F7F9] dark:bg-[#1A1A1A]'}
              `}
                 onClick={() => {
+                    if (readOnly) return;
                     useDataStore.getState().setActiveParentId(null);
                     if (onHeaderClick) onHeaderClick(day);
                 }}
                 onDrop={(e) => {
+                    if (readOnly) return;
                     e.preventDefault();
                     e.stopPropagation();
                     const eventId = e.dataTransfer.getData("text/plain");
@@ -377,8 +383,9 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                             return (
                                 <div
                                     key={event.id}
-                                    draggable
+                                    draggable={!readOnly}
                                     onDragStart={(e) => {
+                                        if (readOnly) return;
                                         e.dataTransfer.setData("text/plain", event.id);
                                     }}
                                     onClick={(e) => {
@@ -439,14 +446,17 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             <div 
                 className="relative h-[1440px] shrink-0" 
                 onMouseDown={(e) => {
+                    if (readOnly) return;
                     useDataStore.getState().setActiveParentId(null);
                     if (onGridMouseDown) onGridMouseDown(e, day);
                 }}
                 onDragOver={(e) => {
+                    if (readOnly) return;
                     e.preventDefault();
                     e.stopPropagation();
                 }}
                 onDrop={(e) => {
+                    if (readOnly) return;
                     e.preventDefault();
                     e.stopPropagation();
                     const eventId = e.dataTransfer.getData("text/plain");
@@ -465,13 +475,16 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         } catch(err) {}
                     }
 
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const offsetY = parseInt(e.dataTransfer.getData('application/offsetY') || '0', 10);
-                    const y = Math.max(0, e.clientY - rect.top - offsetY);
+                    const mouseX = gearedMouseRef.current.x;
+                    const mouseY = gearedMouseRef.current.y;
+                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    const relativeY = mouseY - rect.top;
                     
-                    // Assuming 1px = 1 minute as per existing logic (60px per hour)
-                    let newStartMinutes = Math.round(y);
-                    newStartMinutes = Math.round(newStartMinutes / snapInterval) * snapInterval;
+                    const snapIntervalMinutes = isPreciseModeRef.current ? 1 : 15;
+                    const minuteHeight = hourHeight / 60;
+                    
+                    let newStartMinutes = Math.floor(relativeY / minuteHeight);
+                    newStartMinutes = Math.floor(newStartMinutes / snapIntervalMinutes) * snapIntervalMinutes;
 
                     if (isTaskDrop && draggedTask) {
                         const baseDate = new Date(day);
@@ -533,7 +546,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 {Array.from({ length: 24 }).map((_, i) => (
                     <div
                         key={i}
-                        className={`h-[60px] border-b border-dashed ${isToday ? 'border-indigo-200 dark:border-indigo-800' : 'border-gray-200 dark:border-slate-800'} ${hoveredHour === i ? 'bg-black/[0.01] dark:bg-white/[0.01]' : 'bg-transparent'}`}
+                        className={`border-b border-dashed ${isToday ? 'border-indigo-200 dark:border-indigo-800' : 'border-gray-200 dark:border-slate-800'} ${hoveredHour === i ? 'bg-black/[0.01] dark:bg-white/[0.01]' : 'bg-transparent'}`}
+                        style={{ height: 'var(--hour-height, 60px)' }}
                         onMouseEnter={() => onHourHover && onHourHover(i)}
                         onMouseLeave={() => onHourHover && onHourHover(null)}
                     ></div>

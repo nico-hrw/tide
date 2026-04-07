@@ -4,7 +4,7 @@ import { format, getHours, getMinutes, isSameDay } from 'date-fns';
 import { useHighlight } from '@/components/HighlightContext';
 import { useLinkStore } from '@/store/useLinkStore';
 import { useDataStore } from '@/store/useDataStore';
-import { Layers } from 'lucide-react';
+import { Layers, Globe, Lock } from 'lucide-react';
 
 // Assuming types and getEventTheme are available here, either imported or defined
 interface CalendarEvent {
@@ -22,8 +22,9 @@ interface CalendarEvent {
     exdates?: string[];
     completed_dates?: string[];
     shading?: number; // 0-4 for gray-layers
-    linkedTaskId?: string; // UUID of the source Task — authoritative for completion state
+    linkedTaskId?: string;
     tags?: string[];
+    is_public?: boolean;
 }
 
 const getEventTheme = (evt: CalendarEvent) => {
@@ -186,8 +187,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     let style: any;
     if (isDragging) {
         style = {
-            top: `${startMinutes}px`,
-            height: `${Math.max(durationMinutes, 15)}px`,
+            top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes})`,
+            height: `calc(var(--hour-height, 60px) / 60 * ${Math.max(durationMinutes, 15)})`,
             left: `${pos.left}%`,
             width: `${pos.width}%`,
             backgroundColor: theme.bg,
@@ -198,7 +199,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         };
     } else if (isResizing) {
         style = {
-            top: `${startMinutes}px`,
+            top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes})`,
             height: resizeHeightMV,
             left: `${pos.left}%`,
             width: `${pos.width}%`,
@@ -209,8 +210,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         };
     } else {
         style = {
-            top: `${startMinutes}px`,
-            height: `${Math.max(durationMinutes, 15)}px`,
+            top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes})`,
+            height: `calc(var(--hour-height, 60px) / 60 * ${Math.max(durationMinutes, 15)})`,
             left: `${pos.left}%`,
             width: `${pos.width}%`,
             backgroundColor: isActiveParent ? 'transparent' : (event.color || theme.bg),
@@ -401,6 +402,11 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
                             )}
                         </button>
+                    )}
+                    {event.is_public && (
+                        <div className="mt-[2px] opacity-60 flex-shrink-0" title="Public Event">
+                            <Globe size={11} />
+                        </div>
                     )}
                 <div className={`text-[11px] font-bold leading-tight truncate pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}

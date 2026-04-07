@@ -17,11 +17,14 @@ type Message struct {
 }
 
 type Contact struct {
-	ID        string    `json:"id"`
-	UserID    string    `json:"user_id"`
-	ContactID string    `json:"contact_id"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          string    `json:"id"`
+	UserID      string    `json:"user_id"`
+	ContactID   string    `json:"contact_id"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	Username    string    `json:"username,omitempty"`
+	AvatarSeed  string    `json:"avatar_seed,omitempty"`
+	AvatarStyle string    `json:"avatar_style,omitempty"`
 }
 
 // Store defines the interface for database operations.
@@ -95,5 +98,6 @@ type Store interface {
 	// Profiles & Social
 	GetProfile(ctx context.Context, userID string) (*db.Profile, error)
 	UpsertProfile(ctx context.Context, profile *db.Profile) error
-	SearchPublicData(ctx context.Context, query string) ([]*db.SearchResult, error)
+	SearchPublicData(ctx context.Context, query string, skipUserID string) ([]*db.SearchResult, error)
+	GetRandomProfiles(ctx context.Context, limit int, skipUserID string) ([]*db.SearchResult, error)
 }

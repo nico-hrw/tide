@@ -176,6 +176,8 @@ func (s *SQLiteStore) migrate() error {
 	CREATE TABLE IF NOT EXISTS profiles (
 		user_id TEXT PRIMARY KEY,
 		avatar_seed TEXT NOT NULL,
+		avatar_style TEXT NOT NULL DEFAULT 'notionists',
+		avatar_salt TEXT NOT NULL DEFAULT '',
 		bio TEXT NOT NULL,
 		title TEXT NOT NULL,
 		profile_status INTEGER NOT NULL DEFAULT 0,
@@ -1146,7 +1148,13 @@ func (s *SQLiteStore) CreateContact(ctx context.Context, c *Contact) error {
 
 func (s *SQLiteStore) GetContactRequests(ctx context.Context, userID string) ([]*Contact, error) {
 	// Incoming pending requests (where I am the contact_id)
-	query := `SELECT id, user_id, contact_id, status, created_at FROM contacts WHERE contact_id = ? AND status = 'pending'`
+	query := `
+		SELECT c.id, c.user_id, c.contact_id, c.status, c.created_at, p.avatar_seed, p.avatar_style, u.username
+		FROM contacts c
+		LEFT JOIN profiles p ON c.user_id = p.user_id
+		LEFT JOIN users u ON c.user_id = u.id
+		WHERE c.contact_id = ? AND c.status = 'pending'
+	`
 	rows, err := s.DB.QueryContext(ctx, query, userID)
 	if err != nil {
 		return nil, err
@@ -1156,7 +1164,7 @@ func (s *SQLiteStore) GetContactRequests(ctx context.Context, userID string) ([]
 	var results []*Contact
 	for rows.Next() {
 		var c Contact
-		if err := rows.Scan(&c.ID, &c.UserID, &c.ContactID, &c.Status, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.UserID, &c.ContactID, &c.Status, &c.CreatedAt, &c.AvatarSeed, &c.AvatarStyle, &c.Username); err != nil {
 			return nil, err
 		}
 		results = append(results, &c)
@@ -1178,12 +1186,23 @@ func (s *SQLiteStore) DeleteContact(ctx context.Context, id string) error {
 
 func (s *SQLiteStore) GetContacts(ctx context.Context, userID string) ([]*Contact, error) {
 	// Return accepted contacts where user is either initiator or receiver
+	// We want to return the PARTNER's ID as ContactID in the result for easy frontend use
 	query := `
-		SELECT id, user_id, contact_id, status, created_at 
-		FROM contacts 
-		WHERE (user_id = ? OR contact_id = ?) AND status = 'accepted'
+		SELECT 
+			c.id, 
+			c.user_id, 
+			CASE WHEN c.user_id = ? THEN c.contact_id ELSE c.user_id END as contact_partner_id,
+			c.status, 
+			c.created_at,
+			p.avatar_seed,
+			p.avatar_style,
+			u.username
+		FROM contacts c
+		LEFT JOIN users u ON u.id = (CASE WHEN c.user_id = ? THEN c.contact_id ELSE c.user_id END)
+		LEFT JOIN profiles p ON p.user_id = (CASE WHEN c.user_id = ? THEN c.contact_id ELSE c.user_id END)
+		WHERE (c.user_id = ? OR c.contact_id = ?) AND c.status = 'accepted'
 	`
-	rows, err := s.DB.QueryContext(ctx, query, userID, userID)
+	rows, err := s.DB.QueryContext(ctx, query, userID, userID, userID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1192,7 +1211,7 @@ func (s *SQLiteStore) GetContacts(ctx context.Context, userID string) ([]*Contac
 	var results []*Contact
 	for rows.Next() {
 		var c Contact
-		if err := rows.Scan(&c.ID, &c.UserID, &c.ContactID, &c.Status, &c.CreatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.UserID, &c.ContactID, &c.Status, &c.CreatedAt, &c.AvatarSeed, &c.AvatarStyle, &c.Username); err != nil {
 			return nil, err
 		}
 		results = append(results, &c)
@@ -1216,11 +1235,11 @@ func (s *SQLiteStore) GetContact(ctx context.Context, user1, user2 string) (*Con
 // --- Profiles & Social ---
 
 func (s *SQLiteStore) GetProfile(ctx context.Context, userID string) (*db.Profile, error) {
-	query := `SELECT user_id, avatar_seed, COALESCE(avatar_salt, '') as avatar_salt, bio, title, profile_status FROM profiles WHERE user_id = ?`
+	query := `SELECT user_id, avatar_seed, COALESCE(avatar_style, 'notionists') as avatar_style, COALESCE(avatar_salt, '') as avatar_salt, bio, title, profile_status FROM profiles WHERE user_id = ?`
 	row := s.DB.QueryRowContext(ctx, query, userID)
 	
 	var p db.Profile
-	if err := row.Scan(&p.UserID, &p.AvatarSeed, &p.AvatarSalt, &p.Bio, &p.Title, &p.ProfileStatus); err != nil {
+	if err := row.Scan(&p.UserID, &p.AvatarSeed, &p.AvatarStyle, &p.AvatarSalt, &p.Bio, &p.Title, &p.ProfileStatus); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// Return a default profile instead of 404 so we can at least show name/verified status if they exist
 			p.UserID = userID
@@ -1234,17 +1253,48 @@ func (s *SQLiteStore) GetProfile(ctx context.Context, userID string) (*db.Profil
 
 func (s *SQLiteStore) UpsertProfile(ctx context.Context, profile *db.Profile) error {
 	query := `
-		INSERT INTO profiles (user_id, avatar_seed, avatar_salt, bio, title, profile_status) 
-		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(user_id) DO UPDATE SET 
+	INSERT INTO profiles (user_id, avatar_seed, avatar_style, avatar_salt, bio, title, profile_status)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(user_id) DO UPDATE SET
 			avatar_seed = excluded.avatar_seed,
+			avatar_style = excluded.avatar_style,
 			avatar_salt = excluded.avatar_salt,
 			bio = excluded.bio,
 			title = excluded.title,
 			profile_status = excluded.profile_status
 	`
-	_, err := s.DB.ExecContext(ctx, query, profile.UserID, profile.AvatarSeed, profile.AvatarSalt, profile.Bio, profile.Title, profile.ProfileStatus)
+	_, err := s.DB.ExecContext(ctx, query, 
+		profile.UserID, profile.AvatarSeed, profile.AvatarStyle, profile.AvatarSalt, profile.Bio, profile.Title, profile.ProfileStatus,
+	)
 	return err
+}
+
+func (s *SQLiteStore) GetRandomProfiles(ctx context.Context, limit int, skipUserID string) ([]*db.SearchResult, error) {
+	query := `
+		SELECT 'profile' as type, u.id, u.username, COALESCE(p.title, '') as title, u.id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, COALESCE(p.bio, '') as bio, COALESCE(p.avatar_seed, u.id) as avatar_seed, COALESCE(p.avatar_style, 'notionists') as avatar_style
+		FROM users u
+		LEFT JOIN profiles p ON p.user_id = u.id
+		WHERE (p.profile_status > 0 OR u.is_verified = 1) AND u.id != ?
+		ORDER BY RANDOM()
+		LIMIT ?
+	`
+	rows, err := s.DB.QueryContext(ctx, query, skipUserID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []*db.SearchResult
+	for rows.Next() {
+		var r db.SearchResult
+		var isVerified int
+		if err := rows.Scan(&r.Type, &r.ID, &r.Username, &r.Title, &r.OwnerID, &isVerified, &r.Bio, &r.AvatarSeed, &r.AvatarStyle); err != nil {
+			return nil, err
+		}
+		r.OwnerIsVerified = (isVerified == 1)
+		results = append(results, &r)
+	}
+	return results, nil
 }
 
 // ListPublicFiles returns public and contact-shared files owned by specific user.
@@ -1320,26 +1370,31 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewe
 	return results, nil
 }
 
-func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string) ([]*db.SearchResult, error) {
+func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, skipUserID string) ([]*db.SearchResult, error) {
 	likeQuery := "%" + searchQuery + "%"
+	
+	// Create blind index hash for exact email search
+	h := sha256.Sum256([]byte(searchQuery))
+	emailHash := hex.EncodeToString(h[:])
 
 	// Search Profiles and Notes
 	query := `
-		SELECT 'profile' as type, u.id, p.title as title, p.user_id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, p.bio, p.avatar_seed
-		FROM profiles p
-		JOIN users u ON p.user_id = u.id
-		WHERE p.title LIKE ? OR p.bio LIKE ? OR u.username LIKE ?
+		SELECT 'profile' as type, u.id, COALESCE(u.username, '') as username, COALESCE(p.title, '') as title, u.id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, COALESCE(p.bio, '') as bio, COALESCE(p.avatar_seed, u.id) as avatar_seed, COALESCE(p.avatar_style, 'notionists') as avatar_style
+		FROM users u
+		LEFT JOIN profiles p ON p.user_id = u.id
+		WHERE (u.username LIKE ? OR u.email_blind_index = ? OR p.title LIKE ?) AND u.id != ?
 		
 		UNION ALL
 		
-		SELECT 'note' as type, f.id, json_extract(f.metadata, '$.title') as title, f.owner_id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, '' as bio, '' as avatar_seed
+		SELECT 'note' as type, f.id, COALESCE(u.username, '') as username, json_extract(f.metadata, '$.title') as title, f.owner_id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, '' as bio, '' as avatar_seed, 'notionists' as avatar_style
 		FROM files f
 		JOIN users u ON f.owner_id = u.id
 		WHERE (json_extract(f.metadata, '$.is_public') = 1 OR json_extract(f.metadata, '$.is_public') = 'true' OR json_extract(f.metadata, '$.is_public') = true)
 		AND json_extract(f.metadata, '$.title') LIKE ?
+		AND u.id != ?
 	`
 	
-	rows, err := s.DB.QueryContext(ctx, query, likeQuery, likeQuery, likeQuery, likeQuery)
+	rows, err := s.DB.QueryContext(ctx, query, likeQuery, emailHash, likeQuery, skipUserID, likeQuery, skipUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -1347,13 +1402,13 @@ func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string) 
 
 	var results []*db.SearchResult
 	for rows.Next() {
-		var r db.SearchResult
+		r := &db.SearchResult{}
 		var isVerified int
-		if err := rows.Scan(&r.Type, &r.ID, &r.Title, &r.OwnerID, &isVerified, &r.Bio, &r.AvatarSeed); err != nil {
+		if err := rows.Scan(&r.Type, &r.ID, &r.Username, &r.Title, &r.OwnerID, &isVerified, &r.Bio, &r.AvatarSeed, &r.AvatarStyle); err != nil {
 			return nil, err
 		}
 		r.OwnerIsVerified = (isVerified == 1)
-		results = append(results, &r)
+		results = append(results, r)
 	}
 	return results, nil
 }

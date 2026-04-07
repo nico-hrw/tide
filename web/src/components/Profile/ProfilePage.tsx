@@ -2,12 +2,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '@/lib/api';
+import * as cryptoLib from '@/lib/crypto';
+import { format } from 'date-fns';
 import Avatar from './Avatar';
-import { CheckCircle, FolderOpen, User, Link as LinkIcon } from 'lucide-react';
+import { CheckCircle, FolderOpen, User, Link as LinkIcon, Calendar as CalendarIcon } from 'lucide-react';
+import CalendarView from '../Calendar/CalendarView';
 
 interface ProfilePageProps {
     userId: string;
     onOpenFile?: (fileId: string, title: string) => void;
+    onMessage?: (userId: string) => void;
 }
 
 interface UserProfile {
@@ -18,15 +22,56 @@ interface UserProfile {
     bio: string;
     title: string;
     avatar_salt: string;
+    avatar_style: 'notionists' | 'openPeeps';
     profile_status: number;
 }
 
-export default function ProfilePage({ userId, onOpenFile }: ProfilePageProps) {
+export default function ProfilePage({ userId, onOpenFile, onMessage }: ProfilePageProps) {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'about' | 'files' | 'calendar'>('about');
     const [publicFiles, setPublicFiles] = useState<any[]>([]);
     const [events, setEvents] = useState<any[]>([]);
+    const [isContact, setIsContact] = useState(false);
+    const [myUserId, setMyUserId] = useState<string | null>(null);
+
+    useEffect(() => {
+        const fetchContacts = async () => {
+            try {
+                const res = await apiFetch(`/api/v1/contacts`);
+                if (res.ok) {
+                    const contacts = await res.json();
+                    setIsContact(contacts.some((c: any) => c.contact_id === userId && c.status === 'accepted'));
+                }
+            } catch(e) {}
+        };
+        const fetchMe = async () => {
+            try {
+                const meRes = await apiFetch('/api/v1/auth/me');
+                if (meRes.ok) {
+                    const meData = await meRes.json();
+                    setMyUserId(meData.id);
+                }
+            } catch(e) {}
+        };
+        fetchContacts();
+        fetchMe();
+    }, [userId]);
+
+    const toggleContact = async () => {
+        try {
+            if (isContact) {
+                await apiFetch(`/api/v1/contacts/${userId}`, { method: 'DELETE' });
+                setIsContact(false);
+            } else {
+                await apiFetch(`/api/v1/contacts/${userId}`, { method: 'POST' });
+                alert("Contact request sent");
+                // setIsContact(true); // Wait for accept
+            }
+        } catch (e) {
+            console.error("Failed to update contact", e);
+        }
+    };
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -69,6 +114,64 @@ export default function ProfilePage({ userId, onOpenFile }: ProfilePageProps) {
         }
     }, [userId]);
 
+    const handleSaveEvent = async (id: string, updates: any) => {
+        if (myUserId !== userId) return;
+
+        try {
+            const publicKeyStr = sessionStorage.getItem("tide_user_public_key");
+            if (!publicKeyStr) return;
+            const publicKey = await window.crypto.subtle.importKey(
+                "spki", cryptoLib.base64ToArrayBuffer(publicKeyStr),
+                { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt"]
+            );
+
+            const isOccurrence = id.includes('_');
+            const baseId = isOccurrence ? id.split('_')[0] : id;
+            const event = events.find(e => e.id === baseId);
+            if (!event) return;
+
+            // Handle recurring logic if needed, simplify for profile edit
+            const updatedEvent = { ...event, ...updates };
+
+            const meta = {
+                title: updatedEvent.title,
+                start: updatedEvent.public_meta?.start,
+                end: updatedEvent.public_meta?.end,
+                color: updatedEvent.public_meta?.color,
+                description: updatedEvent.public_meta?.description,
+                is_public: updates.is_public !== undefined ? updates.is_public : true
+            };
+
+            const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
+
+            const payload: any = {
+                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta))),
+                public_meta: {
+                    ...updatedEvent.public_meta,
+                    title: meta.title,
+                    start: meta.start,
+                    end: meta.end,
+                    color: meta.color,
+                    description: meta.description,
+                    is_public: meta.is_public
+                }
+            };
+
+            const res = await apiFetch(`/api/v1/files/${baseId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.ok) {
+                // Refresh local state or just let it be optimistic
+                setEvents(prev => prev.map(e => e.id === baseId ? { ...e, public_meta: payload.public_meta } : e));
+            }
+        } catch (err) {
+            console.error("Update event failed:", err);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex-1 h-full flex flex-col bg-[#f8f9fc] dark:bg-black overflow-y-auto w-full animate-pulse">
@@ -94,11 +197,12 @@ export default function ProfilePage({ userId, onOpenFile }: ProfilePageProps) {
     }
 
     return (
-        <div className="flex-1 h-full flex flex-col bg-[#f8f9fc] dark:bg-black overflow-y-auto">
+        <div className="flex-1 h-full flex flex-col bg-[#f8f9fc] dark:bg-black overflow-y-auto pb-24">
             {/* Header Section */}
-            <div className="relative w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 pt-16 pb-8 px-8 flex flex-col items-center text-center shadow-sm">
+            <div className="relative w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 pt-16 pb-12 px-8 flex flex-col items-center text-center shadow-sm">
                 <Avatar
                     seed={(profile.avatar_seed || profile.user_id) + (profile.avatar_salt || '')}
+                    style={profile.avatar_style}
                     size={120}
                     verified={profile.is_verified}
                     className="mb-6 -mt-8 bg-white dark:bg-black"
@@ -109,134 +213,91 @@ export default function ProfilePage({ userId, onOpenFile }: ProfilePageProps) {
                 </h1>
 
                 {profile.title && (
-                    <div className="mt-2 text-sm font-bold text-gray-400 tracking-wider uppercase">
+                    <div className="mt-2 text-xs font-bold text-gray-400 tracking-[0.2em] uppercase">
                         {profile.title}
+                    </div>
+                )}
+
+                {/* Integrated Bio in Header */}
+                <div className="mt-6 max-w-2xl px-4">
+                    {profile.bio ? (
+                        <p className="text-gray-600 dark:text-gray-400 leading-relaxed text-sm">
+                            {profile.bio}
+                        </p>
+                    ) : (
+                        <p className="text-xs text-gray-300 italic">No bio available.</p>
+                    )}
+                </div>
+
+                {myUserId !== userId && (
+                    <div className="flex gap-3 mt-8">
+                        <button 
+                            onClick={toggleContact}
+                            className={`px-8 py-3 rounded-2xl font-bold text-sm transition-all focus:outline-none ${isContact ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-500/20'}`}
+                        >
+                            {isContact ? 'Disconnect' : 'Connect'}
+                        </button>
+                        <button 
+                            onClick={() => onMessage?.(userId)}
+                            className="px-8 py-3 rounded-2xl font-bold text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-all focus:outline-none shadow-sm flex items-center gap-2"
+                        >
+                            Message
+                        </button>
                     </div>
                 )}
             </div>
 
             {/* Content Section */}
-            <div className="max-w-4xl w-full mx-auto p-4 sm:p-8 flex-1">
-                {/* Tabs */}
-                <div className="flex items-center gap-6 mb-8 border-b border-gray-200 dark:border-gray-800 pb-2">
-                    <button
-                        onClick={() => setActiveTab('about')}
-                        className={`pb-2 text-sm font-bold transition-all relative ${activeTab === 'about' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'}`}
-                    >
-                        About
-                        {activeTab === 'about' && (
-                            <span className="absolute bottom-0 left-0 w-full h-[2px] bg-blue-600 dark:bg-blue-400 rounded-t-full shadow-[0_0_8px_rgba(37,99,235,0.5)]"></span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('files')}
-                        className={`pb-2 text-sm font-bold transition-all relative ${activeTab === 'files' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'}`}
-                    >
-                        Notes
-                        <span className="ml-1.5 text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full text-gray-400 border border-gray-200 dark:border-gray-700">
-                            {publicFiles.length}
-                        </span>
-                        {activeTab === 'files' && (
-                            <span className="absolute bottom-0 left-0 w-full h-[2px] bg-blue-600 dark:bg-blue-400 rounded-t-full shadow-[0_0_8px_rgba(37,99,235,0.5)]"></span>
-                        )}
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('calendar')}
-                        className={`pb-2 text-sm font-bold transition-all relative ${activeTab === 'calendar' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-900 dark:hover:text-gray-300'}`}
-                    >
-                        Calendar
-                        <span className="ml-1.5 text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full text-gray-400 border border-gray-200 dark:border-gray-700">
-                            {events.length}
-                        </span>
-                        {activeTab === 'calendar' && (
-                            <span className="absolute bottom-0 left-0 w-full h-[2px] bg-blue-600 dark:bg-blue-400 rounded-t-full shadow-[0_0_8px_rgba(37,99,235,0.5)]"></span>
-                        )}
-                    </button>
-                </div>
+            <div className="max-w-[1400px] w-full mx-auto p-4 sm:p-12 flex flex-col gap-16 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                
+                {/* Public Calendar Section (Hidden for redesign) */}
+                {/*
+                <section>
+                    <div className="flex items-center justify-between mb-6">
+                        ...
+                    </div>
+                    ...
+                </section>
+                */}
 
-                {/* Tab Content */}
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    {activeTab === 'about' && (
-                        <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 leading-relaxed">
-                            {profile.bio ? (
-                                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap text-base">
-                                    {profile.bio}
-                                </p>
-                            ) : (
-                                <p className="text-gray-400 italic text-center py-8">
-                                    This user hasn't written a bio yet.
-                                </p>
-                            )}
+                {/* Public Notes Section */}
+                <section>
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2 bg-indigo-500/10 rounded-lg text-indigo-500">
+                            <FolderOpen size={20} />
                         </div>
-                    )}
+                        <h2 className="text-xl font-black text-gray-900 dark:text-white">Public Notes</h2>
+                        {publicFiles.length > 0 && <span className="ml-2 text-xs py-0.5 px-2 bg-gray-100 dark:bg-white/10 rounded-full font-bold text-gray-400">{publicFiles.length}</span>}
+                    </div>
 
-                    {activeTab === 'files' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {(!publicFiles || publicFiles.length === 0) ? (
-                                <div className="col-span-full py-12 text-center border border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-white/50 dark:bg-gray-900/50">
-                                    <FolderOpen className="mx-auto h-8 w-8 text-gray-300 dark:text-gray-700 mb-3" />
-                                    <p className="text-sm text-gray-500">No public files shared yet.</p>
-                                </div>
-                            ) : (
-                                publicFiles.map(file => (
-                                    <div
-                                        key={file.id}
-                                        onClick={() => onOpenFile && onOpenFile(file.id, file.title)}
-                                        className="bg-white dark:bg-gray-900 p-5 rounded-2xl shadow-sm hover:shadow-md border border-gray-100 dark:border-gray-800 cursor-pointer transition-all hover:-translate-y-1 group"
-                                    >
-                                        <div className="flex items-start justify-between">
-                                            <div className="p-3 bg-blue-50 dark:bg-blue-500/10 rounded-xl">
-                                                <LinkIcon className="w-5 h-5 text-blue-500" />
-                                            </div>
-                                            <div className="text-[10px] text-gray-400">{new Date(file.updated_at).toLocaleDateString()}</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {(!publicFiles || publicFiles.length === 0) ? (
+                            <div className="col-span-full py-16 text-center border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-[2.5rem] bg-white/30 dark:bg-white/5">
+                                <FolderOpen className="mx-auto h-12 w-12 text-gray-200 dark:text-gray-800 mb-4" />
+                                <p className="text-sm text-gray-400 font-medium">No public notes shared yet.</p>
+                            </div>
+                        ) : (
+                            publicFiles.map(file => (
+                                <div
+                                    key={file.id}
+                                    onClick={() => onOpenFile && onOpenFile(file.id, file.title)}
+                                    className="bg-white dark:bg-gray-900 p-6 rounded-3xl shadow-sm hover:shadow-xl border border-gray-100 dark:border-gray-800 cursor-pointer transition-all hover:-translate-y-2 group"
+                                >
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className="p-3 bg-indigo-50 dark:bg-indigo-500/10 rounded-2xl text-indigo-500 group-hover:scale-110 transition-transform">
+                                            <LinkIcon size={20} />
                                         </div>
-                                        <h3 className="mt-4 font-bold text-gray-900 dark:text-white truncate group-hover:text-blue-500 transition-colors">
-                                            {file.title}
-                                        </h3>
+                                        <div className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">{new Date(file.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>
                                     </div>
-                                ))
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === 'calendar' && (
-                        <div className="space-y-4">
-                            {(!events || events.length === 0) ? (
-                                <div className="py-12 text-center border border-dashed border-gray-200 dark:border-gray-800 rounded-3xl bg-white/50 dark:bg-gray-900/50">
-                                    <p className="text-sm text-gray-500 font-medium">No events shared in this profile.</p>
+                                    <h3 className="font-bold text-gray-900 dark:text-white truncate group-hover:text-blue-500 transition-colors">
+                                        {file.title}
+                                    </h3>
+                                    <p className="text-xs text-gray-400 mt-1">Shared publicly</p>
                                 </div>
-                            ) : (
-                                events.sort((a, b) => new Date(a.public_meta?.start || 0).getTime() - new Date(b.public_meta?.start || 0).getTime()).map(event => (
-                                    <div
-                                        key={event.id}
-                                        className="bg-white dark:bg-gray-900/40 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 flex items-center gap-4 group hover:border-blue-200 dark:hover:border-blue-900/50 transition-all font-sans"
-                                    >
-                                        <div className="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
-                                            <span className="text-[10px] uppercase font-black opacity-60">
-                                                {new Date(event.public_meta?.start).toLocaleDateString('en-US', { month: 'short' })}
-                                            </span>
-                                            <span className="text-xl font-black leading-none">
-                                                {new Date(event.public_meta?.start).getDate()}
-                                            </span>
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="font-bold text-gray-900 dark:text-white truncate">
-                                                {event.title}
-                                            </h3>
-                                            <div className="flex items-center gap-2 mt-0.5">
-                                                <span className="text-[11px] font-bold text-gray-400">
-                                                    {new Date(event.public_meta?.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                    {" - "}
-                                                    {new Date(event.public_meta?.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    )}
-                </div>
+                            ))
+                        )}
+                    </div>
+                </section>
             </div>
         </div>
     );

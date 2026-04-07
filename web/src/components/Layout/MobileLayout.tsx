@@ -40,7 +40,7 @@ export default function MobileLayout({
   onEventClick,
   userProfile
 }: MobileLayoutProps) {
-  const [activeTab, setActiveTab] = useState<'notes' | 'calendar' | 'plugins' | 'profile'>('calendar');
+  const [activeTab, setActiveTab] = useState<'notes' | 'calendar' | 'profile'>('calendar');
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [activeDate, setActiveDate] = useState(new Date());
   const [isCalendarExpanded, setIsCalendarExpanded] = useState(true);
@@ -415,35 +415,7 @@ export default function MobileLayout({
             </motion.div>
           )}
 
-          {/* PLUGINS VIEW */}
-          {activeTab === 'plugins' && (
-             <motion.div key="plugins" initial={{opacity:0}} animate={{opacity:1}} className="p-6 pt-32 pb-32 flex flex-col gap-6">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-2">Plugins</h2>
-                <div className="bg-white dark:bg-gray-900 rounded-[28px] shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col overflow-hidden">
-                   {[
-                      { icon: <CalendarIcon size={20} className="text-[#4A3AFF]" />, name: 'Kalender', active: true },
-                      { icon: <FileText size={20} className="text-[#4A3AFF]" />, name: 'Notizen', active: true },
-                      { icon: <Settings size={20} className="text-[#4A3AFF]" />, name: 'Messenger', active: true },
-                      { icon: <User size={20} className="text-[#4A3AFF]" />, name: 'E2EE Keys', active: false },
-                      { icon: <Settings size={20} className="text-[#4A3AFF]" />, name: 'Settings', active: true }
-                   ].map((p, i) => (
-                      <div key={p.name} className={`flex items-center justify-between p-4 px-5 ${i > 0 ? 'border-t border-gray-100 dark:border-gray-800' : ''}`}>
-                         <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
-                               {p.icon}
-                            </div>
-                            <span className="font-semibold text-gray-800 dark:text-gray-200">{p.name}</span>
-                         </div>
-                         <div className="flex flex-col items-center">
-                            <div className={`w-12 h-6 rounded-full relative transition-colors ${p.active ? 'bg-green-400' : 'bg-gray-200 dark:bg-gray-700'}`}>
-                               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${p.active ? 'left-7' : 'left-1'}`} />
-                            </div>
-                         </div>
-                      </div>
-                   ))}
-                </div>
-             </motion.div>
-          )}
+
 
           {/* PROFILE VIEW */}
           {activeTab === 'profile' && (
@@ -512,7 +484,7 @@ export default function MobileLayout({
             }} 
          />
          <NavIcon tab="calendar" active={activeTab === 'calendar'} icon={<CalendarIcon size={24} />} onClick={() => { setIsEditingNote(false); setActiveTab('calendar'); }} />
-         <NavIcon tab="plugins" active={activeTab === 'plugins'} icon={<Settings size={24} />} onClick={() => { setIsEditingNote(false); setActiveTab('plugins'); }} />
+
          <NavIcon tab="profile" active={activeTab === 'profile'} icon={<User size={24} />} onClick={() => { setIsEditingNote(false); setActiveTab('profile'); }} />
       </div>
 

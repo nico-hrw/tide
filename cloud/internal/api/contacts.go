@@ -17,9 +17,10 @@ type ContactHandler struct {
 func (h *ContactHandler) RegisterRoutes(r chi.Router) {
 	r.Use(AuthMiddleware)
 	r.Post("/request", h.SendRequest)
+	r.Post("/{contactID}", h.SendRequest) // Allow direct POST to /{id} as frontend does
 	r.Get("/requests", h.GetRequests)
-	r.Post("/{contactID}/accept", h.AcceptRequest)
-	r.Post("/{contactID}/decline", h.DeclineRequest)
+	r.Post("/accept/{contactID}", h.AcceptRequest)
+	r.Post("/decline/{contactID}", h.DeclineRequest)
 	r.Post("/search", h.SearchUser)
 	r.Get("/", h.ListContacts)
 }
@@ -59,7 +60,7 @@ func (h *ContactHandler) SearchUser(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		results = append(results, UserInfo{
 			ID:        user.ID,
-			Username:  "User_" + user.ID[:8],
+			Username:  user.Username,
 			Email:     "Hidden",
 			PublicKey: user.PublicKey,
 		})
@@ -76,14 +77,21 @@ func (h *ContactHandler) SendRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req ContactRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid body", http.StatusBadRequest)
+	targetID := chi.URLParam(r, "contactID")
+	if targetID == "" {
+		var req ContactRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			targetID = req.TargetID
+		}
+	}
+
+	if targetID == "" {
+		http.Error(w, "Target ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Check if already friends or pending
-	existing, _ := h.Store.GetContact(r.Context(), userID, req.TargetID)
+	existing, _ := h.Store.GetContact(r.Context(), userID, targetID)
 	if existing != nil {
 		http.Error(w, "Contact already exists or pending", http.StatusConflict)
 		return
@@ -92,7 +100,7 @@ func (h *ContactHandler) SendRequest(w http.ResponseWriter, r *http.Request) {
 	contact := &store.Contact{
 		ID:        uuid.New().String(),
 		UserID:    userID,
-		ContactID: req.TargetID,
+		ContactID: targetID,
 		Status:    "pending",
 		CreatedAt: time.Now(),
 	}
@@ -118,23 +126,17 @@ func (h *ContactHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Enrich with Usernames? Not easy efficiently without join.
-	// Frontend can fetch user details individually or we can enrich here.
-	// Let's enrich here for MVP simplicity.
-	type EnrichedRequest struct {
-		ID        string `json:"id"`
-		Requester struct {
-			ID         string `json:"id"`
-			Username   string `json:"username"`
-			Email      string `json:"email"`
-			PublicKey  string `json:"public_key"`
-			AvatarSeed string `json:"avatar_seed"`
-			AvatarSalt string `json:"avatar_salt"`
-		} `json:"requester"`
-		CreatedAt time.Time `json:"created_at"`
+	// Flatten response for frontend expectations
+	type FlatRequest struct {
+		ID         string    `json:"id"`
+		UserID     string    `json:"user_id"`
+		Username   string    `json:"username"`
+		AvatarSeed string    `json:"avatar_seed"`
+		AvatarStyle string   `json:"avatar_style"`
+		CreatedAt  time.Time `json:"created_at"`
 	}
 
-	enriched := []EnrichedRequest{}
+	flat := []FlatRequest{}
 	for _, req := range requests {
 		// req.UserID is the ONE WHO SENT the request
 		user, err := h.Store.GetUser(r.Context(), req.UserID)
@@ -143,38 +145,29 @@ func (h *ContactHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
 		}
 		
 		profile, _ := h.Store.GetProfile(r.Context(), req.UserID)
-		avatarSeed := req.UserID
-		avatarSalt := ""
+		avatarSeed := user.Username // Default to username for better avatar than UUID
+		avatarStyle := "notionists"
 		if profile != nil {
 			if profile.AvatarSeed != "" {
 				avatarSeed = profile.AvatarSeed
 			}
-			avatarSalt = profile.AvatarSalt
+			if profile.AvatarStyle != "" {
+				avatarStyle = profile.AvatarStyle
+			}
 		}
 
-		enriched = append(enriched, EnrichedRequest{
-			ID: req.ID,
-			Requester: struct {
-				ID         string `json:"id"`
-				Username   string `json:"username"`
-				Email      string `json:"email"`
-				PublicKey  string `json:"public_key"`
-				AvatarSeed string `json:"avatar_seed"`
-				AvatarSalt string `json:"avatar_salt"`
-			}{
-				ID:         user.ID,
-				Username:   user.Username,
-				Email:      "Hidden",
-				PublicKey:  user.PublicKey,
-				AvatarSeed: avatarSeed,
-				AvatarSalt: avatarSalt,
-			},
-			CreatedAt: req.CreatedAt,
+		flat = append(flat, FlatRequest{
+			ID:         req.ID,
+			UserID:     user.ID,
+			Username:   user.Username,
+			AvatarSeed: avatarSeed,
+			AvatarStyle: avatarStyle,
+			CreatedAt:  req.CreatedAt,
 		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(enriched)
+	json.NewEncoder(w).Encode(flat)
 }
 
 func (h *ContactHandler) AcceptRequest(w http.ResponseWriter, r *http.Request) {

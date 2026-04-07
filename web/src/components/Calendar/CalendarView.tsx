@@ -47,6 +47,8 @@ interface CalendarViewProps {
     themes?: { id: string; title: string; effect?: string; color?: string }[];
     onCreateEventGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
     enabledExtensions?: string[];
+    readOnly?: boolean;
+    hourHeight?: number;
 }
 
 const getEventTheme = (evt: CalendarEvent) => {
@@ -67,8 +69,8 @@ const getEventTheme = (evt: CalendarEvent) => {
 };
 
 // --- Event Popover Component (Moved outside to prevent re-mounting on parent render) ---
-const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose, enabledExtensions }: {
-    event: CalendarEvent, rect: DOMRect, themes: any[], onEventSave: any, onEventDelete?: (id: string) => void, onClose: () => void, enabledExtensions: string[]
+const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose, enabledExtensions, readOnly }: {
+    event: CalendarEvent, rect: DOMRect, themes: any[], onEventSave: any, onEventDelete?: (id: string) => void, onClose: () => void, enabledExtensions: string[], readOnly: boolean
 }) => {
     const [title, setTitle] = useState(event.title);
     const [description, setDescription] = useState(event.description || '');
@@ -215,6 +217,69 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
     }
     if (top < 60) top = 60;
 
+    if (readOnly) {
+        return (
+            <div
+                id="active-event-popover"
+                className="fixed z-[100] w-[340px] bg-white dark:bg-[#1C1C1C] rounded-3xl shadow-float border border-gray-100 dark:border-white/10 p-5 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200"
+                style={{ top: `${top}px`, left: `${left}px` }}
+            >
+                {/* Header Row */}
+                <div className="flex items-center gap-3">
+                    <div
+                        className="w-4 h-4 rounded-full shrink-0 shadow-sm"
+                        style={{ backgroundColor: color }}
+                    />
+                    <div className="flex-1 text-base font-bold text-gray-900 dark:text-gray-100">
+                        {title || "Untitled Event"}
+                    </div>
+                    <button onClick={onClose} className="p-1 min-w-[28px] h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all">
+                        <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    </button>
+                </div>
+
+                {/* Time & Date Info */}
+                <div className="flex flex-col gap-0.5 bg-gray-50/50 dark:bg-white/5 rounded-xl p-3 border border-gray-100/50 dark:border-white/5 shadow-sm">
+                    <div className="font-semibold text-sm flex items-center justify-between text-gray-800 dark:text-gray-200">
+                        <span>{(() => {
+                            try { return format(new Date(event.start), "MMM d, yyyy"); }
+                            catch (e) { return "Invalid Date"; }
+                        })()}</span>
+                    </div>
+                    {!event.allDay && (
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+                            <span>{(() => {
+                                try { return format(new Date(event.start), "h:mm a"); }
+                                catch (e) { return "??:??"; }
+                            })()}</span>
+                            <span className="text-gray-300 dark:text-gray-600 px-0.5">→</span>
+                            <span>{(() => {
+                                try { return format(new Date(event.end), "h:mm a"); }
+                                catch (e) { return "??:??"; }
+                            })()}</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* Description */}
+                <div className="w-full bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-2xl p-4 text-sm text-gray-600 dark:text-gray-300 leading-relaxed max-h-[200px] overflow-y-auto">
+                    {description || <span className="text-gray-400 italic">No description provided.</span>}
+                </div>
+
+                {/* Tags */}
+                {tags.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                        {tags.map((tag, idx) => (
+                            <span key={idx} className="px-2 py-1 bg-gray-100 dark:bg-white/10 rounded-lg text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                {tag}
+                            </span>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
     return (
         <div
             id="active-event-popover"
@@ -427,10 +492,30 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                 className="w-full bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-2xl p-3 text-xs text-gray-600 dark:text-gray-300 outline-none focus:ring-1 focus:ring-violet-500 transition-all placeholder:text-gray-400"
             />
 
+            {/* Extra Row for Public/Sharing toggle */}
+            <div className="flex flex-col gap-1 pt-2 border-t border-gray-50 dark:border-white/5">
+                <div
+                    onClick={() => {
+                        const next = !(event as any).is_public;
+                        onEventSave(event.id, { is_public: next });
+                    }}
+                    className="flex items-center justify-between py-1.5 px-0.5 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group/row"
+                >
+                    <div className="flex items-center gap-2.5">
+                        <div className={`p-1.5 rounded-lg transition-colors ${(event as any).is_public ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/10' : 'bg-gray-100 text-gray-400 dark:bg-white/5 group-hover/row:bg-gray-200'}`}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </div>
+                        <span className="text-[13px] font-bold text-gray-700 dark:text-gray-300 tracking-tight">Public Visibility</span>
+                    </div>
+                    <div className={`relative w-10 h-6 rounded-full transition-all duration-300 ${(event as any).is_public ? 'bg-blue-500 shadow-sm shadow-blue-500/20' : 'bg-gray-200 dark:bg-white/10'}`}>
+                        <div className={`absolute top-1 left-1.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${(event as any).is_public ? 'translate-x-3' : 'translate-x-0'}`} />
+                    </div>
+                </div>
+            </div>
+
             {/* Controls */}
             <div className="flex items-center justify-between pt-2 border-t border-gray-50 dark:border-white/5">
                 <div className="flex items-center gap-1">
-                    {/* Add any left-aligned controls here, e.g., Share button */}
                 </div>
                 <div>
                     <button
@@ -513,7 +598,9 @@ export default function CalendarView({
     onDateChange,
     themes = [],
     onCreateEventGroup,
-    enabledExtensions = []
+    enabledExtensions = [],
+    readOnly = false,
+    hourHeight = 60
 }: CalendarViewProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [selectedThemes, setSelectedThemes] = useState<Set<string>>(new Set());
@@ -679,6 +766,15 @@ export default function CalendarView({
 
     // --- Popover State ---
     const [activePopover, setActivePopover] = useState<{ event: CalendarEvent, rect: DOMRect } | null>(null);
+
+    // Filter events to exclude cancelled ones if in readOnly mode
+    const filteredEvents = useMemo(() => {
+        if (!readOnly) return events;
+        return events.filter(e => {
+            const occKey = format(new Date(e.start), "yyyy-MM-dd");
+            return !(e.exdates || []).includes(occKey) && !e.is_cancelled;
+        });
+    }, [events, readOnly]);
 
     // Initialize with current, prev, and next week
     useEffect(() => {
@@ -1334,8 +1430,8 @@ export default function CalendarView({
         const clickY = gearedMouseRef.current.y - rect.top; // Use geared coords for clickY
 
         const snapInterval = isPreciseModeRef.current ? 1 : 10;
-        const hour = Math.floor(clickY / 60);
-        const minute = Math.floor((clickY % 60) / snapInterval) * snapInterval;
+        const hour = Math.floor(clickY / hourHeight);
+        const minute = Math.floor(((clickY % hourHeight) / hourHeight * 60) / snapInterval) * snapInterval;
 
         const start = new Date(day);
         start.setHours(hour, minute, 0, 0);
@@ -1378,7 +1474,7 @@ export default function CalendarView({
     }, [loadedWeeks]);
 
     // Calculate Global Time Top
-    const globalTimeTop = getHours(currentTime) * 60 + getMinutes(currentTime);
+    const globalTimeTop = getHours(currentTime) * hourHeight + (getMinutes(currentTime) / 60 * hourHeight);
 
     const eventsByDay = useMemo(() => {
         const timedMap = new Map<string, CalendarEvent[]>();
@@ -1524,14 +1620,16 @@ export default function CalendarView({
                         >
                             Today
                         </button>
-                        <button
-                            onClick={() => setIsScheduleModalOpen(true)}
-                            className="hidden md:flex items-center gap-2 px-4 py-2 bg-white dark:bg-black border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-semibold text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-900 transition-all shadow-sm"
-                            title="Bulk Schedule Events"
-                        >
-                            <ListPlus size={16} />
-                            <span>Schedule</span>
-                        </button>
+                        {!readOnly && (
+                            <button
+                                onClick={() => setIsScheduleModalOpen(true)}
+                                className="hidden md:flex items-center gap-2 px-4 py-2 bg-white dark:bg-black border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-semibold text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-slate-900 transition-all shadow-sm"
+                                title="Bulk Schedule Events"
+                            >
+                                <ListPlus size={16} />
+                                <span>Schedule</span>
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -1636,6 +1734,8 @@ export default function CalendarView({
                                             onEventCreate={onEventCreate}
                                             cursorX={cursorX}
                                             cursorY={cursorY}
+                                            readOnly={readOnly}
+                                            hourHeight={hourHeight}
                                         />
                                     );
                                 });
@@ -1752,6 +1852,7 @@ export default function CalendarView({
                     onEventDelete={onEventDelete}
                     onClose={() => setActivePopover(null)}
                     enabledExtensions={enabledExtensions}
+                    readOnly={readOnly}
                 />
             )}
 

@@ -11,7 +11,7 @@ interface SettingsModalProps {
     onClose: () => void;
     enabledExtensions: string[];
     onToggleExtension: (extensionId: string, enabled: boolean) => void;
-    userProfile?: { id?: string; user_id?: string; username: string; email: string; bio?: string; title?: string; avatar_seed?: string; avatar_salt?: string };
+    userProfile?: { id?: string; user_id?: string; username: string; email: string; bio?: string; title?: string; avatar_seed?: string; avatar_salt?: string; avatar_style?: string };
     onLogout?: () => void;
     noteLayout?: 'thin' | 'normal' | 'wide' | 'extra-wide';
     onSetNoteLayout?: (layout: 'thin' | 'normal' | 'wide' | 'extra-wide') => void;
@@ -42,6 +42,7 @@ export default function SettingsModal({
     const [bioInput, setBioInput] = useState(userProfile?.bio || '');
     const [titleInput, setTitleInput] = useState(userProfile?.title || '');
     const [avatarSaltInput, setAvatarSaltInput] = useState(userProfile?.avatar_salt || '');
+    const [avatarStyleInput, setAvatarStyleInput] = useState<'notionists' | 'openPeeps'>((userProfile?.avatar_style as any) || 'notionists');
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [saveError, setSaveError] = useState('');
 
@@ -54,6 +55,7 @@ export default function SettingsModal({
             setBioInput(userProfile?.bio || '');
             setTitleInput(userProfile?.title || '');
             setAvatarSaltInput(userProfile?.avatar_salt || '');
+            setAvatarStyleInput((userProfile?.avatar_style as any) || 'notionists');
             setSaveError('');
         }
     }, [isOpen, userProfile]);
@@ -89,6 +91,7 @@ export default function SettingsModal({
                     title: titleInput,
                     bio: bioInput,
                     avatar_salt: avatarSaltInput,
+                    avatar_style: avatarStyleInput,
                     avatar_seed: userProfile?.avatar_seed || userProfile?.user_id || userProfile?.id, // Ensure seed isn't overwritten with empty string
                 })
             });
@@ -114,6 +117,7 @@ export default function SettingsModal({
                         <div className="flex flex-col items-center gap-2">
                             <Avatar
                                 seed={(userProfile?.avatar_seed || userProfile?.username || 'default') + avatarSaltInput}
+                                style={avatarStyleInput}
                                 size={80}
                             />
                             <span className="text-[10px] text-gray-400">Preview</span>
@@ -138,29 +142,52 @@ export default function SettingsModal({
                         </div>
                     </div>
 
-                    {/* Avatar Salt / Customization */}
-                    <div className="p-4 rounded-xl border border-dashed border-gray-200 dark:border-white/10 bg-white/50 dark:bg-black/10">
-                        <div className="flex items-start justify-between mb-2">
-                            <div>
-                                <label className="text-xs font-bold text-gray-700 dark:text-gray-300">Avatar Style Salt</label>
-                                <p className="text-[11px] text-gray-400 mt-0.5">Enter any text to randomize your avatar. Same text = same look everywhere.</p>
+                    {/* Avatar Customization */}
+                    <div className="space-y-4">
+                        <div className="p-4 rounded-xl border border-dashed border-gray-200 dark:border-white/10 bg-white/50 dark:bg-black/10">
+                            <label className="text-xs font-bold text-gray-700 dark:text-gray-300 mb-2 block">Avatar Style</label>
+                            <div className="grid grid-cols-2 gap-3">
+                                {[
+                                    { id: 'notionists', label: 'Clean / Notion', desc: 'Minimal & Corporate' },
+                                    { id: 'openPeeps', label: 'Hand-drawn / Peeps', desc: 'Artsy & Casual' }
+                                ].map((style) => (
+                                    <button
+                                        key={style.id}
+                                        onClick={() => setAvatarStyleInput(style.id as any)}
+                                        className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all ${avatarStyleInput === style.id 
+                                            ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-500/10' 
+                                            : 'border-transparent bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10'}`}
+                                    >
+                                        <span className="text-sm font-bold text-gray-900 dark:text-white">{style.label}</span>
+                                        <span className="text-[10px] text-gray-400 mt-0.5">{style.desc}</span>
+                                    </button>
+                                ))}
                             </div>
                         </div>
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                value={avatarSaltInput}
-                                onChange={e => setAvatarSaltInput(e.target.value)}
-                                placeholder="e.g. my-style-2026"
-                                className="flex-1 bg-white dark:bg-black/40 text-sm text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:border-blue-500 transition-colors rounded-lg px-3 py-2"
-                            />
-                            <button
-                                onClick={() => setAvatarSaltInput(Math.random().toString(36).slice(2, 10))}
-                                className="px-3 py-2 text-xs font-bold bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-colors whitespace-nowrap"
-                                title="Generate random salt"
-                            >
-                                🎲 Random
-                            </button>
+
+                        <div className="p-4 rounded-xl border border-dashed border-gray-200 dark:border-white/10 bg-white/50 dark:bg-black/10">
+                            <div className="flex items-start justify-between mb-2">
+                                <div>
+                                    <label className="text-xs font-bold text-gray-700 dark:text-gray-300">Custom Seed / Salt</label>
+                                    <p className="text-[11px] text-gray-400 mt-0.5">Enter any text to vary your look. Same text = same look.</p>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={avatarSaltInput}
+                                    onChange={e => setAvatarSaltInput(e.target.value)}
+                                    placeholder="e.g. my-style-2026"
+                                    className="flex-1 bg-white dark:bg-black/40 text-sm text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:border-blue-500 transition-colors rounded-lg px-3 py-2"
+                                />
+                                <button
+                                    onClick={() => setAvatarSaltInput(Math.random().toString(36).slice(2, 10))}
+                                    className="px-3 py-2 text-xs font-bold bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-colors whitespace-nowrap"
+                                    title="Generate random salt"
+                                >
+                                    🎲 Random
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -402,7 +429,7 @@ export default function SettingsModal({
                     <div className="w-16 h-16 bg-blue-600 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-xl shadow-blue-500/20 transform rotate-3">
                         <Globe className="text-white w-8 h-8" />
                     </div>
-                    <h2 className="text-2xl font-black text-gray-900 dark:text-white">tide system</h2>
+                    <h2 className="text-2xl font-black text-gray-900 dark:text-white">inside tide</h2>
                     <p className="text-gray-500 text-sm mt-1">E2E Encrypted Knowledge & Collaboration</p>
                 </div>
             </div>
@@ -410,11 +437,11 @@ export default function SettingsModal({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="p-4 rounded-xl border border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-black/20 text-center">
                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Web Client</div>
-                    <div className="font-mono text-sm font-bold text-gray-900 dark:text-white">v0.1.0-alpha</div>
+                    <div className="font-mono text-sm font-bold text-gray-900 dark:text-white">v1.2.0-alpha</div>
                 </div>
                 <div className="p-4 rounded-xl border border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-black/20 text-center">
                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Cloud Node</div>
-                    <div className="font-mono text-sm font-bold text-gray-900 dark:text-white">Go v1.x Core</div>
+                    <div className="font-mono text-sm font-bold text-gray-900 dark:text-white">Go v1.3 Core</div>
                 </div>
                 <div className="p-4 rounded-xl border border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-black/20 text-center">
                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Database</div>

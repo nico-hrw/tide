@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Calendar, FileText, MessageSquare, DollarSign, User } from 'lucide-react';
+import { X, Calendar, FileText, MessageSquare, DollarSign, User, Users } from 'lucide-react';
 import { useHighlight } from '../HighlightContext';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
 
@@ -129,6 +129,14 @@ export default function TabList({ tabs, activeTabId, onTabSelect, onTabClose, on
                             <MessageSquare size={16} />
                         </button>
                     )}
+
+                    <button
+                        onClick={() => onTabSelect('social', 'profile')}
+                        className={`group flex items-center justify-center w-9 h-9 transition-all duration-200 cursor-pointer rounded-full ${activeTabId === 'social' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400' : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10'}`}
+                        title="Social"
+                    >
+                        <Users size={16} />
+                    </button>
 
                     {enabledExtensions?.includes('finance') && (
                         <button

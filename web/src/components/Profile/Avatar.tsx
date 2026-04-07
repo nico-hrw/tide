@@ -1,23 +1,30 @@
 import React, { useMemo } from 'react';
 import { createAvatar } from '@dicebear/core';
-import { micah } from '@dicebear/collection';
+import { notionists, openPeeps } from '@dicebear/collection';
 
 interface AvatarProps {
   seed: string;
+  style?: 'notionists' | 'openPeeps';
   size?: number;
   className?: string;
   verified?: boolean;
 }
 
-export default function Avatar({ seed, size = 64, className = '', verified = false }: AvatarProps) {
+const PASTEL_COLORS = [
+  'FFADAD', 'FFD6A5', 'FDFFB6', 'CAFFBF', '9BF6FF', 'A0C4FF', 'BDB2FF', 'FFC6FF', 
+  'E2ECE9', 'DFE7FD', 'F1E4F3', 'FBF8CC', 'CCE3DE', 'D7E3FC'
+];
+
+export default function Avatar({ seed, style = 'notionists', size = 64, className = '', verified = false }: AvatarProps) {
   const avatarSvg = useMemo(() => {
-    return createAvatar(micah, {
+    const collection = style === 'openPeeps' ? openPeeps : notionists;
+    return createAvatar(collection, {
       seed: seed || 'default',
-      backgroundColor: ['f0f4f8', 'f5f0f8', 'e0f7fa'], // Soft pastel backgrounds
+      backgroundColor: PASTEL_COLORS,
       radius: 50,
       scale: 90
     }).toString();
-  }, [seed]);
+  }, [seed, style]);
 
   return (
     <div className={`relative inline-block ${className}`} style={{ width: size, height: size }}>

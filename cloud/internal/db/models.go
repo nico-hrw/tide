@@ -92,6 +92,7 @@ type DB interface {
 type Profile struct {
 	UserID        string `json:"user_id" db:"user_id"`
 	AvatarSeed    string `json:"avatar_seed" db:"avatar_seed"`
+	AvatarStyle   string `json:"avatar_style" db:"avatar_style"`
 	AvatarSalt    string `json:"avatar_salt" db:"avatar_salt"`
 	Bio           string `json:"bio" db:"bio"`
 	Title         string `json:"title" db:"title"`
@@ -103,8 +104,10 @@ type SearchResult struct {
 	Type            string `json:"type"` // "profile" or "note"
 	ID              string `json:"id"`
 	Title           string `json:"title"`
+	Username        string `json:"username"`
 	OwnerID         string `json:"owner_id"`
 	OwnerIsVerified bool   `json:"owner_is_verified"`
 	Bio             string `json:"bio,omitempty"`
 	AvatarSeed      string `json:"avatar_seed,omitempty"`
+	AvatarStyle     string `json:"avatar_style,omitempty"`
 }

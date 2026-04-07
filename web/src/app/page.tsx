@@ -13,6 +13,7 @@ import WeekView from "@/components/Calendar/WeekView";
 import ShareModal from "@/components/ShareModal";
 import SettingsModal from "@/components/Settings/SettingsModal";
 import ProfilePage from "@/components/Profile/ProfilePage";
+import SocialHub from "@/components/Social/SocialHub";
 import dynamic from 'next/dynamic';
 import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { ScheduleModal, ScheduleEventData } from "@/components/Calendar/ScheduleModal";
@@ -2139,11 +2140,21 @@ export default function Dashboard() {
                         <ProfilePage
                             userId={activeTabId.split(':')[1]}
                             onOpenFile={(fileId, title) => switchTab(fileId, 'file', title)}
+                            onMessage={(uId) => switchTab(`chat-${uId}`, 'chat')}
                         />
                     )}
                 </div>
 
-                <div className={`flex-1 min-h-0 relative overflow-y-auto ${activeTabId === 'calendar' || activeTabId === 'messages' || activeTabId.startsWith('chat-') || activeTabId === 'ext_finance' || activeTabId.startsWith('profile:') ? 'hidden' : 'block'}`}>
+                <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'social' ? 'block' : 'hidden'}`}>
+                    {activeTabId === 'social' && (
+                        <SocialHub 
+                            onOpenProfile={(userId, username) => switchTab(`profile:${userId}`, 'profile', username)}
+                            userProfile={userProfile}
+                        />
+                    )}
+                </div>
+
+                <div className={`flex-1 min-h-0 relative overflow-y-auto ${activeTabId === 'calendar' || activeTabId === 'messages' || activeTabId === 'social' || activeTabId.startsWith('chat-') || activeTabId === 'ext_finance' || activeTabId.startsWith('profile:') ? 'hidden' : 'block'}`}>
                     {isLoadingContent ? (
                         <div className="flex items-center justify-center h-full text-gray-400">Loading content...</div>
                     ) : (
