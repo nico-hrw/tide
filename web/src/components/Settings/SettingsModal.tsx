@@ -11,7 +11,7 @@ interface SettingsModalProps {
     onClose: () => void;
     enabledExtensions: string[];
     onToggleExtension: (extensionId: string, enabled: boolean) => void;
-    userProfile?: { id?: string; user_id?: string; username: string; email: string; bio?: string; title?: string; avatar_seed?: string; avatar_salt?: string; avatar_style?: string };
+    userProfile?: { id?: string; user_id?: string; username: string; email: string; bio?: string; title?: string; avatar_seed?: string; avatar_salt?: string; avatar_style?: string; is_verified?: boolean; profile_status?: number };
     onLogout?: () => void;
     noteLayout?: 'thin' | 'normal' | 'wide' | 'extra-wide';
     onSetNoteLayout?: (layout: 'thin' | 'normal' | 'wide' | 'extra-wide') => void;
@@ -43,6 +43,7 @@ export default function SettingsModal({
     const [titleInput, setTitleInput] = useState(userProfile?.title || '');
     const [avatarSaltInput, setAvatarSaltInput] = useState(userProfile?.avatar_salt || '');
     const [avatarStyleInput, setAvatarStyleInput] = useState<'notionists' | 'openPeeps'>((userProfile?.avatar_style as any) || 'notionists');
+    const [profilePublic, setProfilePublic] = useState(userProfile?.is_verified !== false); // default open
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [saveError, setSaveError] = useState('');
 
@@ -56,6 +57,7 @@ export default function SettingsModal({
             setTitleInput(userProfile?.title || '');
             setAvatarSaltInput(userProfile?.avatar_salt || '');
             setAvatarStyleInput((userProfile?.avatar_style as any) || 'notionists');
+            setProfilePublic(userProfile?.profile_status !== 0); // profile_status 0 = hidden
             setSaveError('');
         }
     }, [isOpen, userProfile]);
@@ -83,7 +85,7 @@ export default function SettingsModal({
                 if (!r.ok) throw new Error('Username update failed');
             }
 
-            // Save full profile including avatar_salt and preserve avatar_seed
+            // Save full profile including avatar_salt, avatar_style, bio, title, and profile_status
             const r = await apiFetch(`/api/v1/profiles`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -92,7 +94,8 @@ export default function SettingsModal({
                     bio: bioInput,
                     avatar_salt: avatarSaltInput,
                     avatar_style: avatarStyleInput,
-                    avatar_seed: userProfile?.avatar_seed || userProfile?.user_id || userProfile?.id, // Ensure seed isn't overwritten with empty string
+                    avatar_seed: userProfile?.avatar_seed || userProfile?.user_id || userProfile?.id,
+                    profile_status: profilePublic ? 1 : 0,
                 })
             });
             if (!r.ok) throw new Error('Profile save failed');
@@ -120,7 +123,7 @@ export default function SettingsModal({
                                 style={avatarStyleInput}
                                 size={80}
                             />
-                            <span className="text-[10px] text-gray-400">Preview</span>
+
                         </div>
                         <div className="flex-1 space-y-1">
                             <label className="text-xs font-semibold text-gray-500">Name</label>
@@ -154,8 +157,8 @@ export default function SettingsModal({
                                     <button
                                         key={style.id}
                                         onClick={() => setAvatarStyleInput(style.id as any)}
-                                        className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all ${avatarStyleInput === style.id 
-                                            ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-500/10' 
+                                        className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all ${avatarStyleInput === style.id
+                                            ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-500/10'
                                             : 'border-transparent bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10'}`}
                                     >
                                         <span className="text-sm font-bold text-gray-900 dark:text-white">{style.label}</span>
@@ -211,6 +214,23 @@ export default function SettingsModal({
                                 rows={2}
                                 className="w-full mt-1 bg-white dark:bg-black/40 text-sm text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:border-blue-500 transition-colors rounded-lg px-3 py-2 resize-none"
                             />
+                        </div>
+
+                        {/* Profile Visibility Toggle */}
+                        <div className="flex items-center justify-between pt-2 pb-1 border-t border-gray-100 dark:border-white/10">
+                            <div>
+                                <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">Profile Visibility</label>
+                                <p className="text-[11px] text-gray-400 mt-0.5">
+                                    {profilePublic ? 'Others can discover you via search.' : 'Your profile is hidden — you won\'t appear in search results.'}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setProfilePublic(!profilePublic)}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${profilePublic ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'}`}
+                            >
+                                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${profilePublic ? 'translate-x-5' : 'translate-x-0'}`} />
+                            </button>
                         </div>
                     </div>
 
@@ -323,7 +343,7 @@ export default function SettingsModal({
 
             {[
                 { id: 'finance', title: 'Finance Tracker', desc: 'Strict double-entry bookkeeping', version: 'v1.2.0', updated: 'Mar 1, 2026', icon: Blocks, color: 'text-emerald-500' },
-                { id: 'messenger', title: 'Messenger', desc: 'Real-time chat and collaboration', version: 'v0.9.5-beta', updated: 'Mar 3, 2026', icon: User, color: 'text-blue-500' },
+                { id: 'messenger', title: 'Messenger', desc: 'Under Maintenance', version: 'v0.9.5-beta', updated: 'Mar 3, 2026', icon: User, color: 'text-gray-500', disabled: true },
                 { id: 'summary', title: 'Daily Summary', desc: 'Duolingo-style daily recap & streaks', version: 'v2.0.1', updated: 'Feb 28, 2026', icon: Flame, color: 'text-orange-500' },
                 { id: 'smart_island', title: 'Smart Island', desc: 'Context-aware sidebar assistant', version: 'v1.0.0', updated: 'Feb 26, 2026', icon: Sparkles, color: 'text-violet-500' },
                 { id: 'references', title: 'References', desc: 'Auto-link definitions across notes', version: 'v1.0.0', updated: 'Today', icon: Bookmark, color: 'text-emerald-500' },
@@ -339,15 +359,23 @@ export default function SettingsModal({
                                     <h4 className="text-base font-bold text-gray-900 dark:text-white">{ext.title}</h4>
                                     <span className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-white/10 text-[10px] font-mono font-bold text-gray-500">{ext.version}</span>
                                 </div>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{ext.desc}</p>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                                    {(ext as any).disabled ? (
+                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-orange-100 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400 text-[10px] font-bold uppercase tracking-wider">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                                            {ext.desc}
+                                        </span>
+                                    ) : ext.desc}
+                                </p>
                                 <p className="text-[11px] text-gray-400">Last updated: {ext.updated}</p>
                             </div>
                         </div>
 
                         <div className="flex flex-col items-end gap-2 mt-1 shrink-0 ml-4">
                             <button
-                                onClick={() => onToggleExtension(ext.id, !enabledExtensions.includes(ext.id))}
-                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${enabledExtensions.includes(ext.id) ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'}`}
+                                onClick={() => !(ext as any).disabled && onToggleExtension(ext.id, !enabledExtensions.includes(ext.id))}
+                                disabled={(ext as any).disabled}
+                                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${enabledExtensions.includes(ext.id) ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'} ${(ext as any).disabled ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer'}`}
                             >
                                 <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${enabledExtensions.includes(ext.id) ? 'translate-x-5' : 'translate-x-0'}`}>
                                     {enabledExtensions.includes(ext.id) && <Check className="absolute inset-0 m-auto h-3 w-3 text-blue-500" />}

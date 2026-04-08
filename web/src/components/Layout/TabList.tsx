@@ -6,7 +6,7 @@ import { motion, Reorder, AnimatePresence } from 'framer-motion';
 export interface Tab {
     id: string;
     title: string;
-    type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile';
+    type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social';
     content?: any;
     _fileKey?: CryptoKey | null;
     _saveStatus?: "saved" | "unsaved" | "saving";
@@ -15,15 +15,16 @@ export interface Tab {
 interface TabListProps {
     tabs: Tab[];
     activeTabId: string;
-    onTabSelect: (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile') => void;
+    onTabSelect: (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social') => void;
     onTabClose: (e: React.MouseEvent, id: string) => void;
     onTabsReorder?: (newTabs: Tab[]) => void;
     enabledExtensions?: string[];
     onOpenMessages?: () => void;
     onOpenFinance?: () => void;
+    onOpenSocial?: () => void;
 }
 
-export default function TabList({ tabs, activeTabId, onTabSelect, onTabClose, onTabsReorder, enabledExtensions, onOpenMessages, onOpenFinance }: TabListProps) {
+export default function TabList({ tabs, activeTabId, onTabSelect, onTabClose, onTabsReorder, enabledExtensions, onOpenMessages, onOpenFinance, onOpenSocial }: TabListProps) {
     const { highlight, isHighlighted } = useHighlight();
 
     const documentTabs = tabs.filter(t => ['file', 'chat', 'profile'].includes(t.type));
@@ -120,19 +121,11 @@ export default function TabList({ tabs, activeTabId, onTabSelect, onTabClose, on
                         <Calendar size={16} />
                     </button>
 
-                    {enabledExtensions?.includes('messenger') && (
-                        <button
-                            onClick={() => { if (onOpenMessages) onOpenMessages(); else onTabSelect('messages', 'messages'); }}
-                            className={`group flex items-center justify-center w-9 h-9 transition-all duration-200 cursor-pointer rounded-full ${activeTabId === 'messages' ? 'bg-blue-100 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400' : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10'}`}
-                            title="Messages"
-                        >
-                            <MessageSquare size={16} />
-                        </button>
-                    )}
+
 
                     <button
-                        onClick={() => onTabSelect('social', 'profile')}
-                        className={`group flex items-center justify-center w-9 h-9 transition-all duration-200 cursor-pointer rounded-full ${activeTabId === 'social' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-400' : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10'}`}
+                        onClick={() => onOpenSocial ? onOpenSocial() : onTabSelect('social', 'social')}
+                        className={`group flex items-center justify-center w-9 h-9 transition-all duration-200 cursor-pointer rounded-full ${activeTabId === 'social' ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md' : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10'}`}
                         title="Social"
                     >
                         <Users size={16} />

@@ -1149,7 +1149,7 @@ func (s *SQLiteStore) CreateContact(ctx context.Context, c *Contact) error {
 func (s *SQLiteStore) GetContactRequests(ctx context.Context, userID string) ([]*Contact, error) {
 	// Incoming pending requests (where I am the contact_id)
 	query := `
-		SELECT c.id, c.user_id, c.contact_id, c.status, c.created_at, p.avatar_seed, p.avatar_style, u.username
+		SELECT c.id, c.user_id, c.contact_id, c.status, c.created_at, COALESCE(p.avatar_seed, u.id), COALESCE(p.avatar_style, 'notionists'), COALESCE(u.username, '')
 		FROM contacts c
 		LEFT JOIN profiles p ON c.user_id = p.user_id
 		LEFT JOIN users u ON c.user_id = u.id
@@ -1165,6 +1165,7 @@ func (s *SQLiteStore) GetContactRequests(ctx context.Context, userID string) ([]
 	for rows.Next() {
 		var c Contact
 		if err := rows.Scan(&c.ID, &c.UserID, &c.ContactID, &c.Status, &c.CreatedAt, &c.AvatarSeed, &c.AvatarStyle, &c.Username); err != nil {
+			log.Printf("Error scanning GetContactRequests: %v", err)
 			return nil, err
 		}
 		results = append(results, &c)
@@ -1194,15 +1195,15 @@ func (s *SQLiteStore) GetContacts(ctx context.Context, userID string) ([]*Contac
 			CASE WHEN c.user_id = ? THEN c.contact_id ELSE c.user_id END as contact_partner_id,
 			c.status, 
 			c.created_at,
-			p.avatar_seed,
-			p.avatar_style,
-			u.username
+			COALESCE(p.avatar_seed, u.id),
+			COALESCE(p.avatar_style, 'notionists'),
+			COALESCE(u.username, '')
 		FROM contacts c
 		LEFT JOIN users u ON u.id = (CASE WHEN c.user_id = ? THEN c.contact_id ELSE c.user_id END)
 		LEFT JOIN profiles p ON p.user_id = (CASE WHEN c.user_id = ? THEN c.contact_id ELSE c.user_id END)
 		WHERE (c.user_id = ? OR c.contact_id = ?) AND c.status = 'accepted'
 	`
-	rows, err := s.DB.QueryContext(ctx, query, userID, userID, userID, userID)
+	rows, err := s.DB.QueryContext(ctx, query, userID, userID, userID, userID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1212,6 +1213,7 @@ func (s *SQLiteStore) GetContacts(ctx context.Context, userID string) ([]*Contac
 	for rows.Next() {
 		var c Contact
 		if err := rows.Scan(&c.ID, &c.UserID, &c.ContactID, &c.Status, &c.CreatedAt, &c.AvatarSeed, &c.AvatarStyle, &c.Username); err != nil {
+			log.Printf("Error scanning GetContacts: %v", err)
 			return nil, err
 		}
 		results = append(results, &c)
@@ -1244,6 +1246,7 @@ func (s *SQLiteStore) GetProfile(ctx context.Context, userID string) (*db.Profil
 			// Return a default profile instead of 404 so we can at least show name/verified status if they exist
 			p.UserID = userID
 			p.AvatarSeed = userID
+			p.ProfileStatus = 1 // Default new users to PUBLIC so they can be found and banner doesn't show
 		} else {
 			return nil, err
 		}
@@ -1271,10 +1274,10 @@ func (s *SQLiteStore) UpsertProfile(ctx context.Context, profile *db.Profile) er
 
 func (s *SQLiteStore) GetRandomProfiles(ctx context.Context, limit int, skipUserID string) ([]*db.SearchResult, error) {
 	query := `
-		SELECT 'profile' as type, u.id, u.username, COALESCE(p.title, '') as title, u.id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, COALESCE(p.bio, '') as bio, COALESCE(p.avatar_seed, u.id) as avatar_seed, COALESCE(p.avatar_style, 'notionists') as avatar_style
+		SELECT 'profile' as type, u.id, u.username, COALESCE(p.title, '') as title, u.id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, COALESCE(p.bio, '') as bio, COALESCE(p.avatar_seed, u.id) as avatar_seed, COALESCE(p.avatar_style, 'notionists') as avatar_style, COALESCE(p.avatar_salt, '') as avatar_salt
 		FROM users u
 		LEFT JOIN profiles p ON p.user_id = u.id
-		WHERE (p.profile_status > 0 OR u.is_verified = 1) AND u.id != ?
+		WHERE (COALESCE(p.profile_status, 0) > 0 OR COALESCE(u.is_verified, 0) = 1) AND u.id != ?
 		ORDER BY RANDOM()
 		LIMIT ?
 	`
@@ -1288,7 +1291,7 @@ func (s *SQLiteStore) GetRandomProfiles(ctx context.Context, limit int, skipUser
 	for rows.Next() {
 		var r db.SearchResult
 		var isVerified int
-		if err := rows.Scan(&r.Type, &r.ID, &r.Username, &r.Title, &r.OwnerID, &isVerified, &r.Bio, &r.AvatarSeed, &r.AvatarStyle); err != nil {
+		if err := rows.Scan(&r.Type, &r.ID, &r.Username, &r.Title, &r.OwnerID, &isVerified, &r.Bio, &r.AvatarSeed, &r.AvatarStyle, &r.AvatarSalt); err != nil {
 			return nil, err
 		}
 		r.OwnerIsVerified = (isVerified == 1)
@@ -1379,14 +1382,14 @@ func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, 
 
 	// Search Profiles and Notes
 	query := `
-		SELECT 'profile' as type, u.id, COALESCE(u.username, '') as username, COALESCE(p.title, '') as title, u.id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, COALESCE(p.bio, '') as bio, COALESCE(p.avatar_seed, u.id) as avatar_seed, COALESCE(p.avatar_style, 'notionists') as avatar_style
+		SELECT 'profile' as type, u.id, COALESCE(u.username, '') as username, COALESCE(p.title, '') as title, u.id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, COALESCE(p.bio, '') as bio, COALESCE(p.avatar_seed, u.id) as avatar_seed, COALESCE(p.avatar_style, 'notionists') as avatar_style, COALESCE(p.avatar_salt, '') as avatar_salt
 		FROM users u
 		LEFT JOIN profiles p ON p.user_id = u.id
-		WHERE (u.username LIKE ? OR u.email_blind_index = ? OR p.title LIKE ?) AND u.id != ?
+		WHERE (COALESCE(u.username, '') LIKE ? OR u.email_blind_index = ? OR COALESCE(p.title, '') LIKE ?) AND u.id != ?
 		
 		UNION ALL
 		
-		SELECT 'note' as type, f.id, COALESCE(u.username, '') as username, json_extract(f.metadata, '$.title') as title, f.owner_id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, '' as bio, '' as avatar_seed, 'notionists' as avatar_style
+		SELECT 'note' as type, f.id, COALESCE(u.username, '') as username, json_extract(f.metadata, '$.title') as title, f.owner_id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, '' as bio, '' as avatar_seed, 'notionists' as avatar_style, '' as avatar_salt
 		FROM files f
 		JOIN users u ON f.owner_id = u.id
 		WHERE (json_extract(f.metadata, '$.is_public') = 1 OR json_extract(f.metadata, '$.is_public') = 'true' OR json_extract(f.metadata, '$.is_public') = true)
@@ -1404,7 +1407,7 @@ func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, 
 	for rows.Next() {
 		r := &db.SearchResult{}
 		var isVerified int
-		if err := rows.Scan(&r.Type, &r.ID, &r.Username, &r.Title, &r.OwnerID, &isVerified, &r.Bio, &r.AvatarSeed, &r.AvatarStyle); err != nil {
+		if err := rows.Scan(&r.Type, &r.ID, &r.Username, &r.Title, &r.OwnerID, &isVerified, &r.Bio, &r.AvatarSeed, &r.AvatarStyle, &r.AvatarSalt); err != nil {
 			return nil, err
 		}
 		r.OwnerIsVerified = (isVerified == 1)

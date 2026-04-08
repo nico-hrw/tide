@@ -21,6 +21,7 @@ func (h *ContactHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/requests", h.GetRequests)
 	r.Post("/accept/{contactID}", h.AcceptRequest)
 	r.Post("/decline/{contactID}", h.DeclineRequest)
+	r.Delete("/{contactRowID}", h.DeleteContactByRowID)
 	r.Post("/search", h.SearchUser)
 	r.Get("/", h.ListContacts)
 }
@@ -132,6 +133,7 @@ func (h *ContactHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
 		UserID     string    `json:"user_id"`
 		Username   string    `json:"username"`
 		AvatarSeed string    `json:"avatar_seed"`
+		AvatarSalt string    `json:"avatar_salt"`
 		AvatarStyle string   `json:"avatar_style"`
 		CreatedAt  time.Time `json:"created_at"`
 	}
@@ -147,12 +149,16 @@ func (h *ContactHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
 		profile, _ := h.Store.GetProfile(r.Context(), req.UserID)
 		avatarSeed := user.Username // Default to username for better avatar than UUID
 		avatarStyle := "notionists"
+		avatarSalt := ""
 		if profile != nil {
 			if profile.AvatarSeed != "" {
 				avatarSeed = profile.AvatarSeed
 			}
 			if profile.AvatarStyle != "" {
 				avatarStyle = profile.AvatarStyle
+			}
+			if profile.AvatarSalt != "" {
+				avatarSalt = profile.AvatarSalt
 			}
 		}
 
@@ -161,6 +167,7 @@ func (h *ContactHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
 			UserID:     user.ID,
 			Username:   user.Username,
 			AvatarSeed: avatarSeed,
+			AvatarSalt: avatarSalt,
 			AvatarStyle: avatarStyle,
 			CreatedAt:  req.CreatedAt,
 		})
@@ -204,13 +211,15 @@ func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
 	// Enrich
 	type EnrichedContact struct {
 		ID      string `json:"contact_row_id"`
+		Status  string `json:"status"`
 		Partner struct {
-			ID         string `json:"id"`
-			Username   string `json:"username"`
-			Email      string `json:"email"`
-			PublicKey  string `json:"public_key"`
-			AvatarSeed string `json:"avatar_seed"`
-			AvatarSalt string `json:"avatar_salt"`
+			ID          string `json:"id"`
+			Username    string `json:"username"`
+			Email       string `json:"email"`
+			PublicKey   string `json:"public_key"`
+			AvatarSeed  string `json:"avatar_seed"`
+			AvatarSalt  string `json:"avatar_salt"`
+			AvatarStyle string `json:"avatar_style"`
 		} `json:"partner"`
 	}
 
@@ -229,33 +238,54 @@ func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
 		profile, _ := h.Store.GetProfile(r.Context(), partnerID)
 		avatarSeed := partnerID
 		avatarSalt := ""
+		avatarStyle := "notionists"
 		if profile != nil {
 			if profile.AvatarSeed != "" {
 				avatarSeed = profile.AvatarSeed
 			}
 			avatarSalt = profile.AvatarSalt
+			if profile.AvatarStyle != "" {
+				avatarStyle = profile.AvatarStyle
+			}
 		}
 
 		enriched = append(enriched, EnrichedContact{
-			ID: c.ID,
+			ID:     c.ID,
+			Status: c.Status,
 			Partner: struct {
-				ID         string `json:"id"`
-				Username   string `json:"username"`
-				Email      string `json:"email"`
-				PublicKey  string `json:"public_key"`
-				AvatarSeed string `json:"avatar_seed"`
-				AvatarSalt string `json:"avatar_salt"`
+				ID          string `json:"id"`
+				Username    string `json:"username"`
+				Email       string `json:"email"`
+				PublicKey   string `json:"public_key"`
+				AvatarSeed  string `json:"avatar_seed"`
+				AvatarSalt  string `json:"avatar_salt"`
+				AvatarStyle string `json:"avatar_style"`
 			}{
-				ID:         user.ID,
-				Username:   user.Username,
-				Email:      "Hidden",
-				PublicKey:  user.PublicKey,
-				AvatarSeed: avatarSeed,
-				AvatarSalt: avatarSalt,
+				ID:          user.ID,
+				Username:    user.Username,
+				Email:       "Hidden",
+				PublicKey:   user.PublicKey,
+				AvatarSeed:  avatarSeed,
+				AvatarSalt:  avatarSalt,
+				AvatarStyle: avatarStyle,
 			},
 		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(enriched)
+}
+
+func (h *ContactHandler) DeleteContactByRowID(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	contactRowID := chi.URLParam(r, "contactRowID")
+	if err := h.Store.DeleteContact(r.Context(), contactRowID); err != nil {
+		http.Error(w, "Failed to delete contact", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }

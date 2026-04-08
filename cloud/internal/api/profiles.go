@@ -56,6 +56,8 @@ func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	} else {
 		res.UserID = userID
 		res.AvatarSeed = userID
+		res.AvatarStyle = "notionists"
+		res.AvatarSalt = ""
 	}
 	res.Username = user.Username
 	res.IsVerified = user.IsVerified

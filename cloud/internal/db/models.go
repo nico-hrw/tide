@@ -109,5 +109,6 @@ type SearchResult struct {
 	OwnerIsVerified bool   `json:"owner_is_verified"`
 	Bio             string `json:"bio,omitempty"`
 	AvatarSeed      string `json:"avatar_seed,omitempty"`
+	AvatarSalt      string `json:"avatar_salt,omitempty"`
 	AvatarStyle     string `json:"avatar_style,omitempty"`
 }

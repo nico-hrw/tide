@@ -24,12 +24,6 @@ interface UserBasic {
     avatar_salt?: string;
 }
 
-interface ContactRequest {
-    id: string;
-    requester: UserBasic;
-    created_at: string;
-}
-
 interface Contact {
     contact_row_id: string;
     partner: UserBasic;
@@ -103,12 +97,12 @@ function ProfileTree({ items, parentId, onSelect, level = 0 }: ProfileTreeProps)
 }
 
 export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOpenProfile, onFileCreated, activePartner, onChatSelect, onAccept }: ChatPanelProps) {
-    const [view, setView] = useState<'contacts' | 'requests' | 'search' | 'shared'>('contacts');
+    const [view, setView] = useState<'contacts' | 'search' | 'shared'>('contacts');
     const [showActionsMenu, setShowActionsMenu] = useState(false);
 
     // Data
     const [contacts, setContacts] = useState<Contact[]>([]);
-    const [requests, setRequests] = useState<ContactRequest[]>([]);
+
 
     // Chat State
     const [partner, setPartner] = useState<UserBasic | null>(null);
@@ -161,16 +155,6 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
             if (res.ok) {
                 const data = await res.json().catch(() => null);
                 if (Array.isArray(data)) setContacts(data);
-            }
-        } catch (e) { console.error(e); }
-    };
-
-    const fetchRequests = async () => {
-        try {
-            const res = await apiFetch("/api/v1/contacts/requests");
-            if (res.ok) {
-                const data = await res.json().catch(() => null);
-                if (Array.isArray(data)) setRequests(data);
             }
         } catch (e) { console.error(e); }
     };
@@ -245,7 +229,6 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
     useEffect(() => {
         if (myId) {
             fetchContacts();
-            fetchRequests();
             fetchAllSharedFiles();
         }
     }, [myId]);
@@ -263,27 +246,6 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                 setSearchError("Error searching");
             }
         } catch (e) { setSearchError("Error searching"); }
-    };
-
-    const sendRequest = async (targetId: string) => {
-        try {
-            const res = await apiFetch("/api/v1/contacts/request", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ target_id: targetId })
-            });
-            if (res.ok) {
-                alert("Request sent!");
-                setView('contacts');
-                setSearchEmail("");
-                setSearchResult([]);
-                setShowActionsMenu(false);
-            } else {
-                alert("Failed to send request");
-            }
-        } catch (e) { alert("Error"); }
     };
 
     // Feedback State
@@ -329,7 +291,11 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
         if (!confirm(`Are you sure you want to delete the conversation with ${partner.username}? This cannot be undone.`)) return;
 
         try {
-            const res = await apiFetch(`/api/v1/messages/conversation?partner_email=${partner.email}`, {
+            const query = partner.email === "Hidden" 
+                ? `partner_id=${partner.id}`
+                : `partner_email=${encodeURIComponent(partner.email)}`;
+                
+            const res = await apiFetch(`/api/v1/messages/conversation?${query}`, {
                 method: "DELETE"
             });
 
@@ -371,34 +337,6 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
             if (partner) fetchPartnerFiles(partner.id);
             if (onAccept) onAccept();
         } catch (e) { alert("Error"); }
-    };
-
-    const handleAcceptContact = async (requestId: string) => {
-        try {
-            const res = await apiFetch(`/api/v1/contacts/${requestId}/accept`, {
-                method: "POST"
-            });
-            if (res.ok) {
-                setRequests(prev => prev.filter(r => r.id !== requestId));
-                fetchContacts();
-            } else {
-                alert("Failed to accept contact request");
-            }
-        } catch (e) { console.error(e); }
-    };
-
-    const handleDeclineContact = async (requestId: string) => {
-        if (!confirm("Decline this contact request?")) return;
-        try {
-            const res = await apiFetch(`/api/v1/contacts/${requestId}/decline`, {
-                method: "POST"
-            });
-            if (res.ok) {
-                setRequests(prev => prev.filter(r => r.id !== requestId));
-            } else {
-                alert("Failed to decline contact request");
-            }
-        } catch (e) { console.error(e); }
     };
 
     const handleDecline = async (fileId: string, messageId?: string) => {
@@ -486,9 +424,13 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
         } catch (e) { console.error(e); }
     };
 
-    const fetchMessages = async (email: string) => {
+    const fetchMessages = async (email: string, id?: string) => {
         try {
-            const res = await apiFetch(`/api/v1/messages?partner_email=${encodeURIComponent(email)}`);
+            const query = email === "Hidden" && id
+                ? `partner_id=${id}`
+                : `partner_email=${encodeURIComponent(email)}`;
+                
+            const res = await apiFetch(`/api/v1/messages/?${query}`);
             if (res.ok) {
                 setMessages(await res.json() || []);
             }
@@ -497,8 +439,8 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
 
     // Fetch messages when partner changes or occasionally to refresh
     useEffect(() => {
-        if (partner?.email) {
-            fetchMessages(partner.email);
+        if (partner) {
+            fetchMessages(partner.email, partner.id);
         }
     }, [partner, myId]);
 
@@ -577,10 +519,9 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                         }
                     }
                 } else if (data.type === 'contact_request') {
-                    fetchRequests();
+                    // Handled elsewhere
                 } else if (data.type === 'contact_accepted') {
                     fetchContacts();
-                    fetchRequests();
                 } else if (['file_created', 'file_updated', 'file_deleted', 'file_shared'].includes(data.type)) {
                     fetchAllSharedFiles();
                 }
@@ -602,15 +543,19 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
     const handleSend = async () => {
         if (!newMessage || !partner) return;
         try {
-            const res = await apiFetch("/api/v1/messages", {
+            const body: any = { content: newMessage };
+            if (partner.email === "Hidden") {
+                body.recipient_id = partner.id;
+            } else {
+                body.recipient_email = partner.email;
+            }
+
+            const res = await apiFetch("/api/v1/messages/", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify({
-                    recipient_email: partner.email,
-                    content: newMessage
-                })
+                body: JSON.stringify(body)
             });
             if (res.ok) {
                 const msg = await res.json();
@@ -643,11 +588,6 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                 title="Actions"
                             >
                                 <UserPlus size={18} className="text-gray-600 dark:text-gray-400" />
-                                {requests.length > 0 && (
-                                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
-                                        {requests.length}
-                                    </span>
-                                )}
                             </button>
                             <button
                                 onClick={() => setView(view === 'shared' ? 'contacts' : 'shared')}
@@ -669,16 +609,6 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                     >
                                         <Search size={16} />
                                         Add Contact
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setView('requests');
-                                            setShowActionsMenu(false);
-                                        }}
-                                        className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-2 text-sm border-t border-gray-200 dark:border-gray-800"
-                                    >
-                                        <UserPlus size={16} />
-                                        Requests {requests.length > 0 && `(${requests.length})`}
                                     </button>
                                 </div>
                             )}
@@ -736,47 +666,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                 ))
                             )}
                         </div>
-                    ) : view === 'requests' ? (
-                        <div className="p-4">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="font-semibold text-sm">Contact Requests</h3>
-                                <button onClick={() => setView('contacts')} className="text-xs text-gray-500 hover:text-gray-900 dark:hover:text-gray-100">
-                                    Back
-                                </button>
-                            </div>
-                            {requests.length === 0 ? (
-                                <p className="text-sm text-gray-500 text-center py-8">No pending requests</p>
-                            ) : (
-                                requests.map(r => (
-                                    <div key={r.id} className="p-3 mb-2 border border-gray-200 dark:border-gray-800 rounded-lg">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <div className="flex items-center gap-2">
-                                                <Avatar seed={(r.requester.avatar_seed || r.requester.id) + (r.requester.avatar_salt || '')} size={24} />
-                                                <span className="font-semibold text-sm">{r.requester.username}</span>
-                                            </div>
-                                            <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mb-3">{r.requester.email}</p>
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleAcceptContact(r.id)}
-                                                className="flex-1 flex items-center justify-center gap-1 bg-gray-800 dark:bg-gray-200 text-white dark:text-black py-2 px-3 rounded-lg text-xs font-medium hover:opacity-80 transition-opacity"
-                                            >
-                                                <CheckCircle size={14} />
-                                                Accept
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeclineContact(r.id)}
-                                                className="flex-1 flex items-center justify-center gap-1 border border-red-500 text-red-500 py-2 px-3 rounded-lg text-xs font-medium hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
-                                            >
-                                                <XCircle size={14} />
-                                                Decline
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
+
                     ) : view === 'search' ? (
                         <div className="p-4">
                             <div className="flex items-center justify-between mb-4">
@@ -810,18 +700,13 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                 {res.owner_is_verified && <CheckCircle size={14} className="text-green-500" />}
                                             </div>
                                             <div className="text-xs text-gray-500">{res.bio}</div>
+
                                             <div className="flex gap-2 mt-1">
-                                                <button
-                                                    onClick={() => sendRequest(res.owner_id)}
-                                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg text-xs font-bold transition-all shadow-md shadow-blue-500/20"
-                                                >
-                                                    Send Request
-                                                </button>
                                                 <button
                                                     onClick={() => {
                                                         if (onOpenProfile) onOpenProfile(res.owner_id, res.title || "User");
                                                     }}
-                                                    className="flex-1 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-900 dark:text-white py-2 rounded-lg text-xs font-bold transition-all"
+                                                    className="w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-900 dark:text-white py-2 rounded-lg text-xs font-bold transition-all"
                                                 >
                                                     View Profile
                                                 </button>

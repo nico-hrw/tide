@@ -18,12 +18,17 @@ const PASTEL_COLORS = [
 export default function Avatar({ seed, style = 'notionists', size = 64, className = '', verified = false }: AvatarProps) {
   const avatarSvg = useMemo(() => {
     const collection = style === 'openPeeps' ? openPeeps : notionists;
-    return createAvatar(collection, {
+    const options: any = {
       seed: seed || 'default',
       backgroundColor: PASTEL_COLORS,
       radius: 50,
-      scale: 90
-    }).toString();
+      scale: style === 'openPeeps' ? 100 : 90,
+    };
+    if (style === 'openPeeps') {
+        options.translateX = 0;
+        options.translateY = 0;
+    }
+    return createAvatar(collection, options).toString();
   }, [seed, style]);
 
   return (

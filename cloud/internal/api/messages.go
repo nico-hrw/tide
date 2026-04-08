@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/nicoh/tide/internal/db"
 	"github.com/nicoh/tide/internal/store"
 )
 
@@ -33,14 +34,22 @@ func (h *MessageHandler) DeleteConversation(w http.ResponseWriter, r *http.Reque
 	}
 
 	partnerEmail := r.URL.Query().Get("partner_email")
-	if partnerEmail == "" {
-		http.Error(w, "Missing partner_email", http.StatusBadRequest)
+	partnerID := r.URL.Query().Get("partner_id")
+
+	var partner *db.User
+	var err error
+
+	if partnerID != "" {
+		partner, err = h.Store.GetUser(r.Context(), partnerID)
+	} else if partnerEmail != "" && partnerEmail != "Hidden" {
+		emailHash := hashString(partnerEmail)
+		partner, err = h.Store.GetUserByEmailHash(r.Context(), emailHash)
+	} else {
+		http.Error(w, "Partner identification required", http.StatusBadRequest)
 		return
 	}
 
-	emailHash := hashString(partnerEmail)
-	partner, err := h.Store.GetUserByEmailHash(r.Context(), emailHash)
-	if err != nil {
+	if err != nil || partner == nil {
 		http.Error(w, "Partner not found", http.StatusNotFound)
 		return
 	}
@@ -55,6 +64,7 @@ func (h *MessageHandler) DeleteConversation(w http.ResponseWriter, r *http.Reque
 
 type SendMessageRequest struct {
 	RecipientEmail string `json:"recipient_email"`
+	RecipientID    string `json:"recipient_id"`
 	Content        string `json:"content"`
 }
 
@@ -71,9 +81,20 @@ func (h *MessageHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	emailHash := hashString(req.RecipientEmail)
-	recipient, err := h.Store.GetUserByEmailHash(r.Context(), emailHash)
-	if err != nil {
+	var recipient *db.User
+	var err error
+
+	if req.RecipientID != "" {
+		recipient, err = h.Store.GetUser(r.Context(), req.RecipientID)
+	} else if req.RecipientEmail != "" && req.RecipientEmail != "Hidden" {
+		emailHash := hashString(req.RecipientEmail)
+		recipient, err = h.Store.GetUserByEmailHash(r.Context(), emailHash)
+	} else {
+		http.Error(w, "Recipient identification (email or ID) required", http.StatusBadRequest)
+		return
+	}
+
+	if err != nil || recipient == nil {
 		http.Error(w, "Recipient not found", http.StatusNotFound)
 		return
 	}
@@ -132,14 +153,22 @@ func (h *MessageHandler) GetMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	partnerEmail := r.URL.Query().Get("partner_email")
-	if partnerEmail == "" {
-		http.Error(w, "Missing partner_email", http.StatusBadRequest)
+	partnerID := r.URL.Query().Get("partner_id")
+	
+	var partner *db.User
+	var err error
+
+	if partnerID != "" {
+		partner, err = h.Store.GetUser(r.Context(), partnerID)
+	} else if partnerEmail != "" && partnerEmail != "Hidden" {
+		emailHash := hashString(partnerEmail)
+		partner, err = h.Store.GetUserByEmailHash(r.Context(), emailHash)
+	} else {
+		http.Error(w, "Partner identification required", http.StatusBadRequest)
 		return
 	}
 
-	emailHash := hashString(partnerEmail)
-	partner, err := h.Store.GetUserByEmailHash(r.Context(), emailHash)
-	if err != nil {
+	if err != nil || partner == nil {
 		http.Error(w, "Partner not found", http.StatusNotFound)
 		return
 	}

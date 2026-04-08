@@ -188,7 +188,7 @@ export default function Dashboard() {
     const [activeTabId, setActiveTabId] = useState<string>('calendar');
     const [isSharingDisabled, setIsSharingDisabled] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [userProfile, setUserProfile] = useState<{ username: string; email: string; avatar_seed?: string; avatar_salt?: string; bio?: string; title?: string; id?: string; user_id?: string } | null>(null);
+    const [userProfile, setUserProfile] = useState<{ username: string; email: string; avatar_seed?: string; avatar_salt?: string; avatar_style?: string; bio?: string; title?: string; is_verified?: boolean; profile_status?: number; id?: string; user_id?: string } | null>(null);
     const [streak, setStreak] = useState(0);
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const [summaryStats, setSummaryStats] = useState({ events: 0, tasks: 0 });
@@ -1080,7 +1080,7 @@ export default function Dashboard() {
                 setUserEmail(email);
                 // Set a quick initial profile from stored data
                 setUserProfile({ username: email.split('@')[0], email: email });
-                // Then fetch the real profile (avatar_seed, bio, title) from the public endpoint
+                // Then fetch the real profile (avatar_seed, bio, title, avatar_style, is_verified) from the public endpoint
                 fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/profiles/${userId}`)
                     .then(r => r.ok ? r.json() : null)
                     .then(profile => {
@@ -1092,8 +1092,13 @@ export default function Dashboard() {
                                     username: profile.username || prev.username || email.split('@')[0],
                                     avatar_seed: profile.avatar_seed || prev.avatar_seed || userId,
                                     avatar_salt: profile.avatar_salt || prev.avatar_salt || '',
+                                    avatar_style: profile.avatar_style || prev.avatar_style || 'notionists',
                                     bio: profile.bio || prev.bio || '',
                                     title: profile.title || prev.title || '',
+                                    is_verified: profile.is_verified ?? prev.is_verified ?? false,
+                                    profile_status: profile.profile_status ?? prev.profile_status ?? 0,
+                                    id: userId,
+                                    user_id: userId,
                                     email: prev.email // Ensure email is preserved and type-safe
                                 };
                             });
@@ -1793,7 +1798,11 @@ export default function Dashboard() {
 
     // 5. Tab Management & Messages
     // -------------------------------------------------------------------------
-    const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile') => {
+    const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social') => {
+        if (type === 'social') {
+            setActiveTabId('social');
+            return;
+        }
         switchTab(id, type);
     };
 
@@ -2149,6 +2158,8 @@ export default function Dashboard() {
                     {activeTabId === 'social' && (
                         <SocialHub 
                             onOpenProfile={(userId, username) => switchTab(`profile:${userId}`, 'profile', username)}
+                            onOpenFile={(fileId, title, parentId) => switchTab(fileId, 'file', title)}
+                            onOpenCalendar={() => switchTab('calendar', 'calendar')}
                             userProfile={userProfile}
                         />
                     )}
@@ -2338,7 +2349,7 @@ export default function Dashboard() {
                 <div className="hidden md:block fixed bottom-6 right-6 z-[80]">
                     <button
                         onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
-                        className={`w-12 h-12 rounded-full bg-white shadow-xl border border-gray-100 flex items-center justify-center transition-all focus:outline-none ${isThemeMenuOpen ? 'rotate-45 text-rose-500 scale-110' : 'text-indigo-500 hover:scale-110'}`}
+                        className={`w-12 h-12 rounded-full bg-white shadow-xl border border-gray-100 flex items-center justify-center transition-all focus:outline-none ${isThemeMenuOpen ? 'rotate-45 text-rose-500 scale-110' : 'text-gray-900 hover:scale-110'}`}
                         title="Manage Themes"
                     >
                         {isThemeMenuOpen ? (
@@ -2398,6 +2409,7 @@ export default function Dashboard() {
                     enabledExtensions={enabledExtensions}
                     onOpenMessages={handleOpenMessages}
                     onOpenFinance={() => handleFileSelect('ext_finance', 'Finance Tracker')}
+                    onOpenSocial={() => setActiveTabId('social')}
                 />
             </div>
 

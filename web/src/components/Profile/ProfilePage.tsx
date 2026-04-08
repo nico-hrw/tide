@@ -26,25 +26,22 @@ interface UserProfile {
     profile_status: number;
 }
 
+import { useSocialStore } from '@/store/useSocialStore';
+
 export default function ProfilePage({ userId, onOpenFile, onMessage }: ProfilePageProps) {
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'about' | 'files' | 'calendar'>('about');
     const [publicFiles, setPublicFiles] = useState<any[]>([]);
     const [events, setEvents] = useState<any[]>([]);
-    const [isContact, setIsContact] = useState(false);
+    
+    const { isContact: checkIsContact, sendRequest, pendingRequests, fetchContacts, hasSentRequest } = useSocialStore();
+    const isContact = checkIsContact(userId);
+    const isPending = pendingRequests.some(r => r.user_id === userId); // Request sent to me? Wait, this checks if they sent ME a request. What if I sent them one? We don't have outgoing requests in store yet. Let's just track locally or ignore.
+    const requestSent = hasSentRequest(userId);
     const [myUserId, setMyUserId] = useState<string | null>(null);
 
     useEffect(() => {
-        const fetchContacts = async () => {
-            try {
-                const res = await apiFetch(`/api/v1/contacts`);
-                if (res.ok) {
-                    const contacts = await res.json();
-                    setIsContact(contacts.some((c: any) => c.contact_id === userId && c.status === 'accepted'));
-                }
-            } catch(e) {}
-        };
         const fetchMe = async () => {
             try {
                 const meRes = await apiFetch('/api/v1/auth/me');
@@ -52,21 +49,28 @@ export default function ProfilePage({ userId, onOpenFile, onMessage }: ProfilePa
                     const meData = await meRes.json();
                     setMyUserId(meData.id);
                 }
-            } catch(e) {}
+            } catch (e) { }
         };
-        fetchContacts();
         fetchMe();
-    }, [userId]);
+        fetchContacts();
+    }, [userId, fetchContacts]);
 
     const toggleContact = async () => {
         try {
             if (isContact) {
                 await apiFetch(`/api/v1/contacts/${userId}`, { method: 'DELETE' });
-                setIsContact(false);
+                // Note: a robust approach would be to refetch contacts or emit an event
+                alert("Contact removed");
+                window.location.reload();
             } else {
-                await apiFetch(`/api/v1/contacts/${userId}`, { method: 'POST' });
-                alert("Contact request sent");
-                // setIsContact(true); // Wait for accept
+                if (requestSent) return;
+                const success = await sendRequest(userId);
+                if (success) {
+                    alert("Contact request sent");
+                    setRequestSent(true);
+                } else {
+                    alert("Failed to send contact request or already sent");
+                }
             }
         } catch (e) {
             console.error("Failed to update contact", e);
@@ -231,13 +235,14 @@ export default function ProfilePage({ userId, onOpenFile, onMessage }: ProfilePa
 
                 {myUserId !== userId && (
                     <div className="flex gap-3 mt-8">
-                        <button 
+                        <button
                             onClick={toggleContact}
-                            className={`px-8 py-3 rounded-2xl font-bold text-sm transition-all focus:outline-none ${isContact ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-500/20'}`}
+                            disabled={requestSent}
+                            className={`px-8 py-3 rounded-2xl font-bold text-sm transition-all focus:outline-none ${isContact ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700' : requestSent ? 'bg-green-500 text-white cursor-default' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-xl shadow-blue-500/20'}`}
                         >
-                            {isContact ? 'Disconnect' : 'Connect'}
+                            {isContact ? 'Disconnect' : requestSent ? 'Request Sent' : 'Connect'}
                         </button>
-                        <button 
+                        <button
                             onClick={() => onMessage?.(userId)}
                             className="px-8 py-3 rounded-2xl font-bold text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-all focus:outline-none shadow-sm flex items-center gap-2"
                         >
@@ -249,7 +254,7 @@ export default function ProfilePage({ userId, onOpenFile, onMessage }: ProfilePa
 
             {/* Content Section */}
             <div className="max-w-[1400px] w-full mx-auto p-4 sm:p-12 flex flex-col gap-16 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                
+
                 {/* Public Calendar Section (Hidden for redesign) */}
                 {/*
                 <section>
