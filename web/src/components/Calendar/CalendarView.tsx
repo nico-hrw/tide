@@ -4,7 +4,7 @@ import "@/app/calendar/calendar.css";
 import { format, addDays, subDays, startOfWeek, addWeeks, subWeeks, isSameDay, getMinutes, getHours, startOfDay } from "date-fns";
 import { ChevronLeft, ChevronRight, ListPlus } from "lucide-react";
 import { useHighlight } from "@/components/HighlightContext";
-import { ScheduleModal } from './ScheduleModal';
+import { ScheduleModal, ScheduleEventData } from './ScheduleModal';
 import { useMotionValue, motion, useTransform } from 'framer-motion';
 import { DragGhost } from './DragGhost';
 import { MagnifiedEventView } from './MagnifiedEventView';
@@ -42,6 +42,7 @@ interface CalendarViewProps {
     date: Date; // Initial View Date
     onDateChange: (date: Date) => void;
     themes?: { id: string; title: string; effect?: string; color?: string }[];
+    onScheduleApply?: (events: ScheduleEventData[], theme: string, options?: { color?: string, effect?: string }) => Promise<void>;
     onCreateEventGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
     enabledExtensions?: string[];
 }
@@ -76,6 +77,7 @@ export default function CalendarView({
     date,
     onDateChange,
     themes = [],
+    onScheduleApply,
     onCreateEventGroup,
     enabledExtensions = []
 }: CalendarViewProps) {
@@ -1624,7 +1626,8 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                 <ScheduleModal
                     isOpen={isScheduleModalOpen}
                     onClose={() => setIsScheduleModalOpen(false)}
-                    onSchedule={(text) => console.log("Scheduling:", text)}
+                    onApply={onScheduleApply || (async () => {})}
+                    existingThemes={themes}
                 />
             )}
 

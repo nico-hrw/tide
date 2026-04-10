@@ -67,7 +67,6 @@ export default function ProfilePage({ userId, onOpenFile, onMessage }: ProfilePa
                 const success = await sendRequest(userId);
                 if (success) {
                     alert("Contact request sent");
-                    setRequestSent(true);
                 } else {
                     alert("Failed to send contact request or already sent");
                 }

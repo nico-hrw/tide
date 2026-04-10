@@ -2114,6 +2114,7 @@ export default function Dashboard() {
                         onDateChange={handleDateSelect}
                         themes={files?.filter(f => f.type === 'folder' && f.isGroup).map(g => ({ id: g.id, title: g.title, effect: g.effect, color: (g as any).color }))}
                         onCreateEventGroup={handleCreateEventGroup}
+                        onScheduleApply={handleScheduleApply}
                     />
                 </div>
 
