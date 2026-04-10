@@ -384,7 +384,7 @@ export default function CalendarPage() {
                     onEventRename={handleEventRename}
                     onEventDelete={handleEventDelete}
                     onEventSave={handleSaveEvent}
-                    onEventClick={(evt: any) => setEditingEventId(evt?.id || null)}
+                    onEventClick={(id) => setEditingEventId(id || null)}
                     editingEventId={editingEventId}
                     date={currentViewDate}
                     onDateChange={setCurrentViewDate}

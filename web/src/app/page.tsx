@@ -2103,10 +2103,10 @@ export default function Dashboard() {
                         onEventDelete={handleDeleteEvent}
                         onEventRename={handleEventRename}
                         onEventSave={handleEventSave}
-                        onEventClick={(evt) => {
-                            if (!evt) return;
-                            setActiveEventId(evt.id);
-                            setMinimizedEventIds(prev => prev.filter(mId => mId !== evt.id));
+                        onEventClick={(id) => {
+                            if (!id) return;
+                            setActiveEventId(id);
+                            setMinimizedEventIds(prev => prev.filter(mId => mId !== id));
                         }}
                         onEventShare={(e, id) => handleShare(e, id)}
                         editingEventId={activeEventId}
