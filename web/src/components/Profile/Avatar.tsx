@@ -16,26 +16,28 @@ const PASTEL_COLORS = [
 ];
 
 export default function Avatar({ seed, style = 'notionists', size = 64, className = '', verified = false }: AvatarProps) {
-  const avatarSvg = useMemo(() => {
+  const dataUri = useMemo(() => {
     const collection = style === 'openPeeps' ? openPeeps : notionists;
     const options: any = {
       seed: seed || 'default',
       backgroundColor: PASTEL_COLORS,
       radius: 50,
-      scale: style === 'openPeeps' ? 100 : 90,
+      scale: 90,
     };
-    if (style === 'openPeeps') {
-        options.translateX = 0;
-        options.translateY = 0;
-    }
-    return createAvatar(collection, options).toString();
+    // Using toDataUri() instead of toString() + dangerouslySetInnerHTML to avoid
+    // SVG presentation attribute dimension issues and display:inline baseline gaps.
+    return createAvatar(collection, options).toDataUri();
   }, [seed, style]);
 
   return (
     <div className={`relative inline-block ${className}`} style={{ width: size, height: size }}>
-      <div 
-        className="w-full h-full rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] overflow-hidden border-2 border-white dark:border-gray-800"
-        dangerouslySetInnerHTML={{ __html: avatarSvg }} 
+      <img
+        src={dataUri}
+        alt="Avatar"
+        width={size}
+        height={size}
+        style={{ display: 'block', width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+        className="shadow-[0_8px_30px_rgb(0,0,0,0.12)] border-2 border-white dark:border-gray-800"
       />
       {verified && (
         <div className="absolute -bottom-1 -right-1 bg-white dark:bg-black rounded-full p-[2px] shadow-sm">

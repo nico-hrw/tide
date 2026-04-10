@@ -7,6 +7,7 @@ import { useHighlight } from "@/components/HighlightContext";
 import { ScheduleModal } from './ScheduleModal';
 import { useMotionValue, motion, useTransform } from 'framer-motion';
 import { DragGhost } from './DragGhost';
+import { MagnifiedEventView } from './MagnifiedEventView';
 import { getEventsForDate } from "@/lib/calendarUtils";
 
 interface CalendarEvent {
@@ -909,17 +910,25 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                     dragOverlayX.set(dragState.initialX + deltaX);
                 }
             } else if (creationDrag) {
-                const deltaY = gY - creationDrag.startY;
-                if (!isDraggingRef.current && Math.abs(deltaY) > 10) {
+                const startMinsCreation = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
+                const rawDeltaY = gY - creationDrag.startY;
+
+                // Clamp deltaY so the drag can never produce an event that crosses midnight.
+                // Since 1px = 1 minute on the grid, the max forward drag is (1440 - startMins) pixels.
+                const maxForwardPx = 1440 - startMinsCreation;
+                const maxBackwardPx = -startMinsCreation;
+                const clampedDeltaY = Math.max(maxBackwardPx, Math.min(rawDeltaY, maxForwardPx));
+                const clampedY = creationDrag.startY + clampedDeltaY;
+
+                if (!isDraggingRef.current && Math.abs(clampedDeltaY) > 10) {
                     isDraggingRef.current = true;
                 }
                 // Keep Loupe anchored to the dragged edge of the new event
-                const startMinsCreation = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
-                const creationEndMin = startMinsCreation + Math.max(10, Math.abs(deltaY));
-                activeEventEdgeRef.current = deltaY < 0 ? startMinsCreation + deltaY : creationEndMin;
+                const creationEndMin = startMinsCreation + Math.max(10, Math.abs(clampedDeltaY));
+                activeEventEdgeRef.current = clampedDeltaY < 0 ? startMinsCreation + clampedDeltaY : Math.min(1440, creationEndMin);
 
-                // ✅ Drive creation preview via MotionValue
-                creationEndYMV.set(gY);
+                // ✅ Drive creation preview via MotionValue (clamped at midnight)
+                creationEndYMV.set(clampedY);
             } else if (resizingId && resizeDragState) {
                 const deltaY = gY - resizeDragState.startY;
                 if (!isDraggingRef.current && Math.abs(deltaY) > 10) {
@@ -1015,40 +1024,46 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
             }
 
             const snapInterval = isPreciseModeRef.current ? 1 : 10;
-            const deltaMins = Math.floor((gY - cDrag.startY) / snapInterval) * snapInterval;
-            let targetTimeObj = new Date(cDrag.startDay.getTime() + deltaMins * 60000);
+            const startMins = cDrag.startDay.getHours() * 60 + cDrag.startDay.getMinutes();
+            const rawDeltaMins = Math.floor((gY - cDrag.startY) / snapInterval) * snapInterval;
 
-            let targetDayStr: string | null = null;
-            const dayCols = document.querySelectorAll('[data-day-col]');
-            dayCols.forEach((col) => {
-                const rect = col.getBoundingClientRect();
-                if (gX >= rect.left && gX <= rect.right) {
-                    targetDayStr = col.getAttribute('data-day-col');
-                }
-            });
+            // Clamp delta strictly within the start day.
+            // maxForwardMins: how many minutes from startMins until midnight.
+            // maxBackwardMins: how many minutes back to start-of-day (negative).
+            const maxForwardMins = 1440 - startMins;
+            const maxBackwardMins = -startMins;
+            const clampedDeltaMins = Math.max(maxBackwardMins, Math.min(rawDeltaMins, maxForwardMins));
 
-            if (targetDayStr) {
-                const targetBaseDate = new Date(targetDayStr);
-                targetTimeObj.setFullYear(targetBaseDate.getFullYear(), targetBaseDate.getMonth(), targetBaseDate.getDate());
+            // Compute start/end purely as minute counts from the START DAY's midnight.
+            // This completely avoids the setFullYear re-anchoring bug where
+            // (23:00 + 60min = 00:00 next day) got re-dated to 00:00 today → full inversion.
+            const dayBase = startOfDay(cDrag.startDay);
+            const endMins = startMins + clampedDeltaMins;
+
+            let finalStartMs: number;
+            let finalEndMs: number;
+
+            if (clampedDeltaMins >= 0) {
+                // Forward drag: start=startMins, end=endMins
+                finalStartMs = dayBase.getTime() + startMins * 60000;
+                finalEndMs   = dayBase.getTime() + endMins * 60000;
+            } else {
+                // Backward drag: start=endMins (earlier), end=startMins (later)
+                finalStartMs = dayBase.getTime() + endMins * 60000;
+                finalEndMs   = dayBase.getTime() + startMins * 60000;
             }
 
-            const targetBaseStart = startOfDay(targetTimeObj);
-            const maxAllowedTime = targetBaseStart.getTime() + 24 * 60 * 60 * 1000;
-            if (targetTimeObj.getTime() > maxAllowedTime) {
-                targetTimeObj = new Date(maxAllowedTime);
+            // Ensure minimum duration
+            if (finalEndMs === finalStartMs) {
+                finalEndMs = finalStartMs + snapInterval * 60000;
             }
 
-            let finalStart = new Date(Math.min(cDrag.startDay.getTime(), targetTimeObj.getTime()));
-            let finalEnd = new Date(Math.max(cDrag.startDay.getTime(), targetTimeObj.getTime()));
+            // Hard midnight clamp
+            const midnightMs = dayBase.getTime() + 24 * 60 * 60 * 1000;
+            if (finalEndMs > midnightMs) finalEndMs = midnightMs;
+            if (finalStartMs < dayBase.getTime()) finalStartMs = dayBase.getTime();
 
-            if (finalStart.getTime() === finalEnd.getTime()) {
-                finalEnd = new Date(finalStart.getTime() + snapInterval * 60000);
-            }
-
-            const maxClamp = startOfDay(finalEnd).getTime() + 24 * 60 * 60 * 1000;
-            if (finalEnd.getTime() > maxClamp) finalEnd = new Date(maxClamp);
-
-            await onEventCreate(finalStart, finalEnd);
+            await onEventCreate(new Date(finalStartMs), new Date(finalEndMs));
 
         } else if (draggingId && dragState && onEventUpdate) {
             // ✅ THIS WAS MISSING — handle the mouse-drag move completion
@@ -1263,7 +1278,12 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                 }
             } else {
                 let current = startOfDay(occurrenceStart);
-                const endNode = startOfDay(occurrenceEnd);
+                // Use strictly < for endNode so events ending at exactly midnight (00:00 of next day)
+                // are NOT added to the following day's column.
+                const endsAtExactMidnight = occurrenceEnd.getHours() === 0 && occurrenceEnd.getMinutes() === 0 && occurrenceEnd.getSeconds() === 0 && occurrenceEnd.getMilliseconds() === 0;
+                const endNode = endsAtExactMidnight
+                    ? startOfDay(addDays(occurrenceEnd, -1)) // cap at the day before midnight
+                    : startOfDay(occurrenceEnd);
                 let safety = 0;
                 while (current <= endNode && safety < 100) {
                     const key = format(current, "yyyy-MM-dd");
@@ -1419,9 +1439,11 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                                             currentTime={currentTime}
                                             hoveredHour={hoveredHour}
                                             onHourHover={setHoveredHour}
-                                            onEventClick={(id, rect) => {
+                                            onEventClick={(clickedEvent, rect) => {
                                                 if (!isDraggingRef.current) {
-                                                    const e = events.find(ev => ev.id === id || (id && id.startsWith(ev.id + "_")));
+                                                    // clickedEvent is the full CalendarEvent object from CalendarEventItem
+                                                    const id = typeof clickedEvent === 'string' ? clickedEvent : (clickedEvent as any).id;
+                                                    const e = events.find(ev => ev.id === id || (id && typeof id === 'string' && id.startsWith(ev.id + "_")));
 
                                                     // Intercept for magic link
                                                     if (highlight.isSelectingLink && highlight.onLinkSelect && e) {
@@ -1436,17 +1458,16 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                                                     }
 
                                                     if (e?.allDay) {
-                                                        // Handle all-day click: could be popover, could be external
                                                         if (rect) {
                                                             setActivePopover({ id, rect });
                                                         } else if (onEventClick) {
-                                                            onEventClick(id); // fallback
+                                                            onEventClick(id);
                                                         }
                                                     } else {
                                                         if (rect) {
                                                             setActivePopover({ id, rect });
                                                         } else if (onEventClick) {
-                                                            onEventClick(id); // fallback
+                                                            onEventClick(id);
                                                         }
                                                     }
                                                 }

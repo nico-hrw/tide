@@ -292,9 +292,15 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     const creationPreviewHeight = useTransform(creationEndYMV || fallbackMV, (currentY: number) => {
         if (!creationDrag) return "0px";
         const deltaY = currentY - creationDrag.startY;
+        const startMins = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
         let snappoints = Math.floor(deltaY / snapInterval) * snapInterval;
         if (deltaY < 0) snappoints = Math.ceil(deltaY / snapInterval) * snapInterval;
-        return Math.max(10, Math.abs(snappoints)) + 'px';
+        // Clamp: if dragging forward, end can never exceed 1440 min (midnight)
+        const rawHeight = Math.max(10, Math.abs(snappoints));
+        const maxHeight = deltaY >= 0
+            ? Math.min(rawHeight, 1440 - startMins) // forward drag: cap at midnight
+            : Math.min(rawHeight, startMins);         // backward drag: cap at start-of-day
+        return maxHeight + 'px';
     });
 
     // Live end-time label for the creation preview — driven by the same MotionValue as the ghost block
@@ -304,10 +310,11 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
         let snapped = Math.floor(deltaY / snapInterval) * snapInterval;
         if (deltaY < 0) snapped = Math.ceil(deltaY / snapInterval) * snapInterval;
         const startMins = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
-        const endMins = deltaY >= 0
+        const rawEnd = deltaY >= 0
             ? startMins + Math.max(snapInterval, snapped)
             : startMins + snapped - snapInterval;
-        const clamped = Math.max(0, Math.min(1440, endMins));
+        // Hard clamp: never show past 23:59 (1440) or before 00:00
+        const clamped = Math.max(0, Math.min(1440, rawEnd));
         const h = Math.floor(clamped / 60);
         const m = clamped % 60;
         return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;

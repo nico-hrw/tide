@@ -106,7 +106,10 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const end = new Date(event.end);
 
     // Feature 3: Multi-Day Logic
-    const isMultiDay = !isSameDay(start, end);
+    // Events ending exactly at 00:00:00 of the following day are NOT truly multi-day —
+    // they simply extend to midnight and should only render on their start day.
+    const endsAtExactMidnight = end.getHours() === 0 && end.getMinutes() === 0 && end.getSeconds() === 0 && end.getMilliseconds() === 0;
+    const isMultiDay = !isSameDay(start, end) && !endsAtExactMidnight;
     const currentDay = day || start;
 
     const isStartDay = isSameDay(currentDay, start);
