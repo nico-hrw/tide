@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -118,6 +119,7 @@ type UpdateFileRequest struct {
 	Version        *int            `json:"version"`
 	Metadata       json.RawMessage `json:"metadata"`
 	AccessKeys     json.RawMessage `json:"access_keys"`
+	ContentCiphertext *string      `json:"content_ciphertext"`
 }
 
 func (h *FileHandler) GetFileMetadata(w http.ResponseWriter, r *http.Request) {
@@ -527,6 +529,15 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 	if req.AccessKeys != nil {
 		file.AccessKeys = req.AccessKeys
 	}
+	if req.ContentCiphertext != nil {
+		go h.handleBackupCascade(context.Background(), id)
+		if err := h.BlobStore.Put(r.Context(), id, strings.NewReader(*req.ContentCiphertext)); err != nil {
+			http.Error(w, "Failed to write blob", http.StatusInternalServerError)
+			return
+		}
+		path := id
+		file.BlobPath = &path
+	}
 	file.UpdatedAt = time.Now()
 
 	if err := h.Store.UpdateFile(r.Context(), file); err != nil {
@@ -555,7 +566,7 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.handleBackupCascade(r.Context(), id)
+	go h.handleBackupCascade(context.Background(), id)
 
 	// Stream body to BlobStore
 	if err := h.BlobStore.Put(r.Context(), id, r.Body); err != nil {

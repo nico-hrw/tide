@@ -50,6 +50,12 @@ export default function BackupHistory({ fileId, onRestore, onCancel }: { fileId:
             );
 
             // Fetch the backup blob
+            if (!backupData.encrypted_blob) {
+                setDecryptedText("Noch kein Backup für diesen Zeitraum vorhanden.");
+                setLoading(false);
+                return;
+            }
+
             // In Go, EncryptedBlob is []byte, so json encode makes it base64 string
             const binaryString = atob(backupData.encrypted_blob);
             const len = binaryString.length;

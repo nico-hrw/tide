@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { format } from "date-fns";
 import CalendarView from "@/components/Calendar/CalendarView";
 import { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
+import { useDataStore } from "@/store/useDataStore";
 import "./calendar.css";
 
 interface CalendarEvent {
@@ -290,6 +291,36 @@ export default function CalendarPage() {
                 exdates: meta.exdates || [],
                 completed_dates: meta.completed_dates || []
             };
+
+            try {
+                const { encryptFileV2 } = await import('@/lib/cryptoV2');
+                const contentString = JSON.stringify({
+                    title: updatedEvent.title,
+                    description: updatedEvent.description
+                });
+                
+                const v2Result = await encryptFileV2(contentString, publicKey);
+                
+                payload.version = 2;
+                payload.metadata = {
+                    ...v2Result.metadata,
+                    title: updatedEvent.title,
+                    start: updatedEvent.start,
+                    end: updatedEvent.end,
+                    color: updatedEvent.color,
+                    recurrence_rule: (updatedEvent as any).recurrence_rule,
+                    exdates: (updatedEvent as any).exdates || [],
+                    completed_dates: (updatedEvent as any).completed_dates || [],
+                    is_task: !!(updatedEvent as any).is_task,
+                    is_completed: !!(updatedEvent as any).is_completed,
+                    is_cancelled: !!(updatedEvent as any).is_cancelled
+                };
+                payload.access_keys = { [sessionStorage.getItem("tide_user_id") || ""]: v2Result.encrypted_dek };
+                payload.content_ciphertext = v2Result.content_ciphertext;
+            } catch (e) {
+                console.error("V2 encryption failed", e);
+            }
+
             if (updates.parent_id !== undefined) payload.parent_id = updates.parent_id;
 
             const res = await apiFetch(`/api/v1/files/${baseId}`, {
