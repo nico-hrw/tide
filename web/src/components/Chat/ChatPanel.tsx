@@ -458,7 +458,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
     useEffect(() => {
         const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
         // Bypass Next.js proxy rewrite by calling the backend URL directly to prevent Next.js proxy timeout (ECONNRESET)
-        const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/events?user_id=${myId}&token=${token}`);
+        const eventSource = new EventSource(`${getApiBase()}/api/v1/events?user_id=${myId}&token=${token}`);
 
         eventSource.onmessage = (event) => {
             try {

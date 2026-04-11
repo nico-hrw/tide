@@ -7,7 +7,7 @@ import SmartIsland from "../extensions/smart_island/SmartIsland";
 import MiniCalendar from "../Calendar/MiniCalendar";
 import { useHighlight } from "@/components/HighlightContext";
 import { useDataStore } from "@/store/useDataStore";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getApiBase } from "@/lib/api";
 import Avatar from "@/components/Profile/Avatar";
 
 interface DecryptedFile {
@@ -145,7 +145,7 @@ export default function Sidebar({
 
             // Fetch real profile (avatar_seed + avatar_salt) from backend
             if (id) {
-                fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/profiles/${id}`)
+                fetch(`${getApiBase()}/api/v1/profiles/${id}`)
                     .then(r => r.ok ? r.json() : null)
                     .then(profile => {
                         if (profile) {

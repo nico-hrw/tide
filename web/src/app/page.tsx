@@ -1081,7 +1081,7 @@ export default function Dashboard() {
                 // Set a quick initial profile from stored data
                 setUserProfile({ username: email.split('@')[0], email: email });
                 // Then fetch the real profile (avatar_seed, bio, title, avatar_style, is_verified) from the public endpoint
-                fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/v1/profiles/${userId}`)
+                fetch(`${getApiBase()}/api/v1/profiles/${userId}`)
                     .then(r => r.ok ? r.json() : null)
                     .then(profile => {
                         if (profile) {
