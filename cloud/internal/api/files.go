@@ -46,6 +46,8 @@ func (h *FileHandler) RegisterRoutes(r chi.Router) {
 		r.Delete("/{fileID}", h.DeleteFile)
 		r.Post("/{fileID}/upload", h.UploadFile)
 		r.Get("/{fileID}/download", h.DownloadFile)
+		r.Get("/{fileID}/backups", h.GetFileBackups)
+		r.Get("/{fileID}/backups/{slotName}", h.GetFileBackup)
 
 		r.Put("/visibility", h.SetVisibility)
 		r.Post("/purge", h.PurgeFiles)
@@ -553,6 +555,8 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.handleBackupCascade(r.Context(), id)
+
 	// Stream body to BlobStore
 	if err := h.BlobStore.Put(r.Context(), id, r.Body); err != nil {
 		http.Error(w, "Failed to write blob", http.StatusInternalServerError)
@@ -658,4 +662,75 @@ func (h *FileHandler) PurgeFiles(w http.ResponseWriter, r *http.Request) {
 		"message":      fmt.Sprintf("Purged %d broken files", purgedCount),
 		"purged_count": purgedCount,
 	})
+}
+func (h *FileHandler) GetFileBackups(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "fileID")
+	backups, err := h.Store.GetFileBackups(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Failed to get backups", http.StatusInternalServerError)
+		return
+	}
+	for i := range backups {
+		backups[i].EncryptedBlob = nil
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(backups)
+}
+
+func (h *FileHandler) GetFileBackup(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "fileID")
+	slotName := chi.URLParam(r, "slotName")
+	b, err := h.Store.GetFileBackup(r.Context(), id, slotName)
+	if err != nil {
+		http.Error(w, "Backup not found", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(b)
+}
+
+func (h *FileHandler) handleBackupCascade(ctx context.Context, id string) {
+	rc, err := h.BlobStore.Get(ctx, id)
+	if err != nil {
+		return
+	}
+	defer rc.Close()
+	blobBytes, err := io.ReadAll(rc)
+	if err != nil || len(blobBytes) == 0 {
+		return
+	}
+	backups, err := h.Store.GetFileBackups(ctx, id)
+	if err != nil {
+		return
+	}
+
+	now := time.Now()
+	slotMap := make(map[string]*db.FileBackup)
+	for i := range backups {
+		slotMap[backups[i].SlotName] = &backups[i]
+	}
+
+	slots := []struct {
+		name string
+		dur  time.Duration
+	}{
+		{"10m", 10 * time.Minute},
+		{"1h", 1 * time.Hour},
+		{"1d", 24 * time.Hour},
+		{"2d", 48 * time.Hour},
+	}
+
+	for _, slot := range slots {
+		b := slotMap[slot.name]
+		if b == nil || now.Sub(b.UpdatedAt) > slot.dur {
+			newB := &db.FileBackup{
+				ID:            uuid.New().String(),
+				FileID:        id,
+				SlotName:      slot.name,
+				EncryptedBlob: blobBytes,
+				UpdatedAt:     now,
+			}
+			_ = h.Store.UpsertFileBackup(ctx, newB)
+		}
+	}
 }

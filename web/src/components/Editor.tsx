@@ -13,7 +13,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import { Highlight } from './extensions/Highlight';
 import { useEffect, useState, useRef } from 'react';
-import { Highlighter, Type, Sigma, Eraser, Bold, Italic, Underline as UnderlineIcon, PinIcon, Link2, Table as TableIcon, ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, Trash2, Bookmark } from 'lucide-react';
+import { Highlighter, Type, Sigma, Eraser, Bold, Italic, Underline as UnderlineIcon, PinIcon, Link2, Table as TableIcon, ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, Trash2, Bookmark, Clock } from 'lucide-react';
 import { FontSize } from './extensions/FontSize';
 import { MathBlock, InlineMath } from './extensions/MathBlock';
 import { ResizableImage } from './extensions/ResizableImage';
@@ -28,6 +28,7 @@ import ListItem from '@tiptap/extension-list-item';
 import { Anchor } from './extensions/Anchor';
 import { useHighlight, LinkTarget } from './HighlightContext';
 import { useDataStore } from '@/store/useDataStore';
+import BackupHistory from './BackupHistory';
 import { useLinkStore } from '@/store/useLinkStore';
 import { useReferenceStore } from '@/store/useReferenceStore';
 import { Table } from '@tiptap/extension-table';
@@ -166,6 +167,7 @@ const PLACELHODER_QUOTES = [
 
 export default function Editor({ initialContent, editable = true, onChange, onLinkClick, onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady, onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick, onEventClick }: EditorProps) {
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
+    const [showBackups, setShowBackups] = useState(false);
 
     const onChangeRef = useRef(onChange);
     const onLinkClickRef = useRef(onLinkClick);
@@ -912,6 +914,10 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                 }}
             >
                 <EditorContent editor={editor} />
+				<button onClick={() => setShowBackups(true)} className="absolute top-4 right-4 z-50 p-2 bg-white dark:bg-gray-800 rounded-full shadow hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-500 hover:text-indigo-600 transition-colors" title="Versionsverlauf / Backups">
+					<Clock size={18} />
+				</button>
+				{showBackups && activeTabId && <BackupHistory fileId={activeTabId} onCancel={() => setShowBackups(false)} onRestore={(content) => { editor.commands.setContent(content); setShowBackups(false); if(onForceSave) onForceSave(content); }} />}
             </div>
 
             {tableMenuData && (

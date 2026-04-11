@@ -88,6 +88,16 @@ func (s *SQLiteStore) migrate() error {
 		FOREIGN KEY(owner_id) REFERENCES users(id)
 	);
 
+	CREATE TABLE IF NOT EXISTS file_backups (
+		id TEXT PRIMARY KEY,
+		file_id TEXT NOT NULL,
+		slot_name TEXT NOT NULL,
+		encrypted_blob TEXT NOT NULL,
+		updated_at DATETIME NOT NULL,
+		FOREIGN KEY(file_id) REFERENCES files(id),
+		UNIQUE(file_id, slot_name)
+	);
+
     CREATE TABLE IF NOT EXISTS file_shares (
 		file_id TEXT NOT NULL,
 		user_id TEXT NOT NULL,
@@ -1415,5 +1425,53 @@ func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, 
 	}
 	return results, nil
 }
+
+// FileBackup Methods
+
+func (s *SQLiteStore) GetFileBackups(ctx context.Context, fileID string) ([]db.FileBackup, error) {
+	query := `SELECT id, file_id, slot_name, updated_at FROM file_backups WHERE file_id = ? ORDER BY updated_at DESC`
+	rows, err := s.DB.QueryContext(ctx, query, fileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var backups []db.FileBackup
+	for rows.Next() {
+		var b db.FileBackup
+		if err := rows.Scan(&b.ID, &b.FileID, &b.SlotName, &b.UpdatedAt); err != nil {
+			return nil, err
+		}
+		backups = append(backups, b)
+	}
+	return backups, nil
+}
+
+func (s *SQLiteStore) GetFileBackup(ctx context.Context, fileID, slotName string) (*db.FileBackup, error) {
+	query := `SELECT id, file_id, slot_name, encrypted_blob, updated_at FROM file_backups WHERE file_id = ? AND slot_name = ?`
+	row := s.DB.QueryRowContext(ctx, query, fileID, slotName)
+
+	var b db.FileBackup
+	if err := row.Scan(&b.ID, &b.FileID, &b.SlotName, &b.EncryptedBlob, &b.UpdatedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &b, nil
+}
+
+func (s *SQLiteStore) UpsertFileBackup(ctx context.Context, b *db.FileBackup) error {
+	query := `
+		INSERT INTO file_backups (id, file_id, slot_name, encrypted_blob, updated_at)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(file_id, slot_name) DO UPDATE SET
+			encrypted_blob = excluded.encrypted_blob,
+			updated_at = excluded.updated_at
+	`
+	_, err := s.DB.ExecContext(ctx, query, b.ID, b.FileID, b.SlotName, b.EncryptedBlob, b.UpdatedAt)
+	return err
+}
+
 
 

@@ -112,3 +112,12 @@ type SearchResult struct {
 	AvatarSalt      string `json:"avatar_salt,omitempty"`
 	AvatarStyle     string `json:"avatar_style,omitempty"`
 }
+
+
+type FileBackup struct {
+	ID            string    `json:"id" db:"id"`
+	FileID        string    `json:"file_id" db:"file_id"`
+	SlotName      string    `json:"slot_name" db:"slot_name"`
+	EncryptedBlob []byte    `json:"encrypted_blob" db:"encrypted_blob"`
+	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
+}
