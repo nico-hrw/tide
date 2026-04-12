@@ -93,6 +93,7 @@ func (s *SQLiteStore) migrate() error {
 		file_id TEXT NOT NULL,
 		slot_name TEXT NOT NULL,
 		encrypted_blob TEXT NOT NULL,
+		secured_meta BLOB,
 		updated_at DATETIME NOT NULL,
 		FOREIGN KEY(file_id) REFERENCES files(id),
 		UNIQUE(file_id, slot_name)
@@ -219,6 +220,7 @@ func (s *SQLiteStore) migrate() error {
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN access_keys TEXT")
 	_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0")
 	_, _ = s.DB.Exec("ALTER TABLE profiles ADD COLUMN avatar_salt TEXT NOT NULL DEFAULT ''")
+	_, _ = s.DB.Exec("ALTER TABLE file_backups ADD COLUMN secured_meta BLOB")
 
 	// 4. Create Indices (Now that columns exist)
 	indices := `
@@ -1429,17 +1431,16 @@ func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, 
 // FileBackup Methods
 
 func (s *SQLiteStore) GetFileBackups(ctx context.Context, fileID string) ([]db.FileBackup, error) {
-	query := `SELECT id, file_id, slot_name, updated_at FROM file_backups WHERE file_id = ? ORDER BY updated_at DESC`
+	query := `SELECT id, file_id, slot_name, secured_meta, updated_at FROM file_backups WHERE file_id = ? ORDER BY updated_at DESC`
 	rows, err := s.DB.QueryContext(ctx, query, fileID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-
 	var backups []db.FileBackup
 	for rows.Next() {
 		var b db.FileBackup
-		if err := rows.Scan(&b.ID, &b.FileID, &b.SlotName, &b.UpdatedAt); err != nil {
+		if err := rows.Scan(&b.ID, &b.FileID, &b.SlotName, &b.SecuredMeta, &b.UpdatedAt); err != nil {
 			return nil, err
 		}
 		backups = append(backups, b)
@@ -1448,11 +1449,10 @@ func (s *SQLiteStore) GetFileBackups(ctx context.Context, fileID string) ([]db.F
 }
 
 func (s *SQLiteStore) GetFileBackup(ctx context.Context, fileID, slotName string) (*db.FileBackup, error) {
-	query := `SELECT id, file_id, slot_name, encrypted_blob, updated_at FROM file_backups WHERE file_id = ? AND slot_name = ?`
+	query := `SELECT id, file_id, slot_name, encrypted_blob, secured_meta, updated_at FROM file_backups WHERE file_id = ? AND slot_name = ?`
 	row := s.DB.QueryRowContext(ctx, query, fileID, slotName)
-
 	var b db.FileBackup
-	if err := row.Scan(&b.ID, &b.FileID, &b.SlotName, &b.EncryptedBlob, &b.UpdatedAt); err != nil {
+	if err := row.Scan(&b.ID, &b.FileID, &b.SlotName, &b.EncryptedBlob, &b.SecuredMeta, &b.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrNotFound
 		}
@@ -1463,13 +1463,14 @@ func (s *SQLiteStore) GetFileBackup(ctx context.Context, fileID, slotName string
 
 func (s *SQLiteStore) UpsertFileBackup(ctx context.Context, b *db.FileBackup) error {
 	query := `
-		INSERT INTO file_backups (id, file_id, slot_name, encrypted_blob, updated_at)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO file_backups (id, file_id, slot_name, encrypted_blob, secured_meta, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(file_id, slot_name) DO UPDATE SET
 			encrypted_blob = excluded.encrypted_blob,
+			secured_meta = excluded.secured_meta,
 			updated_at = excluded.updated_at
 	`
-	_, err := s.DB.ExecContext(ctx, query, b.ID, b.FileID, b.SlotName, b.EncryptedBlob, b.UpdatedAt)
+	_, err := s.DB.ExecContext(ctx, query, b.ID, b.FileID, b.SlotName, b.EncryptedBlob, b.SecuredMeta, b.UpdatedAt)
 	return err
 }
 

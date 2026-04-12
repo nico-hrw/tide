@@ -119,5 +119,6 @@ type FileBackup struct {
 	FileID        string    `json:"file_id" db:"file_id"`
 	SlotName      string    `json:"slot_name" db:"slot_name"`
 	EncryptedBlob []byte    `json:"encrypted_blob" db:"encrypted_blob"`
+	SecuredMeta   []byte    `json:"secured_meta" db:"secured_meta"`
 	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
 }

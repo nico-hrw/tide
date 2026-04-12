@@ -28,6 +28,8 @@ const CanvasLayer = dynamic(() => import('@/components/Canvas/CanvasLayer'), {
 });
 import DailySummary from "@/components/Calendar/DailySummary";
 import MobileLayout from "@/components/Layout/MobileLayout";
+import BackupHistory from "@/components/BackupHistory";
+import { Clock } from 'lucide-react';
 
 
 const FinanceDashboard = dynamic(() => import('@/components/Finance/FinanceDashboard'), {
@@ -192,6 +194,7 @@ export default function Dashboard() {
     const [streak, setStreak] = useState(0);
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const [summaryStats, setSummaryStats] = useState({ events: 0, tasks: 0 });
+    const [showBackups, setShowBackups] = useState(false);
 
     // Data State (selectors)
     const {
@@ -2270,30 +2273,39 @@ export default function Dashboard() {
                                                         placeholder="Untitled Note"
                                                         className="text-4xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-700 pb-1 leading-normal overflow-visible flex-1"
                                                     />
-                                                    {/* Save status indicator */}
-                                                    <span
-                                                        title={saveStatus === 'saved' ? 'Gespeichert' : saveStatus === 'saving' ? 'Wird gespeichert…' : 'Nicht gespeichert'}
-                                                        className="shrink-0 self-end mb-2 transition-all duration-300"
-                                                    >
-                                                        {saveStatus === 'saved' && (
-                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400 opacity-60">
-                                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                                                                <polyline points="22 4 12 14.01 9 11.01" />
-                                                            </svg>
-                                                        )}
-                                                        {saveStatus === 'saving' && (
-                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 opacity-60 animate-spin">
-                                                                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                                                            </svg>
-                                                        )}
-                                                        {saveStatus === 'unsaved' && (
-                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400 opacity-70">
-                                                                <circle cx="12" cy="12" r="10" />
-                                                                <line x1="12" y1="8" x2="12" y2="12" />
-                                                                <line x1="12" y1="16" x2="12.01" y2="16" />
-                                                            </svg>
-                                                        )}
-                                                    </span>
+                                                    <div className="flex items-center gap-1 shrink-0 self-end mb-2">
+                                                        <button
+                                                            onClick={() => setShowBackups(true)}
+                                                            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 hover:text-indigo-600 transition-colors"
+                                                            title="Versionsverlauf / Backups"
+                                                        >
+                                                            <Clock size={16} />
+                                                        </button>
+                                                        {/* Save status indicator */}
+                                                        <span
+                                                            title={saveStatus === 'saved' ? 'Gespeichert' : saveStatus === 'saving' ? 'Wird gespeichert…' : 'Nicht gespeichert'}
+                                                            className="shrink-0 transition-all duration-300"
+                                                        >
+                                                            {saveStatus === 'saved' && (
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400 opacity-60">
+                                                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                                                    <polyline points="22 4 12 14.01 9 11.01" />
+                                                                </svg>
+                                                            )}
+                                                            {saveStatus === 'saving' && (
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 opacity-60 animate-spin">
+                                                                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                                                                </svg>
+                                                            )}
+                                                            {saveStatus === 'unsaved' && (
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400 opacity-70">
+                                                                    <circle cx="12" cy="12" r="10" />
+                                                                    <line x1="12" y1="8" x2="12" y2="12" />
+                                                                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                                                                </svg>
+                                                            )}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </>
                                         )}
@@ -2450,6 +2462,25 @@ export default function Dashboard() {
                 eventsToday={summaryStats.events}
                 completedTasksToday={summaryStats.tasks}
             />
+
+            {showBackups && activeNoteId && (
+                <BackupHistory
+                    fileId={activeNoteId}
+                    onCancel={() => setShowBackups(false)}
+                    onRestore={(content) => {
+                        editorInstance?.commands.setContent(content);
+                        setShowBackups(false);
+                        // Trigger a save with the restored content
+                        const currentFile = files.find(f => f.id === activeNoteId);
+                        if (currentFile) {
+                            setSaveStatus("saving");
+                            performSave(content, activeNoteId, activeFileKey, currentFile.visibility)
+                                .then(() => setSaveStatus("saved"))
+                                .catch(() => setSaveStatus("unsaved"));
+                        }
+                    }}
+                />
+            )}
         </div>
 
     );

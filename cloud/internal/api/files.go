@@ -669,11 +669,207 @@ func (h *FileHandler) PurgeFiles(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+		return
+	}
+
+	var req UpdateFileRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	file, err := h.Store.GetFile(r.Context(), id)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	ownerID, ok := r.Context().Value("user_id").(string)
+	if !ok || ownerID == "" || file.OwnerID != ownerID {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Update fields
+	if req.ParentID != nil {
+		file.ParentID = req.ParentID
+	}
+	if req.PublicMeta != nil {
+		file.PublicMeta = req.PublicMeta
+	}
+	if req.SecuredMeta != nil {
+		file.SecuredMeta = req.SecuredMeta
+	}
+	if req.Visibility != nil {
+		file.Visibility = *req.Visibility
+	}
+	if req.IsTask != nil {
+		file.IsTask = *req.IsTask
+	}
+	if req.IsCompleted != nil {
+		file.IsCompleted = *req.IsCompleted
+	}
+	if req.Exdates != nil {
+		file.Exdates = req.Exdates
+	}
+	if req.CompletedDates != nil {
+		file.CompletedDates = req.CompletedDates
+	}
+	if req.Version != nil {
+		file.Version = *req.Version
+	}
+	if req.Metadata != nil {
+		file.Metadata = req.Metadata
+	}
+	if req.AccessKeys != nil {
+		file.AccessKeys = req.AccessKeys
+	}
+	if req.ContentCiphertext != nil {
+		go h.handleBackupCascade(context.Background(), id)
+		if err := h.BlobStore.Put(r.Context(), id, strings.NewReader(*req.ContentCiphertext)); err != nil {
+			http.Error(w, "Failed to write blob", http.StatusInternalServerError)
+			return
+		}
+		path := id
+		file.BlobPath = &path
+	}
+	file.UpdatedAt = time.Now()
+
+	if err := h.Store.UpdateFile(r.Context(), file); err != nil {
+		http.Error(w, "Failed to update file", http.StatusInternalServerError)
+		return
+	}
+
+	// Broadcast event
+	go h.Broker.Broadcast(file.OwnerID, fmt.Sprintf(`{"type":"file_updated","file_id":"%s"}`, file.ID))
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(file)
+}
+
+func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "fileID")
+	if id == "" {
+		http.Error(w, "Missing file ID", http.StatusBadRequest)
+		return
+	}
+
+	// Verify file exists and belongs to user (skip ownership check for MVP speed)
+	file, err := h.Store.GetFile(r.Context(), id)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	go h.handleBackupCascade(context.Background(), id)
+
+	// Stream body to BlobStore
+	if err := h.BlobStore.Put(r.Context(), id, r.Body); err != nil {
+		http.Error(w, "Failed to write blob", http.StatusInternalServerError)
+		return
+	}
+
+	// Update file blob path (if not already set, though BlobStore abstracts path)
+	// We might want to mark it as "uploaded" or update size.
+	// For now, just assume it's there.
+	path := id // logic in LocalBlobStore uses ID as filename
+	file.BlobPath = &path
+	h.Store.UpdateFile(r.Context(), file)
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *FileHandler) DownloadFile(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "fileID")
+	if id == "" {
+		http.Error(w, "Missing file ID", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Check if user has access to this file
+	file, err := h.Store.GetAccessibleFile(r.Context(), id, userID)
+	if err != nil {
+		if err == store.ErrNotFound {
+			http.Error(w, "File not found or access denied", http.StatusForbidden)
+			return
+		}
+		http.Error(w, "Failed to verify access", http.StatusInternalServerError)
+		return
+	}
+
+	// CRITICAL: Use BlobPath for lookup, not file.ID
+	// This is essential for copied files which point to the original blob.
+	// Fallback to file.ID if BlobPath is not set
+	lookupID := id
+	if file.BlobPath != nil && *file.BlobPath != "" {
+		lookupID = *file.BlobPath
+	}
+
+	log.Printf("[DEBUG] DownloadFile: fileID=%s, lookupID=%s, visibility=%s", id, lookupID, file.Visibility)
+
+	rc, err := h.BlobStore.Get(r.Context(), lookupID)
+	if err != nil {
+		log.Printf("[ERROR] DownloadFile: Blob not found key=%s: %v", lookupID, err)
+		http.Error(w, "Blob not found", http.StatusNotFound)
+		return
+	}
+	defer rc.Close()
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	io.Copy(w, rc)
+}
+
+func (h *FileHandler) PurgeFiles(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// 1. Get all files for this user (Recursive)
+	files, err := h.Store.ListAccessibleFiles(r.Context(), userID, nil, nil, true)
+	if err != nil {
+		log.Printf("[PURGE] Failed to list files: %v", err)
+		http.Error(w, "Failed to list files", http.StatusInternalServerError)
+		return
+	}
+
+	purgedCount := 0
+	for _, f := range files {
+		// Only check user's OWN files
+		if f.OwnerID != userID {
+			continue
+		}
+
+		// Only check files with blob paths
+		if f.Type == "folder" || f.BlobPath == nil || *f.BlobPath == "" {
+			continue
+		}
+
+		// Simple existence check in BlobStore
+		exists := h.BlobStore.Exists(r.Context(), *f.BlobPath)
+		if !exists {
+			// Delete from DB
+			log.Printf("[PURGE] Deleting broken file record: %s (blob missing: %s)", f.ID, *f.BlobPath)
+			if err := h.Store.DeleteFile(r.Context(), f.ID); err == nil {
+				purgedCount++
+			}
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"message":      fmt.Sprintf("Purged %d broken files", purgedCount),
 		"purged_count": purgedCount,
 	})
 }
+
 func (h *FileHandler) GetFileBackups(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "fileID")
 	backups, err := h.Store.GetFileBackups(r.Context(), id)
@@ -731,6 +927,11 @@ func (h *FileHandler) handleBackupCascade(ctx context.Context, id string) {
 		{"2d", 48 * time.Hour},
 	}
 
+	file, err := h.Store.GetFile(ctx, id)
+	if err != nil {
+		return
+	}
+
 	for _, slot := range slots {
 		b := slotMap[slot.name]
 		if b == nil || now.Sub(b.UpdatedAt) > slot.dur {
@@ -739,6 +940,7 @@ func (h *FileHandler) handleBackupCascade(ctx context.Context, id string) {
 				FileID:        id,
 				SlotName:      slot.name,
 				EncryptedBlob: blobBytes,
+				SecuredMeta:   file.SecuredMeta,
 				UpdatedAt:     now,
 			}
 			_ = h.Store.UpsertFileBackup(ctx, newB)

@@ -914,10 +914,6 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                 }}
             >
                 <EditorContent editor={editor} />
-				<button onClick={() => setShowBackups(true)} className="absolute top-4 right-4 z-50 p-2 bg-white dark:bg-gray-800 rounded-full shadow hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-500 hover:text-indigo-600 transition-colors" title="Versionsverlauf / Backups">
-					<Clock size={18} />
-				</button>
-				{showBackups && activeTabId && <BackupHistory fileId={activeTabId} onCancel={() => setShowBackups(false)} onRestore={(content) => { editor.commands.setContent(content); setShowBackups(false); if(onForceSave) onForceSave(content); }} />}
             </div>
 
             {tableMenuData && (

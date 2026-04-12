@@ -8,6 +8,7 @@ interface BackupSlot {
     id: string;
     file_id: string;
     slot_name: string;
+    secured_meta?: string; // Base64 encoded secured_meta
     updated_at: string;
 }
 
@@ -22,7 +23,9 @@ export default function BackupHistory({ fileId, onRestore, onCancel }: { fileId:
             .then(res => res.json())
             .then(data => {
                 if(Array.isArray(data)) {
-                    setSlots(data.sort((a,b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()));
+                    // Filter out legacy backups that don't have secured_meta
+                    const validSlots = data.filter(s => !!s.secured_meta);
+                    setSlots(validSlots.sort((a,b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()));
                 }
             })
             .catch(console.error);
@@ -35,14 +38,15 @@ export default function BackupHistory({ fileId, onRestore, onCancel }: { fileId:
             const bRes = await apiFetch(`/api/v1/files/${fileId}/backups/${slotName}`);
             const backupData = await bRes.json();
             
-            const fileRecordRes = await apiFetch(`/api/v1/files/${fileId}`);
-            const fileRecord = await fileRecordRes.json();
-
             const { privateKey } = useDataStore.getState();
             if(!privateKey) throw new Error("No private key");
 
-            // Decrypt metadata to get fileKey and IV
-            const meta = await decryptMetadata(fileRecord.secured_meta, privateKey, `backup-${fileId}`);
+            if (!backupData.secured_meta) {
+                throw new Error("Missing metadata in backup");
+            }
+
+            // Decrypt metadata from the BACKUP to get the CORRECT fileKey and IV for this blob
+            const meta = await decryptMetadata(backupData.secured_meta, privateKey, `backup-${fileId}`);
             
             // Import file key
             const fileKey = await window.crypto.subtle.importKey(
