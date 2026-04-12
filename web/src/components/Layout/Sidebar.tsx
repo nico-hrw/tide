@@ -88,7 +88,7 @@ export default function Sidebar({
     const [myId, setMyId] = useState<string>("");
     const [sidebarUserProfile, setSidebarUserProfile] = useState<{ id?: string, user_id?: string, username: string, email: string, avatar_seed?: string, avatar_salt?: string } | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, id: string, type: 'file' | 'folder' } | null>(null);
-    const [dropIndicator, setDropIndicator] = useState<{ id: string, half: 'top' | 'bottom' } | null>(null);
+    const [dropIndicator, setDropIndicator] = useState<{ id: string, zone: 'top' | 'middle' | 'bottom' } | null>(null);
 
     const userProfile = propProfile || sidebarUserProfile;
 
@@ -195,11 +195,7 @@ export default function Sidebar({
             {/* VLM banner removed — linking mode logic stays active in HighlightContext */}
 
             <div
-                className="max-h-[58%] overflow-y-auto p-2 no-scrollbar"
-                style={{ 
-                    maskImage: 'linear-gradient(to bottom, black 85%, transparent 100%)',
-                    WebkitMaskImage: 'linear-gradient(to bottom, black 85%, transparent 100%)'
-                }}
+                className="max-h-[58%] overflow-y-auto p-2 pb-6 no-scrollbar"
                 onDoubleClick={(e) => {
                     if (e.target === e.currentTarget) onNewNote();
                 }}
@@ -248,37 +244,67 @@ export default function Sidebar({
                     </div>
                 </div>
 
-                <Reorder.Group axis="y" values={orderedItems} onReorder={handleReorder} className="space-y-0.5">
+                <div className="space-y-0.5">
                     {orderedItems.map((item, i) => (
-                        <Reorder.Item
+                        <motion.div
+                            layout="position"
                             key={item.id}
-                            value={item}
                             onDragOver={(e: React.DragEvent) => {
                                 e.preventDefault();
+                                e.stopPropagation();
                                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                const half = e.clientY < rect.top + rect.height / 2 ? 'top' : 'bottom';
-                                setDropIndicator({ id: item.id, half });
+                                const y = e.clientY - rect.top;
+                                let zone: 'top' | 'middle' | 'bottom' = 'middle';
+                                if (item.type === 'folder') {
+                                    if (y < rect.height * 0.25) zone = 'top';
+                                    else if (y > rect.height * 0.75) zone = 'bottom';
+                                } else {
+                                    zone = y < rect.height / 2 ? 'top' : 'bottom';
+                                }
+                                setDropIndicator({ id: item.id, zone });
                             }}
                             onDragLeave={() => setDropIndicator(null)}
                             onDrop={(e: React.DragEvent) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                const half = dropIndicator?.half || 'bottom';
+                                const zone = dropIndicator?.zone || 'bottom';
                                 setDropIndicator(null);
                                 const draggedId = e.dataTransfer.getData("text/plain");
                                 if (!draggedId || draggedId === item.id) return;
-                                const newItems = orderedItems.filter(o => o.id !== draggedId);
+                                
+                                if (zone === 'middle' && item.type === 'folder') {
+                                    onMoveItem?.(draggedId, item.id);
+                                    return;
+                                }
+
+                                const draggedFile = files.find(o => o.id === draggedId);
+                                if (!draggedFile) return;
+
+                                const newItems = [...orderedItems].filter(o => o.id !== draggedId);
                                 let dropIdx = newItems.findIndex(o => o.id === item.id);
-                                if (half === 'bottom') dropIdx += 1;
-                                const draggedItem = orderedItems.find(o => o.id === draggedId);
-                                if (draggedItem) {
-                                    newItems.splice(dropIdx, 0, draggedItem);
+                                if (zone === 'bottom') dropIdx += 1;
+                                
+                                if (draggedFile.parent_id !== null) {
+                                    onMoveItem?.(draggedId, null);
+                                    // Since it's moving from a folder to root, we must add it to the top level
+                                    newItems.splice(dropIdx, 0, draggedFile);
                                     handleReorder(newItems);
+                                } else {
+                                    // It's already top level, just reorder
+                                    const draggedItemInOrder = orderedItems.find(o => o.id === draggedId);
+                                    if (draggedItemInOrder) {
+                                        newItems.splice(dropIdx, 0, draggedItemInOrder);
+                                        handleReorder(newItems);
+                                    }
                                 }
                             }}
                         >
+                            {dropIndicator?.id === item.id && dropIndicator.zone === 'top' && (
+                                <motion.div layout initial={{ height: 0 }} animate={{ height: 40 }} className="bg-blue-50/50 rounded-lg border-2 border-dashed border-blue-300" />
+                            )}
+                            
                             {item.type === 'folder' ? (
-                                <div className={`relative ${dropIndicator?.id === item.id && dropIndicator.half === 'top' ? 'border-t-2 border-blue-500' : ''} ${dropIndicator?.id === item.id && dropIndicator.half === 'bottom' ? 'border-b-2 border-blue-500' : ''}`}>
+                                <div className={`relative ${dropIndicator?.id === item.id && dropIndicator.zone === 'middle' ? 'ring-2 ring-blue-500 bg-blue-50/50 rounded-lg' : ''}`}>
                                 <FolderItem
                                     folder={item}
                                     allFiles={files}
@@ -316,12 +342,15 @@ export default function Sidebar({
                                     enabledExtensions={enabledExtensions}
                                     myId={myId}
                                     onContextMenu={handleContextMenu}
-                                    isDragTarget={dropIndicator?.id === item.id ? dropIndicator.half : undefined}
                                 />
                             )}
-                        </Reorder.Item>
+
+                            {dropIndicator?.id === item.id && dropIndicator.zone === 'bottom' && (
+                                <motion.div layout initial={{ height: 0 }} animate={{ height: 40 }} className="bg-blue-50/50 rounded-lg border-2 border-dashed border-blue-300 mt-1" />
+                            )}
+                        </motion.div>
                     ))}
-                </Reorder.Group>
+                </div>
             </div>
 
             {/* Smart Island — absolutely positioned to bottom-left with equal margins */}
@@ -451,10 +480,11 @@ interface FileItemProps {
     index?: number;
 }
 
-const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onDragStart, onContextMenu, enabledExtensions, myId, index, isDragTarget }: FileItemProps & { isDragTarget?: 'top' | 'bottom' | undefined }) => {
+const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onDragStart, onContextMenu, enabledExtensions, myId, index }: FileItemProps) => {
     const { isHighlighted, highlight } = useHighlight();
     return (
         <motion.div
+            layout="position"
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: (index || 0) * 0.05 }}
@@ -471,8 +501,7 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
             }}
             className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 
                 ${isHighlighted(file.id, 'file') ? 'ring-2 ring-purple-500 bg-purple-50' : 'hover:bg-gray-100'} 
-                ${highlight.isSelectingLink ? 'ring-2 ring-purple-400/50 bg-purple-50/30' : ''} 
-                ${isDragTarget === 'top' ? 'border-t-2 border-blue-500' : isDragTarget === 'bottom' ? 'border-b-2 border-blue-500' : ''}`}
+                ${highlight.isSelectingLink ? 'ring-2 ring-purple-400/50 bg-purple-50/30' : ''}`}
             style={{ marginLeft: `${level * 12}px` }}
         >
             <div className="flex items-center gap-2 truncate flex-1 flex-shrink-0">
@@ -547,19 +576,20 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
     return (
         <div>
             <motion.div
+                layout="position"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: (index || 0) * 0.05 }}
                 draggable
                 onDragStart={(e: any) => onDragStart(e, folder.id)}
                 onContextMenu={(e: any) => onContextMenu(e, folder.id, 'folder')}
-                onDragOver={(e: any) => e.preventDefault()}
-                onDrop={(e) => {
+                onDragOver={level > 0 ? (e: any) => e.preventDefault() : undefined}
+                onDrop={level > 0 ? (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     const id = e.dataTransfer.getData("text/plain");
                     if (id && id !== folder.id) onMoveItem?.(id, folder.id);
-                }}
+                } : undefined}
                 onClick={handleToggle}
                 className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200
                     ${highlight.isSelectingLink ? 'ring-2 ring-purple-400/30 bg-purple-50/20' : 'hover:bg-gray-100'}

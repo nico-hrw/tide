@@ -1719,7 +1719,8 @@ export default function Dashboard() {
 
             // 4. Build body
             const body: any = {
-                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)))
+                secured_meta: securedMeta,
+                metadata: meta
             };
 
             // 5. Handle Theme Change

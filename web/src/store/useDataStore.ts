@@ -556,6 +556,12 @@ export const useDataStore = create<DataState>((set, get) => ({
 
                 if (f.visibility === 'public') {
                     if (f.public_meta?.title) metaData.title = f.public_meta.title;
+                } else if (f.version >= 2 && f.metadata) {
+                    metaData = {
+                        ...f.metadata,
+                        title: f.metadata.title || "Untitled"
+                    };
+                    newMetaCache[f.id] = metaData;
                 } else if (f.secured_meta) {
                     try {
                         const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `lazy-${f.id}`);

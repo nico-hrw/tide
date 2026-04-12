@@ -126,7 +126,7 @@ export default function BackupHistory({ fileId, onRestore, onCancel }: { fileId:
                         <h3 className="font-semibold mb-2 text-sm text-gray-500 uppercase tracking-wider">Vorschau</h3>
                         {loading && <p className="text-gray-500 animate-pulse">Lade & Entschlüssele...</p>}
                         {!loading && decryptedText && (
-                            <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900 rounded-xl text-sm border border-gray-100 dark:border-gray-800 pointer-events-none">
+                            <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900 rounded-xl text-sm border border-gray-100 dark:border-gray-800">
                                 {(() => {
                                     try {
                                         const parsed = JSON.parse(decryptedText);
