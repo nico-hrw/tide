@@ -702,6 +702,12 @@ func (h *FileHandler) GetFileBackup(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *FileHandler) handleBackupCascade(ctx context.Context, id string) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("RECOVERED in handleBackupCascade: %v", r)
+		}
+	}()
+
 	rc, err := h.BlobStore.Get(ctx, id)
 	if err != nil {
 		return
