@@ -96,22 +96,41 @@ export default function CalendarPage() {
             const decryptedEvents: CalendarEvent[] = [];
             for (const f of eventFiles) {
                 try {
-                    const meta = await cryptoLib.decryptMetadata(f.secured_meta, privateKey);
-                    decryptedEvents.push({
-                        id: f.id,
-                        title: (meta.title as string) || "Untitled Event",
-                        start: (meta.start as string),
-                        end: (meta.end as string),
-                        description: (meta.description as string),
-                        color: (meta.color as string),
-                        recurrence_rule: meta.recurrence_rule as string,
-                        exdates: meta.exdates as string[],
-                        completed_dates: meta.completed_dates as string[],
-                        is_task: !!meta.is_task,
-                        is_completed: !!meta.is_completed,
-                        is_cancelled: !!meta.is_cancelled,
-                        parent_id: f.parent_id
-                    });
+                    if (f.version >= 2 && f.metadata) {
+                        const meta = f.metadata;
+                        decryptedEvents.push({
+                            id: f.id,
+                            title: (meta.title as string) || "Untitled Event",
+                            start: (meta.start as string),
+                            end: (meta.end as string),
+                            description: (meta.description as string) || "",
+                            color: (meta.color as string),
+                            recurrence_rule: meta.recurrence_rule as string,
+                            exdates: meta.exdates as string[],
+                            completed_dates: meta.completed_dates as string[],
+                            is_task: !!meta.is_task,
+                            is_completed: !!meta.is_completed,
+                            is_cancelled: !!meta.is_cancelled,
+                            parent_id: f.parent_id
+                        });
+                    } else if (f.secured_meta) {
+                        const meta = await cryptoLib.decryptMetadata(f.secured_meta, privateKey);
+                        decryptedEvents.push({
+                            id: f.id,
+                            title: (meta.title as string) || "Untitled Event",
+                            start: (meta.start as string),
+                            end: (meta.end as string),
+                            description: (meta.description as string),
+                            color: (meta.color as string),
+                            recurrence_rule: meta.recurrence_rule as string,
+                            exdates: meta.exdates as string[],
+                            completed_dates: meta.completed_dates as string[],
+                            is_task: !!meta.is_task,
+                            is_completed: !!meta.is_completed,
+                            is_cancelled: !!meta.is_cancelled,
+                            parent_id: f.parent_id
+                        });
+                    }
                 } catch (e) {
                     console.error("Failed to decrypt event:", f.id);
                 }
@@ -308,6 +327,7 @@ export default function CalendarPage() {
                     start: updatedEvent.start,
                     end: updatedEvent.end,
                     color: updatedEvent.color,
+                    description: (updatedEvent as any).description || "",
                     recurrence_rule: (updatedEvent as any).recurrence_rule,
                     exdates: (updatedEvent as any).exdates || [],
                     completed_dates: (updatedEvent as any).completed_dates || [],

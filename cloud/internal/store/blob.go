@@ -2,9 +2,11 @@ package store
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // BlobStore defines the interface for storing binary blobs.
@@ -33,14 +35,21 @@ func (s *LocalBlobStore) Put(ctx context.Context, id string, r io.Reader) error 
 		return err
 	}
 
-	f, err := os.Create(path)
+	tempPath := fmt.Sprintf("%s.tmp.%d", path, time.Now().UnixNano())
+	f, err := os.Create(tempPath)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
 	_, err = io.Copy(f, r)
-	return err
+	f.Close()
+
+	if err != nil {
+		os.Remove(tempPath)
+		return err
+	}
+
+	return os.Rename(tempPath, path)
 }
 
 func (s *LocalBlobStore) Get(ctx context.Context, id string) (io.ReadCloser, error) {

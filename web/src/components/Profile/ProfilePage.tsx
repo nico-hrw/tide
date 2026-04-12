@@ -148,7 +148,7 @@ export default function ProfilePage({ userId, onOpenFile, onMessage }: ProfilePa
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
             const payload: any = {
-                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta))),
+                secured_meta: securedMeta,
                 public_meta: {
                     ...updatedEvent.public_meta,
                     title: meta.title,

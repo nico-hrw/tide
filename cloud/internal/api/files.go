@@ -530,13 +530,23 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		file.AccessKeys = req.AccessKeys
 	}
 	if req.ContentCiphertext != nil {
-		go h.handleBackupCascade(context.Background(), id)
+		oldRc, err := h.BlobStore.Get(r.Context(), id)
+		var oldBlobBytes []byte
+		if err == nil {
+			oldBlobBytes, _ = io.ReadAll(oldRc)
+			oldRc.Close()
+		}
+
 		if err := h.BlobStore.Put(r.Context(), id, strings.NewReader(*req.ContentCiphertext)); err != nil {
 			http.Error(w, "Failed to write blob", http.StatusInternalServerError)
 			return
 		}
 		path := id
 		file.BlobPath = &path
+
+		if len(oldBlobBytes) > 0 {
+			go h.handleBackupCascade(context.Background(), id, oldBlobBytes)
+		}
 	}
 	file.UpdatedAt = time.Now()
 
@@ -566,12 +576,21 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go h.handleBackupCascade(context.Background(), id)
+	oldRc, err := h.BlobStore.Get(r.Context(), id)
+	var oldBlobBytes []byte
+	if err == nil {
+		oldBlobBytes, _ = io.ReadAll(oldRc)
+		oldRc.Close()
+	}
 
 	// Stream body to BlobStore
 	if err := h.BlobStore.Put(r.Context(), id, r.Body); err != nil {
 		http.Error(w, "Failed to write blob", http.StatusInternalServerError)
 		return
+	}
+
+	if len(oldBlobBytes) > 0 {
+		go h.handleBackupCascade(context.Background(), id, oldBlobBytes)
 	}
 
 	// Update file blob path (if not already set, though BlobStore abstracts path)
@@ -701,20 +720,14 @@ func (h *FileHandler) GetFileBackup(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(b)
 }
 
-func (h *FileHandler) handleBackupCascade(ctx context.Context, id string) {
+func (h *FileHandler) handleBackupCascade(ctx context.Context, id string, blobBytes []byte) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("RECOVERED in handleBackupCascade: %v", r)
 		}
 	}()
 
-	rc, err := h.BlobStore.Get(ctx, id)
-	if err != nil {
-		return
-	}
-	defer rc.Close()
-	blobBytes, err := io.ReadAll(rc)
-	if err != nil || len(blobBytes) == 0 {
+	if len(blobBytes) == 0 {
 		return
 	}
 	backups, err := h.Store.GetFileBackups(ctx, id)

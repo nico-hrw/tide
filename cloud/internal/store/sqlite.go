@@ -656,6 +656,7 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 		&f.Visibility,
 		&f.PublicMeta,
 		&f.SecuredMeta,
+		&f.ShareStatus,
 		&f.IsTask,
 		&f.IsCompleted,
 		&exd,

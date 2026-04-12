@@ -3,6 +3,7 @@ import { apiFetch } from '../lib/api';
 import { useDataStore } from '../store/useDataStore';
 import { decryptMetadata, decryptFile } from '../lib/crypto';
 import { Clock, RotateCcw } from 'lucide-react';
+import Editor from './Editor';
 
 interface BackupSlot {
     id: string;
@@ -125,8 +126,15 @@ export default function BackupHistory({ fileId, onRestore, onCancel }: { fileId:
                         <h3 className="font-semibold mb-2 text-sm text-gray-500 uppercase tracking-wider">Vorschau</h3>
                         {loading && <p className="text-gray-500 animate-pulse">Lade & Entschlüssele...</p>}
                         {!loading && decryptedText && (
-                            <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900 p-4 rounded-xl text-sm whitespace-pre-wrap font-mono border border-gray-100 dark:border-gray-800">
-                                {decryptedText}
+                            <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900 rounded-xl text-sm border border-gray-100 dark:border-gray-800 pointer-events-none">
+                                {(() => {
+                                    try {
+                                        const parsed = JSON.parse(decryptedText);
+                                        return <Editor initialContent={parsed} editable={false} />;
+                                    } catch (e) {
+                                        return <div className="p-4 whitespace-pre-wrap font-mono">{decryptedText}</div>;
+                                    }
+                                })()}
                             </div>
                         )}
                         {!loading && decryptedText && (
