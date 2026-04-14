@@ -1544,15 +1544,37 @@ export default function Dashboard() {
             const meta = { title, start: start.toISOString(), end: end.toISOString(), allDay: isAllDay, ...extraMeta };
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
+            const bodyPayload: any = {
+                type: "event",
+                parent_id: null,
+                public_meta: {},
+            };
+            
+            try {
+                const { encryptFileV2 } = await import('@/lib/cryptoV2');
+                const contentString = JSON.stringify({
+                    title: title,
+                    description: extraMeta.description || ""
+                });
+                
+                const v2Result = await encryptFileV2(contentString, publicKey);
+                bodyPayload.version = 2;
+                bodyPayload.metadata = {
+                    ...v2Result.metadata,
+                    ...meta
+                };
+                bodyPayload.access_keys = { [myId]: v2Result.encrypted_dek };
+                bodyPayload.content_ciphertext = v2Result.content_ciphertext;
+            } catch (e) {
+                console.error("V2 encryption failed for create", e);
+                // fallback to V1
+                bodyPayload.secured_meta = Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)));
+            }
+
             const res = await apiFetch("/api/v1/files", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    type: "event",
-                    parent_id: null,
-                    public_meta: {},
-                    secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)))
-                })
+                body: JSON.stringify(bodyPayload)
             });
             if (res.ok) {
                 const newFile = await res.json().catch(() => null);
@@ -1719,9 +1741,29 @@ export default function Dashboard() {
 
             // 4. Build body
             const body: any = {
-                secured_meta: securedMeta,
-                metadata: meta
+                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta))),
             };
+
+            try {
+                const { encryptFileV2 } = await import('@/lib/cryptoV2');
+                const contentString = JSON.stringify({
+                    title: meta.title,
+                    description: meta.description || ""
+                });
+                
+                const v2Result = await encryptFileV2(contentString, publicKey);
+                
+                body.version = 2;
+                body.metadata = {
+                    ...v2Result.metadata,
+                    ...meta
+                };
+                body.access_keys = { [sessionStorage.getItem("tide_user_id") || ""]: v2Result.encrypted_dek };
+                body.content_ciphertext = v2Result.content_ciphertext;
+            } catch (e) {
+                console.error("V2 encryption failed for save", e);
+                body.metadata = meta; // fallback
+            }
 
             // 5. Handle Theme Change
             if (updates.parent_id !== undefined) {

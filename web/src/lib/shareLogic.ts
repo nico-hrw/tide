@@ -101,7 +101,7 @@ export async function performMessengerShare(
                                                 type: 'note',
                                                 size: newImgCiphertext.size,
                                                 public_meta: {},
-                                                secured_meta: newImgEncryptedMeta,
+                                                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(newImgEncryptedMeta))),
                                                 visibility: 'private'
                                             }),
                                         });
@@ -139,7 +139,7 @@ export async function performMessengerShare(
                                 type: 'note',
                                 size: newNoteCiphertext.size,
                                 public_meta: {},
-                                secured_meta: newNoteEncryptedMeta,
+                                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(newNoteEncryptedMeta))),
                                 visibility: 'private'
                             }),
                         });
@@ -156,12 +156,13 @@ export async function performMessengerShare(
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
                                     email: recipientEmail,
-                                    secured_meta: newNoteEncryptedMeta
+                                    secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(newNoteEncryptedMeta)))
                                 })
                             });
 
                             if (!shareRes.ok) throw new Error("Failed to share copied file");
 
+                            const preview = newText.replace(/<[^>]*>?/gm, '').substring(0, 150);
                             await apiFetch("/api/v1/messages", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
@@ -172,7 +173,13 @@ export async function performMessengerShare(
                                         file_id: newNoteFile.id,
                                         file_name: meta.title,
                                         file_type: "note",
-                                        file_preview: newText.replace(/<[^>]*>?/gm, '').substring(0, 150)
+                                        file_preview: preview,
+                                        attachment: {
+                                            file_id: newNoteFile.id,
+                                            file_name: meta.title,
+                                            file_type: "note",
+                                            file_preview: preview
+                                        }
                                     })
                                 })
                             });
@@ -195,7 +202,7 @@ export async function performMessengerShare(
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             email: recipientEmail,
-                            secured_meta: evEncrypted
+                            secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(evEncrypted)))
                         })
                     });
                 } catch (err) {
@@ -210,11 +217,15 @@ export async function performMessengerShare(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 email: recipientEmail,
-                secured_meta: reEncryptedMeta
+                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(reEncryptedMeta)))
             })
         });
 
         if (!shareRes.ok) throw new Error("Failed to share file");
+
+        const previewData = file.type === 'event'
+            ? { start: meta.start, end: meta.end, description: meta.description }
+            : (meta.content ? meta.content.substring(0, 150) : "");
 
         const messageRes = await apiFetch("/api/v1/messages", {
             method: "POST",
@@ -226,9 +237,13 @@ export async function performMessengerShare(
                     file_id: fileId,
                     file_name: shareModalFile.title,
                     file_type: file.type,
-                    file_preview: file.type === 'event'
-                        ? { start: meta.start, end: meta.end, description: meta.description }
-                        : (meta.content ? meta.content.substring(0, 150) : "")
+                    file_preview: previewData,
+                    attachment: {
+                        file_id: fileId,
+                        file_name: shareModalFile.title,
+                        file_type: file.type,
+                        file_preview: previewData
+                    }
                 })
             })
         });

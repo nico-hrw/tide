@@ -1,7 +1,6 @@
-import Image from '@tiptap/extension-image';
-import { mergeAttributes } from '@tiptap/core';
+import ImageResize from 'tiptap-extension-resize-image';
 
-export const ResizableImage = Image.extend({
+export const ResizableImage = ImageResize.extend({
     addAttributes() {
         return {
             ...this.parent?.(),
@@ -10,17 +9,7 @@ export const ResizableImage = Image.extend({
             title: { default: null },
             width: { default: null },
             height: { default: null },
+            style: { default: 'max-width: 100%; height: auto;' },
         };
-    },
-
-    parseHTML() {
-        return [{ tag: 'div[data-type="image-anchor"]' }, { tag: 'img[src]' }];
-    },
-
-    renderHTML({ HTMLAttributes }) {
-        return ['div', mergeAttributes(HTMLAttributes, {
-            'data-type': 'image-anchor',
-            style: 'height: 0; width: 0; overflow: hidden; position: relative;',
-        })];
     },
 });

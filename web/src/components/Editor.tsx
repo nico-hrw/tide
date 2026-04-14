@@ -320,6 +320,7 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         Anchor,
         DateMentionExtension,
         TaskMentionExtension,
+        ResizableImage,
         Table.configure({
             resizable: true,
         }),

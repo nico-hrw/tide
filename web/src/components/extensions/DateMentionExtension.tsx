@@ -24,11 +24,11 @@ const GERMAN_MONTHS: Record<string, number> = {
 };
 
 function parseDate(raw: string): Date | null {
-    // DD.MM.YY or DD.MM.YYYY
-    const dotMatch = raw.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/);
+    // DD.MM. or DD.MM.YY or DD.MM.YYYY
+    const dotMatch = raw.match(/^(\d{1,2})\.(\d{1,2})\.?(\d{2}|\d{4})?$/);
     if (dotMatch) {
-        let year = parseInt(dotMatch[3], 10);
-        if (year < 100) year += 2000;
+        let year = dotMatch[3] ? parseInt(dotMatch[3], 10) : new Date().getFullYear();
+        if (year > 0 && year < 100) year += 2000;
         const d = new Date(year, parseInt(dotMatch[2], 10) - 1, parseInt(dotMatch[1], 10));
         if (!isNaN(d.getTime())) return d;
     }
@@ -40,8 +40,9 @@ function parseDate(raw: string): Date | null {
         const monthKey = wordMatch[2].toLowerCase();
         const month = GERMAN_MONTHS[monthKey];
         if (month !== undefined) {
-            const year = wordMatch[3] ? parseInt(wordMatch[3], 10) : new Date().getFullYear();
-            const d = new Date(year, month, day);
+            const yearMatch = wordMatch[3];
+            const parsedYear = yearMatch ? parseInt(yearMatch) : new Date().getFullYear();
+            const d = new Date(parsedYear, month, day);
             if (!isNaN(d.getTime())) return d;
         }
     }
@@ -54,9 +55,9 @@ function formatDateLabel(date: Date): string {
 }
 
 // ── Regex patterns for InputRules ─────────────────────────────────────────────
-// Matches: 13.03.26 / 13.03.2026 / 13. März / 13. März 2026 / 13 March 2026
-// Followed by a space or end of line
-const DATE_REGEX = /(?:^|\s)(\d{1,2}\.\d{1,2}\.\d{2}(?:\d{2})?|\d{1,2}\.?\s+[A-Za-zÄÖÜäöü]+(?:\s+\d{4})?)(\s)$/;
+// Matches: 3.4. / 3.4 / 13.03.26 / 13.03.2026 / 13. März / 13. März 2026 / 13 March 2026
+// Followed by a space or end of line (using word boundary check at the end of capture block to prevent partial matching like 20266)
+const DATE_REGEX = /(?:^|\s)(\d{1,2}\.\d{1,2}\.?(?:\d{2,4})?(?!\d)|\d{1,2}\.?\s+[A-Za-zÄÖÜäöü]+(?:\s+\d{4})?(?!\d))(\s)$/;
 
 // ── DateMentionNodeView (React Component) ─────────────────────────────────────
 

@@ -39,7 +39,7 @@ export const ReferenceScannerMode = Extension.create({
                             return {
                                 id: ref.id,
                                 term: ref.term,
-                                regex: new RegExp(`\\b(${escapedTerm})\\b`, 'gi')
+                                regex: new RegExp(`(?<=^|[^\\\\wäöüÄÖÜß])(${escapedTerm})(?=[^\\\\wäöüÄÖÜß]|$)`, 'gi')
                             };
                         }).filter(Boolean) as { id: string, term: string, regex: RegExp }[];
 
@@ -137,7 +137,7 @@ export const ReferenceAutopilotMode = Extension.create({
                     return {
                         id: ref.id,
                         term: ref.term,
-                        regex: new RegExp(`\\b(${escapedTerm})\\b`, 'gi'),
+                        regex: new RegExp(`(?<=^|[^\\\\wäöüÄÖÜß])(${escapedTerm})(?=[^\\\\wäöüÄÖÜß]|$)`, 'gi'),
                     };
                 });
 

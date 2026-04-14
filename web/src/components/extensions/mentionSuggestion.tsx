@@ -273,10 +273,18 @@ export default {
                     useLinkStore.getState().setIsLinkingMode(false);
                     if ((window as any).cancelLinkSelection) (window as any).cancelLinkSelection();
                     if (popup) popup[0].destroy();
+                    popup = null;
                     return true;
                 }
 
-                return (component?.ref as any)?.onKeyDown(props);
+                const handled = (component?.ref as any)?.onKeyDown(props);
+                if (handled && props.event.key === 'Enter') {
+                    if (popup) {
+                      popup[0].destroy();
+                      popup = null;
+                    }
+                }
+                return handled;
             },
 
             onExit() {

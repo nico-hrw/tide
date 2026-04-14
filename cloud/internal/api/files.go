@@ -33,7 +33,7 @@ func (h *FileHandler) RegisterRoutes(r chi.Router) {
 	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(AuthMiddleware)
-		
+
 		r.Get("/", h.ListFiles)
 		r.Post("/", h.CreateFile)
 
@@ -108,18 +108,18 @@ func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 }
 
 type UpdateFileRequest struct {
-	ParentID    *string         `json:"parent_id"`
-	PublicMeta  json.RawMessage `json:"public_meta"`
-	SecuredMeta []byte          `json:"secured_meta"`
-	Visibility  *string         `json:"visibility"`
-	IsTask         *bool           `json:"is_task"`
-	IsCompleted    *bool           `json:"is_completed"`
-	Exdates        json.RawMessage `json:"exdates"`
-	CompletedDates json.RawMessage `json:"completed_dates"`
-	Version        *int            `json:"version"`
-	Metadata       json.RawMessage `json:"metadata"`
-	AccessKeys     json.RawMessage `json:"access_keys"`
-	ContentCiphertext *string      `json:"content_ciphertext"`
+	ParentID          *string         `json:"parent_id"`
+	PublicMeta        json.RawMessage `json:"public_meta"`
+	SecuredMeta       []byte          `json:"secured_meta"`
+	Visibility        *string         `json:"visibility"`
+	IsTask            *bool           `json:"is_task"`
+	IsCompleted       *bool           `json:"is_completed"`
+	Exdates           json.RawMessage `json:"exdates"`
+	CompletedDates    json.RawMessage `json:"completed_dates"`
+	Version           *int            `json:"version"`
+	Metadata          json.RawMessage `json:"metadata"`
+	AccessKeys        json.RawMessage `json:"access_keys"`
+	ContentCiphertext *string         `json:"content_ciphertext"`
 }
 
 func (h *FileHandler) GetFileMetadata(w http.ResponseWriter, r *http.Request) {
@@ -400,12 +400,12 @@ func (h *FileHandler) CopyFile(w http.ResponseWriter, r *http.Request) {
 }
 
 type CreateFileRequest struct {
-	ParentID    *string         `json:"parent_id"`
-	Type        db.FileType     `json:"type"`
-	MIMEType    *string         `json:"mime_type"`
-	Size        int64           `json:"size"`
-	PublicMeta  json.RawMessage `json:"public_meta"`
-	SecuredMeta []byte          `json:"secured_meta"`
+	ParentID       *string         `json:"parent_id"`
+	Type           db.FileType     `json:"type"`
+	MIMEType       *string         `json:"mime_type"`
+	Size           int64           `json:"size"`
+	PublicMeta     json.RawMessage `json:"public_meta"`
+	SecuredMeta    []byte          `json:"secured_meta"`
 	Visibility     string          `json:"visibility"`
 	IsTask         bool            `json:"is_task"`
 	IsCompleted    bool            `json:"is_completed"`
@@ -435,16 +435,16 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	file := &db.File{
-		ID:          uuid.New().String(),
-		OwnerID:     ownerID,
-		ParentID:    req.ParentID,
-		Type:        req.Type,
-		MIMEType:    req.MIMEType,
-		Size:        req.Size,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-		Visibility:  visibility,
-		PublicMeta:  req.PublicMeta,
+		ID:             uuid.New().String(),
+		OwnerID:        ownerID,
+		ParentID:       req.ParentID,
+		Type:           req.Type,
+		MIMEType:       req.MIMEType,
+		Size:           req.Size,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+		Visibility:     visibility,
+		PublicMeta:     req.PublicMeta,
 		SecuredMeta:    req.SecuredMeta,
 		IsTask:         req.IsTask,
 		IsCompleted:    req.IsCompleted,
@@ -745,10 +745,11 @@ func (h *FileHandler) handleBackupCascade(ctx context.Context, id string, blobBy
 		name string
 		dur  time.Duration
 	}{
-		{"10m", 10 * time.Minute},
-		{"1h", 1 * time.Hour},
-		{"1d", 24 * time.Hour},
-		{"2d", 48 * time.Hour},
+		{"10 minutes", 10 * time.Minute},
+		{"30 minutes", 30 * time.Minute},
+		{" 1 hour", 1 * time.Hour},
+		{" 1 day", 24 * time.Hour},
+		{" 2 days", 48 * time.Hour},
 	}
 
 	file, err := h.Store.GetFile(ctx, id)
