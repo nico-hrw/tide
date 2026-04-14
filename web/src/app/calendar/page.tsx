@@ -194,7 +194,7 @@ export default function CalendarPage() {
                     type: "event",
                     parent_id: null,
                     public_meta: {},
-                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)))
+                secured_meta: securedMeta
                 })
             });
 
@@ -304,7 +304,7 @@ export default function CalendarPage() {
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
             const payload: any = {
-                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta))),
+                secured_meta: securedMeta,
                 is_task: !!meta.is_task,
                 is_completed: !!meta.is_completed,
                 exdates: meta.exdates || [],
@@ -424,7 +424,7 @@ export default function CalendarPage() {
                 body: JSON.stringify({
                     type: "folder",
                     isGroup: true,
-                    secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)))
+                    secured_meta: securedMeta
                 })
             });
             if (res.ok) {

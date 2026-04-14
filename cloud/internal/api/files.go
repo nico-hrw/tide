@@ -110,7 +110,7 @@ func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 type UpdateFileRequest struct {
 	ParentID          *string         `json:"parent_id"`
 	PublicMeta        json.RawMessage `json:"public_meta"`
-	SecuredMeta       []byte          `json:"secured_meta"`
+	SecuredMeta       *string         `json:"secured_meta"`
 	Visibility        *string         `json:"visibility"`
 	IsTask            *bool           `json:"is_task"`
 	IsCompleted       *bool           `json:"is_completed"`
@@ -243,7 +243,7 @@ func (h *FileHandler) ListPublicFiles(w http.ResponseWriter, r *http.Request) {
 
 type ShareRequest struct {
 	RecipientEmail string `json:"email"`
-	SecuredMeta    []byte `json:"secured_meta"`
+	SecuredMeta    string `json:"secured_meta"`
 }
 
 func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
@@ -263,7 +263,7 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Share with metadata encrypted for recipient
-	if err := h.Store.ShareFile(r.Context(), fileID, recipient.ID, req.SecuredMeta); err != nil {
+	if err := h.Store.ShareFile(r.Context(), fileID, recipient.ID, []byte(req.SecuredMeta)); err != nil {
 		http.Error(w, "Failed to share file", http.StatusInternalServerError)
 		return
 	}
@@ -405,7 +405,7 @@ type CreateFileRequest struct {
 	MIMEType       *string         `json:"mime_type"`
 	Size           int64           `json:"size"`
 	PublicMeta     json.RawMessage `json:"public_meta"`
-	SecuredMeta    []byte          `json:"secured_meta"`
+	SecuredMeta    string          `json:"secured_meta"`
 	Visibility     string          `json:"visibility"`
 	IsTask         bool            `json:"is_task"`
 	IsCompleted    bool            `json:"is_completed"`
@@ -445,7 +445,7 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:      time.Now(),
 		Visibility:     visibility,
 		PublicMeta:     req.PublicMeta,
-		SecuredMeta:    req.SecuredMeta,
+		SecuredMeta:    []byte(req.SecuredMeta),
 		IsTask:         req.IsTask,
 		IsCompleted:    req.IsCompleted,
 		Exdates:        req.Exdates,
@@ -503,7 +503,7 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		file.PublicMeta = req.PublicMeta
 	}
 	if req.SecuredMeta != nil {
-		file.SecuredMeta = req.SecuredMeta
+		file.SecuredMeta = []byte(*req.SecuredMeta)
 	}
 	if req.Visibility != nil {
 		file.Visibility = *req.Visibility

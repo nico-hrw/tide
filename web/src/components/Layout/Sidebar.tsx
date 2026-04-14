@@ -500,9 +500,14 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                 }
             }}
             className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 
-                ${isHighlighted(file.id, 'file') ? 'ring-2 ring-purple-500 bg-purple-50' : 'hover:bg-gray-100'} 
-                ${highlight.isSelectingLink ? 'ring-2 ring-purple-400/50 bg-purple-50/30' : ''}`}
-            style={{ marginLeft: `${level * 12}px` }}
+                ${isHighlighted(file.id, 'file') ? 'bg-purple-50' : 'hover:bg-gray-100'} 
+                ${highlight.isSelectingLink ? 'bg-purple-50/30' : ''}`}
+            style={{ 
+                marginLeft: `${level * 12}px`,
+                boxShadow: highlight.isSelectingLink 
+                    ? '0 0 10px rgba(168, 85, 247, 0.6)' 
+                    : (isHighlighted(file.id, 'file') ? '0 0 5px rgba(168, 85, 247, 0.4)' : 'none')
+            }}
         >
             <div className="flex items-center gap-2 truncate flex-1 flex-shrink-0">
                 {file.title.startsWith('#') ? <Lock size={15} className="shrink-0 text-gray-400" /> : <FileText size={15} className="shrink-0 text-gray-400" />}

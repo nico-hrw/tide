@@ -922,7 +922,7 @@ export default function Dashboard() {
                     type: "folder",
                     parent_id: null,
                     public_meta: {},
-                    secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta))),
+                    secured_meta: securedMeta,
                     visibility: 'private'
                 })
             });
@@ -962,7 +962,7 @@ export default function Dashboard() {
             await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(encryptedMeta))) })
+                body: JSON.stringify({ secured_meta: encryptedMeta })
             });
 
             // Re-fetch root to ensure consistency, but optimistic update already made it smooth
@@ -1339,7 +1339,7 @@ export default function Dashboard() {
                 await apiFetch(`/api/v1/files/${fileId}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(encryptedMeta))) })
+                    body: JSON.stringify({ secured_meta: encryptedMeta })
                 });
             }
 
@@ -1464,7 +1464,7 @@ export default function Dashboard() {
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
                                     email: contact.partner.email,
-                                    secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(reEncMeta)))
+                                    secured_meta: reEncMeta
                                 })
                             });
                         } catch (e) { console.error("Failed to share with contact", contact.partner.email, e); }
@@ -1642,7 +1642,7 @@ export default function Dashboard() {
             await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta))) })
+                body: JSON.stringify({ secured_meta: securedMeta })
             });
         } catch (e) { console.error(e); }
     };
@@ -1741,7 +1741,7 @@ export default function Dashboard() {
 
             // 4. Build body
             const body: any = {
-                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta))),
+                secured_meta: securedMeta,
             };
 
             try {

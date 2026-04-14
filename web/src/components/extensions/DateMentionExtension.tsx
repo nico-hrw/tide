@@ -268,18 +268,24 @@ export const DateMentionExtension = Node.create({
                     const isoDate = parsed.toISOString();
                     const label = formatDateLabel(parsed);
 
-                    // Compute the exact text range to replace (exclude the trailing space)
+                    // Compute the exact text range to replace
                     const matchedText = match[0];
-                    const trailingSpace = match[2] || '';
-                    const fromPos = range.from + (matchedText.length - match[1].length - trailingSpace.length);
-                    const toPos = range.to - trailingSpace.length;
+                    const trailingSpace = match[2] || ' ';
+                    const leadingSpaceLength = matchedText.length - match[1].length - match[2].length;
+                    const fromPos = range.from + leadingSpaceLength;
 
                     chain()
-                        .deleteRange({ from: fromPos, to: toPos })
-                        .insertContentAt(fromPos, {
-                            type: 'dateMention',
-                            attrs: { isoDate, label },
-                        })
+                        .deleteRange({ from: fromPos, to: range.to })
+                        .insertContentAt(fromPos, [
+                            {
+                                type: 'dateMention',
+                                attrs: { isoDate, label },
+                            },
+                            {
+                                type: 'text',
+                                text: trailingSpace,
+                            }
+                        ])
                         .run();
                 },
             }),
