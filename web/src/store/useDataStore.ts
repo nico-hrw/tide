@@ -732,7 +732,7 @@ export const useDataStore = create<DataState>((set, get) => ({
             await processItems(allFiles, decryptedNotes, 'note');
             await processItems(allEvents, decryptedEvents, 'event');
 
-            const visibleNotes = decryptedNotes.filter(f => (f.share_status || 'owner') !== 'pending' && f.type !== 'folder');
+            const visibleNotes = decryptedNotes.filter(f => (f.share_status || 'owner') !== 'pending');
             const visibleEvents = decryptedEvents.filter(e => (e.share_status || 'owner') !== 'pending');
 
             set(s => ({

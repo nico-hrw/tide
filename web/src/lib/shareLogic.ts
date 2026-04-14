@@ -101,7 +101,7 @@ export async function performMessengerShare(
                                                 type: 'note',
                                                 size: newImgCiphertext.size,
                                                 public_meta: {},
-                                                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(newImgEncryptedMeta))),
+                                                secured_meta: newImgEncryptedMeta,
                                                 visibility: 'private'
                                             }),
                                         });
@@ -139,7 +139,7 @@ export async function performMessengerShare(
                                 type: 'note',
                                 size: newNoteCiphertext.size,
                                 public_meta: {},
-                                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(newNoteEncryptedMeta))),
+                                secured_meta: newNoteEncryptedMeta,
                                 visibility: 'private'
                             }),
                         });
@@ -156,7 +156,7 @@ export async function performMessengerShare(
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
                                     email: recipientEmail,
-                                    secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(newNoteEncryptedMeta)))
+                                    secured_meta: newNoteEncryptedMeta
                                 })
                             });
 
@@ -173,13 +173,7 @@ export async function performMessengerShare(
                                         file_id: newNoteFile.id,
                                         file_name: meta.title,
                                         file_type: "note",
-                                        file_preview: preview,
-                                        attachment: {
-                                            file_id: newNoteFile.id,
-                                            file_name: meta.title,
-                                            file_type: "note",
-                                            file_preview: preview
-                                        }
+                                        file_preview: preview
                                     })
                                 })
                             });
@@ -202,7 +196,7 @@ export async function performMessengerShare(
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             email: recipientEmail,
-                            secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(evEncrypted)))
+                            secured_meta: evEncrypted
                         })
                     });
                 } catch (err) {
@@ -217,7 +211,7 @@ export async function performMessengerShare(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 email: recipientEmail,
-                secured_meta: Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(reEncryptedMeta)))
+                secured_meta: reEncryptedMeta
             })
         });
 
@@ -237,13 +231,7 @@ export async function performMessengerShare(
                     file_id: fileId,
                     file_name: shareModalFile.title,
                     file_type: file.type,
-                    file_preview: previewData,
-                    attachment: {
-                        file_id: fileId,
-                        file_name: shareModalFile.title,
-                        file_type: file.type,
-                        file_preview: previewData
-                    }
+                    file_preview: previewData
                 })
             })
         });

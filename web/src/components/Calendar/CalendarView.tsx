@@ -95,12 +95,16 @@ export default function CalendarView({
     const [currentTime, setCurrentTime] = useState(new Date());
 
     const isPrependingRef = useRef(false);
-    const { highlight, startLinkSelection } = useHighlight();
+    const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
 
     useEffect(() => {
         (window as any).startLinkSelection = startLinkSelection;
-        return () => { delete (window as any).startLinkSelection; };
-    }, [startLinkSelection]);
+        (window as any).cancelLinkSelection = cancelLinkSelection;
+        return () => { 
+            delete (window as any).startLinkSelection; 
+            delete (window as any).cancelLinkSelection;
+        };
+    }, [startLinkSelection, cancelLinkSelection]);
 
 
     // Unified drop logic is now handled in handleGlobalMouseUp
@@ -299,7 +303,7 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
             setFreq(rMatch[1].toLowerCase());
             if (rMatch[2]) setIntervalVal(parseInt(rMatch[2], 10));
         }
-    }, [event.id, event.start, event.exdates, event.is_cancelled]);
+    }, [event.id, event.start, JSON.stringify(event.exdates), event.is_cancelled]);
 
 
     const handleTitleBlur = () => { if (title !== event.title) onEventSave(event.id, { title }); };

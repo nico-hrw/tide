@@ -274,6 +274,8 @@ export default {
                     if ((window as any).cancelLinkSelection) (window as any).cancelLinkSelection();
                     if (popup) popup[0].destroy();
                     popup = null;
+                    // Ensure focus returns to the editor
+                    props.editor?.commands?.focus?.();
                     return true;
                 }
 

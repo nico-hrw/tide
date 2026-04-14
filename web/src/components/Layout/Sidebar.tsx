@@ -591,9 +591,7 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                     if (id && id !== folder.id) onMoveItem?.(id, folder.id);
                 } : undefined}
                 onClick={handleToggle}
-                className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200
-                    ${highlight.isSelectingLink ? 'ring-2 ring-purple-400/30 bg-purple-50/20' : 'hover:bg-gray-100'}
-                `}
+                className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-100`}
                 style={{ marginLeft: `${level * 12}px` }}
             >
                 <div className="flex items-center gap-2 truncate flex-1">

@@ -1568,7 +1568,7 @@ export default function Dashboard() {
             } catch (e) {
                 console.error("V2 encryption failed for create", e);
                 // fallback to V1
-                bodyPayload.secured_meta = Array.from(new Uint8Array(cryptoLib.base64ToArrayBuffer(securedMeta)));
+                bodyPayload.secured_meta = securedMeta;
             }
 
             const res = await apiFetch("/api/v1/files", {
