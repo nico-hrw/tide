@@ -112,10 +112,6 @@ type UpdateFileRequest struct {
 	PublicMeta        json.RawMessage `json:"public_meta"`
 	SecuredMeta       *string         `json:"secured_meta"`
 	Visibility        *string         `json:"visibility"`
-	IsTask            *bool           `json:"is_task"`
-	IsCompleted       *bool           `json:"is_completed"`
-	Exdates           json.RawMessage `json:"exdates"`
-	CompletedDates    json.RawMessage `json:"completed_dates"`
 	Version           *int            `json:"version"`
 	Metadata          json.RawMessage `json:"metadata"`
 	AccessKeys        json.RawMessage `json:"access_keys"`
@@ -407,10 +403,6 @@ type CreateFileRequest struct {
 	PublicMeta     json.RawMessage `json:"public_meta"`
 	SecuredMeta    string          `json:"secured_meta"`
 	Visibility     string          `json:"visibility"`
-	IsTask         bool            `json:"is_task"`
-	IsCompleted    bool            `json:"is_completed"`
-	Exdates        json.RawMessage `json:"exdates"`
-	CompletedDates json.RawMessage `json:"completed_dates"`
 	Version        int             `json:"version"`
 	Metadata       json.RawMessage `json:"metadata"`
 	AccessKeys     json.RawMessage `json:"access_keys"`
@@ -446,10 +438,6 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		Visibility:     visibility,
 		PublicMeta:     req.PublicMeta,
 		SecuredMeta:    []byte(req.SecuredMeta),
-		IsTask:         req.IsTask,
-		IsCompleted:    req.IsCompleted,
-		Exdates:        req.Exdates,
-		CompletedDates: req.CompletedDates,
 		Version:        req.Version,
 		Metadata:       req.Metadata,
 		AccessKeys:     req.AccessKeys,
@@ -507,18 +495,6 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Visibility != nil {
 		file.Visibility = *req.Visibility
-	}
-	if req.IsTask != nil {
-		file.IsTask = *req.IsTask
-	}
-	if req.IsCompleted != nil {
-		file.IsCompleted = *req.IsCompleted
-	}
-	if req.Exdates != nil {
-		file.Exdates = req.Exdates
-	}
-	if req.CompletedDates != nil {
-		file.CompletedDates = req.CompletedDates
 	}
 	if req.Version != nil {
 		file.Version = *req.Version

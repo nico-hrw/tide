@@ -211,10 +211,6 @@ func (s *SQLiteStore) migrate() error {
 	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN status TEXT DEFAULT 'pending'")
 	_, _ = s.DB.Exec("ALTER TABLE messages ADD COLUMN status TEXT DEFAULT 'pending'")
 	_, _ = s.DB.Exec("ALTER TABLE ext_finance_accounts ADD COLUMN linked_account_id TEXT")
-	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN is_task INTEGER DEFAULT 0")
-	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN is_completed INTEGER DEFAULT 0")
-	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN exdates TEXT DEFAULT '[]'")
-	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN completed_dates TEXT DEFAULT '[]'")
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN version INTEGER DEFAULT 1")
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN metadata TEXT")
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN access_keys TEXT")
@@ -500,17 +496,9 @@ func (s *SQLiteStore) UpdateUserExtensions(ctx context.Context, id string, exten
 func (s *SQLiteStore) CreateFile(ctx context.Context, file *db.File) error {
 	query := `
 		INSERT INTO files (id, owner_id, parent_id, type, mime_type, size, 
-created_at, updated_at, blob_path, visibility, public_meta, secured_meta, is_task, is_completed, exdates, completed_dates, version, metadata, access_keys)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+created_at, updated_at, blob_path, visibility, public_meta, secured_meta, version, metadata, access_keys)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	exd := string(file.Exdates)
-	if exd == "" {
-		exd = "[]"
-	}
-	cd := string(file.CompletedDates)
-	if cd == "" {
-		cd = "[]"
-	}
 	md := string(file.Metadata)
 	if md == "" {
 		md = "{}"
@@ -532,10 +520,6 @@ created_at, updated_at, blob_path, visibility, public_meta, secured_meta, is_tas
 		file.Visibility,
 		file.PublicMeta,
 		file.SecuredMeta,
-		file.IsTask,
-		file.IsCompleted,
-		exd,
-		cd,
 		file.Version,
 		md,
 		ak,
@@ -544,11 +528,11 @@ created_at, updated_at, blob_path, visibility, public_meta, secured_meta, is_tas
 }
 
 func (s *SQLiteStore) GetFile(ctx context.Context, id string) (*db.File, error) {
-		query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, COALESCE(visibility, 'private') as visibility, public_meta, COALESCE(secured_meta, x'') as secured_meta, COALESCE(is_task, 0) as is_task, COALESCE(is_completed, 0) as is_completed, COALESCE(NULLIF(exdates, ''), '[]') as exdates, COALESCE(NULLIF(completed_dates, ''), '[]') as completed_dates, COALESCE(version, 1) as version, COALESCE(NULLIF(metadata, ''), '{}') as metadata, COALESCE(NULLIF(access_keys, ''), '{}') as access_keys FROM files WHERE id = ?`
+		query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, COALESCE(visibility, 'private') as visibility, public_meta, COALESCE(secured_meta, x'') as secured_meta, COALESCE(version, 1) as version, COALESCE(NULLIF(metadata, ''), '{}') as metadata, COALESCE(NULLIF(access_keys, ''), '{}') as access_keys FROM files WHERE id = ?`
 	row := s.DB.QueryRowContext(ctx, query, id)
 
 	var file db.File
-	var exd, cd, md, ak string
+	var md, ak string
 	err := row.Scan(
 		&file.ID,
 		&file.OwnerID,
@@ -562,17 +546,11 @@ func (s *SQLiteStore) GetFile(ctx context.Context, id string) (*db.File, error) 
 		&file.Visibility,
 		&file.PublicMeta,
 		&file.SecuredMeta,
-		&file.IsTask,
-		&file.IsCompleted,
-		&exd,
-		&cd,
 		&file.Version,
 		&md,
 		&ak,
 	)
 	if err == nil {
-		file.Exdates = json.RawMessage(exd)
-		file.CompletedDates = json.RawMessage(cd)
 		file.Metadata = json.RawMessage(md)
 		file.AccessKeys = json.RawMessage(ak)
 	}
@@ -623,10 +601,6 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 		SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta,
 			   COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			   COALESCE(fs.status, 'owner') as share_status,
-			   COALESCE(f.is_task, 0) as is_task,
-			   COALESCE(f.is_completed, 0) as is_completed,
-			   COALESCE(NULLIF(f.exdates, ''), '[]') as exdates,
-			   COALESCE(NULLIF(f.completed_dates, ''), '[]') as completed_dates,
 			   COALESCE(f.version, 1) as version,
 			   COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			   COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -642,7 +616,7 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 	row := s.DB.QueryRowContext(ctx, query, viewerID, id, viewerID, viewerID, viewerID)
 
 	var f db.File
-	var exd, cd, md, ak string
+	var md, ak string
 	err := row.Scan(
 		&f.ID,
 		&f.OwnerID,
@@ -657,17 +631,11 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 		&f.PublicMeta,
 		&f.SecuredMeta,
 		&f.ShareStatus,
-		&f.IsTask,
-		&f.IsCompleted,
-		&exd,
-		&cd,
 		&f.Version,
 		&md,
 		&ak,
 	)
 	if err == nil {
-		f.Exdates = json.RawMessage(exd)
-		f.CompletedDates = json.RawMessage(cd)
 		f.Metadata = json.RawMessage(md)
 		f.AccessKeys = json.RawMessage(ak)
 	}
@@ -684,17 +652,9 @@ func (s *SQLiteStore) UpdateFile(ctx context.Context, file *db.File) error {
 	query := `
 		UPDATE files
 		SET owner_id=?, parent_id=?, type=?, mime_type=?, size=?, updated_at=?, 
-blob_path=?, visibility=?, public_meta=?, secured_meta=?, is_task=?, is_completed=?, exdates=?, completed_dates=?, version=?, metadata=?, access_keys=?
+blob_path=?, visibility=?, public_meta=?, secured_meta=?, version=?, metadata=?, access_keys=?
 		WHERE id=?
 	`
-	exd := string(file.Exdates)
-	if exd == "" {
-		exd = "[]"
-	}
-	cd := string(file.CompletedDates)
-	if cd == "" {
-		cd = "[]"
-	}
 	md := string(file.Metadata)
 	if md == "" {
 		md = "{}"
@@ -714,10 +674,6 @@ blob_path=?, visibility=?, public_meta=?, secured_meta=?, is_task=?, is_complete
 		file.Visibility,
 		file.PublicMeta,
 		file.SecuredMeta,
-		file.IsTask,
-		file.IsCompleted,
-		exd,
-		cd,
 		file.Version,
 		md,
 		ak,
@@ -814,10 +770,6 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta, 
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
-			       COALESCE(f.is_task, 0) as is_task,
-			       COALESCE(f.is_completed, 0) as is_completed,
-			       COALESCE(NULLIF(f.exdates, ''), '[]') as exdates,
-			       COALESCE(NULLIF(f.completed_dates, ''), '[]') as completed_dates,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -840,10 +792,6 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta, 
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
-			       COALESCE(f.is_task, 0) as is_task,
-			       COALESCE(f.is_completed, 0) as is_completed,
-			       COALESCE(NULLIF(f.exdates, ''), '[]') as exdates,
-			       COALESCE(NULLIF(f.completed_dates, ''), '[]') as completed_dates,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -870,10 +818,6 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta,
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
-			       COALESCE(f.is_task, 0) as is_task,
-			       COALESCE(f.is_completed, 0) as is_completed,
-			       COALESCE(NULLIF(f.exdates, ''), '[]') as exdates,
-			       COALESCE(NULLIF(f.completed_dates, ''), '[]') as completed_dates,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -888,10 +832,6 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta,
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
-			       COALESCE(f.is_task, 0) as is_task,
-			       COALESCE(f.is_completed, 0) as is_completed,
-			       COALESCE(NULLIF(f.exdates, ''), '[]') as exdates,
-			       COALESCE(NULLIF(f.completed_dates, ''), '[]') as completed_dates,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -911,7 +851,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 	defer rows.Close()
 
 	results := make([]*db.File, 0)
-	var exd, cd, md, ak string
+	var md, ak string
 	for rows.Next() {
 		var f db.File
 		if err := rows.Scan(
@@ -928,18 +868,12 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			&f.PublicMeta,
 			&f.SecuredMeta,
 			&f.ShareStatus,
-			&f.IsTask,
-			&f.IsCompleted,
-			&exd,
-			&cd,
 			&f.Version,
 			&md,
 			&ak,
 		); err != nil {
 			return nil, err
 		}
-		f.Exdates = json.RawMessage(exd)
-		f.CompletedDates = json.RawMessage(cd)
 		f.Metadata = json.RawMessage(md)
 		f.AccessKeys = json.RawMessage(ak)
 		results = append(results, &f)
@@ -1352,7 +1286,7 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewe
 	var results []*db.File
 	for rows.Next() {
 		var f db.File
-		var exd, cd, md, ak string
+		var md, ak string
 		if err := rows.Scan(
 			&f.ID,
 			&f.OwnerID,
@@ -1366,18 +1300,12 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewe
 			&f.Visibility,
 			&f.PublicMeta,
 			&f.SecuredMeta,
-			&f.IsTask,
-			&f.IsCompleted,
-			&exd,
-			&cd,
 			&f.Version,
 			&md,
 			&ak,
 		); err != nil {
 			return nil, err
 		}
-		f.Exdates = json.RawMessage(exd)
-		f.CompletedDates = json.RawMessage(cd)
 		f.Metadata = json.RawMessage(md)
 		f.AccessKeys = json.RawMessage(ak)
 		results = append(results, &f)

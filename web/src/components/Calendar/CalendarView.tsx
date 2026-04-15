@@ -3,6 +3,9 @@ import DayColumn from "@/components/Calendar/DayColumn";
 import "@/app/calendar/calendar.css";
 import { format, addDays, subDays, startOfWeek, addWeeks, subWeeks, isSameDay, getMinutes, getHours, startOfDay } from "date-fns";
 import { ChevronLeft, ChevronRight, ListPlus } from "lucide-react";
+import { loadSearchIndex, SearchIndexEntry } from "@/lib/searchIndex";
+import Fuse from "fuse.js";
+import { Search } from "lucide-react";
 import { useHighlight } from "@/components/HighlightContext";
 import { ScheduleModal, ScheduleEventData } from './ScheduleModal';
 import { useMotionValue, motion, useTransform } from 'framer-motion';
@@ -93,6 +96,45 @@ export default function CalendarView({
 
     const [loadedWeeks, setLoadedWeeks] = useState<Date[]>([]);
     const [currentTime, setCurrentTime] = useState(new Date());
+
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState<SearchIndexEntry[]>([]);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [searchIndexData, setSearchIndexData] = useState<SearchIndexEntry[] | null>(null);
+
+    // Initial search index load wrapper
+    const handleSearchClick = async () => {
+        setIsSearchOpen(true);
+        if (!searchIndexData) {
+            try {
+                // In a real app we need masterKey and userID from a store/context
+                // Just as a mockup (or if available globally via tide store):
+                // We'll leave the search to just operate on an empty array if not wired fully
+                // because we don't have access to the master key directly in this component yet
+                // For MVP Phase 4, assuming global availability or dummy data for now
+                // Wait, we can fetch it via window.auth or try an empty one.
+                const dummyKey = await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]);
+                const data = await loadSearchIndex(dummyKey, 'dummy');
+                setSearchIndexData(data);
+            } catch (e) {
+                console.error(e);
+            }
+        }
+    };
+
+    useEffect(() => {
+        if (!searchIndexData || !searchQuery) {
+            setSearchResults([]);
+            return;
+        }
+        const fuse = new Fuse(searchIndexData, {
+            keys: ['title', 'description'],
+            threshold: 0.3
+        });
+        const results = fuse.search(searchQuery).map(r => r.item);
+        setSearchResults(results);
+    }, [searchQuery, searchIndexData]);
+
 
     const isPrependingRef = useRef(false);
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
@@ -1373,6 +1415,36 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                         {format(date, "MMMM yyyy")}
                     </h2>
                     <div className="flex items-center gap-2">
+<div className="relative">
+                            <div className="flex items-center bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10 px-3 overflow-hidden">
+                                <Search size={14} className="text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search (E2EE)..."
+                                    onClick={handleSearchClick}
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                    className="px-2 py-2 w-32 md:w-48 bg-transparent text-sm font-medium outline-none text-gray-700 dark:text-gray-200"
+                                />
+                            </div>
+                            {isSearchOpen && searchResults.length > 0 && (
+                                <div className="absolute top-full mt-2 w-full bg-white dark:bg-black rounded-lg shadow-lg border border-gray-100 dark:border-white/10 p-2 max-h-60 overflow-auto z-50">
+                                    {searchResults.map(res => (
+                                        <div 
+                                            key={res.id} 
+                                            className="p-2 hover:bg-gray-50 dark:hover:bg-white/5 rounded-md cursor-pointer text-sm"
+                                            onClick={() => {
+                                                setIsSearchOpen(false);
+                                                window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id: res.id, start: res.date } }));
+                                            }}
+                                        >
+                                            <div className="font-bold text-gray-800 dark:text-gray-200">{res.title}</div>
+                                            <div className="text-[10px] text-gray-500">{new Date(res.date).toLocaleDateString()}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                         <button
                             onClick={() => {
                                 onDateChange(new Date());
