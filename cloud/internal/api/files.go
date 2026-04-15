@@ -350,7 +350,8 @@ func (h *FileHandler) SetVisibility(w http.ResponseWriter, r *http.Request) {
 
 type CopyRequest struct {
 	TargetParentID *string `json:"target_parent_id"`
-	NewOwnerID     string  `json:"new_owner_id"` // In real app, from JWT
+	// NewOwnerID intentionally removed: owner is ALWAYS the authenticated user (viewerID from JWT).
+	// Accepting owner_id from the request body was a Privilege Escalation vulnerability.
 }
 
 func (h *FileHandler) CopyFile(w http.ResponseWriter, r *http.Request) {
@@ -388,26 +389,23 @@ func (h *FileHandler) CopyFile(w http.ResponseWriter, r *http.Request) {
 	// BETTER: Fix `GetFile` to optionally check access or use `ListAccessibleFiles` with ID filter.
 	// }
 
-	// 3. Create Copy
+	// 3. Create Copy — OwnerID is ALWAYS the requesting user (viewerID from JWT).
+	//    The frontend may still pass new_owner_id in the body, but it is ignored.
 	newFile := &db.File{
 		ID:          uuid.New().String(),
-		OwnerID:     req.NewOwnerID,
+		OwnerID:     viewerID, // [FIX MITTEL-1] JWT context, never from request body
 		ParentID:    req.TargetParentID,
 		Type:        original.Type,
 		MIMEType:    original.MIMEType,
 		Size:        original.Size,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
-		BlobPath:    original.BlobPath,   // Point to SAME blob (Deduplication)
-		Visibility:  original.Visibility, // Preserve visibility (Copies of public files remain public until user privatizes them)
+		BlobPath:    original.BlobPath,
+		Visibility:  original.Visibility,
 		PublicMeta:  original.PublicMeta,
-		SecuredMeta: original.SecuredMeta, // Note: This might be encrypted with Owner's Key!
-		// CRITICAL: If SecuredMeta is encrypted with Owner's Key, Recipient cannot read it!
-		// For Copy to work in E2EE, the Client must decrypt original and re-encrypt for themselves.
-		// Server-side copy of SecuredMeta implies we copy the *ciphertext*.
-		// If Client B has the file key (via Sharing), they can decrypt it.
-		// If Public, maybe PublicMeta has enough info?
-		// MVP: We copy bits. Client logic handles keys.
+		SecuredMeta: original.SecuredMeta,
+		// NOTE: access_keys and metadata are intentionally NOT copied.
+		// The client must re-encrypt the content for their own key after copying.
 	}
 
 	if err := h.Store.CreateFile(r.Context(), newFile); err != nil {
@@ -766,7 +764,13 @@ func (h *FileHandler) handleBackupCascade(ctx context.Context, id string, blobBy
 				SlotName:      slot.name,
 				EncryptedBlob: blobBytes,
 				SecuredMeta:   file.SecuredMeta,
-				UpdatedAt:     now,
+				// [FIX MITTEL-6] Include V2 cryptographic metadata so the backup can be decrypted.
+				// For V1 files: AccessKeys is nil/empty and Version is 1 — both safe defaults.
+				// For V2 files: AccessKeys contains all wrapped DEKs (per-user); without this
+				// the backup blob is an unrestorable ciphertext.
+				AccessKeys: file.AccessKeys,
+				Version:    file.Version,
+				UpdatedAt:  now,
 			}
 			_ = h.Store.UpsertFileBackup(ctx, newB)
 		}

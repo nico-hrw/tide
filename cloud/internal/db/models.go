@@ -111,10 +111,14 @@ type SearchResult struct {
 
 
 type FileBackup struct {
-	ID            string    `json:"id" db:"id"`
-	FileID        string    `json:"file_id" db:"file_id"`
-	SlotName      string    `json:"slot_name" db:"slot_name"`
-	EncryptedBlob []byte    `json:"encrypted_blob" db:"encrypted_blob"`
-	SecuredMeta   []byte    `json:"secured_meta" db:"secured_meta"`
-	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
+	ID            string          `json:"id" db:"id"`
+	FileID        string          `json:"file_id" db:"file_id"`
+	SlotName      string          `json:"slot_name" db:"slot_name"`
+	EncryptedBlob []byte          `json:"encrypted_blob" db:"encrypted_blob"`
+	SecuredMeta   []byte          `json:"secured_meta" db:"secured_meta"`
+	// [FIX MITTEL-6] V2 fields — required for envelope-encrypted backups to be restorable.
+	// Without access_keys the recipient cannot unwrap the DEK and the backup is useless.
+	AccessKeys    json.RawMessage `json:"access_keys" db:"access_keys"`
+	Version       int             `json:"version" db:"version"`
+	UpdatedAt     time.Time       `json:"updated_at" db:"updated_at"`
 }

@@ -889,8 +889,12 @@ export default function Dashboard() {
             try {
                 const data = JSON.parse(event.data);
                 if (['file_created', 'file_updated', 'file_deleted', 'file_shared'].includes(data.type)) {
-                    useDataStore.getState().loadedDirectories.clear();
-                    useDataStore.getState().fetchDirectory(null);
+                    // [FIX HOCH-4] Use Zustand's setState so the store registers the cleared set
+                    // and components that subscribe to loadedDirectories re-render correctly.
+                    // Direct Set.clear() bypassed Zustand's reactivity — guards in fetchDirectory
+                    // read the old (non-cleared) snapshot and silently returned early.
+                    useDataStore.setState({ loadedDirectories: new Set() });
+                    useDataStore.getState().fetchDirectory(null, true);
                 }
             } catch (e) { console.error("SSE Parse Error", e); }
         };

@@ -86,15 +86,13 @@ func (b *Broker) listen() {
 }
 
 func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Read securely from context (set by AuthMiddleware if wrapped, otherwise query param fallback for direct access if necessary)
-	// Actually, best to wrap it in main.go
+	// [FIX MITTEL-2] user_id MUST come from the JWT context set by AuthMiddleware.
+	// The previous query-param fallback (?user_id=...) was an authentication bypass:
+	// any caller could impersonate any user_id without a valid token.
+	// Since this route is registered with r.With(api.AuthMiddleware), the context
+	// value is always populated for authenticated requests.
 	userID, ok := r.Context().Value("user_id").(string)
 	if !ok || userID == "" {
-		// Fallback for direct SSE access if query param is provided (though AuthMiddleware is preferred)
-		userID = r.URL.Query().Get("user_id")
-	}
-
-	if userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
