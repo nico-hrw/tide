@@ -45,6 +45,56 @@ export async function loadSearchIndex(masterKey: CryptoKey, userID: string): Pro
     return cachedIndex || [];
 }
 
+export async function rebuildIndex(items: SearchIndexEntry[], masterKey: CryptoKey, userID: string) {
+    cachedIndex = items;
+    
+    // We need to ensure we know the indexFileId if it exists but is empty
+    if (!indexFileId) {
+        const res = await apiFetch(`/api/v1/files?type=index&recursive=true`);
+        const files = await res.json().catch(() => []);
+        const indexFile = files.find((f: any) => f.type === 'index');
+        if (indexFile) indexFileId = indexFile.id;
+    }
+
+    const v2Result = await cryptoV2.encryptFileV2(JSON.stringify(items), masterKey);
+    const accessKeysMap = { [userID]: v2Result.encrypted_dek };
+
+    if (!indexFileId) {
+        const createRes = await apiFetch('/api/v1/files', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                type: 'index',
+                size: new Blob([v2Result.content_ciphertext]).size,
+                public_meta: {},
+                secured_meta: "",
+                visibility: 'private',
+                version: 2,
+                metadata: v2Result.metadata,
+                access_keys: accessKeysMap
+            }),
+        });
+        if (createRes.ok) {
+            const newFile = await createRes.json();
+            indexFileId = newFile.id;
+            await apiFetch(`/api/v1/files/${indexFileId}/upload`, { 
+                method: "POST", body: v2Result.content_ciphertext 
+            });
+        }
+    } else {
+        await apiFetch(`/api/v1/files/${indexFileId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                version: 2,
+                content_ciphertext: v2Result.content_ciphertext,
+                metadata: v2Result.metadata,
+                access_keys: accessKeysMap
+            })
+        });
+    }
+}
+
 export async function updateSearchIndex(entry: SearchIndexEntry, masterKey: CryptoKey, userID: string) {
     const index = await loadSearchIndex(masterKey, userID);
     const existingIdx = index.findIndex(e => e.id === entry.id);

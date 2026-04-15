@@ -342,6 +342,18 @@ export default function Dashboard() {
             return;
         }
 
+        const title = (currentFile as any).title || fileNameRef.current;
+        if (title && title.includes('Locked')) {
+            console.warn(`[AutoSave] Aborted: Refusing to overwrite a Locked Note/Task`);
+            return;
+        }
+        
+        const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
+        if (contentStr === 'decrypting' || contentStr.includes('DECRYPTION ERROR') || (currentFile as any)._decryptionFailed) {
+            console.warn(`[AutoSave] Aborted: Refusing to save decrypting or errored content`);
+            return;
+        }
+
         if (!performSaveRef.current) {
             console.warn("[AutoSave] Aborting save: performSaveRef.current is null.");
             return;
@@ -754,6 +766,27 @@ export default function Dashboard() {
                 .then(res => res.ok ? res.json() : null)
                 .then(data => { if (data?.order) useDataStore.getState().setOrderedNoteIds(data.order); })
                 .catch(() => { });
+
+            import('@/lib/searchIndex').then(({ loadSearchIndex, rebuildIndex }) => {
+                loadSearchIndex(privateKey, myId).then(async (idx) => {
+                    if (!idx || idx.length === 0) {
+                        try {
+                            await useDataStore.getState().loadAllMetadata();
+                            const s = useDataStore.getState();
+                            const items = [
+                                ...s.events.map(e => ({ id: e.id, title: e.title, date: (e as any).start || new Date().toISOString(), type: 'event' as const })),
+                                ...s.notes.map(n => ({ id: n.id, title: n.title, date: new Date().toISOString(), type: 'note' as const })),
+                                ...s.tasks.map(t => ({ id: t.id, title: t.title, date: new Date().toISOString(), type: 'task' as const }))
+                            ];
+                            if (items.length > 0) {
+                                await rebuildIndex(items, privateKey, myId);
+                            }
+                        } catch (e) {
+                            console.error("Index initialization failed", e);
+                        }
+                    }
+                });
+            });
         }
     }, [privateKey, publicKey, myId, setKeys, fetchDirectory]);
 

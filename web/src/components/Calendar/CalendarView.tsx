@@ -108,14 +108,12 @@ export default function CalendarView({
         if (!searchIndexData) {
             try {
                 // In a real app we need masterKey and userID from a store/context
-                // Just as a mockup (or if available globally via tide store):
-                // We'll leave the search to just operate on an empty array if not wired fully
-                // because we don't have access to the master key directly in this component yet
-                // For MVP Phase 4, assuming global availability or dummy data for now
-                // Wait, we can fetch it via window.auth or try an empty one.
-                const dummyKey = await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt"]);
-                const data = await loadSearchIndex(dummyKey, 'dummy');
-                setSearchIndexData(data);
+                const store = require('@/store/useDataStore').useDataStore;
+                const { privateKey, myId } = store.getState();
+                if (privateKey && myId) {
+                    const data = await loadSearchIndex(privateKey, myId);
+                    setSearchIndexData(data);
+                }
             } catch (e) {
                 console.error(e);
             }
@@ -308,6 +306,7 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
 }) => {
     const [title, setTitle] = useState(event.title);
     const [description, setDescription] = useState(event.description || '');
+    const [isEditing, setIsEditing] = useState(false);
     const [isTask, setIsTask] = useState(!!event.is_task);
     const [isCompleted, setIsCompleted] = useState(!!event.is_completed);
     
@@ -332,9 +331,11 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
     const [interval, setIntervalVal] = useState(rruleInterval);
 
     useEffect(() => {
-        setTitle(event.title);
-        setDescription(event.description || '');
-        setIsTask(!!event.is_task);
+        if (!isEditing) {
+            setTitle(event.title);
+            setDescription(event.description || '');
+            setIsTask(!!event.is_task);
+        }
         setIsCompleted(!!event.is_completed);
         
         const occKey = format(new Date(event.start), "yyyy-MM-dd");
@@ -423,9 +424,14 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                 />
                 <input
                     autoFocus
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    onBlur={handleTitleBlur}
+                    defaultValue={event.title}
+                    onFocus={() => setIsEditing(true)}
+                    onBlur={(e) => {
+                        setIsEditing(false);
+                        const newTitle = e.target.value;
+                        setTitle(newTitle);
+                        if (newTitle !== event.title) onEventSave(event.id, { title: newTitle });
+                    }}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                             e.preventDefault();
@@ -533,9 +539,14 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
 
             {/* Description */}
             <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                onBlur={handleDescBlur}
+                defaultValue={event.description || ''}
+                onFocus={() => setIsEditing(true)}
+                onBlur={(e) => {
+                    setIsEditing(false);
+                    const newDesc = e.target.value;
+                    setDescription(newDesc);
+                    if (newDesc !== (event.description || '')) onEventSave(event.id, { description: newDesc });
+                }}
                 placeholder="Add notes..."
                 rows={2}
                 className="w-full bg-transparent border border-gray-100 dark:border-white/5 rounded-2xl p-3 text-xs leading-relaxed text-gray-600 dark:text-gray-400 focus:ring-1 focus:ring-violet-500/20 outline-none resize-none transition-all placeholder:text-gray-300 dark:placeholder:text-gray-700"
