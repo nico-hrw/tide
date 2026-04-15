@@ -13,6 +13,18 @@ export interface SearchIndexEntry {
 let cachedIndex: SearchIndexEntry[] | null = null;
 let indexFileId: string | null = null;
 
+/** Remove duplicate entries by id, keeping the most recent (last wins). */
+function deduplicateIndex(entries: SearchIndexEntry[]): SearchIndexEntry[] {
+    const map = new Map<string, SearchIndexEntry>();
+    for (const e of entries) {
+        // Strip recurrence phantoms: "baseId_timestamp" → always use base id for dedup key.
+        // The UI dispatches calendar:scroll-to with the base event id anyway.
+        const baseId = e.id.includes('_') ? e.id.split('_')[0] : e.id;
+        map.set(baseId, { ...e, id: baseId }); // normalise to base id
+    }
+    return Array.from(map.values());
+}
+
 export async function loadSearchIndex(masterKey: CryptoKey, userID: string): Promise<SearchIndexEntry[]> {
     if (cachedIndex) return cachedIndex;
 
@@ -37,13 +49,16 @@ export async function loadSearchIndex(masterKey: CryptoKey, userID: string): Pro
         });
         
         const content = await decryptedBlob.text();
-        cachedIndex = JSON.parse(content);
+        const parsed: SearchIndexEntry[] = JSON.parse(content);
+        // [FIX-1] Deduplicate on load to recover from any previously persisted duplicates.
+        cachedIndex = deduplicateIndex(parsed);
     } catch (e) {
         console.error("Failed to decrypt search index", e);
         cachedIndex = [];
     }
     return cachedIndex || [];
 }
+
 
 export async function rebuildIndex(items: SearchIndexEntry[], masterKey: CryptoKey, userID: string) {
     cachedIndex = items;
@@ -97,14 +112,20 @@ export async function rebuildIndex(items: SearchIndexEntry[], masterKey: CryptoK
 
 export async function updateSearchIndex(entry: SearchIndexEntry, masterKey: CryptoKey, userID: string) {
     const index = await loadSearchIndex(masterKey, userID);
-    const existingIdx = index.findIndex(e => e.id === entry.id);
+    const baseId = entry.id.includes('_') ? entry.id.split('_')[0] : entry.id;
+    const normalizedEntry = { ...entry, id: baseId };
+    const existingIdx = index.findIndex(e => e.id === baseId);
     if (existingIdx !== -1) {
-        index[existingIdx] = entry;
+        index[existingIdx] = normalizedEntry;
     } else {
-        index.push(entry);
+        index.push(normalizedEntry);
     }
-    
-    const v2Result = await cryptoV2.encryptFileV2(JSON.stringify(index), masterKey);
+
+    // [FIX-1] Always deduplicate before persisting to avoid accumulation from rapid succession of calls.
+    const deduped = deduplicateIndex(index);
+    cachedIndex = deduped;
+
+    const v2Result = await cryptoV2.encryptFileV2(JSON.stringify(deduped), masterKey);
     const accessKeysMap = { [userID]: v2Result.encrypted_dek };
 
     if (!indexFileId) {

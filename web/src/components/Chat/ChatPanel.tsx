@@ -550,7 +550,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                 body.recipient_email = partner.email;
             }
 
-            const res = await apiFetch("/api/v1/messages/", {
+            const res = await apiFetch("/api/v1/messages", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"

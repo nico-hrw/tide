@@ -1441,8 +1441,9 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                     WebkitMaskComposite: 'source-in'
                 }}
             >
-                {/* Toolbar */}
-                < div className="flex items-center justify-between px-4 py-3 bg-transparent z-20" >
+                {/* Toolbar — position:relative + zIndex:500 creates a stacking context above
+                    all sticky calendar elements (time col z-[160], day headers z-[150]). */}
+                <div className="flex items-center justify-between px-4 py-3 bg-transparent" style={{ position: 'relative', zIndex: 500 }}>
                     <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 capitalize">
                         {format(date, "MMMM yyyy")}
                     </h2>
@@ -1460,7 +1461,9 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                                 />
                             </div>
                             {isSearchOpen && searchResults.length > 0 && (
-                                <div className="absolute top-full mt-2 w-full bg-white dark:bg-black rounded-lg shadow-lg border border-gray-100 dark:border-white/10 p-2 max-h-60 overflow-auto z-50">
+                                // [FIX-2] zIndex:9999 inline — floats above all sticky elements
+                                // regardless of the surrounding stacking context.
+                                <div className="absolute top-full mt-2 w-full bg-white dark:bg-black rounded-lg shadow-lg border border-gray-100 dark:border-white/10 p-2 max-h-60 overflow-auto" style={{ zIndex: 9999 }}>
                                     {searchResults.map(res => (
                                         <div 
                                             key={res.id} 
