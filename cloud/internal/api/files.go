@@ -258,10 +258,34 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Share with metadata encrypted for recipient
+	// 2. Insert into file_shares (pending status, SecuredMeta = wrapped DEK for recipient)
 	if err := h.Store.ShareFile(r.Context(), fileID, recipient.ID, []byte(req.SecuredMeta)); err != nil {
 		http.Error(w, "Failed to share file", http.StatusInternalServerError)
 		return
+	}
+
+	// 3. [V2-FIX] Update the file's access_keys map so the recipient can unwrap the DEK.
+	//    Without this step, the recipient is in file_shares but has no cryptographic access.
+	if req.SecuredMeta != "" {
+		file, err := h.Store.GetFile(r.Context(), fileID)
+		if err == nil {
+			var accessKeys map[string]interface{}
+			if jsonErr := json.Unmarshal(file.AccessKeys, &accessKeys); jsonErr != nil || accessKeys == nil {
+				accessKeys = make(map[string]interface{})
+			}
+			// Store the recipient's wrapped DEK under their user ID
+			accessKeys[recipient.ID] = map[string]string{"wrapped_key": req.SecuredMeta}
+			newAK, marshalErr := json.Marshal(accessKeys)
+			if marshalErr == nil {
+				file.AccessKeys = json.RawMessage(newAK)
+				file.UpdatedAt = time.Now()
+				if updateErr := h.Store.UpdateFile(r.Context(), file); updateErr != nil {
+					log.Printf("[SHARE] Warning: file_shares inserted but access_keys update failed for %s: %v", fileID, updateErr)
+				}
+			}
+		} else {
+			log.Printf("[SHARE] Warning: could not fetch file %s to update access_keys: %v", fileID, err)
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)

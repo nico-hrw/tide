@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import * as cryptoLib from "@/lib/crypto";
+import * as cryptoV2 from "@/lib/cryptoV2";
 import { apiFetch, getApiBase } from "@/lib/api";
 import ChatPanel from "@/components/Chat/ChatPanel";
 import Sidebar from "@/components/Layout/Sidebar";
@@ -313,6 +314,7 @@ export default function Dashboard() {
     const editorContentRef = useRef<any>(null);
     const saveStatusRef = useRef<string>('saved');
     const fileNameRef = useRef<string>("");
+    const initialContentRef = useRef<any>(null);
 
     useEffect(() => { activeNoteIdRef.current = activeNoteId ?? null; }, [activeNoteId]);
     useEffect(() => { activeFileKeyRef.current = activeFileKey; }, [activeFileKey]);
@@ -348,9 +350,24 @@ export default function Dashboard() {
             return;
         }
         
+        // [TASK 2] Safety check: Don't save if content is null or an empty doc shell that might
+        // be a side-effect of a component unmount or state transition.
+        if (!content || (content.type === 'doc' && (!content.content || content.content.length === 0))) {
+            console.warn(`[AutoSave] Aborted: Content is null or empty doc shell. Possible race condition during tab switch.`);
+            return;
+        }
+
         const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
         if (contentStr === 'decrypting' || contentStr.includes('DECRYPTION ERROR') || (currentFile as any)._decryptionFailed) {
             console.warn(`[AutoSave] Aborted: Refusing to save decrypting or errored content`);
+            return;
+        }
+
+        // Only save if content has actually changed from what was initially loaded
+        const initialStr = typeof initialContentRef.current === 'string' ? initialContentRef.current : JSON.stringify(initialContentRef.current);
+        if (contentStr === initialStr && saveStatusRef.current !== 'unsaved') {
+            // We skip saving if the content hasn't changed from the initial load AND hasn't been modified by the user.
+            // This is the primary protection against "Phantom-Leere" overwriting data.
             return;
         }
 
@@ -486,78 +503,109 @@ export default function Dashboard() {
         if (!fileId || !content) return;
 
         try {
-            const contentString = JSON.stringify(content);
-            const blob = new Blob([contentString], { type: "application/json" });
-            let dataToUpload: Blob;
-            let iv: any = null;
-            let activeKey = fileKey;
+            const contentString = typeof content === 'string' ? content : JSON.stringify(content);
 
+            // --- PUBLIC: Upload unencrypted ---
             if (visibility === 'public') {
-                dataToUpload = blob;
-            } else {
-                if (!activeKey || !(activeKey instanceof CryptoKey)) {
-                    // REACHING INTO THE STORE FOR THE MOST UP-TO-DATE DATA
-                    const freshNotes = useDataStore.getState().notes;
-                    const freshPK = useDataStore.getState().privateKey;
+                const blob = new Blob([contentString], { type: 'application/json' });
+                await apiFetch(`/api/v1/files/${fileId}/upload`, { method: 'POST', body: blob });
+                const title = fileNameRef.current || 'Untitled';
+                await apiFetch(`/api/v1/files/${fileId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ public_meta: { title } })
+                });
+                useDataStore.getState().updateFileRaw(fileId, { public_meta: { title }, title });
+                try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
+                return;
+            }
 
-                    const currentFile = freshNotes.find((f: any) => f.id === fileId);
-                    if (currentFile?.secured_meta && freshPK) {
-                        const meta: any = await cryptoLib.decryptMetadata(currentFile.secured_meta, freshPK, `save-fallback-${fileId}`);
-                        if (meta.fileKey) {
-                            if (typeof meta.fileKey === 'object' && meta.fileKey.kty) {
-                                activeKey = await window.crypto.subtle.importKey(
-                                    "jwk", meta.fileKey as JsonWebKey,
-                                    { name: "AES-GCM" },
-                                    true, ["encrypt", "decrypt"]
-                                );
-                            }
-                        }
+            // --- PRIVATE: V2 Envelope Encryption ---
+            const freshState = useDataStore.getState();
+            const freshPrivKey = freshState.privateKey;
+            const freshPubKey = freshState.publicKey;
+            const freshMyId = freshState.myId;
+            if (!freshPubKey || !freshPrivKey || !freshMyId) {
+                throw new Error('[V2-Save] RSA master keys not available — cannot encrypt');
+            }
+
+            // Locate current file record to check existing V2 access_keys
+            const allFiles = [...freshState.notes, ...freshState.events] as any[];
+            const currentFile = allFiles.find(f => f.id === fileId);
+
+            let dek: CryptoKey | null = null;
+            let accessKeysMap: Record<string, { wrapped_key: string }> = {};
+
+            // STRATEGY: Reuse the existing DEK so all recipients' wrapped keys stay valid.
+            if (currentFile?.version >= 2 && currentFile?.access_keys) {
+                const existingKeys = typeof currentFile.access_keys === 'string'
+                    ? JSON.parse(currentFile.access_keys)
+                    : (currentFile.access_keys || {});
+                const myAccess = existingKeys[freshMyId];
+                if (myAccess?.wrapped_key) {
+                    try {
+                        const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, freshPrivKey);
+                        dek = await cryptoV2.importDEK(rawDek);
+                        // Preserve ALL wrapped keys (owner + all recipients) unchanged
+                        accessKeysMap = existingKeys;
+                        console.log(`[V2-Save] Reusing existing DEK for ${fileId}`);
+                    } catch (_) {
+                        console.warn('[V2-Save] DEK reuse failed — generating new DEK (shared recipients must be re-invited)');
                     }
+                } else {
+                    // Has V2 structure but missing our own key — treat as new
+                    accessKeysMap = existingKeys;
                 }
-                if (!activeKey || !(activeKey instanceof CryptoKey)) {
-                    throw new Error("Encryption key missing or invalid (Recovery Failed)");
-                }
-                const encrypted = await cryptoLib.encryptFile(blob, activeKey, fileId);
-                dataToUpload = encrypted.ciphertext;
-                iv = encrypted.iv;
             }
 
-            await apiFetch(`/api/v1/files/${fileId}/upload`, { method: "POST", body: dataToUpload });
-
-            const currentFileAtUpload = useDataStore.getState().notes.find(f => f.id === fileId) || useDataStore.getState().events.find((e: any) => e.id === fileId);
-            const freshTitle = fileNameRef.current;
-            const freshActiveNoteId = activeNoteIdRef.current;
-
-            const title = (fileId === freshActiveNoteId ? freshTitle : (currentFileAtUpload as any)?.title) || "Untitled";
-
-            if (visibility === 'public') {
-                await apiFetch(`/api/v1/files/${fileId}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ public_meta: { title: title } })
-                });
-                useDataStore.getState().updateFileRaw(fileId, { public_meta: { title: title }, title: title });
-            } else {
-                const freshPubKey = useDataStore.getState().publicKey;
-                if (!freshPubKey || !activeKey) throw new Error("Public/Active Keys missing on metadata upload");
-                const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", activeKey);
-                const metaPayload = { title: title, fileKey: fileKeyJwk, iv: iv };
-                const encryptedMeta = await cryptoLib.encryptMetadata(metaPayload, freshPubKey, `save-meta-${fileId}`);
-                await apiFetch(`/api/v1/files/${fileId}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ secured_meta: encryptedMeta })
-                });
-                // CRITICAL: Update local store state so subsequent loadNoteContent (which uses files.find)
-                // doesn't see stale metadata (old IV) and fail to decrypt the new blob.
-                useDataStore.getState().updateFileRaw(fileId, { secured_meta: encryptedMeta, title: title });
+            if (!dek) {
+                // New file, V1→V2 migration, or DEK recovery failure: create a fresh DEK
+                dek = await cryptoV2.generateDEK();
+                const rawDek = await window.crypto.subtle.exportKey('raw', dek);
+                const wrapped = await cryptoV2.wrapDEKData(rawDek, freshPubKey);
+                accessKeysMap = { ...accessKeysMap, [freshMyId]: { wrapped_key: wrapped.ciphertext } };
+                console.log(`[V2-Save] Generated new DEK for ${fileId}`);
             }
 
-            // THE FLUSH: When the backend successfully acknowledges the save (HTTP 200), remove the backup
-            try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (e) { }
+            // Encrypt content with DEK + fresh IV
+            const contentIv = window.crypto.getRandomValues(new Uint8Array(12));
+            const contentBuffer = new TextEncoder().encode(contentString);
+            const encryptedContent = await window.crypto.subtle.encrypt(
+                { name: 'AES-GCM', iv: contentIv },
+                dek,
+                contentBuffer
+            );
+            const contentCiphertext = JSON.stringify({
+                data: cryptoLib.arrayBufferToBase64(encryptedContent),
+                iv:   cryptoLib.arrayBufferToBase64(contentIv.buffer as ArrayBuffer)
+            });
+
+            const title = fileNameRef.current || 'Untitled';
+
+            // Single atomic PUT: writes blob to BlobStore and updates metadata
+            const putRes = await apiFetch(`/api/v1/files/${fileId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    version: 2,
+                    content_ciphertext: contentCiphertext,
+                    access_keys: accessKeysMap,
+                    metadata: { has_custom_password: false, title },
+                })
+            });
+            if (!putRes.ok) throw new Error(`[V2-Save] PUT failed with status ${putRes.status}`);
+
+            useDataStore.getState().updateFileRaw(fileId, {
+                title,
+                version: 2,
+                access_keys: accessKeysMap,
+                metadata: { has_custom_password: false, title }
+            });
+
+            try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
 
         } catch (err) {
-            console.error(`[STATE-AUDIT ERROR] performSave failed | ID: ${fileId}:`, err);
+            console.error(`[V2-Save FAILED] ID: ${fileId}:`, err);
             throw err;
         }
     };
@@ -606,11 +654,73 @@ export default function Dashboard() {
             if (target.visibility === 'public') {
                 const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
                 if (resBlob.ok) contentText = await resBlob.text();
+            } else if ((target.version ?? 1) >= 2 && target.access_keys) {
+                // ── [V2-LOAD] Envelope Encryption V2 path ──────────────────────────────
+                const accessKeys = typeof target.access_keys === 'string'
+                    ? JSON.parse(target.access_keys)
+                    : (target.access_keys || {});
+                const myAccess = accessKeys[myId];
+                if (!myAccess?.wrapped_key) {
+                    throw new Error(`[V2-Load] No access key found for user ${myId}. Cannot decrypt file ${fileId}.`);
+                }
+
+                // Unwrap DEK with RSA private key, then import for AES-GCM
+                const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey);
+                const dek = await cryptoV2.importDEK(rawDek);
+                setActiveFileKey(dek);
+
+                // Title is stored as plaintext in metadata for V2 files — update store if stale
+                const v2Title = (target.metadata as any)?.title || target.title;
+                if (v2Title && v2Title !== 'Locked Note (Decrypting...)') {
+                    setFileName(v2Title);
+                    useDataStore.getState().updateFileRaw(fileId, { title: v2Title, _decryptionFailed: false });
+                }
+
+                if (recoveredBackup) {
+                    console.log('[RECOVERY] V2: Skipping server download, using recovered local backup.');
+                } else {
+                    const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
+                    if (resBlob.ok) {
+                        const blobText = await resBlob.text();
+                        if (blobText) {
+                            try {
+                                const payload = JSON.parse(blobText);
+                                if (payload.data && payload.iv) {
+                                    const ivBuf   = cryptoLib.base64ToArrayBuffer(payload.iv);
+                                    const dataBuf = cryptoLib.base64ToArrayBuffer(payload.data);
+                                    const decrypted = await window.crypto.subtle.decrypt(
+                                        { name: 'AES-GCM', iv: ivBuf },
+                                        dek,
+                                        dataBuf
+                                    );
+                                    contentText = new TextDecoder().decode(decrypted);
+                                }
+                            } catch (decryptErr) {
+                                console.error(`[V2-Load] DECRYPTION FAILURE | ID: ${fileId}`, decryptErr);
+                                contentText = JSON.stringify({
+                                    type: 'doc',
+                                    content: [{ type: 'paragraph', content: [
+                                        { type: 'text', marks: [{ type: 'bold' }], text: '⚠️ V2 DECRYPTION ERROR: ' },
+                                        { type: 'text', text: 'Content corrupted or DEK mismatch.' }
+                                    ]}]
+                                });
+                            }
+                        }
+                    }
+                }
             } else {
+                // ── [V1-LOAD] Legacy path (secured_meta contains file key + IV) ────────
                 if (!target.secured_meta) throw new Error("Missing metadata");
                 meta = await cryptoLib.decryptMetadata(target.secured_meta, privateKey, `load-${fileId}`);
 
-                if (!meta.fileKey || typeof meta.fileKey !== 'object' || !meta.fileKey.kty) {
+                // Resolve "Locked Note" title once decrypted
+                if (meta.title && (target.title !== meta.title || target._decryptionFailed)) {
+                    console.log(`[Crypto] Decrypted real title for ${fileId}: "${meta.title}"`);
+                    setFileName(meta.title as string);
+                    useDataStore.getState().updateFileRaw(fileId, { title: meta.title, _decryptionFailed: false });
+                }
+
+                if (!meta.fileKey || typeof meta.fileKey !== 'object' || !(meta.fileKey as any).kty) {
                     console.error("Invalid or missing JWK fileKey");
                     throw new Error("Invalid or missing FileKey structure.");
                 }
@@ -620,16 +730,15 @@ export default function Dashboard() {
                 );
                 setActiveFileKey(importedFileKey);
 
-                // PERFORMANCE: If we already have the content from a local backup, we don't need to download the blob from the server.
                 if (recoveredBackup) {
-                    console.log("[RECOVERY] Skipping server blob download, using recovered backup.");
+                    console.log("[RECOVERY] V1: Skipping server blob download, using recovered backup.");
                 } else {
                     const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
                     if (resBlob.ok) {
                         const blob = await resBlob.blob();
                         if (blob.size > 0) {
                             try {
-                                const decryptedBlob = await cryptoLib.decryptFile(blob, meta.iv, importedFileKey, fileId);
+                                const decryptedBlob = await cryptoLib.decryptFile(blob, meta.iv as string, importedFileKey, fileId);
                                 contentText = await decryptedBlob.text();
                             } catch (decryptErr) {
                                 console.error(`[CRYPTO-AUDIT] DECRYPTION FAILURE | ID: ${fileId}`, decryptErr);
@@ -649,13 +758,22 @@ export default function Dashboard() {
             if (lastLoadIdRef.current !== loadId) return;
 
             if (contentText) {
-                try { setEditorContent(JSON.parse(contentText)); }
-                catch (e) { setEditorContent(contentText); }
+                try { 
+                    const parsed = JSON.parse(contentText);
+                    setEditorContent(parsed);
+                    initialContentRef.current = parsed;
+                }
+                catch (e) { 
+                    setEditorContent(contentText); 
+                    initialContentRef.current = contentText;
+                }
             } else {
-                setEditorContent({
+                const emptyDoc = {
                     type: 'doc',
                     content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }]
-                });
+                };
+                setEditorContent(emptyDoc);
+                initialContentRef.current = emptyDoc;
             }
         } catch (err) {
             if (lastLoadIdRef.current === loadId) console.error("Failed to load note:", err);

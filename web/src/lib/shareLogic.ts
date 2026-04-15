@@ -53,8 +53,7 @@ export async function performMessengerShare(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 email: recipientEmail,
-                access_key: recipientWrapped.ciphertext // Sending only the wrapped key base64 under access_key or secured_meta?
-                // Wait, user said: pusht das Ergebnis per API an das Backend, welches Bobs ID in die access_keys Map der existierenden Datei einfügt.
+                secured_meta: recipientWrapped.ciphertext // wrapped DEK for recipient, added to access_keys map
             })
         });
 

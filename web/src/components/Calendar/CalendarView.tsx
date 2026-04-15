@@ -304,53 +304,92 @@ export default function CalendarView({
 const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose, enabledExtensions }: {
     event: CalendarEvent, rect: DOMRect, themes: any[], onEventSave: any, onEventDelete?: (id: string) => void, onClose: () => void, enabledExtensions: string[]
 }) => {
+    // 1. ISOLATED LOCAL STATE
+    // We only initialize once from props when the component mounts or the event ID changes.
+    // This prevents "jumping back" during typing if the global store updates.
     const [title, setTitle] = useState(event.title);
     const [description, setDescription] = useState(event.description || '');
-    const [isEditing, setIsEditing] = useState(false);
     const [isTask, setIsTask] = useState(!!event.is_task);
     const [isCompleted, setIsCompleted] = useState(!!event.is_completed);
-    
-    // Check if this specific occurrence is cancelled
-    const occurrenceDateKey = format(new Date(event.start), "yyyy-MM-dd");
-    const isThisOccCancelled = event.exdates?.includes(occurrenceDateKey) || !!event.is_cancelled;
-    
-    const [isCancelled, setIsCancelled] = useState(isThisOccCancelled);
     const [color, setColor] = useState(event.color || '#6366f1');
     const [showColorPicker, setShowColorPicker] = useState(false);
-    
-    const eventColors = [
-        '#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'
-    ];
 
-    const recurrence_rule = (event as any).recurrence_rule || '';
-    const rruleMatch = String(recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`).match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY|NONE)(?:;INTERVAL=(\d+))?/i);
-    const rruleFreq = rruleMatch ? rruleMatch[1].toLowerCase() : 'none';
-    const rruleInterval = rruleMatch && rruleMatch[2] ? parseInt(rruleMatch[2], 10) : 1;
-    
-    const [freq, setFreq] = useState(rruleFreq);
-    const [interval, setIntervalVal] = useState(rruleInterval);
+    // Initial recurrence values
+    const getRRuleParts = (evt: any) => {
+        const rule = evt.recurrence_rule || '';
+        const match = String(rule || `FREQ=${(evt.recurrence && evt.recurrence !== 'none') ? evt.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`).match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY|NONE)(?:;INTERVAL=(\d+))?/i);
+        return {
+            freq: match ? match[1].toLowerCase() : 'none',
+            interval: match && match[2] ? parseInt(match[2], 10) : 1
+        };
+    };
+
+    const initialRRule = getRRuleParts(event);
+    const [freq, setFreq] = useState(initialRRule.freq);
+    const [interval, setIntervalVal] = useState(initialRRule.interval);
+
+    const occurrenceDateKey = format(new Date(event.start), "yyyy-MM-dd");
+    const isThisOccCancelledOrig = event.exdates?.includes(occurrenceDateKey) || !!event.is_cancelled;
+    const [isCancelled, setIsCancelled] = useState(isThisOccCancelledOrig);
+
+    // Track original occurrence cancel state for comparison
+    const isThisOccCancelledRef = useRef(isThisOccCancelledOrig);
+    useEffect(() => {
+        isThisOccCancelledRef.current = isThisOccCancelledOrig;
+    }, [isThisOccCancelledOrig]);
+
+    // 2. RESET ON ID CHANGE (Isolation)
+    useEffect(() => {
+        setTitle(event.title);
+        setDescription(event.description || '');
+        setIsTask(!!event.is_task);
+        setIsCompleted(!!event.is_completed);
+        setColor(event.color || '#6366f1');
+        setIsCancelled(isThisOccCancelledOrig);
+        const parts = getRRuleParts(event);
+        setFreq(parts.freq);
+        setIntervalVal(parts.interval);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [event.id]);
+
+    // 3. DEBOUNCED AUTO-SAVE
+    const handleSave = useCallback((overrideUpdates?: any) => {
+        const updates: any = { ...overrideUpdates };
+        
+        // Collect all current state values
+        if (title !== event.title && updates.title === undefined) updates.title = title;
+        if (description !== (event.description || '') && updates.description === undefined) updates.description = description;
+        if (isTask !== !!event.is_task && updates.is_task === undefined) updates.is_task = isTask;
+        if (isCompleted !== !!event.is_completed && updates.is_completed === undefined) updates.is_completed = isCompleted;
+        if (isCancelled !== isThisOccCancelledRef.current && updates.is_cancelled === undefined) updates.is_cancelled = isCancelled;
+        if (color !== event.color && updates.color === undefined) updates.color = color;
+
+        const newRecurrenceRule = freq === 'none' ? 'NONE' : `FREQ=${freq.toUpperCase()};INTERVAL=${interval}`;
+        const currentRecurrenceRule = (event as any).recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`;
+        if (newRecurrenceRule !== currentRecurrenceRule && updates.recurrence_rule === undefined) updates.recurrence_rule = newRecurrenceRule;
+
+        if (Object.keys(updates).length > 0) {
+            onEventSave(event.id, updates);
+        }
+    }, [event, title, description, isTask, isCompleted, isCancelled, color, freq, interval, onEventSave]);
 
     useEffect(() => {
-        if (!isEditing) {
-            setTitle(event.title);
-            setDescription(event.description || '');
-            setIsTask(!!event.is_task);
-        }
-        setIsCompleted(!!event.is_completed);
-        
-        const occKey = format(new Date(event.start), "yyyy-MM-dd");
-        setIsCancelled(event.exdates?.includes(occKey) || !!event.is_cancelled);
-        
-        const rMatch = String((event as any).recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`).match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY|NONE)(?:;INTERVAL=(\d+))?/i);
-        if (rMatch) {
-            setFreq(rMatch[1].toLowerCase());
-            if (rMatch[2]) setIntervalVal(parseInt(rMatch[2], 10));
-        }
-    }, [event.id, event.start, JSON.stringify(event.exdates), event.is_cancelled]);
+        const timer = setTimeout(() => {
+            handleSave();
+        }, 800); // 800ms debounce for auto-save
+        return () => clearTimeout(timer);
+    }, [title, description, isTask, isCompleted, isCancelled, color, freq, interval, handleSave]);
 
+    // Cleanup save on unmount/close
+    useEffect(() => {
+        return () => {
+            handleSave();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
-    const handleTitleBlur = () => { if (title !== event.title) onEventSave(event.id, { title }); };
-    const handleDescBlur = () => { if (description !== (event.description || '')) onEventSave(event.id, { description }); };
+    const handleTitleBlur = () => { handleSave(); };
+    const handleDescBlur = () => { handleSave(); };
 
     const handleTaskToggle = (newIsTask: boolean) => {
         setIsTask(newIsTask);
@@ -368,23 +407,6 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
 
     const handleCancelToggle = (newIsCancelled: boolean) => {
         setIsCancelled(newIsCancelled);
-    };
-
-    const handleSave = () => {
-        const updates: Partial<CalendarEvent> & { parent_id?: string | null } = {};
-        if (title !== event.title) updates.title = title;
-        if (description !== (event.description || '')) updates.description = description;
-        if (isTask !== !!event.is_task) updates.is_task = isTask;
-        if (isCompleted !== !!event.is_completed) updates.is_completed = isCompleted;
-        if (isCancelled !== isThisOccCancelled) updates.is_cancelled = isCancelled;
-        if (color !== event.color) updates.color = color;
-
-        const newRecurrenceRule = freq === 'none' ? 'NONE' : `FREQ=${freq.toUpperCase()};INTERVAL=${interval}`;
-        if (newRecurrenceRule !== recurrence_rule) (updates as any).recurrence_rule = newRecurrenceRule;
-        
-        if (Object.keys(updates).length > 0) {
-            onEventSave(event.id, updates);
-        }
     };
 
     const handleClose = () => {
@@ -424,14 +446,9 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                 />
                 <input
                     autoFocus
-                    defaultValue={event.title}
-                    onFocus={() => setIsEditing(true)}
-                    onBlur={(e) => {
-                        setIsEditing(false);
-                        const newTitle = e.target.value;
-                        setTitle(newTitle);
-                        if (newTitle !== event.title) onEventSave(event.id, { title: newTitle });
-                    }}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    onBlur={handleTitleBlur}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                             e.preventDefault();
@@ -446,10 +463,11 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                 </button>
             </div>
 
-            {/* Color Grid (Toggleable) */}
             {showColorPicker && (
                 <div className="bg-gray-50 dark:bg-black/20 p-3 rounded-2xl flex flex-wrap gap-2.5 animate-in slide-in-from-top-2 duration-200">
-                    {eventColors.map(c => (
+                    {[
+                        '#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'
+                    ].map(c => (
                         <button
                             key={c}
                             onClick={() => setColor(c)}
@@ -539,14 +557,9 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
 
             {/* Description */}
             <textarea
-                defaultValue={event.description || ''}
-                onFocus={() => setIsEditing(true)}
-                onBlur={(e) => {
-                    setIsEditing(false);
-                    const newDesc = e.target.value;
-                    setDescription(newDesc);
-                    if (newDesc !== (event.description || '')) onEventSave(event.id, { description: newDesc });
-                }}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                onBlur={handleDescBlur}
                 placeholder="Add notes..."
                 rows={2}
                 className="w-full bg-transparent border border-gray-100 dark:border-white/5 rounded-2xl p-3 text-xs leading-relaxed text-gray-600 dark:text-gray-400 focus:ring-1 focus:ring-violet-500/20 outline-none resize-none transition-all placeholder:text-gray-300 dark:placeholder:text-gray-700"

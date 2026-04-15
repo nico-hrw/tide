@@ -577,7 +577,7 @@ func (s *SQLiteStore) UserHasFileAccess(ctx context.Context, userID, fileID stri
 
 	// Then check if it has been shared with them
 	// Join with users to handle legacy/draft shares vs accepted invitations
-	err = s.DB.QueryRowContext(ctx, "SELECT COUNT(1) FROM file_shares WHERE file_id = ? AND recipient_id = ? AND status = 'accepted'", fileID, userID).Scan(&count)
+	err = s.DB.QueryRowContext(ctx, "SELECT COUNT(1) FROM file_shares WHERE file_id = ? AND user_id = ? AND status = 'accepted'", fileID, userID).Scan(&count)
 	if err != nil {
 		return false, err
 	}
