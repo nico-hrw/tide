@@ -500,7 +500,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                             const meta = await cryptoLib.decryptMetadata(t.encrypted_vault, state.privateKey!, `task-${t.id}`);
                             loadedTasks.push({ id: t.id, ...meta } as TaskItem);
                         } catch (e) {
-                            loadedTasks.push({ id: t.id, title: "Unknown (Decryption Error)", isCompleted: false });
+                            loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, _decryptionFailed: true } as any);
                         }
                     }
                 }
@@ -588,7 +588,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                         newMetaCache[f.id] = metaData;
                     } catch (e) {
                         console.warn(`[CRYPTO-AUDIT] Failed to decrypt metadata for ${f.id} | Using placeholder.`);
-                        metaData = { title: "Unknown (Decryption Error)" };
+                        metaData = { title: "Locked Note (Decrypting...)", _decryptionFailed: true };
                     }
                 }
 
@@ -707,7 +707,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                             };
                             newMetaCache[f.id] = metaData;
                         } catch (e) {
-                            metaData = { title: "Unknown (Decryption Error)" };
+                            metaData = { title: "Locked Note (Decrypting...)", _decryptionFailed: true };
                         }
                     }
 
@@ -751,7 +751,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                         const meta = await cryptoLib.decryptMetadata(t.encrypted_vault, state.privateKey!, `task-${t.id}`);
                         loadedTasks.push({ id: t.id, ...meta } as TaskItem);
                     } catch (e) {
-                        loadedTasks.push({ id: t.id, title: "Unknown (Decryption Error)", isCompleted: false });
+                        loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, _decryptionFailed: true } as any);
                     }
                 }
             }

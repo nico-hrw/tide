@@ -425,6 +425,13 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
                     autoFocus
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
+                    onBlur={handleTitleBlur}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            e.currentTarget.blur();
+                        }
+                    }}
                     className="flex-1 text-base font-bold text-gray-900 dark:text-gray-100 bg-transparent border-none focus:ring-0 p-0 outline-none placeholder:text-gray-400"
                     placeholder="What's happening?"
                 />
@@ -528,6 +535,7 @@ const EventPopover = ({ event, rect, themes, onEventSave, onEventDelete, onClose
             <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                onBlur={handleDescBlur}
                 placeholder="Add notes..."
                 rows={2}
                 className="w-full bg-transparent border border-gray-100 dark:border-white/5 rounded-2xl p-3 text-xs leading-relaxed text-gray-600 dark:text-gray-400 focus:ring-1 focus:ring-violet-500/20 outline-none resize-none transition-all placeholder:text-gray-300 dark:placeholder:text-gray-700"

@@ -1292,23 +1292,24 @@ export default function Dashboard() {
     const submitRename = async (fileId: string, newTitle: string) => {
         setEditingFileId(null);
 
+        const files = useDataStore.getState().notes;
+        const events = useDataStore.getState().events;
+        const target = files.find(f => f.id === fileId) || events.find(e => e.id === fileId);
+        
+        if (!target) return;
+        
+        // Prevent unnecessary backend updates if the title hasn't actually changed
+        if (target.title === newTitle) return;
+
         // Optimistic
         useDataStore.getState().setUpdatingMetadata(fileId, true);
         useDataStore.getState().updateSpecificMetadataCache(fileId, { title: newTitle });
-        useDataStore.getState().setNotes(useDataStore.getState().notes.map(f => f.id === fileId ? { ...f, title: newTitle } as any : f));
-        useDataStore.getState().setEvents(useDataStore.getState().events.map(e => e.id === fileId ? { ...e, title: newTitle } as any : e));
+        useDataStore.getState().setNotes(files.map(f => f.id === fileId ? { ...f, title: newTitle } as any : f));
+        useDataStore.getState().setEvents(events.map(e => e.id === fileId ? { ...e, title: newTitle } as any : e));
         setOpenTabs(prev => prev.map(t => t.id === fileId ? { ...t, title: newTitle } : t));
         if (activeTabId === fileId) setFileName(newTitle);
 
         try {
-            const files = useDataStore.getState().notes;
-            const events = useDataStore.getState().events;
-            const target = files.find(f => f.id === fileId) || events.find(e => e.id === fileId);
-            if (!target) {
-                useDataStore.getState().setUpdatingMetadata(fileId, false);
-                return;
-            }
-
             const isPublic = 'visibility' in target && target.visibility === 'public';
 
             if (isPublic) {
