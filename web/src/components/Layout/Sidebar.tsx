@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, DollarSign, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2 } from "lucide-react";
+import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, DollarSign, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, Reorder } from "framer-motion";
 import SmartIsland from "../extensions/smart_island/SmartIsland";
@@ -227,6 +227,54 @@ export default function Sidebar({
 
                     {/* Right-side action buttons */}
                     <div className="flex items-center gap-1">
+                        <button
+                            onClick={() => {
+                                const input = document.createElement('input');
+                                input.type = 'file';
+                                input.accept = '.md';
+                                input.onchange = async (e: any) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const reader = new FileReader();
+                    reader.onload = async (event) => {
+                                        const rawContent = event.target?.result as string;
+                                        const title = file.name.replace(/\.md$/, '');
+
+                                        // SECURITY: rawContent MUST be converted to Tiptap-JSON nodes,
+                                        // never passed to setContent() as raw HTML. Tiptap text nodes
+                                        // are escaped automatically — no XSS risk here.
+                                        const lines = rawContent.split('\n');
+                                        const contentNodes = lines
+                                            .map((line: string) => line.trimEnd())
+                                            .filter((line: string) => line.length > 0)
+                                            .map((line: string) => ({
+                                                type: 'paragraph',
+                                                attrs: { blockId: crypto.randomUUID() },
+                                                content: [{ type: 'text', text: line }]
+                                            }));
+
+                                        const tiptapDoc = {
+                                            type: 'doc',
+                                            content: contentNodes.length > 0 ? contentNodes : [
+                                                { type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }
+                                            ]
+                                        };
+
+                                        // Use the store's createNote which now uses the full V2 pipeline
+                                        const newId = await useDataStore.getState().createNote(title, tiptapDoc);
+                                        // Refresh directory and select new note
+                                        useDataStore.getState().fetchDirectory(null, true);
+                                        onFileSelect(newId, title);
+                                    };
+                                    reader.readAsText(file);
+                                };
+                                input.click();
+                            }}
+                            title="Notiz Importieren (.md)"
+                            className="p-1.5 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg text-gray-500 hover:text-gray-900 transition-all mx-1"
+                        >
+                            <Upload size={16} />
+                        </button>
                         <button
                             onClick={() => onCreateFolder && onCreateFolder(null)}
                             title="New Folder"

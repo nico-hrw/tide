@@ -27,7 +27,7 @@ interface DataState {
     appendFiles: (files: DataItem[], events: DataItem[]) => void;
     orderedNoteIds: string[];
     setOrderedNoteIds: (ids: string[]) => void;
-    createNote: (title: string) => Promise<string>; // Returns the new ID
+    createNote: (title: string, initialContent?: any) => Promise<string>; // Returns the new ID
     insertMentionIntoNote: (noteId: string, targetId: string, title: string) => void;
     activeNoteId: string | null;
     setActiveNoteId: (id: string | null) => void;
@@ -299,7 +299,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }),
     orderedNoteIds: [],
     setOrderedNoteIds: (orderedNoteIds) => set({ orderedNoteIds }),
-    createNote: async (title) => {
+    createNote: async (title, initialContent?: any) => {
         const state = get();
         if (!state.privateKey || !state.publicKey) {
             const fallbackId = crypto.randomUUID();
@@ -308,20 +308,23 @@ export const useDataStore = create<DataState>((set, get) => ({
         }
 
         try {
+            // [V2-PIPELINE] Use envelope encryption so the note is immediately shareable.
+            // V1 stored fileKey inside secured_meta, making access_keys empty and sharing impossible.
+            const cryptoV2 = await import('@/lib/cryptoV2');
             const cryptoLib = await import('@/lib/crypto');
-            
-            // Generate full cryptographic identity for the new file to prevent JWK crash on load
-            const fileKey = await cryptoLib.generateFileKey();
-            const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", fileKey);
-            const emptyDoc = { type: 'doc', content: [] };
-            const blob = new Blob([JSON.stringify(emptyDoc)], { type: 'application/json' });
-            
-            // Encrypt empty file to secure IV
-            const { iv, ciphertext } = await cryptoLib.encryptFile(blob, fileKey);
-            
-            // Build secured meta payload WITH the key and IV
-            const metaPayload = { title, fileKey: fileKeyJwk, iv };
-            const securedMeta = await cryptoLib.encryptMetadata(metaPayload, state.publicKey);
+
+            // Use initialContent if provided (must be valid Tiptap JSON),
+            // otherwise default to a block-based empty doc.
+            const docContent = (initialContent && typeof initialContent === 'object')
+                ? initialContent
+                : { type: 'doc', content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }] };
+
+            // 1. Encrypt content with a fresh DEK; wrap DEK with owner's RSA public key
+            const v2Result = await cryptoV2.encryptFileV2(JSON.stringify(docContent), state.publicKey);
+            const accessKeysMap = { [state.myId!]: v2Result.encrypted_dek };
+
+            // 2. Secure metadata: title only (fileKey is now managed via access_keys)
+            const securedMeta = await cryptoLib.encryptMetadata({ title }, state.publicKey);
 
             const res = await apiFetch("/api/v1/files", {
                 method: "POST",
@@ -329,21 +332,27 @@ export const useDataStore = create<DataState>((set, get) => ({
                 body: JSON.stringify({
                     type: "note",
                     parent_id: state.activeParentId || null,
-                    size: blob.size,
+                    size: new Blob([v2Result.content_ciphertext]).size,
                     public_meta: {},
                     secured_meta: securedMeta,
-                    visibility: 'private'
+                    visibility: 'private',
+                    version: 2,
+                    metadata: v2Result.metadata,
+                    access_keys: accessKeysMap
                 })
             });
 
             if (!res.ok) throw new Error("Backend failed to create note");
             const newFile = await res.json();
-            
-            // Upload the empty initialized ciphertext so decryptFile doesn't fail on an empty response
-            await apiFetch(`/api/v1/files/${newFile.id}/upload`, { method: "POST", body: ciphertext });
-            
+
+            // 3. Upload the V2-formatted ciphertext blob
+            await apiFetch(`/api/v1/files/${newFile.id}/upload`, {
+                method: "POST",
+                body: v2Result.content_ciphertext
+            });
+
             const newNote: DataItem = { id: newFile.id, title, type: 'note', parent_id: state.activeParentId || null };
-            set((s) => ({ notes: [...s.notes, newNote], metadataCache: { ...s.metadataCache, [newFile.id]: metaPayload } }));
+            set((s) => ({ notes: [...s.notes, newNote], metadataCache: { ...s.metadataCache, [newFile.id]: { title } } }));
             return newFile.id;
         } catch (e) {
             console.error("Failed to create note on server", e);

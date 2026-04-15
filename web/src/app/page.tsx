@@ -40,7 +40,7 @@ import EditorGutter from "@/components/Canvas/EditorGutter";
 import { useStyleFile } from "@/components/Canvas/useStyleFile";
 import { TextWidgetElement } from "@/types/canvas";
 import { useHighlight } from "@/components/HighlightContext";
-import { CheckCircle2, Loader2, Plus, ChevronDown, Share } from 'lucide-react';
+import { CheckCircle2, Loader2, Plus, ChevronDown, Share, Download } from 'lucide-react';
 import { useIslandStore } from '@/components/extensions/smart_island/useIslandStore';
 import { isSameDay } from 'date-fns';
 import { useDataStore, DataItem } from "@/store/useDataStore";
@@ -517,6 +517,47 @@ export default function Dashboard() {
             alert("Error creating note");
         }
     };
+
+    const handleExportNote = useCallback(() => {
+        if (!activeNoteId || !editorContent || !fileName) return;
+
+        let contentToExport = "";
+        if (typeof editorContent === 'string') {
+            contentToExport = editorContent;
+        } else if (editorInstance) {
+            // Basic HTML-to-Markdown conversion for standard Tiptap nodes
+            const html = editorInstance.getHTML();
+            contentToExport = html
+                .replace(/<h1>(.*?)<\/h1>/gi, '# $1\n\n')
+                .replace(/<h2>(.*?)<\/h2>/gi, '## $1\n\n')
+                .replace(/<h3>(.*?)<\/h3>/gi, '### $1\n\n')
+                .replace(/<p>(.*?)<\/p>/gi, '$1\n\n')
+                .replace(/<strong>(.*?)<\/strong>/gi, '**$1**')
+                .replace(/<em>(.*?)<\/em>/gi, '*$1*')
+                .replace(/<li>(.*?)<\/li>/gi, '- $1\n')
+                .replace(/<ul>(.*?)<\/ul>/gi, '$1\n')
+                .replace(/<ol>(.*?)<\/ol>/gi, '$1\n')
+                .replace(/<br\s*\/?>/gi, '\n')
+                // Remove any remaining tags
+                .replace(/<[^>]+>/g, '')
+                // Decode HTML entities
+                .replace(/&nbsp;/g, ' ')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&amp;/g, '&')
+                .trim();
+        }
+
+        const blob = new Blob([contentToExport], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${fileName}.md`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }, [activeNoteId, editorContent, fileName, editorInstance]);
 
     const performSave = async (content: any, fileId: string, fileKey: CryptoKey | null, visibility: string) => {
         if (!fileId || !content) return;
@@ -2529,6 +2570,13 @@ export default function Dashboard() {
                                                             title="Versionsverlauf / Backups"
                                                         >
                                                             <Clock size={16} />
+                                                        </button>
+                                                        <button
+                                                            onClick={handleExportNote}
+                                                            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 hover:text-indigo-600 transition-colors"
+                                                            title="Exportieren (.md)"
+                                                        >
+                                                            <Download size={16} />
                                                         </button>
                                                         {/* Save status indicator */}
                                                         <span

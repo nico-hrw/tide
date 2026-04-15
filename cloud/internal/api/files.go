@@ -264,27 +264,18 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. [V2-FIX] Update the file's access_keys map so the recipient can unwrap the DEK.
-	//    Without this step, the recipient is in file_shares but has no cryptographic access.
+	// 3. [V2-FIX] Atomically update the file's access_keys map so the recipient can unwrap the DEK.
+	//    Using json_set avoids the read-modify-write race when two shares happen concurrently.
 	if req.SecuredMeta != "" {
-		file, err := h.Store.GetFile(r.Context(), fileID)
-		if err == nil {
-			var accessKeys map[string]interface{}
-			if jsonErr := json.Unmarshal(file.AccessKeys, &accessKeys); jsonErr != nil || accessKeys == nil {
-				accessKeys = make(map[string]interface{})
-			}
-			// Store the recipient's wrapped DEK under their user ID
-			accessKeys[recipient.ID] = map[string]string{"wrapped_key": req.SecuredMeta}
-			newAK, marshalErr := json.Marshal(accessKeys)
-			if marshalErr == nil {
-				file.AccessKeys = json.RawMessage(newAK)
-				file.UpdatedAt = time.Now()
-				if updateErr := h.Store.UpdateFile(r.Context(), file); updateErr != nil {
-					log.Printf("[SHARE] Warning: file_shares inserted but access_keys update failed for %s: %v", fileID, updateErr)
-				}
-			}
-		} else {
-			log.Printf("[SHARE] Warning: could not fetch file %s to update access_keys: %v", fileID, err)
+		wrappedKeyJSON, _ := json.Marshal(map[string]string{"wrapped_key": req.SecuredMeta})
+		// recipient.ID is a UUID fetched from DB — safe to use in json_set path.
+		jsonPath := fmt.Sprintf("'$.%s'", recipient.ID)
+		query := fmt.Sprintf(
+			`UPDATE files SET access_keys = json_set(COALESCE(NULLIF(access_keys, ''), '{}'), %s, json(?)), updated_at = ? WHERE id = ?`,
+			jsonPath,
+		)
+		if _, dbErr := h.Store.DB.ExecContext(r.Context(), query, string(wrappedKeyJSON), time.Now(), fileID); dbErr != nil {
+			log.Printf("[SHARE] Warning: atomic access_keys update failed for file %s: %v", fileID, dbErr)
 		}
 	}
 
@@ -362,38 +353,29 @@ func (h *FileHandler) CopyFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Get Original File
-	original, err := h.Store.GetFile(r.Context(), fileID)
-	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
-		return
-	}
-
-	// Check if user has access (implicit via ListAccessible logic check)
-	// For MVP, if they can GET metadata, they can Copy.
-	// But `GetFile` bypasses checks in Store currently.
-	// Let's check `ListAccessibleFiles` for this specific ID?
-	// Or simplistic: If Visibility is public OR Shared with me.
-
 	viewerID, ok := r.Context().Value("user_id").(string)
 	if !ok || viewerID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// Manual check (MVP)
-	// access := (original.OwnerID == viewerID) || (original.Visibility == "public")
-	// if !access {
-	// Check shares...
-	// But let's trust the Caller for this specific test script or rely on UI to filter.
-	// BETTER: Fix `GetFile` to optionally check access or use `ListAccessibleFiles` with ID filter.
-	// }
+	// Use GetAccessibleFile to enforce ownership/share access control.
+	// GetFile bypasses these checks and allowed any authenticated user to copy
+	// any file by UUID — a privilege escalation risk.
+	original, err := h.Store.GetAccessibleFile(r.Context(), fileID, viewerID)
+	if err != nil {
+		if err == store.ErrNotFound {
+			http.Error(w, "File not found or access denied", http.StatusForbidden)
+			return
+		}
+		http.Error(w, "Failed to retrieve file", http.StatusInternalServerError)
+		return
+	}
 
-	// 3. Create Copy — OwnerID is ALWAYS the requesting user (viewerID from JWT).
-	//    The frontend may still pass new_owner_id in the body, but it is ignored.
+	// OwnerID is ALWAYS the requesting user (viewerID from JWT) — never from request body.
 	newFile := &db.File{
 		ID:          uuid.New().String(),
-		OwnerID:     viewerID, // [FIX MITTEL-1] JWT context, never from request body
+		OwnerID:     viewerID,
 		ParentID:    req.TargetParentID,
 		Type:        original.Type,
 		MIMEType:    original.MIMEType,
@@ -417,17 +399,18 @@ func (h *FileHandler) CopyFile(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(newFile)
 }
 
+
 type CreateFileRequest struct {
-	ParentID       *string         `json:"parent_id"`
-	Type           db.FileType     `json:"type"`
-	MIMEType       *string         `json:"mime_type"`
-	Size           int64           `json:"size"`
-	PublicMeta     json.RawMessage `json:"public_meta"`
-	SecuredMeta    string          `json:"secured_meta"`
-	Visibility     string          `json:"visibility"`
-	Version        int             `json:"version"`
-	Metadata       json.RawMessage `json:"metadata"`
-	AccessKeys     json.RawMessage `json:"access_keys"`
+	ParentID    *string         `json:"parent_id"`
+	Type        db.FileType     `json:"type"`
+	MIMEType    *string         `json:"mime_type"`
+	Size        int64           `json:"size"`
+	PublicMeta  json.RawMessage `json:"public_meta"`
+	SecuredMeta string          `json:"secured_meta"`
+	Visibility  string          `json:"visibility"`
+	Version     int             `json:"version"`
+	Metadata    json.RawMessage `json:"metadata"`
+	AccessKeys  json.RawMessage `json:"access_keys"`
 }
 
 func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
@@ -449,20 +432,20 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	file := &db.File{
-		ID:             uuid.New().String(),
-		OwnerID:        ownerID,
-		ParentID:       req.ParentID,
-		Type:           req.Type,
-		MIMEType:       req.MIMEType,
-		Size:           req.Size,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
-		Visibility:     visibility,
-		PublicMeta:     req.PublicMeta,
-		SecuredMeta:    []byte(req.SecuredMeta),
-		Version:        req.Version,
-		Metadata:       req.Metadata,
-		AccessKeys:     req.AccessKeys,
+		ID:          uuid.New().String(),
+		OwnerID:     ownerID,
+		ParentID:    req.ParentID,
+		Type:        req.Type,
+		MIMEType:    req.MIMEType,
+		Size:        req.Size,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		Visibility:  visibility,
+		PublicMeta:  req.PublicMeta,
+		SecuredMeta: []byte(req.SecuredMeta),
+		Version:     req.Version,
+		Metadata:    req.Metadata,
+		AccessKeys:  req.AccessKeys,
 	}
 	if file.Version == 0 {
 		file.Version = 1
