@@ -314,6 +314,9 @@ export default function Dashboard() {
     const editorContentRef = useRef<any>(null);
     const saveStatusRef = useRef<string>('saved');
     const fileNameRef = useRef<string>("");
+    // Per-note in-flight lock: prevents parallel save calls on the same noteId
+    // (avoids IV mismatch when two saves race each other on the same file).
+    const isSavingRef = useRef<Set<string>>(new Set());
     const initialContentRef = useRef<any>(null);
 
     useEffect(() => { activeNoteIdRef.current = activeNoteId ?? null; }, [activeNoteId]);
@@ -334,6 +337,14 @@ export default function Dashboard() {
         if (!noteId || !content) return;
         if (noteId === 'calendar' || noteId === 'messages' || noteId.startsWith('chat-')) return;
 
+        // [FIX-1] In-flight lock: bail if a save for this specific note is already running.
+        // Prevents the race condition: two parallel saves generate two different IVs, the
+        // second blob lands after its secured_meta → decryption fails on next open.
+        if (isSavingRef.current.has(noteId)) {
+            console.log(`[AutoSave] Skipping: save already in-flight for ${noteId}`);
+            return;
+        }
+
         // Broaden search to all files and events to ensure items like event-notes are saved
         const allFiles = useDataStore.getState().notes;
         const allEvents = useDataStore.getState().events;
@@ -350,7 +361,7 @@ export default function Dashboard() {
             return;
         }
         
-        // [TASK 2] Safety check: Don't save if content is null or an empty doc shell that might
+        // Safety check: Don't save if content is null or an empty doc shell that might
         // be a side-effect of a component unmount or state transition.
         if (!content || (content.type === 'doc' && (!content.content || content.content.length === 0))) {
             console.warn(`[AutoSave] Aborted: Content is null or empty doc shell. Possible race condition during tab switch.`);
@@ -377,14 +388,22 @@ export default function Dashboard() {
         }
 
         console.log(`[AutoSave] Triggering save for ${noteId} ("${(currentFile as any).title || 'Untitled'}")`);
+        isSavingRef.current.add(noteId);
         setSaveStatus('saving');
         try {
             await performSaveRef.current(content, noteId, fileKey, (currentFile as any).visibility ?? 'private');
             console.log(`[AutoSave] Successfully saved ${noteId}`);
             setSaveStatus('saved');
+            // [FIX-1b] Update the cached _saveStatus on the open tab so that
+            // switching away and returning does not lose the 'saved' state.
+            setOpenTabs(prev => prev.map(tab =>
+                tab.id === noteId ? { ...tab, _saveStatus: 'saved' } : tab
+            ));
         } catch (e) {
             console.error(`[AutoSave] Save FAILED for ${noteId}:`, e);
             setSaveStatus('unsaved');
+        } finally {
+            isSavingRef.current.delete(noteId);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -620,7 +639,9 @@ export default function Dashboard() {
         lastLoadIdRef.current = loadId;
         setIsLoadingContent(true);
         setEditorContent(null);
-        setFileName(titleFn);
+        // Only set placeholder if we don't know the real title yet.
+        // Avoid stamping 'Locked Note (Decrypting...)' as the displayed title.
+        if (titleFn && !titleFn.includes('Locked')) setFileName(titleFn);
         setSaveStatus("saved");
 
         try {
@@ -640,8 +661,16 @@ export default function Dashboard() {
                 console.error("Failed to recover local backup:", backupErr);
             }
 
-            let target = passedFile || files.find(f => f.id === fileId);
-            if (!target) target = events.find(e => e.id === fileId) as any;
+            // [FIX-2] Always read the CURRENT store state (not the React-state snapshot
+            // captured at the last render). On F5, `files` (React state) may still be []
+            // while the store already has data from a concurrent fetchDirectory call.
+            const freshStoreNotes = useDataStore.getState().notes;
+            const freshStoreEvents = useDataStore.getState().events;
+            let target = passedFile
+                || freshStoreNotes.find((f: any) => f.id === fileId)
+                || freshStoreEvents.find((e: any) => e.id === fileId)
+                || files.find(f => f.id === fileId)
+                || events.find(e => e.id === fileId) as any;
             if (!target) {
                 const res = await apiFetch(`/api/v1/files/${fileId}`);
                 if (res.ok) target = await res.json().catch(() => null);
@@ -874,6 +903,27 @@ export default function Dashboard() {
     // an SSE `file_updated` event → fetchDirectory() updated `files` → this effect
     // re-ran, sometimes spawning a new 1500ms timer on stale content that overwrote the
     // recently saved version. All auto-save is now handled by triggerSave + its effects.
+
+    // [FIX-2b] Reactive title-sync: whenever fetchDirectory resolves and the store
+    // holds a decrypted title for the currently-open note, push it into the local
+    // fileName state AND the open-tab title. This is the definitive fix for the
+    // "Locked Note (Decrypting...)" placeholder persisting after F5.
+    useEffect(() => {
+        if (!activeNoteId) return;
+        const freshNote = storeFiles.find((f: any) => f.id === activeNoteId) as any;
+        if (!freshNote) return;
+        const realTitle = freshNote.title;
+        if (!realTitle || realTitle === 'Locked Note (Decrypting...)') return;
+        // Update fileName if it's still showing the placeholder or is empty
+        setFileName(prev => (prev === '' || prev.includes('Locked')) ? realTitle : prev);
+        // Sync the open tab's title so it renders correctly on remount / tab switch
+        setOpenTabs(prev => prev.map(tab =>
+            tab.id === activeNoteId && (tab.title === '' || tab.title.includes('Locked'))
+                ? { ...tab, title: realTitle }
+                : tab
+        ));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [storeFiles, activeNoteId]);
 
     // Data Load Effect
     useEffect(() => {
