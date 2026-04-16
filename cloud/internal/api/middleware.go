@@ -2,12 +2,24 @@ package api
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
 )
+
+// ValidateJWTSecret must be called once at server startup.
+// It terminates the process if JWT_SECRET is empty, preventing an insecure
+// fallback key from ever being used in a real deployment.
+func ValidateJWTSecret() {
+	if os.Getenv("JWT_SECRET") == "" {
+		log.Fatal("[SECURITY FATAL] JWT_SECRET environment variable is not set. " +
+			"Refusing to start without a secure JWT signing key. " +
+			"Set JWT_SECRET to a cryptographically random 32-byte value.")
+	}
+}
 
 // AuthMiddleware extracts the user ID from a JWT and injects it into context.
 func AuthMiddleware(next http.Handler) http.Handler {
@@ -38,8 +50,11 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		jwtKeyStr := os.Getenv("JWT_SECRET")
+		// [FIX MITTEL-1] No fallback. ValidateJWTSecret() guarantees this is set at startup.
+		// If the variable disappears at runtime (e.g. env mutation), reject the request.
 		if jwtKeyStr == "" {
-			jwtKeyStr = "super-secret-jwt-key" // Fallback for dev
+			http.Error(w, "Server misconfiguration", http.StatusInternalServerError)
+			return
 		}
 		jwtKey := []byte(jwtKeyStr)
 

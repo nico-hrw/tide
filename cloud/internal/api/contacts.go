@@ -178,7 +178,24 @@ func (h *ContactHandler) GetRequests(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ContactHandler) AcceptRequest(w http.ResponseWriter, r *http.Request) {
+	// [FIX HOCH-2] Verify that the authenticated user is the recipient of this
+	// contact request before accepting. Without this check any authenticated user
+	// can accept contact requests addressed to someone else.
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 	contactID := chi.URLParam(r, "contactID")
+	contact, err := h.Store.GetContactByID(r.Context(), contactID)
+	if err != nil {
+		http.Error(w, "Contact request not found", http.StatusNotFound)
+		return
+	}
+	if contact.ContactID != userID {
+		http.Error(w, "Forbidden: you are not the recipient of this request", http.StatusForbidden)
+		return
+	}
 	if err := h.Store.AcceptContact(r.Context(), contactID); err != nil {
 		http.Error(w, "Failed to accept", http.StatusInternalServerError)
 		return
@@ -187,7 +204,22 @@ func (h *ContactHandler) AcceptRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ContactHandler) DeclineRequest(w http.ResponseWriter, r *http.Request) {
+	// [FIX HOCH-2] Same recipient-ownership check as AcceptRequest.
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 	contactID := chi.URLParam(r, "contactID")
+	contact, err := h.Store.GetContactByID(r.Context(), contactID)
+	if err != nil {
+		http.Error(w, "Contact request not found", http.StatusNotFound)
+		return
+	}
+	if contact.ContactID != userID {
+		http.Error(w, "Forbidden: you are not the recipient of this request", http.StatusForbidden)
+		return
+	}
 	if err := h.Store.DeleteContact(r.Context(), contactID); err != nil {
 		http.Error(w, "Failed to decline", http.StatusInternalServerError)
 		return
@@ -283,6 +315,20 @@ func (h *ContactHandler) DeleteContactByRowID(w http.ResponseWriter, r *http.Req
 		return
 	}
 	contactRowID := chi.URLParam(r, "contactRowID")
+
+	// [FIX MITTEL-3] Verify that the authenticated user is a participant in this
+	// contact row (either sender or receiver) before deleting it.
+	// Without this check any user can delete any contact relationship by UUID.
+	contact, err := h.Store.GetContactByID(r.Context(), contactRowID)
+	if err != nil {
+		http.Error(w, "Contact not found", http.StatusNotFound)
+		return
+	}
+	if contact.UserID != userID && contact.ContactID != userID {
+		http.Error(w, "Forbidden: you are not a participant in this contact", http.StatusForbidden)
+		return
+	}
+
 	if err := h.Store.DeleteContact(r.Context(), contactRowID); err != nil {
 		http.Error(w, "Failed to delete contact", http.StatusInternalServerError)
 		return

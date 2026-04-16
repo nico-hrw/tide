@@ -28,6 +28,10 @@ func main() {
 	}
 	masterKey := []byte(masterKeyStr)
 
+	// [FIX MITTEL-1] Abort startup immediately if JWT_SECRET is not set.
+	// This prevents any issued JWTs from being signed with an insecure fallback key.
+	api.ValidateJWTSecret()
+
 	// 1. Initialize Stores
 	// memStore := store.NewMemoryStore() // Deprecated
 	sqliteStore, err := store.NewSQLiteStore("data")

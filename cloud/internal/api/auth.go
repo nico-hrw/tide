@@ -218,7 +218,8 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("--------------------------------------------------")
 
 	resp["message"] = "OTP sent successfully"
-	resp["otp"] = otpCode // Temp for testing
+	// [FIX KRIT-2] OTP must NEVER be returned in the HTTP response.
+	// It is only logged server-side so an admin/mailer can deliver it out-of-band.
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
 }
@@ -282,9 +283,13 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("VerifyOTP: Pepper successfully decrypted. Length: %d", len(pepper))
 
 	// Generate JWT
+	// [FIX MITTEL-1] JWT_SECRET is validated at startup (see main / middleware).
+	// If we somehow reach this point without a key the token must not be issued.
 	jwtKeyStr := os.Getenv("JWT_SECRET")
 	if jwtKeyStr == "" {
-		jwtKeyStr = "super-secret-jwt-key" // Fallback for dev
+		log.Printf("[SECURITY] JWT_SECRET is not set — refusing to issue token")
+		http.Error(w, "Server misconfiguration", http.StatusInternalServerError)
+		return
 	}
 	jwtKey := []byte(jwtKeyStr)
 	claims := jwt.MapClaims{

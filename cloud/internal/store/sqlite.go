@@ -1124,6 +1124,21 @@ func (s *SQLiteStore) GetContactRequests(ctx context.Context, userID string) ([]
 	return results, nil
 }
 
+// GetContactByID fetches a single contact row by its primary-key UUID.
+// Used by handlers to verify ownership before accepting, declining or deleting a contact.
+func (s *SQLiteStore) GetContactByID(ctx context.Context, id string) (*Contact, error) {
+	query := `SELECT id, user_id, contact_id, status, created_at FROM contacts WHERE id = ?`
+	row := s.DB.QueryRowContext(ctx, query, id)
+	var c Contact
+	if err := row.Scan(&c.ID, &c.UserID, &c.ContactID, &c.Status, &c.CreatedAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &c, nil
+}
+
 func (s *SQLiteStore) AcceptContact(ctx context.Context, id string) error {
 	query := `UPDATE contacts SET status = 'accepted' WHERE id = ?`
 	_, err := s.DB.ExecContext(ctx, query, id)

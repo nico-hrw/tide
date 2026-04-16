@@ -250,6 +250,27 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// [FIX HOCH-3] Verify that the requesting user is the file owner before
+	// touching file_shares or the access_keys map.
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	file, err := h.Store.GetFile(r.Context(), fileID)
+	if err != nil {
+		if err == store.ErrNotFound {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to retrieve file", http.StatusInternalServerError)
+		return
+	}
+	if file.OwnerID != userID {
+		http.Error(w, "Forbidden: only the file owner can share this file", http.StatusForbidden)
+		return
+	}
+
 	// 1. Resolve Recipient ID via Blind Index
 	emailHash := hashString(req.RecipientEmail)
 	recipient, err := h.Store.GetUserByEmailHash(r.Context(), emailHash)
@@ -550,10 +571,21 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify file exists and belongs to user (skip ownership check for MVP speed)
+	// [FIX KRIT-1] Verify ownership before allowing a blob upload/overwrite.
+	// GetFile alone does not enforce ownership; an attacker with a valid JWT could
+	// overwrite any file's blob by guessing its UUID.
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 	file, err := h.Store.GetFile(r.Context(), id)
 	if err != nil {
 		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+	if file.OwnerID != userID {
+		http.Error(w, "Forbidden: only the file owner can upload content", http.StatusForbidden)
 		return
 	}
 
@@ -677,6 +709,24 @@ func (h *FileHandler) PurgeFiles(w http.ResponseWriter, r *http.Request) {
 
 func (h *FileHandler) GetFileBackups(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "fileID")
+
+	// [FIX HOCH-1] Verify the caller has access to the parent file before returning
+	// backup history. Without this check any authenticated user can enumerate all
+	// historical versions of any file by guessing its UUID.
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if _, err := h.Store.GetAccessibleFile(r.Context(), id, userID); err != nil {
+		if err == store.ErrNotFound {
+			http.Error(w, "File not found or access denied", http.StatusForbidden)
+			return
+		}
+		http.Error(w, "Failed to verify file access", http.StatusInternalServerError)
+		return
+	}
+
 	backups, err := h.Store.GetFileBackups(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Failed to get backups", http.StatusInternalServerError)
@@ -692,6 +742,23 @@ func (h *FileHandler) GetFileBackups(w http.ResponseWriter, r *http.Request) {
 func (h *FileHandler) GetFileBackup(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "fileID")
 	slotName := chi.URLParam(r, "slotName")
+
+	// [FIX HOCH-1] Same access check as GetFileBackups — caller must own or have
+	// a valid share for the file to retrieve the encrypted blob of a specific slot.
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if _, err := h.Store.GetAccessibleFile(r.Context(), id, userID); err != nil {
+		if err == store.ErrNotFound {
+			http.Error(w, "File not found or access denied", http.StatusForbidden)
+			return
+		}
+		http.Error(w, "Failed to verify file access", http.StatusInternalServerError)
+		return
+	}
+
 	b, err := h.Store.GetFileBackup(r.Context(), id, slotName)
 	if err != nil {
 		http.Error(w, "Backup not found", http.StatusNotFound)

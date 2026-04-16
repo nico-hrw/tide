@@ -87,6 +87,7 @@ type Store interface {
 	// Proceeding with store.Contact assumption or generic *Contact.
 	// Wait, `sqlite.go` is package store.
 	// So `type Contact struct` is in store.
+	GetContactByID(ctx context.Context, id string) (*Contact, error) // [FIX HOCH-2 / MITTEL-3] Lookup single contact row for ownership checks
 
 	CreateMessage(ctx context.Context, msg *Message) error
 	GetMessages(ctx context.Context, user1, user2 string) ([]*Message, error)
