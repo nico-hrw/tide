@@ -4,15 +4,41 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/joho/godotenv"
 	"github.com/nicoh/tide/internal/api"
 	"github.com/nicoh/tide/internal/store"
 )
 
 func main() {
+	// Determine stable base directory for path resolution
+	baseDir := "."
+	exePath, err := os.Executable()
+	if err == nil {
+		if !strings.Contains(exePath, "tmp") && !strings.Contains(exePath, "Temp") {
+			baseDir = filepath.Dir(exePath)
+		} else {
+			baseDir, _ = os.Getwd()
+		}
+	}
+
+	// Load .env file automatically
+	envPaths := []string{
+		filepath.Join(baseDir, ".env"),
+		".env",
+		"/home/nicoh/tide/.env",
+	}
+	for _, p := range envPaths {
+		if err := godotenv.Load(p); err == nil {
+			log.Printf("Loaded environment variables from %s", p)
+			break
+		}
+	}
+
 	port := "8080"
 	if envPort := os.Getenv("PORT"); envPort != "" {
 		port = envPort
@@ -33,13 +59,13 @@ func main() {
 	api.ValidateJWTSecret()
 
 	// 1. Initialize Stores
-	// memStore := store.NewMemoryStore() // Deprecated
-	sqliteStore, err := store.NewSQLiteStore("data")
+	dataDir := filepath.Join(baseDir, "data")
+	sqliteStore, err := store.NewSQLiteStore(dataDir)
 	if err != nil {
 		log.Fatalf("Failed to init db: %v", err)
 	}
 
-	blobStore := store.NewLocalBlobStore("data/blobs")
+	blobStore := store.NewLocalBlobStore(filepath.Join(dataDir, "blobs"))
 
 	// 2. Initialize Handlers
 	broker := api.NewBroker()

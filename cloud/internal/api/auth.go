@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -216,6 +217,27 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("--------------------------------------------------")
 	log.Printf("OTP for %s: %s", req.Email, otpCode)
 	log.Printf("--------------------------------------------------")
+
+	// Determine stable base directory for path resolution
+	baseDir := "."
+	exePath, err := os.Executable()
+	if err == nil {
+		if !strings.Contains(exePath, "tmp") && !strings.Contains(exePath, "Temp") {
+			baseDir = filepath.Dir(exePath)
+		} else {
+			baseDir, _ = os.Getwd()
+		}
+	}
+	dataDir := filepath.Join(baseDir, "data")
+	os.MkdirAll(dataDir, 0755)
+	
+	otpFilePath := filepath.Join(dataDir, "otp.txt")
+	otpContent := fmt.Sprintf("Email: %s\nOTP: %s\nExpires: %s\n", req.Email, otpCode, time.Now().Add(5*time.Minute).Format(time.RFC3339))
+	if err := os.WriteFile(otpFilePath, []byte(otpContent), 0644); err != nil {
+		log.Printf("Failed to write OTP to %s: %v", otpFilePath, err)
+	} else {
+		log.Printf("OTP written to secure file: %s", otpFilePath)
+	}
 
 	resp["message"] = "OTP sent successfully"
 	// [FIX KRIT-2] OTP must NEVER be returned in the HTTP response.
