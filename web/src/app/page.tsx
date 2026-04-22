@@ -355,9 +355,8 @@ export default function Dashboard() {
             return;
         }
 
-        const title = (currentFile as any).title || fileNameRef.current;
-        if (title && title.includes('Locked')) {
-            console.warn(`[AutoSave] Aborted: Refusing to overwrite a Locked Note/Task`);
+        if ((currentFile as any)._decryptionFailed) {
+            console.warn(`[AutoSave] Aborted: Refusing to overwrite a note whose decryption failed`);
             return;
         }
         
@@ -739,8 +738,37 @@ export default function Dashboard() {
                 const dek = await cryptoV2.importDEK(rawDek);
                 setActiveFileKey(dek);
 
-                // Title is stored as plaintext in metadata for V2 files — update store if stale
-                const v2Title = (target.metadata as any)?.title || target.title;
+                let v2Title = (target.metadata as any)?.title || target.title;
+                if (target.secured_meta) {
+                    try {
+                        // Attempt DEK (AES-GCM) decryption first
+                        const metaPayload = JSON.parse(target.secured_meta);
+                        if (metaPayload.data && metaPayload.iv) {
+                            const mIvBuf = cryptoLib.base64ToArrayBuffer(metaPayload.iv);
+                            const mDataBuf = cryptoLib.base64ToArrayBuffer(metaPayload.data);
+                            const mDecrypted = await window.crypto.subtle.decrypt(
+                                { name: 'AES-GCM', iv: mIvBuf },
+                                dek,
+                                mDataBuf
+                            );
+                            const mDecoded = new TextDecoder().decode(mDecrypted);
+                            const parsedMeta = JSON.parse(mDecoded);
+                            if (parsedMeta.title) v2Title = parsedMeta.title;
+                        } else {
+                            // Fallback to RSA decryption
+                            const meta = await cryptoLib.decryptMetadata(target.secured_meta, privateKey, `load-v2-${fileId}`);
+                            if (meta.title) v2Title = meta.title as string;
+                        }
+                    } catch (e) {
+                        try {
+                            const meta = await cryptoLib.decryptMetadata(target.secured_meta, privateKey, `load-v2-${fileId}`);
+                            if (meta.title) v2Title = meta.title as string;
+                        } catch (err2) {
+                            console.warn("[V2-Load] Metadata decryption failed", err2);
+                        }
+                    }
+                }
+
                 if (v2Title && v2Title !== 'Locked Note (Decrypting...)') {
                     setFileName(v2Title);
                     useDataStore.getState().updateFileRaw(fileId, { title: v2Title, _decryptionFailed: false });
@@ -975,10 +1003,6 @@ export default function Dashboard() {
         if (privateKey && publicKey && myId) {
             setKeys(privateKey, publicKey, myId);
             fetchDirectory(null, true);
-            apiFetch('/api/v1/files/sidebar_order.info')
-                .then(res => res.ok ? res.json() : null)
-                .then(data => { if (data?.order) useDataStore.getState().setOrderedNoteIds(data.order); })
-                .catch(() => { });
 
             import('@/lib/searchIndex').then(({ loadSearchIndex, rebuildIndex }) => {
                 loadSearchIndex(privateKey, myId).then(async (idx) => {
@@ -1433,21 +1457,6 @@ export default function Dashboard() {
         if (privateKey && publicKey && myId) {
             setKeys(privateKey, publicKey, myId);
             fetchDirectory(null, true); // Force initial fetch of root to ensure UI update
-
-            // Load sidebar order (silently handle 404/not found)
-            apiFetch('/api/v1/files/sidebar_order.info')
-                .then(async res => {
-                    if (res.status === 404) return null;
-                    if (!res.ok) return null;
-                    return res.json().catch(() => null);
-                })
-                .then(data => {
-                    if (data && data.order) {
-                        const { setOrderedNoteIds } = useDataStore.getState();
-                        setOrderedNoteIds(data.order);
-                    }
-                })
-                .catch(() => { /* Silent proceed */ });
         }
     }, [privateKey, publicKey, myId, setKeys, fetchDirectory]);
 

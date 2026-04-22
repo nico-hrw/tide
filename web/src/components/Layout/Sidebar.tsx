@@ -113,17 +113,7 @@ export default function Sidebar({
     const handleReorder = (newItems: DecryptedFile[]) => {
         setOrderedItems(newItems);
         const newIds = newItems.map(i => i.id);
-        setOrderedNoteIds(newIds);
-
-        // Sync to .info file
-        if (myId) {
-            apiFetch('/api/v1/files/sidebar_order.info', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ order: newIds })
-            }).catch(e => console.error("Failed to save sidebar order", e));
-        }
-    };
+	};
 
     useEffect(() => {
         const id = sessionStorage.getItem('tide_user_id') || localStorage.getItem('tide_user_id') || '';

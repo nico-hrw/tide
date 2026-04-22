@@ -208,7 +208,7 @@ function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
         (async () => {
             try {
                 const meta = await cryptoLib.decryptMetadata(element.encryptedKey, privateKey);
-                const fileKey = await window.crypto.subtle.importKey('jwk', meta.fileKey as JsonWebKey, { name: 'AES-GCM' }, false, ['decrypt']);
+                const fileKey = await window.crypto.subtle.importKey('jwk', meta.fileKey as JsonWebKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
                 const res = await apiFetch(`/api/v1/files/${element.blobId}/download`);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const dec = await cryptoLib.decryptFile(await res.blob(), meta.iv as string, fileKey);
