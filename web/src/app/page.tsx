@@ -354,11 +354,6 @@ export default function Dashboard() {
             console.warn(`[AutoSave] Aborting save: File ${noteId} not found in store.`);
             return;
         }
-
-        if ((currentFile as any)._decryptionFailed) {
-            console.warn(`[AutoSave] Aborted: Refusing to overwrite a note whose decryption failed`);
-            return;
-        }
         
         // Safety check: Don't save if content is null or an empty doc shell that might
         // be a side-effect of a component unmount or state transition.
@@ -368,7 +363,7 @@ export default function Dashboard() {
         }
 
         const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
-        if (contentStr === 'decrypting' || contentStr.includes('DECRYPTION ERROR') || (currentFile as any)._decryptionFailed) {
+        if (contentStr === 'decrypting' || contentStr.includes('DECRYPTION ERROR') || contentStr.includes('V2 DECRYPTION ERROR')) {
             console.warn(`[AutoSave] Aborted: Refusing to save decrypting or errored content`);
             return;
         }
@@ -722,6 +717,11 @@ export default function Dashboard() {
 
             if (target.visibility === 'public') {
                 const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
+                if (resBlob.status === 404) {
+                    setOpenTabs(prev => prev.filter(t => t.id !== fileId));
+                    useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
+                    throw new Error("File not found on server (404)");
+                }
                 if (resBlob.ok) contentText = await resBlob.text();
             } else if ((target.version ?? 1) >= 2 && target.access_keys) {
                 // ── [V2-LOAD] Envelope Encryption V2 path ──────────────────────────────
@@ -771,13 +771,18 @@ export default function Dashboard() {
 
                 if (v2Title && v2Title !== 'Locked Note (Decrypting...)') {
                     setFileName(v2Title);
-                    useDataStore.getState().updateFileRaw(fileId, { title: v2Title, _decryptionFailed: false });
+                    useDataStore.getState().updateFileRaw(fileId, { title: v2Title, isLocked: false });
                 }
 
                 if (recoveredBackup) {
                     console.log('[RECOVERY] V2: Skipping server download, using recovered local backup.');
                 } else {
                     const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
+                    if (resBlob.status === 404) {
+                        setOpenTabs(prev => prev.filter(t => t.id !== fileId));
+                        useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
+                        throw new Error("File not found on server (404)");
+                    }
                     if (resBlob.ok) {
                         const blobText = await resBlob.text();
                         if (blobText) {
@@ -812,10 +817,10 @@ export default function Dashboard() {
                 meta = await cryptoLib.decryptMetadata(target.secured_meta, privateKey, `load-${fileId}`);
 
                 // Resolve "Locked Note" title once decrypted
-                if (meta.title && (target.title !== meta.title || target._decryptionFailed)) {
+                if (meta.title && (target.title !== meta.title || target.isLocked)) {
                     console.log(`[Crypto] Decrypted real title for ${fileId}: "${meta.title}"`);
                     setFileName(meta.title as string);
-                    useDataStore.getState().updateFileRaw(fileId, { title: meta.title, _decryptionFailed: false });
+                    useDataStore.getState().updateFileRaw(fileId, { title: meta.title, isLocked: false });
                 }
 
                 if (!meta.fileKey || typeof meta.fileKey !== 'object' || !(meta.fileKey as any).kty) {
@@ -832,6 +837,11 @@ export default function Dashboard() {
                     console.log("[RECOVERY] V1: Skipping server blob download, using recovered backup.");
                 } else {
                     const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
+                    if (resBlob.status === 404) {
+                        setOpenTabs(prev => prev.filter(t => t.id !== fileId));
+                        useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
+                        throw new Error("File not found on server (404)");
+                    }
                     if (resBlob.ok) {
                         const blob = await resBlob.blob();
                         if (blob.size > 0) {
