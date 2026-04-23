@@ -1860,6 +1860,7 @@ export default function Dashboard() {
                 };
                 bodyPayload.access_keys = { [myId]: v2Result.encrypted_dek };
                 bodyPayload.content_ciphertext = v2Result.content_ciphertext;
+                bodyPayload.secured_meta = securedMeta; // Always include for title decryption on reload
             } catch (e) {
                 console.error("V2 encryption failed for create", e);
                 // fallback to V1
@@ -2036,7 +2037,7 @@ export default function Dashboard() {
 
             // 4. Build body
             const body: any = {
-                secured_meta: securedMeta,
+                secured_meta: securedMeta, // Always set for reliable title decryption on reload
             };
 
             try {
@@ -2055,6 +2056,7 @@ export default function Dashboard() {
                 };
                 body.access_keys = { [sessionStorage.getItem("tide_user_id") || ""]: v2Result.encrypted_dek };
                 body.content_ciphertext = v2Result.content_ciphertext;
+                // secured_meta is already set above — no override needed
             } catch (e) {
                 console.error("V2 encryption failed for save", e);
                 body.metadata = meta; // fallback

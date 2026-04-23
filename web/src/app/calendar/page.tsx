@@ -194,7 +194,7 @@ export default function CalendarPage() {
                     type: "event",
                     parent_id: null,
                     public_meta: {},
-                secured_meta: securedMeta
+                    secured_meta: securedMeta // Always include for title decryption on reload
                 })
             });
 
@@ -304,7 +304,7 @@ export default function CalendarPage() {
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
             const payload: any = {
-                secured_meta: securedMeta,
+                secured_meta: securedMeta, // Always set for reliable title decryption on reload
                 is_task: !!meta.is_task,
                 is_completed: !!meta.is_completed,
                 exdates: meta.exdates || [],
@@ -337,6 +337,7 @@ export default function CalendarPage() {
                 };
                 payload.access_keys = { [sessionStorage.getItem("tide_user_id") || ""]: v2Result.encrypted_dek };
                 payload.content_ciphertext = v2Result.content_ciphertext;
+                // secured_meta is already set above — no override needed
             } catch (e) {
                 console.error("V2 encryption failed", e);
             }

@@ -574,24 +574,38 @@ export const useDataStore = create<DataState>((set, get) => ({
                         title: f.metadata.title || "Untitled"
                     };
                     // [FIX] Decrypt secured_meta to get the real title for V2 notes.
+                    // IMPORTANT: decryptMetadata never throws — it returns {isLocked: true} on failure.
+                    // We must check isLocked before accepting the result to prevent error
+                    // titles from being written into the cache and replacing valid data.
                     if (f.secured_meta) {
-                        try {
-                            const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `v2-${f.id}`);
-                            if (meta.title) metaData.title = meta.title as string;
-                        } catch (e) {
-                            console.warn(`[CRYPTO-AUDIT] Failed to decrypt metadata for ${f.id} | Using placeholder.`);
-                            metaData = { title: "Locked Note (Decrypting...)", isLocked: true };
+                        const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `v2-${f.id}`);
+                        if (!meta.isLocked && meta.title) {
+                            metaData.title = meta.title as string;
+                            // Only cache on success so a transient failure doesn't poison the cache
+                            newMetaCache[f.id] = metaData;
+                        } else if (meta.isLocked) {
+                            console.warn(`[CRYPTO-AUDIT] Failed to decrypt metadata for ${f.id} | Using f.metadata title as fallback.`);
+                            // Do NOT cache a locked/error state — let next load retry decryption
+                        } else {
+                            newMetaCache[f.id] = metaData;
                         }
+                    } else {
+                        newMetaCache[f.id] = metaData;
                     }
-                    newMetaCache[f.id] = metaData;
                 } else if (f.secured_meta) {
                     const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `lazy-${f.id}`);
-                    metaData = {
-                        ...meta,
-                        title: meta.title || "Untitled",
-                        isLocked: !!meta.isLocked
-                    };
-                    newMetaCache[f.id] = metaData;
+                    if (!meta.isLocked) {
+                        metaData = {
+                            ...meta,
+                            title: meta.title || "Untitled",
+                            isLocked: false
+                        };
+                        newMetaCache[f.id] = metaData;
+                    } else {
+                        // Decryption failed — do not cache, keep placeholder title
+                        metaData = { title: "Untitled", isLocked: true };
+                        console.warn(`[CRYPTO-AUDIT] Failed to decrypt legacy metadata for ${f.id}`);
+                    }
                 }
 
                 const normalizedItem = {
@@ -690,20 +704,33 @@ export const useDataStore = create<DataState>((set, get) => ({
                         if (f.public_meta?.title) metaData.title = f.public_meta.title;
                     } else if (f.version >= 2 && f.metadata) {
                         // V2 files: start with crypto flags, then get title from secured_meta.
+                        // IMPORTANT: decryptMetadata never throws — check isLocked before caching.
                         metaData = { ...f.metadata, title: f.metadata.title || "Untitled" };
                         if (f.secured_meta) {
                             const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey!, `v2-lam-${f.id}`);
-                            metaData = { ...metaData, ...meta };
+                            if (!meta.isLocked) {
+                                metaData = { ...metaData, ...meta };
+                                newMetaCache[f.id] = metaData;
+                            } else {
+                                // Decryption failed — keep f.metadata values, do not cache error state
+                                console.warn(`[CRYPTO-AUDIT] loadAllMetadata: Failed to decrypt metadata for ${f.id}`);
+                            }
+                        } else {
+                            newMetaCache[f.id] = metaData;
                         }
-                        newMetaCache[f.id] = metaData;
                     } else if (f.secured_meta) {
                         const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey!, `lam-${f.id}`);
-                        metaData = {
-                            ...meta,
-                            title: meta.title || "Untitled",
-                            isLocked: !!meta.isLocked
-                        };
-                        newMetaCache[f.id] = metaData;
+                        if (!meta.isLocked) {
+                            metaData = {
+                                ...meta,
+                                title: meta.title || "Untitled",
+                                isLocked: false
+                            };
+                            newMetaCache[f.id] = metaData;
+                        } else {
+                            metaData = { title: "Untitled", isLocked: true };
+                            console.warn(`[CRYPTO-AUDIT] loadAllMetadata: Failed to decrypt legacy metadata for ${f.id}`);
+                        }
                     }
 
                     if (f.type === 'event') {
