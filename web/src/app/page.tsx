@@ -1026,7 +1026,10 @@ export default function Dashboard() {
                                 ...s.tasks.map(t => ({ id: t.id, title: t.title, date: new Date().toISOString(), type: 'task' as const }))
                             ];
                             if (items.length > 0) {
-                                await rebuildIndex(items, privateKey, myId);
+                                // [FIX] rebuildIndex encrypts a new DEK via RSA-OAEP, which requires
+                                // the PUBLIC key (encrypt usage). Passing privateKey here caused
+                                // InvalidAccessError: key.usages does not permit this operation.
+                                await rebuildIndex(items, publicKey, myId);
                             }
                         } catch (e) {
                             console.error("Index initialization failed", e);

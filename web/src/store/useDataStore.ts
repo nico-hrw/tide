@@ -566,10 +566,23 @@ export const useDataStore = create<DataState>((set, get) => ({
                 if (f.visibility === 'public') {
                     if (f.public_meta?.title) metaData.title = f.public_meta.title;
                 } else if (f.version >= 2 && f.metadata) {
+                    // V2 files store crypto flags (has_custom_password) in f.metadata.
+                    // The title is stored in secured_meta (RSA-encrypted) — we must
+                    // still decrypt it. Start with the crypto flags as a base.
                     metaData = {
                         ...f.metadata,
                         title: f.metadata.title || "Untitled"
                     };
+                    // [FIX] Decrypt secured_meta to get the real title for V2 notes.
+                    if (f.secured_meta) {
+                        try {
+                            const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `v2-${f.id}`);
+                            if (meta.title) metaData.title = meta.title as string;
+                        } catch (e) {
+                            console.warn(`[CRYPTO-AUDIT] Failed to decrypt metadata for ${f.id} | Using placeholder.`);
+                            metaData = { title: "Locked Note (Decrypting...)", isLocked: true };
+                        }
+                    }
                     newMetaCache[f.id] = metaData;
                 } else if (f.secured_meta) {
                     try {
@@ -692,6 +705,22 @@ export const useDataStore = create<DataState>((set, get) => ({
                     let metaData: any = { title: "Untitled" };
                     if (f.visibility === 'public') {
                         if (f.public_meta?.title) metaData.title = f.public_meta.title;
+                    } else if (f.version >= 2 && f.metadata) {
+                        // V2 files: start with crypto flags, then get title from secured_meta.
+                        metaData = {
+                            ...f.metadata,
+                            title: f.metadata.title || "Untitled"
+                        };
+                        // [FIX] Decrypt secured_meta to get the real title for V2 notes.
+                        if (f.secured_meta) {
+                            try {
+                                const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey!, `v2-lam-${f.id}`);
+                                if (meta.title) metaData.title = meta.title as string;
+                            } catch (e) {
+                                metaData = { title: "Locked Note (Decrypting...)", isLocked: true };
+                            }
+                        }
+                        newMetaCache[f.id] = metaData;
                     } else if (f.secured_meta) {
                         try {
                             const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey!, `lazy-${f.id}`);
