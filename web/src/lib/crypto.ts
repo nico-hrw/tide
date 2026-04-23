@@ -311,26 +311,36 @@ export async function encryptMetadata(metadata: Record<string, unknown>, publicK
 }
 
 export async function decryptMetadata(encryptedBase64: string, privateKey: CryptoKey, label?: string): Promise<Record<string, unknown>> {
-    const fingerprint = await getKeyFingerprint(privateKey);
-    console.log(`[CRYPTO-AUDIT] Decrypting Metadata | Label: ${label || "unknown"} | PrivateKey: ${fingerprint} | Ciphertext Sample: ${encryptedBase64.slice(0, 16)}...`);
+    if (!encryptedBase64 || typeof encryptedBase64 !== 'string' || encryptedBase64.length < 16) {
+        return { title: "Locked Note (Invalid Metadata)", isLocked: true };
+    }
 
-    const ciphertext = base64ToArrayBuffer(encryptedBase64);
-
-    const decrypted = await window.crypto.subtle.decrypt(
-        {
-            name: "RSA-OAEP"
-        },
-        privateKey,
-        ciphertext
-    );
-
-    const dec = new TextDecoder();
-    const decoded = dec.decode(decrypted);
-    if (!decoded) return {};
     try {
-        return JSON.parse(decoded);
-    } catch (e) {
-        console.error("[CRYPTO-AUDIT] JSON Parse failed in decryptMetadata", e, decoded);
-        return { title: "Error parsing metadata" };
+        const fingerprint = await getKeyFingerprint(privateKey);
+        console.log(`[CRYPTO-AUDIT] Decrypting Metadata | Label: ${label || "unknown"} | PrivateKey: ${fingerprint} | Ciphertext Sample: ${encryptedBase64.slice(0, 16)}...`);
+
+        const ciphertext = base64ToArrayBuffer(encryptedBase64);
+
+        const decrypted = await window.crypto.subtle.decrypt(
+            {
+                name: "RSA-OAEP"
+            },
+            privateKey,
+            ciphertext
+        );
+
+        const dec = new TextDecoder();
+        const decoded = dec.decode(decrypted);
+        if (!decoded) return { title: "Untitled (Empty)", isLocked: false };
+        
+        try {
+            return JSON.parse(decoded);
+        } catch (e) {
+            console.error("[CRYPTO-AUDIT] JSON Parse failed in decryptMetadata", e, decoded);
+            return { title: "Untitled (Corrupted)", isLocked: false };
+        }
+    } catch (err) {
+        console.warn(`[CRYPTO-AUDIT] Decryption failed for ${label || 'unknown'}:`, err);
+        return { title: "Locked Note (Decryption Failed)", isLocked: true };
     }
 }

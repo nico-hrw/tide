@@ -1361,6 +1361,32 @@ export default function Dashboard() {
 
                 setPrivateKey(privKey);
                 setPublicKey(pubKey);
+
+                // --- CRYPTO SANITY CHECK ---
+                try {
+                    // Test if we can actually use these keys for their intended purpose.
+                    // This catches cases where keys were stored but the browser's crypto 
+                    // state is incompatible or the keys are corrupted.
+                    const testData = new TextEncoder().encode("sanity-check");
+                    const encrypted = await window.crypto.subtle.encrypt({ name: "RSA-OAEP" }, pubKey, testData);
+                    const decrypted = await window.crypto.subtle.decrypt({ name: "RSA-OAEP" }, privKey, encrypted);
+                    const result = new TextDecoder().decode(decrypted);
+                    if (result !== "sanity-check") throw new Error("Sanity check result mismatch");
+                    console.log("[CRYPTO-AUDIT] Keys validated successfully.");
+                } catch (sanityErr: any) {
+                    const isCryptoError = sanityErr.name === 'InvalidAccessError' || sanityErr.name === 'OperationError';
+                    console.error("[CRYPTO-AUDIT] FATAL: Keys in storage are invalid or incompatible.", sanityErr);
+                    
+                    if (isCryptoError || sanityErr.message.includes("Sanity check")) {
+                        console.warn("[CRYPTO-AUDIT] Performing emergency cache reset...");
+                        localStorage.clear();
+                        sessionStorage.clear();
+                        window.location.href = "/auth?error=crypto_reset";
+                        return;
+                    }
+                }
+                // ---------------------------
+
                 setKeys(privKey, pubKey, userId);
                 setMyId(userId);
                 setUserEmail(email);

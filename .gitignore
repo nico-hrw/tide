@@ -1,3 +1,10 @@
+tide-server
+web/build.tar
+web/.next/
+node_modules/
+cloud/data/
+
+
 # Dependency directories
 node_modules/
 vendor/

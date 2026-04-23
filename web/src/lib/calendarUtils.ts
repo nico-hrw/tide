@@ -103,5 +103,12 @@ export function getEventsForDate(targetDate: string | Date, allEvents: CalendarE
         }
     });
 
-    return dayEvents.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    return dayEvents.sort((a, b) => {
+        const timeA = new Date(a.start).getTime();
+        const timeB = new Date(b.start).getTime();
+        if (isNaN(timeA) && isNaN(timeB)) return 0;
+        if (isNaN(timeA)) return 1;
+        if (isNaN(timeB)) return -1;
+        return timeA - timeB;
+    });
 }

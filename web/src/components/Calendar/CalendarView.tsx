@@ -1315,10 +1315,25 @@ export default function CalendarView({
         const maxDate = startOfDay(addDays(loadedWeeks[loadedWeeks.length - 1], 7));
 
         const processEvent = (e: CalendarEvent, occurrenceStart: Date) => {
+            if (isNaN(occurrenceStart.getTime())) {
+                console.warn(`[CALENDAR-DRV] Invalid occurrenceStart for event ${e.id}`);
+                return;
+            }
             const startNode = new Date(e.start);
             const endNodeOrig = new Date(e.end);
+            
+            if (isNaN(startNode.getTime()) || isNaN(endNodeOrig.getTime())) {
+                console.warn(`[CALENDAR-DRV] Skipping event ${e.id} due to invalid dates:`, { start: e.start, end: e.end });
+                return;
+            }
+
             const duration = endNodeOrig.getTime() - startNode.getTime();
             const occurrenceEnd = new Date(occurrenceStart.getTime() + duration);
+
+            if (isNaN(occurrenceEnd.getTime())) {
+                console.warn(`[CALENDAR-DRV] Invalid occurrenceEnd for event ${e.id}`);
+                return;
+            }
 
             const occDateKey = format(occurrenceStart, "yyyy-MM-dd");
 
@@ -1377,6 +1392,10 @@ export default function CalendarView({
 
         events.forEach(e => {
             const start = new Date(e.start);
+            if (isNaN(start.getTime())) {
+                console.warn(`[CALENDAR-DRV] Base start date invalid for event ${e.id}:`, e.start);
+                return;
+            }
 
             const rule = (e as any).recurrence_rule;
             const rrule = rule || `FREQ=${(e.recurrence && e.recurrence !== 'none') ? e.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`;
@@ -1394,6 +1413,10 @@ export default function CalendarView({
             } else {
                 let current = new Date(start);
                 const recEndOrig = (e as any).recurrence_end ? new Date((e as any).recurrence_end) : new Date(maxDate.getTime() + 31536000000);
+                if (isNaN(recEndOrig.getTime())) {
+                     processEvent(e, start); // Fallback to single occurrence
+                     return;
+                }
                 const safeRecEnd = recEndOrig < maxDate ? recEndOrig : maxDate;
 
                 while (current < minDate && current < safeRecEnd) {

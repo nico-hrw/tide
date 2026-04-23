@@ -585,33 +585,13 @@ export const useDataStore = create<DataState>((set, get) => ({
                     }
                     newMetaCache[f.id] = metaData;
                 } else if (f.secured_meta) {
-                    try {
-                        const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `lazy-${f.id}`);
-                        metaData = {
-                            title: meta.title || "Untitled",
-                            color: meta.color,
-                            description: meta.description,
-                            start: meta.start,
-                            end: meta.end,
-                            allDay: meta.allDay,
-                            isGroup: meta.isGroup,
-                            effect: meta.effect,
-                            recurrence_rule: meta.recurrence_rule,
-                            recurrence_end: meta.recurrence_end,
-                            exdates: meta.exdates,
-                            completed_dates: meta.completed_dates,
-                            is_task: meta.is_task,
-                            is_completed: meta.is_completed,
-                            is_cancelled: meta.is_cancelled,
-                            shading: meta.shading,
-                            linkedTaskId: meta.linkedTaskId,
-                            tags: meta.tags,
-                        };
-                        newMetaCache[f.id] = metaData;
-                    } catch (e) {
-                        console.warn(`[CRYPTO-AUDIT] Failed to decrypt metadata for ${f.id} | Using placeholder.`);
-                        metaData = { title: "Locked Note (Decrypting...)", isLocked: true };
-                    }
+                    const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `lazy-${f.id}`);
+                    metaData = {
+                        ...meta,
+                        title: meta.title || "Untitled",
+                        isLocked: !!meta.isLocked
+                    };
+                    newMetaCache[f.id] = metaData;
                 }
 
                 const normalizedItem = {
@@ -621,10 +601,13 @@ export const useDataStore = create<DataState>((set, get) => ({
                 };
 
                 if (f.type === 'event') {
+                    // DEFENSIVE: Ensure start and end are valid date strings
+                    const isValidDate = (d: any) => d && !isNaN(new Date(d).getTime());
+                    
                     decryptedEvents.push({
                         ...normalizedItem,
-                        start: metaData.start || new Date().toISOString(),
-                        end: metaData.end || new Date().toISOString(),
+                        start: isValidDate(metaData.start) ? metaData.start : new Date().toISOString(),
+                        end: isValidDate(metaData.end) ? metaData.end : new Date().toISOString(),
                     });
                 } else {
                     decryptedNotes.push(normalizedItem);
@@ -707,46 +690,20 @@ export const useDataStore = create<DataState>((set, get) => ({
                         if (f.public_meta?.title) metaData.title = f.public_meta.title;
                     } else if (f.version >= 2 && f.metadata) {
                         // V2 files: start with crypto flags, then get title from secured_meta.
-                        metaData = {
-                            ...f.metadata,
-                            title: f.metadata.title || "Untitled"
-                        };
-                        // [FIX] Decrypt secured_meta to get the real title for V2 notes.
+                        metaData = { ...f.metadata, title: f.metadata.title || "Untitled" };
                         if (f.secured_meta) {
-                            try {
-                                const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey!, `v2-lam-${f.id}`);
-                                if (meta.title) metaData.title = meta.title as string;
-                            } catch (e) {
-                                metaData = { title: "Locked Note (Decrypting...)", isLocked: true };
-                            }
+                            const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey!, `v2-lam-${f.id}`);
+                            metaData = { ...metaData, ...meta };
                         }
                         newMetaCache[f.id] = metaData;
                     } else if (f.secured_meta) {
-                        try {
-                            const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey!, `lazy-${f.id}`);
-                            metaData = {
-                                title: meta.title || "Untitled",
-                                color: meta.color,
-                                description: meta.description,
-                                start: meta.start,
-                                end: meta.end,
-                                allDay: meta.allDay,
-                                isGroup: meta.isGroup,
-                                effect: meta.effect,
-                                recurrence_rule: meta.recurrence_rule,
-                                recurrence_end: meta.recurrence_end,
-                                exdates: meta.exdates,
-                                completed_dates: meta.completed_dates,
-                                is_task: meta.is_task,
-                                is_completed: meta.is_completed,
-                                is_cancelled: meta.is_cancelled,
-                                shading: meta.shading,
-                                tags: meta.tags
-                            };
-                            newMetaCache[f.id] = metaData;
-                        } catch (e) {
-                            metaData = { title: "Locked Note (Decrypting...)", isLocked: true };
-                        }
+                        const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey!, `lam-${f.id}`);
+                        metaData = {
+                            ...meta,
+                            title: meta.title || "Untitled",
+                            isLocked: !!meta.isLocked
+                        };
+                        newMetaCache[f.id] = metaData;
                     }
 
                     if (f.type === 'event') {
