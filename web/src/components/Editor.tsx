@@ -38,6 +38,7 @@ import { TableCell } from '@tiptap/extension-table-cell';
 import { SlashCommand, slashCommandSuggestion } from './extensions/SlashCommand';
 import { DateMentionExtension } from './extensions/DateMentionExtension';
 import { TaskMentionExtension } from './extensions/TaskMentionExtension';
+import { CalendarEventMentionExtension } from './extensions/CalendarEventMentionExtension';
 import { ReferenceMark } from './extensions/ReferenceMark';
 import { ReferenceScannerMode, ReferenceAutopilotMode } from './extensions/ReferenceModes';
 import { useMemo } from 'react';
@@ -320,6 +321,7 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         Anchor,
         DateMentionExtension,
         TaskMentionExtension,
+        CalendarEventMentionExtension,
         ResizableImage,
         Table.configure({
             resizable: true,
@@ -488,6 +490,27 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                 return false;
             },
             handleDrop: (view, event, slice, moved) => {
+                // [FEATURE] Calendar Event → Note drag
+                const calEventData = event.dataTransfer?.getData('tide/calendar-event');
+                if (calEventData) {
+                    try {
+                        const evData = JSON.parse(calEventData);
+                        const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+                        const insertPos = coords ? coords.pos : view.state.doc.content.size;
+                        view.dispatch(view.state.tr.insert(insertPos, view.state.schema.nodes.calendarEventMention.create({
+                            eventId: evData.id,
+                            title: evData.title,
+                            start: evData.start,
+                            end: evData.end,
+                            color: evData.color || null,
+                        })));
+                        event.preventDefault();
+                        return true;
+                    } catch (e) {
+                        console.warn('[CalendarEventDrop] Failed to parse event data', e);
+                    }
+                }
+
                 if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
                     return true; // Inform Tiptap we handled it
                 }
@@ -538,6 +561,14 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         };
         window.addEventListener('editor:mention-click', handleMentionClick as EventListener);
 
+        // [FEATURE] Calendar Event pill click → open event popover
+        const handleCalEventMentionClick = (e: CustomEvent) => {
+            const { eventId, title, start } = e.detail;
+            if (onEventClickRef.current) onEventClickRef.current(eventId);
+            window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id: eventId, start } }));
+        };
+        window.addEventListener('calendarEventMention:click', handleCalEventMentionClick as EventListener);
+
         if (onEditorReady) onEditorReady(editor);
 
         // Cross-tab pendingLink: if the user typed --, switched to Calendar, clicked an event,
@@ -570,6 +601,7 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         return () => {
             window.removeEventListener('canvas:resize-tiptap-image', handleResizeImage as EventListener);
             window.removeEventListener('editor:mention-click', handleMentionClick as EventListener);
+            window.removeEventListener('calendarEventMention:click', handleCalEventMentionClick as EventListener);
             if (timer) clearTimeout(timer);
         };
     }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps

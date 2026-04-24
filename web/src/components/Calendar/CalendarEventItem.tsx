@@ -379,6 +379,47 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
+            {/* Drag-to-note handle — appears on hover, initiates native HTML5 drag */}
+            {!isDragging && !isResizing && (
+                <div
+                    title="Drag to note to create a link"
+                    draggable
+                    onDragStart={(e) => {
+                        e.stopPropagation();
+                        e.dataTransfer.effectAllowed = 'copy';
+                        e.dataTransfer.setData('tide/calendar-event', JSON.stringify({
+                            id: event.id,
+                            title: event.title,
+                            start: event.start,
+                            end: event.end,
+                            color: event.color || null,
+                            description: event.description || '',
+                        }));
+                        // Drag image: a small pill preview
+                        const ghost = document.createElement('div');
+                        ghost.style.cssText = `
+                            position: fixed; top: -200px; left: 0;
+                            padding: 4px 10px; border-radius: 6px;
+                            background: ${event.color || '#6366f1'};
+                            color: white; font-size: 12px; font-weight: 600;
+                            max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                        `;
+                        ghost.textContent = event.title || 'Event';
+                        document.body.appendChild(ghost);
+                        e.dataTransfer.setDragImage(ghost, 0, 14);
+                        setTimeout(() => document.body.removeChild(ghost), 0);
+                    }}
+                    className="absolute top-1 left-1 opacity-0 group-hover:opacity-60 hover:!opacity-100 z-[75] p-0.5 cursor-grab active:cursor-grabbing text-white transition-opacity"
+                    onMouseDown={e => e.stopPropagation()} // don't trigger internal DnD
+                >
+                    <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor" opacity="0.85">
+                        <circle cx="3" cy="2" r="1.2"/><circle cx="7" cy="2" r="1.2"/>
+                        <circle cx="3" cy="6" r="1.2"/><circle cx="7" cy="6" r="1.2"/>
+                        <circle cx="3" cy="10" r="1.2"/><circle cx="7" cy="10" r="1.2"/>
+                    </svg>
+                </div>
+            )}
             {/* ... contents of the event item ... */}
             <div className="relative z-10 flex flex-col h-full overflow-hidden">
                 <div className="flex items-start gap-1.5 min-w-0">

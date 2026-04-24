@@ -115,6 +115,9 @@ export default {
             if (titleLower.includes('_style') || titleLower.includes('canva') || titleLower.startsWith('.')) {
                 return false;
             }
+            // [FIX] Exclude locked/ghost notes — these are corrupted, deleted, or still decrypting.
+            // They would cause a 404 or decryption error when opened via mention link.
+            if (f.isLocked || titleLower.startsWith('locked note')) return false;
             return true;
         });
 

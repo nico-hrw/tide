@@ -253,6 +253,10 @@ export default function Dashboard() {
     // Layout Options
     const [isRestored, setIsRestored] = useState(false);
 
+    // [FEATURE] Text → Calendar drag state
+    const [calendarDropActive, setCalendarDropActive] = useState(false);
+    const [draggedText, setDraggedText] = useState<string | null>(null);
+
     // Share Modal State
     const [shareModalFile, setShareModalFile] = useState<{ id: string, title: string } | null>(null);
 
@@ -636,6 +640,16 @@ export default function Dashboard() {
 
             const title = fileNameRef.current || 'Untitled';
 
+            // Re-encrypt secured_meta with RSA so fetchDirectory can decrypt the
+            // title on the next reload without hitting an OperationError from a
+            // stale V1-format secured_meta (which was written by handleNewNote).
+            let freshSecuredMeta: string | undefined;
+            try {
+                freshSecuredMeta = await cryptoLib.encryptMetadata({ title }, freshPubKey);
+            } catch (smErr) {
+                console.warn('[V2-Save] Could not encrypt secured_meta — title will fall back to metadata.title on reload', smErr);
+            }
+
             // Single atomic PUT: writes blob to BlobStore and updates metadata
             const putRes = await apiFetch(`/api/v1/files/${fileId}`, {
                 method: 'PUT',
@@ -645,6 +659,7 @@ export default function Dashboard() {
                     content_ciphertext: contentCiphertext,
                     access_keys: accessKeysMap,
                     metadata: { has_custom_password: false, title },
+                    ...(freshSecuredMeta ? { secured_meta: freshSecuredMeta } : {}),
                 })
             });
             if (!putRes.ok) throw new Error(`[V2-Save] PUT failed with status ${putRes.status}`);
@@ -708,6 +723,14 @@ export default function Dashboard() {
                 || events.find(e => e.id === fileId) as any;
             if (!target) {
                 const res = await apiFetch(`/api/v1/files/${fileId}`);
+                if (res.status === 404) {
+                    // File no longer exists on the server — remove from store + close tab
+                    useDataStore.getState().setNotes(useDataStore.getState().notes.filter((n: any) => n.id !== fileId));
+                    setOpenTabs(prev => prev.filter(t => t.id !== fileId));
+                    const fallbackTab = openTabs.find(t => t.id !== fileId);
+                    if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
+                    throw new Error(`[loadNoteContent] File ${fileId} not found on server (404) — removed from store`);
+                }
                 if (res.ok) target = await res.json().catch(() => null);
             }
             if (!target) throw new Error("File not found");
@@ -1058,6 +1081,29 @@ export default function Dashboard() {
         });
         setIdlePayload({ events: todayEvents.map(e => ({ title: e.title, start: e.start })) });
     }, [events, setIdlePayload]);
+
+    // [FEATURE] Text → Calendar: detect text drag globally to light up the calendar drop zone
+    useEffect(() => {
+        const handleDragStart = (e: DragEvent) => {
+            const text = e.dataTransfer?.getData('text/plain') || window.getSelection()?.toString() || '';
+            if (text && text.trim().length > 0 && !e.dataTransfer?.types.includes('tide/calendar-event')) {
+                // Store for later use when dropped
+                setDraggedText(text.trim());
+                setCalendarDropActive(true);
+                // Also put text in transfer so the calendar can read it
+                try { e.dataTransfer?.setData('tide/text-to-calendar', text.trim()); } catch (_) {}
+            }
+        };
+        const handleDragEnd = () => {
+            setCalendarDropActive(false);
+        };
+        window.addEventListener('dragstart', handleDragStart, true);
+        window.addEventListener('dragend', handleDragEnd, true);
+        return () => {
+            window.removeEventListener('dragstart', handleDragStart, true);
+            window.removeEventListener('dragend', handleDragEnd, true);
+        };
+    }, []);
 
     // Island Welcome Effect
     useEffect(() => {
@@ -1618,18 +1664,36 @@ export default function Dashboard() {
                     return;
                 }
 
-                let currentSecuredMeta = target.secured_meta;
-                if (!currentSecuredMeta) {
-                    const res = await apiFetch(`/api/v1/files/${fileId}`);
-                    const freshFile = await res.json();
-                    currentSecuredMeta = freshFile.secured_meta;
+                // For V2 notes, secured_meta only ever contains {title} — no fileKey, no IV.
+                // We can safely re-encrypt just the title without decrypting the old blob first.
+                // This avoids OperationError when the old secured_meta was written in V1 format.
+                const isV2 = (target as any).version >= 2;
+                let encryptedMeta: string;
+
+                if (isV2) {
+                    // V2: direct re-encrypt — no legacy field preservation needed
+                    encryptedMeta = await cryptoLib.encryptMetadata({ title: newTitle }, publicKey);
+                } else {
+                    // V1: try to decrypt+merge to preserve fileKey/IV, fall back to fresh encrypt
+                    let currentSecuredMeta = (target as any).secured_meta;
+                    if (!currentSecuredMeta) {
+                        const res = await apiFetch(`/api/v1/files/${fileId}`);
+                        if (res.ok) {
+                            const freshFile = await res.json();
+                            currentSecuredMeta = freshFile.secured_meta;
+                        }
+                    }
+                    let metaToEncrypt: any = { title: newTitle };
+                    if (currentSecuredMeta) {
+                        const decrypted = await cryptoLib.decryptMetadata(currentSecuredMeta, privateKey);
+                        if (!decrypted.isLocked) {
+                            metaToEncrypt = { ...decrypted, title: newTitle };
+                        }
+                        // If decryption fails, we just use {title: newTitle} — the fileKey is
+                        // in the V2 access_keys anyway; V1 files without fileKey can't be saved.
+                    }
+                    encryptedMeta = await cryptoLib.encryptMetadata(metaToEncrypt, publicKey);
                 }
-
-                if (!currentSecuredMeta) throw new Error("Missing metadata");
-
-                const meta = await cryptoLib.decryptMetadata(currentSecuredMeta, privateKey);
-                meta.title = newTitle;
-                const encryptedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
                 await apiFetch(`/api/v1/files/${fileId}`, {
                     method: "PUT",
@@ -2431,7 +2495,62 @@ export default function Dashboard() {
                 )}
                 <div
                     className={`absolute inset-0 z-10 bg-[var(--background)] transition-opacity duration-200 ${activeTabId === 'calendar' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                    onDragOver={(e) => {
+                        if (calendarDropActive) {
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'copy';
+                        }
+                    }}
+                    onDrop={(e) => {
+                        if (!calendarDropActive) return;
+                        e.preventDefault();
+                        setCalendarDropActive(false);
+                        const text = e.dataTransfer.getData('tide/text-to-calendar') || draggedText || '';
+                        if (!text) return;
+                        // Create event 1h from now with text as description
+                        const start = new Date();
+                        start.setMinutes(0, 0, 0);
+                        start.setHours(start.getHours() + 1);
+                        const end = new Date(start.getTime() + 60 * 60 * 1000);
+                        handleEventCreate(start, end, false, { description: text, title: text.slice(0, 60) });
+                        setDraggedText(null);
+                    }}
                 >
+                    {/* Glowing "drop here" overlay when text is being dragged */}
+                    {calendarDropActive && activeTabId === 'calendar' && (
+                        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center"
+                            style={{
+                                background: 'linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(139,92,246,0.12) 100%)',
+                                border: '3px dashed rgba(99,102,241,0.5)',
+                                borderRadius: '12px',
+                                backdropFilter: 'blur(2px)',
+                                animation: 'calDropPulse 1.5s ease-in-out infinite',
+                            }}
+                        >
+                            <div style={{
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px',
+                                padding: '24px 40px', borderRadius: '16px',
+                                background: 'rgba(255,255,255,0.85)',
+                                boxShadow: '0 8px 40px rgba(99,102,241,0.25)',
+                                backdropFilter: 'blur(8px)',
+                            }}>
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                                    <line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/>
+                                </svg>
+                                <div style={{ fontSize: '15px', fontWeight: 700, color: '#6366f1' }}>Drop to create event</div>
+                                <div style={{ fontSize: '12px', color: '#94a3b8', maxWidth: '200px', textAlign: 'center' }}>
+                                    Your selected text will become the event description
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <style>{`
+                        @keyframes calDropPulse {
+                            0%, 100% { border-color: rgba(99,102,241,0.4); box-shadow: 0 0 0 0 rgba(99,102,241,0.1); }
+                            50% { border-color: rgba(99,102,241,0.8); box-shadow: 0 0 0 12px rgba(99,102,241,0.05); }
+                        }
+                    `}</style>
                     <CalendarView
                         events={events.map(e => {
                             const parent = files?.find(f => f.id === e.parent_id);
