@@ -2,19 +2,21 @@ import React, { useCallback } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { NodeViewWrapper, ReactNodeViewRenderer, NodeViewProps } from '@tiptap/react';
 import { format } from 'date-fns';
+import { useDataStore } from '@/store/useDataStore';
 
 // ── Node View ──────────────────────────────────────────────────────────────────
 
 const CalendarEventNodeView: React.FC<NodeViewProps> = ({ node }) => {
-    const { eventId, title, start, end, color } = node.attrs as {
-        eventId: string;
-        title: string;
-        start: string;
-        end: string;
-        color?: string;
-    };
+    const { eventId } = node.attrs as { eventId: string };
+    
+    // Dynamically fetch event data from the global store
+    const liveEvent = useDataStore((s) => s.events.find(e => e.id === eventId)) as any;
 
-    const accentColor = color || '#6366f1';
+    const title = liveEvent?.title || 'Unknown Event';
+    const start = liveEvent?.start || '';
+    const end = liveEvent?.end || '';
+    const color = liveEvent?.color || '#6366f1';
+    const accentColor = color;
 
     const formatTime = (iso: string) => {
         try {
@@ -105,7 +107,7 @@ const CalendarEventNodeView: React.FC<NodeViewProps> = ({ node }) => {
 
                 {/* Title */}
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>
-                    {title || 'Event'}
+                    {title}
                 </span>
 
                 {/* Time pill */}
@@ -127,7 +129,7 @@ const CalendarEventNodeView: React.FC<NodeViewProps> = ({ node }) => {
 // ── Tiptap Extension ──────────────────────────────────────────────────────────
 
 export const CalendarEventMentionExtension = Node.create({
-    name: 'calendarEventMention',
+    name: 'calendarEvent', // Changed name from calendarEventMention to calendarEvent as requested
     group: 'inline',
     inline: true,
     atom: true,
@@ -136,19 +138,15 @@ export const CalendarEventMentionExtension = Node.create({
     addAttributes() {
         return {
             eventId: { default: null },
-            title: { default: '' },
-            start: { default: '' },
-            end: { default: '' },
-            color: { default: null },
         };
     },
 
     parseHTML() {
-        return [{ tag: 'span[data-calendar-event-mention]' }];
+        return [{ tag: 'span[data-calendar-event]' }];
     },
 
     renderHTML({ HTMLAttributes }) {
-        return ['span', mergeAttributes(HTMLAttributes, { 'data-calendar-event-mention': '' }), 0];
+        return ['span', mergeAttributes(HTMLAttributes, { 'data-calendar-event': '' }), 0];
     },
 
     addNodeView() {

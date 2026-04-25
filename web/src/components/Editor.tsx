@@ -42,6 +42,7 @@ import { CalendarEventMentionExtension } from './extensions/CalendarEventMention
 import { ReferenceMark } from './extensions/ReferenceMark';
 import { ReferenceScannerMode, ReferenceAutopilotMode } from './extensions/ReferenceModes';
 import { useMemo } from 'react';
+import { extractTimeFromText } from '@/lib/timeParser';
 
 // Module-level store for a pending magic link insertion.
 // This survives editor unmount/remount (e.g., switching to Calendar tab and back).
@@ -497,12 +498,8 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                         const evData = JSON.parse(calEventData);
                         const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
                         const insertPos = coords ? coords.pos : view.state.doc.content.size;
-                        view.dispatch(view.state.tr.insert(insertPos, view.state.schema.nodes.calendarEventMention.create({
+                        view.dispatch(view.state.tr.insert(insertPos, view.state.schema.nodes.calendarEvent.create({
                             eventId: evData.id,
-                            title: evData.title,
-                            start: evData.start,
-                            end: evData.end,
-                            color: evData.color || null,
                         })));
                         event.preventDefault();
                         return true;
@@ -884,6 +881,37 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                             </>
                             )}
 
+                            {/* Smart Island (Quick Capture) Button */}
+                            {enabledExtensions.includes('smart_island') && (
+                            <>
+                                <button
+                                    title="Quick Capture (Calendar)"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={(e) => {
+                                        const { from, to, empty } = editor.state.selection;
+                                        if (empty) return;
+                                        const text = editor.state.doc.textBetween(from, to, ' ').trim();
+                                        if (!text) return;
+
+                                        const parsedData = extractTimeFromText(text);
+                                        const btn = e.currentTarget;
+                                        
+                                        useDataStore.getState().setSmartIsland({
+                                            show: true,
+                                            text,
+                                            parsedData,
+                                            sourceNodePos: from,
+                                            anchorElement: btn
+                                        });
+                                    }}
+                                    className="p-1.5 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/50 text-gray-700 dark:text-gray-300 hover:text-orange-600 dark:hover:text-orange-400 transition-colors"
+                                >
+                                    <Clock size={14} />
+                                </button>
+                                <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1" />
+                            </>
+                            )}
+
                             {/* Pop-out to canvas button */}
                             <button
                                 title="Pop out to canvas"
@@ -945,6 +973,7 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                         setTableMenuData({ x: e.clientX, y: e.clientY });
                     }
                 }}
+                onDragOver={(e) => e.preventDefault()}
             >
                 <EditorContent editor={editor} />
             </div>

@@ -33,6 +33,9 @@ interface DataState {
     setActiveNoteId: (id: string | null) => void;
     activeParentId: string | null;
     setActiveParentId: (id: string | null) => void;
+    
+    smartIslandState: { show: boolean, parsedData?: any, text?: string, sourceNodePos?: number, anchorElement?: HTMLElement | null } | null;
+    setSmartIsland: (state: { show: boolean, parsedData?: any, text?: string, sourceNodePos?: number, anchorElement?: HTMLElement | null } | null) => void;
     groupOverlappingEvents: (parentId: string) => void;
     
     isUpdatingMetadata: Set<string>;
@@ -364,6 +367,10 @@ export const useDataStore = create<DataState>((set, get) => ({
     insertMentionIntoNote: (noteId, targetId, title) => {
         window.dispatchEvent(new CustomEvent('dataStore:insertMention', { detail: { noteId, targetId, title } }));
     },
+    
+    smartIslandState: null,
+    setSmartIsland: (state) => set({ smartIslandState: state }),
+
     activeNoteId: null,
     setActiveNoteId: (activeNoteId) => set({ activeNoteId }),
     activeParentId: null,

@@ -4,6 +4,7 @@ import { useHighlight } from "@/components/HighlightContext";
 import { motion, useTransform, MotionValue, useMotionValue } from "framer-motion";
 import { CalendarEventItem } from './CalendarEventItem';
 import { useDataStore } from "@/store/useDataStore";
+import { extractTimeFromText } from "@/lib/timeParser";
 
 interface CalendarEvent {
     id: string;
@@ -388,7 +389,20 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     }
 
                     const draggedEvent = allEvents.find(ev => ev.id === eventId || (eventId.includes('_') && eventId.split('_')[0] === ev.id));
-                    if (!draggedEvent) return;
+                    if (!draggedEvent) {
+                        // Quick Capture Fallback! If it's not an event ID, it might be plain text from the editor.
+                        if (eventId && eventId.length > 0 && !eventId.match(/^[0-9a-f]{8}-[0-9a-f]{4}/i)) {
+                            const { title } = extractTimeFromText(eventId); // time is ignored for all-day
+                            const baseDate = new Date(day);
+                            const newStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 0, 0);
+                            const newEnd = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 23, 59, 59);
+                            
+                            if (onEventCreate) {
+                                onEventCreate(newStart, newEnd, true, { title: title || 'New Event' });
+                            }
+                        }
+                        return;
+                    }
 
                     const startOrig = new Date(draggedEvent.start);
                     const endOrig = new Date(draggedEvent.end);
@@ -425,6 +439,19 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                     onDragStart={(e) => {
                                         if (readOnly) return;
                                         e.dataTransfer.setData("text/plain", event.id);
+                                        e.dataTransfer.setData("tide/calendar-event", JSON.stringify(event));
+                                        
+                                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                        const clone = (e.currentTarget as HTMLElement).cloneNode(true) as HTMLElement;
+                                        clone.style.width = `${rect.width}px`;
+                                        clone.style.height = `${rect.height}px`;
+                                        clone.style.position = 'absolute';
+                                        clone.style.top = '-9999px';
+                                        clone.style.zIndex = '999999';
+                                        clone.style.opacity = '0.9';
+                                        document.body.appendChild(clone);
+                                        e.dataTransfer.setDragImage(clone, e.clientX - rect.left, e.clientY - rect.top);
+                                        setTimeout(() => document.body.removeChild(clone), 0);
                                     }}
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -540,6 +567,22 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     // ARCHITECTURAL DIRECTION: Use allEvents prop to find the fresh object
                     const draggedEvent = allEvents.find(ev => ev.id === eventId || (eventId.includes('_') && eventId.split('_')[0] === ev.id));
                     if (!draggedEvent) {
+                        // Quick Capture Fallback! If it's not an event ID, it might be plain text from the editor.
+                        if (eventId && eventId.length > 0 && !eventId.match(/^[0-9a-f]{8}-[0-9a-f]{4}/i)) {
+                            const { title, startMins, endMins } = extractTimeFromText(eventId);
+                            const baseDate = new Date(day);
+                            
+                            let finalStartMins = startMins !== null ? startMins : newStartMinutes;
+                            let finalEndMins = endMins !== null ? endMins : finalStartMins + 60;
+                            
+                            const newStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), Math.floor(finalStartMins / 60), finalStartMins % 60);
+                            const newEnd = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), Math.floor(finalEndMins / 60), finalEndMins % 60);
+                            
+                            if (onEventCreate) {
+                                onEventCreate(newStart, newEnd, false, { title: title || 'New Event' });
+                            }
+                            return;
+                        }
                         console.error("[DragDrop] Dropped event not found in allEvents:", eventId);
                         return;
                     }

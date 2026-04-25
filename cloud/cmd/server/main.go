@@ -96,8 +96,7 @@ func main() {
 			trustedOrigins := []string{
 				"http://localhost:3000",
 				"http://localhost:3001",
-				"https://hrw-tide.duckdns.org",
-				"http://hrw-tide.duckdns.org",
+				"https://go-tide.app",
 			}
 
 			isTrusted := false
@@ -116,7 +115,7 @@ func main() {
 			if isTrusted && origin != "" {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 			} else if origin == "" {
-				// If no origin but we trust the requester (e.g. server-to-server), 
+				// If no origin but we trust the requester (e.g. server-to-server),
 				// we don't set the header or set it to a safe default if needed.
 			}
 

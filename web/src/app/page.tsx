@@ -31,6 +31,7 @@ import DailySummary from "@/components/Calendar/DailySummary";
 import MobileLayout from "@/components/Layout/MobileLayout";
 import BackupHistory from "@/components/BackupHistory";
 import { Clock } from 'lucide-react';
+import SmartIsland from "@/components/SmartIsland";
 
 
 const FinanceDashboard = dynamic(() => import('@/components/Finance/FinanceDashboard'), {
@@ -341,11 +342,28 @@ export default function Dashboard() {
         if (!noteId || !content) return;
         if (noteId === 'calendar' || noteId === 'messages' || noteId.startsWith('chat-')) return;
 
-        // [FIX-1] In-flight lock: bail if a save for this specific note is already running.
-        // Prevents the race condition: two parallel saves generate two different IVs, the
-        // second blob lands after its secured_meta → decryption fails on next open.
+        // [FIX-1] In-flight lock: if a save is already running, schedule a retry so we
+        // don't silently drop the latest changes. The retry fires after the in-flight save
+        // completes, using the then-current content from editorContentRef.
         if (isSavingRef.current.has(noteId)) {
-            console.log(`[AutoSave] Skipping: save already in-flight for ${noteId}`);
+            console.log(`[AutoSave] Save in-flight for ${noteId} — scheduling retry`);
+            // Only schedule one pending retry at a time
+            if (!(triggerSave as any)._pendingRetry) {
+                (triggerSave as any)._pendingRetry = true;
+                const retryContent = editorContentRef.current;
+                const retryKey = activeFileKeyRef.current;
+                // Wait for in-flight save to finish by polling
+                const waitAndRetry = async () => {
+                    while (isSavingRef.current.has(noteId)) {
+                        await new Promise(r => setTimeout(r, 200));
+                    }
+                    (triggerSave as any)._pendingRetry = false;
+                    if (saveStatusRef.current === 'unsaved') {
+                        triggerSave(noteId, retryKey, editorContentRef.current || retryContent);
+                    }
+                };
+                waitAndRetry();
+            }
             return;
         }
 
@@ -391,12 +409,25 @@ export default function Dashboard() {
         try {
             await performSaveRef.current(content, noteId, fileKey, (currentFile as any).visibility ?? 'private');
             console.log(`[AutoSave] Successfully saved ${noteId}`);
-            setSaveStatus('saved');
-            // [FIX-1b] Update the cached _saveStatus on the open tab so that
-            // switching away and returning does not lose the 'saved' state.
-            setOpenTabs(prev => prev.map(tab =>
-                tab.id === noteId ? { ...tab, _saveStatus: 'saved' } : tab
-            ));
+            
+            // Only transition to 'saved' if the user didn't type again while saving.
+            const currentContentStr = typeof editorContentRef.current === 'string' ? editorContentRef.current : JSON.stringify(editorContentRef.current);
+            const savedContentStr = typeof content === 'string' ? content : JSON.stringify(content);
+
+            if (currentContentStr === savedContentStr) {
+                setSaveStatus('saved');
+                // [FIX-1b] Update the cached _saveStatus on the open tab so that
+                // switching away and returning does not lose the 'saved' state.
+                setOpenTabs(prev => prev.map(tab =>
+                    tab.id === noteId ? { ...tab, _saveStatus: 'saved' } : tab
+                ));
+            } else {
+                console.log(`[AutoSave] Content changed during save for ${noteId}. Leaving as unsaved.`);
+                // Ensure saveStatus is 'unsaved' to re-trigger the debouncer
+                if (saveStatusRef.current !== 'unsaved') {
+                    setSaveStatus('unsaved');
+                }
+            }
         } catch (e) {
             console.error(`[AutoSave] Save FAILED for ${noteId}:`, e);
             setSaveStatus('unsaved');
@@ -671,6 +702,11 @@ export default function Dashboard() {
                 metadata: { has_custom_password: false, title }
             });
 
+            // [FIX-4] Stamp the save time so SSE cooldown can suppress the immediate refetch
+            if (typeof (window as any).__tideSaveTimestamp === 'function') {
+                (window as any).__tideSaveTimestamp();
+            }
+
             try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
 
         } catch (err) {
@@ -792,9 +828,13 @@ export default function Dashboard() {
                     }
                 }
 
-                if (v2Title && v2Title !== 'Locked Note (Decrypting...)') {
-                    setFileName(v2Title);
-                    useDataStore.getState().updateFileRaw(fileId, { title: v2Title, isLocked: false });
+                if (v2Title) {
+                    if (!v2Title.includes('Locked Note')) {
+                        setFileName(v2Title);
+                        useDataStore.getState().updateFileRaw(fileId, { title: v2Title, isLocked: false });
+                    } else {
+                        useDataStore.getState().updateFileRaw(fileId, { isLocked: false });
+                    }
                 }
 
                 if (recoveredBackup) {
@@ -979,29 +1019,80 @@ export default function Dashboard() {
     // 2. Continuous Hooks (Effects)
     // -------------------------------------------------------------------------
 
-    // SSE Effect
+    // SSE Effect — robust reconnect with exponential backoff
     useEffect(() => {
         if (!myId) return;
         const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
         if (!token) return;
 
-        const base = getApiBase();
-        const eventSource = new EventSource(`${base}/api/v1/events?user_id=${myId}&token=${token}`);
-        eventSource.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                if (['file_created', 'file_updated', 'file_deleted', 'file_shared'].includes(data.type)) {
-                    // [FIX HOCH-4] Use Zustand's setState so the store registers the cleared set
-                    // and components that subscribe to loadedDirectories re-render correctly.
-                    // Direct Set.clear() bypassed Zustand's reactivity — guards in fetchDirectory
-                    // read the old (non-cleared) snapshot and silently returned early.
-                    useDataStore.setState({ loadedDirectories: new Set() });
-                    useDataStore.getState().fetchDirectory(null, true);
+        // [FIX-4] Throttle: track when WE last saved so SSE-triggered fetchDirectory
+        // doesn't immediately overwrite our optimistic updates while the EventPopover
+        // debounce (800ms) or note autosave timer (1000ms) is still running.
+        let lastOwnSaveTime = 0;
+        const OWN_SAVE_COOLDOWN_MS = 3000;
+
+        // Expose a setter so performSave and handleEventSave can stamp the time
+        (window as any).__tideSaveTimestamp = () => { lastOwnSaveTime = Date.now(); };
+
+        // [FIX-2] Exponential backoff reconnect so a proxy timeout (common with Nginx)
+        // doesn't spam the server with rapid reconnections every 3s.
+        let retryDelay = 2000; // start at 2s
+        const MAX_RETRY = 30000; // cap at 30s
+        let eventSource: EventSource | null = null;
+        let retryTimer: ReturnType<typeof setTimeout> | null = null;
+        let isClosed = false;
+
+        const connect = () => {
+            if (isClosed) return;
+            const base = getApiBase();
+            eventSource = new EventSource(`${base}/api/v1/events?user_id=${myId}&token=${token}`);
+
+            eventSource.onopen = () => {
+                retryDelay = 2000; // reset backoff on successful connect
+            };
+
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (['file_created', 'file_updated', 'file_deleted', 'file_shared'].includes(data.type)) {
+                        const msSinceOwnSave = Date.now() - lastOwnSaveTime;
+                        if (data.type === 'file_updated' && msSinceOwnSave < OWN_SAVE_COOLDOWN_MS) {
+                            console.log(`[SSE] Suppressing own file_updated refetch (${msSinceOwnSave}ms since last save)`);
+                            setTimeout(() => {
+                                useDataStore.setState({ loadedDirectories: new Set() });
+                                useDataStore.getState().fetchDirectory(null, true);
+                            }, OWN_SAVE_COOLDOWN_MS - msSinceOwnSave);
+                            return;
+                        }
+                        useDataStore.setState({ loadedDirectories: new Set() });
+                        useDataStore.getState().fetchDirectory(null, true);
+                    }
+                } catch (e) { console.error("SSE Parse Error", e); }
+            };
+
+            eventSource.onerror = () => {
+                // Close the broken connection and schedule reconnect
+                eventSource?.close();
+                if (!isClosed) {
+                    console.warn(`[SSE] Connection lost. Reconnecting in ${retryDelay / 1000}s…`);
+                    retryTimer = setTimeout(() => {
+                        retryDelay = Math.min(retryDelay * 2, MAX_RETRY);
+                        connect();
+                    }, retryDelay);
                 }
-            } catch (e) { console.error("SSE Parse Error", e); }
+            };
         };
-        return () => eventSource.close();
+
+        connect();
+
+        return () => {
+            isClosed = true;
+            if (retryTimer) clearTimeout(retryTimer);
+            eventSource?.close();
+            delete (window as any).__tideSaveTimestamp;
+        };
     }, [myId]);
+
 
     // Auto-Save Effect — intentionally removed: the ref-based triggerSave system above
     // (lines 297-363) is the single, canonical auto-save path. Having a second effect
@@ -1019,7 +1110,7 @@ export default function Dashboard() {
         const freshNote = storeFiles.find((f: any) => f.id === activeNoteId) as any;
         if (!freshNote) return;
         const realTitle = freshNote.title;
-        if (!realTitle || realTitle === 'Locked Note (Decrypting...)') return;
+        if (!realTitle || realTitle.includes('Locked Note')) return;
         // Update fileName if it's still showing the placeholder or is empty
         setFileName(prev => (prev === '' || prev.includes('Locked')) ? realTitle : prev);
         // Sync the open tab's title so it renders correctly on remount / tab switch
@@ -2151,6 +2242,10 @@ export default function Dashboard() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body)
             });
+            // [FIX-4] Stamp save time to suppress SSE echo refetch
+            if (typeof (window as any).__tideSaveTimestamp === 'function') {
+                (window as any).__tideSaveTimestamp();
+            }
         } catch (e) { console.error(e); }
     };
     // Use a stable ref so the listener always calls the latest handleEventSave
@@ -2353,6 +2448,26 @@ export default function Dashboard() {
     // -------------------------------------------------------------------------
     return (
         <div className="flex h-screen w-full bg-[var(--background)] text-foreground overflow-hidden">
+            <SmartIsland
+                onConfirm={(parsedData, text) => {
+                    const now = new Date();
+                    const startMins = parsedData.startMins !== null ? parsedData.startMins : (now.getHours() * 60 + now.getMinutes());
+                    const endMins = parsedData.endMins !== null ? parsedData.endMins : startMins + 60;
+                    
+                    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), Math.floor(startMins / 60), startMins % 60);
+                    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), Math.floor(endMins / 60), endMins % 60);
+                    
+                    handleEventCreate(start, end, false, { title: parsedData.title || text });
+                }}
+                onEdit={(parsedData, text) => {
+                    const now = new Date();
+                    const startMins = parsedData.startMins !== null ? parsedData.startMins : (now.getHours() * 60 + now.getMinutes());
+                    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), Math.floor(startMins / 60), startMins % 60);
+                    setScheduleInitialStart(start);
+                    // Pass initial title via a state or just rely on a new feature? For now just open modal
+                    setScheduleModalOpen(true);
+                }}
+            />
             {/* Mobile Layout Wrapper */}
             <MobileLayout
                 events={events}
@@ -2714,12 +2829,17 @@ export default function Dashboard() {
                                                         onChange={(e) => {
                                                             const newTitle = e.target.value;
                                                             setFileName(newTitle);
+                                                            // Mark as unsaved so the debounced triggerSave fires
+                                                            // and writes the new title into secured_meta + content blob
+                                                            setSaveStatus('unsaved');
                                                             if (activeNoteId) {
                                                                 useDataStore.getState().setNotes(files.map(f => f.id === activeNoteId ? { ...f, title: newTitle } : f) as any);
                                                             }
                                                         }}
                                                         onBlur={(e) => {
                                                             if (activeNoteId) {
+                                                                // Fast-path: update only secured_meta immediately on blur
+                                                                // Full content save is handled by the debounced auto-save above
                                                                 submitRename(activeNoteId, e.target.value);
                                                             }
                                                         }}
