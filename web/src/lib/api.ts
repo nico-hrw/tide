@@ -1,24 +1,32 @@
 // Basic API wrapper
 
 export const getApiBase = () => {
+    let base = '';
     if (process.env.NEXT_PUBLIC_API_URL) {
-        return process.env.NEXT_PUBLIC_API_URL.endsWith('/') 
+        base = process.env.NEXT_PUBLIC_API_URL.endsWith('/') 
             ? process.env.NEXT_PUBLIC_API_URL.slice(0, -1) 
             : process.env.NEXT_PUBLIC_API_URL;
+    } else if (typeof window !== 'undefined') {
+        base = window.location.origin;
     }
 
-    if (typeof window !== 'undefined') {
-        return window.location.origin;
+    if (base.endsWith('/api')) {
+        base = base.slice(0, -4);
     }
 
-    return ''; 
+    return base;
 };
 
 export async function apiFetch(url: string, options: RequestInit = {}) {
     const base = getApiBase();
-    const cleanEndpoint = url.startsWith('/') ? url : `/${url}`;
-    const fullUrl = url.startsWith('http') ? url : `${base}${cleanEndpoint}`;
+    let cleanEndpoint = url.startsWith('/') ? url : `/${url}`;
+    
+    // Deduplicate /api prefix if it exists in both base and endpoint
+    if (base.endsWith('/api') && cleanEndpoint.startsWith('/api/')) {
+        cleanEndpoint = cleanEndpoint.slice(4);
+    }
 
+    const fullUrl = url.startsWith('http') ? url : `${base}${cleanEndpoint}`;
     console.log("[apiFetch] Requesting:", fullUrl);
     
     try {
