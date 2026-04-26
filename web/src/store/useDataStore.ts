@@ -70,6 +70,8 @@ interface DataState {
     setEnabledExtensions: (extensions: string[] | ((prev: string[]) => string[])) => void;
     noteLayout: 'thin' | 'normal' | 'wide' | 'extra-wide';
     setNoteLayout: (layout: 'thin' | 'normal' | 'wide' | 'extra-wide' | ((prev: 'thin' | 'normal' | 'wide' | 'extra-wide') => 'thin' | 'normal' | 'wide' | 'extra-wide')) => void;
+    theme: 'light' | 'dark';
+    setTheme: (theme: 'light' | 'dark') => void;
 }
 
 export const useDataStore = create<DataState>((set, get) => ({
@@ -90,6 +92,15 @@ export const useDataStore = create<DataState>((set, get) => ({
         const next = typeof layout === 'function' ? layout(s.noteLayout) : layout;
         localStorage.setItem('tide_note_layout', next);
         return { noteLayout: next };
+    }),
+    theme: typeof window !== 'undefined' ? (localStorage.getItem('tide_theme') as 'light' | 'dark' || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) : 'light',
+    setTheme: (theme) => set(s => {
+        localStorage.setItem('tide_theme', theme);
+        if (typeof document !== 'undefined') {
+            if (theme === 'dark') document.documentElement.classList.add('dark');
+            else document.documentElement.classList.remove('dark');
+        }
+        return { theme };
     }),
     isUpdatingMetadata: new Set(),
     openFolderIds: new Set(

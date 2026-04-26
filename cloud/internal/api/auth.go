@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -214,36 +215,88 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 	}
 	h.mu.Unlock()
 
-	log.Printf("--------------------------------------------------")
-	log.Printf("OTP for %s: %s", req.Email, otpCode)
-	log.Printf("--------------------------------------------------")
+	// Send OTP via Resend
+	if err := sendOTPEmail(req.Email, otpCode); err != nil {
+		log.Printf("ERROR sending OTP email: %v", err)
+		// We still return success to avoid user enumeration or giving away that email failed,
+		// but in a real app you might want to handle this differently.
+		// However, the user wants it implemented, so if it fails, it's a real issue.
+		http.Error(w, "Failed to send OTP email", http.StatusInternalServerError)
+		return
+	}
 
-	// Determine stable base directory for path resolution
-	baseDir := "."
-	exePath, err := os.Executable()
-	if err == nil {
-		if !strings.Contains(exePath, "tmp") && !strings.Contains(exePath, "Temp") {
-			baseDir = filepath.Dir(exePath)
-		} else {
-			baseDir, _ = os.Getwd()
-		}
-	}
-	dataDir := filepath.Join(baseDir, "data")
-	os.MkdirAll(dataDir, 0755)
-	
-	otpFilePath := filepath.Join(dataDir, "otp.txt")
-	otpContent := fmt.Sprintf("Email: %s\nOTP: %s\nExpires: %s\n", req.Email, otpCode, time.Now().Add(5*time.Minute).Format(time.RFC3339))
-	if err := os.WriteFile(otpFilePath, []byte(otpContent), 0644); err != nil {
-		log.Printf("Failed to write OTP to %s: %v", otpFilePath, err)
-	} else {
-		log.Printf("OTP written to secure file: %s", otpFilePath)
-	}
+	log.Printf("OTP sent via Resend to %s", req.Email)
 
 	resp["message"] = "OTP sent successfully"
-	// [FIX KRIT-2] OTP must NEVER be returned in the HTTP response.
-	// It is only logged server-side so an admin/mailer can deliver it out-of-band.
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
+}
+
+func sendOTPEmail(email, code string) error {
+	apiKey := os.Getenv("RESEND_API_KEY")
+	if apiKey == "" {
+		return fmt.Errorf("RESEND_API_KEY not set")
+	}
+
+	url := "https://api.resend.com/emails"
+
+	htmlContent := fmt.Sprintf(`
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 48px 24px; border-radius: 16px; background-color: #ffffff; color: #111827;">
+            <div style="text-align: center; margin-bottom: 40px;">
+                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #3b82f6 0%%, #8b5cf6 100%%); border-radius: 12px; margin: 0 auto 16px auto; display: flex; align-items: center; justify-content: center;">
+                   <span style="color: white; font-size: 24px; font-weight: bold;">T</span>
+                </div>
+                <h1 style="font-size: 24px; font-weight: 700; margin: 0; letter-spacing: -0.02em;">Verify your identity</h1>
+            </div>
+            
+            <p style="font-size: 16px; line-height: 1.6; color: #4b5563; margin-bottom: 32px; text-align: center;">
+                Enter the following code in Tide to complete your sign-in. This code is valid for 5 minutes.
+            </p>
+            
+            <div style="text-align: center; background-color: #f3f4f6; padding: 32px; border-radius: 12px; margin-bottom: 32px;">
+                <span style="font-family: 'SF Mono', SFMono-Regular, ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 36px; font-weight: 700; letter-spacing: 0.2em; color: #111827; margin-left: 0.2em;">%s</span>
+            </div>
+            
+            <p style="font-size: 14px; line-height: 1.5; color: #9ca3af; text-align: center; margin-bottom: 0;">
+                If you did not request this code, you can safely ignore this email.
+            </p>
+            
+            <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #f3f4f6; text-align: center;">
+                <p style="font-size: 12px; color: #9ca3af; margin: 0;">
+                    &copy; 2026 Tide. All rights reserved.
+                </p>
+            </div>
+        </div>
+    `, code)
+
+	payload := map[string]interface{}{
+		"from":    "Support <no-reply@go-tide.app>",
+		"to":      []string{email},
+		"subject": "Your Tide Verification Code",
+		"html":    htmlContent,
+	}
+
+	jsonPayload, _ := json.Marshal(payload)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonPayload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("resend API error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }
 
 type VerifyOTPRequest struct {
@@ -316,7 +369,7 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	jwtKey := []byte(jwtKeyStr)
 	claims := jwt.MapClaims{
 		"sub": user.ID,
-		"exp": time.Now().Add(7 * 24 * time.Hour).Unix(),
+		"exp": time.Now().Add(14 * 24 * time.Hour).Unix(),
 	}
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := t.SignedString(jwtKey)
@@ -329,7 +382,7 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "tide_session",
 		Value:    tokenString,
-		Expires:  time.Now().Add(7 * 24 * time.Hour),
+		Expires:  time.Now().Add(14 * 24 * time.Hour),
 		HttpOnly: true,
 		Secure:   false, // Set true in production over HTTPS
 		SameSite: http.SameSiteLaxMode,

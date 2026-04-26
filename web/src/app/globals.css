@@ -82,6 +82,41 @@
   --glass-red-glow: 0 0 15px rgba(249, 65, 68, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+.dark {
+  --background: #000000;
+  --foreground: #F9FAFB;
+
+  --sidebar-bg: #0A0A0A;
+  --border-color: #1F1F1F;
+  --muted-text: #8E8E93;
+
+  /* Form Elements */
+  --input-text: #FFFFFF;
+  --input-placeholder: #48484A;
+
+  /* Nordic Minimalist Event Colors - Dark Mode */
+  --event-default-bg: #1C1917;
+  --event-default-text: #A8A29E;
+  --event-default-border: #292524;
+
+  --event-sky-bg: #082F49;
+  --event-sky-text: #7DD3FC;
+  --event-sky-border: #0C4A6E;
+
+  --event-green-bg: #064E3B;
+  --event-green-text: #6EE7B7;
+  --event-green-border: #065F46;
+
+  --event-orange-bg: #451A03;
+  --event-orange-text: #FDBA74;
+  --event-orange-border: #78350F;
+
+  /* Glass Effects - Dark Mode */
+  --glass-red-bg: rgba(239, 68, 68, 0.4);
+  --glass-red-border: rgba(255, 255, 255, 0.1);
+  --glass-red-glow: 0 0 20px rgba(239, 68, 68, 0.2), 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
 body {
   color: var(--foreground);
   background-color: var(--background);
@@ -114,7 +149,7 @@ body {
 }
 
 .glass-input {
-  background-color: #FFFFFF;
+  background-color: var(--background);
   border: 1px solid var(--border-color);
   border-radius: var(--radius);
   color: var(--input-text);
@@ -200,8 +235,8 @@ body {
 /* Updated Pill buttons */
 .glass-pill-blue,
 .glass-pill-pink {
-  background-color: #F9FAFB;
-  border: 1px none var(--border-color);
+  background-color: var(--sidebar-bg);
+  border: 1px solid var(--border-color);
   border-radius: 9999px;
   color: var(--foreground);
   transition: all 0.2s ease;
@@ -209,7 +244,7 @@ body {
 
 .glass-pill-blue:hover,
 .glass-pill-pink:hover {
-  background-color: #F3F4F6;
+  background-color: var(--border-color);
 }
 
 /* Canvas binding-mode pulse animation */

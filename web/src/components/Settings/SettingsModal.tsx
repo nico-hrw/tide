@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useReferenceStore } from '@/store/useReferenceStore';
-import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark } from 'lucide-react';
+import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon } from 'lucide-react';
+import { useDataStore } from '@/store/useDataStore';
 
 import { motion, AnimatePresence } from 'framer-motion';
 import Avatar from '@/components/Profile/Avatar';
@@ -290,6 +291,35 @@ export default function SettingsModal({
     const renderAppearance = () => (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Interface Options</h3>
+
+            <div className="p-6 bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl mb-6">
+                <div className="mb-4">
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-white">Color Theme</h4>
+                    <p className="text-xs text-gray-500 mt-1">Switch between light and dark modes.</p>
+                </div>
+                <div className="flex gap-3">
+                    <button
+                        onClick={() => useDataStore.getState().setTheme('light')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-xs font-bold transition-all ${useDataStore.getState().theme === 'light'
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
+                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20'
+                            }`}
+                    >
+                        <Sun className="w-4 h-4" />
+                        Light
+                    </button>
+                    <button
+                        onClick={() => useDataStore.getState().setTheme('dark')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-xs font-bold transition-all ${useDataStore.getState().theme === 'dark'
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
+                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20'
+                            }`}
+                    >
+                        <Moon className="w-4 h-4" />
+                        Dark
+                    </button>
+                </div>
+            </div>
 
             <div className="p-6 bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
                 <div className="mb-4">

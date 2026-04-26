@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { useDataStore } from "@/store/useDataStore";
 
 const PUBLIC_PATHS = ["/", "/auth", "/verify"];
 
@@ -10,7 +11,16 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const [authorized, setAuthorized] = useState(false);
 
+    const { theme } = useDataStore();
+
     useEffect(() => {
+        // Initialize theme class
+        if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+
         const checkAuth = async () => {
             const isPublic = PUBLIC_PATHS.includes(pathname);
             if (isPublic) {

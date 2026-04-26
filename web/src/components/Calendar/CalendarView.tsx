@@ -53,10 +53,10 @@ interface CalendarViewProps {
 const getEventTheme = (evt: CalendarEvent) => {
     // Basic effect map for legacy or fallback
     const effectMap: Record<string, { bg: string; text: string; border: string }> = {
-        'sky': { bg: '#e0f2fe', text: '#0369a1', border: '#7dd3fc' },
-        'green': { bg: '#dcfce7', text: '#15803d', border: '#86efac' },
-        'orange': { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' },
-        'none': { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }
+        'sky': { bg: 'var(--event-sky-bg)', text: 'var(--event-sky-text)', border: 'var(--event-sky-border)' },
+        'green': { bg: 'var(--event-green-bg)', text: 'var(--event-green-text)', border: 'var(--event-green-border)' },
+        'orange': { bg: 'var(--event-orange-bg)', text: 'var(--event-orange-text)', border: 'var(--event-orange-border)' },
+        'none': { bg: 'var(--event-default-bg)', text: 'var(--event-default-text)', border: 'var(--event-default-border)' }
     };
 
     // If we have an individual color, use it as bg
