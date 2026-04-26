@@ -83,25 +83,25 @@
 }
 
 .dark {
-  --background: #000000;
-  --foreground: #F9FAFB;
+  --background: #0F172A; /* Slate 900 */
+  --foreground: #F8FAFC; /* Slate 50 */
 
-  --sidebar-bg: #0A0A0A;
-  --border-color: #1F1F1F;
-  --muted-text: #8E8E93;
+  --sidebar-bg: #1E293B; /* Slate 800 */
+  --border-color: #334155; /* Slate 700 */
+  --muted-text: #94A3B8; /* Slate 400 */
 
   /* Form Elements */
-  --input-text: #FFFFFF;
-  --input-placeholder: #48484A;
+  --input-text: #F8FAFC;
+  --input-placeholder: #475569;
 
   /* Nordic Minimalist Event Colors - Dark Mode */
-  --event-default-bg: #1C1917;
-  --event-default-text: #A8A29E;
-  --event-default-border: #292524;
+  --event-default-bg: #1E293B;
+  --event-default-text: #94A3B8;
+  --event-default-border: #334155;
 
-  --event-sky-bg: #082F49;
+  --event-sky-bg: #0C4A6E;
   --event-sky-text: #7DD3FC;
-  --event-sky-border: #0C4A6E;
+  --event-sky-border: #075985;
 
   --event-green-bg: #064E3B;
   --event-green-text: #6EE7B7;
@@ -272,8 +272,12 @@ body {
   display: flex;
   font-weight: 600;
   overflow: hidden;
-  box-shadow: 0 6px 6px rgba(0, 0, 0, 0.2), 0 0 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 2.2);
+}
+
+.dark .liquidGlass-wrapper {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
 }
 
 .liquidGlass-effect {
@@ -289,7 +293,11 @@ body {
   z-index: 1;
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.50);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.dark .liquidGlass-tint {
+  background: rgba(30, 41, 59, 0.7); /* Slate 800 with opacity */
 }
 
 .liquidGlass-shine {
@@ -297,7 +305,12 @@ body {
   inset: 0;
   z-index: 2;
   overflow: hidden;
-  box-shadow: inset 2px 2px 1px 0 rgba(255, 255, 255, 0.5), inset -1px -1px 1px 1px rgba(255, 255, 255, 0.5);
+  box-shadow: inset 2px 2px 1px 0 rgba(255, 255, 255, 0.4), inset -1px -1px 1px 1px rgba(255, 255, 255, 0.3);
+}
+
+.dark .liquidGlass-shine {
+  box-shadow: inset 1px 1px 1px 0 rgba(255, 255, 255, 0.1), inset -1px -1px 1px 0 rgba(0, 0, 0, 0.4);
+}
 }
 
 .liquidGlass-text {

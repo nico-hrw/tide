@@ -72,9 +72,9 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
                     if (isDayToday) {
                         className = "text-xs w-7 h-7 flex items-center justify-center rounded-lg cursor-pointer transition-all glass-red-glow-effect";
                     } else if (isSelected) {
-                        className += " bg-gray-900 text-white font-bold shadow-sm";
+                        className += " bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold shadow-sm";
                     } else {
-                        className += " hover:bg-black/5";
+                        className += " hover:bg-black/5 dark:hover:bg-white/10";
                     }
 
                     return (

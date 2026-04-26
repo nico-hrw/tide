@@ -538,8 +538,8 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                 }
             }}
             className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 
-                ${isHighlighted(file.id, 'file') ? 'bg-purple-50' : 'hover:bg-gray-100'} 
-                ${highlight.isSelectingLink ? 'bg-purple-50/30' : ''}`}
+                ${isHighlighted(file.id, 'file') ? 'bg-purple-50 dark:bg-purple-900/20' : 'hover:bg-gray-100 dark:hover:bg-white/5'} 
+                ${highlight.isSelectingLink ? 'bg-purple-50/30 dark:bg-purple-900/10' : ''}`}
             style={{ 
                 marginLeft: `${level * 12}px`,
                 boxShadow: highlight.isSelectingLink 
@@ -557,10 +557,10 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                         onClick={(e) => e.stopPropagation()}
                         onBlur={(e) => onRenameSubmit?.(file.id, e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && onRenameSubmit?.(file.id, e.currentTarget.value)}
-                        className="w-full bg-white border border-gray-200 rounded px-1 text-sm outline-none"
+                        className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-1 text-sm outline-none text-gray-900 dark:text-gray-100"
                     />
                 ) : (
-                    <span className="text-sm text-gray-600 truncate font-medium group-hover:text-gray-800 transition-colors">
+                    <span className="text-sm text-gray-600 dark:text-gray-400 truncate font-medium group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors">
                         {file.title.startsWith('#') ? file.title.slice(1).trim() : file.title}
                     </span>
                 )}
@@ -634,7 +634,7 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                     if (id && id !== folder.id) onMoveItem?.(id, folder.id);
                 } : undefined}
                 onClick={handleToggle}
-                className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-100`}
+                className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-white/5`}
                 style={{ marginLeft: `${level * 12}px` }}
             >
                 <div className="flex items-center gap-2 truncate flex-1">
@@ -653,10 +653,10 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                             onClick={(e) => e.stopPropagation()}
                             onBlur={(e) => onRenameSubmit?.(folder.id, e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && onRenameSubmit?.(folder.id, e.currentTarget.value)}
-                            className="w-full bg-white border border-gray-200 rounded px-1 text-sm outline-none font-normal"
+                            className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-1 text-sm outline-none font-normal text-gray-900 dark:text-gray-100"
                         />
                     ) : (
-                        <span className="text-sm font-semibold text-gray-900 truncate">
+                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
                             {folder.title.startsWith('#') ? folder.title.slice(1).trim() : folder.title}
                         </span>
                     )}

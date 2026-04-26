@@ -1523,34 +1523,34 @@ export default function CalendarView({
                 </div >
 
                 {/* Main Scroll Area */}
-                < div
+                <div
                     ref={scrollContainerRef}
                     className="flex-1 relative flex trackpad-scroll-free"
                     style={{ touchAction: 'none', overscrollBehavior: 'none' }}
                 >
                     {/* Time Column (Sticky Left) */}
-                    < div className="w-[60px] flex-shrink-0 sticky left-0 z-[150] bg-white border-r border-gray-100 dark:border-slate-800/50 h-fit min-h-full pb-[150px]" >
+                    <div className="w-[60px] flex-shrink-0 sticky left-0 z-[150] bg-white dark:bg-[#0F172A] border-r border-gray-100 dark:border-slate-800/50 h-fit min-h-full pb-[150px]">
                         {/* Corner */}
-                        < div className="h-[50px] border-b border-gray-100 dark:border-slate-800/50 sticky top-0 z-[160] bg-white" ></div >
+                        <div className="h-[50px] border-b border-gray-100 dark:border-slate-800/50 sticky top-0 z-[160] bg-white dark:bg-[#0F172A]"></div>
                         {
                             Array.from({ length: 24 }).map((_, i) => (
                                 <div key={i} className="h-[60px] relative group border-b border-dashed border-gray-100 dark:border-slate-800/50">
-                                    <span className="absolute -top-3 right-3 text-[11px] font-semibold text-gray-400 z-[10]">{i}:00</span>
+                                    <span className="absolute -top-3 right-3 text-[11px] font-semibold text-gray-400 dark:text-gray-500 z-[10]">{i}:00</span>
                                 </div>
                             ))
                         }
-                    </div >
+                    </div>
 
                     {/* Days Wrapper with Relative positioning for the Time Line */}
                     <div className="flex relative items-start pb-[150px]" ref={gridDaysRef}>
 
                         {/* Global Current Time Line - Now Inside the relative flex container */}
-                        < div
+                        <div
                             className="absolute z-[155] pointer-events-none"
                             style={{ top: `${globalTimeTop + 50}px`, left: '-60px', width: 'calc(100% + 60px)' }}
                         >
-                            <div className="h-[2px] bg-black w-full relative">
-                                <div className="w-10 h-5 rounded-full bg-black text-white text-[10px] font-bold flex items-center justify-center absolute left-0 -top-2.5 shadow-sm">
+                            <div className="h-[2px] bg-red-500/80 dark:bg-red-400/80 w-full relative">
+                                <div className="w-10 h-5 rounded-full bg-red-500 dark:bg-red-400 text-white dark:text-slate-900 text-[10px] font-bold flex items-center justify-center absolute left-0 -top-2.5 shadow-sm">
                                     {format(currentTime, "HH:mm")}
                                 </div>
                             </div>

@@ -33,8 +33,8 @@ function WelcomeView({ payload }: { payload?: Record<string, any> }) {
                     </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="text-[11px] text-gray-500 font-semibold uppercase tracking-wider">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-                    <div className="text-[17px] font-black text-gray-900 leading-tight tracking-tight">
+                    <div className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold uppercase tracking-wider">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+                    <div className="text-[17px] font-black text-gray-900 dark:text-gray-100 leading-tight tracking-tight">
                         {greeting}{name}.
                     </div>
                 </div>
@@ -42,7 +42,7 @@ function WelcomeView({ payload }: { payload?: Record<string, any> }) {
 
             {/* Summary line */}
             <div className="pl-1">
-                <p className="text-[13px] text-gray-500 leading-snug font-medium">
+                <p className="text-[13px] text-gray-500 dark:text-gray-400 leading-snug font-medium">
                     {buildSummary()}
                 </p>
             </div>
@@ -51,15 +51,15 @@ function WelcomeView({ payload }: { payload?: Record<string, any> }) {
             {(eventCount > 0 || taskCount > 0) && (
                 <div className="flex gap-2">
                     {eventCount > 0 && (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 rounded-xl border border-indigo-100">
-                            <CalendarIcon size={12} className="text-indigo-500" />
-                            <span className="text-[12px] text-indigo-700 font-bold">{eventCount} event{eventCount !== 1 ? 's' : ''}</span>
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
+                            <CalendarIcon size={12} className="text-indigo-500 dark:text-indigo-400" />
+                            <span className="text-[12px] text-indigo-700 dark:text-indigo-300 font-bold">{eventCount} event{eventCount !== 1 ? 's' : ''}</span>
                         </div>
                     )}
                     {taskCount > 0 && (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 rounded-xl border border-violet-100">
-                            <Check size={12} className="text-violet-500" />
-                            <span className="text-[12px] text-violet-700 font-bold">{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 dark:bg-violet-900/30 rounded-xl border border-violet-100 dark:border-violet-800/50">
+                            <Check size={12} className="text-violet-500 dark:text-violet-400" />
+                            <span className="text-[12px] text-violet-700 dark:text-violet-300 font-bold">{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
                         </div>
                     )}
                 </div>
@@ -85,17 +85,17 @@ function TimelineView({ payload }: { payload?: Record<string, any> }) {
         <div className="flex flex-col gap-2 select-none">
             {/* Header */}
             <div className="flex items-center gap-2 mb-1">
-                <div className="text-[11px] font-bold text-indigo-600 uppercase tracking-widest flex items-center gap-1.5">
+                <div className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
                     <CalendarIcon size={11} /> Today's Schedule
                 </div>
-                <div className="flex-1 h-px bg-gray-100" />
-                <span className="text-[10px] text-gray-400 font-medium">{format(now, 'MMM d')}</span>
+                <div className="flex-1 h-px bg-gray-100 dark:bg-white/10" />
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">{format(now, 'MMM d')}</span>
             </div>
 
             {/* Event Cards with Vertical connecting line */}
             <div className="relative flex flex-col gap-3 mt-1.5 pl-2">
                 {/* The vertical line spanning the timeline */}
-                <div className="absolute top-2 bottom-2 left-[11px] w-[2px] bg-gray-100 rounded-full" />
+                <div className="absolute top-2 bottom-2 left-[11px] w-[2px] bg-gray-100 dark:bg-white/10 rounded-full" />
 
                 {events.map((ev, i) => {
                     const start = new Date(ev.start);
@@ -106,17 +106,17 @@ function TimelineView({ payload }: { payload?: Record<string, any> }) {
                         <div key={i} className="relative z-10 flex items-start gap-3">
                             {/* Dot on the timeline */}
                             <div className="mt-2.5 relative flex items-center justify-center shrink-0">
-                                <div className={`w-[6px] h-[6px] rounded-full z-10 ring-4 ring-white ${isPast ? 'bg-gray-300' : isNow ? 'bg-indigo-500 animate-pulse' : 'bg-indigo-300'}`} />
+                                <div className={`w-[6px] h-[6px] rounded-full z-10 ring-4 ring-white dark:ring-[#1E293B] ${isPast ? 'bg-gray-300 dark:bg-gray-600' : isNow ? 'bg-indigo-500 animate-pulse' : 'bg-indigo-300 dark:bg-indigo-600'}`} />
                             </div>
 
                             <div
                                 className={`
                                     flex-1 relative flex flex-col gap-0.5 p-3 rounded-2xl border transition-all
                                     ${isPast
-                                        ? 'bg-gray-50 border-gray-100'
+                                        ? 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/5'
                                         : isNow
-                                            ? 'bg-indigo-500 border-indigo-400 shadow-md shadow-indigo-200'
-                                            : 'bg-white border-gray-200 shadow-sm'
+                                            ? 'bg-indigo-500 border-indigo-400 shadow-md shadow-indigo-200 dark:shadow-indigo-900/50'
+                                            : 'bg-white dark:bg-white/10 border-gray-200 dark:border-white/10 shadow-sm'
                                     }
                                 `}
                             >
@@ -126,10 +126,10 @@ function TimelineView({ payload }: { payload?: Record<string, any> }) {
                                         <span className="text-[9px] text-white/80 font-bold uppercase tracking-wider">Now</span>
                                     </div>
                                 )}
-                                <div className={`text-[10px] font-bold uppercase tracking-wider ${isPast ? 'text-gray-400' : isNow ? 'text-indigo-100' : 'text-indigo-500'}`}>
+                                <div className={`text-[10px] font-bold uppercase tracking-wider ${isPast ? 'text-gray-400 dark:text-gray-600' : isNow ? 'text-indigo-100' : 'text-indigo-500 dark:text-indigo-400'}`}>
                                     {format(start, 'HH:mm')}
                                 </div>
-                                <div className={`text-[13px] font-black leading-tight ${isPast ? 'text-gray-400 line-through' : isNow ? 'text-white' : 'text-gray-800'}`}>
+                                <div className={`text-[13px] font-black leading-tight ${isPast ? 'text-gray-400 dark:text-gray-600 line-through' : isNow ? 'text-white' : 'text-gray-800 dark:text-gray-100'}`}>
                                     {ev.title}
                                 </div>
                             </div>
@@ -162,15 +162,15 @@ function NextEventView({ payload }: { payload?: Record<string, any> }) {
 
     return (
         <div className="flex flex-col gap-2.5 select-none">
-            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Next Up</div>
-            <div className="flex flex-col gap-1 p-3 bg-gradient-to-br from-violet-50 to-purple-50 rounded-2xl border border-violet-100">
-                <div className="text-sm font-black text-gray-900 leading-tight truncate">{event.title}</div>
+            <div className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Next Up</div>
+            <div className="flex flex-col gap-1 p-3 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 rounded-2xl border border-violet-100 dark:border-violet-800/50">
+                <div className="text-sm font-black text-gray-900 dark:text-gray-100 leading-tight truncate">{event.title}</div>
                 <div className="flex items-center gap-2 mt-0.5">
                     <div className="flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                        <span className="text-[10px] text-violet-600 font-bold">{timeLabel}</span>
+                        <span className="text-[10px] text-violet-600 dark:text-violet-400 font-bold">{timeLabel}</span>
                     </div>
-                    <span className="text-[10px] text-gray-400 font-medium">{format(start, 'HH:mm')}</span>
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">{format(start, 'HH:mm')}</span>
                 </div>
             </div>
         </div>
@@ -195,12 +195,12 @@ const MessageView = ({ payload }: { payload: any }) => {
                     <span className="text-white text-sm font-black">{senderName.charAt(0).toUpperCase()}</span>
                 </div>
                 <div className="min-w-0 flex-1">
-                    <div className="text-[14px] font-black text-gray-900 leading-tight">
+                    <div className="text-[14px] font-black text-gray-900 dark:text-gray-100 leading-tight">
                         {senderName}
                     </div>
-                    <div className="text-[11px] text-gray-500 font-medium mb-1">New message</div>
+                    <div className="text-[11px] text-gray-500 dark:text-gray-400 font-medium mb-1">New message</div>
                     {payload?.text && (
-                        <div className="text-[14px] text-gray-800 leading-snug break-words whitespace-pre-wrap font-medium">
+                        <div className="text-[14px] text-gray-800 dark:text-gray-300 leading-snug break-words whitespace-pre-wrap font-medium">
                             {payload.text}
                         </div>
                     )}
@@ -220,10 +220,10 @@ const UploadProgressView = ({ payload }: { payload: any }) => (
             </div>
         </div>
         <div className="text-center mt-2">
-            <div className="text-[18px] font-black text-gray-900 leading-tight tracking-wide">
+            <div className="text-[18px] font-black text-gray-900 dark:text-gray-100 leading-tight tracking-wide">
                 Sending...
             </div>
-            <div className="text-[13px] text-gray-500 truncate max-w-[200px] mt-1 font-medium">
+            <div className="text-[13px] text-gray-500 dark:text-gray-400 truncate max-w-[200px] mt-1 font-medium">
                 {payload?.fileName || 'Data packet'}
             </div>
         </div>
@@ -236,7 +236,7 @@ const InteractiveCardView = ({ payload }: { payload: any }) => {
         <div className="flex flex-col gap-3 px-3 py-2 w-[18rem]">
             <div className="flex items-center gap-2 mb-1">
                 <div className={`w-2.5 h-2.5 rounded-full ${isEvent ? 'bg-amber-500 animate-pulse' : 'bg-blue-500 animate-pulse'}`} />
-                <div className="text-[12px] font-bold uppercase tracking-wider text-gray-500">
+                <div className="text-[12px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     {isEvent ? 'Event Received' : 'File Received'}
                 </div>
             </div>
@@ -258,7 +258,7 @@ const InteractiveCardView = ({ payload }: { payload: any }) => {
                     e.stopPropagation();
                     if (payload?.onAction) payload.onAction();
                 }}
-                className="w-full py-2.5 mt-1 rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] bg-gray-900 hover:bg-black text-white"
+                className="w-full py-2.5 mt-1 rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-black dark:hover:bg-gray-100"
             >
                 {isEvent ? (
                     <>
@@ -317,23 +317,23 @@ const EventPreviewView = ({ payload }: { payload: any }) => {
         <div className="flex flex-col gap-3 px-3 py-2 w-[18rem]">
             <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${event.is_cancelled ? 'bg-gray-300' : isPast ? 'bg-gray-400' : isNow ? 'bg-indigo-500 animate-pulse' : 'bg-blue-500'}`} />
-                    <div className="text-[12px] font-bold uppercase tracking-wider text-gray-500">
+                    <div className={`w-2.5 h-2.5 rounded-full ${event.is_cancelled ? 'bg-gray-300 dark:bg-gray-600' : isPast ? 'bg-gray-400 dark:bg-gray-500' : isNow ? 'bg-indigo-500 animate-pulse' : 'bg-blue-500'}`} />
+                    <div className="text-[12px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                         {event.is_cancelled ? 'Cancelled' : isPast ? 'Past Event' : isNow ? 'Current Event' : 'Upcoming Event'}
                     </div>
                 </div>
             </div>
 
-            <div className={`p-4 rounded-2xl border ${isPast ? 'bg-gray-50 border-gray-100' : isNow ? 'bg-indigo-500 border-indigo-400 text-white shadow-md shadow-indigo-200' : 'bg-white border-gray-200 shadow-sm'}`}>
-                <div className={`text-[18px] font-black leading-tight mb-2 ${event.is_cancelled || isPast ? 'text-gray-400 line-through' : isNow ? 'text-white' : 'text-gray-900'}`}>
+            <div className={`p-4 rounded-2xl border ${isPast ? 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/5' : isNow ? 'bg-indigo-500 border-indigo-400 text-white shadow-md shadow-indigo-200 dark:shadow-indigo-900/50' : 'bg-white dark:bg-white/10 border-gray-200 dark:border-white/10 shadow-sm'}`}>
+                <div className={`text-[18px] font-black leading-tight mb-2 ${event.is_cancelled || isPast ? 'text-gray-400 dark:text-gray-600 line-through' : isNow ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
                     {event.title || 'Untitled Event'}
                 </div>
                 <div className="flex flex-col gap-1">
-                    <div className={`text-[13px] font-semibold flex items-center gap-1.5 ${isPast ? 'text-gray-400' : isNow ? 'text-indigo-100' : 'text-indigo-600'}`}>
+                    <div className={`text-[13px] font-semibold flex items-center gap-1.5 ${isPast ? 'text-gray-400 dark:text-gray-600' : isNow ? 'text-indigo-100' : 'text-indigo-600 dark:text-indigo-400'}`}>
                         <Calendar size={14} />
                         {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
                     </div>
-                    <div className={`text-[12px] font-medium flex items-center gap-1.5 ${isPast ? 'text-gray-400' : isNow ? 'text-indigo-200' : 'text-gray-500'}`}>
+                    <div className={`text-[12px] font-medium flex items-center gap-1.5 ${isPast ? 'text-gray-400 dark:text-gray-600' : isNow ? 'text-indigo-200' : 'text-gray-500 dark:text-gray-400'}`}>
                         {timeLabel}
                     </div>
                 </div>
@@ -380,7 +380,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                     damping: 30,
                     mass: 0.9
                 }}
-                className={`liquidGlass-wrapper text-gray-800 ${sizeClass}`}
+                className={`liquidGlass-wrapper text-gray-800 dark:text-gray-100 ${sizeClass}`}
             >
                 {/* Layer 1: Distortion blur */}
                 <div className="liquidGlass-effect" />
