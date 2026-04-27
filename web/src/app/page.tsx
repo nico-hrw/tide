@@ -390,11 +390,13 @@ export default function Dashboard() {
             return;
         }
 
-        // Only save if content has actually changed from what was initially loaded
+        // Only save if content has actually changed from what was initially loaded.
+        // This is the primary protection against phantom-empty overwrites: if the editor
+        // fires onChange during initial content set (e.g. when decryption fails and an
+        // empty doc is set), we must NOT save — that would overwrite real server content.
         const initialStr = typeof initialContentRef.current === 'string' ? initialContentRef.current : JSON.stringify(initialContentRef.current);
-        if (contentStr === initialStr && saveStatusRef.current !== 'unsaved') {
-            // We skip saving if the content hasn't changed from the initial load AND hasn't been modified by the user.
-            // This is the primary protection against "Phantom-Leere" overwriting data.
+        if (contentStr === initialStr) {
+            setSaveStatus('saved');
             return;
         }
 
@@ -1059,13 +1061,16 @@ export default function Dashboard() {
                         if (data.type === 'file_updated' && msSinceOwnSave < OWN_SAVE_COOLDOWN_MS) {
                             console.log(`[SSE] Suppressing own file_updated refetch (${msSinceOwnSave}ms since last save)`);
                             setTimeout(() => {
+                                // Use metadataCache (no forceRefresh) so optimistic updates survive
                                 useDataStore.setState({ loadedDirectories: new Set() });
-                                useDataStore.getState().fetchDirectory(null, true);
+                                useDataStore.getState().fetchDirectory(null);
                             }, OWN_SAVE_COOLDOWN_MS - msSinceOwnSave);
                             return;
                         }
+                        // No forceRefresh: the metadataCache protects in-flight optimistic updates
+                        // from being overwritten by server data that hasn't caught up yet.
                         useDataStore.setState({ loadedDirectories: new Set() });
-                        useDataStore.getState().fetchDirectory(null, true);
+                        useDataStore.getState().fetchDirectory(null);
                     }
                 } catch (e) { console.error("SSE Parse Error", e); }
             };
@@ -2188,11 +2193,14 @@ export default function Dashboard() {
             }
 
             // 3. Async crypto & network
-            const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
+            // Only encrypt the title in secured_meta — RSA-OAEP has a ~446-byte plaintext limit,
+            // and large metadata objects (with exdates, tags, etc.) can silently exceed it.
+            // All other fields go into body.metadata (V2 AES-encrypted, no size limit).
+            const securedMeta = await cryptoLib.encryptMetadata({ title: meta.title }, publicKey);
 
             // 4. Build body
             const body: any = {
-                secured_meta: securedMeta, // Always set for reliable title decryption on reload
+                secured_meta: securedMeta, // Only title — prevents RSA size overflow
             };
 
             try {
@@ -2275,6 +2283,17 @@ export default function Dashboard() {
         window.addEventListener('tide:navigate', handleNavigate);
         return () => window.removeEventListener('tide:navigate', handleNavigate);
         // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Canvas rebind: when right-clicking an image and selecting "Change anchor",
+    // CanvasLayer dispatches canvas:requestRebind. We enter binding mode so the
+    // user can then click a text block to pick the new anchor.
+    useEffect(() => {
+        const handleRequestRebind = () => {
+            setPendingBindBlockId('__pending_rebind__');
+        };
+        window.addEventListener('canvas:requestRebind', handleRequestRebind);
+        return () => window.removeEventListener('canvas:requestRebind', handleRequestRebind);
     }, []);
 
     const handleDeleteEvent = async (id: string) => {

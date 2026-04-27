@@ -30,6 +30,8 @@ interface CalendarEvent {
     is_task?: boolean;
     is_completed?: boolean;
     is_cancelled?: boolean;
+    shading?: number;
+    tags?: string[];
 }
 
 interface CalendarViewProps {
@@ -313,6 +315,10 @@ export default function CalendarView({
         const [isCompleted, setIsCompleted] = useState(!!event.is_completed);
         const [color, setColor] = useState(event.color || '#6366f1');
         const [showColorPicker, setShowColorPicker] = useState(false);
+        const [shading, setShading] = useState<number>(event.shading ?? 0);
+        const [tags, setTags] = useState<string[]>([
+            event.tags?.[0] ?? '', event.tags?.[1] ?? '', event.tags?.[2] ?? ''
+        ]);
 
         // Initial recurrence values
         const getRRuleParts = (evt: any) => {
@@ -346,6 +352,8 @@ export default function CalendarView({
             setIsCompleted(!!event.is_completed);
             setColor(event.color || '#6366f1');
             setIsCancelled(isThisOccCancelledOrig);
+            setShading(event.shading ?? 0);
+            setTags([event.tags?.[0] ?? '', event.tags?.[1] ?? '', event.tags?.[2] ?? '']);
             const parts = getRRuleParts(event);
             setFreq(parts.freq);
             setIntervalVal(parts.interval);
@@ -363,6 +371,10 @@ export default function CalendarView({
             if (isCompleted !== !!event.is_completed && updates.is_completed === undefined) updates.is_completed = isCompleted;
             if (isCancelled !== isThisOccCancelledRef.current && updates.is_cancelled === undefined) updates.is_cancelled = isCancelled;
             if (color !== event.color && updates.color === undefined) updates.color = color;
+            if (shading !== (event.shading ?? 0) && updates.shading === undefined) updates.shading = shading;
+            const activeTags = tags.filter(t => t.trim() !== '');
+            const currentTags = event.tags ?? [];
+            if (JSON.stringify(activeTags) !== JSON.stringify(currentTags) && updates.tags === undefined) updates.tags = activeTags;
 
             const newRecurrenceRule = freq === 'none' ? 'NONE' : `FREQ=${freq.toUpperCase()};INTERVAL=${interval}`;
             const currentRecurrenceRule = (event as any).recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`;
@@ -371,14 +383,14 @@ export default function CalendarView({
             if (Object.keys(updates).length > 0) {
                 onEventSave(event.id, updates);
             }
-        }, [event, title, description, isTask, isCompleted, isCancelled, color, freq, interval, onEventSave]);
+        }, [event, title, description, isTask, isCompleted, isCancelled, color, shading, tags, freq, interval, onEventSave]);
 
         useEffect(() => {
             const timer = setTimeout(() => {
                 handleSave();
             }, 800); // 800ms debounce for auto-save
             return () => clearTimeout(timer);
-        }, [title, description, isTask, isCompleted, isCancelled, color, freq, interval, handleSave]);
+        }, [title, description, isTask, isCompleted, isCancelled, color, shading, tags, freq, interval, handleSave]);
 
         // Cleanup save on unmount/close
         useEffect(() => {
@@ -564,6 +576,47 @@ export default function CalendarView({
                     rows={2}
                     className="w-full bg-transparent border border-gray-100 dark:border-white/5 rounded-2xl p-3 text-xs leading-relaxed text-gray-600 dark:text-gray-400 focus:ring-1 focus:ring-violet-500/20 outline-none resize-none transition-all placeholder:text-gray-300 dark:placeholder:text-gray-700"
                 />
+
+                {/* Shading overlay */}
+                <div className="flex items-center gap-3">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest shrink-0">Shading</span>
+                    <div className="flex items-center gap-2">
+                        {[0, 1, 2, 3, 4].map(level => (
+                            <button
+                                key={level}
+                                onClick={() => setShading(level)}
+                                title={level === 0 ? 'None' : `Level ${level}`}
+                                className={`w-5 h-5 rounded border transition-all ${shading === level ? 'ring-2 ring-violet-500 ring-offset-1 dark:ring-offset-[#1C1C1C] scale-110' : 'hover:scale-105 opacity-70 hover:opacity-100'}`}
+                                style={{
+                                    background: level === 0 ? 'transparent' : `rgba(90,90,90,${level * 0.22})`,
+                                    borderColor: level === 0 ? 'rgba(150,150,150,0.3)' : `rgba(90,90,90,${0.3 + level * 0.15})`
+                                }}
+                            >
+                                {level === 0 && <span className="text-[7px] text-gray-400 leading-none flex items-center justify-center w-full h-full">✕</span>}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Hints / Tags */}
+                <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Hinweise</span>
+                    {[0, 1, 2].map(idx => (
+                        <input
+                            key={idx}
+                            type="text"
+                            value={tags[idx] ?? ''}
+                            onChange={(e) => {
+                                const next = [...tags];
+                                next[idx] = e.target.value;
+                                setTags(next);
+                            }}
+                            onBlur={() => handleSave()}
+                            placeholder={`Hinweis ${idx + 1}...`}
+                            className="w-full bg-gray-50/50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 focus:ring-1 focus:ring-violet-500/20 outline-none placeholder:text-gray-300 dark:placeholder:text-gray-700"
+                        />
+                    ))}
+                </div>
 
                 {/* Controls */}
                 <div className="flex items-center justify-between pt-2 border-t border-gray-50 dark:border-white/5">

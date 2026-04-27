@@ -313,7 +313,7 @@ export default function CanvasLayer({
             onDragOver={(e) => e.preventDefault()}
         >
             {/* Background Layer (Behind Editor) */}
-            <div className="canvas-bg absolute inset-0 pointer-events-none z-0 overflow-hidden">
+            <div className="canvas-bg absolute inset-0 pointer-events-none z-0">
                 {bgElements.map(el => (
                     <CanvasElementComponent
                         key={el.id}
@@ -342,7 +342,7 @@ export default function CanvasLayer({
 
 
             {/* Drawing Layer (Above Editor) */}
-            <div className="canvas-draw absolute inset-0 pointer-events-none z-20 overflow-hidden">
+            <div className="canvas-draw absolute inset-0 pointer-events-none z-20">
                 {fgElements.map(el => (
                     <CanvasElementComponent
                         key={el.id}

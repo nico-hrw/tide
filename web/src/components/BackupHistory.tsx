@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { apiFetch } from '../lib/api';
 import { useDataStore } from '../store/useDataStore';
-import { decryptMetadata, decryptFile } from '../lib/crypto';
+import { decryptMetadata, decryptFile, base64ToArrayBuffer } from '../lib/crypto';
+import { unwrapDEKData, importDEK } from '../lib/cryptoV2';
 import { Clock, RotateCcw } from 'lucide-react';
 import Editor from './Editor';
 
@@ -9,7 +10,9 @@ interface BackupSlot {
     id: string;
     file_id: string;
     slot_name: string;
-    secured_meta?: string; // Base64 encoded secured_meta
+    secured_meta?: string;
+    access_keys?: any;
+    version?: number;
     updated_at: string;
 }
 
@@ -24,8 +27,8 @@ export default function BackupHistory({ fileId, onRestore, onCancel }: { fileId:
             .then(res => res.json())
             .then(data => {
                 if (Array.isArray(data)) {
-                    // Filter out legacy backups that don't have secured_meta
-                    const validSlots = data.filter(s => !!s.secured_meta);
+                    // Accept slots with secured_meta (V1/V2) or access_keys (V2)
+                    const validSlots = data.filter(s => !!s.secured_meta || !!s.access_keys);
                     setSlots(validSlots.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()));
                 }
             })
@@ -35,49 +38,77 @@ export default function BackupHistory({ fileId, onRestore, onCancel }: { fileId:
     const handleSelect = async (slotName: string) => {
         setSelectedSlot(slotName);
         setLoading(true);
+        setDecryptedText(null);
         try {
             const bRes = await apiFetch(`/api/v1/files/${fileId}/backups/${slotName}`);
             const backupData = await bRes.json();
 
-            const { privateKey } = useDataStore.getState();
+            const { privateKey, myId } = useDataStore.getState();
             if (!privateKey) throw new Error("No private key");
 
-            if (!backupData.secured_meta) {
-                throw new Error("Missing metadata in backup");
-            }
-
-            // Decrypt metadata from the BACKUP to get the CORRECT fileKey and IV for this blob
-            const meta = await decryptMetadata(backupData.secured_meta, privateKey, `backup-${fileId}`);
-
-            // Import file key
-            const fileKey = await window.crypto.subtle.importKey(
-                "jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
-            );
-
-            // Fetch the backup blob
             if (!backupData.encrypted_blob) {
                 setDecryptedText("Noch kein Backup für diesen Zeitraum vorhanden.");
                 setLoading(false);
                 return;
             }
 
-            // In Go, EncryptedBlob is []byte, so json encode makes it base64 string
+            // Decode the base64 blob
             const binaryString = atob(backupData.encrypted_blob);
             const len = binaryString.length;
             const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryString.charCodeAt(i);
+            for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+
+            const isV2 = (backupData.version ?? 1) >= 2 || !!backupData.access_keys;
+
+            let text = "";
+
+            if (isV2) {
+                // V2: unwrap DEK from access_keys, then AES-GCM decrypt
+                if (!myId) throw new Error("User ID not available");
+
+                const accessKeys = typeof backupData.access_keys === 'string'
+                    ? JSON.parse(backupData.access_keys)
+                    : (backupData.access_keys || {});
+
+                const myAccess = accessKeys?.[myId];
+                if (!myAccess?.wrapped_key) throw new Error("Kein Zugriffsschlüssel für dieses Backup gefunden.");
+
+                const rawDek = await unwrapDEKData(myAccess.wrapped_key, privateKey);
+                const dek = await importDEK(rawDek);
+
+                // The blob is a JSON string { data: base64, iv: base64 }
+                const blobText = new TextDecoder().decode(bytes);
+                const payload = JSON.parse(blobText);
+                const ivBuf = base64ToArrayBuffer(payload.iv);
+                const dataBuf = base64ToArrayBuffer(payload.data);
+
+                const decrypted = await window.crypto.subtle.decrypt(
+                    { name: 'AES-GCM', iv: ivBuf },
+                    dek,
+                    dataBuf
+                );
+                text = new TextDecoder().decode(decrypted);
+            } else {
+                // V1: fileKey stored in RSA-encrypted secured_meta
+                if (!backupData.secured_meta) throw new Error("Metadata fehlt im Backup.");
+
+                const meta = await decryptMetadata(backupData.secured_meta, privateKey, `backup-${fileId}`);
+                if (meta.isLocked) throw new Error("Backup-Metadaten konnten nicht entschlüsselt werden.");
+
+                const fileKey = await window.crypto.subtle.importKey(
+                    "jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
+                );
+
+                const blob = new Blob([bytes]);
+                const decryptedBlob = await decryptFile(blob, meta.iv as string, fileKey, fileId);
+                text = await decryptedBlob.text();
             }
-            const blob = new Blob([bytes]);
 
-            // Decrypt file blob
-            const decryptedBlob = await decryptFile(blob, meta.iv as string, fileKey, fileId);
-
-            const text = await decryptedBlob.text();
             setDecryptedText(text);
         } catch (err) {
-            console.error("Backup dec err", err);
-            setDecryptedText("Error decrypting backup");
+            console.error("Backup decryption error:", err);
+            const msg = err instanceof Error ? err.message : String(err);
+            setDecryptedText(`Fehler beim Entschlüsseln: ${msg}`);
         } finally {
             setLoading(false);
         }
@@ -89,11 +120,12 @@ export default function BackupHistory({ fileId, onRestore, onCancel }: { fileId:
                 const json = JSON.parse(decryptedText);
                 onRestore(json);
             } catch (e) {
-                // If it is raw string
                 onRestore(decryptedText);
             }
         }
     };
+
+    const canRestore = decryptedText && !decryptedText.startsWith('Fehler') && !decryptedText.startsWith('Noch kein');
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
@@ -116,6 +148,7 @@ export default function BackupHistory({ fileId, onRestore, onCancel }: { fileId:
                                 >
                                     <div className="font-bold flex justify-between">
                                         <span>{s.slot_name}</span>
+                                        {(s.version ?? 1) >= 2 && <span className="text-xs text-indigo-400 font-normal">V2</span>}
                                     </div>
                                     <div className="text-xs text-gray-500 mt-1">{new Date(s.updated_at).toLocaleString()}</div>
                                 </button>
@@ -128,6 +161,9 @@ export default function BackupHistory({ fileId, onRestore, onCancel }: { fileId:
                         {!loading && decryptedText && (
                             <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900 rounded-xl text-sm border border-gray-100 dark:border-gray-800">
                                 {(() => {
+                                    if (decryptedText.startsWith('Fehler') || decryptedText.startsWith('Noch kein')) {
+                                        return <div className="p-4 text-amber-600 dark:text-amber-400">{decryptedText}</div>;
+                                    }
                                     try {
                                         const parsed = JSON.parse(decryptedText);
                                         return <Editor initialContent={parsed} editable={false} />;
@@ -137,7 +173,7 @@ export default function BackupHistory({ fileId, onRestore, onCancel }: { fileId:
                                 })()}
                             </div>
                         )}
-                        {!loading && decryptedText && (
+                        {!loading && canRestore && (
                             <button
                                 onClick={doRestore}
                                 className="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition-transform active:scale-95 shadow-md"

@@ -22,6 +22,8 @@ interface CalendarEvent {
     color?: string;
     share_status?: string;
     effect?: string;
+    shading?: number;
+    tags?: string[];
 }
 
 interface EventPreviewProps {
@@ -55,6 +57,8 @@ export default function EventPreview({
     const [description, setDescription] = useState(event.description || "");
     const [selectedThemeId, setSelectedThemeId] = useState<string | null>(currentThemeId || null);
     const [isDescFocused, setIsDescFocused] = useState(false);
+    const [shading, setShading] = useState<number>(event.shading ?? 0);
+    const [tags, setTags] = useState<string[]>(event.tags ?? ['', '', '']);
 
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
 
@@ -62,6 +66,8 @@ export default function EventPreview({
     const titleRef = useRef(title);
     const descriptionRef = useRef(description);
     const selectedThemeIdRef = useRef(selectedThemeId);
+    const shadingRef = useRef(shading);
+    const tagsRef = useRef(tags);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const eventIdRef = useRef(event.id);
@@ -71,6 +77,8 @@ export default function EventPreview({
     useEffect(() => { titleRef.current = title; }, [title]);
     useEffect(() => { descriptionRef.current = description; }, [description]);
     useEffect(() => { selectedThemeIdRef.current = selectedThemeId; }, [selectedThemeId]);
+    useEffect(() => { shadingRef.current = shading; }, [shading]);
+    useEffect(() => { tagsRef.current = tags; }, [tags]);
     useEffect(() => { eventIdRef.current = event.id; }, [event.id]);
     useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
 
@@ -101,10 +109,13 @@ export default function EventPreview({
     const scheduleSave = useCallback(() => {
         if (debounceTimer.current) clearTimeout(debounceTimer.current);
         debounceTimer.current = setTimeout(() => {
+            const activeTags = tagsRef.current.filter(t => t.trim() !== '');
             onSaveRef.current(eventIdRef.current, {
                 title: titleRef.current,
                 description: descriptionRef.current,
                 parent_id: selectedThemeIdRef.current,
+                shading: shadingRef.current,
+                tags: activeTags,
             });
         }, 500);
     }, []);
@@ -113,11 +124,13 @@ export default function EventPreview({
     useEffect(() => {
         return () => {
             if (debounceTimer.current) clearTimeout(debounceTimer.current);
-            // Flush immediately with latest ref values
+            const activeTags = tagsRef.current.filter(t => t.trim() !== '');
             onSaveRef.current(eventIdRef.current, {
                 title: titleRef.current,
                 description: descriptionRef.current,
                 parent_id: selectedThemeIdRef.current,
+                shading: shadingRef.current,
+                tags: activeTags,
             });
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -176,14 +189,15 @@ export default function EventPreview({
 
     // Sync local state if the event changes externally (e.g. calendar drag)
     useEffect(() => {
-        if (event.description !== descriptionRef.current) {
-            setDescription(event.description || "");
-        }
-        if (event.title !== titleRef.current) {
-            setTitle(event.title);
+        if (event.description !== descriptionRef.current) setDescription(event.description || "");
+        if (event.title !== titleRef.current) setTitle(event.title);
+        if ((event.shading ?? 0) !== shadingRef.current) setShading(event.shading ?? 0);
+        if (JSON.stringify(event.tags ?? []) !== JSON.stringify(tagsRef.current.filter(t => t.trim() !== ''))) {
+            const incoming = event.tags ?? [];
+            setTags([incoming[0] ?? '', incoming[1] ?? '', incoming[2] ?? '']);
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [event.id, event.title, event.description]);
+    }, [event.id, event.title, event.description, event.shading, event.tags]);
 
     // Update theme selection when prop changes
     useEffect(() => {
@@ -283,10 +297,13 @@ export default function EventPreview({
 
                             // Theme change is immediate — no debounce
                             if (debounceTimer.current) clearTimeout(debounceTimer.current);
+                            const activeTags = tagsRef.current.filter(t => t.trim() !== '');
                             onSaveRef.current(event.id, {
                                 title: titleRef.current,
                                 description: descriptionRef.current,
                                 parent_id: newVal,
+                                shading: shadingRef.current,
+                                tags: activeTags,
                                 ...(newColor ? { color: newColor } : {})
                             });
                         }}
@@ -297,6 +314,52 @@ export default function EventPreview({
                         ))}
                     </select>
                     <ChevronDown size={14} className="pointer-events-none flex-shrink-0" />
+                </div>
+
+                {/* Shading */}
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 font-semibold w-16 shrink-0">Shading</span>
+                    <div className="flex items-center gap-1.5">
+                        {[0, 1, 2, 3, 4].map(level => (
+                            <button
+                                key={level}
+                                onClick={() => {
+                                    setShading(level);
+                                    scheduleSave();
+                                }}
+                                title={level === 0 ? 'None' : `Level ${level}`}
+                                className={`w-5 h-5 rounded border transition-all ${shading === level ? 'ring-2 ring-indigo-500 ring-offset-1 scale-110' : 'hover:scale-105'}`}
+                                style={{
+                                    background: level === 0
+                                        ? 'transparent'
+                                        : `rgba(90,90,90,${level * 0.22})`,
+                                    borderColor: level === 0 ? '#d1d5db' : `rgba(90,90,90,${0.3 + level * 0.15})`
+                                }}
+                            >
+                                {level === 0 && <span className="text-[8px] text-gray-400 leading-none flex items-center justify-center w-full h-full">✕</span>}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Hints / Tags */}
+                <div className="flex flex-col gap-1">
+                    <span className="text-xs text-gray-400 font-semibold">Hinweise</span>
+                    {[0, 1, 2].map(idx => (
+                        <input
+                            key={idx}
+                            type="text"
+                            value={tags[idx] ?? ''}
+                            onChange={(e) => {
+                                const next = [...tags];
+                                next[idx] = e.target.value;
+                                setTags(next);
+                                scheduleSave();
+                            }}
+                            placeholder={`Hinweis ${idx + 1}...`}
+                            className="w-full bg-transparent border border-dashed border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-indigo-400 text-gray-700 dark:text-gray-300 placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                        />
+                    ))}
                 </div>
 
                 {/* Description */}

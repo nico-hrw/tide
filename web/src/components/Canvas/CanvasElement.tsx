@@ -233,7 +233,7 @@ function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
         </div>
     );
     return <img src={src} alt="" draggable={false} className="rounded-lg block select-none"
-        style={{ width: element.width ?? 'auto', maxWidth: 380, maxHeight: 400, objectFit: 'contain' }} />;
+        style={{ width: element.width ?? 'auto', maxWidth: 600, maxHeight: 600, objectFit: 'contain' }} />;
 }
 
 // ─── Text widget ──────────────────────────────────────────────────────────────
@@ -342,6 +342,7 @@ export default function CanvasElementComponent({
     const [hovered, setHovered] = useState(false);
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
     const dragState = useRef<{ startX: number; startY: number; initOX: number; initOY: number } | null>(null);
+    const resizeState = useRef<{ startX: number; initWidth: number } | null>(null);
     const rafRef = useRef<number | null>(null);
 
     const isUnbound = !element.anchorBlockId || element.anchorBlockId === '__root__';
@@ -440,6 +441,34 @@ export default function CanvasElementComponent({
         window.addEventListener('mouseup', onUp);
     }, [element.id, element.anchorBlockId, element.offsetX, element.offsetY, isMobile, isBindingMode, isUnbound, onMove]);
 
+    const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
+        if (isMobile || !isImageElement(element)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const initWidth = (element as ImageElement).width ?? elRef.current?.getBoundingClientRect().width ?? 300;
+        resizeState.current = { startX: e.clientX, initWidth };
+
+        const onMv = (me: MouseEvent) => {
+            if (!resizeState.current) return;
+            const dx = me.clientX - resizeState.current.startX;
+            const newWidth = Math.max(80, resizeState.current.initWidth + dx);
+            if (elRef.current) {
+                (elRef.current.querySelector('img') as HTMLImageElement | null)?.style.setProperty('width', `${newWidth}px`);
+            }
+        };
+        const onUp = (me: MouseEvent) => {
+            if (!resizeState.current) return;
+            const dx = me.clientX - resizeState.current.startX;
+            const newWidth = Math.max(80, resizeState.current.initWidth + dx);
+            onUpdate(element.id, { width: newWidth });
+            resizeState.current = null;
+            window.removeEventListener('mousemove', onMv);
+            window.removeEventListener('mouseup', onUp);
+        };
+        window.addEventListener('mousemove', onMv);
+        window.addEventListener('mouseup', onUp);
+    }, [element, isMobile, onUpdate]);
+
     const onContextMenu = useCallback((e: React.MouseEvent) => {
         if (isMobile) return;
         e.preventDefault(); e.stopPropagation();
@@ -509,6 +538,15 @@ export default function CanvasElementComponent({
                 )}
                 {isImageElement(element) && <ImageWidget element={element} userId={userId} privateKey={privateKey} imageBlobCache={imageBlobCache} />}
                 {isTextWidget(element) && <TextWidget element={element} onUpdate={onUpdate} />}
+                {/* Resize handle for images — only shown on hover, desktop */}
+                {!isMobile && isImageElement(element) && pos !== null && !isBindingMode && (
+                    <div
+                        className="absolute bottom-0 right-0 w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity cursor-se-resize z-20"
+                        onMouseDown={onResizeMouseDown}
+                        style={{ background: 'linear-gradient(135deg, transparent 50%, rgba(99,102,241,0.8) 50%)', borderRadius: '0 0 4px 0' }}
+                        title="Resize"
+                    />
+                )}
             </div>
         </>
     );
