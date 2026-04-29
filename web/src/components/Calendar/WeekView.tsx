@@ -19,7 +19,7 @@ interface CalendarEvent {
 
 interface WeekViewProps {
     events: CalendarEvent[];
-    onEventCreate?: (start: Date, end: Date) => Promise<void>;
+    onEventCreate?: (start: Date, end: Date, isAllDay?: boolean, extraMeta?: any) => Promise<string | null>;
     onEventUpdate?: (id: string, start: Date, end: Date) => Promise<void>;
     onEventRename?: (id: string, title: string) => Promise<void>;
     onEventDelete?: (id: string) => Promise<void>;
@@ -358,7 +358,7 @@ export default function WeekView({
 
             if (end <= start) end.setTime(start.getTime() + 15 * 60000);
 
-            await onEventCreate(start, end);
+            await onEventCreate(start, end, false);
             setCreationDrag(null);
         } else if (resizingId && resizeDragState && onEventUpdate) {
             const event = events.find(e => e.id === resizingId);

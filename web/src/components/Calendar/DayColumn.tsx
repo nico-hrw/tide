@@ -50,7 +50,7 @@ interface DayColumnProps {
     snapInterval?: number;
     isMagnified?: boolean;
     onEventDrop: (eventId: string, startInitial: Date, endInitial: Date) => void;
-    onEventCreate?: (start: Date, end: Date, isAllDay: boolean, extraMeta?: any) => Promise<void>;
+    onEventCreate?: (start: Date, end: Date, isAllDay?: boolean, extraMeta?: any) => Promise<string | null>;
     cursorX: MotionValue<number>;
     cursorY: MotionValue<number>;
     allEvents?: CalendarEvent[];

@@ -166,23 +166,26 @@ export default function CalendarPage() {
     }, [privateKey, myId]);
 
     // 3. Create Event
-    const handleEventCreate = async (start: Date, end: Date) => {
-        if (!privateKey) return;
+    const handleEventCreate = async (start: Date, end: Date, isAllDay: boolean = false, extraMeta: any = {}): Promise<string | null> => {
+        if (!privateKey) return null;
 
         const title = "New Event";
         try {
             const publicKeyStr = sessionStorage.getItem("tide_user_public_key");
-            if (!publicKeyStr) { alert("Public Key missing."); return; }
+            if (!publicKeyStr) { alert("Public Key missing."); return null; }
             const publicKey = await window.crypto.subtle.importKey(
                 "spki", cryptoLib.base64ToArrayBuffer(publicKeyStr),
                 { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt"]
             );
 
             const meta = {
-                title,
+                title: extraMeta.title || title,
                 start: start.toISOString(),
                 end: end.toISOString(),
-                color: "#3b82f6"
+                allDay: isAllDay,
+                isLocked: false,
+                color: extraMeta.color || "#3b82f6",
+                ...extraMeta
             };
 
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
@@ -214,9 +217,10 @@ export default function CalendarPage() {
             setEditingEventId(newFile.id);
             // Background reload
             loadData();
+            return newFile.id;
         } catch (err) {
             console.error("Create event failed:", err);
-            alert("Failed to create event");
+            return null;
         }
     };
 
@@ -298,7 +302,8 @@ export default function CalendarPage() {
                 completed_dates: (updatedEvent as any).completed_dates || [],
                 is_task: !!(updatedEvent as any).is_task,
                 is_completed: !!(updatedEvent as any).is_completed,
-                is_cancelled: !!(updatedEvent as any).is_cancelled
+                is_cancelled: !!(updatedEvent as any).is_cancelled,
+                isLocked: false
             };
 
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);

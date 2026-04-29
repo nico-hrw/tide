@@ -801,7 +801,7 @@ export default function CalendarView({
             if (finalEndMs > midnightMs) finalEndMs = midnightMs;
             if (finalStartMs < dayBase.getTime()) finalStartMs = dayBase.getTime();
 
-            await onEventCreate(new Date(finalStartMs), new Date(finalEndMs));
+            await onEventCreate(new Date(finalStartMs), new Date(finalEndMs), false);
 
         } else if (draggingId && dragState && onEventUpdate) {
             // ✅ THIS WAS MISSING — handle the mouse-drag move completion
