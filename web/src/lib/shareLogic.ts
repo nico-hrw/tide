@@ -8,6 +8,7 @@ export async function performMessengerShare(
     privateKey: CryptoKey,
     publicKey: CryptoKey,
     events: any[],
+    recipientId: string,
     recipientEmail: string,
     recipientPubKeySpki: string,
     permission: 'view' | 'edit' | 'share' = 'view'
@@ -53,6 +54,7 @@ export async function performMessengerShare(
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+                recipient_id: recipientId,
                 email: recipientEmail,
                 secured_meta: recipientWrapped.ciphertext, // wrapped DEK for recipient
                 permission,                                // 'view' | 'edit' | 'share'
@@ -75,6 +77,7 @@ export async function performMessengerShare(
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+                recipient_id: recipientId,
                 recipient_email: recipientEmail,
                 content: JSON.stringify({
                     type: isEvent ? "event_share" : "file_share_request",

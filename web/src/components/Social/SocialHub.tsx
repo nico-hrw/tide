@@ -25,9 +25,10 @@ interface SocialHubProps {
     onOpenFile: (fileId: string, title: string, parentId: string | null) => void;
     onOpenCalendar: () => void;
     userProfile: { username: string; email: string; avatar_seed?: string; avatar_salt?: string; avatar_style?: string; bio?: string; title?: string; id?: string; user_id?: string; is_verified?: boolean; profile_status?: number } | null;
+    privateKey: CryptoKey | null;
 }
 
-export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, userProfile }: SocialHubProps) {
+export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, userProfile, privateKey }: SocialHubProps) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -253,7 +254,7 @@ export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, u
                         <X className="w-5 h-5 text-gray-700 dark:text-gray-300" />
                     </button>
                     <ChatPanel
-                        privateKey={null}
+                        privateKey={privateKey}
                         onOpenFile={onOpenFile}
                         onOpenCalendar={onOpenCalendar}
                         onOpenProfile={onOpenProfile}

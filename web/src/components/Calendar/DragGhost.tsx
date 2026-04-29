@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion, useTransform, MotionValue } from 'framer-motion';
 import { format } from 'date-fns';
 
@@ -57,9 +58,9 @@ export const DragGhost: React.FC<DragGhostProps> = ({
 
     const theme = getEventTheme(event);
 
-    return (
+    return typeof document !== 'undefined' ? createPortal(
         <motion.div
-            className="fixed top-0 left-0 pointer-events-none z-[200] rounded-xl shadow-2xl overflow-hidden"
+            className="fixed top-0 left-0 pointer-events-none z-[9999] rounded-xl shadow-2xl overflow-hidden"
             style={{
                 x: ghostX,
                 y: ghostY,
@@ -87,6 +88,7 @@ export const DragGhost: React.FC<DragGhostProps> = ({
                 )}
                 <p className="text-[10px] font-bold mt-auto">{format(new Date(event.start), "HH:mm")}</p>
             </div>
-        </motion.div>
-    );
+        </motion.div>,
+        document.body
+    ) : null;
 };

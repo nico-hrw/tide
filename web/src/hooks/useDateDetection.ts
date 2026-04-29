@@ -83,6 +83,21 @@ export function useDateDetection({ editor, enabled, mode, onAcceptSuggestion }: 
                 set.add(spanKey);
                 handledSpans.current.set(blockId!, set);
                 island.dismiss();
+
+                // On dismiss, convert the date portion to an inline dateMention node
+                if (editor) {
+                    const absStart = blockPos + 1 + first.span[0];
+                    const absEnd = blockPos + 1 + first.span[1];
+                    const isoDate = first.proposedDate.toISOString();
+                    // Just use the typed text as label for inline feeling
+                    const label = text.slice(first.span[0], first.span[1]);
+                    
+                    editor.chain().deleteRange({ from: absStart, to: absEnd })
+                          .insertContentAt(absStart, {
+                              type: 'dateMention',
+                              attrs: { isoDate, label }
+                          }).run();
+                }
             },
         };
 

@@ -1949,7 +1949,7 @@ export default function Dashboard() {
         setShareModalFile({ id: fileId, title: file.title });
     };
 
-    const performShare = async (recipientEmail: string, recipientPubKeySpki: string, permission: 'view' | 'edit' | 'share' = 'view') => {
+    const performShare = async (recipientId: string, recipientEmail: string, recipientPubKeySpki: string, permission: 'view' | 'edit' | 'share' = 'view') => {
         if (!shareModalFile || !privateKey || !publicKey) return;
 
         // Rule 3: Push upload progress for outgoing share
@@ -1966,6 +1966,7 @@ export default function Dashboard() {
             privateKey,
             publicKey,
             events,
+            recipientId,
             recipientEmail,
             recipientPubKeySpki,
             permission,
@@ -2806,28 +2807,7 @@ export default function Dashboard() {
                     />
                 </div>
 
-                <div className={`absolute inset-0 z-10 bg-transparent ${activeTabId === 'messages' || activeTabId.startsWith('chat-') ? 'block' : 'hidden'}`}>
-                    {enabledExtensions.includes('messenger') ? (
-                        <ChatPanel
-                            privateKey={privateKey}
-                            onOpenFile={handleFileSelect}
-                            onOpenCalendar={() => switchTab('calendar', 'calendar')}
-                            onOpenProfile={(userId, username) => switchTab(`profile:${userId}`, 'profile', username)}
-                            onFileCreated={(newFile: DecryptedFile) => {
-                                useDataStore.getState().appendFiles([newFile as any], []);
-                            }}
-                            onAccept={() => {
-                                useDataStore.getState().loadedDirectories.clear();
-                                useDataStore.getState().fetchDirectory(null);
-                            }}
-                        />
-                    ) : (
-                        <div className="flex bg-[var(--background)] h-full w-full items-center justify-center text-gray-500 flex-col gap-4">
-                            <p>Messenger is disabled.</p>
-                            <button className="px-4 py-2 border dark:border-white/20 border-black/20 text-[var(--foreground)] rounded-md hover:bg-black/5 dark:hover:bg-white/5" onClick={() => setSettingsModalOpen(true)}>Enable in Settings</button>
-                        </div>
-                    )}
-                </div>
+
 
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] ${activeTabId === 'ext_finance' ? 'block' : 'hidden'}`}>
                     {enabledExtensions.includes('finance') ? <FinanceDashboard /> : null}
@@ -2838,7 +2818,7 @@ export default function Dashboard() {
                         <ProfilePage
                             userId={activeTabId.split(':')[1]}
                             onOpenFile={(fileId, title) => switchTab(fileId, 'file', title)}
-                            onMessage={(uId) => switchTab(`chat-${uId}`, 'chat')}
+                            onMessage={(uId) => setActiveTabId('social')}
                         />
                     )}
                 </div>
@@ -2850,6 +2830,7 @@ export default function Dashboard() {
                             onOpenFile={(fileId, title, parentId) => switchTab(fileId, 'file', title)}
                             onOpenCalendar={() => switchTab('calendar', 'calendar')}
                             userProfile={userProfile}
+                            privateKey={privateKey}
                         />
                     )}
                 </div>

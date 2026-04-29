@@ -339,6 +339,9 @@ export default function Sidebar({
                             layout="position"
                             key={item.id}
                             onDragOver={(e: React.DragEvent) => {
+                                if (e.dataTransfer.types.includes('tide/calendar-event')) {
+                                    return; // Let FileItem handle calendar drops!
+                                }
                                 e.preventDefault();
                                 e.stopPropagation();
                                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -354,6 +357,9 @@ export default function Sidebar({
                             }}
                             onDragLeave={() => setDropIndicator(null)}
                             onDrop={(e: React.DragEvent) => {
+                                if (e.dataTransfer.types.includes('tide/calendar-event')) {
+                                    return; // Handled by FileItem
+                                }
                                 e.preventDefault();
                                 e.stopPropagation();
                                 const zone = dropIndicator?.zone || 'bottom';
@@ -586,8 +592,13 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
             onDragOver={(e) => {
                 if (e.dataTransfer.types.includes('tide/calendar-event')) {
                     e.preventDefault();
+                    e.stopPropagation();
                     e.dataTransfer.dropEffect = 'copy';
-                    if (!isCalendarDropTarget) setIsCalendarDropTarget(true);
+                    if (!isCalendarDropTarget) {
+                        setIsCalendarDropTarget(true);
+                        // Open the note when hovering over it
+                        onSelect(file.id, file.title);
+                    }
                 }
             }}
             onDragLeave={() => setIsCalendarDropTarget(false)}

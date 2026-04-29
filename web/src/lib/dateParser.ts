@@ -103,7 +103,7 @@ export function parseGermanDate(text: string, baseDate: Date = new Date()): Pars
     const tokens: DetectedToken[] = [];
 
     // ── Pattern 1: explicit dates "1.5.", "01.05.2026" ──────────────────────────
-    const dateNumRe = /\b(0?[1-9]|[12][0-9]|3[01])\.(0?[1-9]|1[0-2])\.(\d{4}|\d{2})?\b/g;
+    const dateNumRe = /\b(0?[1-9]|[12][0-9]|3[01])\.(0?[1-9]|1[0-2])\.(?:\s*(\d{4}|\d{2})\b|(?!\d))/g;
     let m: RegExpExecArray | null;
     while ((m = dateNumRe.exec(text)) !== null) {
         const day = parseInt(m[1], 10);

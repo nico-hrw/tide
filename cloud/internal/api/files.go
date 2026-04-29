@@ -241,6 +241,7 @@ func (h *FileHandler) ListPublicFiles(w http.ResponseWriter, r *http.Request) {
 // --- Sharing Endpoints ---
 
 type ShareRequest struct {
+	RecipientID    string `json:"recipient_id"`
 	RecipientEmail string `json:"email"`
 	SecuredMeta    string `json:"secured_meta"`
 	Permission     string `json:"permission"` // 'view' | 'edit' | 'share' (defaults to 'view')
@@ -275,11 +276,20 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Resolve Recipient ID via Blind Index
-	emailHash := hashString(req.RecipientEmail)
-	recipient, err := h.Store.GetUserByEmailHash(r.Context(), emailHash)
-	if err != nil {
-		http.Error(w, "Recipient not found (or invalid email)", http.StatusNotFound)
+	// 1. Resolve Recipient ID
+	var recipient *db.User
+	if req.RecipientID != "" {
+		recipient, err = h.Store.GetUser(r.Context(), req.RecipientID)
+	} else if req.RecipientEmail != "" && req.RecipientEmail != "Hidden" {
+		emailHash := hashString(req.RecipientEmail)
+		recipient, err = h.Store.GetUserByEmailHash(r.Context(), emailHash)
+	} else {
+		http.Error(w, "Recipient identification (email or ID) required", http.StatusBadRequest)
+		return
+	}
+
+	if err != nil || recipient == nil {
+		http.Error(w, "Recipient not found (or invalid email/ID)", http.StatusNotFound)
 		return
 	}
 

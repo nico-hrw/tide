@@ -247,50 +247,14 @@ export const DateMentionExtension = Node.create({
     },
 
     renderHTML({ HTMLAttributes }) {
-        return ['span', mergeAttributes(HTMLAttributes, { 'data-date-mention': '' }), 0];
+        return ['span', mergeAttributes(HTMLAttributes, { 'data-date-mention': '' })];
     },
 
     addNodeView() {
         return ReactNodeViewRenderer(DateMentionNodeView);
     },
 
-    addInputRules() {
-        return [
-            new InputRule({
-                find: DATE_REGEX,
-                handler: ({ state, range, match, chain }) => {
-                    const rawDate = match[1]?.trim();
-                    if (!rawDate) return null;
 
-                    const parsed = parseDate(rawDate);
-                    if (!parsed) return null;
-
-                    const isoDate = parsed.toISOString();
-                    const label = formatDateLabel(parsed);
-
-                    // Compute the exact text range to replace
-                    const matchedText = match[0];
-                    const trailingSpace = match[2] || ' ';
-                    const leadingSpaceLength = matchedText.length - match[1].length - match[2].length;
-                    const fromPos = range.from + leadingSpaceLength;
-
-                    chain()
-                        .deleteRange({ from: fromPos, to: range.to })
-                        .insertContentAt(fromPos, [
-                            {
-                                type: 'dateMention',
-                                attrs: { isoDate, label },
-                            },
-                            {
-                                type: 'text',
-                                text: trailingSpace,
-                            }
-                        ])
-                        .run();
-                },
-            }),
-        ];
-    },
 });
 
 export default DateMentionExtension;

@@ -17,7 +17,7 @@ interface ShareModalProps {
     fileId: string;
     fileName: string;
     onClose: () => void;
-    onShare: (recipientEmail: string, recipientPubKey: string, permission: SharePermission) => Promise<void>;
+    onShare: (recipientId: string, recipientEmail: string, recipientPubKey: string, permission: SharePermission) => Promise<void>;
     myId: string;
 }
 
@@ -107,7 +107,7 @@ export default function ShareModal({
         setSharing(true);
         try {
             setSharedContactId(contact.id);
-            await onShare(contact.email, contact.public_key, permission);
+            await onShare(contact.id, contact.email, contact.public_key, permission);
             setTimeout(() => {
                 onClose();
             }, 600);
