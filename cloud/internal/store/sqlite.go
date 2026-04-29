@@ -496,6 +496,12 @@ func (s *SQLiteStore) UpdateUserExtensions(ctx context.Context, id string, exten
 	return err
 }
 
+func (s *SQLiteStore) UpdateUserEmail(ctx context.Context, id string, emailHash string) error {
+	query := `UPDATE users SET email_blind_index = ? WHERE id = ?`
+	_, err := s.DB.ExecContext(ctx, query, emailHash, id)
+	return err
+}
+
 // --- File Operations ---
 
 func (s *SQLiteStore) CreateFile(ctx context.Context, file *db.File) error {

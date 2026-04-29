@@ -48,6 +48,12 @@ export default function SettingsModal({
     const [isSavingProfile, setIsSavingProfile] = useState(false);
     const [saveError, setSaveError] = useState('');
 
+    const [emailInput, setEmailInput] = useState(userProfile?.email || '');
+    const [emailPinInput, setEmailPinInput] = useState('');
+    const [emailStatus, setEmailStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
+
+    const { themePreference, setThemePreference, language, setLanguage } = useDataStore();
+
     // Reset state when modal opens/closes
     useEffect(() => {
         if (!isOpen) {
@@ -59,6 +65,9 @@ export default function SettingsModal({
             setAvatarSaltInput(userProfile?.avatar_salt || '');
             setAvatarStyleInput((userProfile?.avatar_style as any) || 'notionists');
             setProfilePublic(userProfile?.profile_status !== 0); // profile_status 0 = hidden
+            setEmailInput(userProfile?.email || '');
+            setEmailPinInput('');
+            setEmailStatus(null);
             setSaveError('');
         }
     }, [isOpen, userProfile]);
@@ -111,6 +120,29 @@ export default function SettingsModal({
         }
     };
 
+    const handleUpdateEmail = async () => {
+        setEmailStatus(null);
+        if (!emailInput || !emailPinInput) {
+            setEmailStatus({ type: 'error', msg: 'Email and PIN required' });
+            return;
+        }
+        try {
+            const r = await apiFetch(`/api/v1/auth/me`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: emailInput, pin: emailPinInput })
+            });
+            if (!r.ok) {
+                const msg = await r.text();
+                throw new Error(msg || 'Failed to update email');
+            }
+            setEmailStatus({ type: 'success', msg: 'Email updated successfully' });
+            setEmailPinInput('');
+        } catch (e: any) {
+            setEmailStatus({ type: 'error', msg: e.message });
+        }
+    };
+
     const renderAccount = () => (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div>
@@ -136,12 +168,36 @@ export default function SettingsModal({
                             />
                             <div className="pt-2">
                                 <label className="text-xs font-semibold text-gray-500">Contact Email</label>
-                                <input
-                                    type="email"
-                                    disabled
-                                    defaultValue={userProfile?.email || 'user@example.com'}
-                                    className="w-full bg-transparent text-sm text-gray-400 outline-none border-b border-transparent cursor-not-allowed"
-                                />
+                                <div className="flex flex-col gap-2 mt-1">
+                                    <input
+                                        type="email"
+                                        value={emailInput}
+                                        onChange={e => setEmailInput(e.target.value)}
+                                        className="w-full bg-transparent text-sm text-gray-900 dark:text-white outline-none border-b border-gray-200 dark:border-white/10 focus:border-blue-500 transition-colors pb-1"
+                                        placeholder="your@email.com"
+                                    />
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <input
+                                            type="password"
+                                            maxLength={5}
+                                            placeholder="PIN"
+                                            value={emailPinInput}
+                                            onChange={e => setEmailPinInput(e.target.value.replace(/\D/g, ''))}
+                                            className="w-20 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-center font-mono outline-none focus:border-blue-500"
+                                        />
+                                        <button
+                                            onClick={handleUpdateEmail}
+                                            className="px-3 py-1 bg-gray-900 dark:bg-white dark:text-black text-white text-[10px] font-bold rounded-lg hover:opacity-90 transition-opacity"
+                                        >
+                                            Change Email
+                                        </button>
+                                    </div>
+                                    {emailStatus && (
+                                        <p className={`text-[10px] font-bold ${emailStatus.type === 'success' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                            {emailStatus.msg}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -297,10 +353,10 @@ export default function SettingsModal({
                     <h4 className="text-sm font-bold text-gray-900 dark:text-white">Color Theme</h4>
                     <p className="text-xs text-gray-500 mt-1">Switch between light and dark modes.</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="grid grid-cols-3 gap-3">
                     <button
-                        onClick={() => useDataStore.getState().setTheme('light')}
-                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-xs font-bold transition-all ${useDataStore.getState().theme === 'light'
+                        onClick={() => setThemePreference('light')}
+                        className={`flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-bold transition-all ${themePreference === 'light'
                             ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
                             : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20'
                             }`}
@@ -309,8 +365,18 @@ export default function SettingsModal({
                         Light
                     </button>
                     <button
-                        onClick={() => useDataStore.getState().setTheme('dark')}
-                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-xs font-bold transition-all ${useDataStore.getState().theme === 'dark'
+                        onClick={() => setThemePreference('system')}
+                        className={`flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-bold transition-all ${themePreference === 'system'
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
+                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20'
+                            }`}
+                    >
+                        <Settings className="w-4 h-4" />
+                        Auto
+                    </button>
+                    <button
+                        onClick={() => setThemePreference('dark')}
+                        className={`flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-bold transition-all ${themePreference === 'dark'
                             ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
                             : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20'
                             }`}
@@ -342,13 +408,18 @@ export default function SettingsModal({
                 </div>
             </div>
 
-            <div className="p-4 flex items-center justify-between bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-xl opacity-60 grayscale cursor-not-allowed">
+            <div className="p-4 flex items-center justify-between bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-xl">
                 <div>
-                    <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">Language <span className="px-2 py-0.5 rounded-md bg-gray-200 dark:bg-gray-800 text-[10px]">Coming Soon</span></h4>
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">Language</h4>
                     <p className="text-xs text-gray-500 mt-1">Change the application language.</p>
                 </div>
-                <select disabled className="bg-gray-100 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm outline-none">
-                    <option>English</option>
+                <select 
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value as 'en' | 'de')}
+                    className="bg-gray-100 dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-sm outline-none text-gray-900 dark:text-white"
+                >
+                    <option value="en">English</option>
+                    <option value="de">Deutsch</option>
                 </select>
             </div>
 

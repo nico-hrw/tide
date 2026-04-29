@@ -37,7 +37,7 @@ interface CalendarEvent {
 
 interface CalendarViewProps {
     events: CalendarEvent[];
-    onEventCreate: (start: Date, end: Date) => Promise<void>;
+    onEventCreate: (start: Date, end: Date, isAllDay?: boolean, extraMeta?: any) => Promise<string | null>;
     onEventUpdate: (id: string, start: Date, end: Date) => Promise<void>;
     onEventRename: (id: string, title: string) => Promise<void>;
     onEventDelete?: (id: string) => Promise<void>;
@@ -1266,6 +1266,7 @@ export default function CalendarView({
                                                     }
                                                 }
                                             }}
+                                            onEventCreate={onEventCreate}
                                             onEventShare={onEventShare}
                                             onEventDelete={onEventDelete ? (id) => onEventDelete(id) : undefined}
                                             onGridMouseDown={handleGridMouseDown}
@@ -1287,9 +1288,9 @@ export default function CalendarView({
                                                 const end = new Date(clickedDay);
                                                 end.setHours(23, 59, 59, 999);
 
-                                                // Ignore typings for now as the component signature may lack allDay boolean natively
-                                                // @ts-ignore
-                                                onEventCreate && onEventCreate(start, end, true);
+                                                if (onEventCreate) {
+                                                    onEventCreate(start, end, true, { title: 'New All-Day Event', allDay: true });
+                                                }
                                             }}
                                             onTaskToggle={(id, currentIsCompleted) => {
                                                 if (onEventSave) onEventSave(id, { is_completed: !currentIsCompleted });

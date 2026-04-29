@@ -1301,6 +1301,7 @@ export default function Dashboard() {
                     type: "folder",
                     parent_id: parentId,
                     public_meta: {},
+                    metadata: { title }, // Unencrypted fallback
                     secured_meta: securedMeta,
                     visibility: 'private'
                 })
@@ -1769,9 +1770,9 @@ export default function Dashboard() {
                 const isV2 = (target as any).version >= 2;
                 let encryptedMeta: string;
 
-                if (isV2) {
-                    // V2: direct re-encrypt — no legacy field preservation needed
-                    encryptedMeta = await cryptoLib.encryptMetadata({ title: newTitle }, publicKey);
+                if (isV2 || target.type === 'folder') {
+                    // V2/Folders: direct re-encrypt — no legacy field preservation needed
+                    encryptedMeta = await cryptoLib.encryptMetadata({ title: newTitle, isLocked: false }, publicKey);
                 } else {
                     // V1: try to decrypt+merge to preserve fileKey/IV, fall back to fresh encrypt
                     let currentSecuredMeta = (target as any).secured_meta;
@@ -1794,10 +1795,15 @@ export default function Dashboard() {
                     encryptedMeta = await cryptoLib.encryptMetadata(metaToEncrypt, publicKey);
                 }
 
+                const payload: any = { secured_meta: encryptedMeta };
+                if (isV2 || target.type === 'folder') {
+                    payload.metadata = { ...((target as any).metadata || {}), title: newTitle };
+                }
+
                 await apiFetch(`/api/v1/files/${fileId}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ secured_meta: encryptedMeta })
+                    body: JSON.stringify(payload)
                 });
             }
 
@@ -2787,7 +2793,7 @@ export default function Dashboard() {
                             if (!e.parent_id) return !hiddenThemeIds.includes('general-theme');
                             return !hiddenThemeIds.includes(parentId);
                         })}
-                        onEventCreate={async (s, e) => { await handleEventCreate(s, e); }}
+                        onEventCreate={handleEventCreate}
                         onEventUpdate={handleEventUpdate}
                         onEventDelete={handleDeleteEvent}
                         onEventRename={handleEventRename}

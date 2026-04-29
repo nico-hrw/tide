@@ -34,6 +34,8 @@ type Store interface {
 	GetUser(ctx context.Context, id string) (*db.User, error)
 	GetUserByEmailHash(ctx context.Context, hash string) (*db.User, error)
 	GetUserExtensions(ctx context.Context, id string) ([]string, error)
+	UpdateUserEmail(ctx context.Context, id string, emailHash string) error
+	UpdateUserUsername(ctx context.Context, id string, username string) error
 
 	// File
 	CreateFile(ctx context.Context, file *db.File) error

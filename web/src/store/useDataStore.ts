@@ -71,7 +71,10 @@ interface DataState {
     noteLayout: 'thin' | 'normal' | 'wide' | 'extra-wide';
     setNoteLayout: (layout: 'thin' | 'normal' | 'wide' | 'extra-wide' | ((prev: 'thin' | 'normal' | 'wide' | 'extra-wide') => 'thin' | 'normal' | 'wide' | 'extra-wide')) => void;
     theme: 'light' | 'dark';
-    setTheme: (theme: 'light' | 'dark') => void;
+    themePreference: 'light' | 'dark' | 'system';
+    setThemePreference: (pref: 'light' | 'dark' | 'system') => void;
+    language: 'en' | 'de';
+    setLanguage: (lang: 'en' | 'de') => void;
 }
 
 export const useDataStore = create<DataState>((set, get) => ({
@@ -93,14 +96,26 @@ export const useDataStore = create<DataState>((set, get) => ({
         localStorage.setItem('tide_note_layout', next);
         return { noteLayout: next };
     }),
-    theme: typeof window !== 'undefined' ? (localStorage.getItem('tide_theme') as 'light' | 'dark' || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) : 'light',
-    setTheme: (theme) => set(s => {
-        localStorage.setItem('tide_theme', theme);
+    theme: 'light',
+    themePreference: (typeof window !== 'undefined' ? (localStorage.getItem('tide_theme_preference') as any) : null) || 'system',
+    setThemePreference: (pref) => set(s => {
+        localStorage.setItem('tide_theme_preference', pref);
+        let resolvedTheme: 'light' | 'dark' = 'light';
+        if (pref === 'system') {
+            resolvedTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        } else {
+            resolvedTheme = pref;
+        }
         if (typeof document !== 'undefined') {
-            if (theme === 'dark') document.documentElement.classList.add('dark');
+            if (resolvedTheme === 'dark') document.documentElement.classList.add('dark');
             else document.documentElement.classList.remove('dark');
         }
-        return { theme };
+        return { themePreference: pref, theme: resolvedTheme };
+    }),
+    language: typeof window !== 'undefined' ? (localStorage.getItem('tide_language') as 'en' | 'de' || 'en') : 'en',
+    setLanguage: (lang) => set(s => {
+        localStorage.setItem('tide_language', lang);
+        return { language: lang };
     }),
     isUpdatingMetadata: new Set(),
     openFolderIds: new Set(
@@ -585,6 +600,12 @@ export const useDataStore = create<DataState>((set, get) => ({
                 }
 
                 let metaData: any = { title: "Untitled" };
+                
+                // Resilience: Try to find existing title in store if we're doing a refresh
+                const existing = [...get().notes, ...get().events].find(x => x.id === f.id);
+                if (existing && existing.title && !existing.title.includes('Locked Note')) {
+                    metaData.title = existing.title;
+                }
 
                 if (f.visibility === 'public') {
                     if (f.public_meta?.title) metaData.title = f.public_meta.title;
@@ -599,7 +620,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                     if (f.secured_meta) {
                         const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `v2-${f.id}`);
                         if (!meta.isLocked && meta.title) {
-                            metaData = { ...metaData, ...meta };
+                            metaData = { ...metaData, ...meta, isLocked: false };
                         } else if (meta.isLocked && metaData.title && !metaData.title.includes('Locked Note')) {
                             // Decryption failed but we already have a title from unencrypted metadata (V2)
                             // Keep it, but mark as locked if appropriate
@@ -724,6 +745,12 @@ export const useDataStore = create<DataState>((set, get) => ({
                     }
 
                     let metaData: any = { title: "Untitled" };
+                    
+                    // Resilience: Try to find existing title in store
+                    const existing = [...get().notes, ...get().events].find(x => x.id === f.id);
+                    if (existing && existing.title && !existing.title.includes('Locked Note')) {
+                        metaData.title = existing.title;
+                    }
                     if (f.visibility === 'public') {
                         if (f.public_meta?.title) metaData.title = f.public_meta.title;
                     } else if (f.version >= 2 && f.metadata) {
@@ -733,7 +760,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                         if (f.secured_meta) {
                             const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey!, `v2-lam-${f.id}`);
                             if (!meta.isLocked) {
-                                metaData = { ...metaData, ...meta };
+                                metaData = { ...metaData, ...meta, isLocked: false };
                                 newMetaCache[f.id] = metaData;
                             } else if (metaData.title && !metaData.title.includes('Locked Note')) {
                                 // Keep the title we found in unencrypted metadata

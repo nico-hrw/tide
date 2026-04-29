@@ -433,21 +433,49 @@ func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 
 	var req struct {
 		Username string `json:"username"`
+		Email    string `json:"email"`
+		PIN      string `json:"pin"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if req.Username == "" {
-		http.Error(w, "Username cannot be empty", http.StatusBadRequest)
-		return
+	// 1. Handle Username update
+	if req.Username != "" {
+		if err := h.Store.UpdateUserUsername(r.Context(), userID, req.Username); err != nil {
+			http.Error(w, "Failed to update username", http.StatusInternalServerError)
+			return
+		}
 	}
 
-	// Update in store
-	if err := h.Store.UpdateUserUsername(r.Context(), userID, req.Username); err != nil {
-		http.Error(w, "Failed to update username", http.StatusInternalServerError)
-		return
+	// 2. Handle Email update (requires PIN)
+	if req.Email != "" {
+		if req.PIN == "" {
+			http.Error(w, "PIN required to change email", http.StatusForbidden)
+			return
+		}
+
+		user, err := h.Store.GetUser(r.Context(), userID)
+		if err != nil {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+
+		if user.PinHash == nil || *user.PinHash != hashString(req.PIN) {
+			http.Error(w, "Invalid PIN", http.StatusUnauthorized)
+			return
+		}
+
+		emailHash := hashString(req.Email)
+		if err := h.Store.UpdateUserEmail(r.Context(), userID, emailHash); err != nil {
+			if strings.Contains(err.Error(), "UNIQUE constraint") {
+				http.Error(w, "Email already in use", http.StatusConflict)
+			} else {
+				http.Error(w, "Failed to update email", http.StatusInternalServerError)
+			}
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)
