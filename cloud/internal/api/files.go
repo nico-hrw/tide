@@ -139,7 +139,7 @@ func (h *FileHandler) GetFileMetadata(w http.ResponseWriter, r *http.Request) {
 	file, err := h.Store.GetAccessibleFile(r.Context(), id, userID)
 	if err != nil {
 		if err == store.ErrNotFound {
-			http.Error(w, "File not found or inaccessible", http.StatusNotFound)
+			http.Error(w, fmt.Sprintf("GetAccessibleFile not found: %s", id), http.StatusNotFound)
 			return
 		}
 		http.Error(w, "Failed to retrieve file metadata", http.StatusInternalServerError)
@@ -265,7 +265,7 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 	file, err := h.Store.GetFile(r.Context(), fileID)
 	if err != nil {
 		if err == store.ErrNotFound {
-			http.Error(w, "File not found", http.StatusNotFound)
+			http.Error(w, fmt.Sprintf("File not found in GetFile: %s", fileID), http.StatusNotFound)
 			return
 		}
 		http.Error(w, "Failed to retrieve file", http.StatusInternalServerError)
@@ -289,7 +289,7 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil || recipient == nil {
-		http.Error(w, "Recipient not found (or invalid email/ID)", http.StatusNotFound)
+		http.Error(w, fmt.Sprintf("Recipient not found in DB (ID: %s, Email: %s)", req.RecipientID, req.RecipientEmail), http.StatusNotFound)
 		return
 	}
 

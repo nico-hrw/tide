@@ -503,7 +503,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                         let previewText: string | undefined;
                         try {
                             const parsed = JSON.parse(msg.content);
-                            if (parsed && parsed.type === 'file_share_request') {
+                            if (parsed && (parsed.type === 'file_share_request' || parsed.type === 'event_share')) {
                                 shareData = parsed;
                             } else if (parsed?.type) {
                                 previewText = undefined; // System message, no preview

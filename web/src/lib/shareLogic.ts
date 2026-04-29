@@ -61,7 +61,10 @@ export async function performMessengerShare(
             })
         });
 
-        if (!shareRes.ok) throw new Error("Failed to share file");
+        if (!shareRes.ok) {
+            const errText = await shareRes.text();
+            throw new Error(`Failed to share file: ${shareRes.status} - ${errText}`);
+        }
 
         // Build a readable share-card payload for the chat. Events get start/end metadata.
         const isEvent = file.type === 'event' || shareModalFile.type === 'event';
@@ -73,7 +76,7 @@ export async function performMessengerShare(
             return null;
         })() : null;
 
-        const messageRes = await apiFetch("/api/v1/messages", {
+        const messageRes = await apiFetch("/api/v1/messages/", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -91,7 +94,10 @@ export async function performMessengerShare(
             })
         });
 
-        if (!messageRes.ok) throw new Error("Failed to send share request");
+        if (!messageRes.ok) {
+            const errText = await messageRes.text();
+            throw new Error(`Failed to send share request: ${messageRes.status} - ${errText}`);
+        }
     } catch (err) {
         console.error("Share failed:", err);
         throw err;

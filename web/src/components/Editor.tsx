@@ -513,6 +513,14 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                 }
                 return false;
             },
+            handleDragOver: (view, event) => {
+                if (event.dataTransfer?.types.includes('tide/calendar-event')) {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'copy';
+                    return true;
+                }
+                return false;
+            },
             handlePaste: (view, event) => {
                 const isFile = event.clipboardData?.files?.length ?? 0 > 0;
                 const isImage = Array.from(event.clipboardData?.items || []).some(item => item.type.startsWith('image/'));
