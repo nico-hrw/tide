@@ -12,7 +12,8 @@ import {
     Bold,
     Italic,
     Strikethrough,
-    Bookmark
+    Bookmark,
+    CalendarSearch
 } from 'lucide-react';
 
 import { useDataStore } from '@/store/useDataStore';
@@ -144,6 +145,19 @@ const getSuggestionItems = ({ query }: { query: string }) => {
                 if (editor.commands.scanReferences) {
                     editor.commands.scanReferences();
                 }
+            },
+        } as any);
+    }
+
+    if (useDataStore.getState().enabledExtensions.includes('smart_date_detection')) {
+        items.push({
+            title: 'Scan Dates',
+            aliases: ['date', 'dates', 'datum'],
+            icon: <CalendarSearch size={16} />,
+            command: ({ editor, range }: any) => {
+                editor.chain().focus().deleteRange(range).run();
+                // Trigger the manual date scan listener registered in useDateDetection.
+                window.dispatchEvent(new CustomEvent('tide:scan-dates'));
             },
         } as any);
     }

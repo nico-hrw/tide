@@ -343,7 +343,10 @@ export default function CanvasElementComponent({
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
     const dragState = useRef<{ startX: number; startY: number; initOX: number; initOY: number } | null>(null);
     const resizeState = useRef<{ startX: number; initWidth: number } | null>(null);
+    const rotateState = useRef<{ centerX: number; centerY: number; initRotation: number } | null>(null);
     const rafRef = useRef<number | null>(null);
+
+    const rotation = isImageElement(element) ? ((element as ImageElement).rotation ?? 0) : 0;
 
     const isUnbound = !element.anchorBlockId || element.anchorBlockId === '__root__';
 
@@ -398,38 +401,25 @@ export default function CanvasElementComponent({
     }, [computePosition]);
 
     // ── Drag ─────────────────────────────────────────────────────────────────
+    // Uses CSS transform on the DOM directly during drag (no React state updates).
+    // This bypasses React's render cycle for 60fps smooth movement and is robust
+    // against parent re-renders (transform isn't part of React-controlled style).
     const onMouseDown = useCallback((e: React.MouseEvent) => {
         if (isMobile || isBindingMode || e.button !== 0) return;
         e.preventDefault();
         dragState.current = { startX: e.clientX, startY: e.clientY, initOX: element.offsetX, initOY: element.offsetY };
 
         const onMv = (me: MouseEvent) => {
-            if (!dragState.current) return;
-            const anchor = isUnbound ? null : document.querySelector<HTMLElement>(`[data-block-id="${element.anchorBlockId}"], [data-element-id="${element.anchorBlockId}"], [data-anchor-id="${element.anchorBlockId}"]`);
-            const shell = elRef.current?.closest<HTMLElement>('.canvas-shell');
-            if (!shell) return;
-            const sr = shell.getBoundingClientRect();
+            if (!dragState.current || !elRef.current) return;
             const dx = me.clientX - dragState.current.startX;
             const dy = me.clientY - dragState.current.startY;
-            if (anchor) {
-                const ar = anchor.getBoundingClientRect();
-                const isAnchorNode = anchor.hasAttribute('data-anchor-id');
-
-                let curLeft, curTop;
-                if (isAnchorNode) {
-                    curLeft = ar.left - sr.left + dragState.current.initOX + dx;
-                    curTop = ar.top - sr.top + dragState.current.initOY + dy;
-                } else {
-                    curLeft = dragState.current.initOX + dx;
-                    curTop = ar.top - sr.top + dragState.current.initOY + dy;
-                }
-                setPos({ top: curTop, left: curLeft });
-            } else {
-                setPos({ top: dragState.current.initOY + dy, left: dragState.current.initOX + dx });
-            }
+            // Apply translate via DOM directly. Keep existing rotation in the transform string.
+            elRef.current.style.transform = `translate(${dx}px, ${dy}px) rotate(${rotation}deg)`;
         };
         const onUp = (me: MouseEvent) => {
-            if (!dragState.current) return;
+            if (!dragState.current || !elRef.current) return;
+            // Clear the inline transform so React's style (which has rotate-only) takes over.
+            elRef.current.style.transform = '';
             onMove(element.id,
                 dragState.current.initOX + (me.clientX - dragState.current.startX),
                 dragState.current.initOY + (me.clientY - dragState.current.startY));
@@ -439,7 +429,45 @@ export default function CanvasElementComponent({
         };
         window.addEventListener('mousemove', onMv);
         window.addEventListener('mouseup', onUp);
-    }, [element.id, element.anchorBlockId, element.offsetX, element.offsetY, isMobile, isBindingMode, isUnbound, onMove]);
+    }, [element.id, element.offsetX, element.offsetY, isMobile, isBindingMode, onMove, rotation]);
+
+    // ── Rotate ───────────────────────────────────────────────────────────────
+    const onRotateMouseDown = useCallback((e: React.MouseEvent) => {
+        if (isMobile || !isImageElement(element) || !elRef.current) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = elRef.current.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const initRotation = (element as ImageElement).rotation ?? 0;
+        rotateState.current = { centerX, centerY, initRotation };
+
+        // Compute the angle the mouse currently makes relative to the center.
+        // Use this as the "zero" so dragging produces an immediate angle delta.
+        const startAngle = Math.atan2(e.clientY - centerY, e.clientX - centerX) * 180 / Math.PI;
+
+        const onMv = (me: MouseEvent) => {
+            if (!rotateState.current || !elRef.current) return;
+            const angle = Math.atan2(me.clientY - rotateState.current.centerY, me.clientX - rotateState.current.centerX) * 180 / Math.PI;
+            const newRotation = rotateState.current.initRotation + (angle - startAngle);
+            elRef.current.style.transform = `rotate(${newRotation}deg)`;
+        };
+        const onUp = (me: MouseEvent) => {
+            if (!rotateState.current || !elRef.current) return;
+            const angle = Math.atan2(me.clientY - rotateState.current.centerY, me.clientX - rotateState.current.centerX) * 180 / Math.PI;
+            const newRotation = rotateState.current.initRotation + (angle - startAngle);
+            // Normalize to (-180, 180]
+            let normalized = ((newRotation % 360) + 360) % 360;
+            if (normalized > 180) normalized -= 360;
+            elRef.current.style.transform = '';
+            onUpdate(element.id, { rotation: normalized } as Partial<CanvasElement>);
+            rotateState.current = null;
+            window.removeEventListener('mousemove', onMv);
+            window.removeEventListener('mouseup', onUp);
+        };
+        window.addEventListener('mousemove', onMv);
+        window.addEventListener('mouseup', onUp);
+    }, [element, isMobile, onUpdate]);
 
     const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
         if (isMobile || !isImageElement(element)) return;
@@ -483,7 +511,10 @@ export default function CanvasElementComponent({
             pointerEvents: 'auto',
             cursor: (isBindingMode || isLinkingMode) ? 'crosshair' : 'grab',
             userSelect: 'none',
-            zIndex: element.zIndex ?? 1
+            zIndex: element.zIndex ?? 1,
+            transform: rotation ? `rotate(${rotation}deg)` : undefined,
+            transformOrigin: 'center center',
+            willChange: 'transform',
         }
         : { position: 'absolute', top: 0, left: 0, pointerEvents: 'none', opacity: 0 };
     const mobileStyle: React.CSSProperties = { display: 'block', position: 'static', width: '100%', margin: '8px 0', pointerEvents: 'auto' };
@@ -546,6 +577,20 @@ export default function CanvasElementComponent({
                         style={{ background: 'linear-gradient(135deg, transparent 50%, rgba(99,102,241,0.8) 50%)', borderRadius: '0 0 4px 0' }}
                         title="Resize"
                     />
+                )}
+                {/* Rotate handle for images — small circle above the top-center, on hover */}
+                {!isMobile && isImageElement(element) && pos !== null && !isBindingMode && (
+                    <div
+                        className="absolute -top-7 left-1/2 -translate-x-1/2 w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-20 flex items-center justify-center"
+                        onMouseDown={onRotateMouseDown}
+                        title="Rotate"
+                        style={{ background: 'rgba(99,102,241,0.85)', borderRadius: '50%', boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}
+                    >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="23 4 23 10 17 10" />
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                        </svg>
+                    </div>
                 )}
             </div>
         </>

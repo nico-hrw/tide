@@ -7,6 +7,7 @@ import SmartIsland from "../extensions/smart_island/SmartIsland";
 import MiniCalendar from "../Calendar/MiniCalendar";
 import { useHighlight } from "@/components/HighlightContext";
 import { useDataStore } from "@/store/useDataStore";
+import { useDragGhost } from "@/store/useDragGhost";
 import { apiFetch, getApiBase } from "@/lib/api";
 import Avatar from "@/components/Profile/Avatar";
 
@@ -520,6 +521,9 @@ interface FileItemProps {
 
 const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onDragStart, onContextMenu, enabledExtensions, myId, index }: FileItemProps) => {
     const { isHighlighted, highlight } = useHighlight();
+    const startGhost = useDragGhost(s => s.startGhost);
+    const [isCalendarDropTarget, setIsCalendarDropTarget] = useState(false);
+
     return (
         <motion.div
             layout="position"
@@ -529,6 +533,38 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
             draggable
             onDragStart={(e: any) => onDragStart(e, file.id)}
             onContextMenu={(e: any) => onContextMenu(e, file.id, 'file')}
+            onDragOver={(e) => {
+                if (e.dataTransfer.types.includes('tide/calendar-event')) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'copy';
+                    if (!isCalendarDropTarget) setIsCalendarDropTarget(true);
+                }
+            }}
+            onDragLeave={() => setIsCalendarDropTarget(false)}
+            onDrop={(e) => {
+                const payload = e.dataTransfer.getData('tide/calendar-event');
+                if (!payload) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setIsCalendarDropTarget(false);
+                try {
+                    const ev = JSON.parse(payload);
+                    onSelect(file.id, file.title);
+                    // Defer slightly so the editor has time to mount before the click handler arms.
+                    setTimeout(() => {
+                        startGhost({
+                            eventId: ev.id,
+                            title: ev.title || 'Untitled',
+                            start: ev.start || '',
+                            end: ev.end || '',
+                            color: ev.color || undefined,
+                            targetNoteId: file.id,
+                        });
+                    }, 80);
+                } catch (err) {
+                    console.error('[Sidebar] Bad calendar-event drop payload', err);
+                }
+            }}
             onClick={(e) => {
                 if (highlight.isSelectingLink && highlight.onLinkSelect) {
                     e.stopPropagation();
@@ -537,13 +573,14 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                     onSelect(file.id, file.title);
                 }
             }}
-            className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 
-                ${isHighlighted(file.id, 'file') ? 'bg-purple-50 dark:bg-purple-900/20' : 'hover:bg-gray-100 dark:hover:bg-white/5'} 
+            className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200
+                ${isCalendarDropTarget ? 'ring-2 ring-violet-400 bg-violet-50 dark:bg-violet-900/20' : ''}
+                ${isHighlighted(file.id, 'file') ? 'bg-purple-50 dark:bg-purple-900/20' : 'hover:bg-gray-100 dark:hover:bg-white/5'}
                 ${highlight.isSelectingLink ? 'bg-purple-50/30 dark:bg-purple-900/10' : ''}`}
-            style={{ 
+            style={{
                 marginLeft: `${level * 12}px`,
-                boxShadow: highlight.isSelectingLink 
-                    ? '0 0 10px rgba(168, 85, 247, 0.6)' 
+                boxShadow: highlight.isSelectingLink
+                    ? '0 0 10px rgba(168, 85, 247, 0.6)'
                     : (isHighlighted(file.id, 'file') ? '0 0 5px rgba(168, 85, 247, 0.4)' : 'none')
             }}
         >

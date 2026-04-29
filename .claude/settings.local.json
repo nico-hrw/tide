@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(xargs grep *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(sed -i '307,702d' web/src/components/Calendar/CalendarView.tsx)",
+      "Bash(sed -i '306s|.*|    }, []\\);|' web/src/components/Calendar/CalendarView.tsx)"
     ]
   }
 }

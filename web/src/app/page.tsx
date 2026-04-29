@@ -45,6 +45,9 @@ import { CheckCircle2, Loader2, Plus, ChevronDown, Share, Download } from 'lucid
 import { useIslandStore } from '@/components/extensions/smart_island/useIslandStore';
 import { isSameDay } from 'date-fns';
 import { useDataStore, DataItem } from "@/store/useDataStore";
+import { useDragGhost } from "@/store/useDragGhost";
+import EventDragGhost from "@/components/Calendar/EventDragGhost";
+import { useDateDetection, DateDetectionMode } from "@/hooks/useDateDetection";
 
 // Stable ref to avoid stale closures in event-listener callbacks
 function useLatestRef<T>(value: T) {
@@ -1992,8 +1995,8 @@ export default function Dashboard() {
     // -------------------------------------------------------------------------
     // 4. Calendar Logic
     // -------------------------------------------------------------------------
-    const handleEventCreate = async (start: Date, end: Date, isAllDay: boolean = false, extraMeta: any = {}) => {
-        if (!privateKey || !publicKey) return;
+    const handleEventCreate = async (start: Date, end: Date, isAllDay: boolean = false, extraMeta: any = {}): Promise<string | null> => {
+        if (!privateKey || !publicKey) return null;
         const title = extraMeta.title || "New Event";
         try {
             const meta = { title, start: start.toISOString(), end: end.toISOString(), allDay: isAllDay, ...extraMeta };
@@ -2037,9 +2040,11 @@ export default function Dashboard() {
                 if (newFile && newFile.id) {
                     useDataStore.getState().setEvents([...useDataStore.getState().events, { id: newFile.id, title, start: meta.start, end: meta.end, allDay: isAllDay, is_task: extraMeta.is_task, linkedTaskId: extraMeta.linkedTaskId }] as any);
                     setActiveEventId(newFile.id);
+                    return newFile.id;
                 }
             }
         } catch (e) { console.error(e); }
+        return null;
     };
 
     const handleScheduleApply = async (schedEvents: ScheduleEventData[], themeIdOrName: string, options?: { color?: string, effect?: string }) => {
@@ -2285,6 +2290,90 @@ export default function Dashboard() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // ── Smart Date Detection ──────────────────────────────────────────────────
+    // Read settings from localStorage (defaults: enabled, auto mode)
+    const dateDetectionEnabled = enabledExtensions.includes('smart_date_detection');
+    const dateDetectionMode: DateDetectionMode = (typeof window !== 'undefined'
+        && localStorage.getItem('tide_date_detection_mode') === 'manual') ? 'manual' : 'auto';
+
+    useDateDetection({
+        editor: editorInstance,
+        enabled: dateDetectionEnabled && !!activeNoteId,
+        mode: dateDetectionMode,
+        onAcceptSuggestion: async ({ title, start, end, blockId }) => {
+            // Create the event via existing flow
+            const newId = await handleEventCreate(start, end, false, { title });
+            if (!newId || !editorInstance) return;
+            // Insert mention at end of the block identified by blockId.
+            try {
+                const { state } = editorInstance;
+                let insertPos: number | null = null;
+                state.doc.descendants((node: ProseMirrorNode, pos: number) => {
+                    if ((node.attrs as any)?.blockId === blockId) {
+                        insertPos = pos + node.nodeSize - 1; // end of the block, inside it
+                        return false;
+                    }
+                    return true;
+                });
+                if (insertPos === null) {
+                    // Fallback: append at end of document
+                    insertPos = state.doc.content.size - 1;
+                }
+                editorInstance.chain()
+                    .insertContentAt(insertPos, [
+                        { type: 'text', text: ' ' },
+                        { type: 'calendarEvent', attrs: { eventId: newId } },
+                    ])
+                    .run();
+            } catch (err) {
+                console.error('[useDateDetection] Failed to insert mention', err);
+            }
+        },
+    });
+
+    // Calendar drag-ghost click consumer.
+    // When useDragGhost is active, the next click inside the editor area
+    // inserts a CalendarEventMention at that ProseMirror position and clears
+    // the ghost. ESC cancellation is handled inside EventDragGhost itself.
+    useEffect(() => {
+        const handleClick = (e: MouseEvent) => {
+            const { active, snapshot, cancel } = useDragGhost.getState();
+            if (!active || !snapshot) return;
+            // Only consume clicks inside the editor's content area.
+            const editorEl = (e.target as HTMLElement).closest?.('.ProseMirror');
+            if (!editorEl) {
+                // Click outside the editor → abort the pending insert.
+                cancel();
+                return;
+            }
+            if (!editorInstance) {
+                cancel();
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            const coords = { left: e.clientX, top: e.clientY };
+            const posInfo = editorInstance.view.posAtCoords(coords);
+            if (!posInfo) {
+                cancel();
+                return;
+            }
+            try {
+                editorInstance.chain().focus()
+                    .insertContentAt(posInfo.pos, {
+                        type: 'calendarEvent',
+                        attrs: { eventId: snapshot.eventId },
+                    })
+                    .run();
+            } catch (err) {
+                console.error('[DragGhost] Failed to insert mention', err);
+            }
+            cancel();
+        };
+        window.addEventListener('click', handleClick, true); // capture phase
+        return () => window.removeEventListener('click', handleClick, true);
+    }, [editorInstance]);
+
     // Canvas rebind: when right-clicking an image and selecting "Change anchor",
     // CanvasLayer dispatches canvas:requestRebind. We enter binding mode so the
     // user can then click a text block to pick the new anchor.
@@ -2467,6 +2556,8 @@ export default function Dashboard() {
     // -------------------------------------------------------------------------
     return (
         <div className="flex h-screen w-full bg-[var(--background)] text-foreground overflow-hidden">
+            {/* Global drag ghost — rendered via Portal so it sits above sidebar/calendar/editor */}
+            <EventDragGhost />
             <SmartIsland
                 onConfirm={(parsedData, text) => {
                     const now = new Date();
@@ -2694,7 +2785,7 @@ export default function Dashboard() {
                             if (!e.parent_id) return !hiddenThemeIds.includes('general-theme');
                             return !hiddenThemeIds.includes(parentId);
                         })}
-                        onEventCreate={handleEventCreate}
+                        onEventCreate={async (s, e) => { await handleEventCreate(s, e); }}
                         onEventUpdate={handleEventUpdate}
                         onEventDelete={handleDeleteEvent}
                         onEventRename={handleEventRename}

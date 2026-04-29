@@ -343,6 +343,8 @@ const EventPreviewView = ({ payload }: { payload: any }) => {
 };
 
 // Decentralized Registry Map
+import EventSuggestionView from './EventSuggestionView';
+
 const registeredPlugins: Record<string, React.FC<{ payload: any }>> = {
     'welcome': WelcomeView,
     'morning': WelcomeView,
@@ -352,6 +354,7 @@ const registeredPlugins: Record<string, React.FC<{ payload: any }>> = {
     'upload_progress': UploadProgressView,
     'interactive_card': InteractiveCardView,
     'event_preview': EventPreviewView,
+    'event_suggestion': EventSuggestionView,
 };
 
 export default function SmartIsland({ selectedDate, onSelect, userName }: SmartIslandProps) {
@@ -361,11 +364,13 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
         ? 'p-5 rounded-[2.5rem] w-[20rem]'
         : state.current?.type === 'interactive_card'
             ? 'p-5 rounded-[2rem] w-[22rem]'
-            : state.current?.type === 'welcome' || state.current?.type === 'morning' || state.current?.type === 'event_preview'
-                ? 'p-5 rounded-[2rem] w-[20rem]'
-                : state.current?.type === 'message'
-                    ? 'p-4 rounded-[1.75rem] w-[18rem]'
-                    : 'p-4 rounded-[1.75rem] w-[17.5rem]';
+            : state.current?.type === 'event_suggestion'
+                ? 'rounded-[1.75rem] w-[24rem]'
+                : state.current?.type === 'welcome' || state.current?.type === 'morning' || state.current?.type === 'event_preview'
+                    ? 'p-5 rounded-[2rem] w-[20rem]'
+                    : state.current?.type === 'message'
+                        ? 'p-4 rounded-[1.75rem] w-[18rem]'
+                        : 'p-4 rounded-[1.75rem] w-[17.5rem]';
 
     return (
         <div className="select-none relative z-[100]">

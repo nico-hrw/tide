@@ -4,7 +4,7 @@ import React, { createContext, useContext, useReducer, useRef, useCallback, useE
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type IslandViewType = 'calendar' | 'message' | 'morning' | 'task_reminder' | 'finance_alert' | 'welcome' | 'timeline' | 'next_event' | 'upload_progress' | 'interactive_card' | 'event_preview';
+export type IslandViewType = 'calendar' | 'message' | 'morning' | 'task_reminder' | 'finance_alert' | 'welcome' | 'timeline' | 'next_event' | 'upload_progress' | 'interactive_card' | 'event_preview' | 'event_suggestion';
 export type IslandPriority = 'LOW' | 'DEFAULT' | 'CRITICAL';
 export type IslandFocusMode = 'ALL' | 'IMPORTANT' | 'DND';
 

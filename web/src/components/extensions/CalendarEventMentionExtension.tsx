@@ -12,10 +12,11 @@ const CalendarEventNodeView: React.FC<NodeViewProps> = ({ node }) => {
     // Dynamically fetch event data from the global store
     const liveEvent = useDataStore((s) => s.events.find(e => e.id === eventId)) as any;
 
-    const title = liveEvent?.title || 'Unknown Event';
+    const isDeleted = !liveEvent;
+    const title = liveEvent?.title || 'gelöschter Termin';
     const start = liveEvent?.start || '';
     const end = liveEvent?.end || '';
-    const color = liveEvent?.color || '#6366f1';
+    const color = isDeleted ? '#94a3b8' : (liveEvent?.color || '#6366f1');
     const accentColor = color;
 
     const formatTime = (iso: string) => {
@@ -32,16 +33,16 @@ const CalendarEventNodeView: React.FC<NodeViewProps> = ({ node }) => {
         try {
             const d = new Date(iso);
             if (isNaN(d.getTime())) return '';
-            return format(d, 'dd.MM.yyyy');
+            return format(d, 'dd.MM');
         } catch {
             return '';
         }
     };
 
     const startTime = formatTime(start);
-    const endTime = formatTime(end);
     const dateLabel = formatDate(start);
-    const timeLabel = startTime && endTime ? `${startTime} – ${endTime}` : '';
+    // Compact format: "dd.MM HH:mm"
+    const timeLabel = [dateLabel, startTime].filter(Boolean).join(' ');
 
     const handleClick = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
@@ -110,15 +111,20 @@ const CalendarEventNodeView: React.FC<NodeViewProps> = ({ node }) => {
                     {title}
                 </span>
 
-                {/* Time pill */}
-                {(dateLabel || timeLabel) && (
+                {/* Date + time compact label */}
+                {timeLabel && (
                     <span style={{
                         fontSize: '0.78em',
                         opacity: 0.75,
                         fontWeight: 400,
                         flexShrink: 0,
                     }}>
-                        {timeLabel ? timeLabel : dateLabel}
+                        {timeLabel}
+                    </span>
+                )}
+                {isDeleted && (
+                    <span style={{ fontSize: '0.7em', opacity: 0.6, fontStyle: 'italic' }}>
+                        (entfernt)
                     </span>
                 )}
             </span>

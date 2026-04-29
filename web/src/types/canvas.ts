@@ -47,6 +47,8 @@ export interface ImageElement extends BaseCanvasElement {
     iv: string;
     /** Original MIME type of the image e.g. "image/png" */
     mimeType: string;
+    /** Rotation in degrees, applied around the image's center. Defaults to 0. */
+    rotation?: number;
 }
 
 /**
