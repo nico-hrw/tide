@@ -513,13 +513,16 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                 }
                 return false;
             },
-            handleDragOver: (view, event) => {
-                if (event.dataTransfer?.types.includes('tide/calendar-event')) {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = 'copy';
-                    return true;
+            handleDOMEvents: {
+                dragover: (view, event) => {
+                    const e = event as DragEvent;
+                    if (e.dataTransfer?.types.includes('tide/calendar-event')) {
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'copy';
+                        return true;
+                    }
+                    return false;
                 }
-                return false;
             },
             handlePaste: (view, event) => {
                 const isFile = event.clipboardData?.files?.length ?? 0 > 0;
