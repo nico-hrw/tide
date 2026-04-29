@@ -3,13 +3,14 @@ import * as cryptoLib from './crypto';
 import { apiFetch } from './api';
 
 export async function performMessengerShare(
-    shareModalFile: { id: string; title: string },
+    shareModalFile: { id: string; title: string; type?: string },
     myId: string,
     privateKey: CryptoKey,
     publicKey: CryptoKey,
     events: any[],
     recipientEmail: string,
-    recipientPubKeySpki: string
+    recipientPubKeySpki: string,
+    permission: 'view' | 'edit' | 'share' = 'view'
 ) {
     if (!shareModalFile || !privateKey || !publicKey) {
         throw new Error("Invalid state");
@@ -53,11 +54,22 @@ export async function performMessengerShare(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 email: recipientEmail,
-                secured_meta: recipientWrapped.ciphertext // wrapped DEK for recipient, added to access_keys map
+                secured_meta: recipientWrapped.ciphertext, // wrapped DEK for recipient
+                permission,                                // 'view' | 'edit' | 'share'
             })
         });
 
         if (!shareRes.ok) throw new Error("Failed to share file");
+
+        // Build a readable share-card payload for the chat. Events get start/end metadata.
+        const isEvent = file.type === 'event' || shareModalFile.type === 'event';
+        const eventMeta = isEvent ? (() => {
+            try {
+                const ev = events.find((e: any) => e.id === fileId);
+                if (ev) return { start: ev.start, end: ev.end };
+            } catch { /* ignore */ }
+            return null;
+        })() : null;
 
         const messageRes = await apiFetch("/api/v1/messages", {
             method: "POST",
@@ -65,11 +77,13 @@ export async function performMessengerShare(
             body: JSON.stringify({
                 recipient_email: recipientEmail,
                 content: JSON.stringify({
-                    type: "file_share_request",
+                    type: isEvent ? "event_share" : "file_share_request",
                     file_id: fileId,
                     file_name: shareModalFile.title,
                     file_type: file.type,
-                    file_preview: "Shared document"
+                    file_preview: isEvent ? "" : "Shared document",
+                    permission,
+                    event_meta: eventMeta,
                 })
             })
         });

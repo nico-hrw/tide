@@ -110,6 +110,16 @@ type SearchResult struct {
 }
 
 
+// FileShare represents a row in file_shares: who has access to a file with what permission.
+type FileShare struct {
+	FileID     string    `json:"file_id" db:"file_id"`
+	UserID     string    `json:"user_id" db:"user_id"`
+	Status     string    `json:"status" db:"status"`         // 'pending' | 'accepted'
+	Permission string    `json:"permission" db:"permission"` // 'view' | 'edit' | 'share'
+	CreatedAt  time.Time `json:"created_at" db:"created_at"`
+	Username   string    `json:"username,omitempty"`
+}
+
 type FileBackup struct {
 	ID            string          `json:"id" db:"id"`
 	FileID        string          `json:"file_id" db:"file_id"`

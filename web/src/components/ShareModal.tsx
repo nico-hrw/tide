@@ -1,8 +1,10 @@
 "use client";
 
-import { X, Users, Mail } from "lucide-react";
+import { X, Users, Mail, Eye, Edit3, Share2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
+
+export type SharePermission = 'view' | 'edit' | 'share';
 
 interface Contact {
     id: string;
@@ -15,7 +17,7 @@ interface ShareModalProps {
     fileId: string;
     fileName: string;
     onClose: () => void;
-    onShare: (recipientEmail: string, recipientPubKey: string) => Promise<void>;
+    onShare: (recipientEmail: string, recipientPubKey: string, permission: SharePermission) => Promise<void>;
     myId: string;
 }
 
@@ -33,6 +35,7 @@ export default function ShareModal({
     const [sharing, setSharing] = useState(false);
     const [showCustomInput, setShowCustomInput] = useState(false);
     const [sharedContactId, setSharedContactId] = useState<string | null>(null);
+    const [permission, setPermission] = useState<SharePermission>('view');
 
     useEffect(() => {
         loadContacts();
@@ -104,8 +107,7 @@ export default function ShareModal({
         setSharing(true);
         try {
             setSharedContactId(contact.id);
-            await onShare(contact.email, contact.public_key);
-            // Wait for animation
+            await onShare(contact.email, contact.public_key, permission);
             setTimeout(() => {
                 onClose();
             }, 600);
@@ -135,6 +137,33 @@ export default function ShareModal({
                     >
                         <X size={20} className="text-gray-500" />
                     </button>
+                </div>
+
+                {/* Permission Picker */}
+                <div className="px-6 pt-5">
+                    <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Berechtigung</h3>
+                    <div className="grid grid-cols-3 gap-2">
+                        {([
+                            { val: 'view' as const, icon: Eye, label: 'Ansehen', desc: 'Nur lesen' },
+                            { val: 'edit' as const, icon: Edit3, label: 'Bearbeiten', desc: 'Lesen + schreiben' },
+                            { val: 'share' as const, icon: Share2, label: 'Teilen', desc: 'Auch weiter teilen' },
+                        ]).map(opt => {
+                            const Icon = opt.icon;
+                            const active = permission === opt.val;
+                            return (
+                                <button
+                                    key={opt.val}
+                                    onClick={() => setPermission(opt.val)}
+                                    className={`px-3 py-2.5 rounded-xl border text-left transition-all ${active ? 'border-rose-400 bg-rose-50 dark:bg-rose-900/20 dark:border-rose-500/40' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'}`}
+                                >
+                                    <Icon size={14} className={active ? 'text-rose-500 mb-1' : 'text-gray-500 mb-1'} />
+                                    <div className={`text-xs font-bold ${active ? 'text-rose-700 dark:text-rose-300' : 'text-gray-700 dark:text-gray-300'}`}>{opt.label}</div>
+                                    <div className="text-[10px] text-gray-500 dark:text-gray-500">{opt.desc}</div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1.5">Empfänger können geteilte Dateien immer als Kopie übernehmen.</p>
                 </div>
 
                 {/* Content */}

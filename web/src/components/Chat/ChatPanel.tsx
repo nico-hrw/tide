@@ -339,6 +339,26 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
         } catch (e) { alert("Error"); }
     };
 
+    const handleClone = async (fileId: string, messageId?: string) => {
+        try {
+            const res = await apiFetch(`/api/v1/files/${fileId}/copy`, { method: 'POST' });
+            if (!res.ok) {
+                alert('Klonen fehlgeschlagen.');
+                return;
+            }
+            if (messageId) {
+                await apiFetch(`/api/v1/messages/${messageId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'accepted' })
+                });
+                setMessages(prev => prev.map(m => m.id === messageId ? { ...m, status: 'accepted' } : m));
+            }
+            setProcessedRequests(prev => ({ ...prev, [fileId]: 'accepted' }));
+            fetchAllSharedFiles();
+        } catch (e) { console.error('Clone failed', e); }
+    };
+
     const handleDecline = async (fileId: string, messageId?: string) => {
         if (!confirm("Decline and remove this share?")) return;
         try {
@@ -877,7 +897,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                             return new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(date);
                                         };
 
-                                        // Check for file share request
+                                        // Check for file/event share request
                                         let isShareRequest = false;
                                         interface ShareRequestData {
                                             type: string;
@@ -885,13 +905,19 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                             file_name: string;
                                             file_type: string;
                                             file_preview?: any;
+                                            permission?: 'view' | 'edit' | 'share';
+                                            event_meta?: { start: string; end: string } | null;
                                         }
                                         let shareData: ShareRequestData | null = null;
                                         try {
                                             const parsed = JSON.parse(m.content);
-                                            if (parsed && parsed.type === 'file_share_request') {
+                                            if (parsed && (parsed.type === 'file_share_request' || parsed.type === 'event_share')) {
                                                 isShareRequest = true;
                                                 shareData = parsed as ShareRequestData;
+                                                // Normalize: event_share carries event metadata in event_meta, not file_preview
+                                                if (parsed.type === 'event_share' && parsed.event_meta) {
+                                                    shareData = { ...shareData, file_type: 'event', file_preview: parsed.event_meta };
+                                                }
                                             }
                                         } catch (e) { }
 
@@ -926,8 +952,19 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                         </div>
                                                                         <div className="flex-1 overflow-hidden">
                                                                             <div className="text-[15px] font-bold truncate leading-tight text-gray-900 dark:text-gray-100">{shareData.file_name}</div>
-                                                                            <div className="text-[9px] uppercase tracking-wider font-extrabold opacity-70 mt-1 text-gray-600 dark:text-gray-400">
-                                                                                {shareData.file_type === 'event' ? 'Kalender Termin' : `${shareData.file_type.toUpperCase()} Paket`}
+                                                                            <div className="flex items-center gap-1.5 mt-1">
+                                                                                <div className="text-[9px] uppercase tracking-wider font-extrabold opacity-70 text-gray-600 dark:text-gray-400">
+                                                                                    {shareData.file_type === 'event' ? 'Kalender Termin' : `${(shareData.file_type || 'NOTE').toUpperCase()} Paket`}
+                                                                                </div>
+                                                                                {shareData.permission && (
+                                                                                    <span className={`text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-md ${
+                                                                                        shareData.permission === 'view' ? 'bg-gray-200 text-gray-700 dark:bg-gray-700/50 dark:text-gray-300'
+                                                                                        : shareData.permission === 'edit' ? 'bg-blue-200 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200'
+                                                                                        : 'bg-violet-200 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200'
+                                                                                    }`}>
+                                                                                        {shareData.permission === 'view' ? 'Ansehen' : shareData.permission === 'edit' ? 'Bearbeiten' : 'Bearbeiten + Teilen'}
+                                                                                    </span>
+                                                                                )}
                                                                             </div>
                                                                         </div>
                                                                     </div>
@@ -972,23 +1009,35 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                         }
 
                                                                         return (
-                                                                            <button
-                                                                                onClick={() => shareData && handleAccept(shareData.file_id, m.id)}
-                                                                                className={`w-full py-2 rounded-lg text-[12px] font-bold transition-all flex items-center justify-center gap-2 shadow-sm ${shareData.file_type === 'event'
-                                                                                    ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 dark:text-amber-100 dark:border-amber-800'
-                                                                                    : 'bg-blue-100 hover:bg-blue-200 text-blue-900 border border-blue-200 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 dark:text-blue-100 dark:border-blue-800'
-                                                                                    }`}
-                                                                            >
-                                                                                {shareData.file_type === 'event' ? (
-                                                                                    <>
-                                                                                        <Calendar size={14} /> Zum Kalender hinzufügen
-                                                                                    </>
-                                                                                ) : (
-                                                                                    <>
-                                                                                        <FileText size={14} /> Datei speichern
-                                                                                    </>
-                                                                                )}
-                                                                            </button>
+                                                                            <div className="flex flex-col gap-2">
+                                                                                <button
+                                                                                    onClick={() => shareData && handleAccept(shareData.file_id, m.id)}
+                                                                                    className={`w-full py-2 rounded-lg text-[12px] font-bold transition-all flex items-center justify-center gap-2 shadow-sm ${shareData.file_type === 'event'
+                                                                                        ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 dark:text-amber-100 dark:border-amber-800'
+                                                                                        : 'bg-blue-100 hover:bg-blue-200 text-blue-900 border border-blue-200 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 dark:text-blue-100 dark:border-blue-800'
+                                                                                        }`}
+                                                                                >
+                                                                                    {shareData.file_type === 'event' ? (
+                                                                                        <><Calendar size={14} /> Öffnen</>
+                                                                                    ) : (
+                                                                                        <><FileText size={14} /> Öffnen</>
+                                                                                    )}
+                                                                                </button>
+                                                                                <div className="flex gap-2">
+                                                                                    <button
+                                                                                        onClick={() => shareData && handleClone(shareData.file_id, m.id)}
+                                                                                        className="flex-1 py-1.5 rounded-lg text-[11px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200 dark:border-gray-700 transition-all"
+                                                                                    >
+                                                                                        Klonen
+                                                                                    </button>
+                                                                                    <button
+                                                                                        onClick={() => shareData && handleDecline(shareData.file_id, m.id)}
+                                                                                        className="flex-1 py-1.5 rounded-lg text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 dark:text-rose-200 dark:border-rose-900/50 transition-all"
+                                                                                    >
+                                                                                        Ablehnen
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
                                                                         );
                                                                     })()}
                                                                     {isMe && (

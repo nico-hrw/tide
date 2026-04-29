@@ -209,6 +209,7 @@ func (s *SQLiteStore) migrate() error {
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN visibility TEXT DEFAULT 'private'")
 	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN secured_meta BLOB")
 	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN status TEXT DEFAULT 'pending'")
+	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN permission TEXT NOT NULL DEFAULT 'view'")
 	_, _ = s.DB.Exec("ALTER TABLE messages ADD COLUMN status TEXT DEFAULT 'pending'")
 	_, _ = s.DB.Exec("ALTER TABLE ext_finance_accounts ADD COLUMN linked_account_id TEXT")
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN version INTEGER DEFAULT 1")
@@ -736,9 +737,70 @@ func (s *SQLiteStore) RemoveShare(ctx context.Context, fileID, userID string) er
 }
 
 func (s *SQLiteStore) ShareFile(ctx context.Context, fileID string, userID string, securedMeta []byte) error {
-	query := `INSERT OR REPLACE INTO file_shares (file_id, user_id, secured_meta, status, created_at) VALUES (?, ?, ?, ?, ?)`
-	_, err := s.DB.ExecContext(ctx, query, fileID, userID, securedMeta, "pending", time.Now())
+	query := `INSERT OR REPLACE INTO file_shares (file_id, user_id, secured_meta, status, permission, created_at) VALUES (?, ?, ?, ?, ?, ?)`
+	_, err := s.DB.ExecContext(ctx, query, fileID, userID, securedMeta, "pending", "view", time.Now())
 	return err
+}
+
+// ShareFileWithPermission shares with an explicit permission level (view|edit|share).
+func (s *SQLiteStore) ShareFileWithPermission(ctx context.Context, fileID string, userID string, securedMeta []byte, permission string) error {
+	if permission != "view" && permission != "edit" && permission != "share" {
+		permission = "view"
+	}
+	query := `INSERT OR REPLACE INTO file_shares (file_id, user_id, secured_meta, status, permission, created_at) VALUES (?, ?, ?, ?, ?, ?)`
+	_, err := s.DB.ExecContext(ctx, query, fileID, userID, securedMeta, "pending", permission, time.Now())
+	return err
+}
+
+// UpdateSharePermission changes the permission level of an existing share.
+func (s *SQLiteStore) UpdateSharePermission(ctx context.Context, fileID string, userID string, permission string) error {
+	if permission != "view" && permission != "edit" && permission != "share" {
+		return fmt.Errorf("invalid permission: %s", permission)
+	}
+	query := `UPDATE file_shares SET permission = ? WHERE file_id = ? AND user_id = ?`
+	res, err := s.DB.ExecContext(ctx, query, permission, fileID, userID)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// GetSharePermission returns the permission level for a given (file, user) share, or empty if no share.
+func (s *SQLiteStore) GetSharePermission(ctx context.Context, fileID string, userID string) (string, error) {
+	var permission string
+	err := s.DB.QueryRowContext(ctx, `SELECT permission FROM file_shares WHERE file_id = ? AND user_id = ?`, fileID, userID).Scan(&permission)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return permission, err
+}
+
+// ListSharesForFile returns all shares for a given file (owner-only call).
+func (s *SQLiteStore) ListSharesForFile(ctx context.Context, fileID string) ([]*db.FileShare, error) {
+	rows, err := s.DB.QueryContext(ctx, `
+		SELECT fs.file_id, fs.user_id, fs.status, fs.permission, fs.created_at, COALESCE(u.username, '') as username
+		FROM file_shares fs
+		LEFT JOIN users u ON u.id = fs.user_id
+		WHERE fs.file_id = ?
+		ORDER BY fs.created_at ASC
+	`, fileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*db.FileShare
+	for rows.Next() {
+		var sh db.FileShare
+		if err := rows.Scan(&sh.FileID, &sh.UserID, &sh.Status, &sh.Permission, &sh.CreatedAt, &sh.Username); err != nil {
+			return nil, err
+		}
+		out = append(out, &sh)
+	}
+	return out, nil
 }
 
 func (s *SQLiteStore) AcceptShare(ctx context.Context, fileID string, userID string) error {

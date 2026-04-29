@@ -50,6 +50,10 @@ type Store interface {
 
 	// Sharing
 	ShareFile(ctx context.Context, fileID, userID string, securedMeta []byte) error
+	ShareFileWithPermission(ctx context.Context, fileID, userID string, securedMeta []byte, permission string) error
+	UpdateSharePermission(ctx context.Context, fileID, userID, permission string) error
+	GetSharePermission(ctx context.Context, fileID, userID string) (string, error)
+	ListSharesForFile(ctx context.Context, fileID string) ([]*db.FileShare, error)
 	AcceptShare(ctx context.Context, fileID string, userID string) error
 	RemoveShare(ctx context.Context, fileID, userID string) error
 	// AcceptShare? Usually handled by UpdateFile or specific method.

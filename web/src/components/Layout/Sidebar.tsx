@@ -94,8 +94,18 @@ export default function Sidebar({
     const userProfile = propProfile || sidebarUserProfile;
 
     const topLevelItems = useMemo(() => {
-        return files?.filter(f => f.parent_id === null && f.type !== 'event') || [];
+        return files?.filter(f => f.parent_id === null && f.type !== 'event' && (!(f as any).share_status || (f as any).share_status === 'owner')) || [];
     }, [files]);
+
+    // Files shared with me (pending or accepted, not owned by me)
+    const sharedWithMeItems = useMemo(() => {
+        return files?.filter(f => {
+            const status = (f as any).share_status;
+            return status === 'pending' || status === 'accepted';
+        }) || [];
+    }, [files]);
+    const pendingShareCount = sharedWithMeItems.filter(f => (f as any).share_status === 'pending').length;
+    const [isSharedFolderOpen, setIsSharedFolderOpen] = useState(true);
     const [orderedItems, setOrderedItems] = useState<DecryptedFile[]>([]);
 
     useEffect(() => {
@@ -284,6 +294,46 @@ export default function Sidebar({
                 </div>
 
                 <div className="space-y-0.5">
+                    {sharedWithMeItems.length > 0 && (
+                        <div className="mb-1">
+                            <button
+                                onClick={() => setIsSharedFolderOpen(o => !o)}
+                                className="group flex items-center justify-between w-full p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                            >
+                                <div className="flex items-center gap-2 truncate flex-1">
+                                    {isSharedFolderOpen ? <FolderOpen size={15} className="text-violet-400" /> : <Folder size={15} className="text-violet-400" />}
+                                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">Geteilt mit mir</span>
+                                    {pendingShareCount > 0 && (
+                                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
+                                            {pendingShareCount} neu
+                                        </span>
+                                    )}
+                                </div>
+                            </button>
+                            {isSharedFolderOpen && (
+                                <div className="ml-3 mt-0.5 space-y-0.5">
+                                    {sharedWithMeItems.map((item) => (
+                                        <FileItem
+                                            key={item.id}
+                                            file={item}
+                                            level={0}
+                                            onSelect={onFileSelect}
+                                            onDelete={onDeleteNote}
+                                            onRename={onRenameNote}
+                                            onVisibility={onToggleVisibility}
+                                            onShare={onShare}
+                                            editingId={editingFileId}
+                                            onRenameSubmit={onRenameSubmit}
+                                            onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
+                                            enabledExtensions={enabledExtensions}
+                                            myId={myId}
+                                            onContextMenu={handleContextMenu}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                     {orderedItems.map((item, i) => (
                         <motion.div
                             layout="position"

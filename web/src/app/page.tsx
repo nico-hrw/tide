@@ -1949,7 +1949,7 @@ export default function Dashboard() {
         setShareModalFile({ id: fileId, title: file.title });
     };
 
-    const performShare = async (recipientEmail: string, recipientPubKeySpki: string) => {
+    const performShare = async (recipientEmail: string, recipientPubKeySpki: string, permission: 'view' | 'edit' | 'share' = 'view') => {
         if (!shareModalFile || !privateKey || !publicKey) return;
 
         // Rule 3: Push upload progress for outgoing share
@@ -1967,7 +1967,8 @@ export default function Dashboard() {
             publicKey,
             events,
             recipientEmail,
-            recipientPubKeySpki
+            recipientPubKeySpki,
+            permission,
         );
     };
 

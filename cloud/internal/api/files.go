@@ -41,6 +41,9 @@ func (h *FileHandler) RegisterRoutes(r chi.Router) {
 		r.Post("/{fileID}/share", h.ShareFile)
 		r.Post("/{fileID}/accept", h.AcceptShare)
 		r.Post("/{fileID}/copy", h.CopyFile)
+		r.Get("/{fileID}/shares", h.ListShares)
+		r.Patch("/{fileID}/shares/{userID}", h.UpdateSharePermissionEndpoint)
+		r.Delete("/{fileID}/shares/{userID}", h.RevokeShare)
 
 		r.Get("/{fileID}", h.GetFileMetadata)
 		r.Put("/{fileID}", h.UpdateFile)
@@ -240,6 +243,7 @@ func (h *FileHandler) ListPublicFiles(w http.ResponseWriter, r *http.Request) {
 type ShareRequest struct {
 	RecipientEmail string `json:"email"`
 	SecuredMeta    string `json:"secured_meta"`
+	Permission     string `json:"permission"` // 'view' | 'edit' | 'share' (defaults to 'view')
 }
 
 func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
@@ -279,8 +283,12 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Insert into file_shares (pending status, SecuredMeta = wrapped DEK for recipient)
-	if err := h.Store.ShareFile(r.Context(), fileID, recipient.ID, []byte(req.SecuredMeta)); err != nil {
+	// 2. Insert into file_shares with the requested permission level (default: view).
+	permission := req.Permission
+	if permission != "view" && permission != "edit" && permission != "share" {
+		permission = "view"
+	}
+	if err := h.Store.ShareFileWithPermission(r.Context(), fileID, recipient.ID, []byte(req.SecuredMeta), permission); err != nil {
 		http.Error(w, "Failed to share file", http.StatusInternalServerError)
 		return
 	}
@@ -302,6 +310,108 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "Shared successfully"}`))
+}
+
+// ListShares returns all shares of a file. Owner-only.
+func (h *FileHandler) ListShares(w http.ResponseWriter, r *http.Request) {
+	fileID := chi.URLParam(r, "fileID")
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	file, err := h.Store.GetFile(r.Context(), fileID)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+	if file.OwnerID != userID {
+		http.Error(w, "Forbidden: only the owner can list shares", http.StatusForbidden)
+		return
+	}
+	shares, err := h.Store.ListSharesForFile(r.Context(), fileID)
+	if err != nil {
+		http.Error(w, "Failed to list shares", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(shares)
+}
+
+type UpdatePermissionRequest struct {
+	Permission string `json:"permission"`
+}
+
+// UpdateSharePermissionEndpoint changes a recipient's permission level. Owner-only.
+func (h *FileHandler) UpdateSharePermissionEndpoint(w http.ResponseWriter, r *http.Request) {
+	fileID := chi.URLParam(r, "fileID")
+	targetUserID := chi.URLParam(r, "userID")
+	requesterID, ok := r.Context().Value("user_id").(string)
+	if !ok || requesterID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	file, err := h.Store.GetFile(r.Context(), fileID)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+	if file.OwnerID != requesterID {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+	var req UpdatePermissionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid body", http.StatusBadRequest)
+		return
+	}
+	if err := h.Store.UpdateSharePermission(r.Context(), fileID, targetUserID, req.Permission); err != nil {
+		if err == store.ErrNotFound {
+			http.Error(w, "Share not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "Permission updated"}`))
+}
+
+// RevokeShare removes a recipient's access to a file. Owner-only.
+func (h *FileHandler) RevokeShare(w http.ResponseWriter, r *http.Request) {
+	fileID := chi.URLParam(r, "fileID")
+	targetUserID := chi.URLParam(r, "userID")
+	requesterID, ok := r.Context().Value("user_id").(string)
+	if !ok || requesterID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	file, err := h.Store.GetFile(r.Context(), fileID)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+	if file.OwnerID != requesterID {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+	if err := h.Store.RemoveShare(r.Context(), fileID, targetUserID); err != nil {
+		if err == store.ErrNotFound {
+			http.Error(w, "Share not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to revoke share", http.StatusInternalServerError)
+		return
+	}
+	// Also remove the recipient's wrapped DEK from access_keys.
+	jsonPath := fmt.Sprintf("'$.%s'", targetUserID)
+	query := fmt.Sprintf(
+		`UPDATE files SET access_keys = json_remove(COALESCE(NULLIF(access_keys, ''), '{}'), %s), updated_at = ? WHERE id = ?`,
+		jsonPath,
+	)
+	_, _ = h.Store.DB.ExecContext(r.Context(), query, time.Now(), fileID)
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"message": "Share revoked"}`))
 }
 
 type VisibilityRequest struct {
@@ -503,11 +613,20 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ownerID, ok := r.Context().Value("user_id").(string)
-	if !ok || ownerID == "" || file.OwnerID != ownerID {
+	requesterID, ok := r.Context().Value("user_id").(string)
+	if !ok || requesterID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	// Owner has full access; otherwise the requester must have an accepted share with at least 'edit' permission.
+	if file.OwnerID != requesterID {
+		perm, _ := h.Store.GetSharePermission(r.Context(), id, requesterID)
+		if perm != "edit" && perm != "share" {
+			http.Error(w, "Forbidden: read-only access", http.StatusForbidden)
+			return
+		}
+	}
+	_ = requesterID // used above; keep variable in scope
 
 	// Update fields
 	if req.ParentID != nil {
