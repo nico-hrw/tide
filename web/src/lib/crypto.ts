@@ -323,7 +323,10 @@ export async function decryptMetadata(encryptedBase64: string, privateKey: Crypt
 
         const decrypted = await window.crypto.subtle.decrypt(
             {
-                name: "RSA-OAEP"
+                name: "RSA-OAEP",
+                // Explicitly specify hash to ensure compatibility with keys imported with SHA-256
+                // @ts-ignore - some TS versions might not expect hash here but subtle crypto often needs it
+                hash: "SHA-256" 
             },
             privateKey,
             ciphertext
@@ -334,13 +337,20 @@ export async function decryptMetadata(encryptedBase64: string, privateKey: Crypt
         if (!decoded) return { title: "Untitled (Empty)", isLocked: false };
         
         try {
-            return JSON.parse(decoded);
+            const parsed = JSON.parse(decoded);
+            // Ensure title exists to satisfy useDataStore check
+            if (!parsed.title && parsed.name) parsed.title = parsed.name; 
+            return parsed;
         } catch (e) {
             console.error("[CRYPTO-AUDIT] JSON Parse failed in decryptMetadata", e, decoded);
             return { title: "Untitled (Corrupted)", isLocked: false };
         }
-    } catch (err) {
-        console.warn(`[CRYPTO-AUDIT] Decryption failed for ${label || 'unknown'}:`, err);
+    } catch (err: any) {
+        console.warn(`[CRYPTO-AUDIT] Decryption failed for ${label || 'unknown'}. Error: ${err?.name || 'UnknownError'} - ${err?.message || ''}`);
+        // If it's a size mismatch, it's a huge hint for V1 vs V2 key issues
+        if (err?.message?.includes("data size")) {
+            console.error("[CRYPTO-AUDIT] RSA Size Mismatch: Ciphertext length does not match key modulus. (Key mismatch?)");
+        }
         return { title: "Locked Note (Decryption Failed)", isLocked: true };
     }
 }

@@ -525,7 +525,12 @@ export const useDataStore = create<DataState>((set, get) => ({
                     if (t.encrypted_vault) {
                         try {
                             const meta = await cryptoLib.decryptMetadata(t.encrypted_vault, state.privateKey!, `task-${t.id}`);
-                            loadedTasks.push({ id: t.id, ...meta } as TaskItem);
+                            if (!meta.isLocked) {
+                                loadedTasks.push({ id: t.id, ...meta } as TaskItem);
+                            } else {
+                                // Fallback for tasks
+                                loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, isLocked: true } as any);
+                            }
                         } catch (e) {
                             loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, isLocked: true } as any);
                         }
@@ -595,6 +600,10 @@ export const useDataStore = create<DataState>((set, get) => ({
                         const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `v2-${f.id}`);
                         if (!meta.isLocked && meta.title) {
                             metaData = { ...metaData, ...meta };
+                        } else if (meta.isLocked && metaData.title && !metaData.title.includes('Locked Note')) {
+                            // Decryption failed but we already have a title from unencrypted metadata (V2)
+                            // Keep it, but mark as locked if appropriate
+                            metaData.isLocked = true;
                         } else {
                             metaData.title = "Locked Note (Decrypting...)";
                             metaData.isLocked = true;
@@ -612,6 +621,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                             title: meta.title || "Untitled",
                             isLocked: false
                         };
+                    } else if (metaData.title && !metaData.title.includes('Locked Note') && metaData.title !== 'Untitled') {
+                        // Keep legacy title if we somehow have it, but mark as locked
+                        metaData.isLocked = true;
                     } else {
                         metaData = { title: "Locked Note (Decrypting...)", isLocked: true };
                         console.warn(`[CRYPTO-AUDIT] Failed to decrypt legacy metadata for ${f.id}`);
@@ -723,9 +735,15 @@ export const useDataStore = create<DataState>((set, get) => ({
                             if (!meta.isLocked) {
                                 metaData = { ...metaData, ...meta };
                                 newMetaCache[f.id] = metaData;
+                            } else if (metaData.title && !metaData.title.includes('Locked Note')) {
+                                // Keep the title we found in unencrypted metadata
+                                metaData.isLocked = true;
+                                newMetaCache[f.id] = metaData;
                             } else {
-                                // Decryption failed — keep f.metadata values, do not cache error state
-                                console.warn(`[CRYPTO-AUDIT] loadAllMetadata: Failed to decrypt metadata for ${f.id}`);
+                                // Decryption failed and no backup title — mark as locked
+                                metaData.title = "Locked Note (Decrypting...)";
+                                metaData.isLocked = true;
+                                // We don't necessarily cache "Decrypting..." here to allow fetchDirectory to try again
                             }
                         } else {
                             newMetaCache[f.id] = metaData;
