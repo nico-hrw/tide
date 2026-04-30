@@ -29,6 +29,12 @@ export function useDateDetection({ editor, enabled, mode, onAcceptSuggestion }: 
     const handledSpans = useRef<Map<string, Set<string>>>(new Map()); // blockId → Set<spanKey>
     const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // Stable refs so the useCallback/useEffect don't thrash on every render
+    const onAcceptRef = useRef(onAcceptSuggestion);
+    onAcceptRef.current = onAcceptSuggestion;
+    const islandRef = useRef(island);
+    islandRef.current = island;
+
     const runDetection = useCallback(() => {
         if (!editor || !enabled) return;
 
@@ -75,14 +81,14 @@ export function useDateDetection({ editor, enabled, mode, onAcceptSuggestion }: 
                 const set = handledSpans.current.get(blockId!) ?? new Set();
                 set.add(spanKey);
                 handledSpans.current.set(blockId!, set);
-                onAcceptSuggestion({ title, start, end, blockId: blockId! });
-                island.dismiss();
+                onAcceptRef.current({ title, start, end, blockId: blockId! });
+                islandRef.current.dismiss();
             },
             onDismiss: () => {
                 const set = handledSpans.current.get(blockId!) ?? new Set();
                 set.add(spanKey);
                 handledSpans.current.set(blockId!, set);
-                island.dismiss();
+                islandRef.current.dismiss();
 
                 // On dismiss, convert the date portion to an inline dateMention node
                 if (editor) {
@@ -101,12 +107,12 @@ export function useDateDetection({ editor, enabled, mode, onAcceptSuggestion }: 
             },
         };
 
-        island.push({
+        islandRef.current.push({
             type: 'event_suggestion',
             priority: 'DEFAULT',
             payload: { ...payload, duration: 60_000 } as any, // 60s display window
         });
-    }, [editor, enabled, island, onAcceptSuggestion]);
+    }, [editor, enabled]);
 
     // ── Auto mode: debounced editor.onUpdate ─────────────────────────────────
     useEffect(() => {

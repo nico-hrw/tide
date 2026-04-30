@@ -625,7 +625,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                             // Decryption failed but we already have a title from unencrypted metadata (V2)
                             // Keep it, but mark as locked if appropriate
                             metaData.isLocked = true;
-                        } else {
+                        } else if (f.type !== 'folder') {
                             metaData.title = "Locked Note (Decrypting...)";
                             metaData.isLocked = true;
                         }
@@ -645,7 +645,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                     } else if (metaData.title && !metaData.title.includes('Locked Note') && metaData.title !== 'Untitled') {
                         // Keep legacy title if we somehow have it, but mark as locked
                         metaData.isLocked = true;
-                    } else {
+                    } else if (f.type !== 'folder') {
                         metaData = { title: "Locked Note (Decrypting...)", isLocked: true };
                         console.warn(`[CRYPTO-AUDIT] Failed to decrypt legacy metadata for ${f.id}`);
                     }
@@ -766,7 +766,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                                 // Keep the title we found in unencrypted metadata
                                 metaData.isLocked = true;
                                 newMetaCache[f.id] = metaData;
-                            } else {
+                            } else if (f.type !== 'folder') {
                                 // Decryption failed and no backup title — mark as locked
                                 metaData.title = "Locked Note (Decrypting...)";
                                 metaData.isLocked = true;

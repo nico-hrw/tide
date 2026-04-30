@@ -98,7 +98,7 @@ const DateMentionNodeView: React.FC<NodeViewProps> = ({ node }) => {
     }, [isoDate, parsedDate]);
 
     return (
-        <NodeViewWrapper style={{ display: 'inline' }}>
+        <NodeViewWrapper as="span" style={{ display: 'inline' }}>
             <span
                 ref={containerRef}
                 contentEditable={false}
@@ -254,6 +254,26 @@ export const DateMentionExtension = Node.create({
         return ReactNodeViewRenderer(DateMentionNodeView);
     },
 
+    addInputRules() {
+        return [
+            new InputRule({
+                find: DATE_REGEX,
+                handler: ({ state, range, match }) => {
+                    const rawDate = match[1].trim();
+                    const parsed = parseDate(rawDate);
+                    if (!parsed) return null;
+                    const { tr } = state;
+                    const node = state.schema.nodes.dateMention.create({
+                        isoDate: parsed.toISOString(),
+                        label: rawDate,
+                    });
+                    tr.replaceWith(range.from, range.to, node);
+                    // Insert a space after the node so the cursor can continue
+                    tr.insertText(' ', tr.mapping.map(range.to));
+                },
+            }),
+        ];
+    },
 
 });
 

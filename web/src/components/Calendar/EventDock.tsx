@@ -35,6 +35,7 @@ interface EventDockProps {
     onPin: (id: string) => void;
     onSave: (id: string, updates: Partial<CalendarEvent> & { parent_id?: string | null }) => Promise<void>;
     onLinkClick: (target: { id: string, type: string, title?: string }) => void;
+    onShare?: (e: React.MouseEvent, eventId: string) => void;
 }
 
 export default function EventDock({
@@ -49,7 +50,8 @@ export default function EventDock({
     onMaximize,
     onPin,
     onSave,
-    onLinkClick
+    onLinkClick,
+    onShare
 }: EventDockProps) {
     // Combine pinned and active events to determine what to show
     // We want to show all pinned events, plus the active event if it's not already pinned
@@ -85,6 +87,7 @@ export default function EventDock({
                             onPin={() => onPin(id)}
                             onSave={onSave}
                             onLinkClick={onLinkClick}
+                            onShare={onShare}
                         />
                     </div>
                 );

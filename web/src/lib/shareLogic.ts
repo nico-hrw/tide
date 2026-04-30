@@ -76,7 +76,7 @@ export async function performMessengerShare(
             return null;
         })() : null;
 
-        const messageRes = await apiFetch("/api/v1/messages/", {
+        const messageRes = await apiFetch("/api/v1/messages", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

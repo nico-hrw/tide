@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { X, Minus, Pin, Calendar, Folder, ChevronDown } from "lucide-react";
+import { X, Minus, Pin, Calendar, Folder, ChevronDown, Share2 } from "lucide-react";
 import { useHighlight, LinkTarget } from "../HighlightContext";
 
 interface DecryptedFile {
@@ -38,6 +38,7 @@ interface EventPreviewProps {
     onPin: () => void;
     onSave: (id: string, updates: Partial<CalendarEvent> & { parent_id?: string | null }) => Promise<void>;
     onLinkClick: (target: { id: string, type: string, title?: string }) => void;
+    onShare?: (e: React.MouseEvent, eventId: string) => void;
 }
 
 export default function EventPreview({
@@ -51,7 +52,8 @@ export default function EventPreview({
     onMaximize,
     onPin,
     onSave,
-    onLinkClick
+    onLinkClick,
+    onShare
 }: EventPreviewProps) {
     const [title, setTitle] = useState(event.title);
     const [description, setDescription] = useState(event.description || "");
@@ -254,6 +256,15 @@ export default function EventPreview({
                     >
                         <Pin size={14} className={isPinned ? "fill-current" : ""} />
                     </button>
+                    {onShare && (
+                        <button
+                            onClick={(e) => onShare(e, event.id)}
+                            className="p-1.5 opacity-70 hover:opacity-100 hover:bg-black/10 rounded-lg transition-colors"
+                            title="Share Event"
+                        >
+                            <Share2 size={14} />
+                        </button>
+                    )}
                     <button
                         onClick={onMinimize}
                         className="p-1.5 opacity-70 hover:opacity-100 hover:bg-black/10 rounded-lg transition-colors"
