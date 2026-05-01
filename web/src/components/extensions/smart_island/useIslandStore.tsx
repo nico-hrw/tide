@@ -43,11 +43,26 @@ type IslandAction =
 
 // ─── Reducer ────────────────────────────────────────────────────────────────
 
+// Build a stable signature for an event_suggestion payload so we can
+// recognise duplicates and merge incoming suggestions onto the visible card
+// instead of stacking them in the queue.
+function suggestionSignature(view: IslandView): string | null {
+    if (view.type !== 'event_suggestion') return null;
+    const pr = (view.payload as any)?.parseResult;
+    if (!pr) return null;
+    const blockId = (view.payload as any)?.blockId || '';
+    const title = pr.titleHint || '';
+    const date = pr.proposedDate ? new Date(pr.proposedDate).getTime() : 0;
+    const start = pr.proposedStart ? new Date(pr.proposedStart).getTime() : 0;
+    const end = pr.proposedEnd ? new Date(pr.proposedEnd).getTime() : 0;
+    return `${blockId}|${title}|${date}|${start}|${end}`;
+}
+
 function islandReducer(state: IslandState, action: IslandAction): IslandState {
     switch (action.type) {
         case 'PUSH': {
             const { priority = 'DEFAULT' } = action.view;
-            
+
             // Focus Mode Filtering
             if (state.focusMode === 'DND' && priority !== 'CRITICAL') return state;
             if (state.focusMode === 'IMPORTANT' && priority === 'LOW') return state;
@@ -55,13 +70,45 @@ function islandReducer(state: IslandState, action: IslandAction): IslandState {
             // Is this a transient notification?
             const isTransient = action.view.type !== 'timeline' && action.view.type !== 'welcome' && action.view.type !== 'morning';
 
+            // ── event_suggestion dedup ────────────────────────────────────────
+            // Only one live suggestion at a time. If a new suggestion arrives
+            // while another is current OR queued, merge — never stack.
+            if (action.view.type === 'event_suggestion') {
+                const newSig = suggestionSignature(action.view);
+                const currentSig = state.current ? suggestionSignature(state.current) : null;
+
+                // Identical suggestion is already showing → drop the duplicate so the
+                // card keeps its current edit state instead of resetting.
+                if (currentSig && newSig && currentSig === newSig) {
+                    return state;
+                }
+                // A different suggestion is currently shown → swap payload in place
+                // (keeps the card visible; the view animates changed fields).
+                if (state.current?.type === 'event_suggestion') {
+                    return { ...state, current: action.view, currentStartedAt: Date.now() };
+                }
+                // No suggestion is current but the queue already has one →
+                // replace it instead of appending a second one.
+                const queuedIdx = state.queue.findIndex(v => v.type === 'event_suggestion');
+                if (queuedIdx !== -1) {
+                    const queuedSig = suggestionSignature(state.queue[queuedIdx]);
+                    if (newSig && queuedSig === newSig) return state; // duplicate
+                    const nextQueue = [...state.queue];
+                    nextQueue[queuedIdx] = action.view;
+                    return { ...state, queue: nextQueue };
+                }
+            }
+
             // If nothing is showing, promote directly
             if (!state.current) {
                 return { ...state, current: action.view, queue: [], timerActive: true, currentStartedAt: Date.now() };
             }
 
-            // Immediately replace if clicking another event preview or if new item is CRITICAL
-            if ((state.current.type === 'event_preview' && action.view.type === 'event_preview') || priority === 'CRITICAL') {
+            // Immediately replace if clicking another event preview, or if new item is CRITICAL
+            if (
+                (state.current.type === 'event_preview' && action.view.type === 'event_preview') ||
+                priority === 'CRITICAL'
+            ) {
                 return { ...state, current: action.view, currentStartedAt: Date.now() };
             }
 

@@ -90,12 +90,14 @@ export function useDateDetection({ editor, enabled, mode, onAcceptSuggestion }: 
                 handledSpans.current.set(blockId!, set);
                 islandRef.current.dismiss();
 
-                // On dismiss, convert the date portion to an inline dateMention node
+                // ⚠️ DISABLED: The user explicitly requested to disable the automatic 
+                // inline replacement of text with dateMention nodes. 
+                // Do not re-enable this automatic replacement without explicit permission.
+                /*
                 if (editor) {
                     const absStart = blockPos + 1 + first.span[0];
                     const absEnd = blockPos + 1 + first.span[1];
                     const isoDate = first.proposedDate.toISOString();
-                    // Just use the typed text as label for inline feeling
                     const label = text.slice(first.span[0], first.span[1]);
                     
                     editor.chain().deleteRange({ from: absStart, to: absEnd })
@@ -104,6 +106,7 @@ export function useDateDetection({ editor, enabled, mode, onAcceptSuggestion }: 
                               attrs: { isoDate, label }
                           }).run();
                 }
+                */
             },
         };
 

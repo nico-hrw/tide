@@ -262,7 +262,7 @@ export default function Dashboard() {
     const [draggedText, setDraggedText] = useState<string | null>(null);
 
     // Share Modal State
-    const [shareModalFile, setShareModalFile] = useState<{ id: string, title: string } | null>(null);
+    const [shareModalFile, setShareModalFile] = useState<{ id: string, title: string, type?: string } | null>(null);
 
     const handleToggleExtension = async (extensionId: string, enabled: boolean) => {
         setEnabledExtensions(prev => {
@@ -1795,16 +1795,28 @@ export default function Dashboard() {
                     encryptedMeta = await cryptoLib.encryptMetadata(metaToEncrypt, publicKey);
                 }
 
-                const payload: any = { secured_meta: encryptedMeta };
-                if (isV2 || target.type === 'folder') {
-                    payload.metadata = { ...((target as any).metadata || {}), title: newTitle };
-                }
+                // Always persist the title in plaintext `metadata.title` too. This is
+                // the load-time fallback when secured_meta decryption fails or when the
+                // metadataCache is empty (e.g. after a hard reload). Without this, V1
+                // notes/folders whose secured_meta can't be decrypted lose the new
+                // title and revert to "Untitled" / "Locked Note" on the next fetch.
+                const existingMetadata = ((target as any).metadata && typeof (target as any).metadata === 'object')
+                    ? (target as any).metadata
+                    : {};
+                const payload: any = {
+                    secured_meta: encryptedMeta,
+                    metadata: { ...existingMetadata, title: newTitle },
+                };
 
-                await apiFetch(`/api/v1/files/${fileId}`, {
+                const res = await apiFetch(`/api/v1/files/${fileId}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload)
                 });
+                if (!res.ok) {
+                    const errText = await res.text();
+                    throw new Error(`Failed to update title: ${res.status} ${errText}`);
+                }
             }
 
             useDataStore.getState().setUpdatingMetadata(fileId, false);
@@ -1946,13 +1958,43 @@ export default function Dashboard() {
     const handleShare = async (e: React.MouseEvent, fileId: string) => {
         e.stopPropagation();
 
-        const file = files.find(f => f.id === fileId) || events.find(e => e.id === fileId);
+        // Recurring event instances have IDs like 'uuid_timestamp'. Extract the base UUID.
+        const baseId = fileId.includes('_') ? fileId.split('_')[0] : fileId;
+
+        // Read from the store at call time — the closure-captured `events`/`files`
+        // can be stale (e.g. the calendar still shows a recurring instance that was
+        // expanded from a base event the closure no longer sees).
+        const liveStore = useDataStore.getState();
+        const liveFiles = liveStore.notes as any[];
+        const liveEvents = liveStore.events as any[];
+
+        let file: any = liveFiles.find(f => f.id === baseId) || liveEvents.find(ev => ev.id === baseId);
+
+        // Last-resort fallback: fetch metadata from the backend so a recurring
+        // instance whose base event isn't currently in the local store can still
+        // be shared. We need at least { id, title } for the share modal.
         if (!file) {
-            console.error("File/Event not found for sharing:", fileId);
+            try {
+                const res = await apiFetch(`/api/v1/files/${baseId}`);
+                if (res.ok) {
+                    const remote = await res.json();
+                    const remoteTitle = remote?.public_meta?.title
+                        || remote?.metadata?.title
+                        || 'Untitled';
+                    file = { id: baseId, title: remoteTitle, type: remote?.type };
+                }
+            } catch (fetchErr) {
+                console.warn('handleShare: backend fallback fetch failed', fetchErr);
+            }
+        }
+
+        if (!file) {
+            console.error("File/Event not found for sharing:", fileId, "(base:", baseId, ")");
+            alert('Termin konnte nicht zum Teilen gefunden werden.');
             return;
         }
 
-        setShareModalFile({ id: fileId, title: file.title });
+        setShareModalFile({ id: baseId, title: file.title, type: (file as any).type });
     };
 
     const performShare = async (recipientId: string, recipientEmail: string, recipientPubKeySpki: string, permission: 'view' | 'edit' | 'share' = 'view') => {

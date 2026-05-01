@@ -255,6 +255,14 @@ export const DateMentionExtension = Node.create({
     },
 
     addInputRules() {
+        // ⚠️ DISABLED on user request: this older inline detection used to replace any
+        // typed date string (e.g. "13.04.") with a dateMention node, which collided with
+        // the new SmartIsland date suggestion flow (`useDateDetection`).
+        // DO NOT re-enable this without explicit permission from the user.
+        // The dateMention node itself is still used elsewhere (e.g. for hover popovers
+        // when a node is created intentionally), only the auto-replacement-on-typing is off.
+        return [];
+        /*
         return [
             new InputRule({
                 find: DATE_REGEX,
@@ -273,6 +281,7 @@ export const DateMentionExtension = Node.create({
                 },
             }),
         ];
+        */
     },
 
 });

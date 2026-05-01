@@ -311,11 +311,15 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
         }
     };
 
-    const handleAccept = async (fileId: string, messageId?: string) => {
+    const handleAccept = async (fileId: string, messageId?: string, fileType?: string, fileName?: string) => {
         try {
-            await apiFetch(`/api/v1/files/${fileId}/accept`, {
+            const res = await apiFetch(`/api/v1/files/${fileId}/accept`, {
                 method: "POST"
             });
+            if (!res.ok) {
+                alert('Annehmen fehlgeschlagen.');
+                return;
+            }
 
             // Update persistent status if from a message
             if (messageId) {
@@ -336,16 +340,40 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
             fetchAllSharedFiles();
             if (partner) fetchPartnerFiles(partner.id);
             if (onAccept) onAccept();
+
+            // Open the actual file/event so the user lands on the content
+            if (fileType === 'event') {
+                if (onOpenCalendar) onOpenCalendar();
+            } else {
+                try {
+                    const metaRes = await apiFetch(`/api/v1/files/${fileId}`);
+                    if (metaRes.ok) {
+                        const fileData = await metaRes.json();
+                        onOpenFile(fileId, fileName || fileData?.public_meta?.title || 'Untitled', fileData);
+                    } else {
+                        onOpenFile(fileId, fileName || 'Untitled');
+                    }
+                } catch {
+                    onOpenFile(fileId, fileName || 'Untitled');
+                }
+            }
         } catch (e) { alert("Error"); }
     };
 
-    const handleClone = async (fileId: string, messageId?: string) => {
+    const handleClone = async (fileId: string, messageId?: string, fileName?: string) => {
         try {
-            const res = await apiFetch(`/api/v1/files/${fileId}/copy`, { method: 'POST' });
+            const res = await apiFetch(`/api/v1/files/${fileId}/copy`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target_parent_id: null }),
+            });
             if (!res.ok) {
-                alert('Klonen fehlgeschlagen.');
+                const errText = await res.text().catch(() => '');
+                console.error('Clone failed', res.status, errText);
+                alert(`Klonen fehlgeschlagen (${res.status}).${errText ? ' ' + errText : ''}`);
                 return;
             }
+            const newFile = await res.json().catch(() => null);
             if (messageId) {
                 await apiFetch(`/api/v1/messages/${messageId}`, {
                     method: 'PATCH',
@@ -356,6 +384,11 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
             }
             setProcessedRequests(prev => ({ ...prev, [fileId]: 'accepted' }));
             fetchAllSharedFiles();
+            if (onFileCreated && newFile) onFileCreated(newFile);
+            if (newFile && newFile.id) {
+                const title = newFile.public_meta?.title || fileName || 'Untitled';
+                onOpenFile(newFile.id, title, newFile);
+            }
         } catch (e) { console.error('Clone failed', e); }
     };
 
@@ -1011,7 +1044,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                         return (
                                                                             <div className="flex flex-col gap-2">
                                                                                 <button
-                                                                                    onClick={() => shareData && handleAccept(shareData.file_id, m.id)}
+                                                                                    onClick={() => shareData && handleAccept(shareData.file_id, m.id, shareData.file_type, shareData.file_name)}
                                                                                     className={`w-full py-2 rounded-lg text-[12px] font-bold transition-all flex items-center justify-center gap-2 shadow-sm ${shareData.file_type === 'event'
                                                                                         ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 dark:text-amber-100 dark:border-amber-800'
                                                                                         : 'bg-blue-100 hover:bg-blue-200 text-blue-900 border border-blue-200 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 dark:text-blue-100 dark:border-blue-800'
@@ -1025,7 +1058,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                                 </button>
                                                                                 <div className="flex gap-2">
                                                                                     <button
-                                                                                        onClick={() => shareData && handleClone(shareData.file_id, m.id)}
+                                                                                        onClick={() => shareData && handleClone(shareData.file_id, m.id, shareData.file_name)}
                                                                                         className="flex-1 py-1.5 rounded-lg text-[11px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200 dark:border-gray-700 transition-all"
                                                                                     >
                                                                                         Klonen

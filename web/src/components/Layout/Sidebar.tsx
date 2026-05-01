@@ -580,8 +580,58 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
     const startGhost = useDragGhost(s => s.startGhost);
     const [isCalendarDropTarget, setIsCalendarDropTarget] = useState(false);
 
+    // Custom-drag detection: the calendar's main drag uses mousedown/mousemove,
+    // not HTML5 DnD, so onDragOver never fires. We listen for the global custom
+    // events emitted by CalendarView and decide whether the cursor is over our
+    // own bounding rect.
+    const tileRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const onMove = (ev: Event) => {
+            const detail = (ev as CustomEvent).detail;
+            if (!detail || !tileRef.current) return;
+            const r = tileRef.current.getBoundingClientRect();
+            const inside = detail.x >= r.left && detail.x <= r.right && detail.y >= r.top && detail.y <= r.bottom;
+            if (inside && !isCalendarDropTarget) {
+                setIsCalendarDropTarget(true);
+                onSelect(file.id, file.title);
+            } else if (!inside && isCalendarDropTarget) {
+                setIsCalendarDropTarget(false);
+            }
+        };
+        const onDrop = (ev: Event) => {
+            const detail = (ev as CustomEvent).detail;
+            if (!detail || detail.consumed || !tileRef.current) return;
+            const r = tileRef.current.getBoundingClientRect();
+            const inside = detail.x >= r.left && detail.x <= r.right && detail.y >= r.top && detail.y <= r.bottom;
+            if (!inside) return;
+            // Mark this drop as consumed so CalendarView skips its own time-move logic.
+            detail.consumed = true;
+            detail.targetNoteId = file.id;
+            setIsCalendarDropTarget(false);
+            onSelect(file.id, file.title);
+            setTimeout(() => {
+                startGhost({
+                    eventId: detail.eventId,
+                    title: detail.title || 'Untitled',
+                    start: detail.start || '',
+                    end: detail.end || '',
+                    color: detail.color || undefined,
+                    targetNoteId: file.id,
+                });
+            }, 80);
+        };
+        window.addEventListener('tide:event-drag-move', onMove);
+        window.addEventListener('tide:event-drag-drop', onDrop);
+        return () => {
+            window.removeEventListener('tide:event-drag-move', onMove);
+            window.removeEventListener('tide:event-drag-drop', onDrop);
+        };
+    }, [file.id, file.title, isCalendarDropTarget, onSelect, startGhost]);
+
     return (
         <motion.div
+            ref={tileRef}
+            data-note-tile={file.id}
             layout="position"
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}

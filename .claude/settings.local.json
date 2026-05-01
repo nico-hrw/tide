@@ -5,7 +5,9 @@
       "Bash(npx tsc *)",
       "Bash(sed -i '307,702d' web/src/components/Calendar/CalendarView.tsx)",
       "Bash(sed -i '306s|.*|    }, []\\);|' web/src/components/Calendar/CalendarView.tsx)",
-      "Bash(go build *)"
+      "Bash(go build *)",
+      "Bash(npx --prefix /c/Users/nicoh/Documents/tide/web tsc --noEmit -p /c/Users/nicoh/Documents/tide/web/tsconfig.json)",
+      "Bash(/c/Users/nicoh/Documents/tide/web/node_modules/.bin/tsc --noEmit -p /c/Users/nicoh/Documents/tide/web/tsconfig.json)"
     ]
   }
 }

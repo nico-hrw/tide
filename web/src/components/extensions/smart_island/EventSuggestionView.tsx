@@ -24,6 +24,40 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
     const [start, setStart] = useState<Date>(parseResult.proposedStart);
     const [end, setEnd] = useState<Date>(parseResult.proposedEnd);
 
+    // Per-field flash: when an incoming payload changes only some fields
+    // (e.g. user edited the time), light up the changed fields blue for ~700ms.
+    const [flashFields, setFlashFields] = useState<Set<FieldKey>>(new Set());
+    const isFirstPayload = useRef(true);
+
+    useEffect(() => {
+        const newTitle = payload.parseResult.titleHint || 'Neuer Termin';
+        const newDate = payload.parseResult.proposedDate;
+        const newStart = payload.parseResult.proposedStart;
+        const newEnd = payload.parseResult.proposedEnd;
+
+        const changed = new Set<FieldKey>();
+        if (!isFirstPayload.current) {
+            if (newTitle !== title) changed.add('title');
+            if (newDate.getTime() !== date.getTime()) changed.add('date');
+            if (newStart.getTime() !== start.getTime()) changed.add('start');
+            if (newEnd.getTime() !== end.getTime()) changed.add('end');
+        }
+
+        setTitle(newTitle);
+        setDate(newDate);
+        setStart(newStart);
+        setEnd(newEnd);
+
+        if (changed.size > 0) {
+            setFlashFields(changed);
+            const timer = setTimeout(() => setFlashFields(new Set()), 700);
+            isFirstPayload.current = false;
+            return () => clearTimeout(timer);
+        }
+        isFirstPayload.current = false;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [payload.parseResult]);
+
     const [numberBuffer, setNumberBuffer] = useState<string>('');
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -122,6 +156,7 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
 
     const renderField = (key: FieldKey, content: React.ReactNode) => {
         const isActive = editing && activeField === key;
+        const isFlashing = flashFields.has(key);
         return (
             <button
                 disabled={!editing}
@@ -130,11 +165,16 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
                     display: 'inline-flex', alignItems: 'center',
                     padding: '2px 6px', margin: '0 1px',
                     borderRadius: 4,
-                    background: isActive ? 'rgba(99,102,241,0.25)' : (editing ? 'rgba(99,102,241,0.08)' : 'transparent'),
-                    border: isActive ? '1px solid rgba(99,102,241,0.6)' : (editing ? '1px dashed rgba(99,102,241,0.3)' : '1px solid transparent'),
+                    background: isFlashing
+                        ? 'rgba(59,130,246,0.35)'
+                        : (isActive ? 'rgba(99,102,241,0.25)' : (editing ? 'rgba(99,102,241,0.08)' : 'transparent')),
+                    border: isFlashing
+                        ? '1px solid rgba(59,130,246,0.7)'
+                        : (isActive ? '1px solid rgba(99,102,241,0.6)' : (editing ? '1px dashed rgba(99,102,241,0.3)' : '1px solid transparent')),
+                    boxShadow: isFlashing ? '0 0 0 2px rgba(59,130,246,0.35)' : 'none',
                     color: 'inherit', font: 'inherit',
                     cursor: editing ? 'pointer' : 'default',
-                    transition: 'background 0.15s, border-color 0.15s',
+                    transition: 'background 0.25s, border-color 0.25s, box-shadow 0.25s',
                 }}
             >
                 {content}
@@ -142,8 +182,10 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
         );
     };
 
+    // Suggestion text is always black per user request — Smart Island background
+    // is white in both themes for this card, so dark-mode white text was invisible.
     return (
-        <div className="flex flex-col gap-3 px-4 py-3 text-white">
+        <div className="flex flex-col gap-3 px-4 py-3 text-gray-900 rounded-lg transition-all duration-300">
             <div className="text-[13px] font-medium leading-relaxed">
                 Möchtest du am {renderField('date', format(date, 'EEE dd.MM.'))}
                 {' um '}{renderField('start', format(start, 'HH:mm'))}
@@ -157,7 +199,7 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
                         onChange={(e) => setTitle(e.target.value)}
                         onBlur={() => setActiveField(null)}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }}
-                        className="bg-white/10 border border-white/30 rounded px-1 text-white text-[13px] outline-none"
+                        className="bg-black/5 border border-gray-300 rounded px-1 text-gray-900 text-[13px] outline-none"
                         style={{ width: Math.max(80, title.length * 8) }}
                     />
                 ) : (
@@ -170,28 +212,28 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
                 <button
                     onClick={onDismiss}
                     title="Verwerfen"
-                    className="p-1.5 rounded-md bg-white/10 hover:bg-white/20 transition-colors text-white/70 hover:text-white"
+                    className="p-1.5 rounded-md hover:bg-black/5 transition-colors text-gray-500 hover:text-gray-900"
                 >
                     <X size={14} />
                 </button>
                 <button
                     onClick={() => { setEditing(!editing); setActiveField(null); }}
                     title="Bearbeiten"
-                    className={`p-1.5 rounded-md transition-colors ${editing ? 'bg-amber-500/30 text-amber-200' : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300'}`}
+                    className={`p-1.5 rounded-md transition-colors ${editing ? 'bg-amber-500/30 text-amber-700' : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-600'}`}
                 >
                     <Pencil size={14} />
                 </button>
                 <button
                     onClick={handleAccept}
                     title="Termin erstellen"
-                    className="p-1.5 rounded-md bg-emerald-500/25 hover:bg-emerald-500/40 transition-colors text-emerald-300 hover:text-emerald-200"
+                    className="p-1.5 rounded-md bg-emerald-500/25 hover:bg-emerald-500/40 transition-colors text-emerald-600 hover:text-emerald-700"
                 >
                     <Check size={14} />
                 </button>
             </div>
 
             {editing && activeField !== 'title' && activeField !== null && (
-                <div className="text-[10px] text-white/50 italic">
+                <div className="text-[10px] text-gray-500 italic">
                     ←→ um andere erkannte {activeField === 'date' ? 'Daten' : 'Zeiten'} zu wählen · 0-9 zum Eingeben · Enter zum Bestätigen
                 </div>
             )}

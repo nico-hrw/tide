@@ -646,6 +646,14 @@ export default function CalendarView({
                     // ✅ Drive overlay via MotionValue — bypasses React render
                     dragOverlayY.set(newTop);
                     dragOverlayX.set(dragState.initialX + deltaX);
+
+                    // Notify the sidebar so it can highlight & open a note tile
+                    // when the cursor is over it (the calendar's mouse-based drag
+                    // does NOT use HTML5 DnD, so onDragOver in the sidebar can't
+                    // observe this drag).
+                    window.dispatchEvent(new CustomEvent('tide:event-drag-move', {
+                        detail: { x: e.clientX, y: e.clientY, eventId: draggingId },
+                    }));
                 }
             } else if (creationDrag) {
                 const startMinsCreation = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
@@ -696,6 +704,40 @@ export default function CalendarView({
                 // If we haven't moved enough to drag, treat this as a CLICK.
                 if (onEventClick) onEventClick(pendingDragRef.current.id);
                 pendingDragRef.current = null;
+                return;
+            }
+
+            // ── Sidebar drop interception ────────────────────────────────────
+            // If a sidebar note consumes this drop, skip the calendar time-update
+            // path completely so the original event stays in place and the
+            // Phase-2 ghost (drop-into-note) takes over.
+            let droppedOnNote = false;
+            if (draggingId) {
+                const draggingEvent = events.find(ev => ev.id === draggingId || (draggingId && draggingId.startsWith(ev.id + '_')));
+                const detail: any = {
+                    x: e.clientX,
+                    y: e.clientY,
+                    eventId: draggingId,
+                    title: draggingEvent?.title,
+                    start: draggingEvent?.start,
+                    end: draggingEvent?.end,
+                    color: (draggingEvent as any)?.color,
+                    consumed: false,
+                };
+                window.dispatchEvent(new CustomEvent('tide:event-drag-drop', { detail }));
+                droppedOnNote = !!detail.consumed;
+            }
+
+            if (droppedOnNote) {
+                // Sidebar took the drop. Reset our drag state without committing
+                // a time/date change to the event.
+                setDraggingId(null);
+                setDragState(null);
+                setCreationDrag(null);
+                setResizingId(null);
+                setResizeDragState(null);
+                setDropBounds(null);
+                isDraggingRef.current = false;
                 return;
             }
 
