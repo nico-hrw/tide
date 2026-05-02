@@ -34,6 +34,8 @@ All new tokens go into the `:root` block. Each line carries a `/* DARK: <value> 
 
 **Existing tokens kept unchanged:** all `--event-*` color tokens, `--sidebar-bg`, `--background`, `--foreground`.
 
+**Global interaction rule:** Every element that receives a `--hover-bg` background on hover must also carry `transition: background-color 0.2s ease`. This applies to: Sidebar items (Recent + file tree), navigation icon buttons, table rows, and any other interactive surface using `--hover-bg`. Add this via a shared Tailwind utility class or directly in `globals.css` as `.interactive-hover { transition: background-color 0.2s ease; }`.
+
 ---
 
 ## 2. Kalender (`WeekView.tsx`, `DayColumn.tsx`, `CalendarEventItem.tsx`)

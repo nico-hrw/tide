@@ -57,7 +57,7 @@
   --input-text: #111827;
   --input-placeholder: #9CA3AF;
 
-  --radius: 6px;
+  --radius: 8px;
 
   /* Nordic Minimalist Event Colors */
   --event-default-bg: #EAE6FF;
@@ -77,9 +77,30 @@
   --event-orange-border: #FFE0B2;
 
   /* Strawberry Glass Glow Variables */
-  --glass-red-bg: rgba(249, 65, 68, 0.85); 
+  --glass-red-bg: rgba(249, 65, 68, 0.85);
   --glass-red-border: rgba(255, 255, 255, 0.25);
   --glass-red-glow: 0 0 15px rgba(249, 65, 68, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3);
+
+  /* ─── Glow-Up Design Tokens (2026-05-02) ──────────────────────────────── */
+  /* Typography scale */
+  --text-body:    #2C2C2C;   /* DARK: #E2E8F0 */
+  --text-muted:   #737373;   /* DARK: #94A3B8 */
+  --text-subtle:  #999999;   /* DARK: #64748B */
+
+  /* Borders */
+  --border-grid: rgba(0, 0, 0, 0.05);   /* DARK: rgba(255,255,255,0.06) */
+  --border-ui:   rgba(0, 0, 0, 0.08);   /* DARK: rgba(255,255,255,0.10) */
+
+  /* Shadows (floated elements: island, modals, toolbar) */
+  --shadow-float: 0px 8px 24px rgba(0, 0, 0, 0.06), 0px 2px 6px rgba(0, 0, 0, 0.04);
+  /* DARK: 0px 8px 24px rgba(0,0,0,0.3), 0px 2px 6px rgba(0,0,0,0.2) */
+
+  /* Radius */
+  --radius-lg: 14px;
+
+  /* Interactive */
+  --hover-bg:     #F5F5F5;  /* DARK: rgba(255,255,255,0.06) */
+  --today-accent: #EF4444;  /* DARK: #EF4444 */
 }
 
 .dark {
@@ -170,6 +191,10 @@ body {
 .event-item {
   transition: all 0.2s ease-out;
   user-select: none;
+}
+
+.interactive-hover {
+  transition: background-color 0.2s ease;
 }
 
 @keyframes flyInPreview {
@@ -482,4 +507,40 @@ span.task-mention-pill,
 .task-mention-label.completed {
   text-decoration: line-through;
   opacity: 0.55;
+}
+
+/* ─── Editor Prose ───────────────────────────────────────────────────────── */
+.ProseMirror {
+  line-height: 1.6;
+  color: var(--text-body);
+}
+
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3 {
+  color: #111111;
+  margin-bottom: 0.25em;
+}
+
+/* ─── Table Redesign ─────────────────────────────────────────────────────── */
+.ProseMirror table {
+  border: 1px solid var(--border-ui);
+  border-radius: var(--radius);
+  overflow: hidden;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.ProseMirror td,
+.ProseMirror th {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-grid);
+  border-right: none;
+  border-left: none;
+}
+
+.ProseMirror th {
+  background: #FAFAFA;
+  font-weight: 600;
+  color: var(--text-body);
 }

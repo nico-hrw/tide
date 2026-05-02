@@ -6,10 +6,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?: Date, onSelect?: (date: Date) => void }) {
     const [currentDateInternal, setCurrentDateInternal] = useState(new Date());
 
-    // Use internal state if no props provided (fallback)
     const activeDate = selectedDate || new Date();
 
-    // Sync view month when selectedDate changes significantly (optional, but good UX)
     React.useEffect(() => {
         if (selectedDate && !isSameMonth(selectedDate, currentDateInternal)) {
             setCurrentDateInternal(selectedDate);
@@ -32,7 +30,7 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
     const weekDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
     return (
-        <div className="p-4 bg-transparent select-none">
+        <div className="p-5 bg-transparent select-none">
             <div className="flex items-center justify-between mb-4">
                 <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                     {format(displayDate, "MMMM yyyy")}
@@ -49,7 +47,7 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
 
             <div className="grid grid-cols-7 gap-1 text-center mb-2">
                 {weekDays.map(day => (
-                    <div key={day} className="text-xs font-medium text-gray-400">
+                    <div key={day} className="text-[10px] font-medium text-[var(--text-subtle)] uppercase tracking-[0.5px]">
                         {day}
                     </div>
                 ))}
@@ -61,16 +59,16 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
                     const isCurrentMonth = isSameMonth(day, monthStart);
                     const isDayToday = isToday(day);
 
-                    let className = "text-xs w-7 h-7 flex items-center justify-center rounded-lg cursor-pointer transition-all";
+                    let className = "text-xs w-7 h-7 flex items-center justify-center rounded-full cursor-pointer transition-all";
 
                     if (!isCurrentMonth) {
                         className += " text-gray-300 dark:text-gray-700";
                     } else {
-                        className += " text-gray-700 dark:text-gray-200";
+                        className += " text-[var(--text-body)] dark:text-gray-200";
                     }
 
                     if (isDayToday) {
-                        className = "text-xs w-7 h-7 flex items-center justify-center rounded-lg cursor-pointer transition-all glass-red-glow-effect";
+                        className = "text-xs w-7 h-7 flex items-center justify-center rounded-full cursor-pointer transition-all bg-[var(--today-accent)] text-white font-semibold";
                     } else if (isSelected) {
                         className += " bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold shadow-sm";
                     } else {

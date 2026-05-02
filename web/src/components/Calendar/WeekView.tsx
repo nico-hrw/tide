@@ -15,6 +15,7 @@ interface CalendarEvent {
     description?: string;
     parent_id?: string | null;
     allDay?: boolean;
+    shading?: number;
 }
 
 interface WeekViewProps {
@@ -432,8 +433,8 @@ export default function WeekView({
         <div className="flex flex-col h-full select-none">
             <div className="flex h-full flex-col relative bg-white dark:bg-black" ref={containerRef}>
                 {/* Header Placeholder (Sticky) */}
-                <div className="flex border-b border-gray-100 dark:border-slate-800/50 bg-white dark:bg-black z-[70] sticky top-0 shadow-sm">
-                    <div className="w-[60px] flex-shrink-0 border-r border-gray-100 dark:border-slate-800/50 bg-white dark:bg-black"></div>
+                <div className="flex border-b border-[var(--border-grid)] bg-white dark:bg-black z-[70] sticky top-0">
+                    <div className="w-[60px] flex-shrink-0 border-r border-[var(--border-grid)] bg-white dark:bg-black"></div>
                 </div>
 
                 <div
@@ -442,15 +443,15 @@ export default function WeekView({
                 >
                     <div className="flex min-w-max relative">
                         {/* Time Column */}
-                        <div className="w-[60px] flex-shrink-0 sticky left-0 z-[70] bg-white dark:bg-black border-r border-gray-100 dark:border-slate-800/50">
-                            <div className="h-[50px] border-b border-gray-100 dark:border-slate-800/50 bg-white dark:bg-black sticky top-0 z-[70]"></div>
+                        <div className="w-[60px] flex-shrink-0 sticky left-0 z-[70] bg-white dark:bg-black border-r border-[var(--border-grid)]">
+                            <div className="h-[50px] border-b border-[var(--border-grid)] bg-white dark:bg-black sticky top-0 z-[70]"></div>
                             {Array.from({ length: 24 }).map((_, i) => (
-                                <div key={i} className="h-[60px] border-b border-dashed border-gray-200 dark:border-slate-800/50 relative">
-                                    <span className="absolute -top-3 right-2 text-xs font-medium text-gray-400">{i}:00</span>
+                                <div key={i} className="h-[60px] border-b border-dashed border-[var(--border-grid)] relative">
+                                    <span className="absolute -top-3 right-2 text-[11px] font-medium text-[var(--text-muted)]">{i}:00</span>
                                 </div>
                             ))}
-                            <div className="h-[150px] w-full border-r border-gray-100 dark:border-slate-800/50 relative">
-                                <div className="absolute top-2 right-2 text-[10px] font-medium text-gray-400">0:00</div>
+                            <div className="h-[150px] w-full border-r border-[var(--border-grid)] relative">
+                                <div className="absolute top-2 right-2 text-[10px] font-medium text-[var(--text-muted)]">0:00</div>
                             </div>
                         </div>
 
@@ -484,29 +485,26 @@ export default function WeekView({
                                 <div
                                     key={day.toISOString()}
                                     data-day-col={day.toISOString()}
-                                    className="w-[150px] md:w-[200px] flex-shrink-0 border-r border-gray-100 dark:border-slate-800/50 relative bg-transparent"
+                                    className="w-[150px] md:w-[200px] flex-shrink-0 border-r border-[var(--border-grid)] relative bg-transparent"
                                 >
                                     {/* Day Header */}
-                                    <div className={`
-                                         h-[50px] border-b border-gray-100 dark:border-slate-800/50 
-                                         sticky top-0 z-[70] 
-                                         flex items-center justify-center gap-1.5
-                                         ${isDayToday ? 'bg-rose-50 dark:bg-rose-950/20 ring-1 ring-inset ring-rose-500/20' : 'bg-[#F4F7F9] dark:bg-[#1A1A1A]'}
-                                     `}>
-                                        <div className={`
-                                             text-base font-medium
-                                             ${isDayToday ? 'text-rose-700 dark:text-rose-300' : 'text-gray-500 dark:text-gray-400'}
-                                         `}>
+                                    <div className="h-[50px] border-b border-[var(--border-grid)] sticky top-0 z-[70] flex items-center justify-center gap-1.5 bg-white">
+                                        <div className={`flex items-center justify-center w-7 h-7 rounded-full text-sm font-semibold
+                                            ${isDayToday
+                                                ? 'bg-[var(--today-accent)] text-white'
+                                                : 'text-[var(--text-body)]'
+                                            }`}>
                                             {format(day, "d")}
                                         </div>
-                                        <span className={`text-sm font-medium ${isDayToday ? 'text-rose-400 dark:text-rose-500' : 'text-gray-400'}`}>-</span>
-                                        <span className={`text-sm font-medium ${isDayToday ? 'text-rose-600 dark:text-rose-400' : 'text-gray-500'}`}>{format(day, "EEE")}</span>
+                                        <span className="text-[10px] font-medium uppercase tracking-[0.5px] text-[var(--text-subtle)]">
+                                            {format(day, "EEE")}
+                                        </span>
                                     </div>
 
                                     {/* Grid Area */}
                                     <div className="relative" onMouseDown={(e) => handleGridMouseDown(e, day)}>
                                         {Array.from({ length: 24 }).map((_, i) => (
-                                            <div key={i} className="h-[60px] border-b border-dashed border-gray-200 dark:border-slate-800/50"></div>
+                                            <div key={i} className="h-[60px] border-b border-dashed border-[var(--border-grid)]"></div>
                                         ))}
 
                                         {/* Events */}
@@ -596,13 +594,14 @@ export default function WeekView({
                                                     }}
                                                     className={`
                                                     event-item group
-                                                    absolute px-2 py-1.5 cursor-pointer overflow-hidden
+                                                    absolute px-2 py-1 cursor-pointer overflow-hidden
                                                     ${isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'}
                                                     font-medium transition-all ${roundClass}
                                                 `}
                                                     style={{
                                                         ...style,
-                                                        borderLeft: `4px solid ${theme.border}`
+                                                        borderLeft: `4px solid ${theme.border}`,
+                                                        color: (event.shading ?? 0) >= 3 ? '#FFFFFF' : theme.text,
                                                     }}
                                                 >
                                                     {/* Header Actions */}

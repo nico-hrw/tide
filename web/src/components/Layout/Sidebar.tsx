@@ -1,8 +1,9 @@
 "use client";
 
-import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, DollarSign, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download } from "lucide-react";
+import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, DollarSign, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Calendar, X } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, Reorder } from "framer-motion";
+import { Tab } from '@/components/Layout/TabList';
 import SmartIsland from "../extensions/smart_island/SmartIsland";
 import MiniCalendar from "../Calendar/MiniCalendar";
 import { useHighlight } from "@/components/HighlightContext";
@@ -47,6 +48,14 @@ interface SidebarProps {
     enabledExtensions?: string[];
     onOpenSettings?: () => void;
     userProfile?: { id?: string; user_id?: string; username: string; email: string; bio?: string; title?: string; avatar_seed?: string; avatar_salt?: string };
+    openTabs?: Tab[];
+    activeTabId?: string;
+    onTabSelect?: (id: string, type: Tab['type']) => void;
+    onTabClose?: (e: React.MouseEvent, id: string) => void;
+    onTabsReorder?: (newTabs: Tab[]) => void;
+    onOpenCalendar?: () => void;
+    onOpenSocial?: () => void;
+    onOpenFinance?: () => void;
 }
 
 interface ChatUser {
@@ -79,7 +88,15 @@ export default function Sidebar({
     onUpdateEventGroup,
     enabledExtensions,
     onOpenSettings,
-    userProfile: propProfile
+    userProfile: propProfile,
+    openTabs,
+    activeTabId,
+    onTabSelect,
+    onTabClose,
+    onTabsReorder,
+    onOpenCalendar,
+    onOpenSocial,
+    onOpenFinance,
 }: SidebarProps) {
     const { highlight } = useHighlight();
     const { orderedNoteIds, setOrderedNoteIds, setSettingsModalOpen } = useDataStore();
@@ -293,12 +310,109 @@ export default function Sidebar({
                     </div>
                 </div>
 
+                {/* Navigation Icons */}
+                <div className="flex items-center gap-1 px-2 pb-2 border-b border-[var(--border-grid)]">
+                    <button
+                        onClick={onOpenCalendar}
+                        title="Kalender"
+                        className={`flex items-center justify-center w-8 h-8 rounded-[var(--radius)] interactive-hover transition-colors
+                            ${activeTabId === 'calendar'
+                                ? 'bg-[#EBEBEB] text-[#111111]'
+                                : 'hover:bg-[var(--hover-bg)] text-[var(--text-muted)]'}`}
+                    >
+                        <Calendar size={16} />
+                    </button>
+                    <button
+                        onClick={onOpenSocial}
+                        title="Social"
+                        className={`flex items-center justify-center w-8 h-8 rounded-[var(--radius)] interactive-hover transition-colors
+                            ${activeTabId === 'social'
+                                ? 'bg-[#EBEBEB] text-[#111111]'
+                                : 'hover:bg-[var(--hover-bg)] text-[var(--text-muted)]'}`}
+                    >
+                        <Users size={16} />
+                    </button>
+                    {enabledExtensions?.includes('finance') && (
+                        <button
+                            onClick={onOpenFinance}
+                            title="Finance"
+                            className={`flex items-center justify-center w-8 h-8 rounded-[var(--radius)] interactive-hover transition-colors
+                                ${activeTabId === 'ext_finance'
+                                    ? 'bg-[#EBEBEB] text-[#111111]'
+                                    : 'hover:bg-[var(--hover-bg)] text-[var(--text-muted)]'}`}
+                        >
+                            <DollarSign size={16} />
+                        </button>
+                    )}
+                </div>
+
+                {/* RECENT Section */}
+                <div className="px-2 py-2">
+                    <p className="text-[11px] font-medium uppercase tracking-[1px] text-[var(--text-subtle)] px-2 mb-1">
+                        Recent
+                    </p>
+                    {(!openTabs || openTabs.filter(t => ['file', 'chat', 'profile'].includes(t.type)).length === 0) ? (
+                        <p className="text-[12px] text-[var(--text-subtle)] px-2 py-1.5">Nichts geöffnet</p>
+                    ) : (
+                        <Reorder.Group
+                            axis="y"
+                            values={openTabs.filter(t => ['file', 'chat', 'profile'].includes(t.type))}
+                            onReorder={(newDocs) => {
+                                if (onTabsReorder) {
+                                    const systemTabs = (openTabs || []).filter(t => !['file', 'chat', 'profile'].includes(t.type));
+                                    onTabsReorder([...newDocs, ...systemTabs]);
+                                }
+                            }}
+                            className="flex flex-col gap-1 list-none m-0 p-0"
+                        >
+                            {openTabs
+                                .filter(t => ['file', 'chat', 'profile'].includes(t.type))
+                                .map(tab => {
+                                    const isActive = activeTabId === tab.id;
+                                    return (
+                                        <Reorder.Item key={tab.id} value={tab} className="list-none">
+                                            <div
+                                                onClick={() => onTabSelect?.(tab.id, tab.type)}
+                                                className={`group relative flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover
+                                                    ${isActive
+                                                        ? 'bg-[#EBEBEB] border-l-2 border-[#111111]'
+                                                        : 'hover:bg-[var(--hover-bg)]'}`}
+                                            >
+                                                <div className="shrink-0 text-[var(--text-muted)]">
+                                                    {tab.type === 'chat'
+                                                        ? <MessageSquare size={14} />
+                                                        : tab.type === 'profile'
+                                                            ? <User size={14} />
+                                                            : <FileText size={14} />}
+                                                </div>
+                                                <span className="text-[13px] text-[var(--text-body)] truncate flex-1 min-w-0">
+                                                    {tab.title && tab.title !== 'Untitled'
+                                                        ? tab.title
+                                                        : tab.type === 'chat' ? 'Chat' : tab.type === 'profile' ? 'Profile' : 'Untitled'}
+                                                </span>
+                                                {tab._saveStatus === 'unsaved' && (
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Ungespeichert" />
+                                                )}
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); onTabClose?.(e, tab.id); }}
+                                                    className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-black/10 text-[var(--text-muted)]"
+                                                >
+                                                    <X size={12} />
+                                                </button>
+                                            </div>
+                                        </Reorder.Item>
+                                    );
+                                })}
+                        </Reorder.Group>
+                    )}
+                </div>
+
                 <div className="space-y-0.5">
                     {sharedWithMeItems.length > 0 && (
                         <div className="mb-1">
                             <button
                                 onClick={() => setIsSharedFolderOpen(o => !o)}
-                                className="group flex items-center justify-between w-full p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                                className="group flex items-center justify-between w-full p-2 rounded-lg hover:bg-[var(--hover-bg)] interactive-hover transition-colors"
                             >
                                 <div className="flex items-center gap-2 truncate flex-1">
                                     {isSharedFolderOpen ? <FolderOpen size={15} className="text-violet-400" /> : <Folder size={15} className="text-violet-400" />}
@@ -686,7 +800,7 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
             }}
             className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200
                 ${isCalendarDropTarget ? 'ring-2 ring-violet-400 bg-violet-50 dark:bg-violet-900/20' : ''}
-                ${isHighlighted(file.id, 'file') ? 'bg-purple-50 dark:bg-purple-900/20' : 'hover:bg-gray-100 dark:hover:bg-white/5'}
+                ${isHighlighted(file.id, 'file') ? 'bg-purple-50 dark:bg-purple-900/20' : 'hover:bg-[var(--hover-bg)] interactive-hover'}
                 ${highlight.isSelectingLink ? 'bg-purple-50/30 dark:bg-purple-900/10' : ''}`}
             style={{
                 marginLeft: `${level * 12}px`,
@@ -782,7 +896,7 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                     if (id && id !== folder.id) onMoveItem?.(id, folder.id);
                 } : undefined}
                 onClick={handleToggle}
-                className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-gray-100 dark:hover:bg-white/5`}
+                className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-[var(--hover-bg)] interactive-hover`}
                 style={{ marginLeft: `${level * 12}px` }}
             >
                 <div className="flex items-center gap-2 truncate flex-1">

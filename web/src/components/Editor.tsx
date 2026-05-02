@@ -699,7 +699,8 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
             {editor && (
                 <BubbleMenu
                     editor={editor}
-                    className="flex bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 rounded-xl overflow-visible p-1 gap-1 items-center"
+                    className="flex bg-white dark:bg-gray-800 border border-[var(--border-ui)] rounded-[var(--radius)] overflow-visible p-1 gap-1 items-center"
+                    style={{ boxShadow: 'var(--shadow-float)' }}
                 >
                     <button
                         onClick={() => editor.chain().focus().toggleBold().run()}

@@ -2732,6 +2732,14 @@ export default function Dashboard() {
                     onCreateEventGroup={handleCreateEventGroup}
                     onUpdateEventGroup={handleUpdateEventGroup}
                     enabledExtensions={enabledExtensions}
+                    openTabs={openTabs}
+                    activeTabId={activeTabId}
+                    onTabSelect={handleTabSelect}
+                    onTabClose={handleTabClose}
+                    onTabsReorder={setOpenTabs}
+                    onOpenCalendar={() => handleTabSelect('calendar', 'calendar')}
+                    onOpenSocial={() => setActiveTabId('social')}
+                    onOpenFinance={() => handleFileSelect('ext_finance', 'Finance Tracker')}
                 />
             </div>
 
@@ -3136,21 +3144,6 @@ export default function Dashboard() {
                     )}
                 </div>
             )}
-
-            {/* Bottom Dock Navigation */}
-            <div className="hidden md:flex absolute bottom-6 left-1/2 -translate-x-1/2 z-[60] pointer-events-none flex-col items-center">
-                <TabList
-                    tabs={openTabs}
-                    activeTabId={activeTabId}
-                    onTabSelect={handleTabSelect}
-                    onTabClose={handleTabClose}
-                    onTabsReorder={setOpenTabs}
-                    enabledExtensions={enabledExtensions}
-                    onOpenMessages={handleOpenMessages}
-                    onOpenFinance={() => handleFileSelect('ext_finance', 'Finance Tracker')}
-                    onOpenSocial={() => setActiveTabId('social')}
-                />
-            </div>
 
             {/* Share Modal */}
             {shareModalFile && (
