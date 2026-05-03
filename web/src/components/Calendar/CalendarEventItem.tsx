@@ -283,11 +283,38 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
 
     const isHighlightedEvent = isHighlighted(event.id, 'event');
 
+    // Detect currently-running event (today, started, not yet ended)
+    const now = new Date();
+    const isLive = !event.allDay && !isCancelled && day
+        ? isSameDay(day, now) && start <= now && end >= now
+        : false;
+
+    // Brighten a hex color for the live gradient
+    const brightenHex = (hex: string, f: number) => {
+        const h = hex.replace('#', '');
+        if (h.length !== 6) return hex;
+        const r = Math.min(255, Math.round(parseInt(h.slice(0, 2), 16) + (255 - parseInt(h.slice(0, 2), 16)) * f));
+        const g = Math.min(255, Math.round(parseInt(h.slice(2, 4), 16) + (255 - parseInt(h.slice(2, 4), 16)) * f));
+        const b = Math.min(255, Math.round(parseInt(h.slice(4, 6), 16) + (255 - parseInt(h.slice(4, 6), 16)) * f));
+        return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    };
+
+    const liveColor = isLive && theme.bg.startsWith('#')
+        ? { base: theme.bg, bright: brightenHex(theme.bg, 0.35) }
+        : null;
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            style={{ ...style, ...borderRadiusStyle, borderLeft: `4px solid ${theme.border}` }}
+            style={{
+                ...style, ...borderRadiusStyle,
+                borderLeft: `4px solid ${theme.border}`,
+                ...(isLive && liveColor ? {
+                    background: `linear-gradient(145deg, ${liveColor.base} 0%, ${liveColor.bright} 100%)`,
+                    boxShadow: `0 0 0 2px ${liveColor.base}40, 0 4px 16px ${liveColor.base}50`,
+                } : {}),
+            }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
             key={event.id}
             draggable={false}
@@ -334,6 +361,22 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 }
             }}
         >
+            {/* Live-event rotating ring */}
+            {isLive && (
+                <div className="absolute pointer-events-none" style={{ inset: '-3px', borderRadius: 'inherit', zIndex: -1, overflow: 'hidden' }}>
+                    <div
+                        className="absolute event-live-spin"
+                        style={{
+                            inset: 0,
+                            background: liveColor
+                                ? `conic-gradient(from 0deg, transparent 0%, ${liveColor.bright} 30%, ${liveColor.base} 50%, transparent 70%)`
+                                : 'conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.8) 40%, transparent 70%)',
+                        }}
+                    />
+                    <div className="absolute inset-[2px]" style={{ borderRadius: 'calc(inherit - 2px)', background: liveColor?.base || theme.bg }} />
+                </div>
+            )}
+
             {/* Effect Overlay Layer */}
             {!isActiveParent && effectClass && (
                 <div className={`absolute inset-0 pointer-events-none ${effectClass}`} style={{ mixBlendMode: 'overlay' }} />

@@ -438,7 +438,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             {/* All-Day Events Area */}
             {allDayEvents.length > 0 && (
                 <div className="sticky top-[50px] z-[65] w-full h-0 pointer-events-auto">
-                    <div className="absolute top-0 left-0 right-0 w-[150px] md:w-[200px] bg-white dark:bg-black p-1 flex flex-col gap-1 backdrop-blur-sm border-b border-gray-200 dark:border-slate-800">
+                    <div className="absolute top-0 left-0 right-0 w-[150px] md:w-[200px] bg-white/75 dark:bg-black/70 backdrop-blur-md p-1 flex flex-col gap-1 border-b border-gray-200/60 dark:border-slate-800/60 rounded-b-xl">
                         {allDayEvents.map(event => {
                             const theme = getEventTheme(event);
                             const isHighlightedEvent = isHighlighted(event.id, 'event');

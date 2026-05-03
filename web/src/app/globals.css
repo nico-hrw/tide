@@ -291,6 +291,17 @@ body {
   z-index: 9999 !important;
 }
 
+/* ─── Live Event Ring Animation ──────────────────────────────────────────── */
+@keyframes tide-live-spin {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.event-live-spin {
+    animation: tide-live-spin 2.8s linear infinite;
+    transform-origin: center center;
+}
+
 /* ─── Liquid Glass Effect ─────────────────────────────────────────────────── */
 .liquidGlass-wrapper {
   position: relative;
