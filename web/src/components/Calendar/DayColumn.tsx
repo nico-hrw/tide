@@ -347,7 +347,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                  h-[50px] border-b border-gray-100 dark:border-slate-800/50
                  sticky top-0 z-[80]
                  flex items-center justify-center gap-2 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors
-                 bg-[#F4F7F9] dark:bg-[#1A1A1A]
+                 bg-white dark:bg-[#0F172A]
              `}
                 onClick={() => {
                     if (readOnly) return;
@@ -416,10 +416,10 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 }}
                 title="Click to add all-day event"
             >
-                <span className={`text-sm font-bold leading-none ${isToday ? 'text-red-500' : 'text-gray-900 dark:text-gray-100'}`}>
+                <span className={`text-[22px] leading-none ${isToday ? 'text-red-500 font-black' : 'text-gray-900 dark:text-gray-100 font-bold'}`}>
                     {format(day, "d")}
                 </span>
-                <span className={`text-[11px] uppercase tracking-wider font-semibold ${isToday ? 'text-red-500' : 'text-gray-400 dark:text-gray-500'}`}>
+                <span className={`text-[13px] uppercase tracking-wide ${isToday ? 'text-red-500 font-bold' : 'text-gray-400 dark:text-gray-500 font-semibold'}`}>
                     {format(day, "EEE")}
                 </span>
             </div>

@@ -2,7 +2,7 @@
 
 import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, DollarSign, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Calendar, X } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
-import { motion, Reorder } from "framer-motion";
+import { motion, Reorder, AnimatePresence, LayoutGroup } from "framer-motion";
 import { Tab } from '@/components/Layout/TabList';
 import SmartIsland from "../extensions/smart_island/SmartIsland";
 import MiniCalendar from "../Calendar/MiniCalendar";
@@ -350,12 +350,21 @@ export default function Sidebar({
                             }}
                             className="flex flex-col gap-1 list-none m-0 p-0"
                         >
+                            <AnimatePresence initial={false}>
                             {openTabs
                                 .filter(t => ['file', 'chat', 'profile'].includes(t.type))
                                 .map(tab => {
                                     const isActive = activeTabId === tab.id;
                                     return (
-                                        <Reorder.Item key={tab.id} value={tab} className="list-none">
+                                        <Reorder.Item
+                                            key={tab.id}
+                                            value={tab}
+                                            className="list-none"
+                                            initial={{ opacity: 0, y: -6 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -6, transition: { duration: 0.15 } }}
+                                            transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+                                        >
                                             <div
                                                 onClick={() => onTabSelect?.(tab.id, tab.type)}
                                                 className={`group relative flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover
@@ -388,6 +397,7 @@ export default function Sidebar({
                                         </Reorder.Item>
                                     );
                                 })}
+                            </AnimatePresence>
                         </Reorder.Group>
                     )}
                 </div>
@@ -395,8 +405,8 @@ export default function Sidebar({
 
             {/* Scrollable notes section */}
             <div
-                className="flex-1 overflow-y-auto px-2 no-scrollbar"
-                style={{ paddingBottom: '230px' }}
+                className="min-h-0 overflow-y-auto px-2 no-scrollbar"
+                style={{ flex: '1 1 0', paddingBottom: '8px' }}
                 onDoubleClick={(e) => {
                     if (e.target === e.currentTarget) onNewNote();
                 }}
@@ -410,10 +420,15 @@ export default function Sidebar({
                     setDropIndicator(null);
                 }}
             >
+                <LayoutGroup>
                 {/* Notes section label */}
-                <p className="text-[11px] font-medium uppercase tracking-[1px] text-[var(--text-subtle)] px-2 mb-1 mt-2">
+                <motion.p
+                    layout="position"
+                    transition={{ type: 'spring', stiffness: 400, damping: 35, mass: 0.6 }}
+                    className="text-[11px] font-medium uppercase tracking-[1px] text-[var(--text-subtle)] px-2 mb-1 mt-2"
+                >
                     Notes
-                </p>
+                </motion.p>
 
                 <div className="space-y-0.5">
                     {sharedWithMeItems.length > 0 && (
@@ -460,6 +475,7 @@ export default function Sidebar({
                         <motion.div
                             layout="position"
                             key={item.id}
+                            transition={{ type: 'spring', stiffness: 400, damping: 35, mass: 0.6 }}
                             onDragOver={(e: React.DragEvent) => {
                                 if (e.dataTransfer.types.includes('tide/calendar-event')) {
                                     return; // Let FileItem handle calendar drops!
@@ -568,7 +584,11 @@ export default function Sidebar({
                         </motion.div>
                     ))}
                 </div>
+                </LayoutGroup>
             </div>
+
+            {/* Bottom spacer — reserves height for the absolutely-positioned Smart Island */}
+            <div className="flex-shrink-0 h-[220px]" />
 
             {/* Smart Island — absolutely positioned to bottom-left with equal margins */}
             <div className="absolute bottom-6 left-6 z-[100]">

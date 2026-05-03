@@ -252,15 +252,44 @@ function AuthContent() {
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh',
             gap: '2rem', position: 'relative', overflow: 'hidden'
         }}>
-            {/* Mouse-tracking gradient background */}
+            {/* Tide wave gradient background */}
+            <style>{`
+                @keyframes tide-wave-1 {
+                    0%, 100% { transform: translateX(-8%) translateY(4%); }
+                    50% { transform: translateX(8%) translateY(-4%); }
+                }
+                @keyframes tide-wave-2 {
+                    0%, 100% { transform: translateX(6%) translateY(-6%); }
+                    50% { transform: translateX(-6%) translateY(6%); }
+                }
+                @keyframes tide-wave-3 {
+                    0%, 100% { transform: translateX(-4%) translateY(8%); }
+                    50% { transform: translateX(4%) translateY(-8%); }
+                }
+            `}</style>
+            {/* Subtle cursor-following accent */}
             <div style={{
                 position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
-                background: `radial-gradient(700px circle at ${mousePos.x}px ${mousePos.y}px, rgba(99,102,241,0.10) 0%, rgba(168,85,247,0.06) 35%, transparent 65%)`,
-                transition: 'background 0.15s ease',
+                background: `radial-gradient(900px circle at ${mousePos.x}px ${mousePos.y}px, rgba(56,189,248,0.04) 0%, transparent 60%)`,
+                transition: 'background 0.4s ease',
             }} />
+            {/* Wave layer 1 - deep ocean */}
             <div style={{
-                position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
-                background: 'radial-gradient(ellipse at 20% 80%, rgba(59,130,246,0.06) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(168,85,247,0.05) 0%, transparent 50%)',
+                position: 'fixed', inset: '-20%', zIndex: 0, pointerEvents: 'none',
+                background: 'radial-gradient(ellipse 80% 40% at 30% 70%, rgba(14,165,233,0.06) 0%, transparent 70%)',
+                animation: 'tide-wave-1 12s ease-in-out infinite',
+            }} />
+            {/* Wave layer 2 - seafoam */}
+            <div style={{
+                position: 'fixed', inset: '-20%', zIndex: 0, pointerEvents: 'none',
+                background: 'radial-gradient(ellipse 70% 35% at 70% 35%, rgba(6,182,212,0.05) 0%, transparent 70%)',
+                animation: 'tide-wave-2 16s ease-in-out infinite',
+            }} />
+            {/* Wave layer 3 - horizon */}
+            <div style={{
+                position: 'fixed', inset: '-20%', zIndex: 0, pointerEvents: 'none',
+                background: 'radial-gradient(ellipse 60% 45% at 50% 85%, rgba(99,102,241,0.04) 0%, transparent 70%)',
+                animation: 'tide-wave-3 20s ease-in-out infinite',
             }} />
             <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', width: '100%' }}>
             <div style={{ textAlign: 'center' }}>
