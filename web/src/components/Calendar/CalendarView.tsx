@@ -1181,12 +1181,7 @@ export default function CalendarView({
 
             <div
                 className="h-full flex flex-col bg-transparent select-none relative z-0"
-                style={{
-                    maskImage: 'linear-gradient(to right, transparent, black 3%, black 97%, transparent), linear-gradient(to bottom, transparent, black 3%, black 97%, transparent)',
-                    maskComposite: 'intersect',
-                    WebkitMaskImage: 'linear-gradient(to right, transparent, black 3%, black 97%, transparent), linear-gradient(to bottom, transparent, black 3%, black 97%, transparent)',
-                    WebkitMaskComposite: 'source-in'
-                }}
+                style={{}}
             >
                 {/* Toolbar — position:relative + zIndex:500 creates a stacking context above
                     all sticky calendar elements (time col z-[160], day headers z-[150]). */}
@@ -1358,12 +1353,14 @@ export default function CalendarView({
                             />
                         )}
 
-                        {/* End-of-calendar hatching strip */}
+                        {/* End-of-calendar hatching strip — explicitly at 24:00 (50px header + 24×60px) */}
                         <div
-                            className="absolute bottom-0 left-0 right-0 h-[40px] pointer-events-none"
+                            className="absolute left-0 right-0 pointer-events-none"
                             style={{
-                                backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.035) 4px, rgba(0,0,0,0.035) 8px)',
-                                borderTop: '1px solid rgba(0,0,0,0.06)',
+                                top: '1490px',
+                                height: '40px',
+                                backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(0,0,0,0.04) 5px, rgba(0,0,0,0.04) 10px)',
+                                borderTop: '1px solid rgba(0,0,0,0.08)',
                             }}
                         />
                     </div >
@@ -1482,7 +1479,7 @@ export default function CalendarView({
                 return (
                     <div className={`pointer-events-none ${anchor.pos}`} style={{ zIndex: 490 }}>
                         <div className="pointer-events-auto relative">
-                            <div className="flex items-center gap-3 bg-white/92 dark:bg-slate-900/92 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-white/10 px-5 py-3 shadow-xl w-96">
+                            <div className="flex items-center gap-3 bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-white/10 px-5 py-3 shadow-xl w-96">
                                 <Search size={16} className="text-gray-400 flex-shrink-0" />
                                 <input
                                     type="text"

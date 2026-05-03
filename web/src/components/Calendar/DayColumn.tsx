@@ -416,13 +416,24 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 }}
                 title="Click to add all-day event"
             >
-                <span className={`text-[22px] leading-none ${isToday ? 'text-red-500 font-black' : 'text-gray-900 dark:text-gray-100 font-bold'}`}>
+                <span className={`text-[24px] leading-none self-center ${isToday ? 'text-red-500 font-black' : 'text-gray-900 dark:text-gray-100 font-bold'}`}>
                     {format(day, "d")}
                 </span>
-                <span className={`text-[13px] uppercase tracking-wide ${isToday ? 'text-red-500 font-bold' : 'text-gray-400 dark:text-gray-500 font-semibold'}`}>
+                <span className={`text-[13px] leading-none self-center uppercase tracking-wide ${isToday ? 'text-red-500 font-bold' : 'text-gray-400 dark:text-gray-500 font-semibold'}`}>
                     {format(day, "EEE")}
                 </span>
             </div>
+
+            {/* Today column — subtle red hatching overlay */}
+            {isToday && (
+                <div
+                    className="absolute inset-0 pointer-events-none z-[1]"
+                    style={{
+                        top: '50px',
+                        backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 14px, rgba(239,68,68,0.03) 14px, rgba(239,68,68,0.03) 28px)',
+                    }}
+                />
+            )}
 
             {/* All-Day Events Area */}
             {allDayEvents.length > 0 && (

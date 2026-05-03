@@ -369,7 +369,7 @@ export default function Sidebar({
                                                 onClick={() => onTabSelect?.(tab.id, tab.type)}
                                                 className={`group relative flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover
                                                     ${isActive
-                                                        ? 'bg-[#EBEBEB] border-l-2 border-[#111111]'
+                                                        ? 'bg-[#EBEBEB] dark:bg-white/10'
                                                         : 'hover:bg-[var(--hover-bg)]'}`}
                                             >
                                                 <div className="shrink-0 text-[var(--text-muted)]">
@@ -403,10 +403,10 @@ export default function Sidebar({
                 </div>
             </div>{/* end sticky top section */}
 
-            {/* Scrollable notes section */}
+            {/* Scrollable notes section — max ~45 vh to not overlap Smart Island */}
             <div
-                className="min-h-0 overflow-y-auto px-2 no-scrollbar"
-                style={{ flex: '1 1 0', paddingBottom: '8px' }}
+                className="overflow-y-auto px-2 no-scrollbar"
+                style={{ flex: '1 1 0', minHeight: 0, maxHeight: 'calc(100vh - 430px)', paddingBottom: '8px' }}
                 onDoubleClick={(e) => {
                     if (e.target === e.currentTarget) onNewNote();
                 }}
@@ -420,15 +420,10 @@ export default function Sidebar({
                     setDropIndicator(null);
                 }}
             >
-                <LayoutGroup>
                 {/* Notes section label */}
-                <motion.p
-                    layout="position"
-                    transition={{ type: 'spring', stiffness: 400, damping: 35, mass: 0.6 }}
-                    className="text-[11px] font-medium uppercase tracking-[1px] text-[var(--text-subtle)] px-2 mb-1 mt-2"
-                >
+                <p className="text-[11px] font-medium uppercase tracking-[1px] text-[var(--text-subtle)] px-2 mb-1 mt-2">
                     Notes
-                </motion.p>
+                </p>
 
                 <div className="space-y-0.5">
                     {sharedWithMeItems.length > 0 && (
@@ -473,9 +468,9 @@ export default function Sidebar({
                     )}
                     {orderedItems.map((item, i) => (
                         <motion.div
-                            layout="position"
+                            layout
                             key={item.id}
-                            transition={{ type: 'spring', stiffness: 400, damping: 35, mass: 0.6 }}
+                            transition={{ layout: { type: 'spring', stiffness: 350, damping: 40, mass: 0.8 } }}
                             onDragOver={(e: React.DragEvent) => {
                                 if (e.dataTransfer.types.includes('tide/calendar-event')) {
                                     return; // Let FileItem handle calendar drops!
@@ -584,7 +579,6 @@ export default function Sidebar({
                         </motion.div>
                     ))}
                 </div>
-                </LayoutGroup>
             </div>
 
             {/* Bottom spacer — reserves height for the absolutely-positioned Smart Island */}
@@ -774,10 +768,10 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
         <motion.div
             ref={tileRef}
             data-note-tile={file.id}
-            layout="position"
-            initial={{ opacity: 0, x: -10 }}
+            layout
+            initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: (index || 0) * 0.05 }}
+            transition={{ type: 'spring', stiffness: 350, damping: 40, mass: 0.8, delay: (index || 0) * 0.03 }}
             draggable
             onDragStart={(e: any) => onDragStart(e, file.id)}
             onContextMenu={(e: any) => onContextMenu(e, file.id, 'file')}
@@ -909,10 +903,10 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
     return (
         <div>
             <motion.div
-                layout="position"
-                initial={{ opacity: 0, x: -10 }}
+                layout
+                initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: (index || 0) * 0.05 }}
+                transition={{ type: 'spring', stiffness: 350, damping: 40, mass: 0.8, delay: (index || 0) * 0.03 }}
                 draggable
                 onDragStart={(e: any) => onDragStart(e, folder.id)}
                 onContextMenu={(e: any) => onContextMenu(e, folder.id, 'folder')}
