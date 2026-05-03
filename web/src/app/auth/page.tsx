@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense, useEffect } from "react";
+import { useState, Suspense, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import * as cryptoLib from "@/lib/crypto";
 import { apiFetch } from "@/lib/api";
@@ -10,6 +10,15 @@ const DEV_PHASE_SECRET = "DEV_PHASE_SECRET_FIXED_KEY_123";
 
 function AuthContent() {
     const router = useRouter();
+    const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            setMousePos({ x: e.clientX, y: e.clientY });
+        };
+        window.addEventListener('mousemove', handleMouseMove);
+        return () => window.removeEventListener('mousemove', handleMouseMove);
+    }, []);
 
     // State
     const [step, setStep] = useState<"identifier" | "pin" | "code" | "details">("identifier");
@@ -241,8 +250,19 @@ function AuthContent() {
     return (
         <div style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh',
-            gap: '2rem'
+            gap: '2rem', position: 'relative', overflow: 'hidden'
         }}>
+            {/* Mouse-tracking gradient background */}
+            <div style={{
+                position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
+                background: `radial-gradient(700px circle at ${mousePos.x}px ${mousePos.y}px, rgba(99,102,241,0.10) 0%, rgba(168,85,247,0.06) 35%, transparent 65%)`,
+                transition: 'background 0.15s ease',
+            }} />
+            <div style={{
+                position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
+                background: 'radial-gradient(ellipse at 20% 80%, rgba(59,130,246,0.06) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(168,85,247,0.05) 0%, transparent 50%)',
+            }} />
+            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', width: '100%' }}>
             <div style={{ textAlign: 'center' }}>
                 <h1>Welcome to Tide</h1>
                 <p style={{ color: 'gray' }}>Minimalist. Local-First. Encrypted.</p>
@@ -375,6 +395,7 @@ function AuthContent() {
                     </button>
                 </form>
             )}
+            </div>
         </div>
     );
 }

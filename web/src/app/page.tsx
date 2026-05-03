@@ -2599,7 +2599,15 @@ export default function Dashboard() {
         setActiveTabId(newTab.id);
     };
 
-    if (status === "loading") return <div className="flex items-center justify-center h-screen bg-rose-50 dark:bg-gray-900 text-rose-500">Loading Tide...</div>;
+    if (status === "loading") return (
+        <div className="flex flex-col items-center justify-center h-screen bg-white dark:bg-[#0F172A] gap-4">
+            <div className="relative w-8 h-8">
+                <div className="absolute inset-0 rounded-full border-2 border-gray-100 dark:border-white/10" />
+                <div className="absolute inset-0 rounded-full border-2 border-t-gray-800 dark:border-t-white/60 animate-spin" />
+            </div>
+            <span className="text-[11px] font-semibold text-gray-300 dark:text-white/20 tracking-[0.3em] uppercase">tide</span>
+        </div>
+    );
 
     // -------------------------------------------------------------------------
     // Render
@@ -2860,6 +2868,7 @@ export default function Dashboard() {
                         themes={files?.filter(f => f.type === 'folder' && f.isGroup).map(g => ({ id: g.id, title: g.title, effect: g.effect, color: (g as any).color }))}
                         onCreateEventGroup={handleCreateEventGroup}
                         onScheduleApply={handleScheduleApply}
+                        onOpenScheduleThemes={() => setIsThemeMenuOpen(v => !v)}
                     />
                 </div>
 
@@ -3091,57 +3100,49 @@ export default function Dashboard() {
                         </div>
                     )}
                 </div>
-            </div>            {/* FAB Theme Menu */}
-            {activeTabId === 'calendar' && (
-                <div className="hidden md:block fixed bottom-6 right-6 z-[80]">
-                    <button
-                        onClick={() => setIsThemeMenuOpen(!isThemeMenuOpen)}
-                        className={`w-12 h-12 rounded-full bg-white shadow-xl border border-gray-100 flex items-center justify-center transition-all focus:outline-none ${isThemeMenuOpen ? 'rotate-45 text-rose-500 scale-110' : 'text-gray-900 hover:scale-110'}`}
-                        title="Manage Themes"
-                    >
-                        {isThemeMenuOpen ? (
-                            <Plus size={24} />
-                        ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
-                        )}
-                    </button>
-
-                    {isThemeMenuOpen && (
-                        <div className="absolute bottom-16 right-0 w-72 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl shadow-indigo-200/40 border border-gray-100 p-4 animate-in slide-in-from-bottom-2 fade-in duration-300">
-                            <div className="flex items-center justify-between mb-4 px-1">
-                                <span className="font-semibold text-gray-900 text-sm tracking-tight">Schedule Themes</span>
-                                <button
-                                    onClick={() => handleCreateEventGroup()}
-                                    className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all"
-                                    title="New Theme"
-                                >
-                                    <Plus size={16} strokeWidth={3} />
-                                </button>
-                            </div>
-                            <div className="flex flex-col gap-3 max-h-80 overflow-y-auto no-scrollbar pr-1">
-                                {files.filter(f => f.type === 'folder' && f.isGroup).map(group => (
-                                    <ThemeItem
-                                        key={group.id}
-                                        group={group}
-                                        hiddenThemeIds={hiddenThemeIds}
-                                        onToggleVisibility={handleToggleThemeVisibility}
-                                        onUpdate={handleUpdateEventGroup}
-                                        onShare={handleShare}
-                                        onDelete={(e: any, id: string, title: string) => {
-                                            if (confirm(`Delete theme "${title}"? This won't delete events in it.`)) {
-                                                handleDeleteNote(e, id);
-                                            }
-                                        }}
-                                    />
-                                ))}
-                                {files.filter(f => f.type === 'folder' && f.isGroup).length === 0 && (
-                                    <div className="text-xs text-gray-400 text-center py-6 leading-relaxed">
-                                        No themes defined.<br />Create one to group subjects!
-                                    </div>
-                                )}
-                            </div>
+            </div>            {/* Theme Menu Dropdown — appears from top-right near toolbar when triggered from CalendarView */}
+            {activeTabId === 'calendar' && isThemeMenuOpen && (
+                <div className="hidden md:block fixed top-16 right-6 z-[500] w-72 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-100 p-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="flex items-center justify-between mb-4 px-1">
+                        <span className="font-semibold text-gray-900 text-sm tracking-tight">Schedule Themes</span>
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => handleCreateEventGroup()}
+                                className="p-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg transition-all"
+                                title="New Theme"
+                            >
+                                <Plus size={16} strokeWidth={2.5} />
+                            </button>
+                            <button
+                                onClick={() => setIsThemeMenuOpen(false)}
+                                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
                         </div>
-                    )}
+                    </div>
+                    <div className="flex flex-col gap-3 max-h-80 overflow-y-auto no-scrollbar pr-1">
+                        {files.filter(f => f.type === 'folder' && f.isGroup).map(group => (
+                            <ThemeItem
+                                key={group.id}
+                                group={group}
+                                hiddenThemeIds={hiddenThemeIds}
+                                onToggleVisibility={handleToggleThemeVisibility}
+                                onUpdate={handleUpdateEventGroup}
+                                onShare={handleShare}
+                                onDelete={(e: any, id: string, title: string) => {
+                                    if (confirm(`Delete theme "${title}"? This won't delete events in it.`)) {
+                                        handleDeleteNote(e, id);
+                                    }
+                                }}
+                            />
+                        ))}
+                        {files.filter(f => f.type === 'folder' && f.isGroup).length === 0 && (
+                            <div className="text-xs text-gray-400 text-center py-6 leading-relaxed">
+                                No themes defined.<br />Create one to group subjects!
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 

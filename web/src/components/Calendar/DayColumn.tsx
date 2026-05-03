@@ -331,7 +331,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     return (
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
-            className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-gray-300 dark:border-slate-700 relative ${isToday ? 'bg-gray-100 dark:bg-white/[0.03]' : 'bg-transparent'}`}
+            className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-gray-300 dark:border-slate-700 relative bg-transparent`}
             onMouseMove={(e) => {
                 physicalMouseRef.current = { x: e.clientX, y: e.clientY };
                 gearedMouseRef.current = { x: e.clientX, y: e.clientY };
@@ -345,9 +345,9 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             <div
                 className={`
                  h-[50px] border-b border-gray-100 dark:border-slate-800/50
-                 sticky top-0 z-[80] 
-                 flex flex-col items-center justify-center gap-0.5 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors
-                 ${isToday ? 'glass-red-glow-effect' : 'bg-[#F4F7F9] dark:bg-[#1A1A1A]'}
+                 sticky top-0 z-[80]
+                 flex items-center justify-center gap-2 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors
+                 bg-[#F4F7F9] dark:bg-[#1A1A1A]
              `}
                 onClick={() => {
                     if (readOnly) return;
@@ -416,13 +416,12 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 }}
                 title="Click to add all-day event"
             >
-                <div className={`
-                     text-base font-bold leading-tight
-                     ${isToday ? 'text-white' : 'text-gray-900 dark:text-gray-100'}
-                 `}>
+                <span className={`text-sm font-bold leading-none ${isToday ? 'text-red-500' : 'text-gray-900 dark:text-gray-100'}`}>
                     {format(day, "d")}
-                </div>
-                <span className={`text-[10px] uppercase tracking-wider font-semibold ${isToday ? 'text-white/80' : 'text-gray-500'}`}>{format(day, "EEEE")}</span>
+                </span>
+                <span className={`text-[11px] uppercase tracking-wider font-semibold ${isToday ? 'text-red-500' : 'text-gray-400 dark:text-gray-500'}`}>
+                    {format(day, "EEE")}
+                </span>
             </div>
 
             {/* All-Day Events Area */}

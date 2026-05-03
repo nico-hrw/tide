@@ -30,16 +30,26 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
     const weekDays = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
 
     return (
-        <div className="p-5 bg-transparent select-none">
+        <div
+            className="p-5 bg-transparent select-none cursor-pointer"
+            onClick={() => onSelect?.(new Date())}
+            title="Go to today"
+        >
             <div className="flex items-center justify-between mb-4">
                 <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                     {format(displayDate, "MMMM yyyy")}
                 </span>
                 <div className="flex gap-1">
-                    <button onClick={prevMonth} className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); prevMonth(); }}
+                        className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
+                    >
                         <ChevronLeft size={14} className="text-gray-500" />
                     </button>
-                    <button onClick={nextMonth} className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors">
+                    <button
+                        onClick={(e) => { e.stopPropagation(); nextMonth(); }}
+                        className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
+                    >
                         <ChevronRight size={14} className="text-gray-500" />
                     </button>
                 </div>
@@ -78,7 +88,7 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
                     return (
                         <div
                             key={day.toISOString()}
-                            onClick={() => onSelect && onSelect(day)}
+                            onClick={(e) => { e.stopPropagation(); onSelect?.(day); }}
                             className={className}
                         >
                             {format(day, dateFormat)}

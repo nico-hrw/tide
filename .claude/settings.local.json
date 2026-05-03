@@ -9,7 +9,10 @@
       "Bash(npx --prefix /c/Users/nicoh/Documents/tide/web tsc --noEmit -p /c/Users/nicoh/Documents/tide/web/tsconfig.json)",
       "Bash(/c/Users/nicoh/Documents/tide/web/node_modules/.bin/tsc --noEmit -p /c/Users/nicoh/Documents/tide/web/tsconfig.json)",
       "Bash(ls -d .worktrees)",
-      "Bash(ls -d worktrees)"
+      "Bash(ls -d worktrees)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\" -Force)",
+      "Bash(Select-Object Name, Mode)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\" -Force | Select-Object Name, @{Name='Type'; Expression={if\\($_.PSIsContainer\\) { 'DIR' } else { 'FILE' }}})"
     ]
   }
 }

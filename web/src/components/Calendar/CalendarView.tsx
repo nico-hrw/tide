@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMe
 import DayColumn from "@/components/Calendar/DayColumn";
 import "@/app/calendar/calendar.css";
 import { format, addDays, subDays, startOfWeek, addWeeks, subWeeks, isSameDay, getMinutes, getHours, startOfDay } from "date-fns";
-import { ChevronLeft, ChevronRight, ListPlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, ListPlus, Palette } from "lucide-react";
 import { loadSearchIndex, SearchIndexEntry } from "@/lib/searchIndex";
 import Fuse from "fuse.js";
 import { Search } from "lucide-react";
@@ -51,6 +51,7 @@ interface CalendarViewProps {
     onScheduleApply?: (events: ScheduleEventData[], theme: string, options?: { color?: string, effect?: string }) => Promise<void>;
     onCreateEventGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
     enabledExtensions?: string[];
+    onOpenScheduleThemes?: () => void;
 }
 
 const getEventTheme = (evt: CalendarEvent) => {
@@ -85,7 +86,8 @@ export default function CalendarView({
     themes = [],
     onScheduleApply,
     onCreateEventGroup,
-    enabledExtensions = []
+    enabledExtensions = [],
+    onOpenScheduleThemes,
 }: CalendarViewProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [selectedThemes, setSelectedThemes] = useState<Set<string>>(new Set());
@@ -104,6 +106,7 @@ export default function CalendarView({
     const [searchResults, setSearchResults] = useState<SearchIndexEntry[]>([]);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [searchIndexData, setSearchIndexData] = useState<SearchIndexEntry[] | null>(null);
+    const [todayButtonDir, setTodayButtonDir] = useState<'hidden' | 'left' | 'right'>('hidden');
 
     // Initial search index load wrapper
     const handleSearchClick = async () => {
@@ -136,6 +139,25 @@ export default function CalendarView({
         setSearchResults(results);
     }, [searchQuery, searchIndexData]);
 
+
+    // Track today column visibility → show directional Today button when off-screen
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+        const check = () => {
+            const todayIso = format(new Date(), "yyyy-MM-dd");
+            const todayCol = container.querySelector(`[data-day-col="${todayIso}"]`);
+            if (!todayCol) { setTodayButtonDir('hidden'); return; }
+            const colRect = todayCol.getBoundingClientRect();
+            const cRect = container.getBoundingClientRect();
+            if (colRect.right < cRect.left + 80) setTodayButtonDir('left');
+            else if (colRect.left > cRect.right - 80) setTodayButtonDir('right');
+            else setTodayButtonDir('hidden');
+        };
+        container.addEventListener('scroll', check, { passive: true });
+        const t = setTimeout(check, 300);
+        return () => { container.removeEventListener('scroll', check); clearTimeout(t); };
+    }, [loadedWeeks]);
 
     const isPrependingRef = useRef(false);
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
@@ -1167,58 +1189,28 @@ export default function CalendarView({
                 {/* Toolbar — position:relative + zIndex:500 creates a stacking context above
                     all sticky calendar elements (time col z-[160], day headers z-[150]). */}
                 <div className="flex items-center justify-between px-4 py-3 bg-transparent" style={{ position: 'relative', zIndex: 500 }}>
-                    <h2 className="text-lg font-bold text-gray-800 dark:text-gray-100 capitalize">
+                    <h2 className="text-xl font-black text-gray-900 dark:text-gray-100 uppercase tracking-widest">
                         {format(date, "MMMM yyyy")}
                     </h2>
                     <div className="flex items-center gap-2">
-                        <div className="relative">
-                            <div className="flex items-center bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10 px-3 overflow-hidden">
-                                <Search size={14} className="text-gray-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search..."
-                                    onClick={handleSearchClick}
-                                    value={searchQuery}
-                                    onChange={e => setSearchQuery(e.target.value)}
-                                    className="px-2 py-2 w-32 md:w-48 bg-transparent text-sm font-medium outline-none text-gray-700 dark:text-gray-200"
-                                />
-                            </div>
-                            {isSearchOpen && searchResults.length > 0 && (
-                                // [FIX-2] zIndex:9999 inline — floats above all sticky elements
-                                // regardless of the surrounding stacking context.
-                                <div className="absolute top-full mt-2 w-full bg-white dark:bg-black rounded-lg shadow-lg border border-gray-100 dark:border-white/10 p-2 max-h-60 overflow-auto" style={{ zIndex: 9999 }}>
-                                    {searchResults.map(res => (
-                                        <div
-                                            key={res.id}
-                                            className="p-2 hover:bg-gray-50 dark:hover:bg-white/5 rounded-md cursor-pointer text-sm"
-                                            onClick={() => {
-                                                setIsSearchOpen(false);
-                                                window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id: res.id, start: res.date } }));
-                                            }}
-                                        >
-                                            <div className="font-bold text-gray-800 dark:text-gray-200">{res.title}</div>
-                                            <div className="text-[10px] text-gray-500">{new Date(res.date).toLocaleDateString()}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                        <button
-                            onClick={() => {
-                                onDateChange(new Date());
-                            }}
-                            className="px-4 py-2 bg-white dark:bg-black border border-gray-200 dark:border-slate-800 rounded-xl text-sm font-medium hover:bg-gray-50 dark:hover:bg-slate-900 transition-colors shadow-sm"
-                        >
-                            Today
-                        </button>
                         <button
                             onClick={() => setIsScheduleModalOpen(true)}
-                            className="hidden md:flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                            className="hidden md:flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-white/15 transition-colors"
                             title="Bulk Schedule Events"
                         >
                             <ListPlus size={16} />
                             <span>Schedule</span>
                         </button>
+                        {onOpenScheduleThemes && (
+                            <button
+                                onClick={onOpenScheduleThemes}
+                                className="hidden md:flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-white/15 transition-colors"
+                                title="Schedule Themes"
+                            >
+                                <Palette size={16} />
+                                <span>Themes</span>
+                            </button>
+                        )}
                     </div>
                 </div >
 
@@ -1464,6 +1456,65 @@ export default function CalendarView({
                     onApply={onScheduleApply || (async () => { })}
                     existingThemes={themes}
                 />
+            )}
+
+            {/* Floating Search Bar — bottom center, outside the mask */}
+            <div className="pointer-events-none absolute inset-0 flex items-end justify-center pb-5" style={{ zIndex: 490 }}>
+                <div className="pointer-events-auto relative">
+                    <div className="flex items-center gap-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl border border-gray-200/80 dark:border-white/10 px-4 py-2.5 shadow-xl w-72">
+                        <Search size={15} className="text-gray-400 flex-shrink-0" />
+                        <input
+                            type="text"
+                            placeholder="Ereignisse suchen…"
+                            onClick={handleSearchClick}
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="flex-1 bg-transparent text-sm font-medium outline-none text-gray-700 dark:text-gray-200 placeholder:text-gray-400"
+                        />
+                        {searchQuery && (
+                            <button onClick={() => { setSearchQuery(''); setIsSearchOpen(false); }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        )}
+                    </div>
+                    {isSearchOpen && searchResults.length > 0 && (
+                        <div className="absolute bottom-full mb-2 left-0 right-0 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-white/10 p-2 max-h-60 overflow-auto" style={{ zIndex: 9999 }}>
+                            {searchResults.map(res => (
+                                <div
+                                    key={res.id}
+                                    className="p-2 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg cursor-pointer text-sm"
+                                    onClick={() => {
+                                        setIsSearchOpen(false);
+                                        window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id: res.id, start: res.date } }));
+                                    }}
+                                >
+                                    <div className="font-bold text-gray-800 dark:text-gray-200">{res.title}</div>
+                                    <div className="text-[10px] text-gray-500">{new Date(res.date).toLocaleDateString()}</div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Directional Today Button — appears at edge when today is off-screen */}
+            {todayButtonDir !== 'hidden' && (
+                <div
+                    className={`pointer-events-none absolute top-1/2 -translate-y-1/2 ${todayButtonDir === 'left' ? 'left-[68px]' : 'right-4'}`}
+                    style={{ zIndex: 490 }}
+                >
+                    <button
+                        className="pointer-events-auto flex flex-col items-center gap-1 px-3 py-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-xl hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors text-gray-800 dark:text-gray-200"
+                        onClick={() => onDateChange(new Date())}
+                        title="Zu heute"
+                    >
+                        {todayButtonDir === 'left'
+                            ? <ChevronLeft size={22} strokeWidth={2.5} className="text-gray-900 dark:text-gray-100" />
+                            : <ChevronRight size={22} strokeWidth={2.5} className="text-gray-900 dark:text-gray-100" />
+                        }
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Today</span>
+                    </button>
+                </div>
             )}
 
         </React.Fragment>

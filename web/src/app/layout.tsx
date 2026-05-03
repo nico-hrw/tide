@@ -5,7 +5,7 @@ import { IslandProvider } from "@/components/extensions/smart_island/useIslandSt
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Tide",
+  title: "tide",
   description: "Minimalist, Local-First, Encrypted.",
   icons: {
     icon: "/favicon.png",

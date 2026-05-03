@@ -210,23 +210,8 @@ export default function Sidebar({
 
     return (
         <div className="w-64 h-full flex flex-col shrink-0 relative z-[100] transition-all duration-300">
-            {/* VLM banner removed — linking mode logic stays active in HighlightContext */}
-
-            <div
-                className="max-h-[58%] overflow-y-auto p-2 pb-6 no-scrollbar"
-                onDoubleClick={(e) => {
-                    if (e.target === e.currentTarget) onNewNote();
-                }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                    e.preventDefault();
-                    const id = e.dataTransfer.getData("text/plain");
-                    if (id && e.target === e.currentTarget) {
-                        onMoveItem?.(id, null);
-                    }
-                    setDropIndicator(null);
-                }}
-            >
+            {/* Sticky top section: Avatar, Nav, Recent */}
+            <div className="flex-shrink-0 p-2 pb-0">
                 <div className="flex items-center justify-between px-2 py-1 mb-2">
                     {/* Avatar at top-left */}
                     <div className="relative" ref={profileMenuRef}>
@@ -406,6 +391,29 @@ export default function Sidebar({
                         </Reorder.Group>
                     )}
                 </div>
+            </div>{/* end sticky top section */}
+
+            {/* Scrollable notes section */}
+            <div
+                className="flex-1 overflow-y-auto px-2 no-scrollbar"
+                style={{ paddingBottom: '230px' }}
+                onDoubleClick={(e) => {
+                    if (e.target === e.currentTarget) onNewNote();
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                    e.preventDefault();
+                    const id = e.dataTransfer.getData("text/plain");
+                    if (id && e.target === e.currentTarget) {
+                        onMoveItem?.(id, null);
+                    }
+                    setDropIndicator(null);
+                }}
+            >
+                {/* Notes section label */}
+                <p className="text-[11px] font-medium uppercase tracking-[1px] text-[var(--text-subtle)] px-2 mb-1 mt-2">
+                    Notes
+                </p>
 
                 <div className="space-y-0.5">
                     {sharedWithMeItems.length > 0 && (
