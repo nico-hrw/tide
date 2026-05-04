@@ -67,6 +67,32 @@ interface CalendarEventItemProps {
     cursorY: MotionValue<number>;
 }
 
+// Returns a backgroundImage CSS value for the given theme effect.
+// Applied directly on the event div so it works inside Framer Motion
+// compositing layers (mix-blend-mode on a child div does not blend with
+// the parent's backgroundColor in a composited layer).
+const getEffectBgImage = (effect: string | undefined): string | undefined => {
+    if (!effect || effect === 'none' || effect === 'dimmed') return undefined;
+    const patterns: Record<string, string> = {
+        stripes: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.22) 0, rgba(255,255,255,0.22) 4px, transparent 4px, transparent 14px)',
+        waves: [
+            'radial-gradient(circle at 100% 50%, transparent 20%, rgba(255,255,255,0.2) 21%, rgba(255,255,255,0.2) 34%, transparent 35%)',
+            'radial-gradient(circle at 0%   50%, transparent 20%, rgba(255,255,255,0.2) 21%, rgba(255,255,255,0.2) 34%, transparent 35%)',
+        ].join(', '),
+        dots: [
+            'radial-gradient(rgba(255,255,255,0.4) 28%, transparent 28%) 0 0 / 8px 8px',
+            'radial-gradient(rgba(255,255,255,0.4) 28%, transparent 28%) 4px 4px / 8px 8px',
+        ].join(', '),
+        chess: [
+            'linear-gradient(45deg,  rgba(0,0,0,0.13) 25%, transparent 25%)',
+            'linear-gradient(-45deg, rgba(0,0,0,0.13) 25%, transparent 25%)',
+            'linear-gradient(45deg,  transparent 75%, rgba(0,0,0,0.13) 75%)',
+            'linear-gradient(-45deg, transparent 75%, rgba(0,0,0,0.13) 75%)',
+        ].join(', '),
+    };
+    return patterns[effect];
+};
+
 const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     day,
     event,
@@ -187,6 +213,10 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         return `${hEnd.toString().padStart(2, '0')}:${mEnd.toString().padStart(2, '0')}`;
     });
 
+    // Compute the effect backgroundImage — applied directly on the event div so it
+    // works inside Framer Motion compositing layers (child mix-blend-mode fails there).
+    const effectBgImage = !isCancelled ? getEffectBgImage(event.effect) : undefined;
+
     let style: any;
     if (isDragging) {
         style = {
@@ -212,28 +242,32 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             pointerEvents: 'none',
         };
     } else {
+        const baseColor = isActiveParent ? 'transparent' : (event.color || theme.bg);
         style = {
             top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes})`,
             height: `calc(var(--hour-height, 60px) / 60 * ${Math.max(durationMinutes, 15)})`,
             left: `${pos.left}%`,
             width: `${pos.width}%`,
-            backgroundColor: isActiveParent ? 'transparent' : (event.color || theme.bg),
+            backgroundColor: baseColor,
+            // Layer pattern on top of solid background-color (CSS bg-image renders above bg-color).
+            // For the live-event state the pattern is prepended to the gradient.
+            backgroundImage: effectBgImage || undefined,
             boxShadow: isActiveParent ? `inset 0 0 20px 2px ${theme.border}` : 'none',
             color: theme.text,
             zIndex: zIndex,
             maskImage: maskImage !== 'none' ? maskImage : undefined,
             WebkitMaskImage: maskImage !== 'none' ? maskImage : undefined,
+            // Dimmed effect: slightly reduce opacity of the whole block
+            ...(event.effect === 'dimmed' ? { opacity: 0.55 } : {}),
         };
         if (isCancelled) {
             style.backgroundColor = '#94a3b8'; // gray-400
             style.color = '#475569'; // gray-600
             style.opacity = 0.4;
             style.textDecoration = 'line-through';
+            style.backgroundImage = undefined;
         }
     }
-
-    // Effect Pattern Class
-    const effectClass = event.effect ? `effect-${event.effect}` : '';
 
     const isAdjacentTop = timedEvents.some(other => {
         if (other.id === event.id) return false;
@@ -311,7 +345,11 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 ...style, ...borderRadiusStyle,
                 borderLeft: `4px solid ${theme.border}`,
                 ...(isLive && liveColor ? {
-                    background: `linear-gradient(145deg, ${liveColor.base} 0%, ${liveColor.bright} 100%)`,
+                    // Live-event gradient; pattern (if any) layers on top via background-image ordering
+                    backgroundImage: effectBgImage
+                        ? `${effectBgImage}, linear-gradient(145deg, ${liveColor.base} 0%, ${liveColor.bright} 100%)`
+                        : `linear-gradient(145deg, ${liveColor.base} 0%, ${liveColor.bright} 100%)`,
+                    backgroundColor: undefined,
                     boxShadow: `0 0 0 2px ${liveColor.base}40, 0 4px 16px ${liveColor.base}50`,
                 } : {}),
             }}
@@ -377,10 +415,9 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 </div>
             )}
 
-            {/* Effect Overlay Layer */}
-            {!isActiveParent && effectClass && (
-                <div className={`absolute inset-0 pointer-events-none ${effectClass}`} style={{ mixBlendMode: 'overlay' }} />
-            )}
+            {/* Effect patterns are now applied via backgroundImage inline style on the
+                 outer motion.div — the old overlay-div + mix-blend-mode approach did not
+                 work inside Framer Motion compositing layers. */}
 
             {/* Shading Overlay Layer */}
             {!isActiveParent && event.shading && event.shading > 0 && (

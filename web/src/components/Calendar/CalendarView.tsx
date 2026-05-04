@@ -1045,7 +1045,7 @@ export default function CalendarView({
             }
             const startNode = new Date(e.start);
             const endNodeOrig = new Date(e.end);
-            
+
             if (isNaN(startNode.getTime()) || isNaN(endNodeOrig.getTime())) {
                 console.warn(`[CALENDAR-DRV] Skipping event ${e.id} due to invalid dates:`, { start: e.start, end: e.end });
                 return;
@@ -1138,8 +1138,8 @@ export default function CalendarView({
                 let current = new Date(start);
                 const recEndOrig = (e as any).recurrence_end ? new Date((e as any).recurrence_end) : new Date(maxDate.getTime() + 31536000000);
                 if (isNaN(recEndOrig.getTime())) {
-                     processEvent(e, start); // Fallback to single occurrence
-                     return;
+                    processEvent(e, start); // Fallback to single occurrence
+                    return;
                 }
                 const safeRecEnd = recEndOrig < maxDate ? recEndOrig : maxDate;
 
@@ -1196,7 +1196,7 @@ export default function CalendarView({
                             title="Bulk Schedule Events"
                         >
                             <ListPlus size={16} />
-                            <span>Schedule</span>
+                            <span></span>
                         </button>
                         {onOpenScheduleThemes && (
                             <button
@@ -1205,7 +1205,7 @@ export default function CalendarView({
                                 title="Schedule Themes"
                             >
                                 <Palette size={16} />
-                                <span>Themes</span>
+                                <span></span>
                             </button>
                         )}
                     </div>
@@ -1449,7 +1449,7 @@ export default function CalendarView({
                             event={event as any}
                             rect={activePopover.rect}
                             themes={themes}
-                            onEventSave={onEventSave || (() => {})}
+                            onEventSave={onEventSave || (() => { })}
                             onEventDelete={onEventDelete}
                             onClose={() => setActivePopover(null)}
                             enabledExtensions={enabledExtensions}
@@ -1491,7 +1491,7 @@ export default function CalendarView({
                                 />
                                 {searchQuery && (
                                     <button onClick={() => { setSearchQuery(''); setIsSearchOpen(false); }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                                     </button>
                                 )}
                                 {/* Anchor cycle button */}
@@ -1500,7 +1500,7 @@ export default function CalendarView({
                                     className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-gray-300 dark:text-gray-600 hover:text-gray-500 transition-colors"
                                     title="Position verschieben"
                                 >
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="5 9 2 12 5 15" /><polyline points="9 5 12 2 15 5" /><polyline points="15 19 12 22 9 19" /><polyline points="19 9 22 12 19 15" /><line x1="2" y1="12" x2="22" y2="12" /><line x1="12" y1="2" x2="12" y2="22" /></svg>
                                 </button>
                             </div>
                             {isSearchOpen && searchResults.length > 0 && (

@@ -155,22 +155,36 @@ const ThemeItem = ({ group, hiddenThemeIds, onToggleVisibility, onUpdate, onShar
                         />
                     ))}
                 </div>
-                <div className="relative group/select w-full">
-                    <select
-                        value={group.effect || 'none'}
-                        onChange={(e) => onUpdate(group.id, { effect: e.target.value })}
-                        className="appearance-none w-full bg-white dark:bg-black/20 border border-gray-200 group-hover/select:border-indigo-200 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-gray-600 outline-none cursor-pointer transition-all focus:ring-1 focus:ring-indigo-500"
-                    >
-                        <option value="none">Solid Finish</option>
-                        <option value="stripes">Striped Texture</option>
-                        <option value="waves">Wave Pattern</option>
-                        <option value="dots">Dotted Grain</option>
-                        <option value="chess">Chess Board</option>
-                        <option value="dimmed">Soft Dimmed</option>
-                    </select>
-                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 group-hover/select:text-indigo-400 transition-colors">
-                        <ChevronDown size={12} />
-                    </div>
+                {/* Effect picker — visual swatches so the user sees the pattern before selecting */}
+                <div className="flex flex-wrap gap-1.5">
+                    {([
+                        { id: 'none',    label: 'Solid'   },
+                        { id: 'stripes', label: 'Streifen' },
+                        { id: 'waves',   label: 'Wellen'  },
+                        { id: 'dots',    label: 'Punkte'  },
+                        { id: 'chess',   label: 'Karo'    },
+                        { id: 'dimmed',  label: 'Gedimmt' },
+                    ] as const).map(({ id, label }) => {
+                        const active = (group.effect || 'none') === id;
+                        const swatchColor = (group as any).color || '#6366f1';
+                        return (
+                            <button
+                                key={id}
+                                onClick={() => onUpdate(group.id, { effect: id })}
+                                title={label}
+                                className={`flex flex-col items-center gap-0.5 p-0.5 rounded-lg border-2 transition-all ${active ? 'border-indigo-500 scale-105 shadow-sm' : 'border-transparent hover:border-gray-300'}`}
+                            >
+                                <div
+                                    className={`w-8 h-5 rounded-md ${id !== 'none' ? `effect-${id}` : ''}`}
+                                    style={{
+                                        backgroundColor: swatchColor,
+                                        opacity: id === 'dimmed' ? 0.55 : 1,
+                                    }}
+                                />
+                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wide">{label}</span>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
         </div>
@@ -1336,13 +1350,16 @@ export default function Dashboard() {
     };
 
     const handleCreateEventGroup = async (forcedTitle?: string, forcedColor?: string, forcedEffect?: string) => {
-        if (!privateKey || !publicKey) return;
+        const storeState = useDataStore.getState();
+        const privKey = privateKey || storeState.privateKey;
+        const pubKey = publicKey || storeState.publicKey;
+        if (!privKey || !pubKey) return;
         const title = forcedTitle || "New Group";
         const effect = forcedEffect || "none";
         const color = forcedColor || undefined;
         try {
             const meta = { title, isGroup: true, effect, color };
-            const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
+            const securedMeta = await cryptoLib.encryptMetadata(meta, pubKey);
 
             const res = await apiFetch("/api/v1/files", {
                 method: "POST",
@@ -1359,9 +1376,24 @@ export default function Dashboard() {
             if (!res.ok) throw new Error("Failed to create event group");
             const newFolder = await res.json();
 
-            // Fetch latest root so the UI updates natively 
-            useDataStore.getState().loadedDirectories.delete('root');
-            useDataStore.getState().fetchDirectory(null);
+            // Optimistically add to notes so it appears immediately in the themes panel,
+            // without waiting for the async fetchDirectory (which may be throttled by a guard).
+            const optimisticGroup: any = {
+                id: newFolder.id,
+                title,
+                type: 'folder',
+                isGroup: true,
+                effect,
+                color,
+                parent_id: null,
+                secured_meta: securedMeta,
+                visibility: 'private',
+            };
+            useDataStore.getState().setNotes([...storeState.notes, optimisticGroup]);
+
+            // Also refresh in background to get the canonical server state
+            storeState.loadedDirectories.delete('root');
+            storeState.fetchDirectory(null);
 
             return newFolder.id;
 
@@ -1372,21 +1404,28 @@ export default function Dashboard() {
     };
 
     const handleUpdateEventGroup = async (id: string, updates: { title?: string, effect?: string, color?: string }) => {
-        if (!privateKey || !publicKey) return;
+        const storeState = useDataStore.getState();
+        const privKey = privateKey || storeState.privateKey;
+        const pubKey = publicKey || storeState.publicKey;
+        if (!privKey || !pubKey) return;
         try {
-            // Optimistic Update
-            const currentFiles = useDataStore.getState().notes;
-            useDataStore.getState().setNotes(currentFiles.map(f => f.id === id ? { ...f, ...updates } as any : f));
+            // Optimistic Update — applies immediately to UI
+            const currentFiles = storeState.notes;
+            storeState.setNotes(currentFiles.map(f => f.id === id ? { ...f, ...updates } as any : f));
 
             const group = currentFiles.find(f => f.id === id);
-            if (!group || !group.secured_meta) return;
+            if (!group) return;
 
-            const meta = await cryptoLib.decryptMetadata(group.secured_meta, privateKey);
-            if (updates.title !== undefined) meta.title = updates.title;
-            if (updates.effect !== undefined) meta.effect = updates.effect;
-            if (updates.color !== undefined) meta.color = updates.color;
+            // Build metadata from the known current state of the group rather than
+            // re-decrypting secured_meta (which may be absent from the in-memory cache).
+            const meta: Record<string, any> = {
+                title: updates.title ?? group.title ?? 'New Group',
+                isGroup: true,
+                effect: updates.effect ?? (group as any).effect ?? 'none',
+                color: updates.color ?? (group as any).color,
+            };
 
-            const encryptedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
+            const encryptedMeta = await cryptoLib.encryptMetadata(meta, pubKey);
 
             await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
@@ -1395,8 +1434,8 @@ export default function Dashboard() {
             });
 
             // Re-fetch root to ensure consistency, but optimistic update already made it smooth
-            useDataStore.getState().loadedDirectories.delete('root');
-            useDataStore.getState().fetchDirectory(null);
+            storeState.loadedDirectories.delete('root');
+            storeState.fetchDirectory(null);
         } catch (e) {
             console.error("Failed to update group", e);
         }

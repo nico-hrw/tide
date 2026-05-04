@@ -141,7 +141,7 @@ export default function Sidebar({
     const handleReorder = (newItems: DecryptedFile[]) => {
         setOrderedItems(newItems);
         const newIds = newItems.map(i => i.id);
-	};
+    };
 
     useEffect(() => {
         const id = sessionStorage.getItem('tide_user_id') || localStorage.getItem('tide_user_id') || '';
@@ -175,7 +175,7 @@ export default function Sidebar({
                             });
                         }
                     })
-                    .catch(() => {});
+                    .catch(() => { });
             }
         }
     }, []);
@@ -239,7 +239,7 @@ export default function Sidebar({
                                     const file = e.target.files?.[0];
                                     if (!file) return;
                                     const reader = new FileReader();
-                    reader.onload = async (event) => {
+                                    reader.onload = async (event) => {
                                         const rawContent = event.target?.result as string;
                                         const title = file.name.replace(/\.md$/, '');
 
@@ -351,52 +351,52 @@ export default function Sidebar({
                             className="flex flex-col gap-1 list-none m-0 p-0"
                         >
                             <AnimatePresence initial={false}>
-                            {openTabs
-                                .filter(t => ['file', 'chat', 'profile'].includes(t.type))
-                                .map(tab => {
-                                    const isActive = activeTabId === tab.id;
-                                    return (
-                                        <Reorder.Item
-                                            key={tab.id}
-                                            value={tab}
-                                            className="list-none"
-                                            initial={{ opacity: 0, y: -6 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -6, transition: { duration: 0.15 } }}
-                                            transition={{ type: 'spring', stiffness: 500, damping: 38 }}
-                                        >
-                                            <div
-                                                onClick={() => onTabSelect?.(tab.id, tab.type)}
-                                                className={`group relative flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover
-                                                    ${isActive
-                                                        ? 'bg-[#EBEBEB] dark:bg-white/10'
-                                                        : 'hover:bg-[var(--hover-bg)]'}`}
+                                {openTabs
+                                    .filter(t => ['file', 'chat', 'profile'].includes(t.type))
+                                    .map(tab => {
+                                        const isActive = activeTabId === tab.id;
+                                        return (
+                                            <Reorder.Item
+                                                key={tab.id}
+                                                value={tab}
+                                                className="list-none"
+                                                initial={{ opacity: 0, y: -6 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: -6, transition: { duration: 0.15 } }}
+                                                transition={{ type: 'spring', stiffness: 500, damping: 38 }}
                                             >
-                                                <div className="shrink-0 text-[var(--text-muted)]">
-                                                    {tab.type === 'chat'
-                                                        ? <MessageSquare size={14} />
-                                                        : tab.type === 'profile'
-                                                            ? <User size={14} />
-                                                            : <FileText size={14} />}
-                                                </div>
-                                                <span className="text-[13px] text-[var(--text-body)] truncate flex-1 min-w-0">
-                                                    {tab.title && tab.title !== 'Untitled'
-                                                        ? tab.title
-                                                        : tab.type === 'chat' ? 'Chat' : tab.type === 'profile' ? 'Profile' : 'Untitled'}
-                                                </span>
-                                                {tab._saveStatus === 'unsaved' && (
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Ungespeichert" />
-                                                )}
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); onTabClose?.(e, tab.id); }}
-                                                    className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-black/10 text-[var(--text-muted)]"
+                                                <div
+                                                    onClick={() => onTabSelect?.(tab.id, tab.type)}
+                                                    className={`group relative flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover
+                                                    ${isActive
+                                                            ? 'bg-[#EBEBEB] dark:bg-white/10'
+                                                            : 'hover:bg-[var(--hover-bg)]'}`}
                                                 >
-                                                    <X size={12} />
-                                                </button>
-                                            </div>
-                                        </Reorder.Item>
-                                    );
-                                })}
+                                                    <div className="shrink-0 text-[var(--text-muted)]">
+                                                        {tab.type === 'chat'
+                                                            ? <MessageSquare size={14} />
+                                                            : tab.type === 'profile'
+                                                                ? <User size={14} />
+                                                                : <FileText size={14} />}
+                                                    </div>
+                                                    <span className="text-[13px] text-[var(--text-body)] truncate flex-1 min-w-0">
+                                                        {tab.title && tab.title !== 'Untitled'
+                                                            ? tab.title
+                                                            : tab.type === 'chat' ? 'Chat' : tab.type === 'profile' ? 'Profile' : 'Untitled'}
+                                                    </span>
+                                                    {tab._saveStatus === 'unsaved' && (
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Ungespeichert" />
+                                                    )}
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); onTabClose?.(e, tab.id); }}
+                                                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-black/10 text-[var(--text-muted)]"
+                                                    >
+                                                        <X size={12} />
+                                                    </button>
+                                                </div>
+                                            </Reorder.Item>
+                                        );
+                                    })}
                             </AnimatePresence>
                         </Reorder.Group>
                     )}
@@ -406,7 +406,7 @@ export default function Sidebar({
             {/* Scrollable notes section — max ~45 vh to not overlap Smart Island */}
             <div
                 className="overflow-y-auto px-2 no-scrollbar"
-                style={{ flex: '1 1 0', minHeight: 0, maxHeight: 'calc(100vh - 430px)', paddingBottom: '8px' }}
+                style={{ flex: '1 1 0', minHeight: 0, maxHeight: 'calc(100vh - 500px)', paddingBottom: '8px' }}
                 onDoubleClick={(e) => {
                     if (e.target === e.currentTarget) onNewNote();
                 }}
@@ -499,7 +499,7 @@ export default function Sidebar({
                                 setDropIndicator(null);
                                 const draggedId = e.dataTransfer.getData("text/plain");
                                 if (!draggedId || draggedId === item.id) return;
-                                
+
                                 if (zone === 'middle' && item.type === 'folder') {
                                     onMoveItem?.(draggedId, item.id);
                                     return;
@@ -511,7 +511,7 @@ export default function Sidebar({
                                 const newItems = [...orderedItems].filter(o => o.id !== draggedId);
                                 let dropIdx = newItems.findIndex(o => o.id === item.id);
                                 if (zone === 'bottom') dropIdx += 1;
-                                
+
                                 if (draggedFile.parent_id !== null) {
                                     onMoveItem?.(draggedId, null);
                                     // Since it's moving from a folder to root, we must add it to the top level
@@ -530,30 +530,30 @@ export default function Sidebar({
                             {dropIndicator?.id === item.id && dropIndicator.zone === 'top' && (
                                 <motion.div layout initial={{ height: 0 }} animate={{ height: 40 }} className="bg-blue-50/50 rounded-lg border-2 border-dashed border-blue-300" />
                             )}
-                            
+
                             {item.type === 'folder' ? (
                                 <div className={`relative ${dropIndicator?.id === item.id && dropIndicator.zone === 'middle' ? 'ring-2 ring-blue-500 bg-blue-50/50 rounded-lg' : ''}`}>
-                                <FolderItem
-                                    folder={item}
-                                    allFiles={files}
-                                    level={0}
-                                    viewMode={'files'}
-                                    onSelect={onFileSelect}
-                                    onDelete={onDeleteNote}
-                                    onRename={onRenameNote}
-                                    onVisibility={onToggleVisibility}
-                                    onShare={onShare}
-                                    editingId={editingFileId}
-                                    onRenameSubmit={onRenameSubmit}
-                                    onCreateFolder={onCreateFolder}
-                                    onMoveItem={onMoveItem}
-                                    onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
-                                    hiddenThemeIds={hiddenThemeIds}
-                                    onToggleThemeVisibility={(id) => onToggleThemeVisibility && onToggleThemeVisibility(id)}
-                                    enabledExtensions={enabledExtensions}
-                                    myId={myId}
-                                    onContextMenu={handleContextMenu}
-                                />
+                                    <FolderItem
+                                        folder={item}
+                                        allFiles={files}
+                                        level={0}
+                                        viewMode={'files'}
+                                        onSelect={onFileSelect}
+                                        onDelete={onDeleteNote}
+                                        onRename={onRenameNote}
+                                        onVisibility={onToggleVisibility}
+                                        onShare={onShare}
+                                        editingId={editingFileId}
+                                        onRenameSubmit={onRenameSubmit}
+                                        onCreateFolder={onCreateFolder}
+                                        onMoveItem={onMoveItem}
+                                        onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
+                                        hiddenThemeIds={hiddenThemeIds}
+                                        onToggleThemeVisibility={(id) => onToggleThemeVisibility && onToggleThemeVisibility(id)}
+                                        enabledExtensions={enabledExtensions}
+                                        myId={myId}
+                                        onContextMenu={handleContextMenu}
+                                    />
                                 </div>
                             ) : (
                                 <FileItem
