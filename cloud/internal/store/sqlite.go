@@ -194,6 +194,48 @@ func (s *SQLiteStore) migrate() error {
 		profile_status INTEGER NOT NULL DEFAULT 0,
 		FOREIGN KEY(user_id) REFERENCES users(id)
 	);
+
+	CREATE TABLE IF NOT EXISTS ext_tracker_exercises (
+		id TEXT PRIMARY KEY,
+		user_id TEXT,
+		name TEXT NOT NULL,
+		category TEXT NOT NULL,
+		default_tracking_type TEXT NOT NULL,
+		created_at DATETIME NOT NULL,
+		FOREIGN KEY(user_id) REFERENCES users(id)
+	);
+
+	CREATE TABLE IF NOT EXISTS ext_tracker_workouts (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL,
+		name TEXT NOT NULL,
+		notes TEXT,
+		started_at DATETIME NOT NULL,
+		finished_at DATETIME,
+		FOREIGN KEY(user_id) REFERENCES users(id)
+	);
+
+	CREATE TABLE IF NOT EXISTS ext_tracker_workout_exercises (
+		id TEXT PRIMARY KEY,
+		workout_id TEXT NOT NULL,
+		exercise_id TEXT NOT NULL,
+		sort_order INTEGER NOT NULL,
+		FOREIGN KEY(workout_id) REFERENCES ext_tracker_workouts(id) ON DELETE CASCADE,
+		FOREIGN KEY(exercise_id) REFERENCES ext_tracker_exercises(id)
+	);
+
+	CREATE TABLE IF NOT EXISTS ext_tracker_sets (
+		id TEXT PRIMARY KEY,
+		workout_exercise_id TEXT NOT NULL,
+		sort_order INTEGER NOT NULL,
+		reps INTEGER,
+		weight_kg REAL,
+		distance_meters REAL,
+		duration_seconds INTEGER,
+		is_warmup BOOLEAN NOT NULL DEFAULT FALSE,
+		completed BOOLEAN NOT NULL DEFAULT FALSE,
+		FOREIGN KEY(workout_exercise_id) REFERENCES ext_tracker_workout_exercises(id) ON DELETE CASCADE
+	);
 	`
 	if _, err := s.DB.Exec(tables); err != nil {
 		return err
@@ -234,6 +276,29 @@ func (s *SQLiteStore) migrate() error {
 	`
 	if _, err := s.DB.Exec(indices); err != nil {
 		return err
+	}
+
+	// 5. Seed global tracker exercises (idempotent via INSERT OR IGNORE)
+	seeds := []struct{ id, name, category, trackingType string }{
+		{"ex-bench-press", "Bench Press", "strength", "weight_reps"},
+		{"ex-squat", "Squat", "strength", "weight_reps"},
+		{"ex-deadlift", "Deadlift", "strength", "weight_reps"},
+		{"ex-ohp", "Overhead Press", "strength", "weight_reps"},
+		{"ex-pull-up", "Pull-Up", "strength", "weight_reps"},
+		{"ex-barbell-row", "Barbell Row", "strength", "weight_reps"},
+		{"ex-running", "Running", "cardio", "distance_time"},
+		{"ex-cycling", "Cycling", "cardio", "distance_time"},
+		{"ex-rowing", "Rowing", "cardio", "distance_time"},
+		{"ex-swimming", "Swimming", "cardio", "distance_time"},
+		{"ex-yoga", "Yoga", "flexibility", "time_only"},
+		{"ex-stretching", "Stretching", "flexibility", "time_only"},
+	}
+	seedTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for _, seed := range seeds {
+		_, _ = s.DB.Exec(
+			`INSERT OR IGNORE INTO ext_tracker_exercises (id, user_id, name, category, default_tracking_type, created_at) VALUES (?, NULL, ?, ?, ?, ?)`,
+			seed.id, seed.name, seed.category, seed.trackingType, seedTime,
+		)
 	}
 
 	return nil
