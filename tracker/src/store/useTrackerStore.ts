@@ -30,6 +30,8 @@ interface TrackerState {
   removeSet: (workoutExerciseId: string, setId: string) => Promise<void>
   finishWorkout: () => Promise<void>
   fetchWorkouts: () => Promise<void>
+  deleteExercise: (id: string) => Promise<void>
+  deleteWorkout: (id: string) => Promise<void>
   refreshSyncQueue: () => Promise<void>
   triggerSync: () => Promise<void>
   exportQueue: () => void
@@ -242,6 +244,16 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
       })),
     }))
     set({ workouts })
+  },
+
+  deleteExercise: async (id) => {
+    await apiFetch(`/tracker/exercises/${id}`, { method: 'DELETE' })
+    await get().fetchExercises()
+  },
+
+  deleteWorkout: async (id) => {
+    await apiFetch(`/tracker/workouts/${id}`, { method: 'DELETE' })
+    set((s) => ({ workouts: s.workouts.filter((w) => w.id !== id) }))
   },
 
   refreshSyncQueue: async () => {

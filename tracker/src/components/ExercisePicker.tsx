@@ -1,6 +1,6 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Search, Trash2, X } from 'lucide-react'
 import { useTrackerStore } from '@/store/useTrackerStore'
 import type { TrackerExercise } from '@/types/tracker'
 
@@ -22,10 +22,11 @@ interface ExercisePickerProps {
 }
 
 export default function ExercisePicker({ onSelect, onClose }: ExercisePickerProps) {
-  const { exercises } = useTrackerStore()
+  const { exercises, deleteExercise } = useTrackerStore()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<string | null>(null)
   const [visible, setVisible] = useState(false)
+  const touchStartY = useRef(0)
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true))
@@ -34,6 +35,15 @@ export default function ExercisePicker({ onSelect, onClose }: ExercisePickerProp
   function handleClose() {
     setVisible(false)
     setTimeout(onClose, 280)
+  }
+
+  function onTouchStart(e: React.TouchEvent) {
+    touchStartY.current = e.touches[0].clientY
+  }
+
+  function onTouchEnd(e: React.TouchEvent) {
+    const delta = e.changedTouches[0].clientY - touchStartY.current
+    if (delta > 60) handleClose()
   }
 
   const filtered = exercises.filter((e) => {
@@ -48,69 +58,64 @@ export default function ExercisePicker({ onSelect, onClose }: ExercisePickerProp
       onClick={handleClose}
     >
       <div
-        className={`w-full max-w-[430px] mx-auto bg-white rounded-t-3xl shadow-2xl p-6 h-[80vh] flex flex-col transform transition-transform duration-300 ease-out ${visible ? 'translate-y-0' : 'translate-y-full'}`}
+        className={`w-full max-w-[430px] mx-auto bg-white rounded-t-3xl shadow-2xl p-6 flex flex-col transform transition-transform duration-300 ease-out ${visible ? 'translate-y-0' : 'translate-y-full'}`}
+        style={{ height: '88vh' }}
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
       >
-        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
-        <div className="flex items-center justify-between mb-4">
+        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4 cursor-grab" />
+
+        <div className="flex items-center justify-between mb-4 shrink-0">
           <h2 className="text-lg font-bold">Übung wählen</h2>
-          <button onClick={handleClose}>
-            <X size={20} className="text-gray-400" />
-          </button>
+          <button onClick={handleClose}><X size={20} className="text-gray-400" /></button>
         </div>
 
-        <div className="relative mb-3">
-          <Search
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-          />
+        <div className="relative mb-3 shrink-0">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            type="text" value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Suchen…"
             className="w-full bg-gray-50 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none"
           />
         </div>
 
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-1 shrink-0">
           {(['strength', 'cardio', 'flexibility'] as const).map((cat) => (
             <button
               key={cat}
               onClick={() => setFilter(filter === cat ? null : cat)}
-              className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${
-                filter === cat ? CATEGORY_COLORS[cat] : 'bg-gray-100 text-gray-600'
-              }`}
+              className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${filter === cat ? CATEGORY_COLORS[cat] : 'bg-gray-100 text-gray-600'}`}
             >
               {CATEGORY_LABELS[cat]}
             </button>
           ))}
         </div>
 
-        <div className="overflow-y-auto flex-1 min-h-0 flex flex-col gap-2">
+        {/* scrollable list — pb-6 ensures last item is fully visible */}
+        <div className="overflow-y-auto flex-1 min-h-0 flex flex-col gap-2 pb-6">
           {filtered.map((ex) => (
-            <button
-              key={ex.id}
-              onClick={() => {
-                onSelect(ex)
-                handleClose()
-              }}
-              className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 text-left hover:bg-gray-100"
-            >
-              <div
-                className={`w-2 h-2 rounded-full shrink-0 ${
-                  ex.category === 'strength'
-                    ? 'bg-blue-500'
-                    : ex.category === 'cardio'
-                      ? 'bg-green-500'
-                      : 'bg-purple-500'
-                }`}
-              />
-              <div>
-                <div className="text-sm font-medium text-black">{ex.name}</div>
-                <div className="text-xs text-gray-400">{CATEGORY_LABELS[ex.category]}</div>
-              </div>
-            </button>
+            <div key={ex.id} className="flex items-center gap-2">
+              <button
+                onClick={() => { onSelect(ex); handleClose() }}
+                className="flex-1 flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 text-left hover:bg-gray-100"
+              >
+                <div className={`w-2 h-2 rounded-full shrink-0 ${ex.category === 'strength' ? 'bg-blue-500' : ex.category === 'cardio' ? 'bg-green-500' : 'bg-purple-500'}`} />
+                <div>
+                  <div className="text-sm font-medium text-black">{ex.name}</div>
+                  <div className="text-xs text-gray-400">{CATEGORY_LABELS[ex.category]}</div>
+                </div>
+              </button>
+              {/* only user-created exercises (userId != null) can be deleted */}
+              {ex.userId != null && (
+                <button
+                  onClick={() => deleteExercise(ex.id)}
+                  className="p-2 text-gray-300 hover:text-red-400"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       </div>

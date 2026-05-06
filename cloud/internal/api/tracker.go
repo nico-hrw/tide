@@ -24,8 +24,10 @@ func (h *TrackerHandler) RegisterRoutes(r chi.Router) {
 	r.Use(AuthMiddleware)
 	r.Get("/exercises", h.ListExercises)
 	r.Post("/exercises", h.CreateExercise)
+	r.Delete("/exercises/{id}", h.DeleteExercise)
 	r.Get("/workouts", h.ListWorkouts)
 	r.Post("/workouts/bulk", h.BulkSaveWorkout)
+	r.Delete("/workouts/{id}", h.DeleteWorkout)
 }
 
 // ── Request / Response types ──────────────────────────────────────────────────
@@ -396,6 +398,38 @@ func (h *TrackerHandler) ListWorkouts(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(workouts)
+}
+
+func (h *TrackerHandler) DeleteExercise(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	id := chi.URLParam(r, "id")
+	_, err := h.Store.DB.ExecContext(r.Context(),
+		`DELETE FROM ext_tracker_exercises WHERE id = ? AND user_id = ?`, id, userID)
+	if err != nil {
+		http.Error(w, "Failed to delete exercise", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *TrackerHandler) DeleteWorkout(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	id := chi.URLParam(r, "id")
+	_, err := h.Store.DB.ExecContext(r.Context(),
+		`DELETE FROM ext_tracker_workouts WHERE id = ? AND user_id = ?`, id, userID)
+	if err != nil {
+		http.Error(w, "Failed to delete workout", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func trackerGenerateID() string {

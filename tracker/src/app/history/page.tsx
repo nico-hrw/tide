@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { useTrackerStore } from '@/store/useTrackerStore'
 import type { TrackerWorkout } from '@/types/tracker'
 
@@ -12,7 +12,7 @@ function durationStr(w: TrackerWorkout): string {
 }
 
 export default function HistoryPage() {
-  const { workouts, fetchWorkouts } = useTrackerStore()
+  const { workouts, fetchWorkouts, deleteWorkout } = useTrackerStore()
   const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
@@ -40,17 +40,20 @@ export default function HistoryPage() {
               className="w-full p-4 text-left flex items-center justify-between"
               onClick={() => setExpanded(expanded === w.id ? null : w.id)}
             >
-              <div>
+              <div className="flex-1 text-left">
                 <div className="font-semibold text-black">{w.name}</div>
                 <div className="text-xs text-gray-500 mt-0.5">
                   {new Date(w.startedAt).toLocaleDateString('de-DE', {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                  })}{' '}
-                  · {durationStr(w)} · {w.exercises.length} Übungen
+                    weekday: 'short', day: 'numeric', month: 'short',
+                  })}{' '}· {durationStr(w)} · {w.exercises.length} Übungen
                 </div>
               </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); deleteWorkout(w.id) }}
+                className="p-1 text-gray-300 hover:text-red-400 mr-1"
+              >
+                <Trash2 size={15} />
+              </button>
               {expanded === w.id ? (
                 <ChevronUp size={18} className="text-gray-400" />
               ) : (

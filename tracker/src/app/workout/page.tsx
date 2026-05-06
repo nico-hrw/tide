@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, CheckCircle } from 'lucide-react'
+import { Plus, CheckCircle, Trash2 } from 'lucide-react'
 import { useTrackerStore } from '@/store/useTrackerStore'
 import ExercisePicker from '@/components/ExercisePicker'
 import SetLogger from '@/components/SetLogger'
@@ -14,6 +14,7 @@ export default function WorkoutPage() {
   const [showPicker, setShowPicker] = useState(false)
   const [activeExercise, setActiveExercise] = useState<ActiveWorkoutExercise | null>(null)
   const [workoutName, setWorkoutName] = useState('')
+  const [confirmFinish, setConfirmFinish] = useState(false)
 
   useEffect(() => {
     fetchExercises()
@@ -39,16 +40,11 @@ export default function WorkoutPage() {
       <div className="px-4 pt-12">
         <h1 className="text-2xl font-bold mb-6">Neues Workout</h1>
         <input
-          type="text"
-          value={workoutName}
-          onChange={(e) => setWorkoutName(e.target.value)}
+          type="text" value={workoutName} onChange={(e) => setWorkoutName(e.target.value)}
           placeholder="Name (z.B. Push Day)"
           className="w-full bg-white rounded-2xl px-4 py-4 text-lg font-medium outline-none shadow-sm mb-4"
         />
-        <button
-          onClick={handleStart}
-          className="w-full bg-black text-white rounded-2xl py-4 font-semibold text-base"
-        >
+        <button onClick={handleStart} className="w-full bg-black text-white rounded-2xl py-4 font-semibold text-base">
           Starten
         </button>
       </div>
@@ -60,10 +56,7 @@ export default function WorkoutPage() {
       <h1 className="text-2xl font-bold mb-1">{activeWorkout.name}</h1>
       <p className="text-sm text-gray-500 mb-6">
         Gestartet:{' '}
-        {new Date(activeWorkout.startedAt).toLocaleTimeString('de-DE', {
-          hour: '2-digit',
-          minute: '2-digit',
-        })}
+        {new Date(activeWorkout.startedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
       </p>
 
       <div className="flex flex-col gap-3 mb-4">
@@ -77,15 +70,7 @@ export default function WorkoutPage() {
             >
               <div>
                 <div className="flex items-center gap-2">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      we.exercise.category === 'strength'
-                        ? 'bg-blue-500'
-                        : we.exercise.category === 'cardio'
-                          ? 'bg-green-500'
-                          : 'bg-purple-500'
-                    }`}
-                  />
+                  <div className={`w-2 h-2 rounded-full ${we.exercise.category === 'strength' ? 'bg-blue-500' : we.exercise.category === 'cardio' ? 'bg-green-500' : 'bg-purple-500'}`} />
                   <span className="font-semibold text-black">{we.exercise.name}</span>
                 </div>
                 <span className="text-xs text-gray-500 ml-4">{completedSets} Sätze</span>
@@ -98,29 +83,45 @@ export default function WorkoutPage() {
 
       <button
         onClick={() => setShowPicker(true)}
-        className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-4 flex items-center justify-center gap-2 text-gray-500 mb-4"
+        className="w-full border-2 border-dashed border-gray-200 rounded-2xl py-4 flex items-center justify-center gap-2 text-gray-500 mb-8"
       >
         <Plus size={18} /> Übung hinzufügen
       </button>
 
-      <button
-        onClick={handleFinish}
-        className="w-full bg-black text-white rounded-2xl py-4 font-semibold text-base"
-      >
-        Workout beenden ✓
-      </button>
+      {/* Workout beenden — am unteren Rand, weniger prominent, mit Bestätigung */}
+      {!confirmFinish ? (
+        <button
+          onClick={() => setConfirmFinish(true)}
+          className="w-full border border-gray-300 text-gray-500 rounded-2xl py-3 text-sm font-medium"
+        >
+          Workout beenden
+        </button>
+      ) : (
+        <div className="bg-gray-50 rounded-2xl p-4 flex flex-col gap-3">
+          <p className="text-sm text-gray-700 text-center font-medium">Workout wirklich beenden?</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setConfirmFinish(false)}
+              className="flex-1 border border-gray-200 rounded-xl py-3 text-sm text-gray-500"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={handleFinish}
+              className="flex-1 bg-black text-white rounded-xl py-3 text-sm font-semibold"
+            >
+              Beenden ✓
+            </button>
+          </div>
+        </div>
+      )}
 
       {showPicker && (
-        <ExercisePicker
-          onSelect={handleSelectExercise}
-          onClose={() => setShowPicker(false)}
-        />
+        <ExercisePicker onSelect={handleSelectExercise} onClose={() => setShowPicker(false)} />
       )}
       {activeExercise && (
         <SetLogger
-          workoutExercise={
-            activeWorkout.exercises.find((e) => e.id === activeExercise.id) ?? activeExercise
-          }
+          workoutExercise={activeWorkout.exercises.find((e) => e.id === activeExercise.id) ?? activeExercise}
           onClose={() => setActiveExercise(null)}
         />
       )}
