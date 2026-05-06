@@ -35,7 +35,7 @@ export default function ExercisePicker({ onSelect, onClose }: ExercisePickerProp
   return (
     <div className="fixed inset-0 z-50 flex items-end" onClick={onClose}>
       <div
-        className="w-full max-w-[430px] mx-auto bg-white rounded-t-3xl shadow-2xl p-6 max-h-[80vh] flex flex-col"
+        className="w-full max-w-[430px] mx-auto bg-white rounded-t-3xl shadow-2xl p-6 h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
@@ -74,7 +74,7 @@ export default function ExercisePicker({ onSelect, onClose }: ExercisePickerProp
           ))}
         </div>
 
-        <div className="overflow-y-auto flex flex-col gap-2">
+        <div className="overflow-y-auto flex-1 min-h-0 flex flex-col gap-2">
           {filtered.map((ex) => (
             <button
               key={ex.id}

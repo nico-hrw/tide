@@ -1,10 +1,11 @@
 'use client'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTrackerStore } from '@/store/useTrackerStore'
 import StatCard from '@/components/StatCard'
 import SyncStatus from '@/components/SyncStatus'
 import { calcStreak, workoutsThisWeek, volumeThisWeek } from '@/lib/analytics'
+import { apiFetch } from '@/lib/api'
 
 function greeting(): string {
   const h = new Date().getHours()
@@ -16,9 +17,14 @@ function greeting(): string {
 export default function HomePage() {
   const { workouts, activeWorkout, fetchWorkouts } = useTrackerStore()
   const router = useRouter()
+  const [username, setUsername] = useState<string | null>(null)
 
   useEffect(() => {
     fetchWorkouts()
+    apiFetch('/auth/me')
+      .then((r) => r.json())
+      .then((data) => setUsername(data.username ?? null))
+      .catch(() => null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -28,7 +34,9 @@ export default function HomePage() {
 
   return (
     <div className="px-4 pt-12 pb-4">
-      <h1 className="text-2xl font-bold text-black mb-0.5">{greeting()} 👋</h1>
+      <h1 className="text-2xl font-bold text-black mb-0.5">
+        {greeting()}{username ? `, ${username}` : ''} 👋
+      </h1>
       <p className="text-sm text-gray-500 mb-6">
         {new Date().toLocaleDateString('de-DE', {
           weekday: 'long',
