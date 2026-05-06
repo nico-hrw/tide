@@ -42,8 +42,9 @@ cleanup() {
 build_backend() {
     echo "🏗️ Baue Go-Backend..."
     cd "$CLOUD_DIR" || exit
-    GOTOOLCHAIN=local go mod tidy
-    GOTOOLCHAIN=local go build -o "$ROOT_DIR/tide-server" ./cmd/server/main.go
+    # Setzt go-Version auf die installierte Version und synct go.sum
+    go mod tidy
+    go build -o "$ROOT_DIR/tide-server" ./cmd/server/main.go
     if [ $? -ne 0 ]; then
         echo "❌ FEHLER: Der Backend-Build ist fehlgeschlagen!"
         exit 1
