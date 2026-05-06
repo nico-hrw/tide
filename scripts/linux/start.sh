@@ -41,9 +41,14 @@ cleanup() {
 # --- 3. Build-Funktionen ---
 build_backend() {
     echo "🏗️ Baue Go-Backend..."
-    cd "$ROOT_DIR" || exit
-    go mod tidy
-    go build -o tide-server ./cloud/cmd/server/main.go
+    cd "$CLOUD_DIR" || exit
+    GOTOOLCHAIN=local go mod tidy
+    GOTOOLCHAIN=local go build -o "$ROOT_DIR/tide-server" ./cmd/server/main.go
+    if [ $? -ne 0 ]; then
+        echo "❌ FEHLER: Der Backend-Build ist fehlgeschlagen!"
+        exit 1
+    fi
+    cd "$ROOT_DIR"
 }
 
 build_frontend() {

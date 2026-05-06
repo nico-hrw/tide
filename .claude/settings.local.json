@@ -16,7 +16,8 @@
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\" -Force | Select-Object Name, @{N=\"Type\";E={if \\($_.PSIsContainer\\) { \"Dir\" } else { \"File\" }}} | Format-Table -AutoSize)",
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\\\\web\\\\src\" -Recurse -Directory | Select-Object -ExpandProperty FullName | Sort-Object | ForEach-Object { $_.Substring\\(\"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\\\\web\\\\src\".Length\\) })",
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\\\\cloud\" -Recurse -Directory | Select-Object -ExpandProperty FullName | Sort-Object | ForEach-Object { $_.Substring\\(\"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\\\\cloud\".Length\\) })",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(go mod *)"
     ]
   }
 }
