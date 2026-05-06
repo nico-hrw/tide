@@ -30,7 +30,7 @@ load_env() {
 # --- 2. Alte Prozesse säubern ---
 cleanup() {
     echo "🧹 Räume alte Prozesse auf..."
-    pm2 stop tide-backend tide-frontend tide-tracker 2>/dev/null
+    pm2 delete tide-backend tide-frontend tide-tracker 2>/dev/null
 
     fuser -k 8080/tcp 2>/dev/null
     fuser -k 3000/tcp 2>/dev/null
@@ -86,15 +86,15 @@ start_system() {
     echo "🚀 Starte Tide-Gesamtsystem via PM2..."
 
     cd "$ROOT_DIR"
-    pm2 start ./tide-server --name "tide-backend" 2>/dev/null || pm2 restart tide-backend
+    pm2 start "$ROOT_DIR/tide-server" --name "tide-backend"
     echo "✅ Backend gestartet (Port 8080)"
 
     cd "$WEB_DIR"
-    pm2 start npm --name "tide-frontend" -- start 2>/dev/null || pm2 restart tide-frontend
+    pm2 start npm --name "tide-frontend" -- start
     echo "✅ Frontend gestartet (Port 3000)"
 
     cd "$TRACKER_DIR"
-    pm2 start npm --name "tide-tracker" -- start 2>/dev/null || pm2 restart tide-tracker
+    pm2 start npm --name "tide-tracker" -- start
     echo "✅ Tracker gestartet (Port 3001)"
 
     pm2 save
