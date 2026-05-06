@@ -1,14 +1,14 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, CheckCircle, Trash2 } from 'lucide-react'
+import { Plus, CheckCircle, Trash2, X } from 'lucide-react'
 import { useTrackerStore } from '@/store/useTrackerStore'
 import ExercisePicker from '@/components/ExercisePicker'
 import SetLogger from '@/components/SetLogger'
 import type { ActiveWorkoutExercise, TrackerExercise } from '@/types/tracker'
 
 export default function WorkoutPage() {
-  const { activeWorkout, startWorkout, addExerciseToWorkout, finishWorkout, fetchExercises } =
+  const { activeWorkout, startWorkout, addExerciseToWorkout, removeExerciseFromWorkout, finishWorkout, fetchExercises } =
     useTrackerStore()
   const router = useRouter()
   const [showPicker, setShowPicker] = useState(false)
@@ -63,20 +63,27 @@ export default function WorkoutPage() {
         {activeWorkout.exercises.map((we) => {
           const completedSets = we.sets.filter((s) => s.completed).length
           return (
-            <button
-              key={we.id}
-              onClick={() => setActiveExercise(we)}
-              className="bg-white rounded-2xl p-4 shadow-sm text-left flex items-center justify-between"
-            >
-              <div>
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${we.exercise.category === 'strength' ? 'bg-blue-500' : we.exercise.category === 'cardio' ? 'bg-green-500' : 'bg-purple-500'}`} />
-                  <span className="font-semibold text-black">{we.exercise.name}</span>
+            <div key={we.id} className="bg-white rounded-2xl p-4 shadow-sm flex items-center gap-2">
+              <button
+                onClick={() => setActiveExercise(we)}
+                className="flex-1 text-left flex items-center justify-between"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${we.exercise.category === 'strength' ? 'bg-blue-500' : we.exercise.category === 'cardio' ? 'bg-green-500' : 'bg-purple-500'}`} />
+                    <span className="font-semibold text-black">{we.exercise.name}</span>
+                  </div>
+                  <span className="text-xs text-gray-500 ml-4">{completedSets} Sätze</span>
                 </div>
-                <span className="text-xs text-gray-500 ml-4">{completedSets} Sätze</span>
-              </div>
-              {completedSets > 0 && <CheckCircle size={18} className="text-green-500" />}
-            </button>
+                {completedSets > 0 && <CheckCircle size={18} className="text-green-500" />}
+              </button>
+              <button
+                onClick={() => removeExerciseFromWorkout(we.id)}
+                className="p-1 text-gray-300 hover:text-red-400 shrink-0"
+              >
+                <X size={16} />
+              </button>
+            </div>
           )
         })}
       </div>

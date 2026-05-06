@@ -25,6 +25,7 @@ interface TrackerState {
   createExercise: (name: string, category: string, defaultTrackingType: string) => Promise<void>
   startWorkout: (name: string) => Promise<void>
   addExerciseToWorkout: (exercise: TrackerExercise) => Promise<void>
+  removeExerciseFromWorkout: (workoutExerciseId: string) => Promise<void>
   addSet: (workoutExerciseId: string, setData: Partial<TrackerSet>) => Promise<void>
   updateSet: (workoutExerciseId: string, setId: string, updates: Partial<TrackerSet>) => Promise<void>
   removeSet: (workoutExerciseId: string, setId: string) => Promise<void>
@@ -107,6 +108,17 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
       sets: [],
     }
     const updated = { ...activeWorkout, exercises: [...activeWorkout.exercises, we] }
+    await idb.saveActiveWorkout(updated)
+    set({ activeWorkout: updated })
+  },
+
+  removeExerciseFromWorkout: async (workoutExerciseId) => {
+    const { activeWorkout } = get()
+    if (!activeWorkout) return
+    const updated = {
+      ...activeWorkout,
+      exercises: activeWorkout.exercises.filter((we) => we.id !== workoutExerciseId),
+    }
     await idb.saveActiveWorkout(updated)
     set({ activeWorkout: updated })
   },

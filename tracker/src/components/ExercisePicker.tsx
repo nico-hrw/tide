@@ -93,7 +93,7 @@ export default function ExercisePicker({ onSelect, onClose }: ExercisePickerProp
         </div>
 
         {/* scrollable list — pb-6 ensures last item is fully visible */}
-        <div className="overflow-y-auto flex-1 min-h-0 flex flex-col gap-2 pb-6">
+        <div className="overflow-y-auto flex-1 min-h-0 flex flex-col gap-2 pb-16">
           {filtered.map((ex) => (
             <div key={ex.id} className="flex items-center gap-2">
               <button
