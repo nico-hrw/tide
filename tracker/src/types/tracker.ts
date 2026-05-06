@@ -52,24 +52,25 @@ export interface ActiveWorkoutExercise {
   sets: TrackerSet[]
 }
 
+// Wire format — snake_case to match Go JSON tags exactly
 export interface BulkWorkoutPayload {
   id: string
   name: string
   notes?: string
-  startedAt: string
-  finishedAt: string
+  started_at: string
+  finished_at: string
   exercises: Array<{
     id: string
-    exerciseId: string
-    sortOrder: number
+    exercise_id: string
+    sort_order: number
     sets: Array<{
       id: string
-      sortOrder: number
+      sort_order: number
       reps?: number
-      weightKg?: number
-      distanceMeters?: number
-      durationSeconds?: number
-      isWarmup: boolean
+      weight_kg?: number
+      distance_meters?: number
+      duration_seconds?: number
+      is_warmup: boolean
       completed: boolean
     }>
   }>

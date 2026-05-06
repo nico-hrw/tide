@@ -24,7 +24,7 @@ interface TrackerState {
   fetchExercises: () => Promise<void>
   createExercise: (name: string, category: string, defaultTrackingType: string) => Promise<void>
   startWorkout: (name: string) => Promise<void>
-  addExerciseToWorkout: (exercise: TrackerExercise) => Promise<void>
+  addExerciseToWorkout: (exercise: TrackerExercise) => Promise<ActiveWorkoutExercise | undefined>
   removeExerciseFromWorkout: (workoutExerciseId: string) => Promise<void>
   addSet: (workoutExerciseId: string, setData: Partial<TrackerSet>) => Promise<void>
   updateSet: (workoutExerciseId: string, setId: string, updates: Partial<TrackerSet>) => Promise<void>
@@ -100,7 +100,7 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
 
   addExerciseToWorkout: async (exercise) => {
     const { activeWorkout } = get()
-    if (!activeWorkout) return
+    if (!activeWorkout) return undefined
     const we: ActiveWorkoutExercise = {
       id: uid(),
       exercise,
@@ -110,6 +110,7 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
     const updated = { ...activeWorkout, exercises: [...activeWorkout.exercises, we] }
     await idb.saveActiveWorkout(updated)
     set({ activeWorkout: updated })
+    return we
   },
 
   removeExerciseFromWorkout: async (workoutExerciseId) => {
@@ -182,20 +183,20 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
     const payload: BulkWorkoutPayload = {
       id: activeWorkout.id,
       name: activeWorkout.name,
-      startedAt: activeWorkout.startedAt,
-      finishedAt: new Date().toISOString(),
+      started_at: activeWorkout.startedAt,
+      finished_at: new Date().toISOString(),
       exercises: activeWorkout.exercises.map((we, eIdx) => ({
         id: we.id,
-        exerciseId: we.exercise.id,
-        sortOrder: eIdx,
+        exercise_id: we.exercise.id,
+        sort_order: eIdx,
         sets: we.sets.map((s, sIdx) => ({
           id: s.id,
-          sortOrder: sIdx,
+          sort_order: sIdx,
           reps: s.reps,
-          weightKg: s.weightKg,
-          distanceMeters: s.distanceMeters,
-          durationSeconds: s.durationSeconds,
-          isWarmup: s.isWarmup,
+          weight_kg: s.weightKg,
+          distance_meters: s.distanceMeters,
+          duration_seconds: s.durationSeconds,
+          is_warmup: s.isWarmup,
           completed: s.completed,
         })),
       })),

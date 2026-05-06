@@ -32,7 +32,8 @@ export default function WorkoutPage() {
   }
 
   async function handleSelectExercise(ex: TrackerExercise) {
-    await addExerciseToWorkout(ex)
+    const newWe = await addExerciseToWorkout(ex)
+    if (newWe) setActiveExercise(newWe)
   }
 
   if (!activeWorkout) {

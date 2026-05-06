@@ -79,9 +79,10 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
       className={`fixed inset-0 z-50 flex items-end transition-colors duration-300 ${visible ? 'bg-black/20' : 'bg-transparent'}`}
       onClick={handleClose}
     >
+      {/* mb-[58px] = nav bar height so the sheet sits above it */}
       <div
         className={`w-full max-w-[430px] mx-auto bg-white rounded-t-3xl shadow-2xl p-6 flex flex-col transform transition-transform duration-300 ease-out ${visible ? 'translate-y-0' : 'translate-y-full'}`}
-        style={{ maxHeight: '80vh' }}
+        style={{ maxHeight: 'calc(88vh - 58px)', marginBottom: 58 }}
         onClick={(e) => e.stopPropagation()}
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
@@ -123,10 +124,12 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
               </div>
             )}
 
-            <label className="flex items-center gap-2 text-sm text-gray-600">
-              <input type="checkbox" checked={isWarmup} onChange={(e) => setIsWarmup(e.target.checked)} className="rounded" />
-              Aufwärmsatz
-            </label>
+            <button
+              onClick={() => setIsWarmup(!isWarmup)}
+              className={`self-start text-xs px-3 py-1 rounded-full border transition-colors ${isWarmup ? 'border-orange-300 bg-orange-50 text-orange-500' : 'border-gray-200 text-gray-400'}`}
+            >
+              🔥 Aufwärmsatz
+            </button>
           </div>
 
           {currentSets.length > 0 && (
