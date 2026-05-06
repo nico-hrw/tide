@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import { useTrackerStore } from '@/store/useTrackerStore'
 import type { TrackerExercise } from '@/types/tracker'
@@ -25,6 +25,16 @@ export default function ExercisePicker({ onSelect, onClose }: ExercisePickerProp
   const { exercises } = useTrackerStore()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<string | null>(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    requestAnimationFrame(() => setVisible(true))
+  }, [])
+
+  function handleClose() {
+    setVisible(false)
+    setTimeout(onClose, 280)
+  }
 
   const filtered = exercises.filter((e) => {
     const matchSearch = e.name.toLowerCase().includes(search.toLowerCase())
@@ -33,15 +43,18 @@ export default function ExercisePicker({ onSelect, onClose }: ExercisePickerProp
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" onClick={onClose}>
+    <div
+      className={`fixed inset-0 z-50 flex items-end transition-colors duration-300 ${visible ? 'bg-black/20' : 'bg-transparent'}`}
+      onClick={handleClose}
+    >
       <div
-        className="w-full max-w-[430px] mx-auto bg-white rounded-t-3xl shadow-2xl p-6 h-[80vh] flex flex-col"
+        className={`w-full max-w-[430px] mx-auto bg-white rounded-t-3xl shadow-2xl p-6 h-[80vh] flex flex-col transform transition-transform duration-300 ease-out ${visible ? 'translate-y-0' : 'translate-y-full'}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-bold">Übung wählen</h2>
-          <button onClick={onClose}>
+          <button onClick={handleClose}>
             <X size={20} className="text-gray-400" />
           </button>
         </div>
@@ -80,7 +93,7 @@ export default function ExercisePicker({ onSelect, onClose }: ExercisePickerProp
               key={ex.id}
               onClick={() => {
                 onSelect(ex)
-                onClose()
+                handleClose()
               }}
               className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 text-left hover:bg-gray-100"
             >

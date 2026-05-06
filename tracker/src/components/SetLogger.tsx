@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
 import { useTrackerStore } from '@/store/useTrackerStore'
 import type { ActiveWorkoutExercise, TrackerSet } from '@/types/tracker'
@@ -25,6 +25,16 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
   const { addSet, removeSet, activeWorkout } = useTrackerStore()
   const ex = workoutExercise.exercise
   const type = ex.defaultTrackingType
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    requestAnimationFrame(() => setVisible(true))
+  }, [])
+
+  function handleClose() {
+    setVisible(false)
+    setTimeout(onClose, 280)
+  }
 
   const [weight, setWeight] = useState('')
   const [reps, setReps] = useState('')
@@ -61,9 +71,12 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" onClick={onClose}>
+    <div
+      className={`fixed inset-0 z-50 flex items-end transition-colors duration-300 ${visible ? 'bg-black/20' : 'bg-transparent'}`}
+      onClick={handleClose}
+    >
       <div
-        className="w-full max-w-[430px] mx-auto bg-white rounded-t-3xl shadow-2xl p-6"
+        className={`w-full max-w-[430px] mx-auto bg-white rounded-t-3xl shadow-2xl p-6 transform transition-transform duration-300 ease-out ${visible ? 'translate-y-0' : 'translate-y-full'}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-6" />
@@ -76,7 +89,7 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
             </div>
             <p className="text-sm text-gray-500 ml-3">{ex.category}</p>
           </div>
-          <button onClick={onClose}>
+          <button onClick={handleClose}>
             <X size={20} className="text-gray-400" />
           </button>
         </div>
@@ -198,7 +211,7 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
         )}
 
         <button
-          onClick={handleAddSet}
+          onClick={() => { void handleAddSet() }}
           className="w-full bg-black text-white rounded-2xl py-4 font-semibold text-base"
         >
           + Satz hinzufügen
