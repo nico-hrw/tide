@@ -38,6 +38,7 @@ type trackerExercise struct {
 	Name                string  `json:"name"`
 	Category            string  `json:"category"`
 	DefaultTrackingType string  `json:"default_tracking_type"`
+	Muscles             string  `json:"muscles"`
 	CreatedAt           string  `json:"created_at"`
 }
 
@@ -45,6 +46,7 @@ type createExerciseRequest struct {
 	Name                string `json:"name"`
 	Category            string `json:"category"`
 	DefaultTrackingType string `json:"default_tracking_type"`
+	Muscles             string `json:"muscles"`
 }
 
 type bulkSetRequest struct {
@@ -56,6 +58,8 @@ type bulkSetRequest struct {
 	DurationSeconds *int     `json:"duration_seconds"`
 	IsWarmup        bool     `json:"is_warmup"`
 	Completed       bool     `json:"completed"`
+	Rir             *int     `json:"rir"`
+	Rpe             *float64 `json:"rpe"`
 }
 
 type bulkExerciseRequest struct {
@@ -83,6 +87,8 @@ type trackerSet struct {
 	DurationSeconds *int     `json:"duration_seconds"`
 	IsWarmup        bool     `json:"is_warmup"`
 	Completed       bool     `json:"completed"`
+	Rir             *int     `json:"rir"`
+	Rpe             *float64 `json:"rpe"`
 }
 
 type trackerWorkoutExercise struct {
@@ -112,7 +118,7 @@ func (h *TrackerHandler) ListExercises(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.Store.DB.QueryContext(r.Context(), `
-		SELECT id, user_id, name, category, default_tracking_type, created_at
+		SELECT id, user_id, name, category, default_tracking_type, muscles, created_at
 		FROM ext_tracker_exercises
 		WHERE user_id IS NULL OR user_id = ?
 		ORDER BY CASE WHEN user_id IS NULL THEN 0 ELSE 1 END, name ASC
@@ -128,7 +134,7 @@ func (h *TrackerHandler) ListExercises(w http.ResponseWriter, r *http.Request) {
 		var e trackerExercise
 		var uid sql.NullString
 		var createdAt time.Time
-		if err := rows.Scan(&e.ID, &uid, &e.Name, &e.Category, &e.DefaultTrackingType, &createdAt); err != nil {
+		if err := rows.Scan(&e.ID, &uid, &e.Name, &e.Category, &e.DefaultTrackingType, &e.Muscles, &createdAt); err != nil {
 			http.Error(w, "Failed to scan exercise", http.StatusInternalServerError)
 			return
 		}
@@ -163,9 +169,9 @@ func (h *TrackerHandler) CreateExercise(w http.ResponseWriter, r *http.Request) 
 	id := trackerGenerateID()
 	now := time.Now()
 	_, err := h.Store.DB.ExecContext(r.Context(), `
-		INSERT INTO ext_tracker_exercises (id, user_id, name, category, default_tracking_type, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, id, userID, req.Name, req.Category, req.DefaultTrackingType, now)
+		INSERT INTO ext_tracker_exercises (id, user_id, name, category, default_tracking_type, muscles, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, id, userID, req.Name, req.Category, req.DefaultTrackingType, req.Muscles, now)
 	if err != nil {
 		http.Error(w, "Failed to create exercise", http.StatusInternalServerError)
 		return
@@ -221,9 +227,9 @@ func (h *TrackerHandler) BulkSaveWorkout(w http.ResponseWriter, r *http.Request)
 
 		for _, s := range ex.Sets {
 			_, err = tx.ExecContext(r.Context(), `
-				INSERT INTO ext_tracker_sets (id, workout_exercise_id, sort_order, reps, weight_kg, distance_meters, duration_seconds, is_warmup, completed)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-			`, s.ID, ex.ID, s.SortOrder, s.Reps, s.WeightKg, s.DistanceMeters, s.DurationSeconds, s.IsWarmup, s.Completed)
+				INSERT INTO ext_tracker_sets (id, workout_exercise_id, sort_order, reps, weight_kg, distance_meters, duration_seconds, is_warmup, completed, rir, rpe)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`, s.ID, ex.ID, s.SortOrder, s.Reps, s.WeightKg, s.DistanceMeters, s.DurationSeconds, s.IsWarmup, s.Completed, s.Rir, s.Rpe)
 			if err != nil {
 				http.Error(w, "Failed to save set", http.StatusInternalServerError)
 				return
@@ -348,7 +354,7 @@ func (h *TrackerHandler) ListWorkouts(w http.ResponseWriter, r *http.Request) {
 	// 3. Load sets
 	sRows, err := h.Store.DB.QueryContext(r.Context(), `
 		SELECT s.id, s.workout_exercise_id, s.sort_order, s.reps, s.weight_kg,
-		       s.distance_meters, s.duration_seconds, s.is_warmup, s.completed
+		       s.distance_meters, s.duration_seconds, s.is_warmup, s.completed, s.rir, s.rpe
 		FROM ext_tracker_sets s
 		JOIN ext_tracker_workout_exercises we ON we.id = s.workout_exercise_id
 		WHERE we.workout_id IN (
@@ -365,10 +371,9 @@ func (h *TrackerHandler) ListWorkouts(w http.ResponseWriter, r *http.Request) {
 	for sRows.Next() {
 		var s trackerSet
 		var weID string
-		var reps sql.NullInt64
-		var weightKg, distanceMeters sql.NullFloat64
-		var durationSeconds sql.NullInt64
-		if err := sRows.Scan(&s.ID, &weID, &s.SortOrder, &reps, &weightKg, &distanceMeters, &durationSeconds, &s.IsWarmup, &s.Completed); err != nil {
+		var reps, durationSeconds, rir sql.NullInt64
+		var weightKg, distanceMeters, rpe sql.NullFloat64
+		if err := sRows.Scan(&s.ID, &weID, &s.SortOrder, &reps, &weightKg, &distanceMeters, &durationSeconds, &s.IsWarmup, &s.Completed, &rir, &rpe); err != nil {
 			http.Error(w, "Failed to scan set", http.StatusInternalServerError)
 			return
 		}
@@ -385,6 +390,13 @@ func (h *TrackerHandler) ListWorkouts(w http.ResponseWriter, r *http.Request) {
 		if durationSeconds.Valid {
 			v := int(durationSeconds.Int64)
 			s.DurationSeconds = &v
+		}
+		if rir.Valid {
+			v := int(rir.Int64)
+			s.Rir = &v
+		}
+		if rpe.Valid {
+			s.Rpe = &rpe.Float64
 		}
 
 		for wID, exMap := range exIndex {

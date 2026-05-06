@@ -81,13 +81,17 @@ export default function HomePage() {
           </h2>
           <div className="flex flex-col gap-2">
             {workouts.slice(0, 3).map((w) => (
-              <div key={w.id} className="bg-white rounded-2xl p-4 shadow-sm">
+              <button
+                key={w.id}
+                onClick={() => router.push('/history')}
+                className="bg-white rounded-2xl p-4 shadow-sm text-left w-full"
+              >
                 <div className="font-semibold text-black">{w.name}</div>
                 <div className="text-xs text-gray-500 mt-0.5">
                   {new Date(w.startedAt).toLocaleDateString('de-DE')} ·{' '}
                   {w.exercises.length} Übungen
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>

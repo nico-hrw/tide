@@ -22,7 +22,7 @@ interface TrackerState {
 
   loadFromDB: () => Promise<void>
   fetchExercises: () => Promise<void>
-  createExercise: (name: string, category: string, defaultTrackingType: string) => Promise<void>
+  createExercise: (name: string, category: string, defaultTrackingType: string, muscles?: string) => Promise<void>
   startWorkout: (name: string) => Promise<void>
   addExerciseToWorkout: (exercise: TrackerExercise) => Promise<ActiveWorkoutExercise | undefined>
   removeExerciseFromWorkout: (workoutExerciseId: string) => Promise<void>
@@ -64,6 +64,7 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
       name: string
       category: string
       default_tracking_type: string
+      muscles?: string
       created_at: string
     }> = await res.json()
     const exercises: TrackerExercise[] = data.map((e) => ({
@@ -72,16 +73,17 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
       name: e.name,
       category: e.category as TrackerExercise['category'],
       defaultTrackingType: e.default_tracking_type as TrackerExercise['defaultTrackingType'],
+      muscles: e.muscles ?? '',
       createdAt: e.created_at,
     }))
     set({ exercises })
   },
 
-  createExercise: async (name, category, defaultTrackingType) => {
+  createExercise: async (name, category, defaultTrackingType, muscles = '') => {
     const res = await apiFetch('/tracker/exercises', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, category, default_tracking_type: defaultTrackingType }),
+      body: JSON.stringify({ name, category, default_tracking_type: defaultTrackingType, muscles }),
     })
     if (!res.ok) throw new Error('Failed to create exercise')
     await get().fetchExercises()
@@ -198,6 +200,8 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
           duration_seconds: s.durationSeconds,
           is_warmup: s.isWarmup,
           completed: s.completed,
+          rir: s.rir,
+          rpe: s.rpe,
         })),
       })),
     }
@@ -240,6 +244,7 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
               name: we.exercise.name,
               category: we.exercise.category,
               defaultTrackingType: we.exercise.default_tracking_type,
+              muscles: we.exercise.muscles ?? '',
               createdAt: we.exercise.created_at,
             }
           : undefined,
@@ -253,6 +258,8 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
           durationSeconds: s.duration_seconds,
           isWarmup: s.is_warmup,
           completed: s.completed,
+          rir: s.rir,
+          rpe: s.rpe,
         })),
       })),
     }))

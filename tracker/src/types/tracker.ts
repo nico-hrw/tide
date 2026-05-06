@@ -7,6 +7,7 @@ export interface TrackerExercise {
   name: string
   category: Category
   defaultTrackingType: TrackingType
+  muscles: string
   createdAt: string
 }
 
@@ -19,6 +20,8 @@ export interface TrackerSet {
   durationSeconds?: number
   isWarmup: boolean
   completed: boolean
+  rir?: number
+  rpe?: number
 }
 
 export interface TrackerWorkoutExercise {
@@ -72,6 +75,8 @@ export interface BulkWorkoutPayload {
       duration_seconds?: number
       is_warmup: boolean
       completed: boolean
+      rir?: number
+      rpe?: number
     }>
   }>
 }

@@ -28,6 +28,9 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
   const [durationMin, setDurationMin] = useState<number | undefined>(undefined)
   const [durationSec, setDurationSec] = useState<number | undefined>(undefined)
   const [isWarmup, setIsWarmup] = useState(false)
+  const [showDetails, setShowDetails] = useState(false)
+  const [rir, setRir] = useState<number | undefined>(undefined)
+  const [rpe, setRpe] = useState<number | undefined>(undefined)
 
   const touchStartY = useRef(0)
 
@@ -55,6 +58,8 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
 
   async function handleAddSet() {
     const setData: Partial<TrackerSet> = { isWarmup, completed: true }
+    if (rir != null) setData.rir = rir
+    if (rpe != null) setData.rpe = rpe
     if (type === 'weight_reps') {
       if (weightKg != null) setData.weightKg = weightKg
       if (reps != null) setData.reps = reps
@@ -72,6 +77,8 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
     setDistanceKm(undefined)
     setDurationMin(undefined)
     setDurationSec(undefined)
+    setRir(undefined)
+    setRpe(undefined)
   }
 
   return (
@@ -95,7 +102,10 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
               <div className={`w-1 h-6 rounded-full ${catColor}`} />
               <h2 className="text-xl font-bold text-black">{ex.name}</h2>
             </div>
-            <p className="text-sm text-gray-500 ml-3 capitalize">{ex.category}</p>
+            <div className="ml-3">
+              <p className="text-sm text-gray-500 capitalize">{ex.category}</p>
+              {ex.muscles && <p className="text-xs text-gray-400">{ex.muscles}</p>}
+            </div>
           </div>
           <button onClick={handleClose}><X size={20} className="text-gray-400" /></button>
         </div>
@@ -124,12 +134,27 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
               </div>
             )}
 
-            <button
-              onClick={() => setIsWarmup(!isWarmup)}
-              className={`self-start text-xs px-3 py-1 rounded-full border transition-colors ${isWarmup ? 'border-orange-300 bg-orange-50 text-orange-500' : 'border-gray-200 text-gray-400'}`}
-            >
-              🔥 Aufwärmsatz
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => setIsWarmup(!isWarmup)}
+                className={`text-xs px-3 py-1 rounded-full border transition-colors ${isWarmup ? 'border-orange-300 bg-orange-50 text-orange-500' : 'border-gray-200 text-gray-400'}`}
+              >
+                🔥 Aufwärmsatz
+              </button>
+              <button
+                onClick={() => setShowDetails(!showDetails)}
+                className={`text-xs px-3 py-1 rounded-full border transition-colors ${showDetails ? 'border-gray-400 bg-gray-100 text-gray-600' : 'border-gray-200 text-gray-400'}`}
+              >
+                RIR / RPE
+              </button>
+            </div>
+
+            {showDetails && (
+              <div className="flex gap-3">
+                <SpinnerInput label="RIR" value={rir} onChange={setRir} step={1} min={0} max={5} placeholder="—" />
+                <SpinnerInput label="RPE" value={rpe} onChange={setRpe} step={0.5} min={6} max={10} decimals={1} placeholder="—" />
+              </div>
+            )}
           </div>
 
           {currentSets.length > 0 && (

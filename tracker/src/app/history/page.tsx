@@ -48,12 +48,6 @@ export default function HistoryPage() {
                   })}{' '}· {durationStr(w)} · {w.exercises.length} Übungen
                 </div>
               </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); deleteWorkout(w.id) }}
-                className="p-1 text-gray-300 hover:text-red-400 mr-1"
-              >
-                <Trash2 size={15} />
-              </button>
               {expanded === w.id ? (
                 <ChevronUp size={18} className="text-gray-400" />
               ) : (
@@ -63,6 +57,12 @@ export default function HistoryPage() {
 
             {expanded === w.id && (
               <div className="px-4 pb-4 border-t border-gray-50">
+                <button
+                  onClick={() => { if (confirm('Workout löschen?')) deleteWorkout(w.id) }}
+                  className="flex items-center gap-1.5 text-xs text-red-400 mt-3 mb-1"
+                >
+                  <Trash2 size={13} /> Workout löschen
+                </button>
                 {w.exercises.map((we) => (
                   <div key={we.id} className="mt-3">
                     <div className="flex items-center gap-2 mb-1">

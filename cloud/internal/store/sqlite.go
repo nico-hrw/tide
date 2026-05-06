@@ -264,6 +264,9 @@ func (s *SQLiteStore) migrate() error {
 	// version distinguishes V1 blob (raw ciphertext) from V2 blob ({data, iv} JSON).
 	_, _ = s.DB.Exec("ALTER TABLE file_backups ADD COLUMN access_keys TEXT DEFAULT '{}'")
 	_, _ = s.DB.Exec("ALTER TABLE file_backups ADD COLUMN version INTEGER DEFAULT 1")
+	_, _ = s.DB.Exec("ALTER TABLE ext_tracker_exercises ADD COLUMN muscles TEXT NOT NULL DEFAULT ''")
+	_, _ = s.DB.Exec("ALTER TABLE ext_tracker_sets ADD COLUMN rir INTEGER")
+	_, _ = s.DB.Exec("ALTER TABLE ext_tracker_sets ADD COLUMN rpe REAL")
 
 	// 4. Create Indices (Now that columns exist)
 	indices := `
@@ -279,25 +282,30 @@ func (s *SQLiteStore) migrate() error {
 	}
 
 	// 5. Seed global tracker exercises (idempotent via INSERT OR IGNORE)
-	seeds := []struct{ id, name, category, trackingType string }{
-		{"ex-bench-press", "Bench Press", "strength", "weight_reps"},
-		{"ex-squat", "Squat", "strength", "weight_reps"},
-		{"ex-deadlift", "Deadlift", "strength", "weight_reps"},
-		{"ex-ohp", "Overhead Press", "strength", "weight_reps"},
-		{"ex-pull-up", "Pull-Up", "strength", "weight_reps"},
-		{"ex-barbell-row", "Barbell Row", "strength", "weight_reps"},
-		{"ex-running", "Running", "cardio", "distance_time"},
-		{"ex-cycling", "Cycling", "cardio", "distance_time"},
-		{"ex-rowing", "Rowing", "cardio", "distance_time"},
-		{"ex-swimming", "Swimming", "cardio", "distance_time"},
-		{"ex-yoga", "Yoga", "flexibility", "time_only"},
-		{"ex-stretching", "Stretching", "flexibility", "time_only"},
+	seeds := []struct{ id, name, category, trackingType, muscles string }{
+		{"ex-bench-press", "Bench Press", "strength", "weight_reps", "Brust, Trizeps, Schultern"},
+		{"ex-squat", "Squat", "strength", "weight_reps", "Quadrizeps, Gesäß, Hamstrings"},
+		{"ex-deadlift", "Deadlift", "strength", "weight_reps", "Rücken, Gesäß, Hamstrings"},
+		{"ex-ohp", "Overhead Press", "strength", "weight_reps", "Schultern, Trizeps"},
+		{"ex-pull-up", "Pull-Up", "strength", "weight_reps", "Rücken, Bizeps"},
+		{"ex-barbell-row", "Barbell Row", "strength", "weight_reps", "Rücken, Bizeps"},
+		{"ex-running", "Running", "cardio", "distance_time", "Beine, Ausdauer"},
+		{"ex-cycling", "Cycling", "cardio", "distance_time", "Beine, Ausdauer"},
+		{"ex-rowing", "Rowing", "cardio", "distance_time", "Ganzkörper"},
+		{"ex-swimming", "Swimming", "cardio", "distance_time", "Ganzkörper"},
+		{"ex-yoga", "Yoga", "flexibility", "time_only", "Ganzkörper"},
+		{"ex-stretching", "Stretching", "flexibility", "time_only", "Ganzkörper"},
 	}
 	seedTime := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	for _, seed := range seeds {
 		_, _ = s.DB.Exec(
-			`INSERT OR IGNORE INTO ext_tracker_exercises (id, user_id, name, category, default_tracking_type, created_at) VALUES (?, NULL, ?, ?, ?, ?)`,
-			seed.id, seed.name, seed.category, seed.trackingType, seedTime,
+			`INSERT OR IGNORE INTO ext_tracker_exercises (id, user_id, name, category, default_tracking_type, muscles, created_at) VALUES (?, NULL, ?, ?, ?, ?, ?)`,
+			seed.id, seed.name, seed.category, seed.trackingType, seed.muscles, seedTime,
+		)
+		// Update muscles for existing seeds that were inserted without muscles
+		_, _ = s.DB.Exec(
+			`UPDATE ext_tracker_exercises SET muscles = ? WHERE id = ? AND muscles = ''`,
+			seed.muscles, seed.id,
 		)
 	}
 
