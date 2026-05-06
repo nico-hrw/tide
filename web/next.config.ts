@@ -28,6 +28,14 @@ const nextConfig: NextConfig = {
         source: '/api/:path*',
         destination: 'http://localhost:8080/api/:path*',
       },
+      {
+        source: '/track',
+        destination: 'http://localhost:3001/track',
+      },
+      {
+        source: '/track/:path*',
+        destination: 'http://localhost:3001/track/:path*',
+      },
     ];
   },
 };
