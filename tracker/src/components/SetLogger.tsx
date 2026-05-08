@@ -81,6 +81,19 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
     setRpe(undefined)
   }
 
+  const isAddDisabled = (() => {
+    if (type === 'weight_reps') {
+      return (!weightKg || weightKg === 0) && (!reps || reps === 0)
+    }
+    if (type === 'distance_time') {
+      const secs = ((durationMin ?? 0) * 60) + (durationSec ?? 0)
+      return (!distanceKm || distanceKm === 0) && secs === 0
+    }
+    // time_only
+    const secs = ((durationMin ?? 0) * 60) + (durationSec ?? 0)
+    return secs === 0
+  })()
+
   return (
     <div
       className={`fixed inset-0 z-50 flex items-end transition-colors duration-300 ${visible ? 'bg-black/20' : 'bg-transparent'}`}
@@ -177,7 +190,8 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
 
         <button
           onClick={() => { void handleAddSet() }}
-          className="w-full bg-black text-white rounded-2xl py-4 font-semibold text-base mt-4 shrink-0"
+          disabled={isAddDisabled}
+          className="w-full bg-black text-white rounded-2xl py-4 font-semibold text-base mt-4 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           + Satz hinzufügen
         </button>
