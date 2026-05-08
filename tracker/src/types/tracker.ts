@@ -1,3 +1,25 @@
+export type MuscleId =
+  | 'chest'
+  | 'front_shoulder'
+  | 'rear_shoulder'
+  | 'triceps'
+  | 'biceps'
+  | 'forearms'
+  | 'upper_back'
+  | 'lats'
+  | 'traps'
+  | 'abs'
+  | 'glutes'
+  | 'quads'
+  | 'hamstrings'
+  | 'calves'
+
+export interface MuscleGroup {
+  id: MuscleId
+  name: string
+  view: 'front' | 'back' | 'both'
+}
+
 export type TrackingType = 'weight_reps' | 'distance_time' | 'time_only'
 export type Category = 'strength' | 'cardio' | 'flexibility'
 
@@ -8,6 +30,8 @@ export interface TrackerExercise {
   category: Category
   defaultTrackingType: TrackingType
   muscles: string
+  primaryMuscles?: MuscleId[]
+  secondaryMuscles?: MuscleId[]
   createdAt: string
 }
 
@@ -46,6 +70,7 @@ export interface ActiveWorkout {
   name: string
   startedAt: string
   exercises: ActiveWorkoutExercise[]
+  targetMuscles: MuscleId[]
 }
 
 export interface ActiveWorkoutExercise {
