@@ -12,11 +12,12 @@ interface ActiveWorkoutViewProps {
   onFinish?: () => void
 }
 
-function useElapsedTimer(startedAt: string): string {
+function useElapsedTimer(startedAt: string | null): string {
   const [elapsed, setElapsed] = useState('')
   useEffect(() => {
+    if (!startedAt) return
     function update() {
-      const ms = Date.now() - new Date(startedAt).getTime()
+      const ms = Date.now() - new Date(startedAt!).getTime()
       const totalSecs = Math.floor(ms / 1000)
       const m = Math.floor(totalSecs / 60)
       const s = totalSecs % 60
@@ -35,8 +36,9 @@ export default function ActiveWorkoutView({ onFinish }: ActiveWorkoutViewProps) 
   const [showPicker, setShowPicker] = useState(false)
   const [activeExercise, setActiveExercise] = useState<ActiveWorkoutExercise | null>(null)
   const [confirmFinish, setConfirmFinish] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
-  const elapsed = useElapsedTimer(activeWorkout?.startedAt ?? new Date().toISOString())
+  const elapsed = useElapsedTimer(activeWorkout?.startedAt ?? null)
 
   if (!activeWorkout) return null
 
@@ -46,12 +48,21 @@ export default function ActiveWorkoutView({ onFinish }: ActiveWorkoutViewProps) 
   }
 
   async function handleFinish() {
-    await finishWorkout()
-    onFinish?.()
+    if (submitting) return
+    setSubmitting(true)
+    try {
+      await finishWorkout()
+      onFinish?.()
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   async function handleCancel() {
+    if (submitting) return
+    setSubmitting(true)
     await cancelWorkout()
+    // no finally needed — component unmounts on cancel
   }
 
   const hasExercises = activeWorkout.exercises.length > 0
@@ -135,7 +146,8 @@ export default function ActiveWorkoutView({ onFinish }: ActiveWorkoutViewProps) 
             </button>
             <button
               onClick={handleCancel}
-              className="w-full text-gray-400 text-sm py-2"
+              disabled={submitting}
+              className="w-full text-gray-400 text-sm py-2 disabled:opacity-40"
             >
               Abbrechen
             </button>
@@ -152,9 +164,10 @@ export default function ActiveWorkoutView({ onFinish }: ActiveWorkoutViewProps) 
               </button>
               <button
                 onClick={handleFinish}
-                className="flex-1 bg-black text-white rounded-xl py-3 text-sm font-semibold"
+                disabled={submitting}
+                className="flex-1 bg-black text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-60"
               >
-                Beenden ✓
+                {submitting ? '…' : 'Beenden ✓'}
               </button>
             </div>
           </div>
@@ -162,7 +175,8 @@ export default function ActiveWorkoutView({ onFinish }: ActiveWorkoutViewProps) 
       ) : (
         <button
           onClick={handleCancel}
-          className="w-full border border-gray-200 text-gray-500 rounded-2xl py-4 text-sm font-medium"
+          disabled={submitting}
+          className="w-full border border-gray-200 text-gray-500 rounded-2xl py-4 text-sm font-medium disabled:opacity-60"
         >
           Abbrechen
         </button>
