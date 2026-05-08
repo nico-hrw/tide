@@ -22,7 +22,8 @@ export default function HomePage() {
   const [starting, setStarting] = useState(false)
   const [workoutName, setWorkoutName] = useState('')
   const [targetMuscles, setTargetMuscles] = useState<MuscleId[]>([])
-  const [contentVisible, setContentVisible] = useState(true)
+  const [activeVisible, setActiveVisible] = useState(false)
+  const [startingWorkout, setStartingWorkout] = useState(false)
   const hasActive = activeWorkout !== null
 
   useEffect(() => {
@@ -36,12 +37,12 @@ export default function HomePage() {
   }, [])
 
   useEffect(() => {
-    if (hasActive) {
-      setContentVisible(false)
-    } else {
-      const id = setTimeout(() => setContentVisible(true), 50)
-      return () => clearTimeout(id)
+    if (!hasActive) {
+      setActiveVisible(false)
+      return
     }
+    const id = requestAnimationFrame(() => setActiveVisible(true))
+    return () => cancelAnimationFrame(id)
   }, [hasActive])
 
   const streak = calcStreak(workouts)
@@ -55,11 +56,17 @@ export default function HomePage() {
   }
 
   async function handleStart() {
-    const name = workoutName.trim() || 'Training'
-    await startWorkout(name, targetMuscles)
-    setStarting(false)
-    setWorkoutName('')
-    setTargetMuscles([])
+    if (startingWorkout) return
+    setStartingWorkout(true)
+    try {
+      const name = workoutName.trim() || 'Training'
+      await startWorkout(name, targetMuscles)
+      setStarting(false)
+      setWorkoutName('')
+      setTargetMuscles([])
+    } finally {
+      setStartingWorkout(false)
+    }
   }
 
   function handleCancelStart() {
@@ -73,8 +80,7 @@ export default function HomePage() {
     return (
       <div
         className="px-4 pt-12 pb-24 transition-opacity duration-300"
-        style={{ opacity: contentVisible ? 0 : 1 }}
-        ref={(el) => { if (el) requestAnimationFrame(() => { el.style.opacity = '1' }) }}
+        style={{ opacity: activeVisible ? 1 : 0 }}
       >
         <ActiveWorkoutView />
       </div>
@@ -123,9 +129,10 @@ export default function HomePage() {
 
         <button
           onClick={handleStart}
-          className="w-full bg-black text-white rounded-2xl py-4 font-semibold text-base mb-3"
+          disabled={startingWorkout}
+          className="w-full bg-black text-white rounded-2xl py-4 font-semibold text-base mb-3 disabled:opacity-60"
         >
-          Starten →
+          {startingWorkout ? '…' : 'Starten →'}
         </button>
         <button
           onClick={handleCancelStart}
@@ -139,10 +146,7 @@ export default function HomePage() {
 
   // Idle state
   return (
-    <div
-      className="px-4 pt-12 pb-4 transition-all duration-300"
-      style={{ opacity: contentVisible ? 1 : 0, transform: contentVisible ? 'translateY(0)' : 'translateY(-16px)' }}
-    >
+    <div className="px-4 pt-12 pb-4">
       <h1 className="text-2xl font-bold text-black mb-0.5">
         {greeting()}{username ? `, ${username}` : ''} 👋
       </h1>
