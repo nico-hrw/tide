@@ -2,13 +2,31 @@
 import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react'
 import { useTrackerStore } from '@/store/useTrackerStore'
-import type { TrackerWorkout } from '@/types/tracker'
+import MuscleSVG from '@/components/MuscleSVG'
+import { getMusclesForExercise } from '@/lib/builtinExerciseMuscles'
+import { MUSCLE_BY_ID } from '@/lib/muscles'
+import type { MuscleId, TrackerWorkout } from '@/types/tracker'
 
 function durationStr(w: TrackerWorkout): string {
   if (!w.finishedAt) return 'Aktiv'
   const ms = new Date(w.finishedAt).getTime() - new Date(w.startedAt).getTime()
   const mins = Math.round(ms / 60000)
   return `${mins} Min`
+}
+
+function aggregateMuscles(w: TrackerWorkout): { primary: MuscleId[]; secondary: MuscleId[] } {
+  const primary = new Set<MuscleId>()
+  const secondary = new Set<MuscleId>()
+  for (const we of w.exercises) {
+    const muscles = we.exercise?.primaryMuscles?.length
+      ? { primary: we.exercise.primaryMuscles, secondary: we.exercise.secondaryMuscles ?? [] }
+      : getMusclesForExercise(we.exercise?.name ?? '')
+    muscles.primary.forEach((m) => primary.add(m))
+    muscles.secondary.forEach((m) => {
+      if (!primary.has(m)) secondary.add(m)
+    })
+  }
+  return { primary: Array.from(primary), secondary: Array.from(secondary) }
 }
 
 export default function HistoryPage() {
@@ -63,6 +81,33 @@ export default function HistoryPage() {
                 >
                   <Trash2 size={13} /> Workout löschen
                 </button>
+                {/* Muscle summary */}
+                {(() => {
+                  const muscles = aggregateMuscles(w)
+                  if (muscles.primary.length === 0 && muscles.secondary.length === 0) return null
+                  return (
+                    <div className="mb-4">
+                      <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Trainierte Muskeln</p>
+                      <div className="flex items-start gap-4">
+                        <MuscleSVG size="lg" primary={muscles.primary} secondary={muscles.secondary} />
+                        <div className="flex flex-col gap-1 mt-1">
+                          {muscles.primary.map((id) => (
+                            <div key={id} className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full bg-black" />
+                              <span className="text-xs text-gray-700">{MUSCLE_BY_ID[id]?.name ?? id}</span>
+                            </div>
+                          ))}
+                          {muscles.secondary.map((id) => (
+                            <div key={id} className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full bg-gray-300" />
+                              <span className="text-xs text-gray-400">{MUSCLE_BY_ID[id]?.name ?? id}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
                 {w.exercises.map((we) => (
                   <div key={we.id} className="mt-3">
                     <div className="flex items-center gap-2 mb-1">
