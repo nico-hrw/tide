@@ -11,6 +11,7 @@ import type {
   TrackerSet,
   SyncQueueEntry,
   BulkWorkoutPayload,
+  MuscleId,
 } from '@/types/tracker'
 
 interface TrackerState {
@@ -23,13 +24,14 @@ interface TrackerState {
   loadFromDB: () => Promise<void>
   fetchExercises: () => Promise<void>
   createExercise: (name: string, category: string, defaultTrackingType: string, muscles?: string) => Promise<void>
-  startWorkout: (name: string) => Promise<void>
+  startWorkout: (name: string, targetMuscles?: MuscleId[]) => Promise<void>
   addExerciseToWorkout: (exercise: TrackerExercise) => Promise<ActiveWorkoutExercise | undefined>
   removeExerciseFromWorkout: (workoutExerciseId: string) => Promise<void>
   addSet: (workoutExerciseId: string, setData: Partial<TrackerSet>) => Promise<void>
   updateSet: (workoutExerciseId: string, setId: string, updates: Partial<TrackerSet>) => Promise<void>
   removeSet: (workoutExerciseId: string, setId: string) => Promise<void>
   finishWorkout: () => Promise<void>
+  cancelWorkout: () => Promise<void>
   fetchWorkouts: () => Promise<void>
   deleteExercise: (id: string) => Promise<void>
   deleteWorkout: (id: string) => Promise<void>
@@ -89,12 +91,13 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
     await get().fetchExercises()
   },
 
-  startWorkout: async (name) => {
+  startWorkout: async (name, targetMuscles = []) => {
     const workout: ActiveWorkout = {
       id: uid(),
       name,
       startedAt: new Date().toISOString(),
       exercises: [],
+      targetMuscles,
     }
     await idb.saveActiveWorkout(workout)
     set({ activeWorkout: workout })
@@ -218,6 +221,11 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
     const queue = await idb.getSyncQueue()
     set({ activeWorkout: null, syncQueue: queue })
     get().triggerSync()
+  },
+
+  cancelWorkout: async () => {
+    await idb.clearActiveWorkout()
+    set({ activeWorkout: null })
   },
 
   fetchWorkouts: async () => {
