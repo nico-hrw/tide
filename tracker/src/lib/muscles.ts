@@ -1,4 +1,4 @@
-import type { MuscleGroup } from '@/types/tracker'
+import type { MuscleGroup, MuscleId } from '@/types/tracker'
 
 export const MUSCLE_GROUPS: MuscleGroup[] = [
   { id: 'chest',          name: 'Brust',             view: 'front' },
@@ -19,4 +19,4 @@ export const MUSCLE_GROUPS: MuscleGroup[] = [
 
 export const MUSCLE_BY_ID = Object.fromEntries(
   MUSCLE_GROUPS.map((m) => [m.id, m])
-) as Record<string, MuscleGroup>
+) as Record<MuscleId, MuscleGroup>

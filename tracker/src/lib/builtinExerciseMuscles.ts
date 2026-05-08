@@ -1,6 +1,6 @@
 import type { MuscleId } from '@/types/tracker'
 
-interface MuscleDef {
+export interface MuscleDef {
   primary: MuscleId[]
   secondary: MuscleId[]
 }
