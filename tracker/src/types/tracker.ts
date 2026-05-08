@@ -70,7 +70,7 @@ export interface ActiveWorkout {
   name: string
   startedAt: string
   exercises: ActiveWorkoutExercise[]
-  targetMuscles: MuscleId[]
+  targetMuscles?: MuscleId[]
 }
 
 export interface ActiveWorkoutExercise {
