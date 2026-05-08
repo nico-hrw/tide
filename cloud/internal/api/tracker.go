@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -33,20 +34,24 @@ func (h *TrackerHandler) RegisterRoutes(r chi.Router) {
 // ── Request / Response types ──────────────────────────────────────────────────
 
 type trackerExercise struct {
-	ID                  string  `json:"id"`
-	UserID              *string `json:"user_id"`
-	Name                string  `json:"name"`
-	Category            string  `json:"category"`
-	DefaultTrackingType string  `json:"default_tracking_type"`
-	Muscles             string  `json:"muscles"`
-	CreatedAt           string  `json:"created_at"`
+	ID                  string   `json:"id"`
+	UserID              *string  `json:"user_id"`
+	Name                string   `json:"name"`
+	Category            string   `json:"category"`
+	DefaultTrackingType string   `json:"default_tracking_type"`
+	Muscles             string   `json:"muscles"`
+	PrimaryMuscles      []string `json:"primary_muscles"`
+	SecondaryMuscles    []string `json:"secondary_muscles"`
+	CreatedAt           string   `json:"created_at"`
 }
 
 type createExerciseRequest struct {
-	Name                string `json:"name"`
-	Category            string `json:"category"`
-	DefaultTrackingType string `json:"default_tracking_type"`
-	Muscles             string `json:"muscles"`
+	Name                string   `json:"name"`
+	Category            string   `json:"category"`
+	DefaultTrackingType string   `json:"default_tracking_type"`
+	Muscles             string   `json:"muscles"`
+	PrimaryMuscles      []string `json:"primary_muscles"`
+	SecondaryMuscles    []string `json:"secondary_muscles"`
 }
 
 type bulkSetRequest struct {
@@ -118,7 +123,7 @@ func (h *TrackerHandler) ListExercises(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := h.Store.DB.QueryContext(r.Context(), `
-		SELECT id, user_id, name, category, default_tracking_type, muscles, created_at
+		SELECT id, user_id, name, category, default_tracking_type, muscles, primary_muscles, secondary_muscles, created_at
 		FROM ext_tracker_exercises
 		WHERE user_id IS NULL OR user_id = ?
 		ORDER BY CASE WHEN user_id IS NULL THEN 0 ELSE 1 END, name ASC
@@ -134,7 +139,8 @@ func (h *TrackerHandler) ListExercises(w http.ResponseWriter, r *http.Request) {
 		var e trackerExercise
 		var uid sql.NullString
 		var createdAt time.Time
-		if err := rows.Scan(&e.ID, &uid, &e.Name, &e.Category, &e.DefaultTrackingType, &e.Muscles, &createdAt); err != nil {
+		var primaryStr, secondaryStr string
+		if err := rows.Scan(&e.ID, &uid, &e.Name, &e.Category, &e.DefaultTrackingType, &e.Muscles, &primaryStr, &secondaryStr, &createdAt); err != nil {
 			http.Error(w, "Failed to scan exercise", http.StatusInternalServerError)
 			return
 		}
@@ -142,6 +148,16 @@ func (h *TrackerHandler) ListExercises(w http.ResponseWriter, r *http.Request) {
 			e.UserID = &uid.String
 		}
 		e.CreatedAt = createdAt.Format(time.RFC3339)
+		if primaryStr != "" {
+			e.PrimaryMuscles = strings.Split(primaryStr, ",")
+		} else {
+			e.PrimaryMuscles = []string{}
+		}
+		if secondaryStr != "" {
+			e.SecondaryMuscles = strings.Split(secondaryStr, ",")
+		} else {
+			e.SecondaryMuscles = []string{}
+		}
 		exercises = append(exercises, e)
 	}
 
@@ -169,9 +185,10 @@ func (h *TrackerHandler) CreateExercise(w http.ResponseWriter, r *http.Request) 
 	id := trackerGenerateID()
 	now := time.Now()
 	_, err := h.Store.DB.ExecContext(r.Context(), `
-		INSERT INTO ext_tracker_exercises (id, user_id, name, category, default_tracking_type, muscles, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`, id, userID, req.Name, req.Category, req.DefaultTrackingType, req.Muscles, now)
+		INSERT INTO ext_tracker_exercises (id, user_id, name, category, default_tracking_type, muscles, primary_muscles, secondary_muscles, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, id, userID, req.Name, req.Category, req.DefaultTrackingType, req.Muscles,
+		strings.Join(req.PrimaryMuscles, ","), strings.Join(req.SecondaryMuscles, ","), now)
 	if err != nil {
 		http.Error(w, "Failed to create exercise", http.StatusInternalServerError)
 		return
@@ -317,7 +334,7 @@ func (h *TrackerHandler) ListWorkouts(w http.ResponseWriter, r *http.Request) {
 	// 2. Load exercises for these workouts
 	exRows, err := h.Store.DB.QueryContext(r.Context(), `
 		SELECT we.id, we.workout_id, we.exercise_id, we.sort_order,
-		       e.name, e.category, e.default_tracking_type
+		       e.name, e.category, e.default_tracking_type, e.primary_muscles, e.secondary_muscles
 		FROM ext_tracker_workout_exercises we
 		JOIN ext_tracker_exercises e ON e.id = we.exercise_id
 		WHERE we.workout_id IN (
@@ -336,11 +353,22 @@ func (h *TrackerHandler) ListWorkouts(w http.ResponseWriter, r *http.Request) {
 		var we trackerWorkoutExercise
 		var wID string
 		var ex trackerExercise
-		if err := exRows.Scan(&we.ID, &wID, &we.ExerciseID, &we.SortOrder, &ex.Name, &ex.Category, &ex.DefaultTrackingType); err != nil {
+		var primaryStr, secondaryStr string
+		if err := exRows.Scan(&we.ID, &wID, &we.ExerciseID, &we.SortOrder, &ex.Name, &ex.Category, &ex.DefaultTrackingType, &primaryStr, &secondaryStr); err != nil {
 			http.Error(w, "Failed to scan workout exercise", http.StatusInternalServerError)
 			return
 		}
 		ex.ID = we.ExerciseID
+		if primaryStr != "" {
+			ex.PrimaryMuscles = strings.Split(primaryStr, ",")
+		} else {
+			ex.PrimaryMuscles = []string{}
+		}
+		if secondaryStr != "" {
+			ex.SecondaryMuscles = strings.Split(secondaryStr, ",")
+		} else {
+			ex.SecondaryMuscles = []string{}
+		}
 		we.Exercise = &ex
 		we.Sets = []trackerSet{}
 		wIdx := workoutIndex[wID]

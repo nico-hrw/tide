@@ -23,7 +23,7 @@ interface TrackerState {
 
   loadFromDB: () => Promise<void>
   fetchExercises: () => Promise<void>
-  createExercise: (name: string, category: string, defaultTrackingType: string, muscles?: string) => Promise<void>
+  createExercise: (name: string, category: string, defaultTrackingType: string, muscles?: string, primaryMuscles?: MuscleId[]) => Promise<void>
   startWorkout: (name: string, targetMuscles?: MuscleId[]) => Promise<void>
   addExerciseToWorkout: (exercise: TrackerExercise) => Promise<ActiveWorkoutExercise | undefined>
   removeExerciseFromWorkout: (workoutExerciseId: string) => Promise<void>
@@ -67,6 +67,8 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
       category: string
       default_tracking_type: string
       muscles?: string
+      primary_muscles?: MuscleId[]
+      secondary_muscles?: MuscleId[]
       created_at: string
     }> = await res.json()
     const exercises: TrackerExercise[] = data.map((e) => ({
@@ -76,16 +78,24 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
       category: e.category as TrackerExercise['category'],
       defaultTrackingType: e.default_tracking_type as TrackerExercise['defaultTrackingType'],
       muscles: e.muscles ?? '',
+      primaryMuscles: e.primary_muscles ?? [],
+      secondaryMuscles: e.secondary_muscles ?? [],
       createdAt: e.created_at,
     }))
     set({ exercises })
   },
 
-  createExercise: async (name, category, defaultTrackingType, muscles = '') => {
+  createExercise: async (name, category, defaultTrackingType, muscles = '', primaryMuscles = []) => {
     const res = await apiFetch('/tracker/exercises', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, category, default_tracking_type: defaultTrackingType, muscles }),
+      body: JSON.stringify({
+        name,
+        category,
+        default_tracking_type: defaultTrackingType,
+        muscles,
+        primary_muscles: primaryMuscles,
+      }),
     })
     if (!res.ok) throw new Error('Failed to create exercise')
     await get().fetchExercises()
@@ -253,6 +263,8 @@ export const useTrackerStore = create<TrackerState>((set, get) => ({
               category: we.exercise.category,
               defaultTrackingType: we.exercise.default_tracking_type,
               muscles: we.exercise.muscles ?? '',
+              primaryMuscles: we.exercise.primary_muscles ?? [],
+              secondaryMuscles: we.exercise.secondary_muscles ?? [],
               createdAt: we.exercise.created_at,
             }
           : undefined,

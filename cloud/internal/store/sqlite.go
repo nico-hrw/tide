@@ -265,6 +265,8 @@ func (s *SQLiteStore) migrate() error {
 	_, _ = s.DB.Exec("ALTER TABLE file_backups ADD COLUMN access_keys TEXT DEFAULT '{}'")
 	_, _ = s.DB.Exec("ALTER TABLE file_backups ADD COLUMN version INTEGER DEFAULT 1")
 	_, _ = s.DB.Exec("ALTER TABLE ext_tracker_exercises ADD COLUMN muscles TEXT NOT NULL DEFAULT ''")
+	_, _ = s.DB.Exec("ALTER TABLE ext_tracker_exercises ADD COLUMN primary_muscles TEXT NOT NULL DEFAULT ''")
+	_, _ = s.DB.Exec("ALTER TABLE ext_tracker_exercises ADD COLUMN secondary_muscles TEXT NOT NULL DEFAULT ''")
 	_, _ = s.DB.Exec("ALTER TABLE ext_tracker_sets ADD COLUMN rir INTEGER")
 	_, _ = s.DB.Exec("ALTER TABLE ext_tracker_sets ADD COLUMN rpe REAL")
 

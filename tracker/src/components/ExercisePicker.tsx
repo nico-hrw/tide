@@ -60,7 +60,7 @@ export default function ExercisePicker({ onSelect, onClose }: ExercisePickerProp
     if (!newName.trim()) return
     setCreating(true)
     try {
-      await createExercise(newName.trim(), newCategory, newTracking, newPrimaryMuscles.join(', '))
+      await createExercise(newName.trim(), newCategory, newTracking, '', newPrimaryMuscles)
       setNewName('')
       setNewPrimaryMuscles([])
       setShowCreate(false)

@@ -1,0 +1,86 @@
+<h2>Wo lebt die Muskelkarte?</h2>
+<p class="subtitle">Zwei Use Cases: (1) nach dem Workout — was wurde trainiert? (2) vor dem Workout — was will ich trainieren?</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8f8f8;padding:10px;font-family:monospace;font-size:10px;line-height:1.6">
+      <div style="border:1px solid #ddd;border-radius:6px;background:#fff;padding:8px;margin-bottom:6px">
+        <div style="font-weight:bold;margin-bottom:4px">📊 Stats</div>
+        <div style="background:#e8e8e8;border-radius:4px;height:60px;display:flex;align-items:center;justify-content:center;color:#666;font-size:10px">
+          [SVG Körperkarte — Muskeln eingefärbt nach Volumen]
+        </div>
+        <div style="font-size:9px;color:#888;margin-top:4px">Brust ████ Trizeps ███ Schulter ██</div>
+      </div>
+      <div style="display:flex;gap:4px;justify-content:center">
+        <div style="padding:4px 8px;background:#111;color:#fff;border-radius:4px">Home</div>
+        <div style="padding:4px 8px;border:1px solid #ddd;border-radius:4px">Workout</div>
+        <div style="padding:4px 8px;border:1px solid #ddd;border-radius:4px">Verlauf</div>
+        <div style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;background:#eee">Stats ★</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Nur in Stats (Rückblick)</h3>
+      <p>Muskelkarte zeigt nach dem Workout welche Muskeln wie intensiv trainiert wurden. Kein neuer Tab, lebt in der bestehenden Stats-Seite.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8f8f8;padding:10px;font-family:monospace;font-size:10px;line-height:1.6">
+      <div style="border:1px solid #ddd;border-radius:6px;background:#fff;padding:8px;margin-bottom:6px">
+        <div style="font-weight:bold;margin-bottom:4px">🏃 Workout starten</div>
+        <div style="font-size:9px;color:#888;margin-bottom:4px">Welche Muskeln heute?</div>
+        <div style="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:6px">
+          <div style="border:1px solid #3B82F6;color:#3B82F6;border-radius:10px;padding:2px 6px">Brust</div>
+          <div style="border:1px solid #ddd;border-radius:10px;padding:2px 6px;color:#888">Rücken</div>
+          <div style="background:#3B82F6;color:#fff;border-radius:10px;padding:2px 6px">Trizeps ✓</div>
+          <div style="border:1px solid #ddd;border-radius:10px;padding:2px 6px;color:#888">Bizeps</div>
+        </div>
+        <div style="background:#eee;border-radius:4px;padding:4px;font-size:9px;color:#555">
+          → Vorgeschlagene Übungen: Bankdrücken, Dips, Trizepsdrücken...
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;justify-content:center">
+        <div style="padding:4px 8px;background:#111;color:#fff;border-radius:4px">Home ★</div>
+        <div style="padding:4px 8px;border:1px solid #ddd;border-radius:4px">Workout</div>
+        <div style="padding:4px 8px;border:1px solid #ddd;border-radius:4px">Verlauf</div>
+        <div style="padding:4px 8px;border:1px solid #ddd;border-radius:4px">Stats</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Im Workout-Start (Vorschau)</h3>
+      <p>Beim Starten eines Workouts auf der Home-Seite wählt man zuerst Muskelgruppen, danach werden passende Übungen vorgeschlagen.</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8f8f8;padding:10px;font-family:monospace;font-size:10px;line-height:1.6">
+      <div style="display:flex;gap:4px;margin-bottom:6px">
+        <div style="flex:1;border:1px solid #ddd;border-radius:6px;background:#fff;padding:6px">
+          <div style="font-weight:bold;margin-bottom:3px;font-size:9px">Home → Start</div>
+          <div style="background:#e8e8e8;border-radius:3px;height:35px;display:flex;align-items:center;justify-content:center;color:#666;font-size:8px">[Muskeln wählen]</div>
+          <div style="font-size:8px;color:#888;margin-top:2px">→ Übungsvorschläge</div>
+        </div>
+        <div style="flex:1;border:1px solid #ddd;border-radius:6px;background:#fff;padding:6px">
+          <div style="font-weight:bold;margin-bottom:3px;font-size:9px">Stats</div>
+          <div style="background:#e8e8e8;border-radius:3px;height:35px;display:flex;align-items:center;justify-content:center;color:#666;font-size:8px">[Karte: trainiert]</div>
+          <div style="font-size:8px;color:#888;margin-top:2px">Verlaufs-Heatmap</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:4px;justify-content:center">
+        <div style="padding:4px 8px;background:#111;color:#fff;border-radius:4px">Home ★</div>
+        <div style="padding:4px 8px;border:1px solid #ddd;border-radius:4px">Workout</div>
+        <div style="padding:4px 8px;border:1px solid #ddd;border-radius:4px">Verlauf</div>
+        <div style="padding:4px 8px;border:1px solid #ddd;border-radius:4px;background:#eee">Stats ★</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Beide (Vorschau + Rückblick)</h3>
+      <p>Muscle-Picker beim Workout-Start auf Home, plus Muskelkarte mit Heatmap auf der Stats-Seite. Vollständige Integration beider Use Cases.</p>
+    </div>
+  </div>
+
+</div>

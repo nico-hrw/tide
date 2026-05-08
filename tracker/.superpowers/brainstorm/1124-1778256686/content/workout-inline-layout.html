@@ -1,0 +1,79 @@
+<h2>Home-Seite während aktives Workout</h2>
+<p class="subtitle">Wie soll die Seite aussehen, nachdem der Nutzer "Workout starten" getippt hat?</p>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8f8f8; padding:12px; font-family:monospace; font-size:11px; line-height:1.6">
+      <div style="background:#222;color:#fff;border-radius:6px;padding:6px 10px;margin-bottom:6px;display:flex;justify-content:between;align-items:center">
+        <span>🏋️ Brust &amp; Trizeps</span>
+        <span style="float:right;opacity:.7">00:04:31</span>
+      </div>
+      <div style="border:1px solid #ddd;border-radius:6px;padding:6px;margin-bottom:4px;background:#fff">
+        Bankdrücken &nbsp;<span style="color:#888">3 Sätze</span>
+      </div>
+      <div style="border:1px solid #ddd;border-radius:6px;padding:6px;margin-bottom:4px;background:#fff">
+        Dips &nbsp;<span style="color:#888">2 Sätze</span>
+      </div>
+      <div style="border:1px dashed #bbb;border-radius:6px;padding:6px;margin-bottom:8px;color:#999;text-align:center">
+        + Übung hinzufügen
+      </div>
+      <div style="background:#111;color:#fff;border-radius:6px;padding:8px;text-align:center">Workout abschließen</div>
+      <div style="text-align:center;color:#999;margin-top:4px;font-size:10px">Abbrechen</div>
+    </div>
+    <div class="card-body">
+      <h3>A — Volle Übernahme</h3>
+      <p>Greeting + Stats fliegen raus. Workout-UI füllt die ganze Seite. Fühlt sich wie eine eigene "Workout-Ansicht" an, bleibt aber auf Home-Route.</p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8f8f8; padding:12px; font-family:monospace; font-size:11px; line-height:1.6">
+      <div style="color:#888;margin-bottom:4px">Guten Morgen, Nico · Fr. 8. Mai</div>
+      <div style="height:2px;background:#eee;margin-bottom:8px"></div>
+      <div style="background:#222;color:#fff;border-radius:6px;padding:6px 10px;margin-bottom:4px;font-size:10px">
+        🏋️ Brust &amp; Trizeps &nbsp; <span style="opacity:.6">00:04:31</span>
+      </div>
+      <div style="border:1px solid #ddd;border-radius:6px;padding:5px;margin-bottom:3px;background:#fff;font-size:10px">
+        Bankdrücken <span style="color:#888">3×</span>
+      </div>
+      <div style="border:1px solid #ddd;border-radius:6px;padding:5px;margin-bottom:6px;background:#fff;font-size:10px">
+        Dips <span style="color:#888">2×</span>
+      </div>
+      <div style="display:flex;gap:4px">
+        <div style="flex:1;border:1px dashed #bbb;border-radius:5px;padding:5px;color:#999;text-align:center;font-size:10px">+ Übung</div>
+        <div style="flex:1;background:#111;color:#fff;border-radius:5px;padding:5px;text-align:center;font-size:10px">Abschließen</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Kompakt-Header bleibt</h3>
+      <p>Greeting schrumpft auf eine Zeile oben, Stats verschwinden. Workout-Sektion darunter. Mehr "App" weniger "Modal".</p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8f8f8; padding:12px; font-family:monospace; font-size:11px; line-height:1.6; position:relative">
+      <div style="opacity:.4">
+        <div style="font-weight:bold;margin-bottom:2px">Guten Morgen, Nico 👋</div>
+        <div style="display:flex;gap:4px;margin-bottom:6px">
+          <div style="flex:1;border:1px solid #ddd;border-radius:4px;padding:4px;background:#fff;text-align:center">🔥 0</div>
+          <div style="flex:1;border:1px solid #ddd;border-radius:4px;padding:4px;background:#fff;text-align:center">0 Wo.</div>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:8px;box-shadow:0 -2px 8px rgba(0,0,0,.1)">
+        <div style="background:#222;color:#fff;border-radius:5px;padding:5px 8px;margin-bottom:5px;font-size:10px">🏋️ Brust &amp; Trizeps &nbsp; 00:04:31</div>
+        <div style="border:1px solid #ddd;border-radius:4px;padding:4px;margin-bottom:3px;background:#fff;font-size:10px">Bankdrücken 3×</div>
+        <div style="border:1px solid #ddd;border-radius:4px;padding:4px;margin-bottom:5px;background:#fff;font-size:10px">Dips 2×</div>
+        <div style="text-align:center;font-size:10px;color:#666">▲ hochziehen für mehr</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Bottom Sheet</h3>
+      <p>Home-Inhalt bleibt schwach sichtbar. Workout-Panel kommt von unten als Drawer, kann hochgezogen werden. Kontextbruch ist sanfter.</p>
+    </div>
+  </div>
+
+</div>

@@ -17,7 +17,14 @@
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\\\\web\\\\src\" -Recurse -Directory | Select-Object -ExpandProperty FullName | Sort-Object | ForEach-Object { $_.Substring\\(\"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\\\\web\\\\src\".Length\\) })",
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\\\\cloud\" -Recurse -Directory | Select-Object -ExpandProperty FullName | Sort-Object | ForEach-Object { $_.Substring\\(\"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\\\\cloud\".Length\\) })",
       "Bash(npm install *)",
-      "Bash(go mod *)"
+      "Bash(go mod *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\\\\tracker\" -Recurse)",
+      "Bash(Select-Object FullName)",
+      "Bash(ConvertTo-Csv -NoTypeInformation)",
+      "Bash(Out-String)",
+      "Bash(bash *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }
