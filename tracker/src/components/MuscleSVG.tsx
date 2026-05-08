@@ -17,16 +17,10 @@ const SIZE_MAP = {
   lg: { w: 72, h: 120 },
 }
 
-function getFill(id: MuscleId, primary: MuscleId[], secondary: MuscleId[]): string {
-  if (primary.includes(id)) return '#111111'
-  if (secondary.includes(id)) return '#111111'
-  return '#E5E7EB'
-}
-
-function getOpacity(id: MuscleId, primary: MuscleId[], secondary: MuscleId[]): number {
-  if (primary.includes(id)) return 1
-  if (secondary.includes(id)) return 0.3
-  return 1
+function getMuscleStyle(id: MuscleId, primary: MuscleId[], secondary: MuscleId[]): { fill: string; opacity: number } {
+  if (primary.includes(id)) return { fill: '#111111', opacity: 1 }
+  if (secondary.includes(id)) return { fill: '#111111', opacity: 0.3 }
+  return { fill: '#E5E7EB', opacity: 1 }
 }
 
 interface FigureProps {
@@ -60,15 +54,14 @@ function Figure({ view, primary, secondary, interactive, onToggle, width, height
           ? MUSCLE_PATHS[muscle.id].front
           : MUSCLE_PATHS[muscle.id].back
         if (!pathData) return null
-        const fill = getFill(muscle.id, primary, secondary)
-        const opacity = getOpacity(muscle.id, primary, secondary)
+        const style = getMuscleStyle(muscle.id, primary, secondary)
         return (
           <path
             key={muscle.id}
             d={pathData}
-            fill={fill}
-            opacity={opacity}
-            style={interactive ? { cursor: 'pointer' } : undefined}
+            fill={style.fill}
+            opacity={style.opacity}
+            style={interactive && onToggle ? { cursor: 'pointer' } : undefined}
             onClick={interactive && onToggle ? () => onToggle(muscle.id) : undefined}
           />
         )
