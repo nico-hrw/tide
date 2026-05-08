@@ -4,7 +4,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        bg: '#F5F4F0',
+        bg: '#FFFFFF',
         card: '#FFFFFF',
         strength: '#3B82F6',
         cardio: '#22C55E',
