@@ -2,7 +2,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Search, Trash2, X, Plus } from 'lucide-react'
 import { useTrackerStore } from '@/store/useTrackerStore'
-import type { TrackerExercise } from '@/types/tracker'
+import type { TrackerExercise, MuscleId } from '@/types/tracker'
+import { MUSCLE_GROUPS } from '@/lib/muscles'
 
 const CATEGORY_LABELS = {
   strength: 'Kraft',
@@ -38,7 +39,7 @@ export default function ExercisePicker({ onSelect, onClose }: ExercisePickerProp
   const [newName, setNewName] = useState('')
   const [newCategory, setNewCategory] = useState<'strength' | 'cardio' | 'flexibility'>('strength')
   const [newTracking, setNewTracking] = useState<'weight_reps' | 'distance_time' | 'time_only'>('weight_reps')
-  const [newMuscles, setNewMuscles] = useState('')
+  const [newPrimaryMuscles, setNewPrimaryMuscles] = useState<MuscleId[]>([])
   const [creating, setCreating] = useState(false)
 
   const touchStartY = useRef(0)
@@ -59,8 +60,10 @@ export default function ExercisePicker({ onSelect, onClose }: ExercisePickerProp
     if (!newName.trim()) return
     setCreating(true)
     try {
-      await createExercise(newName.trim(), newCategory, newTracking, newMuscles.trim())
-      setNewName(''); setNewMuscles(''); setShowCreate(false)
+      await createExercise(newName.trim(), newCategory, newTracking, newPrimaryMuscles.join(', '))
+      setNewName('')
+      setNewPrimaryMuscles([])
+      setShowCreate(false)
     } finally {
       setCreating(false)
     }
@@ -107,11 +110,32 @@ export default function ExercisePicker({ onSelect, onClose }: ExercisePickerProp
               placeholder="Name der Übung"
               className="w-full bg-white rounded-xl px-3 py-2.5 text-sm outline-none border border-gray-200"
             />
-            <input
-              type="text" value={newMuscles} onChange={(e) => setNewMuscles(e.target.value)}
-              placeholder="Muskeln (z.B. Brust, Trizeps)"
-              className="w-full bg-white rounded-xl px-3 py-2.5 text-sm outline-none border border-gray-200"
-            />
+            <div>
+              <p className="text-xs text-gray-500 mb-1.5">Muskeln (Primär)</p>
+              <div className="flex flex-wrap gap-1.5">
+                {MUSCLE_GROUPS.map((m) => {
+                  const active = newPrimaryMuscles.includes(m.id)
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() =>
+                        setNewPrimaryMuscles((prev) =>
+                          prev.includes(m.id) ? prev.filter((x) => x !== m.id) : [...prev, m.id]
+                        )
+                      }
+                      className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        active
+                          ? 'bg-black text-white border-black'
+                          : 'bg-white text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      {m.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
             <div className="flex gap-2">
               <select
                 value={newCategory}
