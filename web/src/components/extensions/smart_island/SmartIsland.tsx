@@ -439,10 +439,23 @@ const ReminderView = ({ payload }: { payload: any }) => {
 
 // ─── Text Collector View (Sammelbecken) ─────────────────────────────────────
 
+import { parseGermanDate } from '@/lib/dateParser';
+import { de } from 'date-fns/locale';
+
 const TextCollectorView = ({ payload }: { payload: any }) => {
     const [liveText, setLiveText] = useState<string>(payload?.text || '');
     const onCreateNote = payload?.onCreateNote;
+    const onCreateEvent = payload?.onCreateEvent;
     const onDismiss = payload?.onDismiss;
+
+    // Inline event suggestion state
+    const [eventDismissed, setEventDismissed] = useState(false);
+    const [eventEditing, setEventEditing] = useState(false);
+    const [editTitle, setEditTitle] = useState('');
+    const [editDate, setEditDate] = useState<Date | null>(null);
+    const [editStart, setEditStart] = useState<Date | null>(null);
+    const [editEnd, setEditEnd] = useState<Date | null>(null);
+    const titleInputRef = useRef<HTMLInputElement>(null);
 
     // Listen for real-time text updates from the collector
     useEffect(() => {
@@ -454,12 +467,41 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
         return () => window.removeEventListener('tide:collector-update', handler);
     }, []);
 
-    // Also sync if payload.text changes (e.g. new push)
+    // Also sync if payload.text changes
     useEffect(() => {
         if (payload?.text) setLiveText(payload.text);
     }, [payload?.text]);
 
     const displayText = liveText || payload?.text || '';
+
+    // Run date detection on the live text
+    const parseResult = useMemo(() => {
+        if (displayText.trim().length < 4) return null;
+        const results = parseGermanDate(displayText, new Date());
+        return results.length > 0 ? results[0] : null;
+    }, [displayText]);
+
+    // Sync edit fields when parse result changes (and not dismissed)
+    useEffect(() => {
+        if (parseResult && !eventDismissed) {
+            setEditTitle(parseResult.titleHint || 'Neuer Termin');
+            setEditDate(parseResult.proposedDate);
+            setEditStart(parseResult.proposedStart);
+            setEditEnd(parseResult.proposedEnd);
+        }
+    }, [parseResult, eventDismissed]);
+
+    const showEventSuggestion = parseResult && !eventDismissed;
+
+    const handleAcceptEvent = () => {
+        if (onCreateEvent && editStart && editEnd) {
+            onCreateEvent({
+                title: editTitle || 'Neuer Termin',
+                start: editStart,
+                end: editEnd,
+            });
+        }
+    };
 
     return (
         <div className="flex flex-col gap-2.5 px-4 py-3 w-[20rem] select-none">
@@ -490,6 +532,62 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
                     <span>In eine Notiz ziehen</span>
                 </div>
             </div>
+
+            {/* Inline event suggestion */}
+            {showEventSuggestion && editStart && editEnd && editDate && (
+                <div className="p-2.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-900/20 border border-indigo-200/60 dark:border-indigo-700/30">
+                    <div className="flex items-center gap-1.5 mb-2">
+                        <CalendarIcon size={11} className="text-indigo-500" />
+                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Termin erkannt</span>
+                    </div>
+                    {eventEditing ? (
+                        <input
+                            ref={titleInputRef}
+                            autoFocus
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') setEventEditing(false); if (e.key === 'Escape') setEventEditing(false); }}
+                            className="w-full px-2 py-1 mb-1.5 text-[12px] font-semibold bg-white dark:bg-white/10 border border-indigo-300 dark:border-indigo-600 rounded-lg text-gray-900 dark:text-gray-100 outline-none ring-1 ring-indigo-400/30"
+                        />
+                    ) : (
+                        <div className="text-[12px] font-bold text-gray-800 dark:text-gray-200 mb-1.5 truncate">
+                            {editTitle}
+                        </div>
+                    )}
+                    <div className="flex flex-wrap gap-1 mb-2">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-800/40 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">
+                            <Calendar size={9} />
+                            {format(editDate, 'EEE dd. MMM', { locale: de })}
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-800/40 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">
+                            <Clock size={9} />
+                            {format(editStart, 'HH:mm')} – {format(editEnd, 'HH:mm')}
+                        </span>
+                    </div>
+                    <div className="flex gap-1.5">
+                        <button
+                            onClick={() => setEventDismissed(true)}
+                            className="px-2 py-1 rounded-lg text-[10px] font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                        >
+                            Nein
+                        </button>
+                        <button
+                            onClick={() => setEventEditing(!eventEditing)}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors ${eventEditing ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10'}`}
+                        >
+                            {eventEditing ? 'Fertig' : 'Ändern'}
+                        </button>
+                        <div className="flex-1" />
+                        <button
+                            onClick={handleAcceptEvent}
+                            className="px-3 py-1 rounded-lg text-[10px] font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-sm transition-all active:scale-[0.97]"
+                        >
+                            <Check size={11} className="inline mr-0.5" />
+                            Termin
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Actions */}
             <div className="flex gap-2">
@@ -599,20 +697,20 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
     }, [storeEvents]);
 
     const sizeClass = state.current?.type === 'timeline'
-        ? 'p-5 rounded-[2.5rem] w-[22rem]'
+        ? 'p-5 rounded-[2.5rem] w-[21rem]'
         : state.current?.type === 'interactive_card'
-            ? 'p-5 rounded-[2rem] w-[24rem]'
+            ? 'p-5 rounded-[2rem] w-[23rem]'
             : state.current?.type === 'event_suggestion'
-                ? 'rounded-[1.75rem] w-[24rem]'
+                ? 'rounded-[1.75rem] w-[23rem]'
                 : state.current?.type === 'reminder'
-                    ? 'rounded-[2rem] w-[22rem]'
+                    ? 'rounded-[2rem] w-[21rem]'
                     : state.current?.type === 'text_collector'
-                        ? 'rounded-[2rem] w-[22rem]'
+                        ? 'rounded-[2rem] w-[21rem]'
                         : state.current?.type === 'welcome' || state.current?.type === 'morning' || state.current?.type === 'event_preview'
-                            ? 'p-5 rounded-[2rem] w-[22rem]'
+                            ? 'p-5 rounded-[2rem] w-[21rem]'
                             : state.current?.type === 'message'
-                                ? 'p-4 rounded-[1.75rem] w-[20rem]'
-                                : 'p-3 rounded-[2rem] w-[18rem]';
+                                ? 'p-4 rounded-[1.75rem] w-[19rem]'
+                                : 'p-3 rounded-[2rem] w-[17rem]';
 
     return (
         <div className="select-none relative z-[100]">

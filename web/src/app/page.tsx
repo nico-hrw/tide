@@ -1354,6 +1354,10 @@ export default function Dashboard() {
                         text: currentText,
                         duration: 120_000, // 2 min idle timeout
                         onCreateNote: createNoteFromText,
+                        onCreateEvent: (eventData: { title: string; start: Date; end: Date }) => {
+                            window.dispatchEvent(new CustomEvent('tide:collector-create-event', { detail: eventData }));
+                            clearCollector();
+                        },
                         onDismiss: clearCollector,
                     },
                 });
@@ -2257,6 +2261,17 @@ export default function Dashboard() {
         } catch (e) { console.error(e); }
         return null;
     };
+
+    // Bridge: Text Collector event creation → handleEventCreate
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const { title, start, end } = (e as CustomEvent).detail;
+            handleEventCreate(new Date(start), new Date(end), false, { title });
+        };
+        window.addEventListener('tide:collector-create-event', handler);
+        return () => window.removeEventListener('tide:collector-create-event', handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [privateKey, publicKey]);
 
     const handleScheduleApply = async (schedEvents: ScheduleEventData[], themeIdOrName: string, options?: { color?: string, effect?: string }) => {
         let targetThemeId = themeIdOrName;
