@@ -217,11 +217,14 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     // works inside Framer Motion compositing layers (child mix-blend-mode fails there).
     const effectBgImage = !isCancelled ? getEffectBgImage(event.effect) : undefined;
 
+    const isTimePoint = durationMinutes === 0;
+    const minRenderedMinutes = isTimePoint ? 0 : Math.max(durationMinutes, 5);
+
     let style: any;
     if (isDragging) {
         style = {
             top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes})`,
-            height: `calc(var(--hour-height, 60px) / 60 * ${Math.max(durationMinutes, 15)})`,
+            height: isTimePoint ? '8px' : `calc(var(--hour-height, 60px) / 60 * ${minRenderedMinutes})`,
             left: `${pos.left}%`,
             width: `${pos.width}%`,
             backgroundColor: theme.bg,
@@ -245,7 +248,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         const baseColor = isActiveParent ? 'transparent' : (event.color || theme.bg);
         style = {
             top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes})`,
-            height: `calc(var(--hour-height, 60px) / 60 * ${Math.max(durationMinutes, 15)})`,
+            height: isTimePoint ? '8px' : `calc(var(--hour-height, 60px) / 60 * ${minRenderedMinutes})`,
             left: `${pos.left}%`,
             width: `${pos.width}%`,
             backgroundColor: baseColor,
@@ -380,7 +383,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     setIsLinkingMode(false);
                 }
             }}
-            className={`event-item group absolute ${durationMinutes < 25 ? 'px-2 py-0' : 'px-2 py-1.5'} cursor-pointer overflow-hidden ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-all ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''}`}
+            className={`event-item group absolute ${isTimePoint ? 'px-1 py-0 overflow-visible rounded-sm' : durationMinutes < 10 ? 'px-2 py-0 overflow-hidden' : 'px-2 py-1.5 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-all ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''}`}
             onClick={(e) => {
                 e.stopPropagation();
 
@@ -510,7 +513,18 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     </svg>
                 </div>
             )}
-            {/* ... contents of the event item ... */}
+            {/* Time-point (0-min) display: thick bar with title floating centered on it */}
+            {isTimePoint ? (
+                <div className="absolute inset-0 flex items-center overflow-visible pointer-events-none" style={{ zIndex: 10 }}>
+                    <span
+                        className={`text-[10px] font-black leading-none whitespace-nowrap pl-1 ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}
+                        style={{ color: theme.text }}
+                    >
+                        {format(start, "HH:mm")} {event.title || 'Untitled'}
+                    </span>
+                </div>
+            ) : (
+            /* Normal event contents */
             <div className="relative z-10 flex flex-col h-full overflow-hidden">
                 <div className="flex items-start gap-1.5 min-w-0">
                     {event.is_task && (
@@ -519,18 +533,13 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                                 e.stopPropagation();
                                 const linkedTaskId = (event as any).linkedTaskId;
                                 if (linkedTaskId) {
-                                    // Route through task store so all taskMention nodes update instantly
                                     useDataStore.getState().toggleTask(linkedTaskId);
                                 } else {
-                                    // Legacy event-only task (no linked task record)
                                     onTaskToggle?.(event.id, isCompleted);
                                 }
                             }}
                             className={`mt-[2px] w-3 h-3 rounded-[3px] border border-current flex-shrink-0 flex items-center justify-center cursor-pointer transition-all hover:scale-110 z-[80] ${isCompleted ? 'opacity-40' : 'opacity-100'}`}
-                            style={{
-                                borderColor: theme.text,
-                                color: theme.text
-                            }}
+                            style={{ borderColor: theme.text, color: theme.text }}
                         >
                             {isCompleted && (
                                 <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -542,15 +551,9 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             <Globe size={11} />
                         </div>
                     )}
-                <div className={`${durationMinutes < 25 ? 'text-[9px] leading-none' : 'text-[11px] leading-tight'} font-bold truncate pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
+                    <div className={`text-[11px] font-bold leading-tight truncate pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}
                     </div>
-                    {/* For very short events show start time inline next to title */}
-                    {durationMinutes < 25 && durationMinutes >= 10 && (
-                        <span className="text-[8px] opacity-60 font-semibold pointer-events-none shrink-0">
-                            {format(start, "HH:mm")}
-                        </span>
-                    )}
                 </div>
 
                 {/* Sub-titles (Tags) - Feature Requirement */}
@@ -592,6 +595,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     </div>
                 )}
             </div>
+            )} {/* end isTimePoint conditional */}
 
             {/* Resize Handle */}
             {!isDragging && (

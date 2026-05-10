@@ -681,13 +681,29 @@ export const useDataStore = create<DataState>((set, get) => ({
             const visibleNotes = decryptedNotes.filter(f => (f.share_status || 'owner') !== 'pending');
             const visibleEvents = decryptedEvents.filter(e => (e.share_status || 'owner') !== 'pending');
 
-            set(s => ({
-                notes: [...s.notes.filter(n => !new Set(visibleNotes.map(vn => vn.id)).has(n.id)), ...visibleNotes],
-                events: [...s.events.filter(e => !new Set(visibleEvents.map(ve => ve.id)).has(e.id)), ...visibleEvents],
-                metadataCache: newMetaCache,
-                loadedDirectories: new Set([...s.loadedDirectories, dirKey]),
-                fetchingDirectories: new Set([...s.fetchingDirectories].filter(d => d !== dirKey))
-            }));
+            set(s => {
+                const visibleNoteIds = new Set(visibleNotes.map(vn => vn.id));
+                // Merge: keep notes not returned by server (e.g. optimistic entries),
+                // and preserve client-side flags (isGroup, effect) when the server
+                // version is missing them (e.g. decryption returned partial metadata).
+                const mergedNotes = [
+                    ...s.notes.filter(n => !visibleNoteIds.has(n.id)),
+                    ...visibleNotes.map(vn => {
+                        const existing = s.notes.find(n => n.id === vn.id);
+                        if (existing?.isGroup && !vn.isGroup) {
+                            return { ...vn, isGroup: existing.isGroup, effect: vn.effect ?? existing.effect };
+                        }
+                        return vn;
+                    })
+                ];
+                return {
+                    notes: mergedNotes,
+                    events: [...s.events.filter(e => !new Set(visibleEvents.map(ve => ve.id)).has(e.id)), ...visibleEvents],
+                    metadataCache: newMetaCache,
+                    loadedDirectories: new Set([...s.loadedDirectories, dirKey]),
+                    fetchingDirectories: new Set([...s.fetchingDirectories].filter(d => d !== dirKey))
+                };
+            });
             
             console.log(`[STATE-AUDIT] fetchDirectory SUCCESS | ParentID: ${dirKey}`);
         } catch (e) {

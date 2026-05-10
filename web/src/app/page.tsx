@@ -1380,11 +1380,9 @@ export default function Dashboard() {
                 visibility: 'private',
             };
             useDataStore.setState(s => ({ notes: [...s.notes, optimisticGroup] }));
-
-            // Force a fresh fetch so the canonical server entry (with isGroup decrypted)
-            // replaces the optimistic one. forceRefresh bypasses the loadedDirectories
-            // guard without mutating a potentially stale Set reference.
-            useDataStore.getState().fetchDirectory(null, true);
+            // No fetchDirectory here — the optimistic entry is sufficient for the current
+            // session. Any subsequent fetch will preserve isGroup via the merge guard in
+            // fetchDirectory (see useDataStore).
 
             return newFolder.id;
 

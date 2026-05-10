@@ -583,8 +583,9 @@ export default function Sidebar({
                 </div>
             </div>
 
-            {/* Bottom spacer — reserves height for the absolutely-positioned Smart Island */}
-            <div className="flex-shrink-0 h-[220px]" />
+            {/* Bottom spacer — reserves height for the absolutely-positioned Smart Island.
+                Needs to be >= island height (≈250px) + bottom-6 margin (24px). */}
+            <div className="flex-shrink-0 h-[300px]" />
 
             {/* Smart Island — absolutely positioned to bottom-left with equal margins */}
             <div className="absolute bottom-6 left-6 z-[100]">
