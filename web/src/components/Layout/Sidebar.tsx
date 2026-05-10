@@ -209,7 +209,7 @@ export default function Sidebar({
     const effectiveUserName = userProfile?.username || (typeof window !== 'undefined' ? sessionStorage.getItem('tide_user_name') : null) || (userProfile?.email || "").split('@')[0] || "User";
 
     return (
-        <div className="w-64 h-full flex flex-col shrink-0 relative z-[100] transition-all duration-300">
+        <div className="w-64 h-full flex flex-col shrink-0 relative z-[100] transition-all duration-300 overflow-visible">
             {/* Sticky top section: Avatar, Nav, Recent */}
             <div className="flex-shrink-0 p-2 pb-0">
                 <div className="flex items-center justify-between px-2 py-1 mb-2">
@@ -412,7 +412,7 @@ export default function Sidebar({
 
             {/* Scrollable notes section — flex-based height so RECENT expansion doesn't push content under Smart Island */}
             <div
-                className="overflow-y-auto px-2 no-scrollbar"
+                className="overflow-y-auto overflow-x-visible px-2 no-scrollbar"
                 style={{ flex: '1 1 0', minHeight: 0, paddingBottom: '32px' }}
                 onDoubleClick={(e) => {
                     if (e.target === e.currentTarget) onNewNote();

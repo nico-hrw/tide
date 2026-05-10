@@ -1529,22 +1529,28 @@ export default function Dashboard() {
         const pubKey = publicKey || storeState.publicKey;
         if (!privKey || !pubKey) return;
         try {
-            // Use state-updater form to avoid overwriting concurrent store changes
+            // Optimistic local update using state-updater form
             useDataStore.setState(s => ({
                 notes: s.notes.map(f => f.id === id ? { ...f, ...updates } as any : f)
             }));
 
-            const group = storeState.notes.find(f => f.id === id);
+            // Read group AFTER optimistic update so we get the merged values
+            const updatedState = useDataStore.getState();
+            const group = updatedState.notes.find(f => f.id === id);
             if (!group) return;
 
             const meta: Record<string, any> = {
-                title: updates.title ?? group.title ?? 'New Group',
+                title: group.title ?? 'New Group',
                 isGroup: true,
-                effect: updates.effect ?? (group as any).effect ?? 'none',
-                color: updates.color ?? (group as any).color,
+                effect: (group as any).effect ?? 'none',
+                color: (group as any).color,
             };
 
             const encryptedMeta = await cryptoLib.encryptMetadata(meta, pubKey);
+
+            // Stamp save timestamp BEFORE the API call so SSE cooldown
+            // suppresses the immediate refetch that would overwrite our update
+            if ((window as any).__tideSaveTimestamp) (window as any).__tideSaveTimestamp();
 
             await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
@@ -1552,8 +1558,11 @@ export default function Dashboard() {
                 // public_meta preserves isGroup in plaintext so fetchDirectory always finds it
                 body: JSON.stringify({ secured_meta: encryptedMeta, public_meta: { isGroup: true } })
             });
-            // No fetchDirectory — the optimistic update is the source of truth for this session.
-            // On next reload the server returns updated secured_meta + public_meta.isGroup.
+
+            // Re-apply optimistic update after API success to survive any concurrent refetch
+            useDataStore.setState(s => ({
+                notes: s.notes.map(f => f.id === id ? { ...f, ...updates } as any : f)
+            }));
         } catch (e) {
             console.error("Failed to update group", e);
         }
