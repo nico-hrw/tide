@@ -587,8 +587,8 @@ export default function Sidebar({
                 Needs to be >= island height (≈250px) + bottom-6 margin (24px). */}
             <div className="flex-shrink-0 h-[300px]" />
 
-            {/* Smart Island — absolutely positioned to bottom-left with equal margins */}
-            <div className="absolute bottom-6 left-6 z-[100]">
+            {/* Smart Island — absolutely positioned to bottom-left */}
+            <div className="absolute bottom-3 left-2 z-[100]">
                 {enabledExtensions?.includes('smart_island') ? (
                     <SmartIsland
                         selectedDate={selectedDate || new Date()}

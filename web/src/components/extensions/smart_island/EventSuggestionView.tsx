@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { format } from 'date-fns';
-import { Check, Pencil, X } from 'lucide-react';
+import { de } from 'date-fns/locale';
+import { Check, Pencil, X, Calendar, Clock, Type } from 'lucide-react';
 import type { ParseResult, DetectedToken } from '@/lib/dateParser';
 
 export interface EventSuggestionPayload {
@@ -154,89 +155,133 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
         onAccept({ title: title.trim() || 'Neuer Termin', start, end });
     };
 
-    const renderField = (key: FieldKey, content: React.ReactNode) => {
+    const durationMins = Math.round((end.getTime() - start.getTime()) / 60_000);
+    const durationLabel = durationMins >= 60
+        ? `${Math.floor(durationMins / 60)}h${durationMins % 60 ? ` ${durationMins % 60}m` : ''}`
+        : `${durationMins}m`;
+
+    const chipBase = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-semibold transition-all duration-200 cursor-default select-none";
+
+    const chipStyle = (key: FieldKey) => {
         const isActive = editing && activeField === key;
         const isFlashing = flashFields.has(key);
-        return (
-            <button
-                disabled={!editing}
-                onClick={() => editing && setActiveField(key)}
-                style={{
-                    display: 'inline-flex', alignItems: 'center',
-                    padding: '2px 6px', margin: '0 1px',
-                    borderRadius: 4,
-                    background: isFlashing
-                        ? 'rgba(59,130,246,0.35)'
-                        : (isActive ? 'rgba(99,102,241,0.25)' : (editing ? 'rgba(99,102,241,0.08)' : 'transparent')),
-                    border: isFlashing
-                        ? '1px solid rgba(59,130,246,0.7)'
-                        : (isActive ? '1px solid rgba(99,102,241,0.6)' : (editing ? '1px dashed rgba(99,102,241,0.3)' : '1px solid transparent')),
-                    boxShadow: isFlashing ? '0 0 0 2px rgba(59,130,246,0.35)' : 'none',
-                    color: 'inherit', font: 'inherit',
-                    cursor: editing ? 'pointer' : 'default',
-                    transition: 'background 0.25s, border-color 0.25s, box-shadow 0.25s',
-                }}
-            >
-                {content}
-            </button>
-        );
+        if (isFlashing) return `${chipBase} bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 ring-2 ring-blue-400/50 dark:ring-blue-500/40`;
+        if (isActive) return `${chipBase} bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-400/50 dark:ring-indigo-500/40`;
+        if (editing) return `${chipBase} bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/15 cursor-pointer border border-dashed border-gray-300 dark:border-white/20`;
+        return `${chipBase} bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300`;
     };
 
-    // Suggestion text is always black per user request — Smart Island background
-    // is white in both themes for this card, so dark-mode white text was invisible.
     return (
-        <div className="flex flex-col gap-3 px-4 py-3 text-gray-900 rounded-lg transition-all duration-300">
-            <div className="text-[13px] font-medium leading-relaxed">
-                Möchtest du am {renderField('date', format(date, 'EEE dd.MM.'))}
-                {' um '}{renderField('start', format(start, 'HH:mm'))}
-                {' (bis '}{renderField('end', format(end, 'HH:mm'))}{') '}
-                den Termin „
-                {editing && activeField === 'title' ? (
-                    <input
-                        ref={inputRef}
-                        autoFocus
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        onBlur={() => setActiveField(null)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }}
-                        className="bg-black/5 border border-gray-300 rounded px-1 text-gray-900 text-[13px] outline-none"
-                        style={{ width: Math.max(80, title.length * 8) }}
-                    />
-                ) : (
-                    renderField('title', <span className="font-bold">{title}</span>)
-                )}
-                " erstellen?
+        <div className="flex flex-col gap-0 w-[22rem] overflow-hidden select-none">
+            {/* Header */}
+            <div className="px-4 pt-4 pb-3 bg-gradient-to-r from-indigo-500/10 via-violet-500/8 to-purple-500/6 dark:from-indigo-500/15 dark:via-violet-500/10 dark:to-purple-500/8">
+                <div className="flex items-center gap-2.5 mb-2">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-sm">
+                        <Calendar size={14} className="text-white" />
+                    </div>
+                    <div>
+                        <div className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Termin erkannt</div>
+                        <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{durationLabel} Dauer</div>
+                    </div>
+                </div>
             </div>
 
-            <div className="flex items-center gap-2 justify-end">
+            {/* Body */}
+            <div className="px-4 py-3 flex flex-col gap-3">
+                {/* Title field */}
+                <div className="flex flex-col gap-1">
+                    {editing && activeField === 'title' ? (
+                        <input
+                            ref={inputRef}
+                            autoFocus
+                            value={title}
+                            onChange={(e) => setTitle(e.target.value)}
+                            onBlur={() => setActiveField(null)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }}
+                            className="w-full px-3 py-1.5 text-[15px] font-bold bg-white dark:bg-white/10 border border-indigo-300 dark:border-indigo-600 rounded-lg text-gray-900 dark:text-gray-100 outline-none ring-2 ring-indigo-400/30 dark:ring-indigo-500/30"
+                        />
+                    ) : (
+                        <button
+                            disabled={!editing}
+                            onClick={() => editing && setActiveField('title')}
+                            className="w-full text-left flex items-center gap-2 group"
+                        >
+                            <Type size={13} className="text-gray-400 dark:text-gray-500 shrink-0" />
+                            <span className={`text-[15px] font-bold text-gray-900 dark:text-gray-100 leading-tight truncate ${editing ? 'group-hover:text-indigo-600 dark:group-hover:text-indigo-400 cursor-pointer' : ''} ${flashFields.has('title') ? 'text-blue-600 dark:text-blue-400' : ''}`}>
+                                {title}
+                            </span>
+                        </button>
+                    )}
+                </div>
+
+                {/* Date & Time chips */}
+                <div className="flex flex-wrap gap-1.5">
+                    <button
+                        disabled={!editing}
+                        onClick={() => editing && setActiveField('date')}
+                        className={chipStyle('date')}
+                    >
+                        <Calendar size={12} />
+                        {format(date, 'EEE, dd. MMM', { locale: de })}
+                    </button>
+                    <button
+                        disabled={!editing}
+                        onClick={() => editing && setActiveField('start')}
+                        className={chipStyle('start')}
+                    >
+                        <Clock size={12} />
+                        {format(start, 'HH:mm')}
+                    </button>
+                    <span className="self-center text-[11px] text-gray-400 dark:text-gray-500 font-medium">–</span>
+                    <button
+                        disabled={!editing}
+                        onClick={() => editing && setActiveField('end')}
+                        className={chipStyle('end')}
+                    >
+                        {format(end, 'HH:mm')}
+                    </button>
+                </div>
+
+                {/* Keyboard hint when editing date/time fields */}
+                {editing && activeField !== 'title' && activeField !== null && (
+                    <div className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                        <span className="px-1 py-0.5 rounded bg-gray-100 dark:bg-white/10 font-mono text-[9px]">←→</span>
+                        <span>{activeField === 'date' ? 'Datum wechseln' : 'Zeit wechseln'}</span>
+                        <span className="mx-0.5">·</span>
+                        <span className="px-1 py-0.5 rounded bg-gray-100 dark:bg-white/10 font-mono text-[9px]">0-9</span>
+                        <span>Eingeben</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Actions */}
+            <div className="px-4 pb-4 pt-1 flex items-center gap-2">
                 <button
                     onClick={onDismiss}
-                    title="Verwerfen"
-                    className="p-1.5 rounded-md hover:bg-black/5 transition-colors text-gray-500 hover:text-gray-900"
+                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                 >
-                    <X size={14} />
+                    <X size={13} />
+                    Nein
                 </button>
                 <button
                     onClick={() => { setEditing(!editing); setActiveField(null); }}
-                    title="Bearbeiten"
-                    className={`p-1.5 rounded-md transition-colors ${editing ? 'bg-amber-500/30 text-amber-700' : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-600'}`}
+                    className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${editing
+                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10'
+                        }`}
                 >
-                    <Pencil size={14} />
+                    <Pencil size={13} />
+                    {editing ? 'Fertig' : 'Ändern'}
                 </button>
+                <div className="flex-1" />
                 <button
                     onClick={handleAccept}
-                    title="Termin erstellen"
-                    className="p-1.5 rounded-md bg-emerald-500/25 hover:bg-emerald-500/40 transition-colors text-emerald-600 hover:text-emerald-700"
+                    className="flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-[12px] font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-sm shadow-indigo-300/30 dark:shadow-indigo-900/30 transition-all active:scale-[0.97]"
                 >
                     <Check size={14} />
+                    Erstellen
                 </button>
             </div>
-
-            {editing && activeField !== 'title' && activeField !== null && (
-                <div className="text-[10px] text-gray-500 italic">
-                    ←→ um andere erkannte {activeField === 'date' ? 'Daten' : 'Zeiten'} zu wählen · 0-9 zum Eingeben · Enter zum Bestätigen
-                </div>
-            )}
         </div>
     );
 };

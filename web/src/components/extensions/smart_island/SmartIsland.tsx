@@ -1,9 +1,11 @@
 "use client";
 
-import { Check, Calendar as CalendarIcon, MessageSquare, Bell, TrendingUp, Sparkles, Loader2, FileText, ExternalLink, Calendar, Plus } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Check, Calendar as CalendarIcon, MessageSquare, Bell, TrendingUp, Sparkles, Loader2, FileText, ExternalLink, Calendar, Plus, Clock, Link2, GripVertical, FileEdit, AlarmClock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MiniCalendar from '../../Calendar/MiniCalendar';
 import { useIslandStore, IslandView } from './useIslandStore';
+import { useDataStore } from '@/store/useDataStore';
 import { format, isSameDay } from 'date-fns';
 
 // ─── Boot Sequence Views ──────────────────────────────────────────────────────
@@ -342,6 +344,209 @@ const EventPreviewView = ({ payload }: { payload: any }) => {
     );
 };
 
+// ─── Reminder View (10 min before event) ───────────────────────────────────
+
+const URL_REGEX = /https?:\/\/[^\s)"'>]+/gi;
+
+const ReminderView = ({ payload }: { payload: any }) => {
+    const event = payload?.event;
+    if (!event) return null;
+
+    const start = new Date(event.start);
+    const now = new Date();
+    const minsUntil = Math.max(0, Math.round((start.getTime() - now.getTime()) / 60000));
+    const description: string = event.description || '';
+
+    // Extract links from description
+    const links = description.match(URL_REGEX) || [];
+
+    // Build description with clickable links
+    const renderDescription = () => {
+        if (!description) return null;
+        const parts: React.ReactNode[] = [];
+        let lastIdx = 0;
+        const matches = [...description.matchAll(URL_REGEX)];
+        for (const m of matches) {
+            const idx = m.index!;
+            if (idx > lastIdx) parts.push(description.slice(lastIdx, idx));
+            parts.push(
+                <a
+                    key={idx}
+                    href={m[0]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-500 dark:text-blue-400 hover:underline inline-flex items-center gap-0.5 font-medium"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <Link2 size={10} className="shrink-0" />
+                    {m[0].replace(/^https?:\/\//, '').slice(0, 30)}{m[0].length > 30 + 8 ? '…' : ''}
+                </a>
+            );
+            lastIdx = idx + m[0].length;
+        }
+        if (lastIdx < description.length) parts.push(description.slice(lastIdx));
+        return parts;
+    };
+
+    return (
+        <div className="flex flex-col gap-3 px-4 py-3 w-[20rem] select-none">
+            {/* Header */}
+            <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-sm">
+                    <AlarmClock size={16} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest">Gleich geht's los</div>
+                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                        {minsUntil <= 1 ? 'Jetzt' : `In ${minsUntil} Minuten`} · {format(start, 'HH:mm')}
+                    </div>
+                </div>
+            </div>
+
+            {/* Event title */}
+            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40">
+                <div className="text-[14px] font-black text-gray-900 dark:text-gray-100 leading-tight">
+                    {event.title || 'Termin'}
+                </div>
+                {description && (
+                    <div className="text-[12px] text-gray-600 dark:text-gray-300 leading-relaxed mt-1.5 break-words whitespace-pre-wrap">
+                        {renderDescription()}
+                    </div>
+                )}
+            </div>
+
+            {/* Quick links row if any */}
+            {links.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                    {links.slice(0, 3).map((url, i) => (
+                        <a
+                            key={i}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800/40 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <ExternalLink size={10} />
+                            {(() => { try { return new URL(url).hostname.replace('www.', ''); } catch { return 'Link'; } })()}
+                        </a>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ─── Text Collector View (Sammelbecken) ─────────────────────────────────────
+
+const TextCollectorView = ({ payload }: { payload: any }) => {
+    const text: string = payload?.text || '';
+    const onCreateNote = payload?.onCreateNote;
+
+    return (
+        <div className="flex flex-col gap-2.5 px-4 py-3 w-[20rem] select-none">
+            {/* Header */}
+            <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+                    <FileEdit size={12} className="text-white" />
+                </div>
+                <div className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Notiz-Entwurf</div>
+            </div>
+
+            {/* Captured text */}
+            <div
+                draggable
+                onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', text);
+                    e.dataTransfer.setData('tide/collector-text', text);
+                    e.dataTransfer.effectAllowed = 'copyMove';
+                }}
+                className="p-3 rounded-xl bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 cursor-grab active:cursor-grabbing hover:shadow-sm transition-shadow"
+            >
+                <p className="text-[13px] text-gray-800 dark:text-gray-200 leading-relaxed break-words whitespace-pre-wrap font-medium">
+                    {text}
+                </p>
+                <div className="flex items-center gap-1 mt-2 text-[10px] text-gray-400 dark:text-gray-500">
+                    <GripVertical size={10} />
+                    <span>In eine Notiz ziehen</span>
+                </div>
+            </div>
+
+            {/* Create note button */}
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    if (onCreateNote) onCreateNote(text);
+                }}
+                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-300/30 dark:shadow-emerald-900/30 transition-all active:scale-[0.98]"
+            >
+                <Plus size={14} />
+                Neue Notiz erstellen
+            </button>
+        </div>
+    );
+};
+
+// ─── In-Meeting Progress Bar (shown below idle calendar) ──────────────────
+
+function InMeetingBar({ events }: { events: Array<{ title: string; start: string; end: string; description?: string }> }) {
+    const [now, setNow] = useState(new Date());
+
+    useEffect(() => {
+        const interval = setInterval(() => setNow(new Date()), 15_000); // update every 15s
+        return () => clearInterval(interval);
+    }, []);
+
+    const activeEvent = useMemo(() => {
+        return events.find(e => {
+            try {
+                const s = new Date(e.start);
+                const en = new Date(e.end);
+                return s <= now && en > now;
+            } catch { return false; }
+        });
+    }, [events, now]);
+
+    if (!activeEvent) return null;
+
+    const start = new Date(activeEvent.start);
+    const end = new Date(activeEvent.end);
+    const total = end.getTime() - start.getTime();
+    const elapsed = now.getTime() - start.getTime();
+    const progress = Math.min(1, Math.max(0, elapsed / total));
+    const remainingMins = Math.max(0, Math.round((end.getTime() - now.getTime()) / 60_000));
+    const remainingLabel = remainingMins >= 60
+        ? `${Math.floor(remainingMins / 60)}h ${remainingMins % 60}m`
+        : `${remainingMins}m`;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            className="mt-1 px-1"
+        >
+            <div className="flex items-center gap-2 mb-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider truncate flex-1">
+                    {activeEvent.title || 'Termin'}
+                </span>
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium shrink-0">
+                    noch {remainingLabel}
+                </span>
+            </div>
+            <div className="w-full h-[3px] rounded-full bg-gray-200 dark:bg-white/10 overflow-hidden">
+                <motion.div
+                    className="h-full rounded-full bg-gradient-to-r from-blue-400 to-blue-600"
+                    initial={{ width: `${progress * 100}%` }}
+                    animate={{ width: `${progress * 100}%` }}
+                    transition={{ duration: 0.5, ease: 'easeInOut' }}
+                />
+            </div>
+        </motion.div>
+    );
+}
+
 // Decentralized Registry Map
 import EventSuggestionView from './EventSuggestionView';
 
@@ -355,10 +560,21 @@ const registeredPlugins: Record<string, React.FC<{ payload: any }>> = {
     'interactive_card': InteractiveCardView,
     'event_preview': EventPreviewView,
     'event_suggestion': EventSuggestionView,
+    'reminder': ReminderView,
+    'text_collector': TextCollectorView,
 };
 
 export default function SmartIsland({ selectedDate, onSelect, userName }: SmartIslandProps) {
     const { state } = useIslandStore();
+    const storeEvents = useDataStore(s => s.events);
+
+    // Build today's events for InMeetingBar
+    const todayEvents = useMemo(() => {
+        const today = new Date();
+        return (storeEvents || []).filter((e: any) => {
+            try { return isSameDay(new Date(e.start), today); } catch { return false; }
+        }).map((e: any) => ({ title: e.title, start: e.start, end: e.end, description: e.description }));
+    }, [storeEvents]);
 
     const sizeClass = state.current?.type === 'timeline'
         ? 'p-5 rounded-[2.5rem] w-[20rem]'
@@ -366,11 +582,15 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
             ? 'p-5 rounded-[2rem] w-[22rem]'
             : state.current?.type === 'event_suggestion'
                 ? 'rounded-[1.75rem] w-[24rem]'
-                : state.current?.type === 'welcome' || state.current?.type === 'morning' || state.current?.type === 'event_preview'
-                    ? 'p-5 rounded-[2rem] w-[20rem]'
-                    : state.current?.type === 'message'
-                        ? 'p-4 rounded-[1.75rem] w-[18rem]'
-                        : 'p-3 rounded-[2rem] w-[15rem]';
+                : state.current?.type === 'reminder'
+                    ? 'rounded-[2rem] w-[22rem]'
+                    : state.current?.type === 'text_collector'
+                        ? 'rounded-[2rem] w-[22rem]'
+                        : state.current?.type === 'welcome' || state.current?.type === 'morning' || state.current?.type === 'event_preview'
+                            ? 'p-5 rounded-[2rem] w-[20rem]'
+                            : state.current?.type === 'message'
+                                ? 'p-4 rounded-[1.75rem] w-[18rem]'
+                                : 'p-3 rounded-[2rem] w-[15rem]';
 
     return (
         <div className="select-none relative z-[100]">
@@ -405,12 +625,14 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                                 transition={{ duration: 0.2 }}
                                 layout="position"
                             >
-                                <MiniCalendar
+                            <MiniCalendar
                                     selectedDate={selectedDate}
                                     onSelect={(date) => {
                                         onSelect?.(date);
                                     }}
                                 />
+                                {/* In-Meeting progress bar below calendar */}
+                                <InMeetingBar events={todayEvents} />
                             </motion.div>
                         ) : (
                             <motion.div

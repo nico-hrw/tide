@@ -508,6 +508,21 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                     }
                 }
 
+                // [FEATURE] Text Collector (Sammelbecken) → Note drag
+                const collectorText = event.dataTransfer?.getData('tide/collector-text');
+                if (collectorText) {
+                    try {
+                        const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+                        const insertPos = coords ? coords.pos : view.state.doc.content.size;
+                        const textNode = view.state.schema.text(collectorText);
+                        view.dispatch(view.state.tr.insert(insertPos, textNode));
+                        event.preventDefault();
+                        return true;
+                    } catch (e) {
+                        console.warn('[TextCollectorDrop] Failed to insert text', e);
+                    }
+                }
+
                 if (!moved && event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
                     return true; // Inform Tiptap we handled it
                 }
@@ -516,7 +531,7 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
             handleDOMEvents: {
                 dragover: (view, event) => {
                     const e = event as DragEvent;
-                    if (e.dataTransfer?.types.includes('tide/calendar-event')) {
+                    if (e.dataTransfer?.types.includes('tide/calendar-event') || e.dataTransfer?.types.includes('tide/collector-text')) {
                         e.preventDefault();
                         e.dataTransfer.dropEffect = 'copy';
                         return true;

@@ -1249,6 +1249,109 @@ export default function Dashboard() {
         }, 1500);
     }, [events, enabledExtensions, islandPush]);
 
+    // ── Reminder: 10 min before event ─────────────────────────────────────────
+    const remindedEventsRef = useRef<Set<string>>(new Set());
+    useEffect(() => {
+        if (!enabledExtensions.includes('smart_island')) return;
+        const check = () => {
+            const now = new Date();
+            for (const ev of events) {
+                try {
+                    const start = new Date(ev.start);
+                    const diffMs = start.getTime() - now.getTime();
+                    const diffMins = diffMs / 60_000;
+                    if (diffMins > 0 && diffMins <= 10 && !remindedEventsRef.current.has(ev.id)) {
+                        remindedEventsRef.current.add(ev.id);
+                        islandPush({
+                            type: 'reminder',
+                            priority: 'CRITICAL',
+                            payload: {
+                                event: { title: ev.title, start: ev.start, end: ev.end, description: (ev as any).description || '' },
+                                duration: 15_000, // show for 15s
+                            },
+                        });
+                    }
+                } catch { /* skip invalid dates */ }
+            }
+        };
+        check(); // immediate
+        const interval = setInterval(check, 60_000); // every minute
+        return () => clearInterval(interval);
+    }, [events, enabledExtensions, islandPush]);
+
+    // ── Text Collector (Sammelbecken): catch typing outside notes ──────────
+    const collectorBufferRef = useRef('');
+    const collectorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        if (!enabledExtensions.includes('smart_island')) return;
+
+        const isInputFocused = () => {
+            const el = document.activeElement;
+            if (!el) return false;
+            const tag = el.tagName.toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+            if ((el as HTMLElement).isContentEditable) return true;
+            if (el.closest('.ProseMirror')) return true;
+            return false;
+        };
+
+        const handler = (e: KeyboardEvent) => {
+            if (isInputFocused()) return;
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            if (e.key.length !== 1 && e.key !== 'Backspace' && e.key !== ' ') return;
+
+            e.preventDefault();
+
+            if (e.key === 'Backspace') {
+                collectorBufferRef.current = collectorBufferRef.current.slice(0, -1);
+            } else {
+                collectorBufferRef.current += e.key;
+            }
+
+            // Debounce: after 1.5s of no typing, push to island
+            if (collectorTimerRef.current) clearTimeout(collectorTimerRef.current);
+            collectorTimerRef.current = setTimeout(() => {
+                const text = collectorBufferRef.current.trim();
+                if (text.length < 2) {
+                    collectorBufferRef.current = '';
+                    return;
+                }
+
+                islandPush({
+                    type: 'text_collector',
+                    priority: 'DEFAULT',
+                    payload: {
+                        text,
+                        duration: 30_000, // stay visible for 30s
+                        onCreateNote: async (noteText: string) => {
+                            const newId = await useDataStore.getState().createNote(
+                                noteText.slice(0, 60),
+                                {
+                                    type: 'doc',
+                                    content: [{
+                                        type: 'paragraph',
+                                        attrs: { blockId: crypto.randomUUID() },
+                                        content: [{ type: 'text', text: noteText }]
+                                    }]
+                                }
+                            );
+                            useDataStore.getState().fetchDirectory(null, true);
+                            // Navigate to the new note
+                            window.dispatchEvent(new CustomEvent('tide:navigate', { detail: { noteId: newId } }));
+                        },
+                    },
+                });
+                collectorBufferRef.current = '';
+            }, 1500);
+        };
+
+        window.addEventListener('keydown', handler);
+        return () => {
+            window.removeEventListener('keydown', handler);
+            if (collectorTimerRef.current) clearTimeout(collectorTimerRef.current);
+        };
+    }, [enabledExtensions, islandPush]);
+
     // Store Event Listener
     useEffect(() => {
         const h = () => handleNewNote();
@@ -2026,13 +2129,8 @@ export default function Dashboard() {
     const performShare = async (recipientId: string, recipientEmail: string, recipientPubKeySpki: string, permission: 'view' | 'edit' | 'share' = 'view') => {
         if (!shareModalFile || !privateKey || !publicKey) return;
 
-        // Rule 3: Push upload progress for outgoing share
-        if (enabledExtensions.includes('smart_island')) {
-            islandPush({
-                type: 'upload_progress',
-                payload: { fileName: shareModalFile.title }
-            });
-        }
+        // Note: upload_progress push removed — sending a note/event should not
+        // trigger a Smart Island change per user request.
 
         await (await import('@/lib/shareLogic')).performMessengerShare(
             shareModalFile,
