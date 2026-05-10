@@ -593,7 +593,11 @@ export const useDataStore = create<DataState>((set, get) => ({
                         // Skip updating state to avoid overwriting optimistic UI during in-flight rename
                     }
                     const cached = newMetaCache[f.id];
-                    const normalizedCached = { ...f, ...cached, parent_id: f.parent_id || null };
+                    const normalizedCached = {
+                        ...f, ...cached,
+                        isGroup: cached.isGroup || (f.public_meta && f.public_meta.isGroup) || undefined,
+                        parent_id: f.parent_id || null
+                    };
                     if (f.type === 'event') decryptedEvents.push(normalizedCached);
                     else decryptedNotes.push(normalizedCached);
                     continue;
@@ -661,6 +665,8 @@ export const useDataStore = create<DataState>((set, get) => ({
                 const normalizedItem = {
                     ...f,
                     ...metaData,
+                    // isGroup stored unencrypted in public_meta so it survives decryption failures
+                    isGroup: metaData.isGroup || (f.public_meta && f.public_meta.isGroup) || undefined,
                     parent_id: f.parent_id || null // Normalize to null for sidebar root filtering
                 };
 

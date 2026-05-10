@@ -1357,7 +1357,7 @@ export default function Dashboard() {
                 body: JSON.stringify({
                     type: "folder",
                     parent_id: null,
-                    public_meta: {},
+                    public_meta: { isGroup: true },
                     secured_meta: securedMeta,
                     visibility: 'private'
                 })
@@ -1398,15 +1398,14 @@ export default function Dashboard() {
         const pubKey = publicKey || storeState.publicKey;
         if (!privKey || !pubKey) return;
         try {
-            // Optimistic Update — applies immediately to UI
-            const currentFiles = storeState.notes;
-            storeState.setNotes(currentFiles.map(f => f.id === id ? { ...f, ...updates } as any : f));
+            // Use state-updater form to avoid overwriting concurrent store changes
+            useDataStore.setState(s => ({
+                notes: s.notes.map(f => f.id === id ? { ...f, ...updates } as any : f)
+            }));
 
-            const group = currentFiles.find(f => f.id === id);
+            const group = storeState.notes.find(f => f.id === id);
             if (!group) return;
 
-            // Build metadata from the known current state of the group rather than
-            // re-decrypting secured_meta (which may be absent from the in-memory cache).
             const meta: Record<string, any> = {
                 title: updates.title ?? group.title ?? 'New Group',
                 isGroup: true,
@@ -1419,12 +1418,11 @@ export default function Dashboard() {
             await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ secured_meta: encryptedMeta })
+                // public_meta preserves isGroup in plaintext so fetchDirectory always finds it
+                body: JSON.stringify({ secured_meta: encryptedMeta, public_meta: { isGroup: true } })
             });
-
-            // Re-fetch root to ensure consistency, but optimistic update already made it smooth
-            storeState.loadedDirectories.delete('root');
-            storeState.fetchDirectory(null);
+            // No fetchDirectory — the optimistic update is the source of truth for this session.
+            // On next reload the server returns updated secured_meta + public_meta.isGroup.
         } catch (e) {
             console.error("Failed to update group", e);
         }

@@ -413,7 +413,7 @@ export default function Sidebar({
             {/* Scrollable notes section — flex-based height so RECENT expansion doesn't push content under Smart Island */}
             <div
                 className="overflow-y-auto px-2 no-scrollbar"
-                style={{ flex: '1 1 0', minHeight: 0, paddingBottom: '8px' }}
+                style={{ flex: '1 1 0', minHeight: 0, paddingBottom: '32px' }}
                 onDoubleClick={(e) => {
                     if (e.target === e.currentTarget) onNewNote();
                 }}
