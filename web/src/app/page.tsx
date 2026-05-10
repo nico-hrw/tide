@@ -145,17 +145,7 @@ const ThemeItem = ({ group, hiddenThemeIds, onToggleVisibility, onUpdate, onShar
                 </div>
             </div>
             <div className="flex flex-col gap-2.5 pl-6">
-                <div className="flex flex-wrap gap-1.5">
-                    {['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'].map(c => (
-                        <button
-                            key={c}
-                            onClick={() => onUpdate(group.id, { color: c })}
-                            className={`w-4 h-4 rounded-full transition-all border-2 ${(group as any).color === c ? 'border-white ring-2 ring-indigo-500 scale-110 shadow-sm' : 'border-transparent hover:scale-110'}`}
-                            style={{ backgroundColor: c }}
-                        />
-                    ))}
-                </div>
-                {/* Effect picker — visual swatches so the user sees the pattern before selecting */}
+                {/* Pattern picker — themes convey texture/pattern only, not individual color */}
                 <div className="flex flex-wrap gap-1.5">
                     {([
                         { id: 'none',    label: 'Solid'   },
@@ -1376,8 +1366,8 @@ export default function Dashboard() {
             if (!res.ok) throw new Error("Failed to create event group");
             const newFolder = await res.json();
 
-            // Optimistically add to notes so it appears immediately in the themes panel,
-            // without waiting for the async fetchDirectory (which may be throttled by a guard).
+            // Optimistically add to notes using the state-updater form to avoid
+            // overwriting concurrent updates with a stale snapshot.
             const optimisticGroup: any = {
                 id: newFolder.id,
                 title,
@@ -1389,11 +1379,12 @@ export default function Dashboard() {
                 secured_meta: securedMeta,
                 visibility: 'private',
             };
-            useDataStore.getState().setNotes([...storeState.notes, optimisticGroup]);
+            useDataStore.setState(s => ({ notes: [...s.notes, optimisticGroup] }));
 
-            // Also refresh in background to get the canonical server state
-            storeState.loadedDirectories.delete('root');
-            storeState.fetchDirectory(null);
+            // Force a fresh fetch so the canonical server entry (with isGroup decrypted)
+            // replaces the optimistic one. forceRefresh bypasses the loadedDirectories
+            // guard without mutating a potentially stale Set reference.
+            useDataStore.getState().fetchDirectory(null, true);
 
             return newFolder.id;
 

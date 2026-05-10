@@ -332,7 +332,7 @@ export default function Sidebar({
                 </div>
 
                 {/* RECENT Section */}
-                <div className="px-2 py-2">
+                <div className="py-2">
                     <p className="text-[11px] font-medium uppercase tracking-[1px] text-[var(--text-subtle)] px-2 mb-1">
                         Recent
                     </p>
@@ -403,10 +403,17 @@ export default function Sidebar({
                 </div>
             </div>{/* end sticky top section */}
 
-            {/* Scrollable notes section — max ~45 vh to not overlap Smart Island */}
+            {/* Notes label — outside scrollable area so it stays visible while scrolling */}
+            <div className="flex-shrink-0 px-4 pt-2 pb-1">
+                <p className="text-[11px] font-medium uppercase tracking-[1px] text-[var(--text-subtle)]">
+                    Notes
+                </p>
+            </div>
+
+            {/* Scrollable notes section — flex-based height so RECENT expansion doesn't push content under Smart Island */}
             <div
                 className="overflow-y-auto px-2 no-scrollbar"
-                style={{ flex: '1 1 0', minHeight: 0, maxHeight: 'calc(100vh - 500px)', paddingBottom: '8px' }}
+                style={{ flex: '1 1 0', minHeight: 0, paddingBottom: '8px' }}
                 onDoubleClick={(e) => {
                     if (e.target === e.currentTarget) onNewNote();
                 }}
@@ -420,11 +427,6 @@ export default function Sidebar({
                     setDropIndicator(null);
                 }}
             >
-                {/* Notes section label */}
-                <p className="text-[11px] font-medium uppercase tracking-[1px] text-[var(--text-subtle)] px-2 mb-1 mt-2">
-                    Notes
-                </p>
-
                 <div className="space-y-0.5">
                     {sharedWithMeItems.length > 0 && (
                         <div className="mb-1">

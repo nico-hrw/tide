@@ -361,16 +361,16 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
     const { state } = useIslandStore();
 
     const sizeClass = state.current?.type === 'timeline'
-        ? 'p-5 rounded-[2.5rem] w-[20rem]'
+        ? 'p-4 rounded-[2rem] w-[13.5rem]'
         : state.current?.type === 'interactive_card'
-            ? 'p-5 rounded-[2rem] w-[22rem]'
+            ? 'p-4 rounded-[1.75rem] w-[13.5rem]'
             : state.current?.type === 'event_suggestion'
-                ? 'rounded-[1.75rem] w-[24rem]'
+                ? 'rounded-[1.75rem] w-[13.5rem]'
                 : state.current?.type === 'welcome' || state.current?.type === 'morning' || state.current?.type === 'event_preview'
-                    ? 'p-5 rounded-[2rem] w-[20rem]'
+                    ? 'p-4 rounded-[2rem] w-[13.5rem]'
                     : state.current?.type === 'message'
-                        ? 'p-4 rounded-[1.75rem] w-[18rem]'
-                        : 'p-4 rounded-[1.75rem] w-[17.5rem]';
+                        ? 'p-3 rounded-[1.5rem] w-[13rem]'
+                        : 'p-3 rounded-[1.5rem] w-[13rem]';
 
     return (
         <div className="select-none relative z-[100]">

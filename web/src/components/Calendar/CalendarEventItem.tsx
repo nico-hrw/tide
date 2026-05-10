@@ -380,7 +380,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     setIsLinkingMode(false);
                 }
             }}
-            className={`event-item group absolute px-2 py-1.5 cursor-pointer overflow-hidden ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-all ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''}`}
+            className={`event-item group absolute ${durationMinutes < 25 ? 'px-2 py-0' : 'px-2 py-1.5'} cursor-pointer overflow-hidden ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-all ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''}`}
             onClick={(e) => {
                 e.stopPropagation();
 
@@ -542,9 +542,15 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             <Globe size={11} />
                         </div>
                     )}
-                <div className={`text-[11px] font-bold leading-tight truncate pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
+                <div className={`${durationMinutes < 25 ? 'text-[9px] leading-none' : 'text-[11px] leading-tight'} font-bold truncate pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}
                     </div>
+                    {/* For very short events show start time inline next to title */}
+                    {durationMinutes < 25 && durationMinutes >= 10 && (
+                        <span className="text-[8px] opacity-60 font-semibold pointer-events-none shrink-0">
+                            {format(start, "HH:mm")}
+                        </span>
+                    )}
                 </div>
 
                 {/* Sub-titles (Tags) - Feature Requirement */}

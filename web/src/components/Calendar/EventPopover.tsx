@@ -94,6 +94,11 @@ export default function EventPopover({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [event.id]);
 
+    // Always holds the latest handleSave so the unmount cleanup doesn't use a stale closure
+    const handleSaveRef = useRef<(overrides?: Partial<EventPopoverEvent>) => void>(() => {});
+    // Track whether handleClose already saved, to avoid a redundant save on unmount
+    const savedOnCloseRef = useRef(false);
+
     const handleSave = useCallback((overrideUpdates?: Partial<EventPopoverEvent>) => {
         const updates: Partial<EventPopoverEvent> = { ...overrideUpdates };
         const safeTitle = typeof title === 'string' ? title : String(title ?? '');
@@ -112,12 +117,17 @@ export default function EventPopover({
         if (Object.keys(updates).length > 0) onEventSave(event.id, updates);
     }, [event, title, description, isTask, isCompleted, isCancelled, color, tags, freq, interval, onEventSave]);
 
+    // Keep ref current so the unmount cleanup always calls the latest version
+    useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
+
     useEffect(() => {
-        const timer = setTimeout(() => handleSave(), 800);
+        const timer = setTimeout(() => handleSave(), 300);
         return () => clearTimeout(timer);
     }, [title, description, isTask, isCompleted, isCancelled, color, tags, freq, interval, handleSave]);
 
-    useEffect(() => { return () => { handleSave(); }; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+    // Save on unmount only when the popup was dismissed without the explicit close button
+    // (scroll-away, click-outside). handleClose sets savedOnCloseRef to avoid a double-save.
+    useEffect(() => { return () => { if (!savedOnCloseRef.current) handleSaveRef.current(); }; }, []);
 
     // Adjust position after render so the popover never goes off-screen
     useLayoutEffect(() => {
@@ -138,7 +148,7 @@ export default function EventPopover({
         setPos({ top, left });
     }, [rect, isExpanded, showColorPicker, showHints]);
 
-    const handleClose = () => { handleSave(); onClose(); };
+    const handleClose = () => { savedOnCloseRef.current = true; handleSave(); onClose(); };
     const handleTaskToggle = (v: boolean) => { setIsTask(v); if (!v) setIsCompleted(false); };
     const updateRecurrence = (newFreq: string, newInterval: number) => { setFreq(newFreq); setIntervalVal(newInterval); };
 
