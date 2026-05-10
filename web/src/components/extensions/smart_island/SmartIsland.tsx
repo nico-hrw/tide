@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Check, Calendar as CalendarIcon, MessageSquare, Bell, TrendingUp, Sparkles, Loader2, FileText, ExternalLink, Calendar, Plus, Clock, Link2, GripVertical, FileEdit, AlarmClock } from 'lucide-react';
+import { Check, Calendar as CalendarIcon, MessageSquare, Bell, TrendingUp, Sparkles, Loader2, FileText, ExternalLink, Calendar, Plus, Clock, Link2, GripVertical, FileEdit, AlarmClock, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MiniCalendar from '../../Calendar/MiniCalendar';
 import { useIslandStore, IslandView } from './useIslandStore';
@@ -440,8 +440,26 @@ const ReminderView = ({ payload }: { payload: any }) => {
 // ─── Text Collector View (Sammelbecken) ─────────────────────────────────────
 
 const TextCollectorView = ({ payload }: { payload: any }) => {
-    const text: string = payload?.text || '';
+    const [liveText, setLiveText] = useState<string>(payload?.text || '');
     const onCreateNote = payload?.onCreateNote;
+    const onDismiss = payload?.onDismiss;
+
+    // Listen for real-time text updates from the collector
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const text = (e as CustomEvent).detail?.text;
+            if (typeof text === 'string') setLiveText(text);
+        };
+        window.addEventListener('tide:collector-update', handler);
+        return () => window.removeEventListener('tide:collector-update', handler);
+    }, []);
+
+    // Also sync if payload.text changes (e.g. new push)
+    useEffect(() => {
+        if (payload?.text) setLiveText(payload.text);
+    }, [payload?.text]);
+
+    const displayText = liveText || payload?.text || '';
 
     return (
         <div className="flex flex-col gap-2.5 px-4 py-3 w-[20rem] select-none">
@@ -450,21 +468,22 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
                 <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
                     <FileEdit size={12} className="text-white" />
                 </div>
-                <div className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Notiz-Entwurf</div>
+                <div className="flex-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Notiz-Entwurf</div>
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
             </div>
 
             {/* Captured text */}
             <div
                 draggable
                 onDragStart={(e) => {
-                    e.dataTransfer.setData('text/plain', text);
-                    e.dataTransfer.setData('tide/collector-text', text);
+                    e.dataTransfer.setData('text/plain', displayText);
+                    e.dataTransfer.setData('tide/collector-text', displayText);
                     e.dataTransfer.effectAllowed = 'copyMove';
                 }}
-                className="p-3 rounded-xl bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 cursor-grab active:cursor-grabbing hover:shadow-sm transition-shadow"
+                className="p-3 rounded-xl bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 cursor-grab active:cursor-grabbing hover:shadow-sm transition-shadow min-h-[2rem]"
             >
                 <p className="text-[13px] text-gray-800 dark:text-gray-200 leading-relaxed break-words whitespace-pre-wrap font-medium">
-                    {text}
+                    {displayText}<span className="inline-block w-[2px] h-[14px] bg-emerald-500 animate-pulse ml-[1px] align-text-bottom" />
                 </p>
                 <div className="flex items-center gap-1 mt-2 text-[10px] text-gray-400 dark:text-gray-500">
                     <GripVertical size={10} />
@@ -472,36 +491,52 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
                 </div>
             </div>
 
-            {/* Create note button */}
-            <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    if (onCreateNote) onCreateNote(text);
-                }}
-                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-[12px] font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-300/30 dark:shadow-emerald-900/30 transition-all active:scale-[0.98]"
-            >
-                <Plus size={14} />
-                Neue Notiz erstellen
-            </button>
+            {/* Actions */}
+            <div className="flex gap-2">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (onDismiss) onDismiss();
+                    }}
+                    className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-[12px] font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                >
+                    <X size={13} />
+                    Verwerfen
+                </button>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (onCreateNote) onCreateNote(displayText);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[12px] font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-300/30 dark:shadow-emerald-900/30 transition-all active:scale-[0.98]"
+                >
+                    <Plus size={14} />
+                    Neue Notiz
+                </button>
+            </div>
         </div>
     );
 };
 
 // ─── In-Meeting Progress Bar (shown below idle calendar) ──────────────────
 
-function InMeetingBar({ events }: { events: Array<{ title: string; start: string; end: string; description?: string }> }) {
+function InMeetingBar({ events }: { events: Array<{ title: string; start: string; end: string; description?: string; is_all_day?: boolean }> }) {
     const [now, setNow] = useState(new Date());
 
     useEffect(() => {
-        const interval = setInterval(() => setNow(new Date()), 15_000); // update every 15s
+        const interval = setInterval(() => setNow(new Date()), 15_000);
         return () => clearInterval(interval);
     }, []);
 
     const activeEvent = useMemo(() => {
         return events.find(e => {
             try {
+                // Skip all-day events (flagged or duration >= 23h)
+                if ((e as any).is_all_day) return false;
                 const s = new Date(e.start);
                 const en = new Date(e.end);
+                const durationHrs = (en.getTime() - s.getTime()) / (1000 * 60 * 60);
+                if (durationHrs >= 23) return false;
                 return s <= now && en > now;
             } catch { return false; }
         });
@@ -514,30 +549,17 @@ function InMeetingBar({ events }: { events: Array<{ title: string; start: string
     const total = end.getTime() - start.getTime();
     const elapsed = now.getTime() - start.getTime();
     const progress = Math.min(1, Math.max(0, elapsed / total));
-    const remainingMins = Math.max(0, Math.round((end.getTime() - now.getTime()) / 60_000));
-    const remainingLabel = remainingMins >= 60
-        ? `${Math.floor(remainingMins / 60)}h ${remainingMins % 60}m`
-        : `${remainingMins}m`;
 
     return (
         <motion.div
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 4 }}
-            className="mt-1 px-1"
+            className="mt-1.5 px-3 pb-1"
         >
-            <div className="flex items-center gap-2 mb-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider truncate flex-1">
-                    {activeEvent.title || 'Termin'}
-                </span>
-                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium shrink-0">
-                    noch {remainingLabel}
-                </span>
-            </div>
-            <div className="w-full h-[3px] rounded-full bg-gray-200 dark:bg-white/10 overflow-hidden">
+            <div className="w-full h-[2px] rounded-full bg-gray-200/60 dark:bg-white/5 overflow-hidden">
                 <motion.div
-                    className="h-full rounded-full bg-gradient-to-r from-blue-400 to-blue-600"
+                    className="h-full rounded-full bg-blue-400/60 dark:bg-blue-500/50"
                     initial={{ width: `${progress * 100}%` }}
                     animate={{ width: `${progress * 100}%` }}
                     transition={{ duration: 0.5, ease: 'easeInOut' }}
@@ -568,12 +590,12 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
     const { state } = useIslandStore();
     const storeEvents = useDataStore(s => s.events);
 
-    // Build today's events for InMeetingBar
+    // Build today's events for InMeetingBar (exclude all-day events)
     const todayEvents = useMemo(() => {
         const today = new Date();
         return (storeEvents || []).filter((e: any) => {
             try { return isSameDay(new Date(e.start), today); } catch { return false; }
-        }).map((e: any) => ({ title: e.title, start: e.start, end: e.end, description: e.description }));
+        }).map((e: any) => ({ title: e.title, start: e.start, end: e.end, description: e.description, is_all_day: e.is_all_day }));
     }, [storeEvents]);
 
     const sizeClass = state.current?.type === 'timeline'

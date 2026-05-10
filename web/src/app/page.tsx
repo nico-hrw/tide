@@ -1281,7 +1281,10 @@ export default function Dashboard() {
 
     // ── Text Collector (Sammelbecken): catch typing outside notes ──────────
     const collectorBufferRef = useRef('');
-    const collectorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const collectorActiveRef = useRef(false); // whether the island view is already showing
+    const collectorIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const { dismiss: islandDismiss } = useIslandStore();
+
     useEffect(() => {
         if (!enabledExtensions.includes('smart_island')) return;
 
@@ -1295,6 +1298,33 @@ export default function Dashboard() {
             return false;
         };
 
+        const clearCollector = () => {
+            collectorBufferRef.current = '';
+            collectorActiveRef.current = false;
+            if (collectorIdleTimerRef.current) clearTimeout(collectorIdleTimerRef.current);
+            islandDismiss();
+        };
+
+        const createNoteFromText = async (noteText: string) => {
+            // Title = first ~40 chars or first line, Body = full text
+            const firstLine = noteText.split('\n')[0] || noteText;
+            const title = firstLine.slice(0, 40) + (firstLine.length > 40 ? '…' : '');
+
+            await useDataStore.getState().createNote(
+                title,
+                {
+                    type: 'doc',
+                    content: [{
+                        type: 'paragraph',
+                        attrs: { blockId: crypto.randomUUID() },
+                        content: [{ type: 'text', text: noteText }]
+                    }]
+                }
+            );
+            useDataStore.getState().fetchDirectory(null, true);
+            clearCollector();
+        };
+
         const handler = (e: KeyboardEvent) => {
             if (isInputFocused()) return;
             if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -1304,53 +1334,51 @@ export default function Dashboard() {
 
             if (e.key === 'Backspace') {
                 collectorBufferRef.current = collectorBufferRef.current.slice(0, -1);
+                if (collectorBufferRef.current.length === 0) {
+                    clearCollector();
+                    return;
+                }
             } else {
                 collectorBufferRef.current += e.key;
             }
 
-            // Debounce: after 1.5s of no typing, push to island
-            if (collectorTimerRef.current) clearTimeout(collectorTimerRef.current);
-            collectorTimerRef.current = setTimeout(() => {
-                const text = collectorBufferRef.current.trim();
-                if (text.length < 2) {
-                    collectorBufferRef.current = '';
-                    return;
-                }
+            const currentText = collectorBufferRef.current;
 
+            // Push island view on first char (if not already active)
+            if (!collectorActiveRef.current && currentText.trim().length >= 1) {
+                collectorActiveRef.current = true;
                 islandPush({
                     type: 'text_collector',
                     priority: 'DEFAULT',
                     payload: {
-                        text,
-                        duration: 30_000, // stay visible for 30s
-                        onCreateNote: async (noteText: string) => {
-                            const newId = await useDataStore.getState().createNote(
-                                noteText.slice(0, 60),
-                                {
-                                    type: 'doc',
-                                    content: [{
-                                        type: 'paragraph',
-                                        attrs: { blockId: crypto.randomUUID() },
-                                        content: [{ type: 'text', text: noteText }]
-                                    }]
-                                }
-                            );
-                            useDataStore.getState().fetchDirectory(null, true);
-                            // Navigate to the new note
-                            window.dispatchEvent(new CustomEvent('tide:navigate', { detail: { noteId: newId } }));
-                        },
+                        text: currentText,
+                        duration: 120_000, // 2 min idle timeout
+                        onCreateNote: createNoteFromText,
+                        onDismiss: clearCollector,
                     },
                 });
-                collectorBufferRef.current = '';
-            }, 1500);
+            }
+
+            // Fire real-time update event so the view updates instantly
+            window.dispatchEvent(new CustomEvent('tide:collector-update', {
+                detail: { text: currentText }
+            }));
+
+            // Reset idle timer: if no typing for 60s, auto-dismiss
+            if (collectorIdleTimerRef.current) clearTimeout(collectorIdleTimerRef.current);
+            collectorIdleTimerRef.current = setTimeout(() => {
+                if (collectorBufferRef.current.trim().length === 0) {
+                    clearCollector();
+                }
+            }, 60_000);
         };
 
         window.addEventListener('keydown', handler);
         return () => {
             window.removeEventListener('keydown', handler);
-            if (collectorTimerRef.current) clearTimeout(collectorTimerRef.current);
+            if (collectorIdleTimerRef.current) clearTimeout(collectorIdleTimerRef.current);
         };
-    }, [enabledExtensions, islandPush]);
+    }, [enabledExtensions, islandPush, islandDismiss]);
 
     // Store Event Listener
     useEffect(() => {
