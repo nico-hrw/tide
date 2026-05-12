@@ -213,12 +213,15 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes }: Sche
                                                     onChange={(e) => setThemeEffect(e.target.value)}
                                                     className="w-full bg-white dark:bg-[#2A2A2A] border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none cursor-pointer"
                                                 >
-                                                    <option value="none">None</option>
-                                                    <option value="stripes">Stripes</option>
-                                                    <option value="waves">Waves</option>
-                                                    <option value="dots">Dots</option>
-                                                    <option value="chess">Chess</option>
-                                                    <option value="dimmed">Dimmed</option>
+                                                    <option value="none">Kein Muster</option>
+                                                    <option value="stripes">Gestreift</option>
+                                                    <option value="waves">Wellen</option>
+                                                    <option value="dots">Punkte</option>
+                                                    <option value="chess">Karo</option>
+                                                    <option value="diamonds">Diamant</option>
+                                                    <option value="gradient">Farbverlauf</option>
+                                                    <option value="bars">Balken</option>
+                                                    <option value="dimmed">Gedimmt</option>
                                                 </select>
                                             </div>
                                         </div>

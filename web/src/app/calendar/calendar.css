@@ -60,31 +60,49 @@
 /* Event Patterns — used for effect preview swatches in the Themes panel.
    Actual event rendering uses inline backgroundImage for compositing-layer safety. */
 .effect-stripes {
-    background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.22) 0, rgba(255,255,255,0.22) 4px, transparent 4px, transparent 14px) !important;
+    background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.25) 0, rgba(255,255,255,0.25) 8px, transparent 8px, transparent 20px) !important;
 }
 
 .effect-waves {
     background-image:
-        radial-gradient(circle at 100% 50%, transparent 20%, rgba(255,255,255,0.22) 21%, rgba(255,255,255,0.22) 34%, transparent 35%),
-        radial-gradient(circle at 0%   50%, transparent 20%, rgba(255,255,255,0.22) 21%, rgba(255,255,255,0.22) 34%, transparent 35%) !important;
+        radial-gradient(circle at 100% 50%, transparent 20%, rgba(255,255,255,0.25) 21%, rgba(255,255,255,0.25) 34%, transparent 35%),
+        radial-gradient(circle at 0% 50%, transparent 20%, rgba(255,255,255,0.25) 21%, rgba(255,255,255,0.25) 34%, transparent 35%) !important;
     background-size: 24px 24px !important;
+    background-position: 0 0, 0 12px !important;
 }
 
 .effect-dots {
     background-image:
-        radial-gradient(rgba(255,255,255,0.4) 28%, transparent 28%) 0 0 / 8px 8px,
-        radial-gradient(rgba(255,255,255,0.4) 28%, transparent 28%) 4px 4px / 8px 8px !important;
-    background-size: 8px 8px !important;
+        radial-gradient(rgba(255,255,255,0.4) 28%, transparent 28%),
+        radial-gradient(rgba(255,255,255,0.4) 28%, transparent 28%) !important;
+    background-size: 12px 12px !important;
+    background-position: 0 0, 6px 6px !important;
 }
 
 .effect-chess {
     background-image:
-        linear-gradient(45deg,  rgba(0,0,0,0.13) 25%, transparent 25%),
-        linear-gradient(-45deg, rgba(0,0,0,0.13) 25%, transparent 25%),
-        linear-gradient(45deg,  transparent 75%, rgba(0,0,0,0.13) 75%),
-        linear-gradient(-45deg, transparent 75%, rgba(0,0,0,0.13) 75%) !important;
-    background-size: 12px 12px !important;
-    background-position: 0 0, 0 6px, 6px -6px, -6px 0 !important;
+        linear-gradient(45deg, rgba(0,0,0,0.13) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.13) 75%, rgba(0,0,0,0.13)),
+        linear-gradient(45deg, rgba(0,0,0,0.13) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.13) 75%, rgba(0,0,0,0.13)) !important;
+    background-size: 20px 20px !important;
+    background-position: 0 0, 10px 10px !important;
+}
+
+.effect-diamonds {
+    background-image:
+        linear-gradient(135deg, rgba(255,255,255,0.15) 25%, transparent 25%),
+        linear-gradient(225deg, rgba(255,255,255,0.15) 25%, transparent 25%),
+        linear-gradient(45deg, rgba(255,255,255,0.15) 25%, transparent 25%),
+        linear-gradient(315deg, rgba(255,255,255,0.15) 25%, transparent 25%) !important;
+    background-size: 24px 24px !important;
+    background-position: 12px 0, 12px 0, 0 0, 0 0 !important;
+}
+
+.effect-gradient {
+    background-image: linear-gradient(120deg, rgba(255,255,255,0.3) 0%, transparent 100%) !important;
+}
+
+.effect-bars {
+    background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.2) 0, rgba(255,255,255,0.2) 10px, transparent 10px, transparent 20px) !important;
 }
 
 .effect-dimmed {

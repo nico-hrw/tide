@@ -153,6 +153,9 @@ const ThemeItem = ({ group, hiddenThemeIds, onToggleVisibility, onUpdate, onShar
                         { id: 'waves',   label: 'Wellen'  },
                         { id: 'dots',    label: 'Punkte'  },
                         { id: 'chess',   label: 'Karo'    },
+                        { id: 'diamonds',label: 'Diamant' },
+                        { id: 'gradient',label: 'Verlauf' },
+                        { id: 'bars',    label: 'Balken'  },
                         { id: 'dimmed',  label: 'Gedimmt' },
                     ] as const).map(({ id, label }) => {
                         const active = (group.effect || 'none') === id;

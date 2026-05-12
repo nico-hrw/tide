@@ -607,6 +607,11 @@ export const useDataStore = create<DataState>((set, get) => ({
                     // Stale cache entry — fall through to re-attempt decryption
                 }
 
+                if (!f.secured_meta && !f.metadata && f.visibility !== 'public' && f.type !== 'folder') {
+                    console.warn(`[STATE-AUDIT] Skipping ghost/corrupted file ${f.id} with no metadata.`);
+                    continue;
+                }
+
                 let metaData: any = { title: "Untitled" };
                 
                 // Folders and V2 files store a plaintext title in metadata as a fallback

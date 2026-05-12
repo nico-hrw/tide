@@ -67,30 +67,42 @@ interface CalendarEventItemProps {
     cursorY: MotionValue<number>;
 }
 
-// Returns a backgroundImage CSS value for the given theme effect.
-// Applied directly on the event div so it works inside Framer Motion
-// compositing layers (mix-blend-mode on a child div does not blend with
-// the parent's backgroundColor in a composited layer).
-const getEffectBgImage = (effect: string | undefined): string | undefined => {
+// Returns a style object for the given theme effect.
+// Applied directly on the event div so it works inside Framer Motion compositing layers.
+const getEffectStyle = (effect: string | undefined): React.CSSProperties | undefined => {
     if (!effect || effect === 'none' || effect === 'dimmed') return undefined;
-    const patterns: Record<string, string> = {
-        stripes: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.22) 0, rgba(255,255,255,0.22) 4px, transparent 4px, transparent 14px)',
-        waves: [
-            'radial-gradient(circle at 100% 50%, transparent 20%, rgba(255,255,255,0.2) 21%, rgba(255,255,255,0.2) 34%, transparent 35%)',
-            'radial-gradient(circle at 0%   50%, transparent 20%, rgba(255,255,255,0.2) 21%, rgba(255,255,255,0.2) 34%, transparent 35%)',
-        ].join(', '),
-        dots: [
-            'radial-gradient(rgba(255,255,255,0.4) 28%, transparent 28%) 0 0 / 8px 8px',
-            'radial-gradient(rgba(255,255,255,0.4) 28%, transparent 28%) 4px 4px / 8px 8px',
-        ].join(', '),
-        chess: [
-            'linear-gradient(45deg,  rgba(0,0,0,0.13) 25%, transparent 25%)',
-            'linear-gradient(-45deg, rgba(0,0,0,0.13) 25%, transparent 25%)',
-            'linear-gradient(45deg,  transparent 75%, rgba(0,0,0,0.13) 75%)',
-            'linear-gradient(-45deg, transparent 75%, rgba(0,0,0,0.13) 75%)',
-        ].join(', '),
+    
+    if (effect === 'stripes') return {
+        backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.25) 0, rgba(255,255,255,0.25) 8px, transparent 8px, transparent 20px)'
     };
-    return patterns[effect];
+    if (effect === 'waves') return {
+        backgroundImage: 'radial-gradient(circle at 100% 50%, transparent 20%, rgba(255,255,255,0.25) 21%, rgba(255,255,255,0.25) 34%, transparent 35%), radial-gradient(circle at 0% 50%, transparent 20%, rgba(255,255,255,0.25) 21%, rgba(255,255,255,0.25) 34%, transparent 35%)',
+        backgroundSize: '24px 24px',
+        backgroundPosition: '0 0, 0 12px'
+    };
+    if (effect === 'dots') return {
+        backgroundImage: 'radial-gradient(rgba(255,255,255,0.4) 28%, transparent 28%), radial-gradient(rgba(255,255,255,0.4) 28%, transparent 28%)',
+        backgroundSize: '12px 12px',
+        backgroundPosition: '0 0, 6px 6px'
+    };
+    if (effect === 'chess') return {
+        backgroundImage: 'linear-gradient(45deg, rgba(0,0,0,0.13) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.13) 75%, rgba(0,0,0,0.13)), linear-gradient(45deg, rgba(0,0,0,0.13) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.13) 75%, rgba(0,0,0,0.13))',
+        backgroundSize: '20px 20px',
+        backgroundPosition: '0 0, 10px 10px'
+    };
+    if (effect === 'diamonds') return {
+        backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.15) 25%, transparent 25%), linear-gradient(225deg, rgba(255,255,255,0.15) 25%, transparent 25%), linear-gradient(45deg, rgba(255,255,255,0.15) 25%, transparent 25%), linear-gradient(315deg, rgba(255,255,255,0.15) 25%, transparent 25%)',
+        backgroundSize: '24px 24px',
+        backgroundPosition: '12px 0, 12px 0, 0 0, 0 0'
+    };
+    if (effect === 'gradient') return {
+        backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.3) 0%, transparent 100%)'
+    };
+    if (effect === 'bars') return {
+        backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.2) 0, rgba(255,255,255,0.2) 10px, transparent 10px, transparent 20px)'
+    };
+    
+    return undefined;
 };
 
 const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
@@ -213,9 +225,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         return `${hEnd.toString().padStart(2, '0')}:${mEnd.toString().padStart(2, '0')}`;
     });
 
-    // Compute the effect backgroundImage — applied directly on the event div so it
-    // works inside Framer Motion compositing layers (child mix-blend-mode fails there).
-    const effectBgImage = !isCancelled ? getEffectBgImage(event.effect) : undefined;
+    // Compute the effect properties
+    const effectStyle = !isCancelled ? getEffectStyle(event.effect) : undefined;
 
     const isTimePoint = durationMinutes === 0;
     const minRenderedMinutes = isTimePoint ? 0 : Math.max(durationMinutes, 5);
@@ -254,7 +265,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             backgroundColor: baseColor,
             // Layer pattern on top of solid background-color (CSS bg-image renders above bg-color).
             // For the live-event state the pattern is prepended to the gradient.
-            backgroundImage: effectBgImage || undefined,
+            ...(effectStyle || {}),
             boxShadow: isActiveParent ? `inset 0 0 20px 2px ${theme.border}` : 'none',
             color: theme.text,
             zIndex: zIndex,
@@ -349,8 +360,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 borderLeft: `4px solid ${theme.border}`,
                 ...(isLive && liveColor ? {
                     // Live-event gradient; pattern (if any) layers on top via background-image ordering
-                    backgroundImage: effectBgImage
-                        ? `${effectBgImage}, linear-gradient(145deg, ${liveColor.base} 0%, ${liveColor.bright} 100%)`
+                    backgroundImage: effectStyle?.backgroundImage
+                        ? `${effectStyle.backgroundImage}, linear-gradient(145deg, ${liveColor.base} 0%, ${liveColor.bright} 100%)`
                         : `linear-gradient(145deg, ${liveColor.base} 0%, ${liveColor.bright} 100%)`,
                     backgroundColor: undefined,
                     boxShadow: `0 0 0 2px ${liveColor.base}40, 0 4px 16px ${liveColor.base}50`,

@@ -445,7 +445,12 @@ export default function CalendarView({
 
         // Also capture window-level or document-level scrolling just in case trackpad causes body scroll
         const globalScrollHandler = (e: Event) => {
-            if (activePopover && !(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement)) {
+            if (activePopover) {
+                // Ignore scroll events originating from within the popover itself (e.g. long title inputs scrolling horizontally)
+                const popoverEl = document.getElementById('active-event-popover');
+                if (popoverEl && popoverEl.contains(e.target as Node)) {
+                    return;
+                }
                 setActivePopover(null);
             }
         };

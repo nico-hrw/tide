@@ -217,6 +217,16 @@ export default function EventPopover({
                             style={{ backgroundColor: c }}
                         />
                     ))}
+                    {/* TEMP: Remove legacy shading effect. Next dev can remove this once old data is migrated. */}
+                    {event.shading !== undefined && event.shading > 0 && (
+                        <button 
+                            onClick={() => onEventSave(event.id, { shading: 0 })}
+                            className="ml-auto text-[10px] bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-lg font-bold uppercase tracking-wider"
+                            title="Graustufe entfernen (Legacy)"
+                        >
+                            Graustufe entfernen
+                        </button>
+                    )}
                 </div>
             )}
 
