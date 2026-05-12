@@ -1000,6 +1000,9 @@ export default function CalendarView({
             startX: gearedMouseRef.current.x, // Use geared coords for startX
             currentX: gearedMouseRef.current.x // Use geared coords for currentX
         });
+        // Initialize the MotionValue at the click point so the preview starts at 0-delta.
+        // Without this, the MV retains its value from a previous drag → huge initial preview.
+        creationEndYMV.set(gearedMouseRef.current.y);
         // Do NOT set isDraggingRef.current = true here. Wait for move.
     };
 

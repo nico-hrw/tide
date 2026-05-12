@@ -696,22 +696,43 @@ export const useDataStore = create<DataState>((set, get) => ({
             set(s => {
                 const visibleNoteIds = new Set(visibleNotes.map(vn => vn.id));
                 // Merge: keep notes not returned by server (e.g. optimistic entries),
-                // and preserve client-side flags (isGroup, effect) when the server
+                // and preserve client-side flags (isGroup, effect, color) when the server
                 // version is missing them (e.g. decryption returned partial metadata).
                 const mergedNotes = [
                     ...s.notes.filter(n => !visibleNoteIds.has(n.id)),
                     ...visibleNotes.map(vn => {
                         const existing = s.notes.find(n => n.id === vn.id);
-                        if (existing?.isGroup && !vn.isGroup) {
-                            return { ...vn, isGroup: existing.isGroup, effect: vn.effect ?? existing.effect };
+                        if (existing) {
+                            // For groups: prefer existing effect/color if the decrypted version lost them
+                            if (existing.isGroup || vn.isGroup) {
+                                return {
+                                    ...vn,
+                                    isGroup: true,
+                                    effect: vn.effect || existing.effect,
+                                    color: vn.color || existing.color,
+                                    title: vn.title && vn.title !== 'Untitled' ? vn.title : existing.title,
+                                };
+                            }
                         }
                         return vn;
                     })
                 ];
+                // Merge newMetaCache INTO the current cache (not replace) so that
+                // concurrent optimistic updates (e.g. theme changes) are preserved.
+                const mergedCache = { ...s.metadataCache };
+                for (const [key, val] of Object.entries(newMetaCache)) {
+                    const current = mergedCache[key];
+                    if (current && (current.effect || current.color) && !(val as any).effect) {
+                        // Current cache has richer data (from an optimistic update) — keep it
+                        mergedCache[key] = { ...val, ...current };
+                    } else {
+                        mergedCache[key] = val;
+                    }
+                }
                 return {
                     notes: mergedNotes,
                     events: [...s.events.filter(e => !new Set(visibleEvents.map(ve => ve.id)).has(e.id)), ...visibleEvents],
-                    metadataCache: newMetaCache,
+                    metadataCache: mergedCache,
                     loadedDirectories: new Set([...s.loadedDirectories, dirKey]),
                     fetchingDirectories: new Set([...s.fetchingDirectories].filter(d => d !== dirKey))
                 };

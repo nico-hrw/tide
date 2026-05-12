@@ -1533,9 +1533,14 @@ export default function Dashboard() {
         const pubKey = publicKey || storeState.publicKey;
         if (!privKey || !pubKey) return;
         try {
-            // Optimistic local update using state-updater form
+            // Optimistic local update: BOTH notes AND metadataCache must be updated
+            // so that a subsequent fetchDirectory cache-hit returns the new values.
             useDataStore.setState(s => ({
-                notes: s.notes.map(f => f.id === id ? { ...f, ...updates } as any : f)
+                notes: s.notes.map(f => f.id === id ? { ...f, ...updates } as any : f),
+                metadataCache: {
+                    ...s.metadataCache,
+                    [id]: { ...(s.metadataCache[id] || {}), ...updates, isGroup: true }
+                }
             }));
 
             // Read group AFTER optimistic update so we get the merged values
@@ -1563,9 +1568,14 @@ export default function Dashboard() {
                 body: JSON.stringify({ secured_meta: encryptedMeta, public_meta: { isGroup: true } })
             });
 
-            // Re-apply optimistic update after API success to survive any concurrent refetch
+            // Re-apply optimistic update after API success to survive any concurrent refetch.
+            // Must update BOTH notes AND metadataCache again.
             useDataStore.setState(s => ({
-                notes: s.notes.map(f => f.id === id ? { ...f, ...updates } as any : f)
+                notes: s.notes.map(f => f.id === id ? { ...f, ...updates } as any : f),
+                metadataCache: {
+                    ...s.metadataCache,
+                    [id]: { ...(s.metadataCache[id] || {}), ...updates, isGroup: true }
+                }
             }));
         } catch (e) {
             console.error("Failed to update group", e);
