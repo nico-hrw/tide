@@ -640,7 +640,13 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 
 	// Update fields
 	if req.ParentID != nil {
-		file.ParentID = req.ParentID
+		// Sentinel: "__none__" means "set parent_id to NULL" (can't distinguish
+		// absent vs null with Go *string JSON parsing)
+		if *req.ParentID == "__none__" || *req.ParentID == "" {
+			file.ParentID = nil
+		} else {
+			file.ParentID = req.ParentID
+		}
 	}
 	if req.PublicMeta != nil {
 		file.PublicMeta = req.PublicMeta

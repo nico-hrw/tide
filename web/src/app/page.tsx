@@ -1494,6 +1494,8 @@ export default function Dashboard() {
                     parent_id: null,
                     public_meta: { isGroup: true },
                     secured_meta: securedMeta,
+                    metadata: { title, isGroup: true, effect, color },
+                    version: 2,
                     visibility: 'private'
                 })
             });
@@ -1564,8 +1566,16 @@ export default function Dashboard() {
             await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                // public_meta preserves isGroup in plaintext so fetchDirectory always finds it
-                body: JSON.stringify({ secured_meta: encryptedMeta, public_meta: { isGroup: true } })
+                // public_meta preserves isGroup in plaintext so fetchDirectory always finds it.
+                // metadata stores title/effect/color as plaintext V2 fallback — themes
+                // contain no sensitive data so this is safe and ensures persistence even
+                // if RSA decryption fails on reload.
+                body: JSON.stringify({
+                    secured_meta: encryptedMeta,
+                    public_meta: { isGroup: true },
+                    metadata: { title: meta.title, isGroup: true, effect: meta.effect, color: meta.color },
+                    version: 2
+                })
             });
 
             // Re-apply optimistic update after API success to survive any concurrent refetch.
@@ -2468,7 +2478,9 @@ export default function Dashboard() {
 
             // 5. Handle Theme Change
             if (updates.parent_id !== undefined) {
-                body.parent_id = updates.parent_id;
+                // Go backend can't distinguish absent vs null for *string fields,
+                // so we send "__none__" as a sentinel to mean "set to NULL".
+                body.parent_id = updates.parent_id === null ? '__none__' : updates.parent_id;
             }
 
             // 6. Handle Task flags

@@ -347,7 +347,7 @@ export default function CalendarPage() {
                 console.error("V2 encryption failed", e);
             }
 
-            if (updates.parent_id !== undefined) payload.parent_id = updates.parent_id;
+            if (updates.parent_id !== undefined) payload.parent_id = updates.parent_id === null ? '__none__' : updates.parent_id;
 
             const res = await apiFetch(`/api/v1/files/${baseId}`, {
                 method: "PUT",
@@ -429,8 +429,10 @@ export default function CalendarPage() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     type: "folder",
-                    isGroup: true,
-                    secured_meta: securedMeta
+                    public_meta: { isGroup: true },
+                    secured_meta: securedMeta,
+                    metadata: { title, isGroup: true, effect: meta.effect, color: meta.color },
+                    version: 2
                 })
             });
             if (res.ok) {
