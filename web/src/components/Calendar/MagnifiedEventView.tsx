@@ -137,7 +137,7 @@ export const MagnifiedEventView = ({
                         height: dropBounds ? dropBounds.height : 130,
                         transition: { duration: 0.3, type: "spring", bounce: 0 }
                     }}
-                    className="z-[999] pointer-events-none overflow-hidden border border-white/60 bg-white/15 dark:bg-black/15 backdrop-blur-3xl backdrop-saturate-200 will-change-transform"
+                    className="z-[10000] pointer-events-none overflow-hidden border border-white/60 bg-white/15 dark:bg-black/15 backdrop-blur-3xl backdrop-saturate-200 will-change-transform"
                 >
                     {/* The Scale Distortion Mask */}
                     <div className="absolute inset-0 flex pointer-events-none" style={{ transform: 'scale(1.15)', transformOrigin: 'center center' }}>

@@ -697,6 +697,9 @@ export default function CalendarView({
                 const creationEndMin = startMinsCreation + Math.max(10, Math.abs(clampedDeltaY));
                 activeEventEdgeRef.current = clampedDeltaY < 0 ? startMinsCreation + clampedDeltaY : Math.min(1440, creationEndMin);
 
+                // Update creationDrag so the MagnifiedEventView reads live delta
+                setCreationDrag(prev => prev ? { ...prev, currentY: clampedY, currentX: gX } : prev);
+
                 // ✅ Drive creation preview via MotionValue (clamped at midnight)
                 creationEndYMV.set(clampedY);
             } else if (resizingId && resizeDragState) {

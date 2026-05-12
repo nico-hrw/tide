@@ -587,20 +587,24 @@ export const useDataStore = create<DataState>((set, get) => ({
             const cryptoLib = await import('@/lib/crypto');
 
             for (const f of allFiles) {
-                // Check Cache First
+                // Check Cache First — but skip stale entries (still locked or placeholder title)
                 if (!forceRefresh && newMetaCache[f.id]) {
-                    if (get().isUpdatingMetadata.has(f.id)) {
-                        // Skip updating state to avoid overwriting optimistic UI during in-flight rename
-                    }
                     const cached = newMetaCache[f.id];
-                    const normalizedCached = {
-                        ...f, ...cached,
-                        isGroup: cached.isGroup || (f.public_meta && f.public_meta.isGroup) || undefined,
-                        parent_id: f.parent_id || null
-                    };
-                    if (f.type === 'event') decryptedEvents.push(normalizedCached);
-                    else decryptedNotes.push(normalizedCached);
-                    continue;
+                    const isStale = cached.isLocked || cached.title === 'Locked Note (Decrypting...)';
+                    if (!isStale) {
+                        if (get().isUpdatingMetadata.has(f.id)) {
+                            // Skip updating state to avoid overwriting optimistic UI during in-flight rename
+                        }
+                        const normalizedCached = {
+                            ...f, ...cached,
+                            isGroup: cached.isGroup || (f.public_meta && f.public_meta.isGroup) || undefined,
+                            parent_id: f.parent_id || null
+                        };
+                        if (f.type === 'event') decryptedEvents.push(normalizedCached);
+                        else decryptedNotes.push(normalizedCached);
+                        continue;
+                    }
+                    // Stale cache entry — fall through to re-attempt decryption
                 }
 
                 let metaData: any = { title: "Untitled" };
@@ -628,9 +632,10 @@ export const useDataStore = create<DataState>((set, get) => ({
                     };
                     if (f.secured_meta) {
                         const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `v2-${f.id}`);
-                        if (!meta.isLocked && meta.title) {
-                            metaData = { ...metaData, ...meta, isLocked: false };
-                        } else if (meta.isLocked && metaData.title && !metaData.title.includes('Locked Note')) {
+                        if (!meta.isLocked) {
+                            // Decryption succeeded — accept even if title is empty (empty notes are valid)
+                            metaData = { ...metaData, ...meta, title: meta.title || metaData.title || 'Untitled', isLocked: false };
+                        } else if (metaData.title && !metaData.title.includes('Locked Note')) {
                             // Decryption failed but we already have a title from unencrypted metadata (V2)
                             // Keep it, but mark as locked if appropriate
                             metaData.isLocked = true;
@@ -646,6 +651,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                 } else if (f.secured_meta) {
                     const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `lazy-${f.id}`);
                     if (!meta.isLocked) {
+                        // Decryption succeeded — accept even if title is empty (empty notes are valid)
                         metaData = {
                             ...meta,
                             title: meta.title || "Untitled",

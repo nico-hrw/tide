@@ -71,9 +71,9 @@ export const DragGhost: React.FC<DragGhostProps> = ({
                 color: theme.text,
                 borderLeft: `4px solid ${theme.border}`
             }}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 0.55, scale: 1.0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.1 }}
         >
             {/* Effect Overlay */}
