@@ -48,10 +48,13 @@ export default function CalendarPage() {
     useEffect(() => {
         const restoreSession = async () => {
             try {
-                const email = sessionStorage.getItem("tide_user_email");
-                const keyJwkStr = sessionStorage.getItem("tide_session_key");
+                const email = sessionStorage.getItem("tide_user_email") || localStorage.getItem("tide_user_email");
+                const keyJwkStr = sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
 
                 if (!email || !keyJwkStr) {
+                    sessionStorage.clear();
+                    localStorage.removeItem("tide_session_key");
+                    localStorage.removeItem("tide_session_token");
                     router.push("/auth");
                     return;
                 }
@@ -63,11 +66,14 @@ export default function CalendarPage() {
                     true, ["decrypt"]
                 );
                 setPrivateKey(importedPrivateKey);
-                const storedId = sessionStorage.getItem("tide_user_id");
+                const storedId = sessionStorage.getItem("tide_user_id") || localStorage.getItem("tide_user_id");
                 if (storedId) setMyId(storedId);
                 setStatus("ready");
             } catch (err) {
                 console.error("Session restore failed:", err);
+                sessionStorage.clear();
+                localStorage.removeItem("tide_session_key");
+                localStorage.removeItem("tide_session_token");
                 router.push("/auth");
             }
         };

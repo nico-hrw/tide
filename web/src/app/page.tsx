@@ -1659,6 +1659,9 @@ export default function Dashboard() {
                 console.warn("[STATE-AUDIT] Session missing or incomplete.");
                 setStatus("ready");
                 if (window.location.pathname !== '/auth' && window.location.pathname !== '/login') {
+                    sessionStorage.clear();
+                    localStorage.removeItem("tide_session_key");
+                    localStorage.removeItem("tide_session_token");
                     router.push("/auth");
                 }
                 return;
@@ -1672,7 +1675,7 @@ export default function Dashboard() {
                     pubKeySpkiStr = record.public_key;
                 }
                 if (!pubKeySpkiStr) {
-                    const sessionPubKey = sessionStorage.getItem("tide_user_public_key");
+                    const sessionPubKey = sessionStorage.getItem("tide_user_public_key") || localStorage.getItem("tide_user_public_key");
                     if (sessionPubKey) pubKeySpkiStr = sessionPubKey;
                 }
             } catch (e) { console.error("Error reading user record", e); }
@@ -1680,6 +1683,9 @@ export default function Dashboard() {
             if (!pubKeySpkiStr) {
                 console.error("Public key not found for user", email);
                 setStatus("ready");
+                sessionStorage.clear();
+                localStorage.removeItem("tide_session_key");
+                localStorage.removeItem("tide_session_token");
                 router.push("/auth");
                 return;
             }
@@ -1816,6 +1822,9 @@ export default function Dashboard() {
             } catch (e) {
                 console.error("Session restore failed:", e);
                 setStatus("ready");
+                sessionStorage.clear();
+                localStorage.removeItem("tide_session_key");
+                localStorage.removeItem("tide_session_token");
                 router.push("/auth");
             }
         };
