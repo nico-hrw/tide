@@ -59,8 +59,7 @@ const MobileFolderItem = ({ folder, allFiles, level = 0 }: { folder: any, allFil
                    <button 
                      key={file.id} 
                      onClick={() => {
-                        useDataStore.getState().setActiveTabId?.(file.id);
-                        useDataStore.setState({ activeNoteId: file.id, activeNoteTitle: file.title });
+                        useDataStore.getState().setActiveNoteId(file.id);
                         window.dispatchEvent(new CustomEvent('mobile_open_note', { detail: { id: file.id, title: file.title } }));
                      }}
                      className="flex items-center gap-3 p-3 rounded-2xl hover:bg-black/5 dark:hover:bg-white/5 text-left transition-colors"
