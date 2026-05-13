@@ -4,11 +4,22 @@ import { HighlightProvider } from "@/components/HighlightContext";
 import { IslandProvider } from "@/components/extensions/smart_island/useIslandStore";
 import "./globals.css";
 
+export const viewport = {
+  themeColor: "#0F172A",
+};
+
 export const metadata: Metadata = {
   title: "tide",
   description: "Minimalist, Local-First, Encrypted.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "tide",
+  },
   icons: {
     icon: "/favicon.png",
+    apple: "/favicon.png",
   },
 };
 
