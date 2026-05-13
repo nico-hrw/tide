@@ -17,6 +17,7 @@ import { isSameDay, format, startOfWeek, addDays } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import MiniCalendar from '../Calendar/MiniCalendar';
 import { useDataStore } from '@/store/useDataStore';
+import Avatar from '../Profile/Avatar';
 
 // ─── Design tokens (light mode) ──────────────────────────────────────────────
 // TODO(dark): when adding dark mode, replace each token with a conditional
@@ -39,7 +40,7 @@ const tabAnim = {
   initial:    { opacity: 0, y: 8 },
   animate:    { opacity: 1, y: 0 },
   exit:       { opacity: 0, y: -8 },
-  transition: { duration: 0.18, ease: 'easeOut' as const },
+  transition: { duration: 0.12, ease: 'easeOut' as const },
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -202,6 +203,108 @@ const NavTab = ({
   </motion.button>
 );
 
+// ─── Time-relative info for an event ─────────────────────────────────────────
+function formatTimeInfo(
+  startDate: Date,
+  endDate: Date,
+  now: Date
+): { status: string; duration: string } {
+  const minsToStr = (ms: number) => {
+    const m = Math.round(Math.abs(ms) / 60_000);
+    if (m < 60) return `${m}m`;
+    return `${Math.floor(m / 60)}h${m % 60 > 0 ? ` ${m % 60}m` : ''}`;
+  };
+
+  const diffStart = startDate.getTime() - now.getTime();
+  const diffEnd = endDate.getTime() - now.getTime();
+  const durationMs = endDate.getTime() - startDate.getTime();
+
+  let status: string;
+  if (diffStart > 0) {
+    status = `Starts in ${minsToStr(diffStart)}`;
+  } else if (diffEnd > 0) {
+    status = `Running — ${minsToStr(diffEnd)} left`;
+  } else {
+    status = `Ended ${minsToStr(diffEnd)} ago`;
+  }
+
+  const duration = durationMs > 60_000 ? `Duration: ${minsToStr(durationMs)}` : '';
+  return { status, duration };
+}
+
+// ─── Recurrence-aware event filter for a given date ──────────────────────────
+function filterEventsForDate(events: any[], targetDate: Date): any[] {
+  return events
+    .filter(e => {
+      const startNode = new Date(e.start);
+      const occDateKey = format(targetDate, 'yyyy-MM-dd');
+      if (e.exdates && e.exdates.includes(occDateKey)) return false;
+
+      const rule = (e as any).recurrence_rule;
+      const rrule =
+        rule ||
+        `FREQ=${e.recurrence && e.recurrence !== 'none' ? e.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`;
+
+      let freq = 'none';
+      let interval = 1;
+      const matchFreq = rrule.match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY|NONE)/i);
+      if (matchFreq) freq = matchFreq[1].toLowerCase();
+      const matchInterval = rrule.match(/INTERVAL=(\d+)/i);
+      if (matchInterval) interval = parseInt(matchInterval[1], 10);
+      interval = Math.max(1, interval);
+
+      if (freq === 'none') return isSameDay(startNode, targetDate);
+
+      let current = new Date(startNode);
+      const safeRecEnd = (e as any).recurrence_end
+        ? new Date((e as any).recurrence_end)
+        : new Date(targetDate.getTime() + 31_536_000_000);
+
+      let count = 0;
+      const targetTime = new Date(
+        targetDate.getFullYear(),
+        targetDate.getMonth(),
+        targetDate.getDate()
+      ).getTime();
+      const endTime = new Date(
+        safeRecEnd.getFullYear(),
+        safeRecEnd.getMonth(),
+        safeRecEnd.getDate()
+      ).getTime();
+
+      while (count < 1000) {
+        const curTime = new Date(
+          current.getFullYear(),
+          current.getMonth(),
+          current.getDate()
+        ).getTime();
+        if (curTime === targetTime) return true;
+        if (curTime > targetTime || curTime > endTime) break;
+        if (freq === 'daily') current.setDate(current.getDate() + interval);
+        else if (freq === 'weekly') current.setDate(current.getDate() + interval * 7);
+        else if (freq === 'monthly') current.setMonth(current.getMonth() + interval);
+        else if (freq === 'yearly') current.setFullYear(current.getFullYear() + interval);
+        else break;
+        count++;
+      }
+      return false;
+    })
+    .map(e => {
+      const startNode = new Date(e.start);
+      const endNode = e.end ? new Date(e.end) : startNode;
+      const duration = endNode.getTime() - startNode.getTime();
+      const mappedStart = new Date(targetDate);
+      mappedStart.setHours(startNode.getHours(), startNode.getMinutes(), 0, 0);
+      return {
+        ...e,
+        id: isSameDay(new Date(e.start), targetDate) ? e.id : `${e.id}_${mappedStart.getTime()}`,
+        start: mappedStart.toISOString(),
+        end: new Date(mappedStart.getTime() + duration).toISOString(),
+      };
+    })
+    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+}
+
 // ─── MobileLayout ─────────────────────────────────────────────────────────────
 export default function MobileLayout({
   events,
@@ -224,6 +327,12 @@ export default function MobileLayout({
   const [activeDate, setActiveDate] = useState(new Date());
   const [isCalendarExpanded, setIsCalendarExpanded] = useState(true);
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const weekDays = useMemo(() => {
     const weekStart = startOfWeek(activeDate, { weekStartsOn: 0 });
@@ -250,77 +359,17 @@ export default function MobileLayout({
     return () => window.removeEventListener('mobile_open_note', handleMobileOpenNote);
   }, [onNoteSelect]);
 
-  // ── Recurrence-aware event filter (verbatim logic) ──────────────────────────
-  const todaysEvents = useMemo(() => {
-    return events
-      .filter(e => {
-        const startNode = new Date(e.start);
-        const occDateKey = format(activeDate, 'yyyy-MM-dd');
-        if (e.exdates && e.exdates.includes(occDateKey)) return false;
+  // Reset expandedEventId when activeDate changes
+  useEffect(() => {
+    setExpandedEventId(null);
+  }, [activeDate]);
 
-        const rule = (e as any).recurrence_rule;
-        const rrule =
-          rule ||
-          `FREQ=${e.recurrence && e.recurrence !== 'none' ? e.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`;
-
-        let freq = 'none';
-        let interval = 1;
-        const matchFreq = rrule.match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY|NONE)/i);
-        if (matchFreq) freq = matchFreq[1].toLowerCase();
-        const matchInterval = rrule.match(/INTERVAL=(\d+)/i);
-        if (matchInterval) interval = parseInt(matchInterval[1], 10);
-        interval = Math.max(1, interval);
-
-        if (freq === 'none') return isSameDay(startNode, activeDate);
-
-        let current = new Date(startNode);
-        const safeRecEnd = (e as any).recurrence_end
-          ? new Date((e as any).recurrence_end)
-          : new Date(activeDate.getTime() + 31_536_000_000);
-
-        let count = 0;
-        const targetTime = new Date(
-          activeDate.getFullYear(),
-          activeDate.getMonth(),
-          activeDate.getDate()
-        ).getTime();
-        const endTime = new Date(
-          safeRecEnd.getFullYear(),
-          safeRecEnd.getMonth(),
-          safeRecEnd.getDate()
-        ).getTime();
-
-        while (count < 1000) {
-          const curTime = new Date(
-            current.getFullYear(),
-            current.getMonth(),
-            current.getDate()
-          ).getTime();
-          if (curTime === targetTime) return true;
-          if (curTime > targetTime || curTime > endTime) break;
-          if (freq === 'daily') current.setDate(current.getDate() + interval);
-          else if (freq === 'weekly') current.setDate(current.getDate() + interval * 7);
-          else if (freq === 'monthly') current.setMonth(current.getMonth() + interval);
-          else if (freq === 'yearly') current.setFullYear(current.getFullYear() + interval);
-          else break;
-          count++;
-        }
-        return false;
-      })
-      .map(e => {
-        const startNode = new Date(e.start);
-        const endNode = e.end ? new Date(e.end) : startNode;
-        const duration = endNode.getTime() - startNode.getTime();
-        const mappedStart = new Date(activeDate);
-        mappedStart.setHours(startNode.getHours(), startNode.getMinutes(), 0, 0);
-        return {
-          ...e,
-          id: isSameDay(new Date(e.start), activeDate) ? e.id : `${e.id}_${mappedStart.getTime()}`,
-          start: mappedStart.toISOString(),
-          end: new Date(mappedStart.getTime() + duration).toISOString(),
-        };
-      })
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+  // Shows activeDate + 4 more days so the timeline always has scrollable content
+  const upcomingDays = useMemo(() => {
+    return Array.from({ length: 5 }).map((_, i) => {
+      const date = addDays(activeDate, i);
+      return { date, events: filterEventsForDate(events, date) };
+    });
   }, [events, activeDate]);
 
   // ── Scroll handler ──────────────────────────────────────────────────────────
@@ -328,8 +377,6 @@ export default function MobileLayout({
     if (activeTab !== 'calendar') return;
     if (e.currentTarget.scrollTop > 10) {
       setIsCalendarExpanded(false);
-    } else if (e.currentTarget.scrollTop === 0) {
-      setIsCalendarExpanded(true);
     }
   };
 
@@ -369,101 +416,51 @@ export default function MobileLayout({
 
           {/* Calendar header */}
           {activeTab === 'calendar' && (
-            <motion.div
-              key={headerKey}
-              {...tabAnim}
-              className="px-4 pt-10 pb-3"
-            >
-              {/* Top row: avatar | date center | + button */}
-              <div className="flex justify-between items-center px-2 mb-2">
-                {/* Avatar */}
-                {/* TODO(dark): avatar bg dark:bg-blue-700 */}
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md uppercase shrink-0"
-                  style={{ backgroundColor: T.accent }}
-                >
-                  {avatarLetter}
-                </div>
-
-                {/* Date center */}
-                {/* TODO(dark): text dark:text-gray-100 */}
-                <div className="flex flex-col items-center">
-                  <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: T.textMuted }}>
-                    {format(activeDate, 'EEEE', { locale: enUS })}
-                  </span>
-                  <span className="text-base font-bold" style={{ color: T.textPrimary }}>
-                    {format(activeDate, 'd MMMM yyyy', { locale: enUS })}
-                  </span>
-                </div>
-
-                {/* + button */}
-                {/* TODO(dark): accent bg dark:bg-blue-600 */}
-                <button
-                  onClick={() => onNewEvent?.(activeDate)}
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white shrink-0"
-                  style={{ backgroundColor: T.accent }}
-                >
-                  <Plus size={20} strokeWidth={2.5} />
-                </button>
-              </div>
-
+            <motion.div key={headerKey} {...tabAnim} className="pt-10">
               {/* Collapsible MiniCalendar / week strip */}
-              <AnimatePresence mode="wait">
-                {isCalendarExpanded ? (
-                  <motion.div
-                    key="mini-cal"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
-                    className="overflow-hidden"
+              {isCalendarExpanded ? (
+                <MiniCalendar selectedDate={activeDate} onSelect={setActiveDate} />
+              ) : (
+                <div className="flex justify-between items-center px-5 pb-3 pt-1">
+                  {/* Tap month label to re-expand */}
+                  <button
+                    onClick={() => setIsCalendarExpanded(true)}
+                    className="flex items-center gap-1 active:opacity-70"
+                    style={{ color: T.textMuted }}
                   >
-                    <MiniCalendar selectedDate={activeDate} onSelect={setActiveDate} />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="week-strip"
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2, ease: 'easeOut' }}
-                    className="overflow-hidden"
-                  >
-                    <div className="flex justify-between items-center px-2 py-2">
-                      {weekDays.map(d => {
-                        const isSelected = isSameDay(d, activeDate);
-                        return (
-                          <button
-                            key={d.toISOString()}
-                            onClick={() => setActiveDate(d)}
-                            className="flex flex-col items-center gap-1"
-                          >
-                            {/* Day letter */}
-                            {/* TODO(dark): dark:text-gray-500 */}
-                            <span
-                              className="text-[10px] font-semibold uppercase"
-                              style={{ color: T.textMuted }}
-                            >
-                              {format(d, 'eeeee', { locale: enUS })}
-                            </span>
-                            {/* Day number circle */}
-                            <div
-                              className="w-9 h-9 flex items-center justify-center rounded-full font-bold text-sm transition-all duration-200"
-                              style={
-                                isSelected
-                                  ? { backgroundColor: T.accent, color: '#FFFFFF' }
-                                  : { backgroundColor: 'transparent', color: T.textPrimary } /* TODO(dark): dark:text-gray-300 */
-                              }
-                            >
-                              {format(d, 'd')}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    {/* TODO(dark): dark:text-gray-500 */}
+                    <span className="text-xs font-semibold uppercase tracking-widest">
+                      {format(activeDate, 'MMM yyyy', { locale: enUS })}
+                    </span>
+                    <ChevronRight size={12} className="rotate-90" style={{ color: T.textMuted }} />
+                  </button>
+
+                  {weekDays.map(d => {
+                    const isSelected = isSameDay(d, activeDate);
+                    return (
+                      <button
+                        key={d.toISOString()}
+                        onClick={() => setActiveDate(d)}
+                        className="flex flex-col items-center gap-1"
+                      >
+                        <span className="text-[10px] font-semibold uppercase" style={{ color: T.textMuted }}>
+                          {format(d, 'eeeee', { locale: enUS })}
+                        </span>
+                        <div
+                          className="w-9 h-9 flex items-center justify-center rounded-full font-bold text-sm"
+                          style={
+                            isSelected
+                              ? { backgroundColor: T.accent, color: '#FFFFFF' }
+                              : { backgroundColor: 'transparent', color: T.textPrimary }
+                          }
+                        >
+                          {format(d, 'd')}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </motion.div>
           )}
 
@@ -522,153 +519,198 @@ export default function MobileLayout({
 
       {/* ── Scrollable content ──────────────────────────────────────────────── */}
       <div
-        className="flex-1 w-full overflow-y-auto no-scrollbar pb-24"
+        className="flex-1 w-full overflow-y-auto no-scrollbar pb-16"
         onScroll={handleScroll}
       >
         <AnimatePresence mode="wait">
 
           {/* ── Calendar tab ─────────────────────────────────────────────── */}
           {activeTab === 'calendar' && (
-            <motion.div
-              key={contentKey}
-              {...tabAnim}
-              className="p-4"
-            >
+            <motion.div key={contentKey} {...tabAnim} className="p-4">
               {/* TODO(dark): card bg dark:bg-gray-900, border dark:border-gray-800 */}
               <div
-                className="rounded-3xl p-5"
+                className="rounded-3xl overflow-hidden"
                 style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}
               >
-                {/* Section label */}
-                <div className="flex items-center gap-4 mb-5">
-                  {/* TODO(dark): dark:text-gray-500 */}
-                  <span
-                    className="text-xs font-semibold uppercase tracking-widest shrink-0"
-                    style={{ color: T.textMuted }}
-                  >
-                    {format(activeDate, 'EEEE d', { locale: enUS })}
-                  </span>
-                  {/* TODO(dark): dark:bg-gray-800 */}
-                  <div className="flex-1 h-px" style={{ backgroundColor: T.border }} />
-                </div>
+                <div className="p-5 pb-32">
+                  {upcomingDays.map(({ date, events: dayEvents }, dayIdx) => {
+                    const isDayToday = isSameDay(date, now);
 
-                {/* Empty state */}
-                {todaysEvents.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-12 gap-3">
-                    {/* TODO(dark): icon dark:text-gray-700 */}
-                    <CalendarIcon size={28} style={{ color: T.textMuted }} />
-                    {/* TODO(dark): dark:text-gray-400 */}
-                    <span className="text-sm font-medium" style={{ color: T.textSec }}>
-                      No events today
-                    </span>
-                  </div>
-                )}
+                    // Progress gradient for today's vertical line
+                    let lineBackground: string = T.border;
+                    if (isDayToday && dayEvents.length >= 2) {
+                      const firstStart = new Date(dayEvents[0].start).getTime();
+                      const lastStart = new Date(dayEvents[dayEvents.length - 1].start).getTime();
+                      const nowMs = now.getTime();
+                      const pct =
+                        lastStart === firstStart
+                          ? 0
+                          : Math.min(100, Math.max(0, ((nowMs - firstStart) / (lastStart - firstStart)) * 100));
+                      lineBackground = `linear-gradient(to bottom, ${T.accent} ${pct}%, ${T.border} ${pct}%)`;
+                    }
 
-                {/* Timeline */}
-                {todaysEvents.length > 0 && (
-                  <div className="relative flex flex-col gap-6">
-                    {/* Vertical timeline line */}
-                    {/* TODO(dark): dark:bg-gray-800 */}
-                    <div
-                      className="absolute top-2 bottom-4 w-0.5 z-0"
-                      style={{ left: '3.6rem', backgroundColor: T.border }}
-                    />
+                    return (
+                      <div key={date.toISOString()} className={dayIdx > 0 ? 'mt-8' : ''}>
+                        {/* Date separator */}
+                        <div className="flex items-center gap-4 mb-5">
+                          {/* TODO(dark): dark:text-gray-500 */}
+                          <span
+                            className="text-xs font-semibold uppercase tracking-widest shrink-0"
+                            style={{ color: T.textMuted }}
+                          >
+                            {isDayToday
+                              ? `Today · ${format(date, 'EEE d', { locale: enUS })}`
+                              : format(date, 'EEEE d', { locale: enUS })}
+                          </span>
+                          {/* TODO(dark): dark:bg-gray-800 */}
+                          <div className="flex-1 h-px" style={{ backgroundColor: T.border }} />
+                        </div>
 
-                    {todaysEvents.map((event, idx) => {
-                      const startDate = new Date(event.start);
-                      const endDate = event.end ? new Date(event.end) : startDate;
-                      const isExpanded = expandedEventId === event.id;
-
-                      return (
-                        <div
-                          key={`${event.id}-${idx}`}
-                          onClick={() => {
-                            setExpandedEventId(isExpanded ? null : event.id);
-                            onEventClick?.(event.id);
-                          }}
-                          className="flex gap-4 cursor-pointer relative z-10"
-                        >
-                          {/* Time column */}
-                          <div className="w-12 flex flex-col text-right pt-0.5 shrink-0">
-                            {/* TODO(dark): dark:text-gray-500 */}
-                            <span className="text-xs font-medium" style={{ color: T.textSec }}>
-                              {format(startDate, 'HH:mm')}
-                            </span>
-                            {event.end && (
-                              /* TODO(dark): dark:text-gray-600 */
-                              <span className="text-[10px] mt-0.5" style={{ color: T.textMuted }}>
-                                {format(endDate, 'HH:mm')}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Dot + content */}
-                          <div className="flex flex-col relative w-full">
-                            {/* Colored dot */}
-                            {/* TODO(dark): ring-white → dark:ring-gray-900 */}
+                        {dayEvents.length === 0 ? (
+                          <p className="text-xs py-2 mb-2" style={{ color: T.textMuted }}>
+                            No events
+                          </p>
+                        ) : (
+                          <div className="relative flex flex-col gap-6">
+                            {/* Vertical timeline line */}
+                            {/* TODO(dark): base color dark:bg-gray-700 */}
                             <div
-                              className="w-2.5 h-2.5 rounded-full absolute top-1 -left-[5px] ring-4 ring-white z-10"
-                              style={{ backgroundColor: event.color || T.accent }}
+                              className="absolute top-2 bottom-4 w-0.5 z-0"
+                              style={{ left: '4rem', background: lineBackground }}
                             />
 
-                            <div className="pl-4 pb-1">
-                              {/* TODO(dark): dark:text-white */}
-                              <h3
-                                className="font-semibold text-sm leading-tight"
-                                style={{ color: T.textPrimary }}
-                              >
-                                {event.title || 'Untitled Event'}
-                              </h3>
-                              {event.description && (
-                                /* TODO(dark): dark:text-gray-400 */
-                                <p
-                                  className="text-xs mt-0.5 line-clamp-1"
-                                  style={{ color: T.textSec }}
-                                >
-                                  {event.description}
-                                </p>
-                              )}
+                            {dayEvents.map((event, idx) => {
+                              const startDate = new Date(event.start);
+                              const endDate = event.end ? new Date(event.end) : startDate;
+                              const nowDate = now;
+                              const isPast = endDate < nowDate;
+                              const isActive = startDate <= nowDate && nowDate < endDate;
+                              const dotColor =
+                                isPast || isActive ? event.color || T.accent : '#D1D5DB';
+                              const isExpanded = expandedEventId === event.id;
 
-                              {/* Expanded detail */}
-                              <AnimatePresence>
-                                {isExpanded && (
-                                  <motion.div
-                                    key="event-detail"
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    exit={{ opacity: 0, height: 0 }}
-                                    transition={{ duration: 0.18, ease: 'easeOut' }}
-                                    className="overflow-hidden mt-2"
-                                  >
-                                    {/* TODO(dark): dark:bg-gray-800 dark:text-gray-300 */}
+                              return (
+                                <div
+                                  key={`${event.id}-${idx}`}
+                                  onClick={() => {
+                                    setExpandedEventId(isExpanded ? null : event.id);
+                                  }}
+                                  className="flex gap-4 cursor-pointer relative z-10"
+                                >
+                                  {/* Time column */}
+                                  <div className="w-12 flex flex-col text-right pt-0.5 shrink-0">
+                                    {/* TODO(dark): dark:text-gray-500 */}
+                                    <span className="text-xs font-medium" style={{ color: T.textSec }}>
+                                      {format(startDate, 'HH:mm')}
+                                    </span>
+                                    {event.end && (
+                                      <span className="text-[10px] mt-0.5" style={{ color: T.textMuted }}>
+                                        {format(endDate, 'HH:mm')}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Dot + content */}
+                                  <div className="flex flex-col relative w-full">
+                                    {/* Colored dot — larger when active */}
+                                    {/* TODO(dark): ring-white → dark:ring-gray-900 */}
                                     <div
-                                      className="text-xs p-3 rounded-xl mb-2"
+                                      className="rounded-full absolute ring-4 ring-white z-10 transition-all"
                                       style={{
-                                        backgroundColor: T.iconBg,
-                                        color: T.textSec,
+                                        backgroundColor: dotColor,
+                                        width: isActive ? '14px' : '10px',
+                                        height: isActive ? '14px' : '10px',
+                                        top: isActive ? '0px' : '2px',
+                                        left: isActive ? '-7px' : '-5px',
                                       }}
+                                    />
+
+                                    <div
+                                      className="pl-4 pb-1 rounded-2xl transition-all"
+                                      style={
+                                        isExpanded
+                                          ? {
+                                              backgroundColor: (event.color || T.accent) + '15',
+                                              outline: `1px solid ${event.color || T.accent}33`,
+                                              padding: '8px 8px 8px 16px',
+                                              marginTop: '-2px',
+                                            }
+                                          : {}
+                                      }
                                     >
-                                      {event.description || 'No additional details.'}
+                                      {/* TODO(dark): dark:text-white */}
+                                      <h3
+                                        className="font-semibold text-sm leading-tight"
+                                        style={{ color: T.textPrimary }}
+                                      >
+                                        {event.title || 'Untitled Event'}
+                                      </h3>
+                                      {event.description && !isExpanded && (
+                                        <p
+                                          className="text-xs mt-0.5 line-clamp-1"
+                                          style={{ color: T.textSec }}
+                                        >
+                                          {event.description}
+                                        </p>
+                                      )}
+
+                                      {/* Expanded detail */}
+                                      <AnimatePresence>
+                                        {isExpanded && (
+                                          <motion.div
+                                            key="event-detail"
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            transition={{ duration: 0.15, ease: 'easeOut' }}
+                                            className="overflow-hidden"
+                                          >
+                                            {(() => {
+                                              const { status, duration } = formatTimeInfo(startDate, endDate, now);
+                                              return (
+                                                <div className="mt-2 flex flex-col gap-1.5">
+                                                  {/* TODO(dark): dark:bg-opacity adjusted */}
+                                                  <div
+                                                    className="flex items-center px-3 py-2 rounded-xl text-xs font-semibold"
+                                                    style={{
+                                                      backgroundColor: (event.color || T.accent) + '22',
+                                                      color: event.color || T.accent,
+                                                    }}
+                                                  >
+                                                    {status}
+                                                  </div>
+                                                  {duration && (
+                                                    <p className="text-xs px-1" style={{ color: T.textMuted }}>{duration}</p>
+                                                  )}
+                                                  {event.description && (
+                                                    <p className="text-xs px-1" style={{ color: T.textSec }}>{event.description}</p>
+                                                  )}
+                                                </div>
+                                              );
+                                            })()}
+                                            <button
+                                              onClick={ev => {
+                                                ev.stopPropagation();
+                                                onEventDelete?.(event.id);
+                                              }}
+                                              className="text-red-500 text-xs font-medium px-2 py-1 mt-1"
+                                            >
+                                              Delete
+                                            </button>
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
                                     </div>
-                                    <button
-                                      onClick={e => {
-                                        e.stopPropagation();
-                                        onEventDelete?.(event.id);
-                                      }}
-                                      className="text-red-500 hover:text-red-600 text-xs font-medium px-2 py-1 transition-colors"
-                                    >
-                                      Delete
-                                    </button>
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </motion.div>
           )}
@@ -765,11 +807,17 @@ export default function MobileLayout({
                 className="rounded-3xl p-6 flex flex-col items-center gap-2"
                 style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}
               >
-                {/* Gradient avatar circle */}
-                {/* TODO(dark): gradient is self-contained, fine in dark mode */}
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg mb-1 uppercase">
-                  {avatarLetter}
-                </div>
+                {/* Avatar */}
+                {userProfile?.avatar_seed ? (
+                  <Avatar seed={userProfile.avatar_seed} size={80} style="notionists" />
+                ) : (
+                  <div
+                    className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-1 uppercase"
+                    style={{ background: `linear-gradient(135deg, ${T.accent}, #8B5CF6)` }}
+                  >
+                    {avatarLetter}
+                  </div>
+                )}
                 {/* TODO(dark): dark:text-gray-100 */}
                 <h2 className="text-lg font-bold" style={{ color: T.textPrimary }}>
                   {username}
@@ -840,7 +888,7 @@ export default function MobileLayout({
       <nav
         className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-stretch"
         style={{
-          height: '72px',
+          height: '56px',
           backgroundColor: 'rgba(255,255,255,0.95)',
           backdropFilter: 'blur(12px)',
           borderTop: `1px solid ${T.border}`,
@@ -848,9 +896,9 @@ export default function MobileLayout({
       >
         {/* Notes tab — shows ArrowLeft when editing */}
         <NavTab
-          icon={<FileText size={22} />}
+          icon={<FileText size={20} />}
           active={activeTab === 'notes'}
-          override={activeTab === 'notes' && isEditingNote ? <ArrowLeft size={22} /> : undefined}
+          override={activeTab === 'notes' && isEditingNote ? <ArrowLeft size={20} /> : undefined}
           onClick={() => {
             if (activeTab === 'notes' && isEditingNote) {
               setIsEditingNote(false);
@@ -861,7 +909,7 @@ export default function MobileLayout({
           }}
         />
         <NavTab
-          icon={<CalendarIcon size={22} />}
+          icon={<CalendarIcon size={20} />}
           active={activeTab === 'calendar'}
           onClick={() => {
             setIsEditingNote(false);
@@ -869,7 +917,7 @@ export default function MobileLayout({
           }}
         />
         <NavTab
-          icon={<User size={22} />}
+          icon={<User size={20} />}
           active={activeTab === 'profile'}
           onClick={() => {
             setIsEditingNote(false);
