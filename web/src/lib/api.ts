@@ -29,6 +29,8 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
     const fullUrl = url.startsWith('http') ? url : `${base}${cleanEndpoint}`;
     console.log("[apiFetch] Requesting:", fullUrl);
     
+    const isGet = !options.method || options.method.toUpperCase() === 'GET';
+
     try {
         const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
         if (typeof window !== 'undefined') {
@@ -52,9 +54,33 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
             window.location.href = '/auth';
         }
 
+        // Cache successful GET requests for offline use
+        if (isGet && res.ok && typeof window !== 'undefined') {
+            const clone = res.clone();
+            clone.text().then(async (text) => {
+                const { idb } = await import('./idb');
+                await idb.set(`api_cache_${cleanEndpoint}`, text);
+            }).catch(e => console.warn("Failed to cache GET response", e));
+        }
+
         return res;
     } catch (err) {
         console.error("API Fetch Error:", err);
+        
+        // Fallback to offline cache for GET requests
+        if (isGet && typeof window !== 'undefined') {
+            try {
+                const { idb } = await import('./idb');
+                const cachedText = await idb.get<string>(`api_cache_${cleanEndpoint}`);
+                if (cachedText !== undefined) {
+                    console.log(`[apiFetch] Serving from offline cache: ${cleanEndpoint}`);
+                    return new Response(cachedText, { status: 200, statusText: "OK (Offline Cache)" });
+                }
+            } catch (cacheErr) {
+                console.error("Failed to read from offline cache", cacheErr);
+            }
+        }
+
         // Dispatch custom event for UI to pick up
         const event = new CustomEvent("tide-offline", { detail: "Cloud unreachable" });
         if (typeof window !== 'undefined') window.dispatchEvent(event);
