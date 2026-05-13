@@ -28,7 +28,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 return;
             }
 
-            const vaultKey = sessionStorage.getItem("tide_session_key");
+            const vaultKey = sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
             if (!vaultKey) {
                 setAuthorized(false);
                 router.push("/auth");

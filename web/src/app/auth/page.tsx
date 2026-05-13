@@ -17,8 +17,14 @@ function AuthContent() {
             setMousePos({ x: e.clientX, y: e.clientY });
         };
         window.addEventListener('mousemove', handleMouseMove);
+        
+        // Auto-login check
+        if (typeof window !== 'undefined' && localStorage.getItem("tide_session_key")) {
+            router.push("/");
+        }
+
         return () => window.removeEventListener('mousemove', handleMouseMove);
-    }, []);
+    }, [router]);
 
     // State
     const [step, setStep] = useState<"identifier" | "pin" | "code" | "details">("identifier");
@@ -49,13 +55,13 @@ function AuthContent() {
                 try {
                     const signal = JSON.parse(e.newValue || "{}");
                     if (signal.sessionKey && signal.email) {
-                        sessionStorage.setItem("tide_session_key", signal.sessionKey);
-                        sessionStorage.setItem("tide_user_email", signal.email);
+                        localStorage.setItem("tide_session_key", signal.sessionKey);
+                        localStorage.setItem("tide_user_email", signal.email);
                         if (signal.publicKey) {
-                            sessionStorage.setItem("tide_user_public_key", signal.publicKey);
+                            localStorage.setItem("tide_user_public_key", signal.publicKey);
                         }
                         if (signal.userId) {
-                            sessionStorage.setItem("tide_user_id", signal.userId);
+                            localStorage.setItem("tide_user_id", signal.userId);
                         }
                         router.push("/");
                     }
@@ -154,19 +160,19 @@ function AuthContent() {
 
             // Export to JWK to persist in sessionStorage for reloads
             const exportedKey = await window.crypto.subtle.exportKey("jwk", decryptedKey);
-            sessionStorage.setItem("tide_session_key", JSON.stringify(exportedKey));
+            localStorage.setItem("tide_session_key", JSON.stringify(exportedKey));
             
-            sessionStorage.setItem("tide_user_email", identifier);
-            sessionStorage.setItem("tide_user_id", loginData.user_id);
+            localStorage.setItem("tide_user_email", identifier);
+            localStorage.setItem("tide_user_id", loginData.user_id);
             if (loginData.username) {
-                sessionStorage.setItem("tide_user_name", loginData.username);
+                localStorage.setItem("tide_user_name", loginData.username);
                 // Also update local record for persistent sessions/fallback
                 const localRec = JSON.parse(localStorage.getItem("tide_user_" + identifier) || "{}");
                 localStorage.setItem("tide_user_" + identifier, JSON.stringify({ ...localRec, username: loginData.username }));
             }
-            sessionStorage.setItem("tide_user_public_key", loginData.public_key);
+            localStorage.setItem("tide_user_public_key", loginData.public_key);
             if (loginData.token) {
-                sessionStorage.setItem("tide_session_token", loginData.token);
+                localStorage.setItem("tide_session_token", loginData.token);
             }
 
             setStatus("success");

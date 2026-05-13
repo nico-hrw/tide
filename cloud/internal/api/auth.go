@@ -368,7 +368,7 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	jwtKey := []byte(jwtKeyStr)
 	claims := jwt.MapClaims{
 		"sub": user.ID,
-		"exp": time.Now().Add(14 * 24 * time.Hour).Unix(),
+		"exp": time.Now().Add(30 * 24 * time.Hour).Unix(),
 	}
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := t.SignedString(jwtKey)
@@ -381,7 +381,7 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "tide_session",
 		Value:    tokenString,
-		Expires:  time.Now().Add(14 * 24 * time.Hour),
+		Expires:  time.Now().Add(30 * 24 * time.Hour),
 		HttpOnly: true,
 		Secure:   false, // Set true in production over HTTPS
 		SameSite: http.SameSiteLaxMode,

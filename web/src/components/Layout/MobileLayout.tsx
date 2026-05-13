@@ -59,6 +59,16 @@ export default function MobileLayout({
     return futureEvents[0] || null;
   }, [events, now]);
 
+  useEffect(() => {
+     const handleMobileOpenNote = (e: any) => {
+         const { id, title } = e.detail;
+         onNoteSelect(id, title);
+         setIsEditingNote(true);
+     };
+     window.addEventListener('mobile_open_note', handleMobileOpenNote);
+     return () => window.removeEventListener('mobile_open_note', handleMobileOpenNote);
+  }, [onNoteSelect]);
+
   const todaysEvents = useMemo(() => {
     return events.filter(e => {
         const startNode = new Date(e.start);
@@ -120,12 +130,12 @@ export default function MobileLayout({
     <div className="flex md:hidden flex-col h-[100dvh] w-full bg-[#f8f9fc] dark:bg-black text-gray-900 dark:text-gray-100 relative overflow-hidden font-sans">
       
       {/* 1. Header - Clean White Look */}
-      <div className="fixed top-0 left-0 w-full z-50 bg-white dark:bg-gray-900 shadow-sm border-b border-gray-100 dark:border-gray-800 transition-all duration-300">
+      <div className="w-full z-40 bg-white dark:bg-[#1A1C23] transition-all duration-300 border-b border-gray-100 dark:border-gray-800 flex-shrink-0">
         <AnimatePresence mode="wait">
            {activeTab === 'calendar' ? (
               <motion.div key="header-calendar" initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}} className="px-4 pt-10 pb-4">
                  <div className="flex justify-between items-center px-2 mb-2">
-                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4A3AFF] to-[#8B5CF6] flex items-center justify-center text-white font-bold text-sm shadow-md uppercase">
+                     <div className="w-10 h-10 rounded-full bg-[#4A3AFF] flex items-center justify-center text-white font-bold text-sm shadow-md uppercase">
                         {userProfile?.username?.[0] || sessionStorage.getItem('tide_user_name')?.[0] || userProfile?.email?.[0] || "U"}
                      </div>
                      <div className="flex gap-3">
@@ -137,7 +147,7 @@ export default function MobileLayout({
                          </div>
                          <div 
                             onClick={() => { if (onNewEvent) onNewEvent(activeDate); }}
-                            className="w-10 h-10 rounded-full bg-[#4A3AFF] flex items-center justify-center text-white cursor-pointer hover:bg-indigo-600 transition-colors"
+                            className="w-10 h-10 rounded-full bg-[#4A3AFF] flex items-center justify-center text-white cursor-pointer shadow-lg shadow-indigo-500/30 transition-colors"
                          >
                             <Plus size={20} strokeWidth={2.5} />
                          </div>
@@ -151,7 +161,7 @@ export default function MobileLayout({
                         initial={{opacity: 0, height: 0}} 
                         animate={{opacity: 1, height: 'auto'}} 
                         exit={{opacity: 0, height: 0}}
-                        className="w-full"
+                        className="w-full mt-2"
                      >
                         <MiniCalendar selectedDate={activeDate} onSelect={setActiveDate} />
                      </motion.div>
@@ -161,7 +171,7 @@ export default function MobileLayout({
                         initial={{opacity: 0, height: 0}} 
                         animate={{opacity: 1, height: 'auto'}} 
                         exit={{opacity: 0, height: 0}}
-                        className="flex justify-between items-center mt-2 px-2 pb-2"
+                        className="flex justify-between items-center mt-4 px-2 pb-2"
                      >
                          {weekDays.map(d => {
                              const isSelected = isSameDay(d, activeDate);
@@ -172,7 +182,7 @@ export default function MobileLayout({
                                    className="flex flex-col items-center gap-2 cursor-pointer"
                                 >
                                     <span className="text-gray-400 dark:text-gray-500 text-[10px] uppercase font-semibold">{format(d, 'eeeee', { locale: enUS })}</span>
-                                    <div className={`w-10 h-10 flex items-center justify-center rounded-full font-bold text-sm transition-all duration-300 ${isSelected ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md scale-110' : 'text-gray-700 dark:text-gray-300'}`}>
+                                    <div className={`w-10 h-10 flex items-center justify-center rounded-full font-bold text-sm transition-all duration-300 ${isSelected ? 'bg-[#4A3AFF] text-white shadow-md scale-110' : 'text-gray-700 dark:text-gray-300'}`}>
                                         {format(d, 'd')}
                                     </div>
                                 </div>
@@ -198,7 +208,7 @@ export default function MobileLayout({
 
       {/* Main Content Area */}
       <div 
-        className="flex-1 w-full relative overflow-y-auto no-scrollbar pt-[120px] pb-32"
+        className="flex-1 w-full relative overflow-y-auto no-scrollbar pb-32 bg-[#F8F9FC] dark:bg-black"
         onScroll={(e) => {
           if (activeTab === 'calendar') {
              if (e.currentTarget.scrollTop > 10) {
@@ -235,7 +245,10 @@ export default function MobileLayout({
                       </div>
                   )}
 
-                  <div className="flex flex-col gap-6">
+                  <div className="flex flex-col gap-6 relative">
+                      {/* Vertical Timeline Line */}
+                      <div className="absolute top-2 bottom-4 left-[3.65rem] w-0.5 bg-gray-100 dark:bg-gray-800 z-0"></div>
+
                       {todaysEvents.map((event, idx) => {
                          const startDate = new Date(event.start);
                          const endDate = event.end ? new Date(event.end) : startDate;
@@ -247,17 +260,17 @@ export default function MobileLayout({
                                     setExpandedEventId(expandedEventId === event.id ? null : event.id);
                                     if (onEventClick) onEventClick(event.id);
                                 }}
-                                className="flex gap-4 cursor-pointer group"
+                                className="flex gap-4 cursor-pointer group relative z-10"
                              >
-                                 <div className="w-12 flex flex-col text-right pt-0.5">
+                                 <div className="w-12 flex flex-col text-right pt-0.5 shrink-0">
                                      <span className="text-gray-400 dark:text-gray-500 text-xs font-medium">{format(startDate, 'HH:mm')}</span>
                                      {event.end && <span className="text-gray-300 dark:text-gray-600 text-[10px] mt-1">{format(endDate, 'HH:mm')}</span>}
                                  </div>
                                  
-                                 <div className="flex flex-col relative">
+                                 <div className="flex flex-col relative w-full">
                                      <div 
-                                        className="w-2 h-2 rounded-full absolute top-1.5 -left-1 ring-4 ring-white dark:ring-[#1A1C23]"
-                                        style={{ backgroundColor: event.color || '#60A5FA' }}
+                                        className="w-2.5 h-2.5 rounded-full absolute top-1 -left-[5px] ring-4 ring-white dark:ring-[#1A1C23] z-10 shadow-sm"
+                                        style={{ backgroundColor: event.color || '#4A3AFF' }}
                                      />
                                      <div className="pl-4 pb-2">
                                          <h3 className="text-gray-900 dark:text-white font-semibold text-sm leading-tight group-hover:text-blue-600 transition-colors">
@@ -318,51 +331,65 @@ export default function MobileLayout({
                   </button>
                </div>
 
-               <div className="flex flex-col gap-3">
-                 {folders.map(folder => {
-                   const children = files.filter(f => f.parent_id === folder.id && f.type !== 'folder');
-                   return (
-                      <div key={folder.id} className="flex flex-col bg-white dark:bg-gray-900 rounded-[28px] overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800">
-                         <div 
-                            className="flex items-center gap-3 px-5 py-4 bg-gray-50 dark:bg-gray-800/50 cursor-pointer"
-                            onClick={() => {
-                               setExpandedFolders(prev => ({ ...prev, [folder.id]: !prev[folder.id] }));
-                               if (!expandedFolders[folder.id]) {
-                                    const store = useDataStore.getState();
-                                    if (!store.loadedDirectories.has(folder.id)) {
-                                         store.fetchDirectory(folder.id);
-                                    }
-                               }
-                            }}
-                         >
-                            <Folder size={18} className="text-[#4A3AFF]" />
-                            <span className="font-bold text-sm w-full">{folder.title}</span>
-                            <ChevronRight size={18} className={`text-gray-400 transition-transform ${expandedFolders[folder.id] ? 'rotate-90' : ''}`} />
-                         </div>
-                         <AnimatePresence>
-                         {(expandedFolders[folder.id] || expandedFolders[folder.id] === undefined) && (
-                            <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="flex flex-col px-3 py-2 pl-4">
-                               {children.map(file => (
-                                  <button 
-                                    key={file.id} 
-                                    onClick={() => {
-                                       onNoteSelect(file.id, file.title);
-                                       setIsEditingNote(true);
-                                    }}
-                                    className="flex items-center gap-3 p-3 rounded-2xl hover:bg-black/5 dark:hover:bg-white/5 text-left transition-colors"
-                                  >
-                                    <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
-                                        <FileText size={16} className="text-[#4A3AFF]" />
-                                    </div>
-                                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate w-full">{file.title || 'Untitled'}</span>
-                                  </button>
-                               ))}
-                            </motion.div>
-                         )}
-                         </AnimatePresence>
-                      </div>
-                   )
-                 })}
+const MobileFolderItem = ({ folder, allFiles, level = 0 }: { folder: any, allFiles: any[], level?: number }) => {
+   const [isOpen, setIsOpen] = useState(false);
+   const children = allFiles.filter(f => f.parent_id === folder.id);
+   const subfolders = children.filter(f => f.type === 'folder');
+   const notes = children.filter(f => f.type !== 'folder');
+
+   return (
+       <div className={`flex flex-col bg-white dark:bg-gray-900 rounded-[24px] overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 ${level > 0 ? 'mt-2' : ''}`}>
+          <div 
+             className={`flex items-center gap-3 px-5 py-4 bg-gray-50 dark:bg-gray-800/50 cursor-pointer`}
+             onClick={() => {
+                setIsOpen(!isOpen);
+                if (!isOpen) {
+                     const store = useDataStore.getState();
+                     if (!store.loadedDirectories.has(folder.id)) {
+                          store.fetchDirectory(folder.id);
+                     }
+                }
+             }}
+          >
+             <Folder size={18} className="text-[#4A3AFF]" />
+             <span className="font-bold text-sm w-full truncate">{folder.title || 'Untitled Folder'}</span>
+             <ChevronRight size={18} className={`text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+          </div>
+          <AnimatePresence>
+          {isOpen && (
+             <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="flex flex-col px-3 py-2 pl-4">
+                {subfolders.map(sub => (
+                   <MobileFolderItem key={sub.id} folder={sub} allFiles={allFiles} level={level + 1} />
+                ))}
+                {notes.map(file => (
+                   <button 
+                     key={file.id} 
+                     onClick={() => {
+                        useDataStore.getState().setActiveTabId?.(file.id);
+                        useDataStore.setState({ activeNoteId: file.id, activeNoteTitle: file.title });
+                        // setIsEditingNote should be passed or we can rely on standard note opening
+                        // But since MobileFolderItem is out of scope of MobileLayout, we can dispatch an event or use Zustand
+                        window.dispatchEvent(new CustomEvent('mobile_open_note', { detail: { id: file.id, title: file.title } }));
+                     }}
+                     className="flex items-center gap-3 p-3 rounded-2xl hover:bg-black/5 dark:hover:bg-white/5 text-left transition-colors"
+                   >
+                     <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
+                         <FileText size={16} className="text-[#4A3AFF]" />
+                     </div>
+                     <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate w-full">{file.title || 'Untitled'}</span>
+                   </button>
+                ))}
+             </motion.div>
+          )}
+          </AnimatePresence>
+       </div>
+   );
+};
+
+                 <div className="flex flex-col gap-3">
+                   {folders.filter(f => !f.parent_id).map(folder => (
+                      <MobileFolderItem key={folder.id} folder={folder} allFiles={files} />
+                   ))}
 
                  {/* Root Files */}
                  {(() => {
@@ -478,13 +505,13 @@ export default function MobileLayout({
 const NavIcon = ({ active, icon, onClick }: { tab?: string, active: boolean, icon: React.ReactNode, onClick: () => void }) => {
    if (active) {
       return (
-         <div onClick={onClick} className="w-14 h-14 rounded-full flex items-center justify-center bg-[#4A3AFF] text-white shadow-lg shadow-indigo-500/40 -translate-y-4 cursor-pointer transition-all duration-300">
+         <div onClick={onClick} className="text-[#4A3AFF] p-2 cursor-pointer transition-all duration-300 transform scale-110">
             {icon}
          </div>
       );
    }
    return (
-      <div onClick={onClick} className="text-gray-400 p-2 cursor-pointer transition-all duration-300 hover:text-gray-600 dark:hover:text-gray-200">
+      <div onClick={onClick} className="text-gray-400 p-2 cursor-pointer transition-all duration-300 hover:text-gray-600 dark:hover:text-gray-200 transform scale-90">
          {icon}
       </div>
    );
