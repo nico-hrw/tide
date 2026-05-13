@@ -25,6 +25,59 @@ interface MobileLayoutProps {
   userProfile?: { username: string; email: string; avatar_seed?: string; avatar_salt?: string; bio?: string; title?: string; id?: string; user_id?: string } | null;
 }
 
+const MobileFolderItem = ({ folder, allFiles, level = 0 }: { folder: any, allFiles: any[], level?: number }) => {
+   const [isOpen, setIsOpen] = useState(false);
+   const children = allFiles.filter(f => f.parent_id === folder.id);
+   const subfolders = children.filter(f => f.type === 'folder');
+   const notes = children.filter(f => f.type !== 'folder');
+
+   return (
+       <div className={`flex flex-col bg-white dark:bg-gray-900 rounded-[24px] overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 ${level > 0 ? 'mt-2' : ''}`}>
+          <div 
+             className={`flex items-center gap-3 px-5 py-4 bg-gray-50 dark:bg-gray-800/50 cursor-pointer`}
+             onClick={() => {
+                setIsOpen(!isOpen);
+                if (!isOpen) {
+                     const store = useDataStore.getState();
+                     if (!store.loadedDirectories.has(folder.id)) {
+                          store.fetchDirectory(folder.id);
+                     }
+                }
+             }}
+          >
+             <Folder size={18} className="text-[#4A3AFF]" />
+             <span className="font-bold text-sm w-full truncate">{folder.title || 'Untitled Folder'}</span>
+             <ChevronRight size={18} className={`text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+          </div>
+          <AnimatePresence>
+          {isOpen && (
+             <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="flex flex-col px-3 py-2 pl-4">
+                {subfolders.map(sub => (
+                   <MobileFolderItem key={sub.id} folder={sub} allFiles={allFiles} level={level + 1} />
+                ))}
+                {notes.map(file => (
+                   <button 
+                     key={file.id} 
+                     onClick={() => {
+                        useDataStore.getState().setActiveTabId?.(file.id);
+                        useDataStore.setState({ activeNoteId: file.id, activeNoteTitle: file.title });
+                        window.dispatchEvent(new CustomEvent('mobile_open_note', { detail: { id: file.id, title: file.title } }));
+                     }}
+                     className="flex items-center gap-3 p-3 rounded-2xl hover:bg-black/5 dark:hover:bg-white/5 text-left transition-colors"
+                   >
+                     <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
+                         <FileText size={16} className="text-[#4A3AFF]" />
+                     </div>
+                     <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate w-full">{file.title || 'Untitled'}</span>
+                   </button>
+                ))}
+             </motion.div>
+          )}
+          </AnimatePresence>
+       </div>
+   );
+};
+
 export default function MobileLayout({
   events,
   files,
@@ -331,60 +384,7 @@ export default function MobileLayout({
                   </button>
                </div>
 
-const MobileFolderItem = ({ folder, allFiles, level = 0 }: { folder: any, allFiles: any[], level?: number }) => {
-   const [isOpen, setIsOpen] = useState(false);
-   const children = allFiles.filter(f => f.parent_id === folder.id);
-   const subfolders = children.filter(f => f.type === 'folder');
-   const notes = children.filter(f => f.type !== 'folder');
 
-   return (
-       <div className={`flex flex-col bg-white dark:bg-gray-900 rounded-[24px] overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 ${level > 0 ? 'mt-2' : ''}`}>
-          <div 
-             className={`flex items-center gap-3 px-5 py-4 bg-gray-50 dark:bg-gray-800/50 cursor-pointer`}
-             onClick={() => {
-                setIsOpen(!isOpen);
-                if (!isOpen) {
-                     const store = useDataStore.getState();
-                     if (!store.loadedDirectories.has(folder.id)) {
-                          store.fetchDirectory(folder.id);
-                     }
-                }
-             }}
-          >
-             <Folder size={18} className="text-[#4A3AFF]" />
-             <span className="font-bold text-sm w-full truncate">{folder.title || 'Untitled Folder'}</span>
-             <ChevronRight size={18} className={`text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-          </div>
-          <AnimatePresence>
-          {isOpen && (
-             <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="flex flex-col px-3 py-2 pl-4">
-                {subfolders.map(sub => (
-                   <MobileFolderItem key={sub.id} folder={sub} allFiles={allFiles} level={level + 1} />
-                ))}
-                {notes.map(file => (
-                   <button 
-                     key={file.id} 
-                     onClick={() => {
-                        useDataStore.getState().setActiveTabId?.(file.id);
-                        useDataStore.setState({ activeNoteId: file.id, activeNoteTitle: file.title });
-                        // setIsEditingNote should be passed or we can rely on standard note opening
-                        // But since MobileFolderItem is out of scope of MobileLayout, we can dispatch an event or use Zustand
-                        window.dispatchEvent(new CustomEvent('mobile_open_note', { detail: { id: file.id, title: file.title } }));
-                     }}
-                     className="flex items-center gap-3 p-3 rounded-2xl hover:bg-black/5 dark:hover:bg-white/5 text-left transition-colors"
-                   >
-                     <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center shrink-0">
-                         <FileText size={16} className="text-[#4A3AFF]" />
-                     </div>
-                     <span className="text-sm font-semibold text-gray-700 dark:text-gray-200 truncate w-full">{file.title || 'Untitled'}</span>
-                   </button>
-                ))}
-             </motion.div>
-          )}
-          </AnimatePresence>
-       </div>
-   );
-};
 
                  <div className="flex flex-col gap-3">
                    {folders.filter(f => !f.parent_id).map(folder => (
