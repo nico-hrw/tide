@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar as CalendarIcon,
@@ -12,6 +12,7 @@ import {
   Plus,
   Settings,
   LogOut,
+  Dumbbell,
 } from 'lucide-react';
 import { isSameDay, format, startOfWeek, addDays } from 'date-fns';
 import { enUS } from 'date-fns/locale';
@@ -327,6 +328,10 @@ export default function MobileLayout({
   const [activeDate, setActiveDate] = useState(new Date());
   const [isCalendarExpanded, setIsCalendarExpanded] = useState(true);
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const [isMonthOpen, setIsMonthOpen] = useState(false);
+  const [visibleDays, setVisibleDays] = useState(5);
+  const touchStartY = useRef<number>(0);
+  const loadMoreTriggeredAt = useRef<number>(0);
 
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -347,6 +352,9 @@ export default function MobileLayout({
 
   const avatarLetter = username[0]?.toUpperCase() ?? 'U';
 
+  const isDayToday = isSameDay(activeDate, now);
+  const dayLabel = isDayToday ? 'Today' : format(activeDate, 'EEEE', { locale: enUS });
+
   // Listen for note open events dispatched by MobileNoteRow / MobileFolderItem
   useEffect(() => {
     const handleMobileOpenNote = (e: Event) => {
@@ -362,21 +370,31 @@ export default function MobileLayout({
   // Reset expandedEventId when activeDate changes
   useEffect(() => {
     setExpandedEventId(null);
+    setVisibleDays(5);
   }, [activeDate]);
 
   // Shows activeDate + 4 more days so the timeline always has scrollable content
   const upcomingDays = useMemo(() => {
-    return Array.from({ length: 5 }).map((_, i) => {
+    return Array.from({ length: visibleDays }).map((_, i) => {
       const date = addDays(activeDate, i);
       return { date, events: filterEventsForDate(events, date) };
     });
-  }, [events, activeDate]);
+  }, [events, activeDate, visibleDays]);
 
   // ── Scroll handler ──────────────────────────────────────────────────────────
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (activeTab !== 'calendar') return;
-    if (e.currentTarget.scrollTop > 10) {
+    const el = e.currentTarget;
+
+    if (el.scrollTop > 10) {
       setIsCalendarExpanded(false);
+    }
+
+    // Infinite scroll: only add days once per threshold crossing
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 300;
+    if (nearBottom && visibleDays !== loadMoreTriggeredAt.current) {
+      loadMoreTriggeredAt.current = visibleDays;
+      setVisibleDays(d => d + 5);
     }
   };
 
@@ -408,21 +426,92 @@ export default function MobileLayout({
     >
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       {/* TODO(dark): header bg dark:bg-gray-900, border dark:border-gray-800 */}
-      <div
+      <motion.div
+        layout
+        transition={{ duration: 0.25, ease: 'easeInOut' }}
         className="w-full z-40 shrink-0"
-        style={{ backgroundColor: T.card, borderBottom: `1px solid ${T.border}` }}
+        style={{ backgroundColor: T.card, borderBottom: `1px solid ${T.border}`, overflow: 'visible' }}
       >
         <AnimatePresence mode="wait">
 
           {/* Calendar header */}
           {activeTab === 'calendar' && (
-            <motion.div key={headerKey} {...tabAnim} className="pt-10">
-              {/* Collapsible MiniCalendar / week strip */}
+            <motion.div key={headerKey} {...tabAnim} className="pt-8 relative">
+
+              {/* Month dropdown overlay */}
+              {isMonthOpen && (
+                <div
+                  className="absolute top-full left-0 right-0 z-50 shadow-lg"
+                  style={{ backgroundColor: T.card, borderBottom: `1px solid ${T.border}` }}
+                >
+                  <MiniCalendar
+                    selectedDate={activeDate}
+                    onSelect={d => { setActiveDate(d); setIsMonthOpen(false); }}
+                  />
+                </div>
+              )}
+
               {isCalendarExpanded ? (
-                <MiniCalendar selectedDate={activeDate} onSelect={setActiveDate} />
+                /* ── Expanded: date label + big day name + week strip ── */
+                <div>
+                  {/* Tappable small date label */}
+                  <button
+                    onClick={() => setIsMonthOpen(o => !o)}
+                    className="flex items-center gap-1 px-5 mb-0.5 active:opacity-70"
+                  >
+                    {/* TODO(dark): dark:text-gray-500 */}
+                    <span className="text-xs font-medium" style={{ color: T.textMuted }}>
+                      {format(activeDate, 'd. MMMM yyyy', { locale: enUS })}
+                    </span>
+                    <ChevronRight size={10} className="rotate-90" style={{ color: T.textMuted }} />
+                  </button>
+
+                  {/* Large day name */}
+                  {/* TODO(dark): dark:text-gray-100 */}
+                  <p className="text-3xl font-bold px-5 mb-3" style={{ color: T.textPrimary }}>
+                    {dayLabel}
+                  </p>
+
+                  {/* Week strip */}
+                  <div className="flex justify-between px-4 pb-3">
+                    {weekDays.map(d => {
+                      const isSelected = isSameDay(d, activeDate);
+                      const isWeekToday = isSameDay(d, now);
+                      return (
+                        <button
+                          key={d.toISOString()}
+                          onClick={() => setActiveDate(d)}
+                          className="flex flex-col items-center gap-0.5"
+                        >
+                          {/* TODO(dark): dark:text-gray-500 */}
+                          <span
+                            className="text-[10px] font-semibold uppercase"
+                            style={{ color: isWeekToday ? T.accent : T.textMuted }}
+                          >
+                            {format(d, 'eeeee', { locale: enUS })}
+                          </span>
+                          <span
+                            className="text-sm w-8 h-8 flex items-center justify-center"
+                            style={{
+                              color: isWeekToday ? T.accent : isSelected ? T.textPrimary : T.textSec,
+                              fontWeight: isSelected ? 700 : 500,
+                            }}
+                          >
+                            {format(d, 'd')}
+                          </span>
+                          {/* Today dot */}
+                          <div
+                            className="w-1 h-1 rounded-full"
+                            style={{ backgroundColor: isWeekToday ? T.accent : 'transparent' }}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               ) : (
-                <div className="flex justify-between items-center px-5 pb-3 pt-1">
-                  {/* Tap month label to re-expand */}
+                /* ── Collapsed: compact month label + week strip ── */
+                <div className="flex justify-between items-center px-4 pb-3 pt-1">
                   <button
                     onClick={() => setIsCalendarExpanded(true)}
                     className="flex items-center gap-1 active:opacity-70"
@@ -437,25 +526,32 @@ export default function MobileLayout({
 
                   {weekDays.map(d => {
                     const isSelected = isSameDay(d, activeDate);
+                    const isWeekToday = isSameDay(d, now);
                     return (
                       <button
                         key={d.toISOString()}
                         onClick={() => setActiveDate(d)}
-                        className="flex flex-col items-center gap-1"
+                        className="flex flex-col items-center gap-0.5"
                       >
-                        <span className="text-[10px] font-semibold uppercase" style={{ color: T.textMuted }}>
+                        <span
+                          className="text-[10px] font-semibold uppercase"
+                          style={{ color: isWeekToday ? T.accent : T.textMuted }}
+                        >
                           {format(d, 'eeeee', { locale: enUS })}
                         </span>
-                        <div
-                          className="w-9 h-9 flex items-center justify-center rounded-full font-bold text-sm"
-                          style={
-                            isSelected
-                              ? { backgroundColor: T.accent, color: '#FFFFFF' }
-                              : { backgroundColor: 'transparent', color: T.textPrimary }
-                          }
+                        <span
+                          className="text-sm w-8 h-8 flex items-center justify-center"
+                          style={{
+                            color: isWeekToday ? T.accent : isSelected ? T.textPrimary : T.textSec,
+                            fontWeight: isSelected ? 700 : 400,
+                          }}
                         >
                           {format(d, 'd')}
-                        </div>
+                        </span>
+                        <div
+                          className="w-1 h-1 rounded-full"
+                          style={{ backgroundColor: isWeekToday ? T.accent : 'transparent' }}
+                        />
                       </button>
                     );
                   })}
@@ -515,12 +611,19 @@ export default function MobileLayout({
           )}
 
         </AnimatePresence>
-      </div>
+      </motion.div>
 
       {/* ── Scrollable content ──────────────────────────────────────────────── */}
       <div
         className="flex-1 w-full overflow-y-auto no-scrollbar pb-16"
         onScroll={handleScroll}
+        onTouchStart={e => { touchStartY.current = e.touches[0].clientY; }}
+        onTouchMove={e => {
+          if (activeTab !== 'calendar' || isCalendarExpanded) return;
+          if (e.currentTarget.scrollTop > 0) return;
+          const dy = e.touches[0].clientY - touchStartY.current;
+          if (dy > 40) setIsCalendarExpanded(true);
+        }}
       >
         <AnimatePresence mode="wait">
 
@@ -534,13 +637,21 @@ export default function MobileLayout({
               >
                 <div className="p-5 pb-32">
                   {upcomingDays.map(({ date, events: dayEvents }, dayIdx) => {
+                    const allDayEvents = dayEvents.filter(e =>
+                      e.allDay === true ||
+                      (e.end &&
+                        format(new Date(e.start), 'HH:mm') === '00:00' &&
+                        format(new Date(e.end), 'HH:mm') === '23:59')
+                    );
+                    const timedEvents = dayEvents.filter(e => !allDayEvents.includes(e));
+
                     const isDayToday = isSameDay(date, now);
 
                     // Progress gradient for today's vertical line
                     let lineBackground: string = T.border;
-                    if (isDayToday && dayEvents.length >= 2) {
-                      const firstStart = new Date(dayEvents[0].start).getTime();
-                      const lastStart = new Date(dayEvents[dayEvents.length - 1].start).getTime();
+                    if (isDayToday && timedEvents.length >= 2) {
+                      const firstStart = new Date(timedEvents[0].start).getTime();
+                      const lastStart = new Date(timedEvents[timedEvents.length - 1].start).getTime();
                       const nowMs = now.getTime();
                       const pct =
                         lastStart === firstStart
@@ -566,11 +677,33 @@ export default function MobileLayout({
                           <div className="flex-1 h-px" style={{ backgroundColor: T.border }} />
                         </div>
 
+                        {/* All-day event chips */}
+                        {allDayEvents.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            {allDayEvents.map(event => (
+                              <div
+                                key={event.id}
+                                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold"
+                                style={{
+                                  backgroundColor: (event.color || T.accent) + '25',
+                                  color: event.color || T.accent,
+                                }}
+                              >
+                                <div
+                                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                                  style={{ backgroundColor: event.color || T.accent }}
+                                />
+                                {event.title || 'All Day Event'}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
                         {dayEvents.length === 0 ? (
                           <p className="text-xs py-2 mb-2" style={{ color: T.textMuted }}>
                             No events
                           </p>
-                        ) : (
+                        ) : timedEvents.length === 0 ? null : (
                           <div className="relative flex flex-col gap-6">
                             {/* Vertical timeline line */}
                             {/* TODO(dark): base color dark:bg-gray-700 */}
@@ -579,14 +712,12 @@ export default function MobileLayout({
                               style={{ left: '4rem', background: lineBackground }}
                             />
 
-                            {dayEvents.map((event, idx) => {
+                            {timedEvents.map((event, idx) => {
                               const startDate = new Date(event.start);
                               const endDate = event.end ? new Date(event.end) : startDate;
                               const nowDate = now;
                               const isPast = endDate < nowDate;
                               const isActive = startDate <= nowDate && nowDate < endDate;
-                              const dotColor =
-                                isPast || isActive ? event.color || T.accent : '#D1D5DB';
                               const isExpanded = expandedEventId === event.id;
 
                               return (
@@ -617,26 +748,22 @@ export default function MobileLayout({
                                     <div
                                       className="rounded-full absolute ring-4 ring-white z-10 transition-all"
                                       style={{
-                                        backgroundColor: dotColor,
+                                        backgroundColor: isActive ? (event.color || T.accent) : 'white',
+                                        border: `2px solid ${event.color || T.accent}`,
                                         width: isActive ? '14px' : '10px',
                                         height: isActive ? '14px' : '10px',
                                         top: isActive ? '0px' : '2px',
                                         left: isActive ? '-7px' : '-5px',
+                                        opacity: isPast ? 0.5 : 1,
                                       }}
                                     />
 
                                     <div
-                                      className="pl-4 pb-1 rounded-2xl transition-all"
-                                      style={
-                                        isExpanded
-                                          ? {
-                                              backgroundColor: (event.color || T.accent) + '15',
-                                              outline: `1px solid ${event.color || T.accent}33`,
-                                              padding: '8px 8px 8px 16px',
-                                              marginTop: '-2px',
-                                            }
-                                          : {}
-                                      }
+                                      className="pl-4 pb-2 pt-2 pr-3 rounded-2xl transition-all ml-1"
+                                      style={{
+                                        backgroundColor: (event.color || T.accent) + (isExpanded ? '28' : '15'),
+                                        borderLeft: `3px solid ${event.color || T.accent}${isPast ? '80' : 'ff'}`,
+                                      }}
                                     >
                                       {/* TODO(dark): dark:text-white */}
                                       <h3
@@ -809,7 +936,11 @@ export default function MobileLayout({
               >
                 {/* Avatar */}
                 {userProfile?.avatar_seed ? (
-                  <Avatar seed={userProfile.avatar_seed} size={80} style="notionists" />
+                  <Avatar
+                    seed={`${userProfile.avatar_seed}_${userProfile.avatar_salt ?? ''}`}
+                    size={80}
+                    style="notionists"
+                  />
                 ) : (
                   <div
                     className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-1 uppercase"
@@ -894,7 +1025,6 @@ export default function MobileLayout({
           borderTop: `1px solid ${T.border}`,
         }}
       >
-        {/* Notes tab — shows ArrowLeft when editing */}
         <NavTab
           icon={<FileText size={20} />}
           active={activeTab === 'notes'}
@@ -916,6 +1046,16 @@ export default function MobileLayout({
             setActiveTab('calendar');
           }}
         />
+        {/* Tracker tab — external link, never "active" */}
+        {/* TODO(dark): color dark:text-gray-600 */}
+        <a
+          href={process.env.NEXT_PUBLIC_TRACKER_URL || '#'}
+          className="flex flex-col items-center justify-center flex-1 h-full gap-1 focus:outline-none"
+          style={{ color: T.textMuted }}
+        >
+          <Dumbbell size={20} />
+          <div className="w-1 h-1" />
+        </a>
         <NavTab
           icon={<User size={20} />}
           active={activeTab === 'profile'}

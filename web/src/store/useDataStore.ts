@@ -757,6 +757,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     loadAllMetadata: async () => {
         const state = get();
         if (!state.privateKey || !state.myId) return;
+        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
 
         try {
             const results = await Promise.allSettled([
@@ -875,10 +876,10 @@ export const useDataStore = create<DataState>((set, get) => ({
             const visibleEvents = decryptedEvents.filter(e => (e.share_status || 'owner') !== 'pending');
 
             set(s => ({
-                notes: visibleNotes,
-                events: visibleEvents,
+                notes: visibleNotes.length > 0 || s.notes.length === 0 ? visibleNotes : s.notes,
+                events: visibleEvents.length > 0 || s.events.length === 0 ? visibleEvents : s.events,
                 metadataCache: newMetaCache,
-                // We don't mark directories as loaded here because we only grabbed files, 
+                // We don't mark directories as loaded here because we only grabbed files,
                 // but this makes them available for suggestions.
             }));
 
@@ -896,6 +897,7 @@ export const useDataStore = create<DataState>((set, get) => ({
             }
             // MERGE: keep locally-updated task fields (optimistic updates from drag-drop, toggles)
             set(s => {
+                if (loadedTasks.length === 0 && s.tasks.length > 0) return {};
                 const localMap = new Map(s.tasks.map(t => [t.id, t]));
                 const merged = loadedTasks.map(bt => {
                     const local = localMap.get(bt.id);
