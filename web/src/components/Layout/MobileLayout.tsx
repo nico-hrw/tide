@@ -119,18 +119,28 @@ export default function MobileLayout({
   return (
     <div className="flex md:hidden flex-col h-[100dvh] w-full bg-[#f8f9fc] dark:bg-black text-gray-900 dark:text-gray-100 relative overflow-hidden font-sans">
       
-      {/* 1. Smart Island Header - Enhanced Slate Grey-Blue Glass with deep gradient */}
-      <div className="fixed top-0 left-0 w-full z-50 rounded-b-[40px] shadow-2xl bg-gradient-to-b from-[#4F5474]/95 via-[#393C52]/90 to-[#232536]/80 backdrop-blur-3xl border-b border-white/10 transition-all duration-300">
+      {/* 1. Header - Clean White Look */}
+      <div className="fixed top-0 left-0 w-full z-50 bg-white dark:bg-gray-900 shadow-sm border-b border-gray-100 dark:border-gray-800 transition-all duration-300">
         <AnimatePresence mode="wait">
            {activeTab === 'calendar' ? (
-              <motion.div key="header-calendar" initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}} className="px-6 pt-12 pb-6">
-                 <div className="flex justify-between items-center mb-6">
-                     <span className="text-white font-bold text-2xl tracking-wide">{format(activeDate, "MMMM yyyy")}</span>
-                     <div 
-                        onClick={() => setIsCalendarExpanded(!isCalendarExpanded)}
-                        className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center text-white/90 backdrop-blur-md cursor-pointer hover:bg-black/30 transition-colors"
-                     >
-                        <CalendarIcon size={20} />
+              <motion.div key="header-calendar" initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}} className="px-4 pt-10 pb-4">
+                 <div className="flex justify-between items-center px-2 mb-2">
+                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#4A3AFF] to-[#8B5CF6] flex items-center justify-center text-white font-bold text-sm shadow-md uppercase">
+                        {userProfile?.username?.[0] || sessionStorage.getItem('tide_user_name')?.[0] || userProfile?.email?.[0] || "U"}
+                     </div>
+                     <div className="flex gap-3">
+                         <div 
+                            onClick={() => setIsCalendarExpanded(!isCalendarExpanded)}
+                            className="w-10 h-10 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-700 dark:text-gray-300 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                         >
+                            <CalendarIcon size={18} />
+                         </div>
+                         <div 
+                            onClick={() => { if (onNewEvent) onNewEvent(activeDate); }}
+                            className="w-10 h-10 rounded-full bg-[#4A3AFF] flex items-center justify-center text-white cursor-pointer hover:bg-indigo-600 transition-colors"
+                         >
+                            <Plus size={20} strokeWidth={2.5} />
+                         </div>
                      </div>
                  </div>
                  
@@ -141,7 +151,7 @@ export default function MobileLayout({
                         initial={{opacity: 0, height: 0}} 
                         animate={{opacity: 1, height: 'auto'}} 
                         exit={{opacity: 0, height: 0}}
-                        className="w-full max-md:[&_*]:text-white/90"
+                        className="w-full"
                      >
                         <MiniCalendar selectedDate={activeDate} onSelect={setActiveDate} />
                      </motion.div>
@@ -151,7 +161,7 @@ export default function MobileLayout({
                         initial={{opacity: 0, height: 0}} 
                         animate={{opacity: 1, height: 'auto'}} 
                         exit={{opacity: 0, height: 0}}
-                        className="flex justify-between items-center mt-2"
+                        className="flex justify-between items-center mt-2 px-2 pb-2"
                      >
                          {weekDays.map(d => {
                              const isSelected = isSameDay(d, activeDate);
@@ -161,8 +171,8 @@ export default function MobileLayout({
                                    onClick={() => setActiveDate(d)}
                                    className="flex flex-col items-center gap-2 cursor-pointer"
                                 >
-                                    <span className="text-white/60 text-[10px] uppercase font-semibold">{format(d, 'eeeee', { locale: enUS })}</span>
-                                    <div className={`w-10 h-10 flex items-center justify-center rounded-full font-bold text-sm transition-all duration-300 ${isSelected ? 'bg-white text-[#393C52] shadow-md scale-110' : 'text-white'}`}>
+                                    <span className="text-gray-400 dark:text-gray-500 text-[10px] uppercase font-semibold">{format(d, 'eeeee', { locale: enUS })}</span>
+                                    <div className={`w-10 h-10 flex items-center justify-center rounded-full font-bold text-sm transition-all duration-300 ${isSelected ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-md scale-110' : 'text-gray-700 dark:text-gray-300'}`}>
                                         {format(d, 'd')}
                                     </div>
                                 </div>
@@ -174,13 +184,13 @@ export default function MobileLayout({
               </motion.div>
            ) : activeTab === 'notes' ? (
               <motion.div key="header-notes" initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}} className="px-6 pt-12 pb-6 flex items-center justify-center relative">
-                 <span className="text-white font-bold text-xl tracking-wide drop-shadow-sm">
+                 <span className="text-gray-900 dark:text-gray-100 font-bold text-xl tracking-wide drop-shadow-sm">
                      {isEditingNote ? (activeNoteTitle || 'Untitled Note') : 'My Notes'}
                  </span>
               </motion.div>
            ) : (
               <motion.div key="header-other" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} className="px-6 pt-12 pb-6 flex items-center justify-center">
-                 <span className="text-white font-bold text-xl tracking-wide capitalize">{activeTab}</span>
+                 <span className="text-gray-900 dark:text-gray-100 font-bold text-xl tracking-wide capitalize">{activeTab}</span>
               </motion.div>
            )}
         </AnimatePresence>
@@ -210,104 +220,84 @@ export default function MobileLayout({
               exit={{ opacity: 0, y: -10 }}
               className="flex w-full relative px-4"
             >
-               {/* Fixed left time column */}
-               <div className="w-16 flex-shrink-0 border-r border-gray-200 dark:border-gray-800 pr-2 relative h-[1920px]">
-                  {Array.from({ length: 24 }).map((_, i) => (
-                     <div key={`hour-${i}`} className="absolute w-full flex items-start justify-end pr-3" style={{ top: i * 80 - 8 }}>
-                         <span className="text-xs text-gray-400 font-medium">{String(i).padStart(2, '0')}:00</span>
-                     </div>
-                  ))}
-               </div>
+               <div className="flex flex-col w-full bg-white dark:bg-[#1A1C23] rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 p-6">
+                  <div className="flex items-center gap-4 mb-6">
+                      <span className="text-gray-400 dark:text-gray-500 font-semibold text-xs tracking-widest uppercase">
+                          {format(activeDate, "EEEE d", { locale: enUS })}
+                      </span>
+                      <div className="flex-1 h-px bg-gray-100 dark:bg-gray-800"></div>
+                  </div>
 
-               {/* Right Events Column */}
-               <div className="relative flex-1 h-[1920px]">
                   {todaysEvents.length === 0 && (
-                      <div className="absolute inset-x-0 mt-20 flex flex-col items-center justify-center text-center px-6">
-                          <CalendarIcon size={32} className="text-gray-300 dark:text-gray-700 mb-3" />
-                          <span className="text-gray-500 dark:text-gray-400 font-medium">No events for this day.</span>
-                          <span className="text-gray-400 dark:text-gray-500 text-xs mt-1">Total Loaded Events: {events.length}</span>
+                      <div className="flex flex-col items-center justify-center text-center py-10">
+                          <CalendarIcon size={24} className="text-gray-300 dark:text-gray-700 mb-2" />
+                          <span className="text-gray-500 dark:text-gray-400 font-medium text-sm">No events for this day</span>
                       </div>
                   )}
-                  {todaysEvents.map(event => {
-                     const startDate = new Date(event.start);
-                     const endDate = event.end ? new Date(event.end) : addDays(startDate, 0);
-                     const startHour = startDate.getHours();
-                     const startMinute = startDate.getMinutes();
-                     
-                     if (isNaN(startHour) || isNaN(startMinute)) return null;
 
-                     const top = (startHour * 80) + ((startMinute / 60) * 80);
-                     let durationMins = differenceInMinutes(endDate, startDate);
-                     if (isNaN(durationMins) || durationMins <= 0) durationMins = 60; // Default 1 hour
-                     const height = (durationMins / 60) * 80;
-
-                     const isNext = nextEvent && event.id === nextEvent.id;
-                     const isCurrent = now >= startDate && now <= endDate;
-                     const isImportant = isCurrent || isNext;
-
-                     return (
-                         <motion.div 
-                            key={event.id}
-                            /* drag="y" deactivated temporarily */
-                            onClick={() => {
-                                setExpandedEventId(expandedEventId === event.id ? null : event.id);
-                                if (onEventClick) onEventClick(event.id);
-                            }}
-                            className={`absolute left-4 right-0 rounded-[14px] p-3 shadow-sm flex flex-col cursor-pointer overflow-hidden ${
-                               isImportant 
-                                ? 'bg-gradient-to-r from-[#4A3AFF] to-[#8B5CF6] text-white z-20 shadow-[#4A3AFF]/20 shadow-lg'
-                                : 'z-10 bg-white dark:bg-[#1C1C24] ring-1 ring-black/5 dark:ring-white/5 hover:brightness-95 transition-all'
-                            }`}
-                            style={{ 
-                               top: `${top}px`, 
-                               minHeight: `${height}px`,
-                               height: `${height}px`,
-                               borderLeft: isImportant ? 'none' : `4px solid ${event.color || '#60A5FA'}`,
-                               ...(isImportant ? {} : {
-                                   backgroundColor: event.color ? `${event.color}18` : undefined,
-                                   color: event.color || 'inherit'
-                               })
-                            }}
-                         >
-                            <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                               {event.tags && event.tags.length > 0 && event.tags.map((tag: string) => (
-                                  <span key={tag} className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md ${isImportant ? 'bg-white/30 text-white' : 'bg-black/5 dark:bg-white/10'}`}>
-                                     {tag}
-                                  </span>
-                               ))}
-                            </div>
-                            <span className={`text-sm font-bold truncate leading-tight ${isImportant ? '' : 'text-gray-900 dark:text-gray-100'}`}>{event.title || 'Untitled Event'}</span>
-                            <span className={`text-[11px] font-medium mt-auto ${isImportant ? 'text-white/80' : 'opacity-70'}`}>
-                               {format(startDate, 'HH:mm')} - {format(endDate, 'HH:mm')}
-                            </span>
-                            <AnimatePresence>
-                               {expandedEventId === event.id && (
-                                  <motion.div 
-                                     initial={{ opacity: 0, height: 0 }} 
-                                     animate={{ opacity: 1, height: 'auto' }} 
-                                     exit={{ opacity: 0, height: 0 }} 
-                                     className="mt-3 text-xs w-full flex flex-col gap-2"
-                                  >
-                                     <div className={isImportant ? 'text-white/90' : 'text-blue-800 dark:text-blue-200'}>
-                                        {event.description || 'Keine Details hinterlegt.'}
+                  <div className="flex flex-col gap-6">
+                      {todaysEvents.map((event, idx) => {
+                         const startDate = new Date(event.start);
+                         const endDate = event.end ? new Date(event.end) : startDate;
+                         
+                         return (
+                             <div 
+                                key={event.id + idx}
+                                onClick={() => {
+                                    setExpandedEventId(expandedEventId === event.id ? null : event.id);
+                                    if (onEventClick) onEventClick(event.id);
+                                }}
+                                className="flex gap-4 cursor-pointer group"
+                             >
+                                 <div className="w-12 flex flex-col text-right pt-0.5">
+                                     <span className="text-gray-400 dark:text-gray-500 text-xs font-medium">{format(startDate, 'HH:mm')}</span>
+                                     {event.end && <span className="text-gray-300 dark:text-gray-600 text-[10px] mt-1">{format(endDate, 'HH:mm')}</span>}
+                                 </div>
+                                 
+                                 <div className="flex flex-col relative">
+                                     <div 
+                                        className="w-2 h-2 rounded-full absolute top-1.5 -left-1 ring-4 ring-white dark:ring-[#1A1C23]"
+                                        style={{ backgroundColor: event.color || '#60A5FA' }}
+                                     />
+                                     <div className="pl-4 pb-2">
+                                         <h3 className="text-gray-900 dark:text-white font-semibold text-sm leading-tight group-hover:text-blue-600 transition-colors">
+                                             {event.title || 'Untitled Event'}
+                                         </h3>
+                                         {event.description && (
+                                             <p className="text-gray-500 dark:text-gray-400 text-xs mt-1 line-clamp-1">
+                                                 {event.description}
+                                             </p>
+                                         )}
+                                         
+                                         <AnimatePresence>
+                                           {expandedEventId === event.id && (
+                                              <motion.div 
+                                                 initial={{ opacity: 0, height: 0 }} 
+                                                 animate={{ opacity: 1, height: 'auto' }} 
+                                                 exit={{ opacity: 0, height: 0 }} 
+                                                 className="mt-3"
+                                              >
+                                                 <div className="text-gray-600 dark:text-gray-300 text-xs bg-gray-50 dark:bg-gray-800 p-3 rounded-xl mb-2">
+                                                    {event.description || 'No additional details.'}
+                                                 </div>
+                                                 <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (onEventDelete) onEventDelete(event.id);
+                                                    }}
+                                                    className="text-red-500 hover:text-red-600 text-xs font-medium px-2 py-1 transition-colors"
+                                                 >
+                                                    Delete
+                                                 </button>
+                                              </motion.div>
+                                           )}
+                                         </AnimatePresence>
                                      </div>
-                                     <div className="flex gap-2">
-                                        <button 
-                                           onClick={(e) => {
-                                               e.stopPropagation();
-                                               if (onEventDelete) onEventDelete(event.id);
-                                           }}
-                                           className="bg-red-500/20 text-red-500 hover:bg-red-500/30 px-3 py-1.5 rounded-lg mt-2 font-medium w-full text-center transition-colors"
-                                        >
-                                           Termin löschen
-                                        </button>
-                                     </div>
-                                  </motion.div>
-                               )}
-                            </AnimatePresence>
-                         </motion.div>
-                     );
-                  })}
+                                 </div>
+                             </div>
+                         );
+                      })}
+                  </div>
                </div>
             </motion.div>
           )}
@@ -460,14 +450,7 @@ export default function MobileLayout({
         </AnimatePresence>
       </div>
 
-      {activeTab === 'calendar' && (
-         <button 
-             onClick={() => { if (onNewEvent) onNewEvent(activeDate); }}
-             className="fixed bottom-32 right-6 bg-[#4A3AFF] text-white p-4 rounded-full shadow-lg shadow-indigo-500/30 z-[60] flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
-         >
-            <Plus size={24} strokeWidth={3} fill="currentColor" />
-         </button>
-      )}
+
 
       {/* 3. Bottom Navigation Bar */}
       <div className="fixed bottom-0 left-0 w-full h-24 bg-white/90 dark:bg-gray-900/90 backdrop-blur-md rounded-t-[40px] z-50 flex justify-around items-center px-6 shadow-[0_-10px_40px_rgba(0,0,0,0.08)] dark:shadow-none border-t border-white/20 dark:border-gray-800">

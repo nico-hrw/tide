@@ -1910,12 +1910,20 @@ export default function Dashboard() {
         e.stopPropagation();
         if (!confirm("Delete this note?")) return;
         try {
-            await apiFetch(`/api/v1/files/${fileId}`, { method: "DELETE" });
+            const res = await apiFetch(`/api/v1/files/${fileId}`, { method: "DELETE" });
+            if (!res.ok && res.status !== 404) throw new Error("Backend failed to delete note");
             useDataStore.getState().setNotes(files.filter(f => f.id !== fileId) as any);
+            
+            setOpenTabs(prev => {
+                const nextTabs = prev.filter(t => t.id !== fileId);
+                localStorage.setItem("tide_open_tabs", JSON.stringify(nextTabs));
+                return nextTabs;
+            });
+            
             if (activeTabId === fileId) {
                 handleTabClose(e, fileId);
             }
-        } catch (e) { alert("Failed to delete"); }
+        } catch (err) { alert("Failed to delete"); }
     };
 
     // Rename File
