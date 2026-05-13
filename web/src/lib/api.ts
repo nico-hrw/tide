@@ -30,13 +30,25 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
     console.log("[apiFetch] Requesting:", fullUrl);
     
     try {
+        const headers: HeadersInit = { ...options.headers };
+        if (typeof window !== 'undefined') {
+            const token = localStorage.getItem("tide_session_token");
+            if (token) {
+                headers["Authorization"] = `Bearer ${token}`;
+            }
+        }
+
         const res = await fetch(fullUrl, {
             ...options,
+            headers,
             credentials: 'include' // Use httpOnly cookie
         });
 
         if (res.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth')) {
             console.warn("[apiFetch] 401 Unauthorized. Redirecting.");
+            sessionStorage.clear();
+            localStorage.removeItem("tide_session_key");
+            localStorage.removeItem("tide_session_token");
             window.location.href = '/auth';
         }
 

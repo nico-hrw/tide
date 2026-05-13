@@ -386,7 +386,6 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 		Secure:   false, // Set true in production over HTTPS
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
-		Domain:   ".go-tide.app",
 	})
 
 	resp := map[string]interface{}{
