@@ -30,7 +30,7 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
     console.log("[apiFetch] Requesting:", fullUrl);
     
     try {
-        const headers: HeadersInit = { ...options.headers };
+        const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
         if (typeof window !== 'undefined') {
             const token = localStorage.getItem("tide_session_token");
             if (token) {
