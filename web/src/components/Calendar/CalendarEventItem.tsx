@@ -77,13 +77,13 @@ const getEffectStyle = (effect: string | undefined): React.CSSProperties | undef
     };
     if (effect === 'waves') return {
         backgroundImage: 'radial-gradient(circle at 100% 50%, transparent 20%, rgba(255,255,255,0.25) 21%, rgba(255,255,255,0.25) 34%, transparent 35%), radial-gradient(circle at 0% 50%, transparent 20%, rgba(255,255,255,0.25) 21%, rgba(255,255,255,0.25) 34%, transparent 35%)',
-        backgroundSize: '24px 24px',
-        backgroundPosition: '0 0, 0 12px'
+        backgroundSize: '30px 40px',
+        backgroundPosition: '0 0, 0 20px'
     };
     if (effect === 'dots') return {
-        backgroundImage: 'radial-gradient(rgba(255,255,255,0.4) 28%, transparent 28%), radial-gradient(rgba(255,255,255,0.4) 28%, transparent 28%)',
-        backgroundSize: '12px 12px',
-        backgroundPosition: '0 0, 6px 6px'
+        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.4) 3px, transparent 4px), radial-gradient(circle, rgba(255,255,255,0.3) 4px, transparent 5px), radial-gradient(circle, rgba(255,255,255,0.2) 5px, transparent 6px), radial-gradient(circle, rgba(255,255,255,0.25) 3px, transparent 4px)',
+        backgroundSize: '40px 40px',
+        backgroundPosition: '10px 10px, 25px 25px, 5px 30px, 30px 5px'
     };
     if (effect === 'chess') return {
         backgroundImage: 'linear-gradient(45deg, rgba(0,0,0,0.13) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.13) 75%, rgba(0,0,0,0.13)), linear-gradient(45deg, rgba(0,0,0,0.13) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.13) 75%, rgba(0,0,0,0.13))',
@@ -91,9 +91,9 @@ const getEffectStyle = (effect: string | undefined): React.CSSProperties | undef
         backgroundPosition: '0 0, 10px 10px'
     };
     if (effect === 'diamonds') return {
-        backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.15) 25%, transparent 25%), linear-gradient(225deg, rgba(255,255,255,0.15) 25%, transparent 25%), linear-gradient(45deg, rgba(255,255,255,0.15) 25%, transparent 25%), linear-gradient(315deg, rgba(255,255,255,0.15) 25%, transparent 25%)',
-        backgroundSize: '24px 24px',
-        backgroundPosition: '12px 0, 12px 0, 0 0, 0 0'
+        backgroundImage: 'linear-gradient(45deg, rgba(0,0,0,0.13) 25%, transparent 25%), linear-gradient(-45deg, rgba(0,0,0,0.13) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(0,0,0,0.13) 75%), linear-gradient(-45deg, transparent 75%, rgba(0,0,0,0.13) 75%)',
+        backgroundSize: '100% 100%',
+        backgroundPosition: 'center'
     };
     if (effect === 'gradient') return {
         backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.3) 0%, transparent 100%)'
@@ -361,10 +361,12 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 ...(isLive && liveColor ? {
                     // Live-event gradient; pattern (if any) layers on top via background-image ordering
                     backgroundImage: effectStyle?.backgroundImage
-                        ? `${effectStyle.backgroundImage}, linear-gradient(145deg, ${liveColor.base} 0%, ${liveColor.bright} 100%)`
-                        : `linear-gradient(145deg, ${liveColor.base} 0%, ${liveColor.bright} 100%)`,
+                        ? `${effectStyle.backgroundImage}, linear-gradient(135deg, ${liveColor.base} 0%, ${liveColor.bright} 100%)`
+                        : `linear-gradient(135deg, ${liveColor.base} 0%, ${liveColor.bright} 100%)`,
                     backgroundColor: undefined,
-                    boxShadow: `0 0 0 2px ${liveColor.base}40, 0 4px 16px ${liveColor.base}50`,
+                    boxShadow: `0 0 0 2px ${liveColor.base}60, 0 8px 24px ${liveColor.base}80, inset 0 1px 2px rgba(255,255,255,0.4)`,
+                    color: '#ffffff',
+                    borderLeft: `4px solid ${liveColor.bright}`,
                 } : {}),
             }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -434,7 +436,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                  work inside Framer Motion compositing layers. */}
 
             {/* Shading Overlay Layer */}
-            {!isActiveParent && event.shading && event.shading > 0 && (
+            {!isActiveParent && typeof event.shading === 'number' && event.shading > 0 ? (
                 <div 
                     className="absolute inset-0 pointer-events-none" 
                     style={{ 
@@ -446,7 +448,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                         mixBlendMode: 'saturation'
                     }} 
                 />
-            )}
+            ) : null}
 
             {isMiddleDay && (
                 <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.05) 10px, rgba(0,0,0,0.05) 11px)' }} />

@@ -1295,13 +1295,13 @@ export default function CalendarView({
 
                                                     if (e?.allDay) {
                                                         if (rect) {
-                                                            setActivePopover({ id, rect });
+                                                            setActivePopover(prev => prev?.id === id ? null : { id, rect });
                                                         } else if (onEventClick) {
                                                             onEventClick(id);
                                                         }
                                                     } else {
                                                         if (rect) {
-                                                            setActivePopover({ id, rect });
+                                                            setActivePopover(prev => prev?.id === id ? null : { id, rect });
                                                         } else if (onEventClick) {
                                                             onEventClick(id);
                                                         }

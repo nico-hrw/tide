@@ -607,7 +607,8 @@ export const useDataStore = create<DataState>((set, get) => ({
                     // Stale cache entry — fall through to re-attempt decryption
                 }
 
-                if (!f.secured_meta && !f.metadata && f.visibility !== 'public' && f.type !== 'folder') {
+                const hasNoMetadata = !f.metadata || (typeof f.metadata === 'object' && Object.keys(f.metadata).length === 0);
+                if (!f.secured_meta && hasNoMetadata && f.visibility !== 'public' && f.type !== 'folder') {
                     console.warn(`[STATE-AUDIT] Skipping ghost/corrupted file ${f.id} with no metadata.`);
                     continue;
                 }

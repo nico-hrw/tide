@@ -1309,21 +1309,24 @@ export default function Dashboard() {
         };
 
         const createNoteFromText = async (noteText: string) => {
-            // Title = first ~40 chars or first line, Body = full text
-            const firstLine = noteText.split('\n')[0] || noteText;
-            const title = firstLine.slice(0, 40) + (firstLine.length > 40 ? '…' : '');
-
-            await useDataStore.getState().createNote(
-                title,
+            const id = await useDataStore.getState().createNote(
+                "",
                 {
                     type: 'doc',
-                    content: [{
+                    content: noteText.split('\n').map(line => ({
                         type: 'paragraph',
                         attrs: { blockId: crypto.randomUUID() },
-                        content: [{ type: 'text', text: noteText }]
-                    }]
+                        content: line ? [{ type: 'text', text: line }] : undefined
+                    }))
                 }
             );
+            
+            setOpenTabs(prev => {
+                if (prev.find(t => t.id === id)) return prev;
+                return [...prev, { id, title: "Untitled", type: 'file' }];
+            });
+            setActiveTabId(id);
+
             useDataStore.getState().fetchDirectory(null, true);
             clearCollector();
         };
@@ -3303,7 +3306,10 @@ export default function Dashboard() {
                 </div>
             </div>            {/* Theme Menu Dropdown — appears from top-right near toolbar when triggered from CalendarView */}
             {activeTabId === 'calendar' && isThemeMenuOpen && (
-                <div className="hidden md:block fixed top-16 right-6 z-[500] w-72 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-100 p-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div 
+                    className="hidden md:block fixed top-16 right-6 z-[500] w-72 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-100 p-4 animate-in fade-in slide-in-from-top-2 duration-200"
+                    onMouseLeave={() => setIsThemeMenuOpen(false)}
+                >
                     <div className="flex items-center justify-between mb-4 px-1">
                         <span className="font-semibold text-gray-900 text-sm tracking-tight">Schedule Themes</span>
                         <div className="flex items-center gap-1">
