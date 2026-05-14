@@ -2884,6 +2884,13 @@ export default function Dashboard() {
                 onEventDelete={(id: string) => {
                     handleDeleteEvent(id);
                 }}
+                onTaskComplete={(id: string, completed: boolean) => {
+                    useDataStore.setState((s: any) => ({
+                        events: s.events.map((e: any) =>
+                            e.id === id ? { ...e, is_completed: completed } : e
+                        )
+                    }));
+                }}
                 userProfile={userProfile}
                 editorElement={
                     editorContent === null ? (
