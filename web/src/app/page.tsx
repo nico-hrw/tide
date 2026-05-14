@@ -2891,6 +2891,21 @@ export default function Dashboard() {
                         )
                     }));
                 }}
+                socialHubElement={
+                    <SocialHub
+                        onOpenProfile={(userId, username) => {
+                            // Mobile: other profiles are no-op for now
+                        }}
+                        onOpenFile={(fileId, title, parentId) => {
+                            handleFileSelect(fileId, title);
+                        }}
+                        onOpenCalendar={() => {
+                            window.dispatchEvent(new CustomEvent('mobile_switch_calendar'));
+                        }}
+                        userProfile={userProfile}
+                        privateKey={privateKey}
+                    />
+                }
                 userProfile={userProfile}
                 editorElement={
                     editorContent === null ? (

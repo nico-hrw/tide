@@ -59,6 +59,7 @@ interface MobileLayoutProps {
   onEventUpdate?: (id: string, newStart: Date, newEnd: Date) => void;
   onEventDelete?: (id: string) => void;
   onTaskComplete?: (id: string, completed: boolean) => void;
+  socialHubElement?: React.ReactNode;
   userProfile?: {
     username: string;
     email: string;
@@ -71,7 +72,7 @@ interface MobileLayoutProps {
   } | null;
 }
 
-type Tab = 'calendar' | 'notes' | 'profile';
+type Tab = 'calendar' | 'notes' | 'social';
 
 // ─── MobileNoteRow ────────────────────────────────────────────────────────────
 const MobileNoteRow = ({ file, onClick }: { file: any; onClick: () => void }) => (
@@ -293,6 +294,7 @@ export default function MobileLayout({
   onEventUpdate,
   onEventDelete,
   onTaskComplete,
+  socialHubElement,
   userProfile,
 }: MobileLayoutProps) {
   const [activeTab, setActiveTab] = useState<Tab>('calendar');
@@ -301,20 +303,20 @@ export default function MobileLayout({
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const [visibleDays, setVisibleDays] = useState(5);
   const [isMonthExpanded, setIsMonthExpanded] = useState(false);
-  const [editingDescId, setEditingDescId] = useState<string | null>(null);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const loadMoreTriggeredAt = useRef<number>(0);
 
   // Swipe navigation
-  const tabOrder: Tab[] = ['notes', 'calendar', 'profile'];
+  const tabOrder: Tab[] = ['notes', 'calendar', 'social'];
   const swipeTouchStartX = useRef<number>(0);
   const [swipeDelta, setSwipeDelta] = useState(0);
   const [trackerProgress, setTrackerProgress] = useState(0);
-  const [swipeDir, setSwipeDir] = useState<1 | -1>(1);
+  const swipeDirRef = useRef<1 | -1>(1);
 
   const getTabAnim = () => ({
-    initial:    { x: swipeDir * 40, opacity: 0 },
+    initial:    { x: swipeDirRef.current * 40, opacity: 0 },
     animate:    { x: 0, opacity: 1 },
-    exit:       { x: swipeDir * -40, opacity: 0 },
+    exit:       { x: swipeDirRef.current * -40, opacity: 0 },
     transition: { duration: 0.2, ease: 'easeOut' as const },
   });
 
@@ -348,8 +350,13 @@ export default function MobileLayout({
       setIsEditingNote(true);
       setActiveTab('notes');
     };
+    const handleSwitchCalendar = () => setActiveTab('calendar');
     window.addEventListener('mobile_open_note', handleMobileOpenNote);
-    return () => window.removeEventListener('mobile_open_note', handleMobileOpenNote);
+    window.addEventListener('mobile_switch_calendar', handleSwitchCalendar);
+    return () => {
+      window.removeEventListener('mobile_open_note', handleMobileOpenNote);
+      window.removeEventListener('mobile_switch_calendar', handleSwitchCalendar);
+    };
   }, [onNoteSelect]);
 
   // Reset expandedEventId when activeDate changes
@@ -415,11 +422,11 @@ export default function MobileLayout({
           if (url) window.location.href = url;
         }
       } else {
-        setSwipeDir(1);
+        swipeDirRef.current = 1;
         setActiveTab(tabOrder[Math.min(idx + 1, 2)]);
       }
     } else if (delta > threshold && idx > 0) {
-      setSwipeDir(-1);
+      swipeDirRef.current = -1;
       setActiveTab(tabOrder[Math.max(idx - 1, 0)]);
     }
     setSwipeDelta(0);
@@ -434,7 +441,7 @@ export default function MobileLayout({
       ? 'header-notes-editor'
       : activeTab === 'notes'
       ? 'header-notes-list'
-      : 'header-profile';
+      : 'header-social';
 
   // ── Content key per sub-view ────────────────────────────────────────────────
   const contentKey =
@@ -444,7 +451,7 @@ export default function MobileLayout({
       ? 'notes-editor'
       : activeTab === 'notes'
       ? 'notes-list'
-      : 'profile';
+      : 'social';
 
   return (
     // TODO(dark): outer bg dark:bg-gray-950
@@ -476,68 +483,77 @@ export default function MobileLayout({
                 {dayLabel}
               </p>
 
-              {/* Month calendar OR week strip */}
-              <AnimatePresence mode="wait">
-                {isMonthExpanded ? (
-                  <motion.div
-                    key="month-cal"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <MiniCalendar
-                      selectedDate={activeDate}
-                      onSelect={d => {
-                        setActiveDate(d);
-                        setIsMonthExpanded(false);
-                      }}
-                    />
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="week-strip"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <div className="flex justify-between px-4 pb-1">
-                      {weekDays.map(d => {
-                        const isSelected = isSameDay(d, activeDate);
-                        const isWeekToday = isSameDay(d, now);
-                        return (
-                          <button
-                            key={d.toISOString()}
-                            onClick={() => setActiveDate(d)}
-                            className="flex flex-col items-center gap-0.5 py-0.5"
+              {/* Height-animated container — both views always rendered, crossfade */}
+              <motion.div
+                animate={{ height: isMonthExpanded ? 290 : 68 }}
+                transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+                className="overflow-hidden"
+                style={{ position: 'relative' }}
+              >
+                {/* MiniCalendar — fades in when month expanded */}
+                <motion.div
+                  animate={{ opacity: isMonthExpanded ? 1 : 0, y: isMonthExpanded ? 0 : -12 }}
+                  transition={{ duration: 0.25 }}
+                  style={{
+                    position: 'absolute',
+                    top: 0, left: 0, right: 0,
+                    pointerEvents: isMonthExpanded ? 'auto' : 'none',
+                  }}
+                >
+                  <MiniCalendar
+                    selectedDate={activeDate}
+                    onSelect={d => {
+                      setActiveDate(d);
+                      setIsMonthExpanded(false);
+                    }}
+                  />
+                </motion.div>
+
+                {/* Week strip — fades in when month collapsed */}
+                <motion.div
+                  animate={{ opacity: isMonthExpanded ? 0 : 1, y: isMonthExpanded ? 12 : 0 }}
+                  transition={{ duration: 0.25 }}
+                  style={{
+                    position: 'absolute',
+                    top: 0, left: 0, right: 0,
+                    pointerEvents: isMonthExpanded ? 'none' : 'auto',
+                  }}
+                >
+                  <div className="flex justify-between px-4 pb-1 pt-1">
+                    {weekDays.map(d => {
+                      const isSelected = isSameDay(d, activeDate);
+                      const isWeekToday = isSameDay(d, now);
+                      return (
+                        <button
+                          key={d.toISOString()}
+                          onClick={() => setActiveDate(d)}
+                          className="flex flex-col items-center gap-0.5 py-0.5"
+                        >
+                          <span
+                            className="text-[10px] font-semibold uppercase"
+                            style={{ color: isWeekToday ? T.accent : T.textMuted }}
                           >
-                            <span
-                              className="text-[10px] font-semibold uppercase"
-                              style={{ color: isWeekToday ? T.accent : T.textMuted }}
-                            >
-                              {format(d, 'eeeee', { locale: enUS })}
-                            </span>
-                            <span
-                              className="text-sm w-8 h-8 flex items-center justify-center"
-                              style={{
-                                color: isWeekToday ? T.accent : isSelected ? T.textPrimary : T.textSec,
-                                fontWeight: isSelected ? 700 : 500,
-                              }}
-                            >
-                              {format(d, 'd')}
-                            </span>
-                            <div
-                              className="w-1 h-1 rounded-full"
-                              style={{ backgroundColor: isWeekToday ? T.accent : 'transparent' }}
-                            />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                            {format(d, 'eeeee', { locale: enUS })}
+                          </span>
+                          <span
+                            className="text-sm w-8 h-8 flex items-center justify-center"
+                            style={{
+                              color: isWeekToday ? T.accent : isSelected ? T.textPrimary : T.textSec,
+                              fontWeight: isSelected ? 700 : 500,
+                            }}
+                          >
+                            {format(d, 'd')}
+                          </span>
+                          <div
+                            className="w-1 h-1 rounded-full"
+                            style={{ backgroundColor: isWeekToday ? T.accent : 'transparent' }}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              </motion.div>
             </motion.div>
           )}
 
@@ -577,17 +593,31 @@ export default function MobileLayout({
             </motion.div>
           )}
 
-          {/* Profile header */}
-          {activeTab === 'profile' && (
-            <motion.div
-              key={headerKey}
-              {...getTabAnim()}
-              className="px-6 pt-12 pb-6 flex items-center justify-center"
-            >
+          {/* Social header */}
+          {activeTab === 'social' && (
+            <motion.div key={headerKey} {...getTabAnim()} className="px-5 pt-12 pb-5 flex items-center justify-between">
               {/* TODO(dark): dark:text-gray-100 */}
-              <h1 className="font-bold text-xl" style={{ color: T.textPrimary }}>
-                Profile
-              </h1>
+              <h1 className="text-2xl font-bold" style={{ color: T.textPrimary }}>Social</h1>
+              {/* Own profile avatar — tapping opens profile sub-view */}
+              <button
+                onClick={() => setIsProfileOpen(true)}
+                className="w-10 h-10 rounded-full overflow-hidden active:opacity-70"
+              >
+                {userProfile?.avatar_seed ? (
+                  <Avatar
+                    seed={`${userProfile.avatar_seed}_${userProfile.avatar_salt ?? ''}`}
+                    size={40}
+                    style="notionists"
+                  />
+                ) : (
+                  <div
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold uppercase"
+                    style={{ background: `linear-gradient(135deg, ${T.accent}, #8B5CF6)` }}
+                  >
+                    {avatarLetter}
+                  </div>
+                )}
+              </button>
             </motion.div>
           )}
 
@@ -752,152 +782,109 @@ export default function MobileLayout({
                                       }}
                                     />
 
-                                    {/* Swipe container */}
-                                    <div className="relative overflow-hidden rounded-xl ml-1">
-                                      {/* Right swipe background (delete) */}
-                                      <div
-                                        className="absolute inset-y-0 left-0 flex items-center pl-3"
-                                        style={{ backgroundColor: '#FEF2F2' }}
-                                      >
-                                        <Trash2 size={16} style={{ color: '#EF4444' }} />
-                                      </div>
-                                      {/* Left swipe background (complete task) */}
+                                    {/* Card */}
+                                    <div
+                                      className="pl-4 pb-2 pt-2 pr-3 rounded-xl transition-colors relative ml-1"
+                                      style={{
+                                        backgroundColor: (event.color || T.accent) + (isExpanded ? '28' : '15'),
+                                      }}
+                                      onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
+                                    >
+                                      {/* Task checkbox — shown when event.is_task is true */}
                                       {event.is_task && (
-                                        <div
-                                          className="absolute inset-y-0 right-0 flex items-center pr-3"
-                                          style={{ backgroundColor: '#F0FDF4' }}
+                                        <button
+                                          onClick={e => {
+                                            e.stopPropagation();
+                                            onTaskComplete?.(event.id, !event.is_completed);
+                                          }}
+                                          className="mb-1 flex items-center gap-1.5 active:opacity-60"
+                                          style={{ color: event.is_completed ? T.accent : T.textMuted }}
                                         >
-                                          <Check size={16} style={{ color: '#10B981' }} />
-                                        </div>
+                                          {event.is_completed
+                                            ? <CheckSquare size={15} />
+                                            : <Square size={15} />}
+                                          <span className="text-[10px] font-semibold uppercase tracking-wide">
+                                            {event.is_completed ? 'Erledigt' : 'Aufgabe'}
+                                          </span>
+                                        </button>
+                                      )}
+                                      {/* TODO(dark): dark:text-white */}
+                                      <h3
+                                        className="font-semibold text-sm leading-tight"
+                                        style={{
+                                          color: T.textPrimary,
+                                          textDecoration: event.is_completed ? 'line-through' : 'none',
+                                          opacity: event.is_completed ? 0.5 : 1,
+                                        }}
+                                      >
+                                        {event.title || 'Untitled Event'}
+                                      </h3>
+                                      {event.description && !isExpanded && (
+                                        <p
+                                          className="text-xs mt-0.5 line-clamp-1"
+                                          style={{ color: T.textSec }}
+                                        >
+                                          {event.description}
+                                        </p>
                                       )}
 
-                                      {/* Draggable card */}
-                                      <motion.div
-                                        drag="x"
-                                        dragConstraints={{ left: event.is_task ? -90 : 0, right: 90 }}
-                                        dragElastic={{ left: event.is_task ? 0.15 : 0, right: 0.15 }}
-                                        onDragEnd={(_, info) => {
-                                          if (info.offset.x > 70) {
-                                            onEventDelete?.(event.id);
-                                          } else if (event.is_task && info.offset.x < -70) {
-                                            onTaskComplete?.(event.id, true);
-                                          }
-                                        }}
-                                        onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
-                                        className="pl-4 pb-2 pt-2 pr-3 rounded-xl transition-colors relative"
-                                        style={{
-                                          backgroundColor: (event.color || T.accent) + (isExpanded ? '28' : '15'),
-                                        }}
-                                      >
-                                        {/* Task checkbox — shown when event.is_task is true */}
-                                        {event.is_task && (
-                                          <button
-                                            onClick={e => {
-                                              e.stopPropagation();
-                                              onTaskComplete?.(event.id, !event.is_completed);
-                                            }}
-                                            className="mb-1 flex items-center gap-1.5 active:opacity-60"
-                                            style={{ color: event.is_completed ? T.accent : T.textMuted }}
+                                      {/* Expanded detail */}
+                                      <AnimatePresence>
+                                        {isExpanded && (
+                                          <motion.div
+                                            key="event-detail"
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: 'auto' }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            transition={{ duration: 0.15, ease: 'easeOut' }}
+                                            className="overflow-hidden"
                                           >
-                                            {event.is_completed
-                                              ? <CheckSquare size={15} />
-                                              : <Square size={15} />}
-                                            <span className="text-[10px] font-semibold uppercase tracking-wide">
-                                              {event.is_completed ? 'Erledigt' : 'Aufgabe'}
-                                            </span>
-                                          </button>
-                                        )}
-                                        {/* TODO(dark): dark:text-white */}
-                                        <h3
-                                          className="font-semibold text-sm leading-tight"
-                                          style={{
-                                            color: T.textPrimary,
-                                            textDecoration: event.is_completed ? 'line-through' : 'none',
-                                            opacity: event.is_completed ? 0.5 : 1,
-                                          }}
-                                        >
-                                          {event.title || 'Untitled Event'}
-                                        </h3>
-                                        {event.description && !isExpanded && (
-                                          <p
-                                            className="text-xs mt-0.5 line-clamp-1"
-                                            style={{ color: T.textSec }}
-                                          >
-                                            {event.description}
-                                          </p>
-                                        )}
-
-                                        {/* Expanded detail */}
-                                        <AnimatePresence>
-                                          {isExpanded && (
-                                            <motion.div
-                                              key="event-detail"
-                                              initial={{ opacity: 0, height: 0 }}
-                                              animate={{ opacity: 1, height: 'auto' }}
-                                              exit={{ opacity: 0, height: 0 }}
-                                              transition={{ duration: 0.15, ease: 'easeOut' }}
-                                              className="overflow-hidden"
-                                            >
-                                              <div className="mt-2 flex flex-col gap-2">
-                                                {/* Compact status chip */}
-                                                {/* TODO(dark): chip color */}
-                                                <div
-                                                  className="flex items-center px-3 py-1.5 rounded-xl text-xs font-semibold w-fit"
-                                                  style={{
-                                                    backgroundColor: (event.color || T.accent) + '22',
-                                                    color: event.color || T.accent,
-                                                  }}
-                                                >
-                                                  {formatTimeInfo(startDate, endDate, now).status}
-                                                </div>
-
-                                                {/* Description — editable on tap */}
-                                                {editingDescId === event.id ? (
-                                                  <textarea
-                                                    autoFocus
-                                                    defaultValue={event.description || ''}
-                                                    className="text-xs rounded-lg resize-none outline-none w-full"
-                                                    style={{
-                                                      color: T.textSec,
-                                                      backgroundColor: T.iconBg,
-                                                      minHeight: '48px',
-                                                      padding: '8px',
-                                                      border: 'none',
-                                                    }}
-                                                    onBlur={e => {
-                                                      const newDesc = e.target.value;
-                                                      useDataStore.setState((s: any) => ({
-                                                        events: s.events.map((ev: any) =>
-                                                          ev.id === event.id ? { ...ev, description: newDesc } : ev
-                                                        )
-                                                      }));
-                                                      setEditingDescId(null);
-                                                    }}
-                                                  />
-                                                ) : (
-                                                  <p
-                                                    className="text-xs px-1 cursor-text"
-                                                    style={{ color: event.description ? T.textSec : T.textMuted, minHeight: '20px' }}
-                                                    onClick={e => { e.stopPropagation(); setEditingDescId(event.id); }}
-                                                  >
-                                                    {event.description || 'Beschreibung hinzufügen…'}
-                                                  </p>
-                                                )}
-
-                                                {/* Delete icon button */}
-                                                <button
-                                                  onClick={e => { e.stopPropagation(); onEventDelete?.(event.id); }}
-                                                  className="flex items-center gap-1 px-1 py-1 rounded-lg w-fit active:opacity-60"
-                                                  style={{ color: '#EF4444' }}
-                                                >
-                                                  <Trash2 size={14} />
-                                                  <span className="text-xs font-medium">Löschen</span>
-                                                </button>
+                                            <div className="mt-2 flex flex-col gap-2">
+                                              {/* Compact status chip */}
+                                              {/* TODO(dark): chip color */}
+                                              <div
+                                                className="flex items-center px-3 py-1.5 rounded-xl text-xs font-semibold w-fit"
+                                                style={{
+                                                  backgroundColor: (event.color || T.accent) + '22',
+                                                  color: event.color || T.accent,
+                                                }}
+                                              >
+                                                {formatTimeInfo(startDate, endDate, now).status}
                                               </div>
-                                            </motion.div>
-                                          )}
-                                        </AnimatePresence>
-                                      </motion.div>
+
+                                              {/* Fix 3: Abschließen button */}
+                                              {event.is_task && !event.is_completed && (
+                                                <button
+                                                  onClick={e => { e.stopPropagation(); onTaskComplete?.(event.id, true); }}
+                                                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg w-fit active:opacity-60"
+                                                  style={{ color: '#10B981', backgroundColor: '#F0FDF4' }}
+                                                >
+                                                  <Check size={14} />
+                                                  <span className="text-xs font-medium">Abschließen</span>
+                                                </button>
+                                              )}
+
+                                              {/* Description — static */}
+                                              <p
+                                                className="text-xs px-1"
+                                                style={{ color: event.description ? T.textSec : T.textMuted, minHeight: '20px' }}
+                                              >
+                                                {event.description || 'Keine Beschreibung'}
+                                              </p>
+
+                                              {/* Delete icon button */}
+                                              <button
+                                                onClick={e => { e.stopPropagation(); onEventDelete?.(event.id); }}
+                                                className="flex items-center gap-1 px-1 py-1 rounded-lg w-fit active:opacity-60"
+                                                style={{ color: '#EF4444' }}
+                                              >
+                                                <Trash2 size={14} />
+                                                <span className="text-xs font-medium">Löschen</span>
+                                              </button>
+                                            </div>
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
                                     </div>
                                   </div>
                                 </div>
@@ -992,146 +979,150 @@ export default function MobileLayout({
             </motion.div>
           )}
 
-          {/* ── Profile tab ───────────────────────────────────────────────── */}
-          {activeTab === 'profile' && (
-            <motion.div
-              key={contentKey}
-              {...getTabAnim()}
-              className="p-4 flex flex-col gap-4"
-            >
-              {/* Avatar card */}
-              {/* TODO(dark): card bg dark:bg-gray-900, border dark:border-gray-800 */}
-              <div
-                className="rounded-3xl p-6 flex flex-col items-center gap-2"
-                style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}
-              >
-                {/* Avatar */}
-                {userProfile?.avatar_seed ? (
-                  <Avatar
-                    seed={`${userProfile.avatar_seed}_${userProfile.avatar_salt ?? ''}`}
-                    size={80}
-                    style="notionists"
-                  />
-                ) : (
-                  <div
-                    className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-1 uppercase"
-                    style={{ background: `linear-gradient(135deg, ${T.accent}, #8B5CF6)` }}
-                  >
-                    {avatarLetter}
-                  </div>
-                )}
-                {/* TODO(dark): dark:text-gray-100 */}
-                <h2 className="text-lg font-bold" style={{ color: T.textPrimary }}>
-                  {username}
-                </h2>
-                {/* TODO(dark): dark:text-gray-400 */}
-                <span className="text-sm" style={{ color: T.textSec }}>
-                  {userProfile?.email || 'No email linked'}
-                </span>
-              </div>
-
-              {/* Menu list card */}
-              {/* TODO(dark): card bg dark:bg-gray-900, border dark:border-gray-800 */}
-              <div
-                className="rounded-3xl overflow-hidden"
-                style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}
-              >
-                {[
-                  { icon: <User size={18} />, label: 'Profil', isRed: false },
-                  { icon: <Settings size={18} />, label: 'E2EE Keys', isRed: false },
-                  { icon: <Settings size={18} />, label: 'Geräte', isRed: false },
-                  { icon: <Settings size={18} />, label: 'Passwörter', isRed: false },
-                  { icon: <FileText size={18} />, label: 'Sprache', isRed: false },
-                  { icon: <LogOut size={18} />, label: 'Abmelden', isRed: true },
-                ].map((item, i) => (
-                  <button
-                    key={item.label}
-                    className="flex items-center justify-between w-full px-5 py-4 transition-colors active:bg-black/5"
-                    style={{
-                      borderTop: i > 0 ? `1px solid ${T.border}` : 'none', /* TODO(dark): dark:border-gray-800 */
-                    }}
-                  >
-                    <div className="flex items-center gap-4">
-                      {/* Icon container */}
-                      {/* TODO(dark): iconBg dark:bg-gray-800 */}
-                      <div
-                        className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                        style={{
-                          backgroundColor: item.isRed ? '#FEF2F2' : T.iconBg, /* TODO(dark): red bg dark:bg-red-900/20 */
-                          color: item.isRed ? '#EF4444' : T.textSec, /* TODO(dark): dark:text-gray-400 */
-                        }}
-                      >
-                        {item.icon}
-                      </div>
-                      {/* TODO(dark): dark:text-gray-200 / red stays */}
-                      <span
-                        className="font-semibold text-sm"
-                        style={{ color: item.isRed ? '#EF4444' : T.textPrimary }}
-                      >
-                        {item.label}
-                      </span>
-                    </div>
-                    {/* No chevron on Abmelden */}
-                    {!item.isRed && (
-                      /* TODO(dark): dark:text-gray-600 */
-                      <ChevronRight size={18} style={{ color: T.textMuted }} />
-                    )}
-                  </button>
-                ))}
-              </div>
+          {/* ── Social tab ────────────────────────────────────────────────── */}
+          {activeTab === 'social' && (
+            <motion.div key={contentKey} {...getTabAnim()}>
+              {socialHubElement}
             </motion.div>
           )}
 
         </AnimatePresence>
       </div>
 
+      {/* Profile overlay — accessible from Social tab via own avatar */}
+      {isProfileOpen && (
+        <div
+          className="fixed inset-0 z-40 overflow-y-auto no-scrollbar pb-20"
+          style={{ backgroundColor: T.bg }}
+        >
+          {/* Back button */}
+          <div className="px-5 pt-12 pb-4 flex items-center gap-3">
+            <button
+              onClick={() => setIsProfileOpen(false)}
+              className="p-2 rounded-full"
+              style={{ backgroundColor: T.iconBg }}
+            >
+              <ArrowLeft size={20} style={{ color: T.accent }} />
+            </button>
+            <h1 className="text-xl font-bold" style={{ color: T.textPrimary }}>Profil</h1>
+          </div>
+
+          <div className="p-4 flex flex-col gap-4">
+            {/* Avatar card */}
+            <div
+              className="rounded-3xl p-6 flex flex-col items-center gap-2"
+              style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}
+            >
+              {userProfile?.avatar_seed ? (
+                <Avatar
+                  seed={`${userProfile.avatar_seed}_${userProfile.avatar_salt ?? ''}`}
+                  size={80}
+                  style="notionists"
+                />
+              ) : (
+                <div
+                  className="w-20 h-20 rounded-full flex items-center justify-center text-white text-2xl font-bold uppercase"
+                  style={{ background: `linear-gradient(135deg, ${T.accent}, #8B5CF6)` }}
+                >
+                  {avatarLetter}
+                </div>
+              )}
+              <p className="text-lg font-bold" style={{ color: T.textPrimary }}>{username}</p>
+              <span className="text-sm" style={{ color: T.textSec }}>{userProfile?.email || ''}</span>
+            </div>
+
+            {/* Menu list */}
+            <div
+              className="rounded-3xl overflow-hidden"
+              style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}
+            >
+              {([
+                { icon: <User size={18} />, label: 'Profil' },
+                { icon: <Settings size={18} />, label: 'E2EE Keys' },
+                { icon: <Settings size={18} />, label: 'Geräte' },
+                { icon: <Settings size={18} />, label: 'Passwörter' },
+                { icon: <FileText size={18} />, label: 'Sprache' },
+                { icon: <LogOut size={18} />, label: 'Abmelden', isRed: true },
+              ] as { icon: React.ReactNode; label: string; isRed?: boolean }[]).map((item, i, arr) => (
+                <button
+                  key={item.label}
+                  className="w-full flex items-center gap-4 px-5 py-4 transition-colors active:bg-black/5"
+                  style={{ borderBottom: i < arr.length - 1 ? `1px solid ${T.border}` : undefined }}
+                >
+                  <div
+                    className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                    style={{
+                      backgroundColor: item.isRed ? '#FEF2F2' : T.iconBg,
+                      color: item.isRed ? '#EF4444' : T.textSec,
+                    }}
+                  >
+                    {item.icon}
+                  </div>
+                  <span
+                    className="flex-1 text-sm font-semibold text-left"
+                    style={{ color: item.isRed ? '#EF4444' : T.textPrimary }}
+                  >
+                    {item.label}
+                  </span>
+                  {!item.isRed && <ChevronRight size={16} style={{ color: T.textMuted }} />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Floating dot navigation — 3 tabs + tracker */}
       {/* TODO(dark): dot color dark:rgba(255,255,255,0.25) */}
-      <div className="fixed bottom-5 left-0 right-0 flex justify-center items-center gap-2.5 z-50 pointer-events-none">
-        {tabOrder.map((tab) => (
+      <div className="fixed bottom-5 left-0 right-0 flex justify-center items-center z-50 pointer-events-none">
+        <div className="flex items-center gap-2.5 bg-white/60 backdrop-blur-sm rounded-full px-4 py-2">
+          {tabOrder.map((tab) => (
+            <div
+              key={tab}
+              className="rounded-full transition-all duration-200"
+              style={{
+                width: activeTab === tab ? '18px' : '6px',
+                height: '6px',
+                backgroundColor: activeTab === tab ? T.accent : 'rgba(0,0,0,0.25)',
+              }}
+            />
+          ))}
+          {/* Tracker dot */}
           <div
-            key={tab}
             className="rounded-full transition-all duration-200"
             style={{
-              width: activeTab === tab ? '18px' : '6px',
+              width: trackerProgress > 0 ? '18px' : '6px',
               height: '6px',
-              backgroundColor: activeTab === tab ? T.accent : 'rgba(0,0,0,0.18)',
+              backgroundColor: trackerProgress > 0 ? T.accent : 'rgba(0,0,0,0.25)',
             }}
           />
-        ))}
-        {/* Tracker dot */}
-        <div
-          className="rounded-full transition-all duration-200"
-          style={{
-            width: trackerProgress > 0 ? '18px' : '6px',
-            height: '6px',
-            backgroundColor: trackerProgress > 0 ? T.accent : 'rgba(0,0,0,0.18)',
-          }}
-        />
+        </div>
       </div>
 
       {/* Tracker circular progress — appears when swiping from Profile toward Tracker */}
       {trackerProgress > 0 && (
-        <div
-          className="fixed bottom-3 right-4 z-50 flex items-center justify-center"
-          style={{ width: 44, height: 44 }}
-        >
-          <svg width="44" height="44" viewBox="0 0 44 44">
-            <circle cx="22" cy="22" r="18" fill="none" stroke="#E5E7EB" strokeWidth="2.5" />
-            <circle
-              cx="22" cy="22" r="18"
-              fill="none"
-              stroke={T.accent}
-              strokeWidth="2.5"
-              strokeDasharray={`${2 * Math.PI * 18}`}
-              strokeDashoffset={`${2 * Math.PI * 18 * (1 - trackerProgress)}`}
-              strokeLinecap="round"
-              transform="rotate(-90 22 22)"
-              style={{ transition: 'stroke-dashoffset 0.05s linear' }}
-            />
-          </svg>
-          <div className="absolute" style={{ color: T.accent }}>
-            <Dumbbell size={14} />
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="flex flex-col items-center gap-3 bg-white/80 backdrop-blur-md rounded-3xl p-8 shadow-xl">
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="34" fill="none" stroke="#E5E7EB" strokeWidth="4" />
+              <circle
+                cx="40" cy="40" r="34"
+                fill="none"
+                stroke={T.accent}
+                strokeWidth="4"
+                strokeDasharray={`${2 * Math.PI * 34}`}
+                strokeDashoffset={`${2 * Math.PI * 34 * (1 - trackerProgress)}`}
+                strokeLinecap="round"
+                transform="rotate(-90 40 40)"
+                style={{ transition: 'stroke-dashoffset 0.05s linear' }}
+              />
+            </svg>
+            <div style={{ color: T.accent }}>
+              <Dumbbell size={20} />
+            </div>
+            <span className="text-sm font-bold" style={{ color: T.accent }}>
+              {Math.round(trackerProgress * 100)}%
+            </span>
           </div>
         </div>
       )}
