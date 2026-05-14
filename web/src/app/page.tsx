@@ -2860,7 +2860,7 @@ export default function Dashboard() {
             {/* Mobile Layout Wrapper */}
             <MobileLayout
                 events={events}
-                files={files.filter((f: any) => !f.isGroup && !(f.title || '').startsWith('.'))}
+                files={files.filter((f: any) => !f.isGroup && !(f.title || '').startsWith('.') && f.type !== 'event')}
                 folders={files.filter((f: any) => f.type === 'folder' && !f.isGroup)}
                 onNoteSelect={(id: string, title: string) => {
                     handleFileSelect(id, title);
@@ -2893,9 +2893,8 @@ export default function Dashboard() {
                 }}
                 socialHubElement={
                     <SocialHub
-                        onOpenProfile={(userId, username) => {
-                            // Mobile: other profiles are no-op for now
-                        }}
+                        compact={true}
+                        onOpenProfile={(userId, username) => {}}
                         onOpenFile={(fileId, title, parentId) => {
                             handleFileSelect(fileId, title);
                         }}

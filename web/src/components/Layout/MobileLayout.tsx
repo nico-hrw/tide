@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import {
   Calendar as CalendarIcon,
   FileText,
@@ -83,9 +83,9 @@ const MobileNoteRow = ({ file, onClick }: { file: any; onClick: () => void }) =>
     {/* TODO(dark): iconBg → dark:bg-blue-900/20 */}
     <div
       className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-      style={{ backgroundColor: T.iconBg }}
+      style={{ backgroundColor: '#F3F4F6' }}
     >
-      <FileText size={16} style={{ color: T.accent }} />
+      <FileText size={16} style={{ color: '#6B7280' }} />
     </div>
     <span className="flex-1 text-sm font-semibold truncate" style={{ color: T.textPrimary }}>
       {file.title || 'Untitled'}
@@ -130,8 +130,13 @@ const MobileFolderItem = ({
         // TODO(dark): hover bg should be dark:bg-gray-800/50
         style={{ backgroundColor: 'rgba(249,250,251,1)' }}
       >
-        {/* TODO(dark): folder icon dark:text-blue-400 */}
-        <Folder size={18} style={{ color: T.accent }} />
+        {/* TODO(dark): folder icon dark:text-gray-500 */}
+        <div
+          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+          style={{ backgroundColor: '#F3F4F6' }}
+        >
+          <Folder size={18} style={{ color: '#6B7280' }} />
+        </div>
         <span
           className="font-bold text-sm w-full truncate"
           style={{ color: T.textPrimary }} /* TODO(dark): dark:text-gray-100 */
@@ -309,8 +314,12 @@ export default function MobileLayout({
   // Swipe navigation
   const tabOrder: Tab[] = ['notes', 'calendar', 'social'];
   const swipeTouchStartX = useRef<number>(0);
+  const verticalPullStartY = useRef<number>(0);
   const [swipeDelta, setSwipeDelta] = useState(0);
   const [trackerProgress, setTrackerProgress] = useState(0);
+  const trackerProgressMV = useMotionValue(0);
+  const trackerCircumference = 2 * Math.PI * 34;
+  const trackerDashOffset = useTransform(trackerProgressMV, [0, 1], [trackerCircumference, 0]);
   const swipeDirRef = useRef<1 | -1>(1);
 
   const getTabAnim = () => ({
@@ -377,15 +386,9 @@ export default function MobileLayout({
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (activeTab !== 'calendar') return;
     const el = e.currentTarget;
-
-    // Month/week toggle
-    if (el.scrollTop <= 15) {
-      setIsMonthExpanded(true);
-    } else if (el.scrollTop > 60) {
+    if (el.scrollTop > 60) {
       setIsMonthExpanded(false);
     }
-
-    // Infinite scroll
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
       if (visibleDays !== loadMoreTriggeredAt.current) {
         loadMoreTriggeredAt.current = visibleDays;
@@ -396,8 +399,10 @@ export default function MobileLayout({
 
   const handleSwipeStart = (e: React.TouchEvent) => {
     swipeTouchStartX.current = e.touches[0].clientX;
+    verticalPullStartY.current = e.touches[0].clientY;
     setSwipeDelta(0);
     setTrackerProgress(0);
+    trackerProgressMV.set(0);
   };
 
   const handleSwipeMove = (e: React.TouchEvent) => {
@@ -405,9 +410,23 @@ export default function MobileLayout({
     setSwipeDelta(delta);
     const idx = tabOrder.indexOf(activeTab);
     if (idx === 2 && delta < 0) {
-      setTrackerProgress(Math.min(1, Math.abs(delta) / 150));
+      const progress = Math.min(1, Math.abs(delta) / 150);
+      setTrackerProgress(progress);
+      trackerProgressMV.set(progress);
     } else {
       setTrackerProgress(0);
+      trackerProgressMV.set(0);
+    }
+
+    // Vertical pull-down to expand month calendar
+    if (activeTab === 'calendar' && !isMonthExpanded) {
+      const scrollEl = e.currentTarget as HTMLElement;
+      if (scrollEl.scrollTop <= 0) {
+        const pullDown = e.touches[0].clientY - verticalPullStartY.current;
+        if (pullDown > 60) {
+          setIsMonthExpanded(true);
+        }
+      }
     }
   };
 
@@ -431,6 +450,7 @@ export default function MobileLayout({
     }
     setSwipeDelta(0);
     setTrackerProgress(0);
+    trackerProgressMV.set(0);
   };
 
   // ── Header key per sub-view ─────────────────────────────────────────────────
@@ -605,7 +625,7 @@ export default function MobileLayout({
               >
                 {userProfile?.avatar_seed ? (
                   <Avatar
-                    seed={`${userProfile.avatar_seed}_${userProfile.avatar_salt ?? ''}`}
+                    seed={`${userProfile.avatar_seed}${userProfile.avatar_salt ?? ''}`}
                     size={40}
                     style="notionists"
                   />
@@ -634,6 +654,7 @@ export default function MobileLayout({
         style={{
           transform: `translateX(${swipeDelta * 0.15}px)`,
           transition: swipeDelta === 0 ? 'transform 0.2s ease-out' : 'none',
+          scrollSnapType: activeTab === 'calendar' ? 'y proximity' : 'none',
         }}
       >
         <AnimatePresence mode="wait">
@@ -675,18 +696,33 @@ export default function MobileLayout({
                     }
 
                     return (
-                      <div key={date.toISOString()} className={dayIdx > 0 ? 'mt-8' : ''}>
+                      <div key={date.toISOString()} className={dayIdx > 0 ? 'mt-8' : ''} style={{ scrollSnapAlign: 'start' }}>
                         {/* Date separator */}
                         <div className="flex items-center gap-4 mb-5">
                           {/* TODO(dark): dark:text-gray-500 */}
-                          <span
-                            className="text-xs font-semibold uppercase tracking-widest shrink-0"
-                            style={{ color: T.textMuted }}
-                          >
-                            {isDayToday
-                              ? `Today · ${format(date, 'EEE d', { locale: enUS })}`
-                              : format(date, 'EEEE d', { locale: enUS })}
-                          </span>
+                          {isDayToday ? (
+                            <span className="flex items-center gap-2 shrink-0">
+                              <span
+                                className="text-xs font-bold px-2 py-0.5 rounded-full text-white"
+                                style={{ backgroundColor: T.accent }}
+                              >
+                                Heute
+                              </span>
+                              <span
+                                className="text-xs font-semibold uppercase tracking-widest"
+                                style={{ color: T.accent }}
+                              >
+                                {format(date, 'EEE d', { locale: enUS })}
+                              </span>
+                            </span>
+                          ) : (
+                            <span
+                              className="text-xs font-semibold uppercase tracking-widest shrink-0"
+                              style={{ color: T.textMuted }}
+                            >
+                              {format(date, 'EEEE d', { locale: enUS })}
+                            </span>
+                          )}
                           {/* TODO(dark): dark:bg-gray-800 */}
                           <div className="flex-1 h-px" style={{ backgroundColor: T.border }} />
                         </div>
@@ -718,7 +754,11 @@ export default function MobileLayout({
                             <CalendarIcon size={20} style={{ color: T.border }} />
                             <p className="text-xs" style={{ color: T.textMuted }}>Keine Termine</p>
                           </div>
-                        ) : timedEvents.length === 0 ? null : (
+                        ) : timedEvents.length === 0 ? (
+                          <p className="text-xs py-2" style={{ color: T.textMuted }}>
+                            {allDayEvents.length > 0 ? 'Keine weiteren Termine' : 'Keine Termine'}
+                          </p>
+                        ) : (
                           <div className="relative flex flex-col">
                             {/* Vertical timeline line */}
                             {/* TODO(dark): base color dark:bg-gray-700 */}
@@ -907,57 +947,51 @@ export default function MobileLayout({
               {...getTabAnim()}
               className="p-4"
             >
-              {/* TODO(dark): card bg dark:bg-gray-900, border dark:border-gray-800 */}
-              <div
-                className="rounded-3xl overflow-hidden"
-                style={{ backgroundColor: T.card, border: `1px solid ${T.border}` }}
+              {/* New Note button row */}
+              <button
+                onClick={() => {
+                  onNewNote();
+                  setIsEditingNote(true);
+                }}
+                className="flex items-center gap-3 w-full px-5 py-4 transition-colors active:bg-black/5"
+                style={{ borderBottom: `1px solid ${T.border}` }} /* TODO(dark): dark:border-gray-800 */
               >
-                {/* New Note button row */}
-                <button
-                  onClick={() => {
-                    onNewNote();
-                    setIsEditingNote(true);
-                  }}
-                  className="flex items-center gap-3 w-full px-5 py-4 transition-colors active:bg-black/5"
-                  style={{ borderBottom: `1px solid ${T.border}` }} /* TODO(dark): dark:border-gray-800 */
+                {/* TODO(dark): iconBg dark:bg-blue-900/20 */}
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                  style={{ backgroundColor: T.iconBg }}
                 >
-                  {/* TODO(dark): iconBg dark:bg-blue-900/20 */}
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: T.iconBg }}
-                  >
-                    <Plus size={16} style={{ color: T.accent }} />
-                  </div>
-                  {/* TODO(dark): dark:text-blue-400 */}
-                  <span className="font-semibold text-sm" style={{ color: T.accent }}>
-                    New Note
-                  </span>
-                </button>
-
-                {/* Folders */}
-                <div className="flex flex-col gap-1 p-3">
-                  {folders
-                    .filter(f => !f.parent_id)
-                    .map(folder => (
-                      <MobileFolderItem key={folder.id} folder={folder} allFiles={files} />
-                    ))}
-
-                  {/* Root files */}
-                  {files
-                    .filter(f => !f.parent_id && f.type !== 'folder')
-                    .map(file => (
-                      <MobileNoteRow
-                        key={file.id}
-                        file={file}
-                        onClick={() => {
-                          useDataStore.getState().setActiveNoteId(file.id);
-                          window.dispatchEvent(
-                            new CustomEvent('mobile_open_note', { detail: { id: file.id, title: file.title } })
-                          );
-                        }}
-                      />
-                    ))}
+                  <Plus size={16} style={{ color: T.accent }} />
                 </div>
+                {/* TODO(dark): dark:text-blue-400 */}
+                <span className="font-semibold text-sm" style={{ color: T.accent }}>
+                  New Note
+                </span>
+              </button>
+
+              {/* Folders */}
+              <div className="flex flex-col gap-1 p-3">
+                {folders
+                  .filter(f => !f.parent_id)
+                  .map(folder => (
+                    <MobileFolderItem key={folder.id} folder={folder} allFiles={files} />
+                  ))}
+
+                {/* Root files */}
+                {files
+                  .filter(f => !f.parent_id && f.type !== 'folder')
+                  .map(file => (
+                    <MobileNoteRow
+                      key={file.id}
+                      file={file}
+                      onClick={() => {
+                        useDataStore.getState().setActiveNoteId(file.id);
+                        window.dispatchEvent(
+                          new CustomEvent('mobile_open_note', { detail: { id: file.id, title: file.title } })
+                        );
+                      }}
+                    />
+                  ))}
               </div>
             </motion.div>
           )}
@@ -1015,7 +1049,7 @@ export default function MobileLayout({
             >
               {userProfile?.avatar_seed ? (
                 <Avatar
-                  seed={`${userProfile.avatar_seed}_${userProfile.avatar_salt ?? ''}`}
+                  seed={`${userProfile.avatar_seed}${userProfile.avatar_salt ?? ''}`}
                   size={80}
                   style="notionists"
                 />
@@ -1105,16 +1139,15 @@ export default function MobileLayout({
           <div className="flex flex-col items-center gap-3 bg-white/80 backdrop-blur-md rounded-3xl p-8 shadow-xl">
             <svg width="80" height="80" viewBox="0 0 80 80">
               <circle cx="40" cy="40" r="34" fill="none" stroke="#E5E7EB" strokeWidth="4" />
-              <circle
+              <motion.circle
                 cx="40" cy="40" r="34"
                 fill="none"
                 stroke={T.accent}
                 strokeWidth="4"
-                strokeDasharray={`${2 * Math.PI * 34}`}
-                strokeDashoffset={`${2 * Math.PI * 34 * (1 - trackerProgress)}`}
+                strokeDasharray={trackerCircumference}
+                style={{ strokeDashoffset: trackerDashOffset }}
                 strokeLinecap="round"
                 transform="rotate(-90 40 40)"
-                style={{ transition: 'stroke-dashoffset 0.05s linear' }}
               />
             </svg>
             <div style={{ color: T.accent }}>
