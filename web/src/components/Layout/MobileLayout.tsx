@@ -15,6 +15,8 @@ import {
   Dumbbell,
   CheckSquare,
   Square,
+  Trash2,
+  Check,
 } from 'lucide-react';
 import { isSameDay, format, startOfWeek, addDays } from 'date-fns';
 import { enUS } from 'date-fns/locale';
@@ -27,7 +29,7 @@ import Avatar from '../Profile/Avatar';
 // value based on a useColorScheme() hook, or use Tailwind dark: variants
 // throughout the JSX (search for every TODO(dark) comment in this file).
 const T = {
-  bg:          '#F0F4FF',
+  bg:          '#FFFFFF',
   card:        '#FFFFFF',
   accent:      '#3B82F6',
   textPrimary: '#111827',
@@ -38,13 +40,8 @@ const T = {
   rowHover:    'rgba(0,0,0,0.035)',
 } as const;
 
-// ─── Shared animation preset ─────────────────────────────────────────────────
-const tabAnim = {
-  initial:    { opacity: 0, y: 8 },
-  animate:    { opacity: 1, y: 0 },
-  exit:       { opacity: 0, y: -8 },
-  transition: { duration: 0.12, ease: 'easeOut' as const },
-};
+// ─── Shared animation preset — direction-aware ───────────────────────────────
+// getTabAnim() is defined inside MobileLayout (needs swipeDir state)
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface MobileLayoutProps {
@@ -178,35 +175,6 @@ const MobileFolderItem = ({
   );
 };
 
-// ─── NavTab ───────────────────────────────────────────────────────────────────
-const NavTab = ({
-  icon,
-  active,
-  onClick,
-  override,
-}: {
-  icon: React.ReactNode;
-  active: boolean;
-  onClick: () => void;
-  override?: React.ReactNode;
-}) => (
-  <motion.button
-    onClick={onClick}
-    whileTap={{ scale: 0.82 }}
-    className="flex flex-col items-center justify-center flex-1 h-full gap-1 focus:outline-none"
-    style={{ color: active ? T.accent : T.textMuted }} /* TODO(dark): inactive dark:text-gray-500 */
-  >
-    {override ?? icon}
-    {/* Active dot */}
-    <motion.div
-      animate={{ opacity: active ? 1 : 0, scale: active ? 1 : 0 }}
-      transition={{ duration: 0.15 }}
-      className="w-1 h-1 rounded-full"
-      style={{ backgroundColor: T.accent }}
-    />
-  </motion.button>
-);
-
 // ─── Time-relative info for an event ─────────────────────────────────────────
 function formatTimeInfo(
   startDate: Date,
@@ -332,9 +300,23 @@ export default function MobileLayout({
   const [activeDate, setActiveDate] = useState(new Date());
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const [visibleDays, setVisibleDays] = useState(5);
-  const MINI_CAL_HEIGHT = 290;
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isMonthExpanded, setIsMonthExpanded] = useState(false);
+  const [editingDescId, setEditingDescId] = useState<string | null>(null);
   const loadMoreTriggeredAt = useRef<number>(0);
+
+  // Swipe navigation
+  const tabOrder: Tab[] = ['notes', 'calendar', 'profile'];
+  const swipeTouchStartX = useRef<number>(0);
+  const [swipeDelta, setSwipeDelta] = useState(0);
+  const [trackerProgress, setTrackerProgress] = useState(0);
+  const [swipeDir, setSwipeDir] = useState<1 | -1>(1);
+
+  const getTabAnim = () => ({
+    initial:    { x: swipeDir * 40, opacity: 0 },
+    animate:    { x: 0, opacity: 1 },
+    exit:       { x: swipeDir * -40, opacity: 0 },
+    transition: { duration: 0.2, ease: 'easeOut' as const },
+  });
 
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -376,13 +358,6 @@ export default function MobileLayout({
     setVisibleDays(5);
   }, [activeDate]);
 
-  // Hide mini-calendar when switching to calendar tab or changing date
-  useEffect(() => {
-    if (activeTab === 'calendar' && scrollRef.current) {
-      scrollRef.current.scrollTop = MINI_CAL_HEIGHT;
-    }
-  }, [activeDate, activeTab]);
-
   // Shows activeDate + 4 more days so the timeline always has scrollable content
   const upcomingDays = useMemo(() => {
     return Array.from({ length: visibleDays }).map((_, i) => {
@@ -395,12 +370,60 @@ export default function MobileLayout({
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (activeTab !== 'calendar') return;
     const el = e.currentTarget;
+
+    // Month/week toggle
+    if (el.scrollTop <= 15) {
+      setIsMonthExpanded(true);
+    } else if (el.scrollTop > 60) {
+      setIsMonthExpanded(false);
+    }
+
+    // Infinite scroll
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
       if (visibleDays !== loadMoreTriggeredAt.current) {
         loadMoreTriggeredAt.current = visibleDays;
         setVisibleDays(d => d + 5);
       }
     }
+  };
+
+  const handleSwipeStart = (e: React.TouchEvent) => {
+    swipeTouchStartX.current = e.touches[0].clientX;
+    setSwipeDelta(0);
+    setTrackerProgress(0);
+  };
+
+  const handleSwipeMove = (e: React.TouchEvent) => {
+    const delta = e.touches[0].clientX - swipeTouchStartX.current;
+    setSwipeDelta(delta);
+    const idx = tabOrder.indexOf(activeTab);
+    if (idx === 2 && delta < 0) {
+      setTrackerProgress(Math.min(1, Math.abs(delta) / 150));
+    } else {
+      setTrackerProgress(0);
+    }
+  };
+
+  const handleSwipeEnd = () => {
+    const delta = swipeDelta;
+    const threshold = 60;
+    const idx = tabOrder.indexOf(activeTab);
+    if (delta < -threshold) {
+      if (idx === 2) {
+        if (trackerProgress >= 1) {
+          const url = process.env.NEXT_PUBLIC_TRACKER_URL;
+          if (url) window.location.href = url;
+        }
+      } else {
+        setSwipeDir(1);
+        setActiveTab(tabOrder[Math.min(idx + 1, 2)]);
+      }
+    } else if (delta > threshold && idx > 0) {
+      setSwipeDir(-1);
+      setActiveTab(tabOrder[Math.max(idx - 1, 0)]);
+    }
+    setSwipeDelta(0);
+    setTrackerProgress(0);
   };
 
   // ── Header key per sub-view ─────────────────────────────────────────────────
@@ -440,7 +463,7 @@ export default function MobileLayout({
 
           {/* Calendar header */}
           {activeTab === 'calendar' && (
-            <motion.div key={headerKey} {...tabAnim} className="pt-8 pb-2">
+            <motion.div key={headerKey} {...getTabAnim()} className="pt-8 pb-2">
               {/* Small date label */}
               {/* TODO(dark): dark:text-gray-500 */}
               <p className="text-xs px-5 mb-0.5" style={{ color: T.textMuted }}>
@@ -453,42 +476,68 @@ export default function MobileLayout({
                 {dayLabel}
               </p>
 
-              {/* Week strip — always visible */}
-              <div className="flex justify-between px-4">
-                {weekDays.map(d => {
-                  const isSelected = isSameDay(d, activeDate);
-                  const isWeekToday = isSameDay(d, now);
-                  return (
-                    <button
-                      key={d.toISOString()}
-                      onClick={() => setActiveDate(d)}
-                      className="flex flex-col items-center gap-0.5 py-0.5"
-                    >
-                      {/* TODO(dark): dark:text-gray-500 */}
-                      <span
-                        className="text-[10px] font-semibold uppercase"
-                        style={{ color: isWeekToday ? T.accent : T.textMuted }}
-                      >
-                        {format(d, 'eeeee', { locale: enUS })}
-                      </span>
-                      <span
-                        className="text-sm w-8 h-8 flex items-center justify-center"
-                        style={{
-                          color: isWeekToday ? T.accent : isSelected ? T.textPrimary : T.textSec,
-                          fontWeight: isSelected ? 700 : 500,
-                        }}
-                      >
-                        {format(d, 'd')}
-                      </span>
-                      {/* Today dot */}
-                      <div
-                        className="w-1 h-1 rounded-full"
-                        style={{ backgroundColor: isWeekToday ? T.accent : 'transparent' }}
-                      />
-                    </button>
-                  );
-                })}
-              </div>
+              {/* Month calendar OR week strip */}
+              <AnimatePresence mode="wait">
+                {isMonthExpanded ? (
+                  <motion.div
+                    key="month-cal"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <MiniCalendar
+                      selectedDate={activeDate}
+                      onSelect={d => {
+                        setActiveDate(d);
+                        setIsMonthExpanded(false);
+                      }}
+                    />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="week-strip"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <div className="flex justify-between px-4 pb-1">
+                      {weekDays.map(d => {
+                        const isSelected = isSameDay(d, activeDate);
+                        const isWeekToday = isSameDay(d, now);
+                        return (
+                          <button
+                            key={d.toISOString()}
+                            onClick={() => setActiveDate(d)}
+                            className="flex flex-col items-center gap-0.5 py-0.5"
+                          >
+                            <span
+                              className="text-[10px] font-semibold uppercase"
+                              style={{ color: isWeekToday ? T.accent : T.textMuted }}
+                            >
+                              {format(d, 'eeeee', { locale: enUS })}
+                            </span>
+                            <span
+                              className="text-sm w-8 h-8 flex items-center justify-center"
+                              style={{
+                                color: isWeekToday ? T.accent : isSelected ? T.textPrimary : T.textSec,
+                                fontWeight: isSelected ? 700 : 500,
+                              }}
+                            >
+                              {format(d, 'd')}
+                            </span>
+                            <div
+                              className="w-1 h-1 rounded-full"
+                              style={{ backgroundColor: isWeekToday ? T.accent : 'transparent' }}
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           )}
 
@@ -496,7 +545,7 @@ export default function MobileLayout({
           {activeTab === 'notes' && !isEditingNote && (
             <motion.div
               key={headerKey}
-              {...tabAnim}
+              {...getTabAnim()}
               className="px-6 pt-12 pb-6 flex items-center justify-center"
             >
               {/* TODO(dark): dark:text-gray-100 */}
@@ -510,7 +559,7 @@ export default function MobileLayout({
           {activeTab === 'notes' && isEditingNote && (
             <motion.div
               key={headerKey}
-              {...tabAnim}
+              {...getTabAnim()}
               className="px-4 pt-12 pb-4 flex items-center gap-3"
             >
               <button
@@ -532,7 +581,7 @@ export default function MobileLayout({
           {activeTab === 'profile' && (
             <motion.div
               key={headerKey}
-              {...tabAnim}
+              {...getTabAnim()}
               className="px-6 pt-12 pb-6 flex items-center justify-center"
             >
               {/* TODO(dark): dark:text-gray-100 */}
@@ -547,33 +596,28 @@ export default function MobileLayout({
 
       {/* ── Scrollable content ──────────────────────────────────────────────── */}
       <div
-        ref={scrollRef}
-        className="flex-1 w-full overflow-y-auto no-scrollbar pb-16"
+        className="flex-1 w-full overflow-y-auto no-scrollbar pb-12"
         onScroll={handleScroll}
+        onTouchStart={handleSwipeStart}
+        onTouchMove={handleSwipeMove}
+        onTouchEnd={handleSwipeEnd}
+        style={{
+          transform: `translateX(${swipeDelta * 0.15}px)`,
+          transition: swipeDelta === 0 ? 'transform 0.2s ease-out' : 'none',
+        }}
       >
         <AnimatePresence mode="wait">
 
           {/* ── Calendar tab ─────────────────────────────────────────────── */}
           {activeTab === 'calendar' && (
-            <motion.div key={contentKey} {...tabAnim}>
-              {/* Mini-calendar — scroll up to reveal, auto-hidden on mount/date change */}
-              {/* TODO(dark): dark:bg-gray-900 */}
-              <div style={{ backgroundColor: T.card }}>
-                <MiniCalendar
-                  selectedDate={activeDate}
-                  onSelect={d => {
-                    setActiveDate(d);
-                    requestAnimationFrame(() => {
-                      if (scrollRef.current) scrollRef.current.scrollTop = MINI_CAL_HEIGHT;
-                    });
-                  }}
-                />
-              </div>
-
+            <motion.div key={contentKey} {...getTabAnim()}>
               {/* TODO(dark): dark:bg-gray-900 */}
               <div
                 className="rounded-t-[32px] overflow-hidden min-h-full"
-                style={{ backgroundColor: T.card }}
+                style={{
+                  backgroundColor: T.card,
+                  boxShadow: '0 0 0 1.5px #D1D5DB, 0 2px 16px rgba(0,0,0,0.07)',
+                }}
               >
                 <div className="p-5 pb-32">
                   {upcomingDays.map(({ date, events: dayEvents }, dayIdx) => {
@@ -675,10 +719,7 @@ export default function MobileLayout({
                               return (
                                 <div
                                   key={`${event.id}-${idx}`}
-                                  onClick={() => {
-                                    setExpandedEventId(isExpanded ? null : event.id);
-                                  }}
-                                  className="flex gap-4 cursor-pointer relative z-10"
+                                  className="flex gap-4 relative z-10"
                                   style={{ marginTop: eventMarginTop + 'px' }}
                                 >
                                   {/* Time column */}
@@ -711,96 +752,152 @@ export default function MobileLayout({
                                       }}
                                     />
 
-                                    <div
-                                      className="pl-4 pb-2 pt-2 pr-3 rounded-xl transition-all ml-1"
-                                      style={{
-                                        backgroundColor: (event.color || T.accent) + (isExpanded ? '28' : '15'),
-                                      }}
-                                    >
-                                      {/* Task checkbox — shown when event.is_task is true */}
-                                      {event.is_task && (
-                                        <button
-                                          onClick={e => {
-                                            e.stopPropagation();
-                                            onTaskComplete?.(event.id, !event.is_completed);
-                                          }}
-                                          className="mb-1 flex items-center gap-1.5 active:opacity-60"
-                                          style={{ color: event.is_completed ? T.accent : T.textMuted }}
-                                        >
-                                          {event.is_completed
-                                            ? <CheckSquare size={15} />
-                                            : <Square size={15} />}
-                                          <span className="text-[10px] font-semibold uppercase tracking-wide">
-                                            {event.is_completed ? 'Erledigt' : 'Aufgabe'}
-                                          </span>
-                                        </button>
-                                      )}
-                                      {/* TODO(dark): dark:text-white */}
-                                      <h3
-                                        className="font-semibold text-sm leading-tight"
-                                        style={{
-                                          color: T.textPrimary,
-                                          textDecoration: event.is_completed ? 'line-through' : 'none',
-                                          opacity: event.is_completed ? 0.5 : 1,
-                                        }}
+                                    {/* Swipe container */}
+                                    <div className="relative overflow-hidden rounded-xl ml-1">
+                                      {/* Right swipe background (delete) */}
+                                      <div
+                                        className="absolute inset-y-0 left-0 flex items-center pl-3"
+                                        style={{ backgroundColor: '#FEF2F2' }}
                                       >
-                                        {event.title || 'Untitled Event'}
-                                      </h3>
-                                      {event.description && !isExpanded && (
-                                        <p
-                                          className="text-xs mt-0.5 line-clamp-1"
-                                          style={{ color: T.textSec }}
+                                        <Trash2 size={16} style={{ color: '#EF4444' }} />
+                                      </div>
+                                      {/* Left swipe background (complete task) */}
+                                      {event.is_task && (
+                                        <div
+                                          className="absolute inset-y-0 right-0 flex items-center pr-3"
+                                          style={{ backgroundColor: '#F0FDF4' }}
                                         >
-                                          {event.description}
-                                        </p>
+                                          <Check size={16} style={{ color: '#10B981' }} />
+                                        </div>
                                       )}
 
-                                      {/* Expanded detail */}
-                                      <AnimatePresence>
-                                        {isExpanded && (
-                                          <motion.div
-                                            key="event-detail"
-                                            initial={{ opacity: 0, height: 0 }}
-                                            animate={{ opacity: 1, height: 'auto' }}
-                                            exit={{ opacity: 0, height: 0 }}
-                                            transition={{ duration: 0.15, ease: 'easeOut' }}
-                                            className="overflow-hidden"
+                                      {/* Draggable card */}
+                                      <motion.div
+                                        drag="x"
+                                        dragConstraints={{ left: event.is_task ? -90 : 0, right: 90 }}
+                                        dragElastic={{ left: event.is_task ? 0.15 : 0, right: 0.15 }}
+                                        onDragEnd={(_, info) => {
+                                          if (info.offset.x > 70) {
+                                            onEventDelete?.(event.id);
+                                          } else if (event.is_task && info.offset.x < -70) {
+                                            onTaskComplete?.(event.id, true);
+                                          }
+                                        }}
+                                        onClick={() => setExpandedEventId(isExpanded ? null : event.id)}
+                                        className="pl-4 pb-2 pt-2 pr-3 rounded-xl transition-colors relative"
+                                        style={{
+                                          backgroundColor: (event.color || T.accent) + (isExpanded ? '28' : '15'),
+                                        }}
+                                      >
+                                        {/* Task checkbox — shown when event.is_task is true */}
+                                        {event.is_task && (
+                                          <button
+                                            onClick={e => {
+                                              e.stopPropagation();
+                                              onTaskComplete?.(event.id, !event.is_completed);
+                                            }}
+                                            className="mb-1 flex items-center gap-1.5 active:opacity-60"
+                                            style={{ color: event.is_completed ? T.accent : T.textMuted }}
                                           >
-                                            {(() => {
-                                              const { status, duration } = formatTimeInfo(startDate, endDate, now);
-                                              return (
-                                                <div className="mt-2 flex flex-col gap-1.5">
-                                                  {/* TODO(dark): dark:bg-opacity adjusted */}
-                                                  <div
-                                                    className="flex items-center px-3 py-2 rounded-xl text-xs font-semibold"
-                                                    style={{
-                                                      backgroundColor: (event.color || T.accent) + '22',
-                                                      color: event.color || T.accent,
-                                                    }}
-                                                  >
-                                                    {status}
-                                                  </div>
-                                                  {duration && (
-                                                    <p className="text-xs px-1" style={{ color: T.textMuted }}>{duration}</p>
-                                                  )}
-                                                  {event.description && (
-                                                    <p className="text-xs px-1" style={{ color: T.textSec }}>{event.description}</p>
-                                                  )}
-                                                </div>
-                                              );
-                                            })()}
-                                            <button
-                                              onClick={ev => {
-                                                ev.stopPropagation();
-                                                onEventDelete?.(event.id);
-                                              }}
-                                              className="text-red-500 text-xs font-medium px-2 py-1 mt-1"
-                                            >
-                                              Delete
-                                            </button>
-                                          </motion.div>
+                                            {event.is_completed
+                                              ? <CheckSquare size={15} />
+                                              : <Square size={15} />}
+                                            <span className="text-[10px] font-semibold uppercase tracking-wide">
+                                              {event.is_completed ? 'Erledigt' : 'Aufgabe'}
+                                            </span>
+                                          </button>
                                         )}
-                                      </AnimatePresence>
+                                        {/* TODO(dark): dark:text-white */}
+                                        <h3
+                                          className="font-semibold text-sm leading-tight"
+                                          style={{
+                                            color: T.textPrimary,
+                                            textDecoration: event.is_completed ? 'line-through' : 'none',
+                                            opacity: event.is_completed ? 0.5 : 1,
+                                          }}
+                                        >
+                                          {event.title || 'Untitled Event'}
+                                        </h3>
+                                        {event.description && !isExpanded && (
+                                          <p
+                                            className="text-xs mt-0.5 line-clamp-1"
+                                            style={{ color: T.textSec }}
+                                          >
+                                            {event.description}
+                                          </p>
+                                        )}
+
+                                        {/* Expanded detail */}
+                                        <AnimatePresence>
+                                          {isExpanded && (
+                                            <motion.div
+                                              key="event-detail"
+                                              initial={{ opacity: 0, height: 0 }}
+                                              animate={{ opacity: 1, height: 'auto' }}
+                                              exit={{ opacity: 0, height: 0 }}
+                                              transition={{ duration: 0.15, ease: 'easeOut' }}
+                                              className="overflow-hidden"
+                                            >
+                                              <div className="mt-2 flex flex-col gap-2">
+                                                {/* Compact status chip */}
+                                                {/* TODO(dark): chip color */}
+                                                <div
+                                                  className="flex items-center px-3 py-1.5 rounded-xl text-xs font-semibold w-fit"
+                                                  style={{
+                                                    backgroundColor: (event.color || T.accent) + '22',
+                                                    color: event.color || T.accent,
+                                                  }}
+                                                >
+                                                  {formatTimeInfo(startDate, endDate, now).status}
+                                                </div>
+
+                                                {/* Description — editable on tap */}
+                                                {editingDescId === event.id ? (
+                                                  <textarea
+                                                    autoFocus
+                                                    defaultValue={event.description || ''}
+                                                    className="text-xs rounded-lg resize-none outline-none w-full"
+                                                    style={{
+                                                      color: T.textSec,
+                                                      backgroundColor: T.iconBg,
+                                                      minHeight: '48px',
+                                                      padding: '8px',
+                                                      border: 'none',
+                                                    }}
+                                                    onBlur={e => {
+                                                      const newDesc = e.target.value;
+                                                      useDataStore.setState((s: any) => ({
+                                                        events: s.events.map((ev: any) =>
+                                                          ev.id === event.id ? { ...ev, description: newDesc } : ev
+                                                        )
+                                                      }));
+                                                      setEditingDescId(null);
+                                                    }}
+                                                  />
+                                                ) : (
+                                                  <p
+                                                    className="text-xs px-1 cursor-text"
+                                                    style={{ color: event.description ? T.textSec : T.textMuted, minHeight: '20px' }}
+                                                    onClick={e => { e.stopPropagation(); setEditingDescId(event.id); }}
+                                                  >
+                                                    {event.description || 'Beschreibung hinzufügen…'}
+                                                  </p>
+                                                )}
+
+                                                {/* Delete icon button */}
+                                                <button
+                                                  onClick={e => { e.stopPropagation(); onEventDelete?.(event.id); }}
+                                                  className="flex items-center gap-1 px-1 py-1 rounded-lg w-fit active:opacity-60"
+                                                  style={{ color: '#EF4444' }}
+                                                >
+                                                  <Trash2 size={14} />
+                                                  <span className="text-xs font-medium">Löschen</span>
+                                                </button>
+                                              </div>
+                                            </motion.div>
+                                          )}
+                                        </AnimatePresence>
+                                      </motion.div>
                                     </div>
                                   </div>
                                 </div>
@@ -820,7 +917,7 @@ export default function MobileLayout({
           {activeTab === 'notes' && !isEditingNote && (
             <motion.div
               key={contentKey}
-              {...tabAnim}
+              {...getTabAnim()}
               className="p-4"
             >
               {/* TODO(dark): card bg dark:bg-gray-900, border dark:border-gray-800 */}
@@ -882,7 +979,7 @@ export default function MobileLayout({
           {activeTab === 'notes' && isEditingNote && (
             <motion.div
               key={contentKey}
-              {...tabAnim}
+              {...getTabAnim()}
               className="min-h-full p-4"
             >
               {/* TODO(dark): bg dark:bg-gray-900 */}
@@ -899,7 +996,7 @@ export default function MobileLayout({
           {activeTab === 'profile' && (
             <motion.div
               key={contentKey}
-              {...tabAnim}
+              {...getTabAnim()}
               className="p-4 flex flex-col gap-4"
             >
               {/* Avatar card */}
@@ -988,60 +1085,56 @@ export default function MobileLayout({
         </AnimatePresence>
       </div>
 
-      {/* ── Bottom navigation ───────────────────────────────────────────────── */}
-      {/* TODO(dark): bg rgba(17,17,17,0.95), border dark:border-gray-800 */}
-      <nav
-        className="fixed bottom-0 left-0 w-full z-50 flex justify-around items-stretch"
-        style={{
-          height: '56px',
-          backgroundColor: 'rgba(255,255,255,0.95)',
-          backdropFilter: 'blur(12px)',
-          borderTop: `1px solid ${T.border}`,
-        }}
-      >
-        <NavTab
-          icon={<FileText size={20} />}
-          active={activeTab === 'notes'}
-          override={activeTab === 'notes' && isEditingNote ? <ArrowLeft size={20} /> : undefined}
-          onClick={() => {
-            if (activeTab === 'notes' && isEditingNote) {
-              setIsEditingNote(false);
-            } else {
-              setIsEditingNote(false);
-              setActiveTab('notes');
-            }
+      {/* Floating dot navigation — 3 tabs + tracker */}
+      {/* TODO(dark): dot color dark:rgba(255,255,255,0.25) */}
+      <div className="fixed bottom-5 left-0 right-0 flex justify-center items-center gap-2.5 z-50 pointer-events-none">
+        {tabOrder.map((tab) => (
+          <div
+            key={tab}
+            className="rounded-full transition-all duration-200"
+            style={{
+              width: activeTab === tab ? '18px' : '6px',
+              height: '6px',
+              backgroundColor: activeTab === tab ? T.accent : 'rgba(0,0,0,0.18)',
+            }}
+          />
+        ))}
+        {/* Tracker dot */}
+        <div
+          className="rounded-full transition-all duration-200"
+          style={{
+            width: trackerProgress > 0 ? '18px' : '6px',
+            height: '6px',
+            backgroundColor: trackerProgress > 0 ? T.accent : 'rgba(0,0,0,0.18)',
           }}
         />
-        <NavTab
-          icon={<CalendarIcon size={20} />}
-          active={activeTab === 'calendar'}
-          onClick={() => {
-            setIsEditingNote(false);
-            setActiveTab('calendar');
-          }}
-        />
-        {/* Tracker tab — set NEXT_PUBLIC_TRACKER_URL in .env.local to enable */}
-        {/* TODO(dark): color dark:text-gray-600 */}
-        <button
-          onClick={() => {
-            const url = process.env.NEXT_PUBLIC_TRACKER_URL;
-            if (url) window.location.href = url;
-          }}
-          className="flex flex-col items-center justify-center flex-1 h-full gap-1 focus:outline-none"
-          style={{ color: process.env.NEXT_PUBLIC_TRACKER_URL ? T.textMuted : T.border }}
+      </div>
+
+      {/* Tracker circular progress — appears when swiping from Profile toward Tracker */}
+      {trackerProgress > 0 && (
+        <div
+          className="fixed bottom-3 right-4 z-50 flex items-center justify-center"
+          style={{ width: 44, height: 44 }}
         >
-          <Dumbbell size={20} />
-          <div className="w-1 h-1" />
-        </button>
-        <NavTab
-          icon={<User size={20} />}
-          active={activeTab === 'profile'}
-          onClick={() => {
-            setIsEditingNote(false);
-            setActiveTab('profile');
-          }}
-        />
-      </nav>
+          <svg width="44" height="44" viewBox="0 0 44 44">
+            <circle cx="22" cy="22" r="18" fill="none" stroke="#E5E7EB" strokeWidth="2.5" />
+            <circle
+              cx="22" cy="22" r="18"
+              fill="none"
+              stroke={T.accent}
+              strokeWidth="2.5"
+              strokeDasharray={`${2 * Math.PI * 18}`}
+              strokeDashoffset={`${2 * Math.PI * 18 * (1 - trackerProgress)}`}
+              strokeLinecap="round"
+              transform="rotate(-90 22 22)"
+              style={{ transition: 'stroke-dashoffset 0.05s linear' }}
+            />
+          </svg>
+          <div className="absolute" style={{ color: T.accent }}>
+            <Dumbbell size={14} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
