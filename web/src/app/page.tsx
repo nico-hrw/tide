@@ -30,7 +30,8 @@ const CanvasLayer = dynamic(() => import('@/components/Canvas/CanvasLayer'), {
 import DailySummary from "@/components/Calendar/DailySummary";
 import MobileLayout from "@/components/Layout/MobileLayout";
 import BackupHistory from "@/components/BackupHistory";
-import { Clock } from 'lucide-react';
+import { Clock, Settings, LogOut, Users } from 'lucide-react';
+import Avatar from "@/components/Profile/Avatar";
 import SmartIsland from "@/components/SmartIsland";
 
 
@@ -240,6 +241,8 @@ export default function Dashboard() {
     const [editingFileId, setEditingFileId] = useState<string | null>(null);
     const [hiddenThemeIds, setHiddenThemeIds] = useState<string[]>([]);
     const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+    const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
+    const avatarMenuRef = useRef<HTMLDivElement>(null);
 
     // Calendar & Event State
     const [calendarDate, setCalendarDate] = useState(new Date());
@@ -339,6 +342,16 @@ export default function Dashboard() {
     useEffect(() => { editorContentRef.current = editorContent; }, [editorContent]);
     useEffect(() => { saveStatusRef.current = saveStatus; }, [saveStatus]);
     useEffect(() => { fileNameRef.current = fileName; }, [fileName]);
+
+    useEffect(() => {
+        const handleClick = (e: MouseEvent) => {
+            if (avatarMenuRef.current && !avatarMenuRef.current.contains(e.target as Node)) {
+                setIsAvatarMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, []);
 
     // Always-current ref to performSave so triggerSave (stable useCallback) never
     // calls a stale closure where privateKey / publicKey / files are still null.
@@ -2999,6 +3012,60 @@ export default function Dashboard() {
 
             {/* Right: Workspace */}
             <div className={`hidden md:flex flex-1 flex-col min-w-0 bg-[var(--background)] relative overflow-hidden`}>
+
+                {/* Avatar-Button oben rechts */}
+                <div ref={avatarMenuRef} className="absolute top-4 right-4 z-[150]">
+                    <button
+                        onClick={() => setIsAvatarMenuOpen(o => !o)}
+                        className="w-8 h-8 rounded-full overflow-hidden hover:ring-2 hover:ring-blue-400 transition-all hover:scale-105 active:scale-95"
+                        title="Profil"
+                    >
+                        <Avatar
+                            seed={(userProfile?.avatar_seed || userProfile?.user_id || userProfile?.id || myId || 'default') + (userProfile?.avatar_salt || '')}
+                            size={32}
+                        />
+                    </button>
+
+                    {isAvatarMenuOpen && (
+                        <div className="absolute right-0 top-10 w-48 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100">
+                            <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-800">
+                                <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{userProfile?.username || 'User'}</p>
+                                <p className="text-xs text-gray-400 truncate">{userProfile?.email || ''}</p>
+                            </div>
+                            <div className="py-1 px-1">
+                                <button
+                                    onClick={() => { setIsAvatarMenuOpen(false); setActiveTabId('social'); }}
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                >
+                                    <Users size={15} className="text-gray-400" />
+                                    <span>Social</span>
+                                </button>
+                                <button
+                                    onClick={() => { setIsAvatarMenuOpen(false); useDataStore.getState().setSettingsModalOpen(true); }}
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                >
+                                    <Settings size={15} className="text-gray-400" />
+                                    <span>Einstellungen</span>
+                                </button>
+                                <div className="h-px bg-gray-100 dark:bg-gray-800 my-1" />
+                                <button
+                                    onClick={() => {
+                                        setIsAvatarMenuOpen(false);
+                                        sessionStorage.clear();
+                                        localStorage.removeItem('tide_user_email');
+                                        localStorage.removeItem('tide_user_id');
+                                        localStorage.removeItem('tide_session_token');
+                                        window.location.reload();
+                                    }}
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
+                                >
+                                    <LogOut size={15} className="text-rose-400" />
+                                    <span>Abmelden</span>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
 
                 {/* Unscheduled Tasks Panel — top-left corner, below calendar toolbar, only when calendar is active */}
                 {activeTabId === 'calendar' && tasks && tasks.filter(t => !t.isCompleted && !t.scheduledDate).length > 0 && (
