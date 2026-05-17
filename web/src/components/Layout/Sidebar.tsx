@@ -479,18 +479,22 @@ export default function Sidebar({
                                 }
                                 e.preventDefault();
                                 e.stopPropagation();
+                                const rowHeight = 32; // Feste Höhe einer Item-Row
                                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                                 const y = e.clientY - rect.top;
                                 let zone: 'top' | 'middle' | 'bottom' = 'middle';
                                 if (item.type === 'folder') {
-                                    if (y < rect.height * 0.25) zone = 'top';
-                                    else if (y > rect.height * 0.75) zone = 'bottom';
+                                    if (y < rowHeight * 0.3) zone = 'top';
+                                    else if (y > rowHeight * 0.7) zone = 'bottom';
                                 } else {
-                                    zone = y < rect.height / 2 ? 'top' : 'bottom';
+                                    zone = y < rowHeight / 2 ? 'top' : 'bottom';
                                 }
                                 setDropIndicator({ id: item.id, zone });
                             }}
-                            onDragLeave={() => setDropIndicator(null)}
+                            onDragLeave={(e: React.DragEvent) => {
+                                if ((e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) return;
+                                setDropIndicator(null);
+                            }}
                             onDrop={(e: React.DragEvent) => {
                                 if (e.dataTransfer.types.includes('tide/calendar-event')) {
                                     return; // Handled by FileItem
