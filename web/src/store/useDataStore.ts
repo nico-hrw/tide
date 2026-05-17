@@ -28,6 +28,7 @@ interface DataState {
     orderedNoteIds: string[];
     setOrderedNoteIds: (ids: string[]) => void;
     createNote: (title: string, initialContent?: any) => Promise<string>; // Returns the new ID
+    createCanvasNote: (title: string) => Promise<string>;
     insertMentionIntoNote: (noteId: string, targetId: string, title: string) => void;
     activeNoteId: string | null;
     setActiveNoteId: (id: string | null) => void;
@@ -387,6 +388,62 @@ export const useDataStore = create<DataState>((set, get) => ({
             console.error("Failed to create note on server", e);
             const fallbackId = crypto.randomUUID();
             set((s) => ({ notes: [...s.notes, { id: fallbackId, title, type: 'note' }] }));
+            return fallbackId;
+        }
+    },
+    createCanvasNote: async (title: string) => {
+        const state = get();
+        if (!state.privateKey || !state.publicKey) {
+            const fallbackId = crypto.randomUUID();
+            set(s => ({ notes: [...s.notes, { id: fallbackId, title, type: 'canvas' }] }));
+            return fallbackId;
+        }
+        try {
+            const cryptoV2 = await import('@/lib/cryptoV2');
+            const cryptoLib = await import('@/lib/crypto');
+
+            const emptyCanvas = JSON.stringify({
+                version: 1,
+                noteId: 'placeholder',
+                canvasWidth: 4000,
+                canvasHeight: 3000,
+                items: [],
+            });
+
+            const v2Result = await cryptoV2.encryptFileV2(emptyCanvas, state.publicKey);
+            const accessKeysMap = { [state.myId!]: v2Result.encrypted_dek };
+            const securedMeta = await cryptoLib.encryptMetadata({ title }, state.publicKey);
+
+            const res = await apiFetch('/api/v1/files', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'canvas',
+                    parent_id: state.activeParentId || null,
+                    size: new Blob([v2Result.content_ciphertext]).size,
+                    public_meta: {},
+                    secured_meta: securedMeta,
+                    visibility: 'private',
+                    version: 2,
+                    metadata: v2Result.metadata,
+                    access_keys: accessKeysMap,
+                }),
+            });
+            if (!res.ok) throw new Error('Backend failed to create canvas note');
+            const newFile = await res.json();
+
+            await apiFetch(`/api/v1/files/${newFile.id}/upload`, {
+                method: 'POST',
+                body: v2Result.content_ciphertext,
+            });
+
+            const newNote = { id: newFile.id, title, type: 'canvas', parent_id: state.activeParentId || null };
+            set(s => ({ notes: [...s.notes, newNote], metadataCache: { ...s.metadataCache, [newFile.id]: { title } } }));
+            return newFile.id;
+        } catch (e) {
+            console.error('Failed to create canvas note on server', e);
+            const fallbackId = crypto.randomUUID();
+            set(s => ({ notes: [...s.notes, { id: fallbackId, title, type: 'canvas' }] }));
             return fallbackId;
         }
     },
