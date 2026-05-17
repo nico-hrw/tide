@@ -27,6 +27,9 @@ const Editor = dynamic(() => import('@/components/Editor'), {
 const CanvasLayer = dynamic(() => import('@/components/Canvas/CanvasLayer'), {
     ssr: false
 });
+
+const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEditor'), { ssr: false });
+
 import DailySummary from "@/components/Calendar/DailySummary";
 import MobileLayout from "@/components/Layout/MobileLayout";
 import BackupHistory from "@/components/BackupHistory";
@@ -229,6 +232,7 @@ export default function Dashboard() {
 
     // Editor & File State
     const [editorContent, setEditorContent] = useState<any>(null);
+    const [canvasNoteData, setCanvasNoteData] = useState<import('@/types/canvasNote').CanvasNoteData | null>(null);
     const [isLoadingContent, setIsLoadingContent] = useState(false);
     const [activeFileKey, setActiveFileKey] = useState<CryptoKey | null>(null);
     const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving">("saved");
@@ -330,6 +334,7 @@ export default function Dashboard() {
     const activeFileKeyRef = useRef<CryptoKey | null>(null);
     // Refs always have the latest value — safe to use inside setTimeout callbacks
     const editorContentRef = useRef<any>(null);
+    const canvasNoteDataRef = useRef<any>(null);
     const saveStatusRef = useRef<string>('saved');
     const fileNameRef = useRef<string>("");
     // Per-note in-flight lock: prevents parallel save calls on the same noteId
@@ -340,6 +345,7 @@ export default function Dashboard() {
     useEffect(() => { activeNoteIdRef.current = activeNoteId ?? null; }, [activeNoteId]);
     useEffect(() => { activeFileKeyRef.current = activeFileKey; }, [activeFileKey]);
     useEffect(() => { editorContentRef.current = editorContent; }, [editorContent]);
+    useEffect(() => { canvasNoteDataRef.current = canvasNoteData; }, [canvasNoteData]);
     useEffect(() => { saveStatusRef.current = saveStatus; }, [saveStatus]);
     useEffect(() => { fileNameRef.current = fileName; }, [fileName]);
 
@@ -465,13 +471,14 @@ export default function Dashboard() {
     // Debounced auto-save: 3s after last content change, or when saveStatus flips back to
     // 'unsaved' after a failed save attempt (so it retries without requiring further edits).
     useEffect(() => {
-        if (saveStatus !== 'unsaved' || !editorContent) return;
+        const content = editorContent ?? canvasNoteData;
+        if (saveStatus !== 'unsaved' || !content) return;
 
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
 
         saveTimerRef.current = setTimeout(() => {
             // Use refs here — closures would be stale by the time the timer fires
-            const content = editorContentRef.current;
+            const content = editorContentRef.current ?? canvasNoteDataRef.current;
             const noteId = activeNoteIdRef.current;
             const fileKey = activeFileKeyRef.current;
 
@@ -486,7 +493,7 @@ export default function Dashboard() {
 
         return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [editorContent, saveStatus]);
+    }, [editorContent, canvasNoteData, saveStatus]);
 
     // Save immediately when switching away from a note with unsaved changes
     const prevNoteIdRef = useRef<string | null>(null);
@@ -570,6 +577,13 @@ export default function Dashboard() {
             console.error(e);
             alert("Error creating note");
         }
+    };
+
+    const handleNewCanvasNote = async () => {
+        const title = 'Neue Leinwand';
+        const newId = await useDataStore.getState().createCanvasNote(title);
+        useDataStore.getState().fetchDirectory(null, true);
+        switchTab(newId, 'file', title);
     };
 
     const handleExportNote = useCallback(() => {
@@ -958,13 +972,20 @@ export default function Dashboard() {
             if (lastLoadIdRef.current !== loadId) return;
 
             if (contentText) {
-                try { 
+                try {
                     const parsed = JSON.parse(contentText);
-                    setEditorContent(parsed);
-                    initialContentRef.current = parsed;
+                    // Detect canvas note content
+                    if (parsed?.version === 1 && Array.isArray(parsed?.items) && typeof parsed?.canvasWidth === 'number') {
+                        setCanvasNoteData(parsed);
+                        initialContentRef.current = parsed;
+                        setEditorContent(null);
+                    } else {
+                        setEditorContent(parsed);
+                        initialContentRef.current = parsed;
+                    }
                 }
-                catch (e) { 
-                    setEditorContent(contentText); 
+                catch (e) {
+                    setEditorContent(contentText);
                     initialContentRef.current = contentText;
                 }
             } else {
@@ -1016,6 +1037,7 @@ export default function Dashboard() {
 
         setActiveTabId(newId);
         setEditorContent(null);
+        setCanvasNoteData(null);
         setActiveFileKey(null);
         setSaveStatus("saved");
 
@@ -2924,53 +2946,80 @@ export default function Dashboard() {
                 }
                 userProfile={userProfile}
                 editorElement={
-                    editorContent === null ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
-                            <span className="font-medium text-sm">Lade...</span>
-                        </div>
-                    ) : (
-                        <Editor
-                            key={activeTabId}
-                            initialContent={editorContent}
-                            onEditorReady={handleEditorReady}
-                            onChange={handleEditorChange}
-                            onLinkClick={handleMagicLinkClick}
-                            onForceSave={(json) => {
-                                if (activeNoteId) {
-                                    const currentFile = files.find(f => f.id === activeNoteId);
-                                    if (currentFile) {
-                                        setSaveStatus("saving");
-                                        performSave(json, activeNoteId, activeFileKey, currentFile.visibility)
-                                            .then(() => setSaveStatus("saved"))
-                                            .catch(() => setSaveStatus("unsaved"));
+                    (() => {
+                        const activeFileType = [...useDataStore.getState().notes, ...useDataStore.getState().events]
+                            .find(f => f.id === activeNoteId)?.type;
+
+                        if (activeFileType === 'canvas') {
+                            return canvasNoteData === null ? (
+                                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
+                                    <span className="font-medium text-sm">Lade...</span>
+                                </div>
+                            ) : (
+                                <div className="flex-1 h-full overflow-hidden">
+                                    <CanvasNoteEditor
+                                        noteId={activeNoteId || ''}
+                                        initialData={canvasNoteData}
+                                        publicKey={publicKey}
+                                        privateKey={privateKey}
+                                        userId={myId}
+                                        onChange={(data) => {
+                                            setCanvasNoteData(data);
+                                            setSaveStatus('unsaved');
+                                        }}
+                                    />
+                                </div>
+                            );
+                        }
+
+                        return editorContent === null ? (
+                            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
+                                <span className="font-medium text-sm">Lade...</span>
+                            </div>
+                        ) : (
+                            <Editor
+                                key={activeTabId}
+                                initialContent={editorContent}
+                                onEditorReady={handleEditorReady}
+                                onChange={handleEditorChange}
+                                onLinkClick={handleMagicLinkClick}
+                                onForceSave={(json) => {
+                                    if (activeNoteId) {
+                                        const currentFile = files.find(f => f.id === activeNoteId);
+                                        if (currentFile) {
+                                            setSaveStatus("saving");
+                                            performSave(json, activeNoteId, activeFileKey, currentFile.visibility)
+                                                .then(() => setSaveStatus("saved"))
+                                                .catch(() => setSaveStatus("unsaved"));
+                                        }
                                     }
-                                }
-                            }}
-                            onBlocksDeleted={(ids) => setDeletedBlockIds(ids)}
-                            onPopOut={(text, anchorBlockId) => {
-                                const widget: TextWidgetElement = {
-                                    id: crypto.randomUUID(),
-                                    type: 'text-widget',
-                                    anchorBlockId,
-                                    offsetX: 24,
-                                    offsetY: 0,
-                                    content: text,
-                                    backgroundColor: 'transparent',
-                                };
-                                canvasSidecar.addElement(widget);
-                            }}
-                            onConnectImage={(blockId) => setPendingBindBlockId(blockId)}
-                            onBlockHover={setHoveredBlockId}
-                            onAbortLinking={() => {
-                                if (isLinkingMode) {
-                                    setIsLinkingMode(false);
-                                    setActiveLinkBlockId(null);
-                                }
-                            }}
-                            activeTabId={activeTabId}
-                            onReturnToTab={(tabId) => setActiveTabId(tabId)}
-                        />
-                    )
+                                }}
+                                onBlocksDeleted={(ids) => setDeletedBlockIds(ids)}
+                                onPopOut={(text, anchorBlockId) => {
+                                    const widget: TextWidgetElement = {
+                                        id: crypto.randomUUID(),
+                                        type: 'text-widget',
+                                        anchorBlockId,
+                                        offsetX: 24,
+                                        offsetY: 0,
+                                        content: text,
+                                        backgroundColor: 'transparent',
+                                    };
+                                    canvasSidecar.addElement(widget);
+                                }}
+                                onConnectImage={(blockId) => setPendingBindBlockId(blockId)}
+                                onBlockHover={setHoveredBlockId}
+                                onAbortLinking={() => {
+                                    if (isLinkingMode) {
+                                        setIsLinkingMode(false);
+                                        setActiveLinkBlockId(null);
+                                    }
+                                }}
+                                activeTabId={activeTabId}
+                                onReturnToTab={(tabId) => setActiveTabId(tabId)}
+                            />
+                        );
+                    })()
                 }
             />
 
@@ -2981,6 +3030,7 @@ export default function Dashboard() {
                     files={sidebarFiles}
                     onFileSelect={handleFileSelect}
                     onNewNote={handleNewNote}
+                    onNewCanvasNote={handleNewCanvasNote}
                     onDeleteNote={handleDeleteNote}
                     onRenameNote={handleRenameNote}
                     onToggleVisibility={handleToggleVisibility}
@@ -3366,47 +3416,72 @@ export default function Dashboard() {
                                             </>
                                         )}
 
-                                        <Editor
-                                            key={activeTabId}
-                                            initialContent={editorContent}
-                                            onEditorReady={handleEditorReady}
-                                            onChange={handleEditorChange}
-                                            onLinkClick={handleMagicLinkClick}
-                                            onForceSave={(json) => {
-                                                if (activeNoteId) {
-                                                    const currentFile = files.find(f => f.id === activeNoteId);
-                                                    if (currentFile) {
-                                                        setSaveStatus("saving");
-                                                        performSave(json, activeNoteId, activeFileKey, currentFile.visibility)
-                                                            .then(() => setSaveStatus("saved"))
-                                                            .catch(() => setSaveStatus("unsaved"));
-                                                    }
-                                                }
-                                            }}
-                                            onBlocksDeleted={(ids) => setDeletedBlockIds(ids)}
-                                            onPopOut={(text, anchorBlockId) => {
-                                                const widget: TextWidgetElement = {
-                                                    id: crypto.randomUUID(),
-                                                    type: 'text-widget',
-                                                    anchorBlockId,
-                                                    offsetX: 24,
-                                                    offsetY: 0,
-                                                    content: text,
-                                                    backgroundColor: 'transparent',
-                                                };
-                                                canvasSidecar.addElement(widget);
-                                            }}
-                                            onConnectImage={(blockId) => setPendingBindBlockId(blockId)}
-                                            onBlockHover={setHoveredBlockId}
-                                            onAbortLinking={() => {
-                                                if (isLinkingMode) {
-                                                    setIsLinkingMode(false);
-                                                    setActiveLinkBlockId(null);
-                                                }
-                                            }}
-                                            activeTabId={activeTabId}
-                                            onReturnToTab={(tabId) => setActiveTabId(tabId)}
-                                        />
+                                        {(() => {
+                                            const activeFileType = [...useDataStore.getState().notes, ...useDataStore.getState().events]
+                                                .find(f => f.id === activeNoteId)?.type;
+
+                                            if (activeFileType === 'canvas') {
+                                                return (
+                                                    <div className="flex-1 h-full overflow-hidden">
+                                                        <CanvasNoteEditor
+                                                            noteId={activeNoteId || ''}
+                                                            initialData={canvasNoteData}
+                                                            publicKey={publicKey}
+                                                            privateKey={privateKey}
+                                                            userId={myId}
+                                                            onChange={(data) => {
+                                                                setCanvasNoteData(data);
+                                                                setSaveStatus('unsaved');
+                                                            }}
+                                                        />
+                                                    </div>
+                                                );
+                                            }
+
+                                            return (
+                                                <Editor
+                                                    key={activeTabId}
+                                                    initialContent={editorContent}
+                                                    onEditorReady={handleEditorReady}
+                                                    onChange={handleEditorChange}
+                                                    onLinkClick={handleMagicLinkClick}
+                                                    onForceSave={(json) => {
+                                                        if (activeNoteId) {
+                                                            const currentFile = files.find(f => f.id === activeNoteId);
+                                                            if (currentFile) {
+                                                                setSaveStatus("saving");
+                                                                performSave(json, activeNoteId, activeFileKey, currentFile.visibility)
+                                                                    .then(() => setSaveStatus("saved"))
+                                                                    .catch(() => setSaveStatus("unsaved"));
+                                                            }
+                                                        }
+                                                    }}
+                                                    onBlocksDeleted={(ids) => setDeletedBlockIds(ids)}
+                                                    onPopOut={(text, anchorBlockId) => {
+                                                        const widget: TextWidgetElement = {
+                                                            id: crypto.randomUUID(),
+                                                            type: 'text-widget',
+                                                            anchorBlockId,
+                                                            offsetX: 24,
+                                                            offsetY: 0,
+                                                            content: text,
+                                                            backgroundColor: 'transparent',
+                                                        };
+                                                        canvasSidecar.addElement(widget);
+                                                    }}
+                                                    onConnectImage={(blockId) => setPendingBindBlockId(blockId)}
+                                                    onBlockHover={setHoveredBlockId}
+                                                    onAbortLinking={() => {
+                                                        if (isLinkingMode) {
+                                                            setIsLinkingMode(false);
+                                                            setActiveLinkBlockId(null);
+                                                        }
+                                                    }}
+                                                    activeTabId={activeTabId}
+                                                    onReturnToTab={(tabId) => setActiveTabId(tabId)}
+                                                />
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </CanvasLayer>
