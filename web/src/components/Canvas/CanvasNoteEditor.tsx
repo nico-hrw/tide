@@ -25,13 +25,19 @@ interface CanvasNoteEditorProps {
 export default function CanvasNoteEditor({
     noteId, initialData, publicKey, privateKey, userId, onChange,
 }: CanvasNoteEditorProps) {
-    const data = initialData ?? createEmptyCanvasNote(noteId);
-
-    const [items, setItems] = useState<CanvasNoteItem[]>(data.items);
+    const [items, setItems] = useState<CanvasNoteItem[]>((initialData ?? createEmptyCanvasNote(noteId)).items);
     const [zoom, setZoom] = useState(0.5);
     const [pan, setPan] = useState({ x: 0, y: 0 });
     const [isEditingId, setIsEditingId] = useState<string | null>(null);
     const imageBlobCache = useRef(new Map<string, string>());
+
+    useEffect(() => {
+        const cache = imageBlobCache.current;
+        return () => {
+            cache.forEach(url => URL.revokeObjectURL(url));
+        };
+    }, []);
+
     const viewportRef = useRef<HTMLDivElement>(null);
     const worldRef = useRef<HTMLDivElement>(null);
     const isPanning = useRef(false);
@@ -39,7 +45,7 @@ export default function CanvasNoteEditor({
 
     // Propagate changes up
     useEffect(() => {
-        onChange({ ...data, items });
+        onChange({ version: 1 as const, noteId, canvasWidth: CANVAS_W, canvasHeight: CANVAS_H, items });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [items]);
 
@@ -187,6 +193,21 @@ export default function CanvasNoteEditor({
         setItems(prev => prev.map(it => it.id === id ? { ...it, x, y } : it));
     }, []);
 
+    const zoomBy = useCallback((delta: number) => {
+        const vp = viewportRef.current;
+        if (!vp) { setZoom(z => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z + delta))); return; }
+        const { width, height } = vp.getBoundingClientRect();
+        const cx = width / 2, cy = height / 2;
+        setZoom(prev => {
+            const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev + delta));
+            setPan(p => ({
+                x: cx - (cx - p.x) * (next / prev),
+                y: cy - (cy - p.y) * (next / prev),
+            }));
+            return next;
+        });
+    }, []);
+
     // ── Render ────────────────────────────────────────────────────────────────
     return (
         <div
@@ -228,11 +249,11 @@ export default function CanvasNoteEditor({
 
             {/* Zoom controls */}
             <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-white/90 dark:bg-gray-900/90 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 shadow-sm z-10">
-                <button onClick={() => setZoom(z => Math.max(MIN_ZOOM, z - 0.1))} className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <button onClick={() => zoomBy(-0.1)} className="p-1 hover:bg-gray-100 rounded transition-colors">
                     <ZoomOut size={14} className="text-gray-500" />
                 </button>
                 <span className="text-xs text-gray-500 w-10 text-center">{Math.round(zoom * 100)}%</span>
-                <button onClick={() => setZoom(z => Math.min(MAX_ZOOM, z + 0.1))} className="p-1 hover:bg-gray-100 rounded transition-colors">
+                <button onClick={() => zoomBy(0.1)} className="p-1 hover:bg-gray-100 rounded transition-colors">
                     <ZoomIn size={14} className="text-gray-500" />
                 </button>
             </div>
