@@ -681,7 +681,8 @@ export default function Dashboard() {
                 iv:   cryptoLib.arrayBufferToBase64(contentIv.buffer as ArrayBuffer)
             });
 
-            const title = fileNameRef.current || 'Untitled';
+            const fileRecord = allFiles.find(f => f.id === fileId);
+            const title = fileRecord?.title || fileNameRef.current || 'Untitled';
 
             // Re-encrypt secured_meta with RSA so fetchDirectory can decrypt the
             // title on the next reload without hitting an OperationError from a
