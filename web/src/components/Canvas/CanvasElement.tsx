@@ -198,6 +198,7 @@ function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
     const [src, setSrc] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     useEffect(() => {
         if (element.blobId === '__pending__') { setLoading(true); setSrc(null); setError(false); return; }
@@ -210,7 +211,12 @@ function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
                 const meta = await cryptoLib.decryptMetadata(element.encryptedKey, privateKey);
                 const fileKey = await window.crypto.subtle.importKey('jwk', meta.fileKey as JsonWebKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
                 const res = await apiFetch(`/api/v1/files/${element.blobId}/download`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                if (!res.ok) {
+                    const msg = `HTTP ${res.status} for blob ${element.blobId}`;
+                    console.error('[Canvas] Image download failed:', msg);
+                    if (!cancelled) { setError(true); setErrorMsg(msg); setLoading(false); }
+                    return;
+                }
                 const dec = await cryptoLib.decryptFile(await res.blob(), meta.iv as string, fileKey);
                 const url = URL.createObjectURL(new Blob([await dec.arrayBuffer()], { type: element.mimeType }));
                 imageBlobCache.current.set(element.blobId, url);
@@ -230,6 +236,7 @@ function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
         <div style={{ width: element.width ?? 200, height: 80 }}
             className="flex items-center justify-center rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-2">
             Failed to load
+            {errorMsg && <span className="block text-[10px] opacity-50 mt-1 ml-1">{errorMsg}</span>}
         </div>
     );
     return <img src={src} alt="" draggable={false} className="rounded-lg block select-none"
