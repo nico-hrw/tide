@@ -610,7 +610,9 @@ export default function Dashboard() {
             if (visibility === 'public') {
                 const blob = new Blob([contentString], { type: 'application/json' });
                 await apiFetch(`/api/v1/files/${fileId}/upload`, { method: 'POST', body: blob });
-                const title = fileNameRef.current || 'Untitled';
+                const allPublicFiles = [...useDataStore.getState().notes, ...useDataStore.getState().events] as any[];
+                const publicFileRecord = allPublicFiles.find((f: any) => f.id === fileId);
+                const title = publicFileRecord?.title || fileNameRef.current || 'Untitled';
                 await apiFetch(`/api/v1/files/${fileId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -682,6 +684,7 @@ export default function Dashboard() {
             });
 
             const fileRecord = allFiles.find(f => f.id === fileId);
+            if (!fileRecord) console.warn(`[V2-Save] File ${fileId} not found in store, falling back to fileNameRef`);
             const title = fileRecord?.title || fileNameRef.current || 'Untitled';
 
             // Re-encrypt secured_meta with RSA so fetchDirectory can decrypt the
