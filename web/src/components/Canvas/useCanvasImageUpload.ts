@@ -18,7 +18,6 @@ export interface UploadedImage {
 export function useCanvasImageUpload(
     publicKey: CryptoKey | null,
     userId: string,
-    imageBlobCache: React.MutableRefObject<Map<string, string>>,
 ) {
     const upload = useCallback(async (
         file: File,
