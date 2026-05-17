@@ -507,7 +507,7 @@ export default function Dashboard() {
         // User switched away — save previous note's content RIGHT NOW (don't wait for timer)
         if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         console.log(`[Lifecycle] Tab switched from ${prev}. Flushing save...`);
-        triggerSave(prev, activeFileKeyRef.current, editorContentRef.current);
+        triggerSave(prev, activeFileKeyRef.current, editorContentRef.current ?? canvasNoteDataRef.current);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeNoteId]);
 
@@ -517,7 +517,7 @@ export default function Dashboard() {
         const flushUnsavedToDisk = () => {
             if (saveStatusRef.current === 'unsaved' && activeNoteIdRef.current) {
                 console.log(`[Lifecycle] Window/Tab losing focus. EMERGENCY FLUSH for ${activeNoteIdRef.current}`);
-                triggerSave(activeNoteIdRef.current, activeFileKeyRef.current, editorContentRef.current);
+                triggerSave(activeNoteIdRef.current, activeFileKeyRef.current, editorContentRef.current ?? canvasNoteDataRef.current);
             }
         };
 
@@ -1005,7 +1005,7 @@ export default function Dashboard() {
 
     const switchTab = async (newId: string, type: string, forcedTitle?: string, fallbackData?: any, currentOverride?: any) => {
         if (!newId) return;
-        const currentContentToUse = currentOverride || editorContent;
+        const currentContentToUse = currentOverride || editorContent || canvasNoteData;
         const currentTabId = useDataStore.getState().activeNoteId || activeTabId; // Use ref-like safety
 
         const isOldAFile = currentTabId !== 'calendar' && currentTabId !== 'messages' && !currentTabId.startsWith('chat-');
@@ -2947,8 +2947,7 @@ export default function Dashboard() {
                 userProfile={userProfile}
                 editorElement={
                     (() => {
-                        const activeFileType = [...useDataStore.getState().notes, ...useDataStore.getState().events]
-                            .find(f => f.id === activeNoteId)?.type;
+                        const activeFileType = files.find(f => f.id === activeNoteId)?.type;
 
                         if (activeFileType === 'canvas') {
                             return canvasNoteData === null ? (
@@ -2958,6 +2957,7 @@ export default function Dashboard() {
                             ) : (
                                 <div className="flex-1 h-full overflow-hidden">
                                     <CanvasNoteEditor
+                                        key={activeNoteId || ''}
                                         noteId={activeNoteId || ''}
                                         initialData={canvasNoteData}
                                         publicKey={publicKey}
@@ -3417,13 +3417,13 @@ export default function Dashboard() {
                                         )}
 
                                         {(() => {
-                                            const activeFileType = [...useDataStore.getState().notes, ...useDataStore.getState().events]
-                                                .find(f => f.id === activeNoteId)?.type;
+                                            const activeFileType = files.find(f => f.id === activeNoteId)?.type;
 
                                             if (activeFileType === 'canvas') {
                                                 return (
                                                     <div className="flex-1 h-full overflow-hidden">
                                                         <CanvasNoteEditor
+                                                            key={activeNoteId || ''}
                                                             noteId={activeNoteId || ''}
                                                             initialData={canvasNoteData}
                                                             publicKey={publicKey}
