@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, DollarSign, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Calendar, X } from "lucide-react";
+import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, DollarSign, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Layout, X } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, Reorder, AnimatePresence, LayoutGroup } from "framer-motion";
 import { Tab } from '@/components/Layout/TabList';
@@ -56,6 +56,7 @@ interface SidebarProps {
     onOpenCalendar?: () => void;
     onOpenSocial?: () => void;
     onOpenFinance?: () => void;
+    onNewCanvasNote?: () => void;
 }
 
 interface ChatUser {
@@ -97,6 +98,7 @@ export default function Sidebar({
     onOpenCalendar,
     onOpenSocial,
     onOpenFinance,
+    onNewCanvasNote,
 }: SidebarProps) {
     const { highlight } = useHighlight();
     const { orderedNoteIds, setOrderedNoteIds, setSettingsModalOpen } = useDataStore();
@@ -106,6 +108,7 @@ export default function Sidebar({
     const [myId, setMyId] = useState<string>("");
     const [sidebarUserProfile, setSidebarUserProfile] = useState<{ id?: string, user_id?: string, username: string, email: string, avatar_seed?: string, avatar_salt?: string } | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, id: string, type: 'file' | 'folder' } | null>(null);
+    const [sidebarContextMenu, setSidebarContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [dropIndicator, setDropIndicator] = useState<{ id: string, zone: 'top' | 'middle' | 'bottom' } | null>(null);
 
     const userProfile = propProfile || sidebarUserProfile;
@@ -188,10 +191,13 @@ export default function Sidebar({
             if (contextMenu && !(event.target as HTMLElement).closest('.context-menu')) {
                 setContextMenu(null);
             }
+            if (sidebarContextMenu && !(event.target as HTMLElement).closest('.context-menu')) {
+                setSidebarContextMenu(null);
+            }
         };
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [isProfileMenuOpen, contextMenu]);
+    }, [isProfileMenuOpen, contextMenu, sidebarContextMenu]);
 
     const handleSignOut = () => {
         sessionStorage.clear();
@@ -208,129 +214,45 @@ export default function Sidebar({
 
     const effectiveUserName = userProfile?.username || (typeof window !== 'undefined' ? sessionStorage.getItem('tide_user_name') : null) || (userProfile?.email || "").split('@')[0] || "User";
 
+    const handleImport = () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.md';
+        input.onchange = async (e: any) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                const rawContent = event.target?.result as string;
+                const title = file.name.replace(/\.md$/, '');
+                const lines = rawContent.split('\n');
+                const contentNodes = lines
+                    .map((line: string) => line.trimEnd())
+                    .filter((line: string) => line.length > 0)
+                    .map((line: string) => ({
+                        type: 'paragraph',
+                        attrs: { blockId: crypto.randomUUID() },
+                        content: [{ type: 'text', text: line }]
+                    }));
+                const tiptapDoc = {
+                    type: 'doc',
+                    content: contentNodes.length > 0 ? contentNodes : [
+                        { type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }
+                    ]
+                };
+                const newId = await useDataStore.getState().createNote(title, tiptapDoc);
+                useDataStore.getState().fetchDirectory(null, true);
+                onFileSelect(newId, title);
+            };
+            reader.readAsText(file);
+        };
+        input.click();
+    };
+
     return (
         <div className="w-64 h-full flex flex-col shrink-0 relative z-[100] transition-all duration-300 overflow-visible">
-            {/* Sticky top section: Avatar, Nav, Recent */}
-            <div className="flex-shrink-0 p-2 pb-0">
-                <div className="flex items-center justify-between px-2 py-1 mb-2">
-                    {/* Avatar at top-left */}
-                    <div className="relative" ref={profileMenuRef}>
-                        <div
-                            onClick={() => setSettingsModalOpen(true)}
-                            onContextMenu={(e) => { e.preventDefault(); setSettingsModalOpen(true); }}
-                            className="w-8 h-8 shrink-0 rounded-full cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all hover:scale-105 active:scale-95 overflow-hidden"
-                            title="Settings"
-                        >
-                            <Avatar
-                                seed={(userProfile?.avatar_seed || userProfile?.user_id || userProfile?.id || myId || 'default') + (userProfile?.avatar_salt || '')}
-                                size={32}
-                            />
-                        </div>
-                    </div>
-
-                    {/* Right-side action buttons */}
-                    <div className="flex items-center gap-1">
-                        <button
-                            onClick={() => {
-                                const input = document.createElement('input');
-                                input.type = 'file';
-                                input.accept = '.md';
-                                input.onchange = async (e: any) => {
-                                    const file = e.target.files?.[0];
-                                    if (!file) return;
-                                    const reader = new FileReader();
-                                    reader.onload = async (event) => {
-                                        const rawContent = event.target?.result as string;
-                                        const title = file.name.replace(/\.md$/, '');
-
-                                        // SECURITY: rawContent MUST be converted to Tiptap-JSON nodes,
-                                        // never passed to setContent() as raw HTML. Tiptap text nodes
-                                        // are escaped automatically — no XSS risk here.
-                                        const lines = rawContent.split('\n');
-                                        const contentNodes = lines
-                                            .map((line: string) => line.trimEnd())
-                                            .filter((line: string) => line.length > 0)
-                                            .map((line: string) => ({
-                                                type: 'paragraph',
-                                                attrs: { blockId: crypto.randomUUID() },
-                                                content: [{ type: 'text', text: line }]
-                                            }));
-
-                                        const tiptapDoc = {
-                                            type: 'doc',
-                                            content: contentNodes.length > 0 ? contentNodes : [
-                                                { type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }
-                                            ]
-                                        };
-
-                                        // Use the store's createNote which now uses the full V2 pipeline
-                                        const newId = await useDataStore.getState().createNote(title, tiptapDoc);
-                                        // Refresh directory and select new note
-                                        useDataStore.getState().fetchDirectory(null, true);
-                                        onFileSelect(newId, title);
-                                    };
-                                    reader.readAsText(file);
-                                };
-                                input.click();
-                            }}
-                            title="Notiz Importieren (.md)"
-                            className="p-1.5 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg text-gray-500 hover:text-gray-900 transition-all mx-1"
-                        >
-                            <Upload size={16} />
-                        </button>
-                        <button
-                            onClick={() => onCreateFolder && onCreateFolder(null)}
-                            title="New Folder"
-                            className="p-1.5 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg text-gray-500 hover:text-gray-900 transition-all mx-1"
-                        >
-                            <FolderPlus size={16} />
-                        </button>
-                        <button
-                            onClick={onNewNote}
-                            title="New Note"
-                            className="p-1.5 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg text-gray-500 hover:text-gray-900 transition-all mx-1"
-                        >
-                            <Plus size={16} />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Navigation Icons */}
-                <div className="flex items-center gap-1 px-2 pb-2 border-b border-[var(--border-grid)]">
-                    <button
-                        onClick={onOpenCalendar}
-                        title="Kalender"
-                        className={`flex items-center justify-center w-8 h-8 rounded-[var(--radius)] interactive-hover transition-colors
-                            ${activeTabId === 'calendar'
-                                ? 'bg-[#EBEBEB] text-[#111111]'
-                                : 'hover:bg-[var(--hover-bg)] text-[var(--text-muted)]'}`}
-                    >
-                        <Calendar size={16} />
-                    </button>
-                    <button
-                        onClick={onOpenSocial}
-                        title="Social"
-                        className={`flex items-center justify-center w-8 h-8 rounded-[var(--radius)] interactive-hover transition-colors
-                            ${activeTabId === 'social'
-                                ? 'bg-[#EBEBEB] text-[#111111]'
-                                : 'hover:bg-[var(--hover-bg)] text-[var(--text-muted)]'}`}
-                    >
-                        <Users size={16} />
-                    </button>
-                    {enabledExtensions?.includes('finance') && (
-                        <button
-                            onClick={onOpenFinance}
-                            title="Finance"
-                            className={`flex items-center justify-center w-8 h-8 rounded-[var(--radius)] interactive-hover transition-colors
-                                ${activeTabId === 'ext_finance'
-                                    ? 'bg-[#EBEBEB] text-[#111111]'
-                                    : 'hover:bg-[var(--hover-bg)] text-[var(--text-muted)]'}`}
-                        >
-                            <DollarSign size={16} />
-                        </button>
-                    )}
-                </div>
-
+            {/* Sticky top section: Recent */}
+            <div className="flex-shrink-0 p-2 pt-3 pb-0">
                 {/* RECENT Section */}
                 <div className="py-2">
                     <p className="text-[11px] font-medium uppercase tracking-[1px] text-[var(--text-subtle)] px-2 mb-1">
@@ -416,6 +338,12 @@ export default function Sidebar({
                 style={{ flex: '1 1 0', minHeight: 0, paddingBottom: '32px' }}
                 onDoubleClick={(e) => {
                     if (e.target === e.currentTarget) onNewNote();
+                }}
+                onContextMenu={(e) => {
+                    if (e.target === e.currentTarget) {
+                        e.preventDefault();
+                        setSidebarContextMenu({ x: e.clientX, y: e.clientY });
+                    }
                 }}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
@@ -702,6 +630,47 @@ export default function Sidebar({
                         >
                             <Trash2 size={16} className="text-rose-400 group-hover:text-rose-600" />
                             <span className="font-medium">Delete</span>
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {sidebarContextMenu && (
+                <div
+                    className="context-menu fixed z-[200] w-56 bg-white border border-gray-200 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
+                    style={{ left: sidebarContextMenu.x, top: sidebarContextMenu.y }}
+                >
+                    <div className="px-2 py-1.5 flex flex-col gap-0.5">
+                        <button
+                            onClick={() => { setSidebarContextMenu(null); onNewNote(); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                        >
+                            <Plus size={16} className="text-gray-400 group-hover:text-blue-500" />
+                            <span className="font-medium">Neue Notiz</span>
+                        </button>
+                        {onNewCanvasNote && (
+                            <button
+                                onClick={() => { setSidebarContextMenu(null); onNewCanvasNote(); }}
+                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                            >
+                                <Layout size={16} className="text-gray-400 group-hover:text-blue-500" />
+                                <span className="font-medium">Neue Leinwand</span>
+                            </button>
+                        )}
+                        <button
+                            onClick={() => { setSidebarContextMenu(null); onCreateFolder && onCreateFolder(null); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                        >
+                            <FolderPlus size={16} className="text-gray-400 group-hover:text-blue-500" />
+                            <span className="font-medium">Neuer Ordner</span>
+                        </button>
+                        <div className="h-px bg-gray-100 my-1" />
+                        <button
+                            onClick={() => { setSidebarContextMenu(null); handleImport(); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                        >
+                            <Upload size={16} className="text-gray-400 group-hover:text-blue-500" />
+                            <span className="font-medium">Importieren (.md)</span>
                         </button>
                     </div>
                 </div>
