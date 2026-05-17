@@ -31,6 +31,10 @@ function ImageWidget({
         (async () => {
             try {
                 const meta = await cryptoLib.decryptMetadata(item.encryptedKey, privateKey);
+                if (!meta || !meta.fileKey) {
+                    if (!cancelled) { setError('Invalid metadata'); setLoading(false); }
+                    return;
+                }
                 const fileKey = await window.crypto.subtle.importKey('jwk', meta.fileKey as JsonWebKey, { name: 'AES-GCM' }, false, ['decrypt']);
                 const res = await apiFetch(`/api/v1/files/${item.blobId}/download`);
                 if (!res.ok) {
@@ -155,6 +159,7 @@ export default function CanvasNoteItemComponent({
     const [hovered, setHovered] = useState(false);
     const isEditing = isEditingId === item.id;
     const dragState = useRef<{ startX: number; startY: number; initX: number; initY: number } | null>(null);
+    const dragCleanupRef = useRef<(() => void) | null>(null);
 
     const onMouseDown = useCallback((e: React.MouseEvent) => {
         if (isEditing || e.button !== 0) return;
@@ -162,7 +167,7 @@ export default function CanvasNoteItemComponent({
         e.stopPropagation();
         dragState.current = { startX: e.clientX, startY: e.clientY, initX: item.x, initY: item.y };
 
-        const onMove = (me: MouseEvent) => {
+        const onMv = (me: MouseEvent) => {
             if (!dragState.current || !elRef.current) return;
             const dx = (me.clientX - dragState.current.startX) / zoom;
             const dy = (me.clientY - dragState.current.startY) / zoom;
@@ -175,14 +180,23 @@ export default function CanvasNoteItemComponent({
             const dy = (me.clientY - dragState.current.startY) / zoom;
             onMoveEnd(item.id, dragState.current.initX + dx, dragState.current.initY + dy);
             dragState.current = null;
-            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mousemove', onMv);
             window.removeEventListener('mouseup', onUp);
+            dragCleanupRef.current = null;
         };
-        window.addEventListener('mousemove', onMove);
+        // Store cleanup for unmount
+        dragCleanupRef.current = () => {
+            window.removeEventListener('mousemove', onMv);
+            window.removeEventListener('mouseup', onUp);
+            dragState.current = null;
+            if (elRef.current) elRef.current.style.transform = '';
+        };
+        window.addEventListener('mousemove', onMv);
         window.addEventListener('mouseup', onUp);
     }, [item.id, item.x, item.y, item.rotation, zoom, isEditing, onMoveEnd]);
 
     const resizeState = useRef<{ startX: number; initWidth: number } | null>(null);
+    const resizeCleanupRef = useRef<(() => void) | null>(null);
     const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
         e.preventDefault(); e.stopPropagation();
         resizeState.current = { startX: e.clientX, initWidth: item.width };
@@ -202,10 +216,24 @@ export default function CanvasNoteItemComponent({
             resizeState.current = null;
             window.removeEventListener('mousemove', onMove);
             window.removeEventListener('mouseup', onUp);
+            resizeCleanupRef.current = null;
+        };
+        // Store cleanup for unmount
+        resizeCleanupRef.current = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            resizeState.current = null;
         };
         window.addEventListener('mousemove', onMove);
         window.addEventListener('mouseup', onUp);
     }, [item.id, item.width, zoom, onUpdate]);
+
+    useEffect(() => {
+        return () => {
+            dragCleanupRef.current?.();
+            resizeCleanupRef.current?.();
+        };
+    }, []);
 
     return (
         <div
