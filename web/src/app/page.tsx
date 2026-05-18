@@ -2221,6 +2221,7 @@ export default function Dashboard() {
         const liveEvents = liveStore.events as any[];
 
         let file: any = liveFiles.find(f => f.id === baseId) || liveEvents.find(ev => ev.id === baseId);
+        console.log('[handleShare] baseId:', baseId, 'found in files:', !!liveFiles.find(f => f.id === baseId), 'found in events:', !!liveEvents.find(ev => ev.id === baseId));
 
         // Last-resort fallback: fetch metadata from the backend so a recurring
         // instance whose base event isn't currently in the local store can still
