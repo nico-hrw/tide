@@ -1200,7 +1200,7 @@ export default function CalendarView({
                     <h2 className="text-xl font-black text-gray-900 dark:text-gray-100 uppercase tracking-widest">
                         {format(date, "MMMM yyyy")}
                     </h2>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 mr-14">
                         <button
                             onClick={() => setIsScheduleModalOpen(true)}
                             className="hidden md:flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-white/15 transition-colors"
