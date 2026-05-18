@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { MessageSquare, Search, UserPlus, X, Send, FileText, Share2, CheckCircle, XCircle, FolderOpen, ChevronRight, ChevronDown, Folder, Calendar, Trash } from "lucide-react";
 import { useIslandStore } from "@/components/extensions/smart_island/useIslandStore";
+import { useDataStore } from "@/store/useDataStore";
 import { apiFetch, getApiBase } from "@/lib/api";
 import * as cryptoLib from "@/lib/crypto";
 import Avatar from '@/components/Profile/Avatar';
@@ -362,6 +363,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
 
     const handleClone = async (fileId: string, messageId?: string, fileName?: string) => {
         try {
+            // Step 1: Create the server-side copy
             const res = await apiFetch(`/api/v1/files/${fileId}/copy`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -374,6 +376,80 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                 return;
             }
             const newFile = await res.json().catch(() => null);
+            if (!newFile?.id) { alert('Klonen fehlgeschlagen.'); return; }
+
+            // Step 2: Re-encrypt the copy for the new owner (recipient)
+            // publicKey is not in component props; retrieve from the data store
+            const { publicKey } = useDataStore.getState();
+            if (privateKey && publicKey && myId) {
+                try {
+                    const cryptoV2 = await import('@/lib/cryptoV2');
+
+                    // Get the original file to access its content and access_keys
+                    const origRes = await apiFetch(`/api/v1/files/${fileId}`);
+                    if (origRes.ok) {
+                        const origFile = await origRes.json();
+                        const accessKeys = typeof origFile.access_keys === 'string'
+                            ? JSON.parse(origFile.access_keys)
+                            : (origFile.access_keys || {});
+                        const myAccess = accessKeys[myId];
+
+                        if (myAccess?.wrapped_key && (origFile.version ?? 1) >= 2) {
+                            // Decrypt original content using our DEK
+                            const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey);
+                            const origDek = await cryptoV2.importDEK(rawDek);
+
+                            const contentRes = await apiFetch(`/api/v1/files/${fileId}/download`);
+                            if (contentRes.ok) {
+                                const blobText = await contentRes.text();
+                                const payload = JSON.parse(blobText);
+                                let contentText = '';
+                                if (payload.data && payload.iv) {
+                                    const ivBuf = cryptoLib.base64ToArrayBuffer(payload.iv);
+                                    const dataBuf = cryptoLib.base64ToArrayBuffer(payload.data);
+                                    const decrypted = await window.crypto.subtle.decrypt(
+                                        { name: 'AES-GCM', iv: ivBuf },
+                                        origDek,
+                                        dataBuf
+                                    );
+                                    contentText = new TextDecoder().decode(decrypted);
+                                }
+
+                                if (contentText) {
+                                    // Re-encrypt with a fresh DEK for the new owner
+                                    const v2Result = await cryptoV2.encryptFileV2(contentText, publicKey);
+                                    const newAccessKeys = { [myId]: v2Result.encrypted_dek };
+                                    const title = fileName || origFile.metadata?.title || origFile.public_meta?.title || 'Untitled';
+                                    const newSecuredMeta = await cryptoLib.encryptMetadata({ title }, publicKey);
+
+                                    await apiFetch(`/api/v1/files/${newFile.id}`, {
+                                        method: 'PUT',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({
+                                            version: 2,
+                                            content_ciphertext: v2Result.content_ciphertext,
+                                            access_keys: newAccessKeys,
+                                            metadata: { ...v2Result.metadata, title },
+                                            secured_meta: newSecuredMeta,
+                                        }),
+                                    });
+
+                                    // Upload the new encrypted content blob
+                                    await apiFetch(`/api/v1/files/${newFile.id}/upload`, {
+                                        method: 'POST',
+                                        body: v2Result.content_ciphertext,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                } catch (reEncryptErr) {
+                    console.error('[Clone] Re-encryption failed, copy may not be accessible:', reEncryptErr);
+                    // Non-fatal: copy was created, just may not be decryptable immediately
+                }
+            }
+
+            // Step 3: Update message status and open the file
             if (messageId) {
                 await apiFetch(`/api/v1/messages/${messageId}`, {
                     method: 'PATCH',
@@ -385,7 +461,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
             setProcessedRequests(prev => ({ ...prev, [fileId]: 'accepted' }));
             fetchAllSharedFiles();
             if (onFileCreated && newFile) onFileCreated(newFile);
-            if (newFile && newFile.id) {
+            if (newFile?.id) {
                 const title = newFile.public_meta?.title || fileName || 'Untitled';
                 onOpenFile(newFile.id, title, newFile);
             }
