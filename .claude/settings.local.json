@@ -20,7 +20,9 @@
       "Skill(superpowers:finishing-a-development-branch)",
       "Bash(npm run *)",
       "Bash(npx eslint *)",
-      "Skill(superpowers:systematic-debugging)"
+      "Skill(superpowers:systematic-debugging)",
+      "Bash(Select-String \"ChatPanel\")",
+      "Bash(Select-String *)"
     ]
   }
 }
