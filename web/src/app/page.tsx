@@ -1139,16 +1139,22 @@ export default function Dashboard() {
                         // No forceRefresh: the metadataCache protects in-flight optimistic updates
                         // from being overwritten by server data that hasn't caught up yet.
                         useDataStore.setState({ loadedDirectories: new Set() });
-                        useDataStore.getState().fetchDirectory(null);
+                        const fetchPromise = useDataStore.getState().fetchDirectory(null) as Promise<void> | undefined;
 
-                        // If a file update arrives and we have a note open, reload its content.
-                        // Note: backend may not include file_id in SSE payload — so we reload
-                        // for any file_updated event if the user has a note open.
+                        // If a file update arrives and we have a note open, reload its content
+                        // AFTER fetchDirectory finishes (so access_keys in store are fresh).
                         if (data.type === 'file_updated') {
                             const currentActiveId = useDataStore.getState().activeNoteId;
                             const fileIdMatch = data.file_id ? data.file_id === currentActiveId : !!currentActiveId;
                             if (fileIdMatch && currentActiveId) {
-                                window.dispatchEvent(new CustomEvent('tide:sse_reload', { detail: { fileId: currentActiveId } }));
+                                const dispatch = () => {
+                                    // Skip silent reload for public files — content is unencrypted
+                                    const activeFile = [...useDataStore.getState().notes, ...useDataStore.getState().events].find((f: any) => f.id === currentActiveId) as any;
+                                    if (activeFile?.visibility !== 'public') {
+                                        window.dispatchEvent(new CustomEvent('tide:sse_reload', { detail: { fileId: currentActiveId } }));
+                                    }
+                                };
+                                if (fetchPromise?.then) { fetchPromise.then(dispatch); } else { dispatch(); }
                             }
                         }
                     }
@@ -1243,11 +1249,11 @@ export default function Dashboard() {
         if (!freshNote) return;
         const realTitle = freshNote.title;
         if (!realTitle || realTitle.includes('Locked Note')) return;
-        // Update fileName if it's still showing the placeholder or is empty
-        setFileName(prev => (prev === '' || prev.includes('Locked')) ? realTitle : prev);
-        // Sync the open tab's title so it renders correctly on remount / tab switch
+        // Update fileName if showing a placeholder/empty/Locked or if store has a newer title
+        setFileName(prev => (prev === '' || prev.includes('Locked') || prev !== realTitle) ? realTitle : prev);
+        // Sync the open tab's title whenever the store title differs (fixes first-letter-only bug)
         setOpenTabs(prev => prev.map(tab =>
-            tab.id === activeNoteId && (tab.title === '' || tab.title.includes('Locked'))
+            tab.id === activeNoteId && tab.title !== realTitle
                 ? { ...tab, title: realTitle }
                 : tab
         ));
@@ -3514,7 +3520,9 @@ export default function Dashboard() {
                                                             // and writes the new title into secured_meta + content blob
                                                             setSaveStatus('unsaved');
                                                             if (activeNoteId) {
-                                                                useDataStore.getState().setNotes(files.map(f => f.id === activeNoteId ? { ...f, title: newTitle } : f) as any);
+                                                                useDataStore.getState().setNotes(useDataStore.getState().notes.map(f => f.id === activeNoteId ? { ...f, title: newTitle } as any : f));
+                                                                // Keep openTabs (Recent) in sync with every keystroke
+                                                                setOpenTabs(prev => prev.map(t => t.id === activeNoteId ? { ...t, title: newTitle } : t));
                                                             }
                                                         }}
                                                         onBlur={(e) => {

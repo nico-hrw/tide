@@ -827,6 +827,9 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                     : file.type === 'canvas'
                         ? <Layout size={15} className="shrink-0 text-gray-400" />
                         : <FileText size={15} className="shrink-0 text-gray-400" />}
+                {(file as any).share_status === 'shared' && (
+                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-sky-400" title="Geteilte Notiz" />
+                )}
                 {editingId === file.id ? (
                     <input
                         autoFocus
@@ -922,6 +925,9 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                         <FolderOpen size={15} className="text-gray-400" />
                     ) : (
                         <Folder size={15} className="text-gray-400" />
+                    )}
+                    {(folder as any).share_status === 'shared' && (
+                        <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-sky-400" title="Geteilter Ordner" />
                     )}
                     {editingId === folder.id ? (
                         <input
