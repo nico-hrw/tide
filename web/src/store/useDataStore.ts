@@ -367,7 +367,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                     secured_meta: securedMeta,
                     visibility: 'private',
                     version: 2,
-                    metadata: v2Result.metadata,
+                    metadata: { ...v2Result.metadata, title },
                     access_keys: accessKeysMap
                 })
             });
@@ -425,7 +425,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                     secured_meta: securedMeta,
                     visibility: 'private',
                     version: 2,
-                    metadata: v2Result.metadata,
+                    metadata: { ...v2Result.metadata, title },
                     access_keys: accessKeysMap,
                 }),
             });
