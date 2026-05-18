@@ -3087,7 +3087,7 @@ export default function Dashboard() {
                                 initialContent={editorContent}
                                 editable={(() => {
                                     const af = files.find(f => f.id === activeNoteId);
-                                    return af?.permission !== 'view';
+                                    return (af as any)?.permission !== 'view';
                                 })()}
                                 onEditorReady={handleEditorReady}
                                 onChange={handleEditorChange}
@@ -3556,7 +3556,7 @@ export default function Dashboard() {
                                                     initialContent={editorContent}
                                                     editable={(() => {
                                                         const af = files.find(f => f.id === activeNoteId);
-                                                        return af?.permission !== 'view';
+                                                        return (af as any)?.permission !== 'view';
                                                     })()}
                                                     onEditorReady={handleEditorReady}
                                                     onChange={handleEditorChange}
