@@ -825,7 +825,7 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                 {file.title.startsWith('#')
                     ? <Lock size={15} className="shrink-0 text-gray-400" />
                     : file.type === 'canvas'
-                        ? <Layout size={15} className="shrink-0 text-teal-400" />
+                        ? <Layout size={15} className="shrink-0 text-gray-400" />
                         : <FileText size={15} className="shrink-0 text-gray-400" />}
                 {editingId === file.id ? (
                     <input
