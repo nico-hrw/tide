@@ -30,13 +30,19 @@ function ImageWidget({
         let cancelled = false;
         (async () => {
             try {
+                console.log('[ImageWidget] blobId:', item.blobId, 'encryptedKey length:', item.encryptedKey?.length);
                 const meta = await cryptoLib.decryptMetadata(item.encryptedKey, privateKey);
+                console.log('[ImageWidget] meta decrypted:', meta ? Object.keys(meta) : null);
                 if (!meta || !meta.fileKey) {
+                    console.error('[ImageWidget] Missing fileKey in meta:', meta);
                     if (!cancelled) { setError('Invalid metadata'); setLoading(false); }
                     return;
                 }
-                const fileKey = await window.crypto.subtle.importKey('jwk', meta.fileKey as JsonWebKey, { name: 'AES-GCM' }, false, ['decrypt']);
+                const fileKey = await window.crypto.subtle.importKey(
+                    'jwk', meta.fileKey as JsonWebKey, { name: 'AES-GCM' }, false, ['decrypt']
+                );
                 const res = await apiFetch(`/api/v1/files/${item.blobId}/download`);
+                console.log('[ImageWidget] download status:', res.status);
                 if (!res.ok) {
                     const msg = `HTTP ${res.status} for blob ${item.blobId}`;
                     console.error('[CanvasNote] Image download failed:', msg);
@@ -48,7 +54,7 @@ function ImageWidget({
                 imageBlobCache.current.set(item.blobId, url);
                 if (!cancelled) { setSrc(url); setLoading(false); }
             } catch (e: any) {
-                console.error('[CanvasNote] decrypt image:', e);
+                console.error('[CanvasNote] decrypt image full error:', e);
                 if (!cancelled) { setError(e?.message || 'Fehler'); setLoading(false); }
             }
         })();

@@ -50,7 +50,7 @@ export default function CanvasNoteEditor({
     }, [items]);
 
     // ── Image upload ──────────────────────────────────────────────────────────
-    const { upload } = useCanvasImageUpload(publicKey, userId);
+    const { upload } = useCanvasImageUpload(noteId, publicKey, userId);
 
     const handleImageDrop = useCallback(async (e: React.DragEvent) => {
         e.preventDefault();

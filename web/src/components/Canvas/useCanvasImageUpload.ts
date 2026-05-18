@@ -16,6 +16,7 @@ export interface UploadedImage {
 }
 
 export function useCanvasImageUpload(
+    noteId: string,
     publicKey: CryptoKey | null,
     userId: string,
 ) {
@@ -44,6 +45,7 @@ export function useCanvasImageUpload(
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     type: 'canvas-asset',
+                    parent_id: noteId,
                     size: ciphertext.size,
                     public_meta: {},
                     secured_meta: encryptedMeta,
@@ -68,7 +70,7 @@ export function useCanvasImageUpload(
             console.error('[Canvas] Image upload failed:', err);
             onError(placeholderId);
         }
-    }, [publicKey, userId]);
+    }, [noteId, publicKey, userId]);
 
     return { upload };
 }

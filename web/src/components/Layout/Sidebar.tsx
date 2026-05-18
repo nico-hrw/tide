@@ -114,7 +114,7 @@ export default function Sidebar({
     const userProfile = propProfile || sidebarUserProfile;
 
     const topLevelItems = useMemo(() => {
-        return files?.filter(f => f.parent_id === null && f.type !== 'event' && (!(f as any).share_status || (f as any).share_status === 'owner')) || [];
+        return files?.filter(f => f.parent_id === null && f.type !== 'event' && f.type !== 'canvas-asset' && (!(f as any).share_status || (f as any).share_status === 'owner')) || [];
     }, [files]);
 
     // Files shared with me (pending or accepted, not owned by me)
@@ -964,7 +964,7 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                             myId={myId}
                         />
                     ))}
-                    {children.filter(f => f.type !== 'folder' && f.type !== 'event').map((f, i) => (
+                    {children.filter(f => f.type !== 'folder' && f.type !== 'event' && f.type !== 'canvas-asset').map((f, i) => (
                         <FileItem
                             key={f.id}
                             index={i + children.filter(c => c.type === 'folder').length}
