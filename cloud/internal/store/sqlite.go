@@ -614,7 +614,7 @@ created_at, updated_at, blob_path, visibility, public_meta, secured_meta, versio
 }
 
 func (s *SQLiteStore) GetFile(ctx context.Context, id string) (*db.File, error) {
-		query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, COALESCE(visibility, 'private') as visibility, public_meta, COALESCE(secured_meta, x'') as secured_meta, COALESCE(version, 1) as version, COALESCE(NULLIF(metadata, ''), '{}') as metadata, COALESCE(NULLIF(access_keys, ''), '{}') as access_keys FROM files WHERE id = ?`
+		query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, COALESCE(visibility, 'private') as visibility, public_meta, COALESCE(secured_meta, x'') as secured_meta, COALESCE(version, 1) as version, COALESCE(NULLIF(metadata, ''), '{}') as metadata, COALESCE(NULLIF(access_keys, ''), '{}') as access_keys, 'owner' as permission FROM files WHERE id = ?`
 	row := s.DB.QueryRowContext(ctx, query, id)
 
 	var file db.File
@@ -635,6 +635,7 @@ func (s *SQLiteStore) GetFile(ctx context.Context, id string) (*db.File, error) 
 		&file.Version,
 		&md,
 		&ak,
+		&file.Permission,
 	)
 	if err == nil {
 		file.Metadata = json.RawMessage(md)
@@ -687,6 +688,7 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 		SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta,
 			   COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			   COALESCE(fs.status, 'owner') as share_status,
+			   COALESCE(fs.permission, 'owner') as permission,
 			   COALESCE(f.version, 1) as version,
 			   COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			   COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -717,6 +719,7 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 		&f.PublicMeta,
 		&f.SecuredMeta,
 		&f.ShareStatus,
+		&f.Permission,
 		&f.Version,
 		&md,
 		&ak,
