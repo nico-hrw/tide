@@ -2107,19 +2107,53 @@ export default function Dashboard() {
 
             // 1. Get decrypted metadata & content (if currently encrypted)
             if (prevVisibility !== 'public') {
-                if (!file.secured_meta) throw new Error("Missing secured metadata");
-                currentMeta = await cryptoLib.decryptMetadata(file.secured_meta, privateKey);
+                if (file.secured_meta) {
+                    try {
+                        currentMeta = await cryptoLib.decryptMetadata(file.secured_meta, privateKey);
+                    } catch {
+                        currentMeta = { title: (file as any).metadata?.title || file.title || 'Untitled' };
+                    }
+                } else {
+                    currentMeta = { title: (file as any).metadata?.title || file.title || 'Untitled' };
+                }
 
                 if (!isFolder) {
                     const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
                     if (resBlob.ok) {
-                        const blob = await resBlob.blob();
-                        const fileKey = await window.crypto.subtle.importKey(
-                            "jwk", currentMeta.fileKey,
-                            { name: "AES-GCM" },
-                            true, ["encrypt", "decrypt"]
-                        );
-                        contentBlob = await cryptoLib.decryptFile(blob, currentMeta.iv, fileKey);
+                        const isV2 = (file as any).version >= 2 || !!(file as any).access_keys;
+                        if (isV2) {
+                            // V2: get DEK from access_keys, decrypt AES-GCM payload
+                            const accessKeys = typeof (file as any).access_keys === 'string'
+                                ? JSON.parse((file as any).access_keys)
+                                : ((file as any).access_keys || {});
+                            const myAccess = accessKeys[myId];
+                            if (!myAccess?.wrapped_key) throw new Error('No V2 access key for visibility toggle');
+                            const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey);
+                            const dek = await cryptoV2.importDEK(rawDek);
+                            const blobText = await resBlob.text();
+                            if (blobText) {
+                                const payload = JSON.parse(blobText);
+                                if (payload.data && payload.iv) {
+                                    const ivBuf = cryptoLib.base64ToArrayBuffer(payload.iv);
+                                    const dataBuf = cryptoLib.base64ToArrayBuffer(payload.data);
+                                    const decrypted = await window.crypto.subtle.decrypt(
+                                        { name: 'AES-GCM', iv: ivBuf },
+                                        dek,
+                                        dataBuf
+                                    );
+                                    contentBlob = new Blob([decrypted]);
+                                }
+                            }
+                        } else {
+                            // V1: fileKey and iv are in secured_meta
+                            const blob = await resBlob.blob();
+                            const fileKey = await window.crypto.subtle.importKey(
+                                "jwk", currentMeta.fileKey,
+                                { name: "AES-GCM" },
+                                true, ["encrypt", "decrypt"]
+                            );
+                            contentBlob = await cryptoLib.decryptFile(blob, currentMeta.iv, fileKey);
+                        }
                     }
                 }
             } else {
@@ -2145,6 +2179,7 @@ export default function Dashboard() {
                     const metaPayload = { title: currentMeta.title };
                     updatePayload.secured_meta = await cryptoLib.encryptMetadata(metaPayload, publicKey);
                 } else {
+                    // TODO: V2 re-encryption needed here — V2 files use access_keys/DEK, not secured_meta.fileKey
                     const fileKey = await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
                     const encrypted = await cryptoLib.encryptFile(contentBlob || new Blob([]), fileKey);
                     uploadBlob = encrypted.ciphertext;
@@ -2256,17 +2291,33 @@ export default function Dashboard() {
         // Note: upload_progress push removed — sending a note/event should not
         // trigger a Smart Island change per user request.
 
-        await (await import('@/lib/shareLogic')).performMessengerShare(
-            shareModalFile,
-            myId,
-            privateKey,
-            publicKey,
-            events,
-            recipientId,
-            recipientEmail,
-            recipientPubKeySpki,
-            permission,
-        );
+        const shareLib = await import('@/lib/shareLogic');
+
+        if (shareModalFile.type === 'folder') {
+            await shareLib.performFolderShare(
+                shareModalFile.id,
+                shareModalFile.title,
+                myId,
+                privateKey,
+                publicKey,
+                recipientId,
+                recipientEmail,
+                recipientPubKeySpki,
+                permission,
+            );
+        } else {
+            await shareLib.performMessengerShare(
+                shareModalFile,
+                myId,
+                privateKey,
+                publicKey,
+                events,
+                recipientId,
+                recipientEmail,
+                recipientPubKeySpki,
+                permission,
+            );
+        }
 
         // Refresh the directory so the shared file reflects updated state immediately
         useDataStore.getState().fetchDirectory(null);

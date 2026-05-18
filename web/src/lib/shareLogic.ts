@@ -103,3 +103,67 @@ export async function performMessengerShare(
         throw err;
     }
 }
+
+/**
+ * Share a folder with a recipient by re-encrypting its secured_meta (title) for them.
+ * Folders have no DEK — only metadata needs to be shared.
+ */
+export async function performFolderShare(
+    folderId: string,
+    folderTitle: string,
+    myId: string,
+    privateKey: CryptoKey,
+    publicKey: CryptoKey,
+    recipientId: string,
+    recipientEmail: string,
+    recipientPubKeySpki: string,
+    permission: 'view' | 'edit' | 'share' = 'view'
+) {
+    const recipientPubKey = await window.crypto.subtle.importKey(
+        "spki",
+        cryptoLib.base64ToArrayBuffer(recipientPubKeySpki),
+        { name: "RSA-OAEP", hash: "SHA-256" },
+        true,
+        ["encrypt"]
+    );
+
+    // Re-encrypt folder metadata (title) for recipient
+    const recipientSecuredMeta = await cryptoLib.encryptMetadata(
+        { title: folderTitle },
+        recipientPubKey
+    );
+
+    const shareRes = await apiFetch(`/api/v1/files/${folderId}/share`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            recipient_id: recipientId,
+            email: recipientEmail,
+            secured_meta: recipientSecuredMeta,
+            permission,
+        })
+    });
+
+    if (!shareRes.ok) {
+        const errText = await shareRes.text();
+        throw new Error(`Failed to share folder: ${shareRes.status} - ${errText}`);
+    }
+
+    // Send chat notification
+    await apiFetch("/api/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            recipient_id: recipientId,
+            recipient_email: recipientEmail,
+            content: JSON.stringify({
+                type: "file_share_request",
+                file_id: folderId,
+                file_name: folderTitle,
+                file_type: "folder",
+                file_preview: "Shared folder",
+                permission,
+            })
+        })
+    });
+}
