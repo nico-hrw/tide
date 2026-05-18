@@ -396,7 +396,12 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
 
                         if (myAccess?.wrapped_key && (origFile.version ?? 1) >= 2) {
                             // Decrypt original content using our DEK
-                            const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey);
+                            const metadata = typeof origFile.metadata === 'string'
+                                ? JSON.parse(origFile.metadata)
+                                : (origFile.metadata || {});
+                            const rawDek = metadata?.has_custom_password
+                                ? await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey, myAccess.pwd_iv)
+                                : await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey);
                             const origDek = await cryptoV2.importDEK(rawDek);
 
                             const contentRes = await apiFetch(`/api/v1/files/${fileId}/download`);

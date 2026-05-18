@@ -2111,10 +2111,12 @@ export default function Dashboard() {
                     try {
                         currentMeta = await cryptoLib.decryptMetadata(file.secured_meta, privateKey);
                     } catch {
-                        currentMeta = { title: (file as any).metadata?.title || file.title || 'Untitled' };
+                        const parsedMeta = typeof (file as any).metadata === 'string' ? JSON.parse((file as any).metadata || '{}') : ((file as any).metadata || {});
+                        currentMeta = { title: parsedMeta?.title || file.title || 'Untitled' };
                     }
                 } else {
-                    currentMeta = { title: (file as any).metadata?.title || file.title || 'Untitled' };
+                    const parsedMeta = typeof (file as any).metadata === 'string' ? JSON.parse((file as any).metadata || '{}') : ((file as any).metadata || {});
+                    currentMeta = { title: parsedMeta?.title || file.title || 'Untitled' };
                 }
 
                 if (!isFolder) {
@@ -2179,14 +2181,28 @@ export default function Dashboard() {
                     const metaPayload = { title: currentMeta.title };
                     updatePayload.secured_meta = await cryptoLib.encryptMetadata(metaPayload, publicKey);
                 } else {
-                    // TODO: V2 re-encryption needed here — V2 files use access_keys/DEK, not secured_meta.fileKey
-                    const fileKey = await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
-                    const encrypted = await cryptoLib.encryptFile(contentBlob || new Blob([]), fileKey);
-                    uploadBlob = encrypted.ciphertext;
-                    const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", fileKey);
-                    const metaPayload = { title: currentMeta.title, fileKey: fileKeyJwk, iv: encrypted.iv };
-                    updatePayload.secured_meta = await cryptoLib.encryptMetadata(metaPayload, publicKey);
-                    currentMeta = metaPayload; // For following re-encryption
+                    const isV2File = (file as any).version >= 2 || !!(file as any).access_keys;
+                    if (isV2File) {
+                        // V2: re-encrypt with fresh DEK, keep access_keys structure
+                        const contentStr = contentBlob ? await contentBlob.text() : '';
+                        const v2Result = await cryptoV2.encryptFileV2(contentStr || '', publicKey);
+                        updatePayload.version = 2;
+                        updatePayload.access_keys = { [myId]: v2Result.encrypted_dek };
+                        updatePayload.metadata = { ...v2Result.metadata, title: currentMeta.title };
+                        updatePayload.secured_meta = await cryptoLib.encryptMetadata({ title: currentMeta.title }, publicKey);
+                        // Upload the V2 ciphertext string (not a blob)
+                        uploadBlob = new Blob([v2Result.content_ciphertext], { type: 'application/json' });
+                        currentMeta = { title: currentMeta.title };
+                    } else {
+                        // V1: keep legacy path
+                        const fileKey = await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+                        const encrypted = await cryptoLib.encryptFile(contentBlob || new Blob([]), fileKey);
+                        uploadBlob = encrypted.ciphertext;
+                        const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", fileKey);
+                        const metaPayload = { title: currentMeta.title, fileKey: fileKeyJwk, iv: encrypted.iv };
+                        updatePayload.secured_meta = await cryptoLib.encryptMetadata(metaPayload, publicKey);
+                        currentMeta = metaPayload;
+                    }
                 }
                 updatePayload.public_meta = {};
             }
