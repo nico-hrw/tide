@@ -238,6 +238,7 @@ export default function Dashboard() {
     const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving">("saved");
     const [fileName, setFileName] = useState("");
     const [editorInstance, setEditorInstance] = useState<any>(null);
+    const editorInstanceRef = useRef<any>(null);
     const [editorVersion, setEditorVersion] = useState(0);
     const lastLoadIdRef = useRef<string | null>(null);
 
@@ -318,7 +319,7 @@ export default function Dashboard() {
 
     // Callbacks
     const handleEditorReady = useCallback((ed: any) => {
-        setTimeout(() => setEditorInstance(ed), 0);
+        setTimeout(() => { setEditorInstance(ed); editorInstanceRef.current = ed; }, 0);
     }, []);
 
     const handleEditorChange = useCallback((json: any) => {
@@ -491,6 +492,17 @@ export default function Dashboard() {
             if (saveStatusRef.current !== 'unsaved') {
                 console.log("[AutoSave] 1s idle timer fired but status is no longer 'unsaved'. skipping.");
                 return;
+            }
+
+            // Skip save for view-only shared files — backend would reject with 403
+            if (noteId) {
+                const liveFile = [...useDataStore.getState().notes, ...useDataStore.getState().events].find((f: any) => f.id === noteId) as any;
+                const perm = liveFile?.permission;
+                if (perm === 'view' || (liveFile?.share_status === 'shared' && perm && perm !== 'edit' && perm !== 'share')) {
+                    console.log(`[AutoSave] Skipping save for view-only file ${noteId}`);
+                    setSaveStatus('saved');
+                    return;
+                }
             }
 
             console.log(`[AutoSave] 1s idle detected for ${noteId}. Starting save pulse...`);
@@ -1129,11 +1141,14 @@ export default function Dashboard() {
                         useDataStore.setState({ loadedDirectories: new Set() });
                         useDataStore.getState().fetchDirectory(null);
 
-                        // If the updated file is currently open, reload its content
-                        if (data.type === 'file_updated' && data.file_id) {
+                        // If a file update arrives and we have a note open, reload its content.
+                        // Note: backend may not include file_id in SSE payload — so we reload
+                        // for any file_updated event if the user has a note open.
+                        if (data.type === 'file_updated') {
                             const currentActiveId = useDataStore.getState().activeNoteId;
-                            if (data.file_id === currentActiveId) {
-                                window.dispatchEvent(new CustomEvent('tide:sse_reload', { detail: { fileId: data.file_id } }));
+                            const fileIdMatch = data.file_id ? data.file_id === currentActiveId : !!currentActiveId;
+                            if (fileIdMatch && currentActiveId) {
+                                window.dispatchEvent(new CustomEvent('tide:sse_reload', { detail: { fileId: currentActiveId } }));
                             }
                         }
                     }
@@ -1163,17 +1178,51 @@ export default function Dashboard() {
         };
     }, [myId]);
 
-    // SSE content-reload: when another client updates a file we have open, reload its content
+    // SSE content-reload: when another client updates a file we have open, silently update content
     useEffect(() => {
-        const handler = (e: Event) => {
+        const handler = async (e: Event) => {
             const { fileId } = (e as CustomEvent).detail;
-            if (fileId === activeNoteId && !isLoadingContent && editorContent !== null) {
-                console.log('[SSE] Reloading content for open note:', fileId);
+            if (fileId !== activeNoteId || isLoadingContent || editorContent === null) return;
+            const ed = editorInstanceRef.current;
+            if (!ed) return;
+
+            console.log('[SSE] Silent content reload for open note:', fileId);
+            try {
+                const freshState = useDataStore.getState();
+                if (!freshState.privateKey || !freshState.myId) return;
+                const allFiles = [...freshState.notes, ...freshState.events] as any[];
+                const target = allFiles.find((f: any) => f.id === fileId);
+                if (!target || (target.version ?? 1) < 2 || !target.access_keys) return;
+
+                const cryptoV2 = await import('@/lib/cryptoV2');
+                const cryptoLib = await import('@/lib/crypto');
+                const accessKeys = typeof target.access_keys === 'string'
+                    ? JSON.parse(target.access_keys) : (target.access_keys || {});
+                const myAccess = accessKeys[freshState.myId];
+                if (!myAccess?.wrapped_key) return;
+
+                const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, freshState.privateKey);
+                const dek = await cryptoV2.importDEK(rawDek);
+                const res = await (await import('@/lib/api')).apiFetch(`/api/v1/files/${fileId}/download`);
+                if (!res.ok) return;
+                const blobText = await res.text();
+                const payload = JSON.parse(blobText);
+                if (!payload.data || !payload.iv) return;
+
+                const ivBuf = cryptoLib.base64ToArrayBuffer(payload.iv);
+                const dataBuf = cryptoLib.base64ToArrayBuffer(payload.data);
+                const decrypted = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBuf }, dek, dataBuf);
+                const contentText = new TextDecoder().decode(decrypted);
+                const parsed = JSON.parse(contentText);
+                // Update editor content in-place — no blank flash
+                ed.commands.setContent(parsed, false);
+            } catch (err) {
+                console.warn('[SSE] Silent reload failed, falling back to full reload:', err);
                 loadNoteContent(fileId, fileName);
             }
         };
-        window.addEventListener('tide:sse_reload', handler);
-        return () => window.removeEventListener('tide:sse_reload', handler);
+        window.addEventListener('tide:sse_reload', handler as EventListener);
+        return () => window.removeEventListener('tide:sse_reload', handler as EventListener);
     }, [activeNoteId, fileName, isLoadingContent, editorContent]);
 
 
@@ -2254,7 +2303,10 @@ export default function Dashboard() {
 
             // 5. If "Contacts" visibility, perform bulk share
             if (newVisibility === 'contacts') {
-                const isV2 = (file as any).version >= 2 || !!(file as any).access_keys;
+                const _ak = (file as any).access_keys;
+                const isV2 = (file as any).version >= 2 ||
+                    (_ak && typeof _ak === 'string' && _ak !== 'null' && _ak !== '{}') ||
+                    (_ak && typeof _ak === 'object' && Object.keys(_ak).length > 0);
                 if (!isV2) {
                     // V1 files only: bulk-share with contacts using legacy secured_meta
                     const contactsRes = await apiFetch("/api/v1/contacts");
@@ -3498,11 +3550,16 @@ export default function Dashboard() {
                                                         </button>
                                                         {/* Save status indicator */}
                                                         <span
-                                                            title={saveStatus === 'saved' ? (files.find(f => f.id === activeNoteId)?.share_status === 'shared' ? 'Synced' : 'Gespeichert') : saveStatus === 'saving' ? 'Wird gespeichert…' : 'Nicht gespeichert'}
+                                                            title={saveStatus === 'saved' ? (() => { const af = files.find(f => f.id === activeNoteId) as any; const ak = af?.access_keys; const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {}; return (af?.share_status === 'shared' || Object.keys(akObj).length > 1) ? 'Synced' : 'Gespeichert'; })() : saveStatus === 'saving' ? 'Wird gespeichert…' : 'Nicht gespeichert'}
                                                             className="shrink-0 transition-all duration-300"
                                                         >
                                                             {saveStatus === 'saved' && (() => {
-                                                                const isShared = files.find(f => f.id === activeNoteId)?.share_status === 'shared';
+                                                                const af = files.find(f => f.id === activeNoteId) as any;
+                                                                const isRecipient = af?.share_status === 'shared';
+                                                                const ak = af?.access_keys;
+                                                                const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {};
+                                                                const isSharedByOwner = Object.keys(akObj).length > 1;
+                                                                const isShared = isRecipient || isSharedByOwner;
                                                                 return (
                                                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isShared ? "text-sky-400 opacity-70" : "text-green-400 opacity-60"}>
                                                                         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
