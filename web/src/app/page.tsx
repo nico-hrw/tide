@@ -2266,6 +2266,9 @@ export default function Dashboard() {
             recipientPubKeySpki,
             permission,
         );
+
+        // Refresh the directory so the shared file reflects updated state immediately
+        useDataStore.getState().fetchDirectory(null);
     };
 
 
