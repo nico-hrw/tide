@@ -114,8 +114,9 @@ export default function CanvasNoteEditor({
 
     // ── Click on empty canvas → new text box ─────────────────────────────────
     const handleCanvasClick = useCallback((e: React.MouseEvent) => {
+        if ((e.target as HTMLElement).closest('.canvas-note-item')) return;
         if (e.target !== worldRef.current) return;
-        if (isEditingId) { setIsEditingId(null); return; }
+        setIsEditingId(null);
         const viewport = viewportRef.current;
         if (!viewport) return;
         const vr = viewport.getBoundingClientRect();
@@ -128,7 +129,7 @@ export default function CanvasNoteEditor({
         };
         setItems(prev => [...prev, newItem]);
         setIsEditingId(newId);
-    }, [isEditingId, pan, zoom]);
+    }, [pan, zoom]);
 
     // ── Zoom via wheel ────────────────────────────────────────────────────────
     const handleWheel = useCallback((e: WheelEvent) => {

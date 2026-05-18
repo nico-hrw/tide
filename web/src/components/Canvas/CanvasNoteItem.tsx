@@ -104,7 +104,7 @@ function TextWidget({
             ref={ref}
             contentEditable={isEditing}
             suppressContentEditableWarning
-            onDoubleClick={onStartEdit}
+            onClick={(e) => { e.stopPropagation(); onStartEdit(); }}
             onBlur={(e) => {
                 const text = e.currentTarget.innerText;
                 onUpdate(text);
@@ -250,7 +250,6 @@ export default function CanvasNoteItemComponent({
             onMouseDown={onMouseDown}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
-            onDoubleClick={() => isCanvasTextItem(item) && onStartEdit(item.id)}
         >
             {/* Delete button */}
             {hovered && !isEditing && (
