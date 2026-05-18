@@ -62,6 +62,7 @@ type File struct {
 	PublicMeta  json.RawMessage `json:"public_meta" db:"public_meta"`   // JSONB
 	SecuredMeta []byte          `json:"secured_meta" db:"secured_meta"` // BYTEA
 	ShareStatus    string          `json:"share_status,omitempty" db:"share_status"`
+	Permission     string          `json:"permission,omitempty" db:"permission"`
 	Version        int             `json:"version" db:"version"`
 	Metadata       json.RawMessage `json:"metadata" db:"metadata"`
 	AccessKeys     json.RawMessage `json:"access_keys" db:"access_keys"`

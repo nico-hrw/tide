@@ -461,7 +461,13 @@ export default function Dashboard() {
             }
         } catch (e) {
             console.error(`[AutoSave] Save FAILED for ${noteId}:`, e);
-            setSaveStatus('unsaved');
+            const errMsg = String((e as any)?.message || '');
+            if (errMsg.includes('403') || errMsg.includes('status 403')) {
+                // View-only file — silently ignore the save failure
+                setSaveStatus('saved');
+            } else {
+                setSaveStatus('unsaved');
+            }
         } finally {
             isSavingRef.current.delete(noteId);
         }
@@ -725,13 +731,15 @@ export default function Dashboard() {
             }
 
             // Single atomic PUT: writes blob to BlobStore and updates metadata
+            const isOwner = (currentFile?.share_status || 'owner') === 'owner';
+
             const putRes = await apiFetch(`/api/v1/files/${fileId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     version: 2,
                     content_ciphertext: contentCiphertext,
-                    access_keys: accessKeysMap,
+                    ...(isOwner ? { access_keys: accessKeysMap } : {}),
                     metadata: { has_custom_password: false, title },
                     ...(freshSecuredMeta ? { secured_meta: freshSecuredMeta } : {}),
                 })
@@ -1120,6 +1128,14 @@ export default function Dashboard() {
                         // from being overwritten by server data that hasn't caught up yet.
                         useDataStore.setState({ loadedDirectories: new Set() });
                         useDataStore.getState().fetchDirectory(null);
+
+                        // If the updated file is currently open, reload its content
+                        if (data.type === 'file_updated' && data.file_id) {
+                            const currentActiveId = useDataStore.getState().activeNoteId;
+                            if (data.file_id === currentActiveId) {
+                                window.dispatchEvent(new CustomEvent('tide:sse_reload', { detail: { fileId: data.file_id } }));
+                            }
+                        }
                     }
                 } catch (e) { console.error("SSE Parse Error", e); }
             };
@@ -1146,6 +1162,19 @@ export default function Dashboard() {
             delete (window as any).__tideSaveTimestamp;
         };
     }, [myId]);
+
+    // SSE content-reload: when another client updates a file we have open, reload its content
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const { fileId } = (e as CustomEvent).detail;
+            if (fileId === activeNoteId && !isLoadingContent && editorContent !== null) {
+                console.log('[SSE] Reloading content for open note:', fileId);
+                loadNoteContent(fileId, fileName);
+            }
+        };
+        window.addEventListener('tide:sse_reload', handler);
+        return () => window.removeEventListener('tide:sse_reload', handler);
+    }, [activeNoteId, fileName, isLoadingContent, editorContent]);
 
 
     // Auto-Save Effect — intentionally removed: the ref-based triggerSave system above
@@ -2225,30 +2254,35 @@ export default function Dashboard() {
 
             // 5. If "Contacts" visibility, perform bulk share
             if (newVisibility === 'contacts') {
-                const contactsRes = await apiFetch("/api/v1/contacts");
-                if (contactsRes.ok) {
-                    const partnerList = await contactsRes.json();
-                    for (const contact of partnerList) {
-                        try {
-                            const recipientPubKey = await window.crypto.subtle.importKey(
-                                "spki",
-                                cryptoLib.base64ToArrayBuffer(contact.partner.public_key),
-                                { name: "RSA-OAEP", hash: "SHA-256" },
-                                true,
-                                ["encrypt"]
-                            );
-                            const reEncMeta = await cryptoLib.encryptMetadata(currentMeta, recipientPubKey);
-                            await apiFetch(`/api/v1/files/${fileId}/share`, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                    email: contact.partner.email,
-                                    secured_meta: reEncMeta
-                                })
-                            });
-                        } catch (e) { console.error("Failed to share with contact", contact.partner.email, e); }
+                const isV2 = (file as any).version >= 2 || !!(file as any).access_keys;
+                if (!isV2) {
+                    // V1 files only: bulk-share with contacts using legacy secured_meta
+                    const contactsRes = await apiFetch("/api/v1/contacts");
+                    if (contactsRes.ok) {
+                        const partnerList = await contactsRes.json();
+                        for (const contact of partnerList) {
+                            try {
+                                const recipientPubKey = await window.crypto.subtle.importKey(
+                                    "spki",
+                                    cryptoLib.base64ToArrayBuffer(contact.partner.public_key),
+                                    { name: "RSA-OAEP", hash: "SHA-256" },
+                                    true,
+                                    ["encrypt"]
+                                );
+                                const reEncMeta = await cryptoLib.encryptMetadata(currentMeta, recipientPubKey);
+                                await apiFetch(`/api/v1/files/${fileId}/share`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                        email: contact.partner.email,
+                                        secured_meta: reEncMeta
+                                    })
+                                });
+                            } catch (e) { console.error("Failed to share with contact", contact.partner.email, e); }
+                        }
                     }
                 }
+                // V2 files: contacts must be shared individually via the Share modal (DEK wrapping required)
             }
 
             fetchDirectory(null);
@@ -3051,6 +3085,10 @@ export default function Dashboard() {
                             <Editor
                                 key={activeTabId}
                                 initialContent={editorContent}
+                                editable={(() => {
+                                    const af = files.find(f => f.id === activeNoteId);
+                                    return af?.permission !== 'view';
+                                })()}
                                 onEditorReady={handleEditorReady}
                                 onChange={handleEditorChange}
                                 onLinkClick={handleMagicLinkClick}
@@ -3410,7 +3448,7 @@ export default function Dashboard() {
                                         contentVersion={editorVersion}
                                     />
                                     <div className="flex-1 min-w-0 flex flex-col">
-                                        {activeNoteId && files.find(f => f.id === activeNoteId) && (
+                                        {activeNoteId && openTabs.find(t => t.id === activeNoteId && t.type === 'file') && (
                                             <>
                                                 <div className="flex items-center gap-2 mb-6">
                                                     <input
@@ -3463,12 +3501,15 @@ export default function Dashboard() {
                                                             title={saveStatus === 'saved' ? 'Gespeichert' : saveStatus === 'saving' ? 'Wird gespeichert…' : 'Nicht gespeichert'}
                                                             className="shrink-0 transition-all duration-300"
                                                         >
-                                                            {saveStatus === 'saved' && (
-                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-400 opacity-60">
-                                                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                                                                    <polyline points="22 4 12 14.01 9 11.01" />
-                                                                </svg>
-                                                            )}
+                                                            {saveStatus === 'saved' && (() => {
+                                                                const isShared = files.find(f => f.id === activeNoteId)?.share_status === 'shared';
+                                                                return (
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" title={isShared ? 'Synced' : 'Gespeichert'} className={isShared ? "text-sky-400 opacity-70" : "text-green-400 opacity-60"}>
+                                                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                                                        <polyline points="22 4 12 14.01 9 11.01" />
+                                                                    </svg>
+                                                                );
+                                                            })()}
                                                             {saveStatus === 'saving' && (
                                                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 opacity-60 animate-spin">
                                                                     <path d="M21 12a9 9 0 1 1-6.219-8.56" />
@@ -3513,6 +3554,10 @@ export default function Dashboard() {
                                                 <Editor
                                                     key={activeTabId}
                                                     initialContent={editorContent}
+                                                    editable={(() => {
+                                                        const af = files.find(f => f.id === activeNoteId);
+                                                        return af?.permission !== 'view';
+                                                    })()}
                                                     onEditorReady={handleEditorReady}
                                                     onChange={handleEditorChange}
                                                     onLinkClick={handleMagicLinkClick}

@@ -342,6 +342,9 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
             if (partner) fetchPartnerFiles(partner.id);
             if (onAccept) onAccept();
 
+            // Ensure the accepted file appears in the Zustand store immediately
+            useDataStore.getState().fetchDirectory(null, true);
+
             // Open the actual file/event so the user lands on the content
             if (fileType === 'event') {
                 if (onOpenCalendar) onOpenCalendar();
