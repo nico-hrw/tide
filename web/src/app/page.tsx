@@ -745,6 +745,12 @@ export default function Dashboard() {
             // Single atomic PUT: writes blob to BlobStore and updates metadata
             const isOwner = (currentFile?.share_status || 'owner') === 'owner';
 
+            // Stamp BEFORE the PUT so the SSE cooldown activates even if SSE arrives
+            // before the HTTP response (server sends SSE immediately after processing).
+            if (typeof (window as any).__tideSaveTimestamp === 'function') {
+                (window as any).__tideSaveTimestamp();
+            }
+
             const putRes = await apiFetch(`/api/v1/files/${fileId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -765,10 +771,7 @@ export default function Dashboard() {
                 metadata: { has_custom_password: false, title }
             });
 
-            // [FIX-4] Stamp the save time so SSE cooldown can suppress the immediate refetch
-            if (typeof (window as any).__tideSaveTimestamp === 'function') {
-                (window as any).__tideSaveTimestamp();
-            }
+            // (timestamp already stamped before PUT — see above)
 
             try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
 
@@ -1148,11 +1151,16 @@ export default function Dashboard() {
                             const fileIdMatch = data.file_id ? data.file_id === currentActiveId : !!currentActiveId;
                             if (fileIdMatch && currentActiveId) {
                                 const dispatch = () => {
-                                    // Skip silent reload for public files — content is unencrypted
                                     const activeFile = [...useDataStore.getState().notes, ...useDataStore.getState().events].find((f: any) => f.id === currentActiveId) as any;
-                                    if (activeFile?.visibility !== 'public') {
-                                        window.dispatchEvent(new CustomEvent('tide:sse_reload', { detail: { fileId: currentActiveId } }));
-                                    }
+                                    if (!activeFile) return;
+                                    // Never reload public files (unencrypted content, no DEK path)
+                                    if (activeFile.visibility === 'public') return;
+                                    // Never reload own non-shared notes — any file_updated is from our own save
+                                    const ak = activeFile.access_keys;
+                                    const akObj = ak ? (typeof ak === 'string' ? (() => { try { return JSON.parse(ak); } catch { return {}; } })() : ak) : {};
+                                    const isSharedWithOthers = Object.keys(akObj).length > 1 || activeFile.share_status === 'shared';
+                                    if (!isSharedWithOthers) return;
+                                    window.dispatchEvent(new CustomEvent('tide:sse_reload', { detail: { fileId: currentActiveId } }));
                                 };
                                 if (fetchPromise?.then) { fetchPromise.then(dispatch); } else { dispatch(); }
                             }
@@ -1189,6 +1197,11 @@ export default function Dashboard() {
         const handler = async (e: Event) => {
             const { fileId } = (e as CustomEvent).detail;
             if (fileId !== activeNoteId || isLoadingContent || editorContent === null) return;
+            // Never overwrite unsaved local changes — user is mid-edit
+            if (saveStatusRef.current === 'unsaved') {
+                console.log('[SSE] Skipping reload — user has unsaved changes');
+                return;
+            }
             const ed = editorInstanceRef.current;
             if (!ed) return;
 
