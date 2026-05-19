@@ -1061,138 +1061,120 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                 )}
                                                 <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} w-full`}>
                                                     <div
-                                                        className={`rounded-3xl shadow-float-sm ${isMe
-                                                            ? 'accent-gradient-primary text-gray-900 dark:text-gray-100 rounded-br-sm'
-                                                            : 'bg-white/60 dark:bg-black/40 backdrop-blur-md border border-white/50 dark:border-white/10 text-gray-900 dark:text-gray-100 rounded-bl-sm'
-                                                            } ${isShareRequest ? 'max-w-[280px] w-full overflow-hidden flex flex-col' : 'max-w-[75%] px-5 py-3'}`}
+                                                        className={`
+                                                            ${isShareRequest
+                                                                ? 'w-[260px] overflow-hidden rounded-2xl'
+                                                                : `max-w-[72%] px-4 py-2.5 rounded-2xl ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`
+                                                            }
+                                                            ${isMe
+                                                                ? 'bg-blue-500 text-white'
+                                                                : 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white'
+                                                            }
+                                                        `}
                                                     >
                                                         {isShareRequest && shareData ? (
-                                                            <div className="flex flex-col h-full">
-                                                                <div className={`p-4 flex flex-col gap-3 ${isMe ? 'bg-white/10' : 'bg-white/60 dark:bg-black/20'}`}>
-                                                                    <div className="flex items-start gap-3">
-                                                                        <div className={`p-2.5 rounded-xl shrink-0 ${shareData.file_type === 'event' ? 'bg-amber-100 dark:bg-amber-900/30' : (isMe ? 'bg-white/20' : 'bg-white dark:bg-blue-900/40')}`}>
-                                                                            {shareData.file_type === 'event' ? (
-                                                                                <Calendar size={20} className="text-amber-600 dark:text-amber-400" />
-                                                                            ) : (
-                                                                                <FileText size={20} className="text-gray-900 dark:text-gray-100" />
-                                                                            )}
+                                                            <>
+                                                                {/* Card body */}
+                                                                <div className={`m-2 rounded-xl p-3 flex flex-col gap-2.5 ${isMe ? 'bg-black/15' : 'bg-white dark:bg-black/30'}`}>
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className={`p-2 rounded-xl shrink-0 ${shareData.file_type === 'event' ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-indigo-100 dark:bg-indigo-900/40'}`}>
+                                                                            {shareData.file_type === 'event'
+                                                                                ? <Calendar size={20} className="text-amber-600 dark:text-amber-400" />
+                                                                                : <FileText size={20} className="text-indigo-600 dark:text-indigo-400" />
+                                                                            }
                                                                         </div>
-                                                                        <div className="flex-1 overflow-hidden">
-                                                                            <div className="text-[15px] font-bold truncate leading-tight text-gray-900 dark:text-gray-100">{shareData.file_name}</div>
-                                                                            <div className="flex items-center gap-1.5 mt-1">
-                                                                                <div className="text-[9px] uppercase tracking-wider font-extrabold opacity-70 text-gray-600 dark:text-gray-400">
-                                                                                    {shareData.file_type === 'event' ? 'Kalender Termin' : `${(shareData.file_type || 'NOTE').toUpperCase()} Paket`}
-                                                                                </div>
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <div className={`font-bold text-sm truncate ${isMe ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+                                                                                {shareData.file_name}
+                                                                            </div>
+                                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                                <span className={`text-[9px] uppercase tracking-wider font-extrabold ${isMe ? 'text-white/60' : 'text-gray-400'}`}>
+                                                                                    {shareData.file_type === 'event' ? 'Termin' : (shareData.file_type || 'Notiz').toUpperCase()}
+                                                                                </span>
                                                                                 {shareData.permission && (
                                                                                     <span className={`text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-md ${
-                                                                                        shareData.permission === 'view' ? 'bg-gray-200 text-gray-700 dark:bg-gray-700/50 dark:text-gray-300'
-                                                                                        : shareData.permission === 'edit' ? 'bg-blue-200 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200'
-                                                                                        : 'bg-violet-200 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200'
+                                                                                        shareData.permission === 'view' ? 'bg-gray-200/70 text-gray-600 dark:bg-white/10 dark:text-gray-300'
+                                                                                        : 'bg-blue-200/70 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200'
                                                                                     }`}>
-                                                                                        {shareData.permission === 'view' ? 'Ansehen' : shareData.permission === 'edit' ? 'Bearbeiten' : 'Bearbeiten + Teilen'}
+                                                                                        {shareData.permission === 'view' ? 'Ansehen' : 'Bearbeiten'}
                                                                                     </span>
                                                                                 )}
                                                                             </div>
                                                                         </div>
                                                                     </div>
 
-                                                                    {/* Preview Section */}
-                                                                    {shareData.file_preview && (
-                                                                        <div className="mt-1">
-                                                                            {shareData.file_type === 'event' ? (
-                                                                                <div className={`space-y-1.5 p-3 rounded-lg text-xs leading-relaxed opacity-90 ${isMe ? 'bg-black/10' : 'bg-black/5 dark:bg-white/5'}`}>
-                                                                                    <div className="font-semibold text-gray-900 dark:text-gray-100">{new Date(shareData.file_preview.start).toLocaleString('de-DE', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
-                                                                                    {shareData.file_preview.description && (
-                                                                                        <div className="text-[11px] opacity-80 line-clamp-3 italic text-gray-900 dark:text-gray-100">"{shareData.file_preview.description}"</div>
-                                                                                    )}
-                                                                                </div>
-                                                                            ) : shareData.file_preview ? (
-                                                                                <div className={`p-3 rounded-lg text-[11px] leading-relaxed line-clamp-4 italic opacity-90 ${isMe ? 'bg-black/10' : 'bg-black/5 dark:bg-white/5'}`}>
-                                                                                    "{typeof shareData.file_preview === 'string' ? shareData.file_preview : JSON.stringify(shareData.file_preview)}"
-                                                                                </div>
-                                                                            ) : null}
-                                                                        </div>
-                                                                    )}
+                                                                    {shareData.file_preview && (() => {
+                                                                        const previewText = shareData.file_type === 'event' && shareData.file_preview.start
+                                                                            ? new Date(shareData.file_preview.start).toLocaleString('de-DE', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+                                                                            : (typeof shareData.file_preview === 'string' ? shareData.file_preview : (shareData.file_preview.description || null));
+                                                                        if (!previewText) return null;
+                                                                        return (
+                                                                            <p className={`text-[11px] italic line-clamp-2 leading-relaxed ${isMe ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
+                                                                                "{previewText}"
+                                                                            </p>
+                                                                        );
+                                                                    })()}
+                                                                    <div className={`text-[10px] font-medium mt-1 ${isMe ? 'text-white/50 text-right' : 'text-gray-400'}`}>
+                                                                        {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                    </div>
                                                                 </div>
 
-                                                                <div className={`px-4 pb-4 pt-3 mt-auto ${isMe ? '' : 'bg-white/30 dark:bg-black/10'}`}>
-                                                                    {!isMe && (() => {
+                                                                {/* Actions */}
+                                                                <div className="px-3 pb-3">
+                                                                    {isMe ? (
+                                                                        <p className="text-[10px] text-center uppercase tracking-widest font-bold text-white/40">
+                                                                            Gesendet
+                                                                        </p>
+                                                                    ) : (() => {
                                                                         const currentStatus = m.status || processedRequests[shareData.file_id];
-
-                                                                        if (currentStatus === 'accepted') {
-                                                                            return (
-                                                                                <div className="w-full py-2 bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-green-500/20">
-                                                                                    <CheckCircle size={14} /> Gespeichert
-                                                                                </div>
-                                                                            );
-                                                                        }
-
-                                                                        if (currentStatus === 'declined') {
-                                                                            return (
-                                                                                <div className="w-full py-2 bg-red-500/10 text-red-700 dark:text-red-400 rounded-lg text-xs font-bold flex items-center justify-center gap-2 border border-red-500/20">
-                                                                                    <XCircle size={14} /> Abgelehnt
-                                                                                </div>
-                                                                            );
-                                                                        }
-
+                                                                        if (currentStatus === 'accepted') return (
+                                                                            <div className="flex items-center justify-center gap-1.5 py-1.5 text-green-600 dark:text-green-400 text-xs font-bold">
+                                                                                <CheckCircle size={13} /> Gespeichert
+                                                                            </div>
+                                                                        );
+                                                                        if (currentStatus === 'declined') return (
+                                                                            <div className="flex items-center justify-center gap-1.5 py-1.5 text-red-500 dark:text-red-400 text-xs font-bold">
+                                                                                <XCircle size={13} /> Abgelehnt
+                                                                            </div>
+                                                                        );
                                                                         return (
-                                                                            <div className="flex flex-col gap-2">
+                                                                            <div className="flex gap-1.5">
                                                                                 <button
                                                                                     onClick={() => shareData && handleAccept(shareData.file_id, m.id, shareData.file_type, shareData.file_name)}
-                                                                                    className={`w-full py-2 rounded-lg text-[12px] font-bold transition-all flex items-center justify-center gap-2 shadow-sm ${shareData.file_type === 'event'
-                                                                                        ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-200 dark:bg-amber-900/40 dark:hover:bg-amber-900/60 dark:text-amber-100 dark:border-amber-800'
-                                                                                        : 'bg-blue-100 hover:bg-blue-200 text-blue-900 border border-blue-200 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 dark:text-blue-100 dark:border-blue-800'
-                                                                                        }`}
+                                                                                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white dark:bg-white/10 text-gray-900 dark:text-white text-xs font-bold hover:bg-gray-50 dark:hover:bg-white/15 transition-colors"
                                                                                 >
-                                                                                    {shareData.file_type === 'event' ? (
-                                                                                        <><Calendar size={14} /> Öffnen</>
-                                                                                    ) : (
-                                                                                        <><FileText size={14} /> Öffnen</>
-                                                                                    )}
+                                                                                    {shareData.file_type === 'event' ? <Calendar size={12} /> : <FileText size={12} />}
+                                                                                    Öffnen
                                                                                 </button>
-                                                                                <div className="flex gap-2">
-                                                                                    <button
-                                                                                        onClick={() => shareData && handleClone(shareData.file_id, m.id, shareData.file_name)}
-                                                                                        className="flex-1 py-1.5 rounded-lg text-[11px] font-bold bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-200 dark:border-gray-700 transition-all"
-                                                                                    >
-                                                                                        Klonen
-                                                                                    </button>
-                                                                                    <button
-                                                                                        onClick={() => shareData && handleDecline(shareData.file_id, m.id)}
-                                                                                        className="flex-1 py-1.5 rounded-lg text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 dark:text-rose-200 dark:border-rose-900/50 transition-all"
-                                                                                    >
-                                                                                        Ablehnen
-                                                                                    </button>
-                                                                                </div>
+                                                                                <button
+                                                                                    onClick={() => shareData && handleClone(shareData.file_id, m.id, shareData.file_name)}
+                                                                                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/60 dark:bg-white/5 text-gray-700 dark:text-gray-300 text-xs font-bold hover:bg-white dark:hover:bg-white/10 transition-colors"
+                                                                                >
+                                                                                    Klonen
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => shareData && handleDecline(shareData.file_id, m.id)}
+                                                                                    className="px-3 py-2 rounded-xl bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-xs font-bold hover:bg-rose-200 transition-colors"
+                                                                                >
+                                                                                    <X size={12} />
+                                                                                </button>
                                                                             </div>
                                                                         );
                                                                     })()}
-                                                                    {isMe && (
-                                                                        <div className="text-[9px] text-center opacity-70 font-extrabold uppercase tracking-[0.2em] pt-1">
-                                                                            Datenpaket übertragen
-                                                                            {isShareRequest && shareData?.type === 'event' && (
-                                                                                <div className="mt-2 text-right">
-                                                                                    <div className={`text-[9px] mt-1.5 font-bold uppercase tracking-wider ${isMe ? 'text-white/60 text-right' : 'text-gray-500 dark:text-gray-400 text-right pr-2'}`}>
-                                                                                        Event • {shareData.file_name || 'Unknown Date'}
-                                                                                    </div>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    )}
                                                                 </div>
-                                                            </div>
+                                                            </>
                                                         ) : (
-                                                            <div className="text-[15px] leading-snug font-medium pr-1 break-words whitespace-pre-wrap">
-                                                                {m.content}
-                                                            </div>
+                                                            <>
+                                                                <div className="text-[15px] leading-snug font-medium break-words whitespace-pre-wrap">
+                                                                    {m.content}
+                                                                </div>
+                                                                <div className={`text-[10px] mt-1 font-medium ${isMe ? 'text-blue-100/80 text-right' : 'text-gray-400'}`}>
+                                                                    {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                </div>
+                                                            </>
                                                         )}
 
 
-                                                        {!isShareRequest && (
-                                                            <div className={`text-[9px] mt-1.5 font-bold uppercase tracking-wider ${isMe ? 'text-white/60 text-right' : 'text-gray-400 pr-4'}`}>
-                                                                {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 </div>
                                             </div>

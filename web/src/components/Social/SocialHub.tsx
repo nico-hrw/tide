@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { apiFetch } from '@/lib/api';
 import Avatar from '@/components/Profile/Avatar';
-import { Search, Loader2, UserPlus, Check, ChevronRight, CheckCircle2, X, EyeOff, Users, MessageSquare } from 'lucide-react';
+import { Search, Loader2, UserPlus, Check, ChevronRight, ChevronLeft, CheckCircle2, X, EyeOff, Users, MessageSquare } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { useSocialStore } from '@/store/useSocialStore';
 
@@ -166,11 +167,22 @@ export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, u
     );
 
     return (
+        <LayoutGroup id="social-contacts">
         <div className={isChatMode ? 'flex h-full overflow-hidden' : compact ? 'flex flex-col min-h-full' : 'max-w-5xl mx-auto py-12 px-8 min-h-screen'}>
         {isChatMode ? (
             <>
                 {/* LEFT COLUMN - contacts */}
                 <div className="w-80 shrink-0 flex flex-col border-r border-gray-100 dark:border-white/10 overflow-hidden">
+                    {/* Back button */}
+                    <div className="px-3 pt-3 pb-1 shrink-0">
+                        <button
+                            onClick={() => { setIsChatMode(false); setActiveChatPartner(null); }}
+                            className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                        >
+                            <ChevronLeft size={16} />
+                            <span className="font-medium">Zurück</span>
+                        </button>
+                    </div>
                     {/* Search at top */}
                     <div className="p-3 border-b border-gray-100 dark:border-white/10 shrink-0">
                         {searchForm}
@@ -220,8 +232,8 @@ export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, u
                         {contacts.map((c, i) => {
                             const isActive = activeChatPartner?.id === c.partner.id;
                             return (
+                                <motion.div key={c.partner.id} layoutId={`contact-${c.partner.id}`}>
                                 <button
-                                    key={i}
                                     onClick={() => {
                                         setActiveChatPartner({
                                             id: c.partner.id,
@@ -241,6 +253,7 @@ export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, u
                                         {c.partner.username}
                                     </span>
                                 </button>
+                                </motion.div>
                             );
                         })}
                     </div>
@@ -254,6 +267,7 @@ export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, u
                                 partner={activeChatPartner}
                                 expanded={profileExpanded}
                                 onOpenProfile={onOpenProfile}
+                                onToggle={() => setProfileExpanded(p => !p)}
                             />
                             <div className="flex-1 min-h-0 overflow-hidden">
                                 <ChatPanel
@@ -576,24 +590,6 @@ export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, u
                         )}
                     </BottomSheet>
                 </>
-            ) : activeChatPartner ? (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 bg-white dark:bg-[#1a1c1e] border border-gray-100 dark:border-white/10 rounded-[2.5rem] overflow-hidden h-[600px] flex flex-col shadow-xl relative">
-                    <button
-                        onClick={() => setActiveChatPartner(null)}
-                        className="absolute top-4 left-4 z-50 p-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded-xl transition-colors"
-                    >
-                        <X className="w-5 h-5 text-gray-700 dark:text-gray-300" />
-                    </button>
-                    <ChatPanel
-                        privateKey={privateKey}
-                        onOpenFile={onOpenFile}
-                        onOpenCalendar={onOpenCalendar}
-                        onOpenProfile={onOpenProfile}
-                        onFileCreated={() => {}}
-                        activePartner={activeChatPartner}
-                        onChatSelect={() => {}}
-                    />
-                </div>
             ) : (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                 {/* Search Results */}
@@ -714,8 +710,8 @@ export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, u
                         <h2 className="text-xl font-black text-gray-900 dark:text-white mb-6">My Contacts</h2>
                         <div className={compact ? 'flex flex-col gap-2' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'}>
                             {contacts.map((c, i) => (
+                                <motion.div key={c.partner.id} layoutId={`contact-${c.partner.id}`}>
                                 <div
-                                    key={i}
                                     onClick={() => {
                                         setActiveChatPartner({
                                             id: c.partner.id,
@@ -726,6 +722,8 @@ export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, u
                                             avatar_salt: c.partner.avatar_salt,
                                             avatar_style: c.partner.avatar_style
                                         });
+                                        setProfileExpanded(true);
+                                        if (!compact) setIsChatMode(true);
                                     }}
                                     className="bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors cursor-pointer group"
                                 >
@@ -743,6 +741,7 @@ export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, u
                                     </div>
                                     <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-blue-500 transition-colors" />
                                 </div>
+                                </motion.div>
                             ))}
                         </div>
                     </div>
@@ -768,5 +767,6 @@ export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, u
             </>
         )}
         </div>
+        </LayoutGroup>
     );
 }

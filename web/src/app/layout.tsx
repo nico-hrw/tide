@@ -5,7 +5,7 @@ import { IslandProvider } from "@/components/extensions/smart_island/useIslandSt
 import "./globals.css";
 
 export const viewport = {
-  themeColor: "#0F172A",
+  themeColor: "#FFFFFF",
 };
 
 export const metadata: Metadata = {

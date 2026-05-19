@@ -105,6 +105,16 @@ export default function Sidebar({
     const [chats, setChats] = useState<ChatUser[]>([]);
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const scrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const clearScrollInterval = () => {
+        if (scrollIntervalRef.current !== null) {
+            clearInterval(scrollIntervalRef.current);
+            scrollIntervalRef.current = null;
+        }
+    };
+
     const [myId, setMyId] = useState<string>("");
     const [sidebarUserProfile, setSidebarUserProfile] = useState<{ id?: string, user_id?: string, username: string, email: string, avatar_seed?: string, avatar_salt?: string } | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, id: string, type: 'file' | 'folder' } | null>(null);
@@ -198,6 +208,15 @@ export default function Sidebar({
         document.addEventListener("mousedown", handleClickOutside);
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [isProfileMenuOpen, contextMenu, sidebarContextMenu]);
+
+    useEffect(() => {
+        const handleDragEnd = () => {
+            setDropIndicator(null);
+            clearScrollInterval();
+        };
+        document.addEventListener('dragend', handleDragEnd);
+        return () => document.removeEventListener('dragend', handleDragEnd);
+    }, []);
 
     const handleSignOut = () => {
         sessionStorage.clear();
@@ -334,8 +353,45 @@ export default function Sidebar({
 
             {/* Scrollable notes section — flex-based height so RECENT expansion doesn't push content under Smart Island */}
             <div
+                ref={scrollContainerRef}
                 className="overflow-y-auto overflow-x-visible px-2 no-scrollbar"
                 style={{ flex: '1 1 0', minHeight: 0, paddingBottom: '32px' }}
+                onDragOver={(e) => {
+                    e.preventDefault();
+                    const container = scrollContainerRef.current;
+                    if (!container) return;
+                    const rect = container.getBoundingClientRect();
+                    const ZONE = 60;
+                    const SPEED = 6;
+                    if (e.clientY < rect.top + ZONE) {
+                        if (scrollIntervalRef.current === null) {
+                            scrollIntervalRef.current = setInterval(() => container.scrollBy(0, -SPEED), 16);
+                        }
+                    } else if (e.clientY > rect.bottom - ZONE) {
+                        if (scrollIntervalRef.current === null) {
+                            scrollIntervalRef.current = setInterval(() => container.scrollBy(0, SPEED), 16);
+                        }
+                    } else {
+                        clearScrollInterval();
+                    }
+                }}
+                onDragLeave={(e) => {
+                    const container = scrollContainerRef.current;
+                    if (!container) return;
+                    const rect = container.getBoundingClientRect();
+                    if (e.clientY < rect.top || e.clientY > rect.bottom || e.clientX < rect.left || e.clientX > rect.right) {
+                        clearScrollInterval();
+                    }
+                }}
+                onDrop={(e) => {
+                    clearScrollInterval();
+                    e.preventDefault();
+                    const id = e.dataTransfer.getData("text/plain");
+                    if (id && e.target === e.currentTarget) {
+                        onMoveItem?.(id, null);
+                    }
+                    setDropIndicator(null);
+                }}
                 onDoubleClick={(e) => {
                     if (e.target === e.currentTarget) onNewNote();
                 }}
@@ -344,15 +400,6 @@ export default function Sidebar({
                         e.preventDefault();
                         setSidebarContextMenu({ x: e.clientX, y: e.clientY });
                     }
-                }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                    e.preventDefault();
-                    const id = e.dataTransfer.getData("text/plain");
-                    if (id && e.target === e.currentTarget) {
-                        onMoveItem?.(id, null);
-                    }
-                    setDropIndicator(null);
                 }}
             >
                 <div className="space-y-0.5">
@@ -401,6 +448,13 @@ export default function Sidebar({
                             layout
                             key={item.id}
                             transition={{ layout: { type: 'spring', stiffness: 350, damping: 40, mass: 0.8 } }}
+                            className={
+                                dropIndicator?.id === item.id && dropIndicator.zone === 'top'
+                                    ? 'border-t-2 border-blue-400 rounded-t'
+                                    : dropIndicator?.id === item.id && dropIndicator.zone === 'bottom'
+                                    ? 'border-b-2 border-blue-400 rounded-b'
+                                    : ''
+                            }
                             onDragOver={(e: React.DragEvent) => {
                                 if (e.dataTransfer.types.includes('tide/calendar-event')) {
                                     return; // Let FileItem handle calendar drops!
@@ -461,10 +515,6 @@ export default function Sidebar({
                                 }
                             }}
                         >
-                            {dropIndicator?.id === item.id && dropIndicator.zone === 'top' && (
-                                <motion.div layout initial={{ height: 0 }} animate={{ height: 40 }} className="bg-blue-50/50 rounded-lg border-2 border-dashed border-blue-300" />
-                            )}
-
                             {item.type === 'folder' ? (
                                 <div className={`relative ${dropIndicator?.id === item.id && dropIndicator.zone === 'middle' ? 'ring-2 ring-blue-500 bg-blue-50/50 rounded-lg' : ''}`}>
                                     <FolderItem
@@ -505,10 +555,6 @@ export default function Sidebar({
                                     myId={myId}
                                     onContextMenu={handleContextMenu}
                                 />
-                            )}
-
-                            {dropIndicator?.id === item.id && dropIndicator.zone === 'bottom' && (
-                                <motion.div layout initial={{ height: 0 }} animate={{ height: 40 }} className="bg-blue-50/50 rounded-lg border-2 border-dashed border-blue-300 mt-1" />
                             )}
                         </motion.div>
                     ))}
@@ -810,7 +856,7 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                     onSelect(file.id, file.title);
                 }
             }}
-            className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200
+            className={`group flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-all duration-200
                 ${isCalendarDropTarget ? 'ring-2 ring-violet-400 bg-violet-50 dark:bg-violet-900/20' : ''}
                 ${isHighlighted(file.id, 'file') ? 'bg-purple-50 dark:bg-purple-900/20' : 'hover:bg-[var(--hover-bg)] interactive-hover'}
                 ${highlight.isSelectingLink ? 'bg-purple-50/30 dark:bg-purple-900/10' : ''}`}
@@ -915,7 +961,7 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                     if (id && id !== folder.id) onMoveItem?.(id, folder.id);
                 } : undefined}
                 onClick={handleToggle}
-                className={`group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all duration-200 hover:bg-[var(--hover-bg)] interactive-hover`}
+                className={`group flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-all duration-200 hover:bg-[var(--hover-bg)] interactive-hover`}
                 style={{ marginLeft: `${level * 12}px` }}
             >
                 <div className="flex items-center gap-2 truncate flex-1">

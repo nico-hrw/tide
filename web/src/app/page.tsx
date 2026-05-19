@@ -1279,6 +1279,9 @@ export default function Dashboard() {
             setKeys(privateKey, publicKey, myId);
             fetchDirectory(null, true);
 
+            // Eagerly load all note metadata so @-mentions find notes in subfolders
+            useDataStore.getState().loadAllMetadata().catch(console.error);
+
             import('@/lib/searchIndex').then(({ loadSearchIndex, rebuildIndex }) => {
                 loadSearchIndex(privateKey, myId).then(async (idx) => {
                     if (!idx || idx.length === 0) {
