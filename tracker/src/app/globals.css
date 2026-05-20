@@ -4,9 +4,11 @@
 
 html,
 body {
-  background-color: #ffffff;
+  background-color: #1E1E24;
+  color: #F9FAFB;
   max-width: 430px;
   margin: 0 auto;
   min-height: 100dvh;
-  font-family: Inter, system-ui, sans-serif;
+  font-family: 'Outfit', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
