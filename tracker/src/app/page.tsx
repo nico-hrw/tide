@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTrackerStore } from '@/store/useTrackerStore'
 import ActiveWorkoutView from '@/components/ActiveWorkoutView'
 import FriendsWidget from '@/components/FriendsWidget'
@@ -50,6 +50,7 @@ export default function HomePage() {
   const [submitting, setSubmitting] = useState(false)
 
   const phrase = useMemo(() => PHRASES[Math.floor(Math.random() * PHRASES.length)], [])
+  const workoutNameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchWorkouts()
@@ -67,6 +68,13 @@ export default function HomePage() {
     if (!activeWorkout && homeState === 'active') setHomeState('idle')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWorkout])
+
+  useEffect(() => {
+    if (homeState === 'starting') {
+      const timer = setTimeout(() => workoutNameInputRef.current?.focus(), 300)
+      return () => clearTimeout(timer)
+    }
+  }, [homeState])
 
   const streak = calcStreak(workouts)
   const lastWorkout = workouts[0] ?? null
@@ -197,7 +205,7 @@ export default function HomePage() {
             value={workoutName}
             onChange={(e) => setWorkoutName(e.target.value)}
             placeholder="Name (z.B. Push Day)"
-            autoFocus={homeState === 'starting'}
+            ref={workoutNameInputRef}
             style={{
               width: '100%', background: '#27272F', borderRadius: 12,
               padding: '14px 16px', fontSize: 16, fontWeight: 600,

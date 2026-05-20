@@ -74,7 +74,7 @@ export default function StatsPage() {
           <h2 style={{ color: '#6B7280', fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 12 }}>
             Fortschritt pro Übung
           </h2>
-          <div style={{ display: 'flex', overflowX: 'auto', gap: 12, paddingBottom: 8, scrollbarWidth: 'none' }}>
+          <div style={{ display: 'flex', overflowX: 'auto', gap: 12, paddingBottom: 8, scrollbarWidth: 'none', scrollSnapType: 'x mandatory' }}>
             {exercisesInHistory.map((ex) => {
               const data = buildChartData(workouts, ex.id, ex.defaultTrackingType)
               if (!data.length) return null

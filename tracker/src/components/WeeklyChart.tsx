@@ -54,7 +54,7 @@ export default function WeeklyChart({ workouts }: WeeklyChartProps) {
           <>
             <div style={{
               position: 'absolute', left: 0, right: 20,
-              bottom: avgBarPx + 8,
+              bottom: avgBarPx + 11,
               borderTop: '1.5px dashed #D1D5DB', zIndex: 2,
             }} />
             <div style={{
