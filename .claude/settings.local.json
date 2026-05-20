@@ -22,7 +22,12 @@
       "Bash(npx eslint *)",
       "Skill(superpowers:systematic-debugging)",
       "Bash(Select-String \"ChatPanel\")",
-      "Bash(Select-String *)"
+      "Bash(Select-String *)",
+      "Bash(bash *)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\\\\tracker\\\\src\\\\components\\\\StatCard.tsx\" -Force)",
+      "Bash(Remove-Item \"C:\\\\Users\\\\nicoh\\\\Documents\\\\tide\\\\tracker\\\\src\\\\components\\\\SyncStatus.tsx\" -Force)",
+      "Bash(Write-Output \"Deleted both files\")",
+      "Bash(npm test *)"
     ]
   }
 }

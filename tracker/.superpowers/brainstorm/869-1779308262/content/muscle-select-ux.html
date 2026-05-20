@@ -1,0 +1,189 @@
+<h2>Muskelgruppen-Auswahl beim Workout-Start</h2>
+<p class="subtitle">Aktuell: 14 Text-Pills in einer Wrappping-Grid. Wie soll die Auswahl künftig funktionieren?</p>
+
+<div class="cards">
+
+  <!-- Option A: Interactive Body SVG -->
+  <div class="card" data-choice="interactive-svg" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0F0F13; padding:16px; border-radius:8px 8px 0 0; min-height:220px;">
+      <div style="color:#F9FAFB; font-size:13px; font-weight:700; font-family:sans-serif; margin-bottom:4px;">Neues Workout</div>
+      <div style="color:#6B7280; font-size:10px; font-family:sans-serif; margin-bottom:12px;">Tippe auf Muskelgruppen um sie auszuwählen</div>
+
+      <!-- SVG Body mockup (simplified) -->
+      <div style="display:flex; gap:16px; justify-content:center; margin-bottom:12px;">
+        <!-- Front body silhouette -->
+        <div style="text-align:center;">
+          <div style="color:#6B7280; font-size:9px; font-family:sans-serif; margin-bottom:4px;">Vorne</div>
+          <svg width="60" height="110" viewBox="0 0 60 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Head -->
+            <circle cx="30" cy="8" r="6" fill="#374151"/>
+            <!-- Neck -->
+            <rect x="27" y="13" width="6" height="5" rx="2" fill="#374151"/>
+            <!-- Chest - SELECTED (coral) -->
+            <path d="M18 19 Q22 17 30 18 Q38 17 42 19 L40 32 Q35 35 30 36 Q25 35 20 32 Z" fill="#FF6B3D" opacity="0.9"/>
+            <!-- Left shoulder -->
+            <ellipse cx="14" cy="22" rx="6" ry="8" fill="#374151"/>
+            <!-- Right shoulder -->
+            <ellipse cx="46" cy="22" rx="6" ry="8" fill="#5BB8FF" opacity="0.7"/>
+            <!-- Abs -->
+            <path d="M22 36 Q30 37 38 36 L37 58 Q30 60 23 58 Z" fill="#374151"/>
+            <!-- Left bicep area -->
+            <rect x="7" y="30" width="8" height="18" rx="4" fill="#374151"/>
+            <!-- Right bicep area -->
+            <rect x="45" y="30" width="8" height="18" rx="4" fill="#374151"/>
+            <!-- Left forearm -->
+            <rect x="5" y="48" width="7" height="15" rx="3" fill="#374151"/>
+            <!-- Right forearm -->
+            <rect x="48" y="48" width="7" height="15" rx="3" fill="#374151"/>
+            <!-- Left quad - SELECTED (coral) -->
+            <path d="M20 60 Q24 59 28 60 L27 85 Q24 87 21 85 Z" fill="#FF6B3D" opacity="0.7"/>
+            <!-- Right quad -->
+            <path d="M32 60 Q36 59 40 60 L39 85 Q36 87 33 85 Z" fill="#374151"/>
+            <!-- Left shin -->
+            <rect x="21" y="86" width="7" height="20" rx="3" fill="#374151"/>
+            <!-- Right shin -->
+            <rect x="33" y="86" width="7" height="20" rx="3" fill="#374151"/>
+          </svg>
+        </div>
+        <!-- Back body silhouette -->
+        <div style="text-align:center;">
+          <div style="color:#6B7280; font-size:9px; font-family:sans-serif; margin-bottom:4px;">Hinten</div>
+          <svg width="60" height="110" viewBox="0 0 60 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="30" cy="8" r="6" fill="#374151"/>
+            <rect x="27" y="13" width="6" height="5" rx="2" fill="#374151"/>
+            <!-- Upper back - SELECTED -->
+            <path d="M18 19 Q22 17 30 18 Q38 17 42 19 L40 32 Q35 33 30 34 Q25 33 20 32 Z" fill="#5BB8FF" opacity="0.7"/>
+            <ellipse cx="14" cy="22" rx="6" ry="8" fill="#374151"/>
+            <ellipse cx="46" cy="22" rx="6" ry="8" fill="#374151"/>
+            <!-- Lower back -->
+            <path d="M22 34 Q30 35 38 34 L37 52 Q30 54 23 52 Z" fill="#374151"/>
+            <rect x="7" y="30" width="8" height="18" rx="4" fill="#374151"/>
+            <rect x="45" y="30" width="8" height="18" rx="4" fill="#374151"/>
+            <rect x="5" y="48" width="7" height="15" rx="3" fill="#374151"/>
+            <rect x="48" y="48" width="7" height="15" rx="3" fill="#374151"/>
+            <!-- Glutes -->
+            <path d="M20 52 Q30 55 40 52 L39 65 Q30 68 21 65 Z" fill="#374151"/>
+            <!-- Hamstrings -->
+            <path d="M20 65 Q24 64 28 65 L27 85 Q24 87 21 85 Z" fill="#374151"/>
+            <path d="M32 65 Q36 64 40 65 L39 85 Q36 87 33 85 Z" fill="#374151"/>
+            <rect x="21" y="86" width="7" height="20" rx="3" fill="#374151"/>
+            <rect x="33" y="86" width="7" height="20" rx="3" fill="#374151"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Selected tags -->
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+        <div style="background:#FF6B3D; border-radius:20px; padding:3px 10px; color:#FFF; font-size:9px; font-family:sans-serif; font-weight:600;">Brust ✓</div>
+        <div style="background:#5BB8FF; border-radius:20px; padding:3px 10px; color:#FFF; font-size:9px; font-family:sans-serif; font-weight:600;">Oberer Rücken ✓</div>
+        <div style="background:rgba(255,107,61,0.3); border-radius:20px; padding:3px 10px; color:#FF6B3D; font-size:9px; font-family:sans-serif; font-weight:600;">Schulter (vorne) ✓</div>
+        <div style="background:rgba(91,184,255,0.3); border-radius:20px; padding:3px 10px; color:#5BB8FF; font-size:9px; font-family:sans-serif; font-weight:600;">Quadrizeps ✓</div>
+      </div>
+
+      <div style="background:#FF6B3D; border-radius:10px; padding:11px; text-align:center;">
+        <div style="color:#FFF; font-size:12px; font-weight:700; font-family:sans-serif;">Starten →</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Interaktive Körper-SVG</h3>
+      <p>Direkt auf den Körper tippen. Visuell eindeutig, flagship feature — der WOW-Moment den du meintest. Mehr Aufwand in der Umsetzung, aber das größte Differenzierungsmerkmal.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Styled Pills (upgrade current) -->
+  <div class="card" data-choice="styled-pills" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0F0F13; padding:16px; border-radius:8px 8px 0 0; min-height:220px;">
+      <div style="color:#F9FAFB; font-size:13px; font-weight:700; font-family:sans-serif; margin-bottom:4px;">Neues Workout</div>
+      <div style="color:#6B7280; font-size:10px; font-family:sans-serif; margin-bottom:12px;">Muskelgruppen auswählen</div>
+
+      <!-- Grouped pills by body region -->
+      <div style="margin-bottom:8px;">
+        <div style="color:#6B7280; font-size:8px; font-family:sans-serif; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:5px;">Oberkörper</div>
+        <div style="display:flex; flex-wrap:wrap; gap:5px;">
+          <div style="background:#FF6B3D; border-radius:20px; padding:4px 10px; color:#FFF; font-size:9px; font-family:sans-serif; font-weight:600;">Brust ✓</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Schulter v.</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Schulter h.</div>
+          <div style="background:#5BB8FF; border-radius:20px; padding:4px 10px; color:#FFF; font-size:9px; font-family:sans-serif; font-weight:600;">Trizeps ✓</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Bizeps</div>
+        </div>
+      </div>
+      <div style="margin-bottom:8px;">
+        <div style="color:#6B7280; font-size:8px; font-family:sans-serif; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:5px;">Rücken & Core</div>
+        <div style="display:flex; flex-wrap:wrap; gap:5px;">
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Oberer Rücken</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Latissimus</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Trapez</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Bauch</div>
+        </div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <div style="color:#6B7280; font-size:8px; font-family:sans-serif; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:5px;">Unterkörper</div>
+        <div style="display:flex; flex-wrap:wrap; gap:5px;">
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Quadrizeps</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Hamstrings</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Gesäß</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Waden</div>
+        </div>
+      </div>
+
+      <div style="background:#FF6B3D; border-radius:10px; padding:11px; text-align:center;">
+        <div style="color:#FFF; font-size:12px; font-weight:700; font-family:sans-serif;">Starten →</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Grupierte Pills (upgrade)</h3>
+      <p>Aktuelle Pills, aber nach Körperregion gruppiert, dark gestylt mit Coral/Blue als active state. Schnell umsetzbar, klar lesbar.</p>
+    </div>
+  </div>
+
+  <!-- Option C: SVG + Pills hybrid -->
+  <div class="card" data-choice="svg-plus-pills" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0F0F13; padding:16px; border-radius:8px 8px 0 0; min-height:220px;">
+      <div style="color:#F9FAFB; font-size:13px; font-weight:700; font-family:sans-serif; margin-bottom:10px;">Neues Workout</div>
+
+      <!-- Small non-interactive SVG als Visualisierung, Pills zum Auswählen -->
+      <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:12px;">
+        <!-- Mini SVG (display only, zeigt selected) -->
+        <div style="flex-shrink:0;">
+          <svg width="45" height="82" viewBox="0 0 60 110" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="30" cy="8" r="6" fill="#374151"/>
+            <rect x="27" y="13" width="6" height="5" rx="2" fill="#374151"/>
+            <path d="M18 19 Q22 17 30 18 Q38 17 42 19 L40 32 Q35 35 30 36 Q25 35 20 32 Z" fill="#FF6B3D" opacity="0.9"/>
+            <ellipse cx="14" cy="22" rx="6" ry="8" fill="#374151"/>
+            <ellipse cx="46" cy="22" rx="6" ry="8" fill="#374151"/>
+            <path d="M22 36 Q30 37 38 36 L37 58 Q30 60 23 58 Z" fill="#374151"/>
+            <rect x="7" y="30" width="8" height="18" rx="4" fill="#5BB8FF" opacity="0.7"/>
+            <rect x="45" y="30" width="8" height="18" rx="4" fill="#5BB8FF" opacity="0.7"/>
+            <rect x="5" y="48" width="7" height="15" rx="3" fill="#374151"/>
+            <rect x="48" y="48" width="7" height="15" rx="3" fill="#374151"/>
+            <path d="M20 60 Q24 59 28 60 L27 85 Q24 87 21 85 Z" fill="#374151"/>
+            <path d="M32 60 Q36 59 40 60 L39 85 Q36 87 33 85 Z" fill="#374151"/>
+            <rect x="21" y="86" width="7" height="20" rx="3" fill="#374151"/>
+            <rect x="33" y="86" width="7" height="20" rx="3" fill="#374151"/>
+          </svg>
+        </div>
+        <!-- Pills daneben -->
+        <div style="flex:1; display:flex; flex-wrap:wrap; gap:5px; align-content:flex-start;">
+          <div style="background:#FF6B3D; border-radius:20px; padding:4px 10px; color:#FFF; font-size:9px; font-family:sans-serif; font-weight:600;">Brust ✓</div>
+          <div style="background:rgba(91,184,255,0.2); border-radius:20px; padding:4px 10px; color:#5BB8FF; font-size:9px; font-family:sans-serif; border:1px solid #5BB8FF;">Bizeps ✓</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Trizeps</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Schultern</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Rücken</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Bauch</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Quads</div>
+          <div style="background:#1C1C25; border-radius:20px; padding:4px 10px; color:#6B7280; font-size:9px; font-family:sans-serif; border:1px solid #374151;">Gesäß</div>
+        </div>
+      </div>
+
+      <div style="background:#FF6B3D; border-radius:10px; padding:11px; text-align:center; margin-bottom:8px;">
+        <div style="color:#FFF; font-size:12px; font-weight:700; font-family:sans-serif;">Starten →</div>
+      </div>
+      <div style="color:#6B7280; font-size:9px; font-family:sans-serif; text-align:center;">SVG zeigt Live-Vorschau der ausgewählten Muskeln</div>
+    </div>
+    <div class="card-body">
+      <h3>SVG Preview + Pills</h3>
+      <p>SVG als Live-Vorschau links, Pills zum Auswählen rechts. Bestes aus beiden Welten — visuelles Feedback ohne Tap-Präzision-Problem auf kleinen Körperpfaden.</p>
+    </div>
+  </div>
+
+</div>

@@ -1,0 +1,222 @@
+<h2>Home Screen v5 — Widget-Feinschliff</h2>
+<p class="subtitle">Streak: Zahl + Flamme nebeneinander zentriert. Friends: kein Avatar, Name/Zahlen fett hervorgehoben.</p>
+
+<div style="display:flex; justify-content:center; gap:24px; flex-wrap:wrap;">
+
+  <!-- Widget closeups -->
+  <div style="display:flex; flex-direction:column; gap:12px;">
+    <div style="color:#9CA3AF; font-size:10px; font-family:sans-serif; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:0;">Widget-Detail</div>
+
+    <!-- Streak widget isolated -->
+    <div style="background:#FF6B3D; border-radius:16px; padding:16px 16px 14px; width:130px; height:120px; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif;">
+      <div style="color:rgba(255,255,255,0.6); font-size:8px; text-transform:uppercase; letter-spacing:0.09em;">Streak</div>
+      <!-- Zahl + Flamme vertikal zentriert nebeneinander -->
+      <div style="display:flex; align-items:center; gap:6px; flex:1; padding:6px 0 4px;">
+        <div style="color:#FFF; font-size:58px; font-weight:900; line-height:1; letter-spacing:-3px;">7</div>
+        <div style="font-size:42px; line-height:1; margin-top:4px;">🔥</div>
+      </div>
+    </div>
+
+    <!-- Friends widget isolated -->
+    <div style="background:#5BB8FF; border-radius:16px; padding:13px 13px 11px; width:130px; height:120px; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif; overflow:hidden;">
+      <div style="display:flex; align-items:center; gap:4px;">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="2.5" stroke-linecap="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <div style="color:rgba(0,0,0,0.45); font-size:8px; text-transform:uppercase; letter-spacing:0.08em; font-weight:600;">Freunde</div>
+      </div>
+
+      <!-- Friend activity — kein Avatar, Name + Zahl fett -->
+      <div style="flex:1; display:flex; flex-direction:column; justify-content:center; padding:4px 0;">
+        <div style="color:#0D1117; font-size:10px; line-height:1.45;">
+          <span style="font-weight:900; font-size:12px;">Jim</span> ist heute schon <span style="font-weight:900; font-size:13px;">6 km</span> gelaufen 🏃
+        </div>
+        <div style="color:rgba(0,0,0,0.4); font-size:8px; margin-top:4px;">vor 2 Std.</div>
+      </div>
+
+      <!-- Dots -->
+      <div style="display:flex; gap:4px;">
+        <div style="width:5px; height:5px; border-radius:50%; background:rgba(0,0,0,0.5);"></div>
+        <div style="width:5px; height:5px; border-radius:50%; background:rgba(0,0,0,0.2);"></div>
+        <div style="width:5px; height:5px; border-radius:50%; background:rgba(0,0,0,0.2);"></div>
+      </div>
+    </div>
+
+    <!-- Friends widget — alternative message -->
+    <div style="background:#5BB8FF; border-radius:16px; padding:13px 13px 11px; width:130px; height:120px; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif; overflow:hidden;">
+      <div style="display:flex; align-items:center; gap:4px;">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="2.5" stroke-linecap="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <div style="color:rgba(0,0,0,0.45); font-size:8px; text-transform:uppercase; letter-spacing:0.08em; font-weight:600;">Freunde</div>
+      </div>
+      <div style="flex:1; display:flex; flex-direction:column; justify-content:center; padding:4px 0;">
+        <div style="color:#0D1117; font-size:10px; line-height:1.45;">
+          <span style="font-weight:900; font-size:12px;">Oli</span> hat heute <span style="font-weight:900; font-size:13px;">320 kcal</span> verbrannt 🔥
+        </div>
+        <div style="color:rgba(0,0,0,0.4); font-size:8px; margin-top:4px;">vor 4 Std.</div>
+      </div>
+      <div style="display:flex; gap:4px;">
+        <div style="width:5px; height:5px; border-radius:50%; background:rgba(0,0,0,0.2);"></div>
+        <div style="width:5px; height:5px; border-radius:50%; background:rgba(0,0,0,0.5);"></div>
+        <div style="width:5px; height:5px; border-radius:50%; background:rgba(0,0,0,0.2);"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full phone mockup -->
+  <div style="text-align:center;">
+    <div style="color:#9CA3AF; font-size:10px; font-family:sans-serif; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.08em;">Vollansicht</div>
+    <div style="width:270px; height:570px; background:#1E1E24; border-radius:32px; overflow:hidden; position:relative; font-family:-apple-system,BlinkMacSystemFont,'Inter',sans-serif; box-shadow:0 0 0 7px #27272F, 0 0 0 9px #2E2E38, 0 24px 52px rgba(0,0,0,0.7);">
+
+      <div style="padding:12px 20px 4px; display:flex; justify-content:space-between;">
+        <div style="color:#6B7280; font-size:8px;">22:11</div>
+        <div style="color:#6B7280; font-size:8px;">73%</div>
+      </div>
+
+      <div style="padding:16px 18px 12px 18px;">
+        <div style="color:#9CA3AF; font-size:10px; font-weight:500; margin-bottom:3px;">Guten Abend 👋</div>
+        <div style="color:#F9FAFB; font-size:26px; font-weight:900; letter-spacing:-0.5px; line-height:1.1;">Nico</div>
+      </div>
+
+      <div style="padding:0 14px; display:flex; flex-direction:column; gap:9px; height:calc(100% - 180px);">
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; flex-shrink:0;">
+
+          <!-- Streak -->
+          <div style="background:#FF6B3D; border-radius:16px; padding:14px 14px 12px; height:120px; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box;">
+            <div style="color:rgba(255,255,255,0.6); font-size:8px; text-transform:uppercase; letter-spacing:0.09em;">Streak</div>
+            <div style="display:flex; align-items:center; gap:5px; flex:1; padding:4px 0 2px;">
+              <div style="color:#FFF; font-size:52px; font-weight:900; line-height:1; letter-spacing:-2px;">7</div>
+              <div style="font-size:38px; line-height:1; margin-top:2px;">🔥</div>
+            </div>
+          </div>
+
+          <!-- Friends -->
+          <div style="background:#5BB8FF; border-radius:16px; padding:13px 12px 11px; height:120px; display:flex; flex-direction:column; justify-content:space-between; box-sizing:border-box; overflow:hidden;">
+            <div style="display:flex; align-items:center; gap:4px;">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.45)" stroke-width="2.5" stroke-linecap="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+              <div style="color:rgba(0,0,0,0.45); font-size:8px; text-transform:uppercase; letter-spacing:0.08em; font-weight:600;">Freunde</div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:center; padding:4px 0;">
+              <div style="color:#0D1117; font-size:10px; line-height:1.45;">
+                <span style="font-weight:900; font-size:12px;">Jim</span> ist heute schon <span style="font-weight:900; font-size:13px;">6 km</span> gelaufen 🏃
+              </div>
+              <div style="color:rgba(0,0,0,0.4); font-size:8px; margin-top:3px;">vor 2 Std.</div>
+            </div>
+            <div style="display:flex; gap:4px;">
+              <div style="width:5px; height:5px; border-radius:50%; background:rgba(0,0,0,0.5);"></div>
+              <div style="width:5px; height:5px; border-radius:50%; background:rgba(0,0,0,0.2);"></div>
+              <div style="width:5px; height:5px; border-radius:50%; background:rgba(0,0,0,0.2);"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Weekly activity -->
+        <div style="background:#FFFFFF; border-radius:14px; padding:12px 13px; flex-shrink:0;">
+          <div style="color:#374151; font-size:8px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px;">Aktivität diese Woche</div>
+          <div style="position:relative; height:46px;">
+            <div style="position:absolute; left:0; right:20px; bottom:17px; border-top:1.5px dashed #D1D5DB; z-index:2;"></div>
+            <div style="position:absolute; right:0; bottom:19px; background:#F3F4F6; border-radius:3px; padding:1px 4px; z-index:3;">
+              <div style="color:#9CA3AF; font-size:6px; font-weight:700;">Ø</div>
+            </div>
+            <div style="display:flex; gap:4px; align-items:flex-end; height:38px; position:relative; z-index:1;">
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+                <div style="background:linear-gradient(to top,#FF6B3D,#FF9A7A); width:100%; border-radius:4px 4px 2px 2px; height:34px;"></div>
+                <div style="color:#9CA3AF; font-size:6.5px;">Mo</div>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+                <div style="background:linear-gradient(to top,#FF6B3D,#FF9A7A); width:100%; border-radius:4px 4px 2px 2px; height:20px;"></div>
+                <div style="color:#9CA3AF; font-size:6.5px;">Di</div>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+                <div style="background:#F3F4F6; border-radius:4px 4px 2px 2px; height:4px; width:100%; border:1px dashed #FF6B3D; box-sizing:border-box;"></div>
+                <div style="color:#FF6B3D; font-size:6.5px; font-weight:700;">Mi</div>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+                <div style="background:#F3F4F6; border-radius:4px 4px 2px 2px; height:4px; width:100%;"></div>
+                <div style="color:#9CA3AF; font-size:6.5px;">Do</div>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+                <div style="background:#F3F4F6; border-radius:4px 4px 2px 2px; height:4px; width:100%;"></div>
+                <div style="color:#9CA3AF; font-size:6.5px;">Fr</div>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+                <div style="background:#F3F4F6; border-radius:4px 4px 2px 2px; height:4px; width:100%;"></div>
+                <div style="color:#9CA3AF; font-size:6.5px;">Sa</div>
+              </div>
+              <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+                <div style="background:#F3F4F6; border-radius:4px 4px 2px 2px; height:4px; width:100%;"></div>
+                <div style="color:#9CA3AF; font-size:6.5px;">So</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Letztes Workout -->
+        <div style="background:#27272F; border-radius:13px; padding:11px 12px; display:flex; align-items:center; gap:9px; flex-shrink:0;">
+          <div style="flex:1; min-width:0;">
+            <div style="color:#6B7280; font-size:7px; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:3px;">Letztes Workout</div>
+            <div style="color:#F9FAFB; font-size:11px; font-weight:700;">Push Day</div>
+            <div style="color:#6B7280; font-size:8px; margin-top:1px;">Di, 19. Mai · 45 Min</div>
+            <div style="display:flex; gap:3px; margin-top:5px;">
+              <div style="background:rgba(255,107,61,0.2); border-radius:20px; padding:2px 7px; color:#FF6B3D; font-size:7px;">Brust</div>
+              <div style="background:rgba(91,184,255,0.15); border-radius:20px; padding:2px 7px; color:#5BB8FF; font-size:7px;">Trizeps</div>
+              <div style="background:rgba(91,184,255,0.15); border-radius:20px; padding:2px 7px; color:#5BB8FF; font-size:7px;">Schultern</div>
+            </div>
+          </div>
+          <svg width="22" height="40" viewBox="0 0 60 100" fill="none" style="flex-shrink:0;">
+            <circle cx="30" cy="7" r="5.5" fill="#4B5563"/>
+            <path d="M18 14 Q22 12 30 13 Q38 12 42 14 L40 26 Q35 29 30 30 Q25 29 20 26 Z" fill="#FF6B3D" opacity="0.9"/>
+            <ellipse cx="13" cy="18" rx="5" ry="7" fill="#4B5563"/>
+            <ellipse cx="47" cy="18" rx="5" ry="7" fill="#4B5563"/>
+            <path d="M22 30 Q30 31 38 30 L37 50 Q30 52 23 50 Z" fill="#4B5563"/>
+            <rect x="7" y="26" width="7" height="16" rx="3.5" fill="#5BB8FF" opacity="0.6"/>
+            <rect x="46" y="26" width="7" height="16" rx="3.5" fill="#5BB8FF" opacity="0.6"/>
+            <path d="M20 52 Q24 51 28 52 L27 74 Q24 76 21 74 Z" fill="#4B5563"/>
+            <path d="M32 52 Q36 51 40 52 L39 74 Q36 76 33 74 Z" fill="#4B5563"/>
+            <rect x="21" y="75" width="8" height="18" rx="3" fill="#4B5563"/>
+            <rect x="32" y="75" width="8" height="18" rx="3" fill="#4B5563"/>
+          </svg>
+        </div>
+
+      </div>
+
+      <!-- Sticky CTA -->
+      <div style="position:absolute; bottom:48px; left:0; right:0; padding:10px 14px 0; background:linear-gradient(to top, #1E1E24 65%, transparent);">
+        <div style="background:#FF6B3D; border-radius:15px; padding:15px 16px; text-align:center; box-shadow:0 4px 20px rgba(255,107,61,0.4);">
+          <div style="color:#FFF; font-size:13px; font-weight:800;">Worauf wartest du? 💪</div>
+        </div>
+      </div>
+
+      <!-- Bottom Nav -->
+      <div style="position:absolute; bottom:0; left:0; right:0; height:48px; background:#18181F; border-top:1px solid #2E2E38; display:flex; justify-content:space-around; align-items:center; padding-bottom:4px;">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="#FF6B3D"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+          <div style="color:#FF6B3D; font-size:7px; font-weight:600;">Home</div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#4B5563" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <div style="color:#4B5563; font-size:7px;">Verlauf</div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#4B5563" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <div style="color:#4B5563; font-size:7px;">Stats</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>

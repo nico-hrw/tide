@@ -1,0 +1,126 @@
+<h2>Welches Theme soll die Basis sein?</h2>
+<p class="subtitle">Das ist die fundamentalste Entscheidung — sie bestimmt den gesamten visuellen Charakter der App.</p>
+
+<div class="cards">
+
+  <!-- Option A: Dark -->
+  <div class="card" data-choice="dark" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#111827; padding:16px; border-radius:8px 8px 0 0;">
+      <div style="background:#1F2937; border-radius:12px; padding:14px; margin-bottom:10px;">
+        <div style="color:#9CA3AF; font-size:10px; font-family:sans-serif; margin-bottom:4px;">Guten Abend, Nico</div>
+        <div style="color:#F9FAFB; font-size:18px; font-weight:700; font-family:sans-serif; margin-bottom:10px;">Mittwoch, 20. Mai</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+          <div style="background:#111827; border-radius:8px; padding:8px; text-align:center;">
+            <div style="color:#F9FAFB; font-size:16px; font-weight:700; font-family:sans-serif;">7</div>
+            <div style="color:#4ADE80; font-size:9px; font-family:sans-serif;">🔥 Streak</div>
+          </div>
+          <div style="background:#111827; border-radius:8px; padding:8px; text-align:center;">
+            <div style="color:#F9FAFB; font-size:16px; font-weight:700; font-family:sans-serif;">3</div>
+            <div style="color:#6B7280; font-size:9px; font-family:sans-serif;">Diese Woche</div>
+          </div>
+          <div style="background:#111827; border-radius:8px; padding:8px; text-align:center;">
+            <div style="color:#F9FAFB; font-size:16px; font-weight:700; font-family:sans-serif;">12t</div>
+            <div style="color:#6B7280; font-size:9px; font-family:sans-serif;">Volumen</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:#4ADE80; border-radius:10px; padding:12px; text-align:center;">
+        <div style="color:#111827; font-size:13px; font-weight:700; font-family:sans-serif;">+ Neues Workout starten</div>
+      </div>
+      <div style="background:#1F2937; border-radius:10px; padding:12px; margin-top:10px; display:flex; align-items:center; justify-content:space-between;">
+        <div>
+          <div style="color:#F9FAFB; font-size:12px; font-weight:600; font-family:sans-serif;">Push Day</div>
+          <div style="color:#6B7280; font-size:10px; font-family:sans-serif;">Gestern · 45 Min</div>
+        </div>
+        <div style="background:#374151; border-radius:6px; padding:4px 8px;">
+          <div style="color:#9CA3AF; font-size:9px; font-family:sans-serif;">Brust, Trizeps</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Dark Mode</h3>
+      <p>Dunkles Interface wie ApexFit & Push-Pull-Legs. Professionell, sportlich, modernes Gym-Feeling. Schont Augen beim Training in der Halle.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Light Clean -->
+  <div class="card" data-choice="light-clean" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#F5F5F0; padding:16px; border-radius:8px 8px 0 0;">
+      <div style="background:#FFFFFF; border-radius:12px; padding:14px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+        <div style="color:#9CA3AF; font-size:10px; font-family:sans-serif; margin-bottom:4px;">Guten Abend, Nico</div>
+        <div style="color:#111827; font-size:18px; font-weight:700; font-family:sans-serif; margin-bottom:10px;">Mittwoch, 20. Mai</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+          <div style="background:#FFF7ED; border-radius:8px; padding:8px; text-align:center; border:1px solid #FED7AA;">
+            <div style="color:#111827; font-size:16px; font-weight:700; font-family:sans-serif;">7</div>
+            <div style="color:#F97316; font-size:9px; font-family:sans-serif;">🔥 Streak</div>
+          </div>
+          <div style="background:#F9FAFB; border-radius:8px; padding:8px; text-align:center;">
+            <div style="color:#111827; font-size:16px; font-weight:700; font-family:sans-serif;">3</div>
+            <div style="color:#6B7280; font-size:9px; font-family:sans-serif;">Diese Woche</div>
+          </div>
+          <div style="background:#F9FAFB; border-radius:8px; padding:8px; text-align:center;">
+            <div style="color:#111827; font-size:16px; font-weight:700; font-family:sans-serif;">12t</div>
+            <div style="color:#6B7280; font-size:9px; font-family:sans-serif;">Volumen</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:#111827; border-radius:10px; padding:12px; text-align:center;">
+        <div style="color:#FFFFFF; font-size:13px; font-weight:700; font-family:sans-serif;">+ Neues Workout starten</div>
+      </div>
+      <div style="background:#FFFFFF; border-radius:10px; padding:12px; margin-top:10px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+        <div>
+          <div style="color:#111827; font-size:12px; font-weight:600; font-family:sans-serif;">Push Day</div>
+          <div style="color:#6B7280; font-size:10px; font-family:sans-serif;">Gestern · 45 Min</div>
+        </div>
+        <div style="background:#F3F4F6; border-radius:6px; padding:4px 8px;">
+          <div style="color:#374151; font-size:9px; font-family:sans-serif;">Brust, Trizeps</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Light Clean</h3>
+      <p>Helles Interface wie in Screenshot #3 (Activity App). Warmes Off-White als Hintergrund, klare Karten. Leichter und luftiger Look.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Light with strong accent -->
+  <div class="card" data-choice="light-accent" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#F8FAFC; padding:16px; border-radius:8px 8px 0 0;">
+      <div style="background:linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%); border-radius:12px; padding:14px; margin-bottom:10px;">
+        <div style="color:rgba(255,255,255,0.7); font-size:10px; font-family:sans-serif; margin-bottom:4px;">Guten Abend, Nico</div>
+        <div style="color:#FFFFFF; font-size:18px; font-weight:700; font-family:sans-serif; margin-bottom:10px;">Mittwoch, 20. Mai</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+          <div style="background:rgba(255,255,255,0.15); border-radius:8px; padding:8px; text-align:center;">
+            <div style="color:#FFFFFF; font-size:16px; font-weight:700; font-family:sans-serif;">7</div>
+            <div style="color:rgba(255,255,255,0.7); font-size:9px; font-family:sans-serif;">🔥 Streak</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.15); border-radius:8px; padding:8px; text-align:center;">
+            <div style="color:#FFFFFF; font-size:16px; font-weight:700; font-family:sans-serif;">3</div>
+            <div style="color:rgba(255,255,255,0.7); font-size:9px; font-family:sans-serif;">Diese Woche</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.15); border-radius:8px; padding:8px; text-align:center;">
+            <div style="color:#FFFFFF; font-size:16px; font-weight:700; font-family:sans-serif;">12t</div>
+            <div style="color:rgba(255,255,255,0.7); font-size:9px; font-family:sans-serif;">Volumen</div>
+          </div>
+        </div>
+      </div>
+      <div style="background:#6366F1; border-radius:10px; padding:12px; text-align:center;">
+        <div style="color:#FFFFFF; font-size:13px; font-weight:700; font-family:sans-serif;">+ Neues Workout starten</div>
+      </div>
+      <div style="background:#FFFFFF; border-radius:10px; padding:12px; margin-top:10px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+        <div>
+          <div style="color:#111827; font-size:12px; font-weight:600; font-family:sans-serif;">Push Day</div>
+          <div style="color:#6B7280; font-size:10px; font-family:sans-serif;">Gestern · 45 Min</div>
+        </div>
+        <div style="background:#EEF2FF; border-radius:6px; padding:4px 8px;">
+          <div style="color:#6366F1; font-size:9px; font-family:sans-serif;">Brust, Trizeps</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Light + Accent Header</h3>
+      <p>Heller Body mit farbigem Gradient-Header wie modernes Fintech. Energie und Persönlichkeit ohne volles Dark Mode.</p>
+    </div>
+  </div>
+
+</div>

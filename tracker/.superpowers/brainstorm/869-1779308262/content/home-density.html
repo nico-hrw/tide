@@ -1,0 +1,234 @@
+<h2>Home Screen — wie viel Dashboard?</h2>
+<p class="subtitle">Dark, Coral + Blue sind fix. Wie dicht soll der Home Screen sein?</p>
+
+<div class="cards">
+
+  <!-- Option A: Minimal — Stats + CTA -->
+  <div class="card" data-choice="minimal" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0F0F13; padding:16px; border-radius:8px 8px 0 0;">
+      <div style="color:#9CA3AF; font-size:9px; font-family:sans-serif; margin-bottom:2px;">Guten Abend, Nico</div>
+      <div style="color:#F9FAFB; font-size:18px; font-weight:800; font-family:sans-serif; margin-bottom:14px;">Mittwoch, 20. Mai</div>
+
+      <!-- 3 stat cards -->
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:14px;">
+        <div style="background:#1C1C25; border-radius:10px; padding:10px 6px; text-align:center;">
+          <div style="color:#FF6B3D; font-size:18px; font-weight:800; font-family:sans-serif;">7</div>
+          <div style="color:#6B7280; font-size:8px; font-family:sans-serif;">Streak 🔥</div>
+        </div>
+        <div style="background:#1C1C25; border-radius:10px; padding:10px 6px; text-align:center;">
+          <div style="color:#F9FAFB; font-size:18px; font-weight:800; font-family:sans-serif;">3</div>
+          <div style="color:#6B7280; font-size:8px; font-family:sans-serif;">Diese Woche</div>
+        </div>
+        <div style="background:#1C1C25; border-radius:10px; padding:10px 6px; text-align:center;">
+          <div style="color:#F9FAFB; font-size:18px; font-weight:800; font-family:sans-serif;">12t</div>
+          <div style="color:#6B7280; font-size:8px; font-family:sans-serif;">Volumen</div>
+        </div>
+      </div>
+
+      <!-- Big CTA -->
+      <div style="background:#FF6B3D; border-radius:14px; padding:16px; text-align:center; margin-bottom:12px;">
+        <div style="color:#FFF; font-size:14px; font-weight:800; font-family:sans-serif;">+ Neues Workout starten</div>
+      </div>
+
+      <!-- Last 2 workouts -->
+      <div style="color:#6B7280; font-size:8px; font-family:sans-serif; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:6px;">Letzte Sessions</div>
+      <div style="background:#1C1C25; border-radius:10px; padding:10px 12px; margin-bottom:5px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="color:#F9FAFB; font-size:10px; font-weight:600; font-family:sans-serif;">Push Day</div>
+          <div style="color:#6B7280; font-size:8px; font-family:sans-serif;">Di, 19. Mai · 45 Min</div>
+        </div>
+        <div style="color:#5BB8FF; font-size:9px; font-family:sans-serif;">→</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Minimal — Stats + CTA</h3>
+      <p>Wie jetzt aber dark und polished. Schnell erfassbar, kein Overload. Fokus auf "Training starten".</p>
+    </div>
+  </div>
+
+  <!-- Option B: Medium — Stats + Wochenübersicht + Letztes Workout -->
+  <div class="card" data-choice="medium" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0F0F13; padding:16px; border-radius:8px 8px 0 0;">
+      <div style="color:#9CA3AF; font-size:9px; font-family:sans-serif; margin-bottom:2px;">Guten Abend, Nico</div>
+      <div style="color:#F9FAFB; font-size:16px; font-weight:800; font-family:sans-serif; margin-bottom:10px;">Mittwoch, 20. Mai</div>
+
+      <!-- Stat row -->
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-bottom:10px;">
+        <div style="background:#FF6B3D; border-radius:10px; padding:10px 6px; text-align:center;">
+          <div style="color:#FFF; font-size:17px; font-weight:800; font-family:sans-serif;">7</div>
+          <div style="color:rgba(255,255,255,0.8); font-size:8px; font-family:sans-serif;">Streak 🔥</div>
+        </div>
+        <div style="background:#1C1C25; border-radius:10px; padding:10px 6px; text-align:center;">
+          <div style="color:#F9FAFB; font-size:17px; font-weight:800; font-family:sans-serif;">3</div>
+          <div style="color:#6B7280; font-size:8px; font-family:sans-serif;">Diese Woche</div>
+        </div>
+        <div style="background:#1C1C25; border-radius:10px; padding:10px 6px; text-align:center;">
+          <div style="color:#F9FAFB; font-size:17px; font-weight:800; font-family:sans-serif;">12t</div>
+          <div style="color:#6B7280; font-size:8px; font-family:sans-serif;">Volumen</div>
+        </div>
+      </div>
+
+      <!-- Wochenbars -->
+      <div style="background:#1C1C25; border-radius:12px; padding:12px; margin-bottom:10px;">
+        <div style="color:#6B7280; font-size:8px; font-family:sans-serif; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.06em;">Diese Woche</div>
+        <div style="display:flex; gap:5px; align-items:flex-end; height:30px;">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#FF6B3D; width:100%; border-radius:3px; height:22px;"></div>
+            <div style="color:#6B7280; font-size:7px; font-family:sans-serif;">Mo</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#FF6B3D; width:100%; border-radius:3px; height:16px;"></div>
+            <div style="color:#6B7280; font-size:7px; font-family:sans-serif;">Di</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#374151; width:100%; border-radius:3px; height:4px;"></div>
+            <div style="color:#FF6B3D; font-size:7px; font-family:sans-serif; font-weight:700;">Mi</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#374151; width:100%; border-radius:3px; height:4px;"></div>
+            <div style="color:#6B7280; font-size:7px; font-family:sans-serif;">Do</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#374151; width:100%; border-radius:3px; height:4px;"></div>
+            <div style="color:#6B7280; font-size:7px; font-family:sans-serif;">Fr</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#374151; width:100%; border-radius:3px; height:4px;"></div>
+            <div style="color:#6B7280; font-size:7px; font-family:sans-serif;">Sa</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#374151; width:100%; border-radius:3px; height:4px;"></div>
+            <div style="color:#6B7280; font-size:7px; font-family:sans-serif;">So</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div style="background:#FF6B3D; border-radius:12px; padding:13px; text-align:center; margin-bottom:10px;">
+        <div style="color:#FFF; font-size:12px; font-weight:800; font-family:sans-serif;">+ Neues Workout starten</div>
+      </div>
+
+      <!-- Letztes Workout mit Muskeln -->
+      <div style="background:#1C1C25; border-radius:12px; padding:12px; display:flex; align-items:center; gap:10px;">
+        <div style="flex:1;">
+          <div style="color:#6B7280; font-size:8px; font-family:sans-serif; margin-bottom:2px;">LETZTES WORKOUT</div>
+          <div style="color:#F9FAFB; font-size:11px; font-weight:700; font-family:sans-serif;">Push Day</div>
+          <div style="color:#6B7280; font-size:9px; font-family:sans-serif;">Di, 19. Mai · 45 Min · Brust, Trizeps</div>
+        </div>
+        <!-- Mini muscle SVG -->
+        <svg width="28" height="46" viewBox="0 0 60 100" fill="none">
+          <circle cx="30" cy="7" r="5.5" fill="#374151"/>
+          <path d="M18 14 Q22 12 30 13 Q38 12 42 14 L40 26 Q35 29 30 30 Q25 29 20 26 Z" fill="#FF6B3D" opacity="0.8"/>
+          <ellipse cx="13" cy="18" rx="5" ry="7" fill="#374151"/>
+          <ellipse cx="47" cy="18" rx="5" ry="7" fill="#374151"/>
+          <path d="M22 30 Q30 31 38 30 L37 50 Q30 52 23 50 Z" fill="#374151"/>
+          <rect x="7" y="26" width="7" height="16" rx="3.5" fill="#5BB8FF" opacity="0.6"/>
+          <rect x="46" y="26" width="7" height="16" rx="3.5" fill="#5BB8FF" opacity="0.6"/>
+          <path d="M20 52 Q24 51 28 52 L27 74 Q24 76 21 74 Z" fill="#374151"/>
+          <path d="M32 52 Q36 51 40 52 L39 74 Q36 76 33 74 Z" fill="#374151"/>
+        </svg>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Medium — + Wochenübersicht</h3>
+      <p>Stats, Mini-Wochenbalken, CTA, letztes Workout mit Muskel-SVG. Informativ ohne überwältigend zu sein — empfohlen.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Rich Dashboard -->
+  <div class="card" data-choice="rich" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0F0F13; padding:14px; border-radius:8px 8px 0 0;">
+      <div style="color:#9CA3AF; font-size:9px; font-family:sans-serif; margin-bottom:1px;">Guten Abend, Nico</div>
+      <div style="color:#F9FAFB; font-size:15px; font-weight:800; font-family:sans-serif; margin-bottom:8px;">Mittwoch, 20. Mai</div>
+
+      <!-- 2x2 stat grid mit Farben -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:8px;">
+        <div style="background:#FF6B3D; border-radius:10px; padding:10px;">
+          <div style="color:rgba(255,255,255,0.8); font-size:8px; font-family:sans-serif; margin-bottom:2px;">Streak 🔥</div>
+          <div style="color:#FFF; font-size:20px; font-weight:800; font-family:sans-serif;">7 Tage</div>
+        </div>
+        <div style="background:#5BB8FF; border-radius:10px; padding:10px;">
+          <div style="color:rgba(255,255,255,0.8); font-size:8px; font-family:sans-serif; margin-bottom:2px;">Diese Woche</div>
+          <div style="color:#111; font-size:20px; font-weight:800; font-family:sans-serif;">3 / 4</div>
+        </div>
+      </div>
+
+      <!-- Wochenbalken kompakt -->
+      <div style="background:#1C1C25; border-radius:10px; padding:10px; margin-bottom:8px;">
+        <div style="display:flex; gap:4px; align-items:flex-end; height:24px;">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;">
+            <div style="background:#FF6B3D; width:100%; border-radius:2px; height:20px;"></div>
+            <div style="color:#6B7280; font-size:6px; font-family:sans-serif;">Mo</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;">
+            <div style="background:#FF6B3D; width:100%; border-radius:2px; height:14px;"></div>
+            <div style="color:#6B7280; font-size:6px; font-family:sans-serif;">Di</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;">
+            <div style="background:#374151; border-radius:2px; height:4px; width:100%;"></div>
+            <div style="color:#FF6B3D; font-size:6px; font-family:sans-serif; font-weight:700;">Mi</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;">
+            <div style="background:#374151; border-radius:2px; height:4px; width:100%;"></div>
+            <div style="color:#6B7280; font-size:6px; font-family:sans-serif;">Do</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;">
+            <div style="background:#374151; border-radius:2px; height:4px; width:100%;"></div>
+            <div style="color:#6B7280; font-size:6px; font-family:sans-serif;">Fr</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;">
+            <div style="background:#374151; border-radius:2px; height:4px; width:100%;"></div>
+            <div style="color:#6B7280; font-size:6px; font-family:sans-serif;">Sa</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;">
+            <div style="background:#374151; border-radius:2px; height:4px; width:100%;"></div>
+            <div style="color:#6B7280; font-size:6px; font-family:sans-serif;">So</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div style="background:#FF6B3D; border-radius:10px; padding:11px; text-align:center; margin-bottom:8px;">
+        <div style="color:#FFF; font-size:12px; font-weight:800; font-family:sans-serif;">+ Neues Workout starten</div>
+      </div>
+
+      <!-- Letztes Workout -->
+      <div style="background:#1C1C25; border-radius:10px; padding:10px; margin-bottom:6px; display:flex; align-items:center; gap:8px;">
+        <svg width="22" height="36" viewBox="0 0 60 100" fill="none">
+          <circle cx="30" cy="7" r="5.5" fill="#374151"/>
+          <path d="M18 14 Q22 12 30 13 Q38 12 42 14 L40 26 Q35 29 30 30 Q25 29 20 26 Z" fill="#FF6B3D" opacity="0.9"/>
+          <ellipse cx="13" cy="18" rx="5" ry="7" fill="#374151"/>
+          <ellipse cx="47" cy="18" rx="5" ry="7" fill="#374151"/>
+          <path d="M22 30 Q30 31 38 30 L37 50 Q30 52 23 50 Z" fill="#374151"/>
+          <rect x="7" y="26" width="7" height="16" rx="3.5" fill="#5BB8FF" opacity="0.6"/>
+          <rect x="46" y="26" width="7" height="16" rx="3.5" fill="#5BB8FF" opacity="0.6"/>
+          <path d="M20 52 Q24 51 28 52 L27 74 Q24 76 21 74 Z" fill="#374151"/>
+          <path d="M32 52 Q36 51 40 52 L39 74 Q36 76 33 74 Z" fill="#374151"/>
+        </svg>
+        <div style="flex:1;">
+          <div style="color:#F9FAFB; font-size:10px; font-weight:700; font-family:sans-serif;">Push Day</div>
+          <div style="color:#6B7280; font-size:8px; font-family:sans-serif;">Di · 45 Min · Brust, Trizeps</div>
+        </div>
+        <div style="background:#374151; border-radius:20px; padding:3px 8px;">
+          <div style="color:#9CA3AF; font-size:8px; font-family:sans-serif;">4 Übungen</div>
+        </div>
+      </div>
+
+      <!-- Muskel-Heatmap der Woche -->
+      <div style="background:#1C1C25; border-radius:10px; padding:10px;">
+        <div style="color:#6B7280; font-size:8px; font-family:sans-serif; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.06em;">Trainiert diese Woche</div>
+        <div style="display:flex; gap:4px; flex-wrap:wrap;">
+          <div style="background:rgba(255,107,61,0.3); border-radius:20px; padding:3px 8px; color:#FF6B3D; font-size:8px; font-family:sans-serif;">Brust</div>
+          <div style="background:rgba(255,107,61,0.3); border-radius:20px; padding:3px 8px; color:#FF6B3D; font-size:8px; font-family:sans-serif;">Trizeps</div>
+          <div style="background:rgba(91,184,255,0.2); border-radius:20px; padding:3px 8px; color:#5BB8FF; font-size:8px; font-family:sans-serif;">Rücken</div>
+          <div style="background:rgba(91,184,255,0.2); border-radius:20px; padding:3px 8px; color:#5BB8FF; font-size:8px; font-family:sans-serif;">Bizeps</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Rich Dashboard</h3>
+      <p>Alles auf einen Blick: farbige Stat-Kacheln, Wochenbalken, letztes Workout, trainierte Muskeln der Woche. Maximale Info-Dichte wie ApexFit.</p>
+    </div>
+  </div>
+
+</div>

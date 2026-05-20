@@ -1,0 +1,160 @@
+<h2>Home Screen — finaler Entwurf</h2>
+<p class="subtitle">Streak + Motivations-Widget (taller), Wochenaktivität, sticky CTA unten. Passt das so?</p>
+
+<div style="display:flex; justify-content:center;">
+  <!-- Phone frame mockup -->
+  <div style="width:280px; background:#0F0F13; border-radius:32px; padding:0; overflow:hidden; position:relative; min-height:560px; font-family:sans-serif; box-shadow:0 0 0 8px #1C1C25, 0 0 0 10px #2A2A35, 0 24px 48px rgba(0,0,0,0.6);">
+
+    <!-- Status bar -->
+    <div style="background:#0F0F13; padding:10px 20px 6px; display:flex; justify-content:space-between; align-items:center;">
+      <div style="color:#6B7280; font-size:8px;">22:11</div>
+      <div style="width:40px; height:6px; background:#1C1C25; border-radius:10px;"></div>
+      <div style="color:#6B7280; font-size:8px;">73%</div>
+    </div>
+
+    <!-- Scrollable content -->
+    <div style="padding:14px 16px 90px 16px;">
+
+      <!-- Greeting -->
+      <div style="color:#6B7280; font-size:9px; margin-bottom:2px;">Guten Abend, Nico 👋</div>
+      <div style="color:#F9FAFB; font-size:19px; font-weight:800; margin-bottom:14px; letter-spacing:-0.3px;">Mittwoch, 20. Mai</div>
+
+      <!-- Hero widgets row — taller, no Volumen -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;">
+
+        <!-- Streak widget -->
+        <div style="background:#FF6B3D; border-radius:16px; padding:16px 14px; min-height:110px; display:flex; flex-direction:column; justify-content:space-between;">
+          <div style="color:rgba(255,255,255,0.65); font-size:8px; text-transform:uppercase; letter-spacing:0.08em;">Streak</div>
+          <div>
+            <div style="color:#FFF; font-size:36px; font-weight:900; line-height:1; margin-bottom:2px;">7</div>
+            <div style="color:rgba(255,255,255,0.75); font-size:9px;">Tage in Folge 🔥</div>
+          </div>
+        </div>
+
+        <!-- Motivations-Widget / Woche -->
+        <div style="background:#5BB8FF; border-radius:16px; padding:16px 14px; min-height:110px; display:flex; flex-direction:column; justify-content:space-between;">
+          <div style="background:rgba(0,0,0,0.12); border-radius:8px; width:28px; height:28px; display:flex; align-items:center; justify-content:center;">
+            <!-- Dumbbell icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0F0F13" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 4v16M18 4v16M6 9h12M6 15h12"/>
+              <rect x="2" y="6" width="4" height="12" rx="1"/>
+              <rect x="18" y="6" width="4" height="12" rx="1"/>
+            </svg>
+          </div>
+          <div>
+            <div style="color:#0F0F13; font-size:13px; font-weight:800; line-height:1.2; margin-bottom:3px;">3 Workouts<br/>diese Woche</div>
+            <div style="color:rgba(0,0,0,0.45); font-size:9px;">Stark, weiter so!</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Weekly activity -->
+      <div style="background:#1C1C25; border-radius:14px; padding:14px; margin-bottom:12px;">
+        <div style="color:#6B7280; font-size:8px; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:10px;">Aktivität diese Woche</div>
+        <div style="display:flex; gap:5px; align-items:flex-end; height:44px;">
+          <!-- Mo — trainiert, hoch -->
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:linear-gradient(to top, #FF6B3D, #FF9A7A); width:100%; border-radius:4px; height:38px;"></div>
+            <div style="color:#6B7280; font-size:7px;">Mo</div>
+          </div>
+          <!-- Di — trainiert, mittel -->
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:linear-gradient(to top, #FF6B3D, #FF9A7A); width:100%; border-radius:4px; height:24px;"></div>
+            <div style="color:#6B7280; font-size:7px;">Di</div>
+          </div>
+          <!-- Mi — heute, leer, highlighted -->
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#2A2A35; border-radius:4px; height:4px; width:100%; border:1px dashed #FF6B3D;"></div>
+            <div style="color:#FF6B3D; font-size:7px; font-weight:700;">Mi</div>
+          </div>
+          <!-- Do–So — leer -->
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#2A2A35; border-radius:4px; height:4px; width:100%;"></div>
+            <div style="color:#6B7280; font-size:7px;">Do</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#2A2A35; border-radius:4px; height:4px; width:100%;"></div>
+            <div style="color:#6B7280; font-size:7px;">Fr</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#2A2A35; border-radius:4px; height:4px; width:100%;"></div>
+            <div style="color:#6B7280; font-size:7px;">Sa</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#2A2A35; border-radius:4px; height:4px; width:100%;"></div>
+            <div style="color:#6B7280; font-size:7px;">So</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Letztes Workout -->
+      <div style="background:#1C1C25; border-radius:14px; padding:12px; display:flex; align-items:center; gap:10px; border-left:3px solid #5BB8FF;">
+        <div style="flex:1;">
+          <div style="color:#6B7280; font-size:8px; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:3px;">Letztes Workout</div>
+          <div style="color:#F9FAFB; font-size:12px; font-weight:700;">Push Day</div>
+          <div style="color:#6B7280; font-size:9px; margin-top:1px;">Di, 19. Mai · 45 Min</div>
+          <div style="display:flex; gap:4px; margin-top:6px;">
+            <div style="background:rgba(255,107,61,0.2); border-radius:20px; padding:2px 8px; color:#FF6B3D; font-size:8px;">Brust</div>
+            <div style="background:rgba(91,184,255,0.15); border-radius:20px; padding:2px 8px; color:#5BB8FF; font-size:8px;">Trizeps</div>
+            <div style="background:rgba(91,184,255,0.15); border-radius:20px; padding:2px 8px; color:#5BB8FF; font-size:8px;">Schultern</div>
+          </div>
+        </div>
+        <svg width="26" height="46" viewBox="0 0 60 100" fill="none">
+          <circle cx="30" cy="7" r="5.5" fill="#374151"/>
+          <path d="M18 14 Q22 12 30 13 Q38 12 42 14 L40 26 Q35 29 30 30 Q25 29 20 26 Z" fill="#FF6B3D" opacity="0.9"/>
+          <ellipse cx="13" cy="18" rx="5" ry="7" fill="#374151"/>
+          <ellipse cx="47" cy="18" rx="5" ry="7" fill="#374151"/>
+          <path d="M22 30 Q30 31 38 30 L37 50 Q30 52 23 50 Z" fill="#374151"/>
+          <rect x="7" y="26" width="7" height="16" rx="3.5" fill="#5BB8FF" opacity="0.6"/>
+          <rect x="46" y="26" width="7" height="16" rx="3.5" fill="#5BB8FF" opacity="0.6"/>
+          <path d="M20 52 Q24 51 28 52 L27 74 Q24 76 21 74 Z" fill="#374151"/>
+          <path d="M32 52 Q36 51 40 52 L39 74 Q36 76 33 74 Z" fill="#374151"/>
+          <rect x="21" y="75" width="8" height="18" rx="3" fill="#374151"/>
+          <rect x="32" y="75" width="8" height="18" rx="3" fill="#374151"/>
+        </svg>
+      </div>
+
+    </div>
+
+    <!-- Sticky CTA — gradient fade, immer erreichbar -->
+    <div style="position:absolute; bottom:40px; left:0; right:0; padding:12px 16px 0; background:linear-gradient(to top, #0F0F13 65%, transparent);">
+      <div style="background:#FF6B3D; border-radius:16px; padding:17px; text-align:center; box-shadow:0 0 24px rgba(255,107,61,0.35);">
+        <div style="color:#FFF; font-size:14px; font-weight:800; letter-spacing:0.01em;">+ Neues Workout starten</div>
+      </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <div style="position:absolute; bottom:0; left:0; right:0; background:#161620; border-top:1px solid #2A2A35; display:flex; justify-content:space-around; padding:8px 0 4px;">
+      <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#FF6B3D" stroke="none"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        <div style="color:#FF6B3D; font-size:7px; font-weight:600;">Home</div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="1.8" stroke-linecap="round"><path d="M6 4v16M18 4v16M6 9h12M6 15h12"/><rect x="2" y="6" width="4" height="12" rx="1"/><rect x="18" y="6" width="4" height="12" rx="1"/></svg>
+        <div style="color:#374151; font-size:7px;">Workout</div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <div style="color:#374151; font-size:7px;">Verlauf</div>
+      </div>
+      <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#374151" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <div style="color:#374151; font-size:7px;">Stats</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top:20px; background:#1a1a2e; border-radius:10px; padding:14px; font-family:sans-serif; max-width:500px; margin-left:auto; margin-right:auto;">
+  <div style="color:#5BB8FF; font-size:11px; font-weight:700; margin-bottom:6px;">Designentscheidungen in diesem Entwurf</div>
+  <div style="color:#9CA3AF; font-size:10px; line-height:1.7;">
+    • <strong style="color:#F9FAFB;">Streak</strong> = Orange Hero-Kachel, groß + bold — emotionaler Anker<br>
+    • <strong style="color:#F9FAFB;">Wochencount</strong> = Blau Hero-Kachel mit Dumbbell-Icon + motivierende Kurzzeile<br>
+    • <strong style="color:#F9FAFB;">Volumen</strong> entfernt wie gewünscht<br>
+    • <strong style="color:#F9FAFB;">Wochenbalken</strong> zeigen Trainings-Intensität, heute (Mi) dashed-bordered<br>
+    • <strong style="color:#F9FAFB;">Letztes Workout</strong> mit Muskel-Chips + Mini-SVG, blau bordered<br>
+    • <strong style="color:#F9FAFB;">CTA</strong> sticky, Gradient-Fade drüber, immer daumenreichbar
+  </div>
+</div>

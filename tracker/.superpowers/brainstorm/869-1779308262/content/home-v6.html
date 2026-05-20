@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #13131A;
+    font-family: 'Outfit', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 48px;
+    min-height: 100vh;
+    gap: 24px;
+  }
+  .page-title { color: #F9FAFB; font-size: 18px; font-weight: 700; }
+  .page-sub { color: #6B7280; font-size: 12px; margin-top: 4px; text-align: center; }
+  .widget-row { display: flex; gap: 12px; }
+
+  /* Streak */
+  .widget-streak {
+    background: #FF6B3D;
+    border-radius: 16px;
+    padding: 14px 14px 12px;
+    width: 130px; height: 120px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .widget-label {
+    font-size: 8px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.09em;
+    color: rgba(255,255,255,0.6);
+  }
+  .streak-body {
+    display: flex; align-items: center; gap: 4px;
+    flex: 1; padding: 4px 0 2px;
+  }
+  .streak-num {
+    color: #FFF; font-size: 54px; font-weight: 900;
+    line-height: 1; letter-spacing: -3px;
+  }
+  .streak-fire { font-size: 40px; line-height: 1; margin-top: 3px; }
+
+  /* Friends — watch-face style, no label, fills the space */
+  .widget-friends {
+    background: #5BB8FF;
+    border-radius: 16px;
+    padding: 12px 12px 11px;
+    width: 130px; height: 120px;
+    display: flex; flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    overflow: hidden;
+  }
+  .friend-name {
+    color: rgba(0,0,0,0.45);
+    font-size: 13px; font-weight: 700;
+    line-height: 1; letter-spacing: -0.3px;
+  }
+  .friend-stat {
+    color: #0D1117;
+    font-size: 34px; font-weight: 900;
+    line-height: 0.95; letter-spacing: -1.5px;
+  }
+  .friend-action {
+    color: rgba(0,0,0,0.6);
+    font-size: 11px; font-weight: 600;
+    line-height: 1.2; margin-top: 3px;
+  }
+  .friend-time {
+    color: rgba(0,0,0,0.35);
+    font-size: 9px; font-weight: 400;
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body>
+
+<div>
+  <div class="page-title" style="text-align:center;">Home Screen — Final</div>
+  <div class="page-sub">Outfit-Font, Friends-Widget watch-face style</div>
+</div>
+
+<!-- Widget closeup row -->
+<div class="widget-row">
+  <div>
+    <div style="color:#6B7280; font-size:9px; text-align:center; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.07em;">Streak</div>
+    <div class="widget-streak">
+      <div class="widget-label">Streak</div>
+      <div class="streak-body">
+        <div class="streak-num">7</div>
+        <div class="streak-fire">🔥</div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div style="color:#6B7280; font-size:9px; text-align:center; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.07em;">Freunde (v1)</div>
+    <div class="widget-friends">
+      <div class="friend-name">Jim</div>
+      <div class="friend-stat">6 km</div>
+      <div class="friend-action">gelaufen 🏃</div>
+      <div class="friend-time">vor 2 Std.</div>
+    </div>
+  </div>
+
+  <div>
+    <div style="color:#6B7280; font-size:9px; text-align:center; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.07em;">Freunde (v2)</div>
+    <div class="widget-friends">
+      <div class="friend-name">Oli</div>
+      <div class="friend-stat">320<br><span style="font-size:20px; letter-spacing:-0.5px;">kcal</span></div>
+      <div class="friend-action">verbrannt 🔥</div>
+      <div class="friend-time">vor 4 Std.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Full phone -->
+<div style="width:270px; height:580px; background:#1E1E24; border-radius:32px; overflow:hidden; position:relative; box-shadow:0 0 0 7px #27272F, 0 0 0 9px #2E2E38, 0 24px 52px rgba(0,0,0,0.7);">
+
+  <!-- Status bar -->
+  <div style="padding:12px 20px 4px; display:flex; justify-content:space-between;">
+    <div style="color:#6B7280; font-size:9px; font-weight:500;">22:11</div>
+    <div style="color:#6B7280; font-size:9px; font-weight:500;">73%</div>
+  </div>
+
+  <!-- Header -->
+  <div style="padding:16px 18px 14px;">
+    <div style="color:#9CA3AF; font-size:11px; font-weight:500; margin-bottom:3px;">Guten Abend 👋</div>
+    <div style="color:#F9FAFB; font-size:28px; font-weight:900; letter-spacing:-0.8px; line-height:1.05;">Nico</div>
+  </div>
+
+  <div style="padding:0 14px; display:flex; flex-direction:column; gap:9px; height:calc(100% - 185px);">
+
+    <!-- Hero widgets -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; flex-shrink:0;">
+      <div class="widget-streak" style="width:auto;">
+        <div class="widget-label">Streak</div>
+        <div class="streak-body">
+          <div class="streak-num">7</div>
+          <div class="streak-fire">🔥</div>
+        </div>
+      </div>
+      <div class="widget-friends" style="width:auto;">
+        <div class="friend-name">Jim</div>
+        <div class="friend-stat">6 km</div>
+        <div class="friend-action">gelaufen 🏃</div>
+        <div class="friend-time">vor 2 Std.</div>
+      </div>
+    </div>
+
+    <!-- Weekly activity -->
+    <div style="background:#FFFFFF; border-radius:14px; padding:12px 13px; flex-shrink:0;">
+      <div style="color:#374151; font-size:8px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px;">Aktivität diese Woche</div>
+      <div style="position:relative; height:46px;">
+        <div style="position:absolute; left:0; right:20px; bottom:17px; border-top:1.5px dashed #D1D5DB; z-index:2;"></div>
+        <div style="position:absolute; right:0; bottom:19px; background:#F3F4F6; border-radius:3px; padding:1px 4px; z-index:3;">
+          <div style="color:#9CA3AF; font-size:6px; font-weight:700;">Ø</div>
+        </div>
+        <div style="display:flex; gap:4px; align-items:flex-end; height:38px; position:relative; z-index:1;">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:linear-gradient(to top,#FF6B3D,#FF9A7A); width:100%; border-radius:4px 4px 2px 2px; height:34px;"></div>
+            <div style="color:#9CA3AF; font-size:6.5px;">Mo</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:linear-gradient(to top,#FF6B3D,#FF9A7A); width:100%; border-radius:4px 4px 2px 2px; height:20px;"></div>
+            <div style="color:#9CA3AF; font-size:6.5px;">Di</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#F3F4F6; border-radius:4px 4px 2px 2px; height:4px; width:100%; border:1px dashed #FF6B3D; box-sizing:border-box;"></div>
+            <div style="color:#FF6B3D; font-size:6.5px; font-weight:700;">Mi</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#F3F4F6; border-radius:4px 4px 2px 2px; height:4px; width:100%;"></div>
+            <div style="color:#9CA3AF; font-size:6.5px;">Do</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#F3F4F6; border-radius:4px 4px 2px 2px; height:4px; width:100%;"></div>
+            <div style="color:#9CA3AF; font-size:6.5px;">Fr</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#F3F4F6; border-radius:4px 4px 2px 2px; height:4px; width:100%;"></div>
+            <div style="color:#9CA3AF; font-size:6.5px;">Sa</div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;">
+            <div style="background:#F3F4F6; border-radius:4px 4px 2px 2px; height:4px; width:100%;"></div>
+            <div style="color:#9CA3AF; font-size:6.5px;">So</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Letztes Workout -->
+    <div style="background:#27272F; border-radius:13px; padding:11px 12px; display:flex; align-items:center; gap:9px; flex-shrink:0;">
+      <div style="flex:1; min-width:0;">
+        <div style="color:#6B7280; font-size:7px; font-weight:600; text-transform:uppercase; letter-spacing:0.07em; margin-bottom:3px;">Letztes Workout</div>
+        <div style="color:#F9FAFB; font-size:12px; font-weight:700;">Push Day</div>
+        <div style="color:#6B7280; font-size:9px; margin-top:1px;">Di, 19. Mai · 45 Min</div>
+        <div style="display:flex; gap:3px; margin-top:5px;">
+          <div style="background:rgba(255,107,61,0.2); border-radius:20px; padding:2px 7px; color:#FF6B3D; font-size:7px; font-weight:500;">Brust</div>
+          <div style="background:rgba(91,184,255,0.15); border-radius:20px; padding:2px 7px; color:#5BB8FF; font-size:7px; font-weight:500;">Trizeps</div>
+          <div style="background:rgba(91,184,255,0.15); border-radius:20px; padding:2px 7px; color:#5BB8FF; font-size:7px; font-weight:500;">Schultern</div>
+        </div>
+      </div>
+      <svg width="22" height="40" viewBox="0 0 60 100" fill="none" style="flex-shrink:0;">
+        <circle cx="30" cy="7" r="5.5" fill="#4B5563"/>
+        <path d="M18 14 Q22 12 30 13 Q38 12 42 14 L40 26 Q35 29 30 30 Q25 29 20 26 Z" fill="#FF6B3D" opacity="0.9"/>
+        <ellipse cx="13" cy="18" rx="5" ry="7" fill="#4B5563"/>
+        <ellipse cx="47" cy="18" rx="5" ry="7" fill="#4B5563"/>
+        <path d="M22 30 Q30 31 38 30 L37 50 Q30 52 23 50 Z" fill="#4B5563"/>
+        <rect x="7" y="26" width="7" height="16" rx="3.5" fill="#5BB8FF" opacity="0.6"/>
+        <rect x="46" y="26" width="7" height="16" rx="3.5" fill="#5BB8FF" opacity="0.6"/>
+        <path d="M20 52 Q24 51 28 52 L27 74 Q24 76 21 74 Z" fill="#4B5563"/>
+        <path d="M32 52 Q36 51 40 52 L39 74 Q36 76 33 74 Z" fill="#4B5563"/>
+        <rect x="21" y="75" width="8" height="18" rx="3" fill="#4B5563"/>
+        <rect x="32" y="75" width="8" height="18" rx="3" fill="#4B5563"/>
+      </svg>
+    </div>
+
+    <div style="flex:1; min-height:0;"></div>
+
+    <!-- Sticky CTA -->
+    <div style="background:#FF6B3D; border-radius:15px; padding:16px; text-align:center; box-shadow:0 4px 20px rgba(255,107,61,0.4); flex-shrink:0; margin-bottom:2px;">
+      <div style="color:#FFF; font-size:14px; font-weight:800; letter-spacing:0.01em;">Worauf wartest du? 💪</div>
+    </div>
+
+  </div>
+
+  <!-- Bottom Nav -->
+  <div style="position:absolute; bottom:0; left:0; right:0; height:50px; background:#18181F; border-top:1px solid #2E2E38; display:flex; justify-content:space-around; align-items:center; padding-bottom:4px;">
+    <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="#FF6B3D"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+      <div style="color:#FF6B3D; font-size:7px; font-weight:600;">Home</div>
+    </div>
+    <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#4B5563" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <div style="color:#4B5563; font-size:7px;">Verlauf</div>
+    </div>
+    <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#4B5563" stroke-width="1.8" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      <div style="color:#4B5563; font-size:7px;">Stats</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Font note -->
+<div style="background:#1E1E28; border-radius:10px; padding:14px; width:100%; max-width:420px; border:1px solid #2E2E3A;">
+  <div style="color:#F9FAFB; font-size:12px; font-weight:700; margin-bottom:8px;">Outfit — warum diese Schrift?</div>
+  <div style="color:#9CA3AF; font-size:11px; line-height:1.7;">
+    Geometrisch clean, variable weights 100–900, funktioniert für große Zahlen (900) genauso wie für Labels (500). Schaut sich besser als Inter bei großen Display-Größen an — weniger neutral, mehr Charakter. Google Fonts → <code style="color:#5BB8FF;">next/font/google</code> Integration in Next.js ist trivial.
+  </div>
+</div>
+
+</body>
+</html>
