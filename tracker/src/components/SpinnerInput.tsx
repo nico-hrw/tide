@@ -17,8 +17,6 @@ export default function SpinnerInput({
   label, value, onChange, step = 1, min = 0, max = 9999, decimals = 0, placeholder = '0', unit,
 }: SpinnerInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-
-  // Keep refs to always-current values so the imperative handlers stay fresh
   const valueRef = useRef(value)
   const onChangeRef = useRef(onChange)
   useEffect(() => { valueRef.current = value }, [value])
@@ -27,19 +25,16 @@ export default function SpinnerInput({
   useEffect(() => {
     const el = inputRef.current
     if (!el) return
-
     const startY = { current: 0 }
     const startVal = { current: 0 }
     const dragging = { current: false }
-
     function onTouchStart(e: TouchEvent) {
       startY.current = e.touches[0].clientY
       startVal.current = valueRef.current ?? 0
       dragging.current = false
     }
-
     function onTouchMove(e: TouchEvent) {
-      const dy = startY.current - e.touches[0].clientY  // positive = swipe up = increase
+      const dy = startY.current - e.touches[0].clientY
       if (Math.abs(dy) > 6) {
         if (!dragging.current) dragging.current = true
         e.preventDefault()
@@ -49,11 +44,7 @@ export default function SpinnerInput({
         onChangeRef.current(parseFloat(clamped.toFixed(decimals)))
       }
     }
-
-    function onTouchEnd() {
-      if (dragging.current) el?.blur()
-    }
-
+    function onTouchEnd() { if (dragging.current) el?.blur() }
     el.addEventListener('touchstart', onTouchStart, { passive: true })
     el.addEventListener('touchmove', onTouchMove, { passive: false })
     el.addEventListener('touchend', onTouchEnd)
@@ -66,10 +57,10 @@ export default function SpinnerInput({
 
   return (
     <div className="flex-1">
-      <label className="text-xs text-gray-400 uppercase tracking-wide block mb-1 select-none">
+      <label style={{ display: 'block', color: '#6B7280', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 4, userSelect: 'none' }}>
         {label}{unit ? ` (${unit})` : ''}
       </label>
-      <div className="relative">
+      <div style={{ position: 'relative' }}>
         <input
           ref={inputRef}
           type="number"
@@ -81,13 +72,18 @@ export default function SpinnerInput({
             else if (e.target.value === '') onChange(0)
           }}
           placeholder={placeholder}
-          className="w-full text-3xl font-bold bg-gray-50 rounded-xl px-4 py-3 outline-none select-none"
-          style={{ touchAction: 'none' }}
+          style={{
+            width: '100%', fontSize: 28, fontWeight: 800,
+            background: '#1E1E24', borderRadius: 12,
+            padding: '12px 36px 12px 14px',
+            outline: 'none', border: 'none',
+            color: '#F9FAFB', touchAction: 'none',
+            fontFamily: 'inherit', boxSizing: 'border-box',
+          }}
         />
-        {/* subtle up/down indicator */}
-        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-0.5 pointer-events-none">
-          <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-b-[6px] border-b-gray-300" />
-          <div className="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-gray-300" />
+        <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', flexDirection: 'column', gap: 2, pointerEvents: 'none' }}>
+          <div style={{ width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderBottom: '6px solid #4B5563' }} />
+          <div style={{ width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '6px solid #4B5563' }} />
         </div>
       </div>
     </div>
