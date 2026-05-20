@@ -9,8 +9,7 @@ import type { MuscleId, TrackerWorkout } from '@/types/tracker'
 
 function durationStr(w: TrackerWorkout): string {
   if (!w.finishedAt) return 'Aktiv'
-  const ms = new Date(w.finishedAt).getTime() - new Date(w.startedAt).getTime()
-  const mins = Math.round(ms / 60000)
+  const mins = Math.round((new Date(w.finishedAt).getTime() - new Date(w.startedAt).getTime()) / 60000)
   return `${mins} Min`
 }
 
@@ -22,9 +21,7 @@ function aggregateMuscles(w: TrackerWorkout): { primary: MuscleId[]; secondary: 
       ? { primary: we.exercise.primaryMuscles, secondary: we.exercise.secondaryMuscles ?? [] }
       : getMusclesForExercise(we.exercise?.name ?? '')
     muscles.primary.forEach((m) => primary.add(m))
-    muscles.secondary.forEach((m) => {
-      if (!primary.has(m)) secondary.add(m)
-    })
+    muscles.secondary.forEach((m) => { if (!primary.has(m)) secondary.add(m) })
   }
   return { primary: Array.from(primary), secondary: Array.from(secondary) }
 }
@@ -40,67 +37,65 @@ export default function HistoryPage() {
 
   if (workouts.length === 0) {
     return (
-      <div className="px-4 pt-12 text-center text-gray-400 mt-20">
-        <p className="text-4xl mb-4">🏋️</p>
-        <p className="font-medium">Noch keine Workouts</p>
-        <p className="text-sm mt-1">Starte dein erstes Training!</p>
+      <div style={{ padding: '48px 16px', textAlign: 'center', color: '#6B7280' }}>
+        <p style={{ fontSize: 36, marginBottom: 16 }}>🏋️</p>
+        <p style={{ color: '#F9FAFB', fontWeight: 600, fontSize: 15 }}>Noch keine Workouts</p>
+        <p style={{ fontSize: 12, marginTop: 4 }}>Starte dein erstes Training!</p>
       </div>
     )
   }
 
   return (
-    <div className="px-4 pt-12">
-      <h1 className="text-2xl font-bold mb-6">Verlauf</h1>
-      <div className="flex flex-col gap-3">
+    <div style={{ padding: '20px 16px 16px' }}>
+      <h1 style={{ color: '#F9FAFB', fontSize: 24, fontWeight: 900, marginBottom: 20 }}>Verlauf</h1>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {workouts.map((w) => (
-          <div key={w.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div key={w.id} style={{ background: '#27272F', borderRadius: 14, overflow: 'hidden' }}>
             <button
-              className="w-full p-4 text-left flex items-center justify-between"
+              style={{ width: '100%', padding: '14px 16px', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer' }}
               onClick={() => setExpanded(expanded === w.id ? null : w.id)}
             >
-              <div className="flex-1 text-left">
-                <div className="font-semibold text-black">{w.name}</div>
-                <div className="text-xs text-gray-500 mt-0.5">
-                  {new Date(w.startedAt).toLocaleDateString('de-DE', {
-                    weekday: 'short', day: 'numeric', month: 'short',
-                  })}{' '}· {durationStr(w)} · {w.exercises.length} Übungen
+              <div style={{ flex: 1 }}>
+                <div style={{ color: '#F9FAFB', fontSize: 13, fontWeight: 700 }}>{w.name}</div>
+                <div style={{ color: '#6B7280', fontSize: 11, marginTop: 2 }}>
+                  {new Date(w.startedAt).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' })}
+                  {' · '}{durationStr(w)}{' · '}{w.exercises.length} Übungen
                 </div>
               </div>
-              {expanded === w.id ? (
-                <ChevronUp size={18} className="text-gray-400" />
-              ) : (
-                <ChevronDown size={18} className="text-gray-400" />
-              )}
+              {expanded === w.id
+                ? <ChevronUp size={16} color="#6B7280" />
+                : <ChevronDown size={16} color="#6B7280" />}
             </button>
 
             {expanded === w.id && (
-              <div className="px-4 pb-4 border-t border-gray-50">
+              <div style={{ padding: '0 16px 16px', borderTop: '1px solid #2E2E38' }}>
                 <button
                   onClick={() => { if (confirm('Workout löschen?')) deleteWorkout(w.id) }}
-                  className="flex items-center gap-1.5 text-xs text-red-400 mt-3 mb-1"
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#EF4444', fontSize: 11, background: 'none', border: 'none', cursor: 'pointer', marginTop: 12, marginBottom: 4, fontFamily: 'inherit' }}
                 >
-                  <Trash2 size={13} /> Workout löschen
+                  <Trash2 size={12} /> Workout löschen
                 </button>
+
                 {/* Muscle summary */}
                 {(() => {
                   const muscles = aggregateMuscles(w)
-                  if (muscles.primary.length === 0 && muscles.secondary.length === 0) return null
+                  if (!muscles.primary.length && !muscles.secondary.length) return null
                   return (
-                    <div className="mb-4">
-                      <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Trainierte Muskeln</p>
-                      <div className="flex items-start gap-4">
+                    <div style={{ marginBottom: 14 }}>
+                      <p style={{ color: '#6B7280', fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600, marginBottom: 8 }}>Trainierte Muskeln</p>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                         <MuscleSVG size="lg" primary={muscles.primary} secondary={muscles.secondary} />
-                        <div className="flex flex-col gap-1 mt-1">
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
                           {muscles.primary.map((id) => (
-                            <div key={id} className="flex items-center gap-1.5">
-                              <div className="w-2 h-2 rounded-full bg-black" />
-                              <span className="text-xs text-gray-700">{MUSCLE_BY_ID[id]?.name ?? id}</span>
+                            <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#FF6B3D' }} />
+                              <span style={{ color: '#F9FAFB', fontSize: 11 }}>{MUSCLE_BY_ID[id]?.name ?? id}</span>
                             </div>
                           ))}
                           {muscles.secondary.map((id) => (
-                            <div key={id} className="flex items-center gap-1.5">
-                              <div className="w-2 h-2 rounded-full bg-gray-300" />
-                              <span className="text-xs text-gray-400">{MUSCLE_BY_ID[id]?.name ?? id}</span>
+                            <div key={id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#5BB8FF', opacity: 0.7 }} />
+                              <span style={{ color: '#6B7280', fontSize: 11 }}>{MUSCLE_BY_ID[id]?.name ?? id}</span>
                             </div>
                           ))}
                         </div>
@@ -108,38 +103,23 @@ export default function HistoryPage() {
                     </div>
                   )
                 })()}
+
+                {/* Set details */}
                 {w.exercises.map((we) => (
-                  <div key={we.id} className="mt-3">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div
-                        className={`w-2 h-2 rounded-full ${
-                          we.exercise?.category === 'strength'
-                            ? 'bg-blue-500'
-                            : we.exercise?.category === 'cardio'
-                              ? 'bg-green-500'
-                              : 'bg-purple-500'
-                        }`}
-                      />
-                      <span className="text-sm font-medium">
-                        {we.exercise?.name ?? we.exerciseId}
-                      </span>
+                  <div key={we.id} style={{ marginTop: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: we.exercise?.category === 'strength' ? '#5BB8FF' : we.exercise?.category === 'cardio' ? '#4ADE80' : '#A855F7' }} />
+                      <span style={{ color: '#F9FAFB', fontSize: 12, fontWeight: 600 }}>{we.exercise?.name ?? we.exerciseId}</span>
                     </div>
-                    {we.sets
-                      .filter((s) => s.completed)
-                      .map((s, i) => (
-                        <div key={s.id} className="text-xs text-gray-500 ml-4">
-                          Satz {i + 1}
-                          {s.isWarmup ? ' (W)' : ''}:
-                          {s.weightKg != null ? ` ${s.weightKg}kg` : ''}
-                          {s.reps != null ? ` × ${s.reps}` : ''}
-                          {s.distanceMeters != null
-                            ? ` ${(s.distanceMeters / 1000).toFixed(2)}km`
-                            : ''}
-                          {s.durationSeconds != null
-                            ? ` ${Math.floor(s.durationSeconds / 60)}:${(s.durationSeconds % 60).toString().padStart(2, '0')}`
-                            : ''}
-                        </div>
-                      ))}
+                    {we.sets.filter((s) => s.completed).map((s, i) => (
+                      <div key={s.id} style={{ color: '#9CA3AF', fontSize: 11, marginLeft: 14, marginBottom: 2 }}>
+                        Satz {i + 1}{s.isWarmup ? ' (W)' : ''}:{' '}
+                        {s.weightKg != null ? `${s.weightKg}kg` : ''}
+                        {s.reps != null ? ` × ${s.reps}` : ''}
+                        {s.distanceMeters != null ? ` ${(s.distanceMeters / 1000).toFixed(2)}km` : ''}
+                        {s.durationSeconds != null ? ` ${Math.floor(s.durationSeconds / 60)}:${(s.durationSeconds % 60).toString().padStart(2, '0')}` : ''}
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
