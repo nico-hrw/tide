@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { useTrackerStore } from '@/store/useTrackerStore'
 import SpinnerInput from '@/components/SpinnerInput'
-import type { ActiveWorkoutExercise, TrackerSet } from '@/types/tracker'
+import type { ActiveWorkoutExercise, TrackerSet, TrackerWorkout } from '@/types/tracker'
 
 interface SetLoggerProps {
   workoutExercise: ActiveWorkoutExercise
@@ -16,8 +16,58 @@ function formatSecs(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
+interface Suggestion {
+  weightKg?: number
+  reps?: number
+  distanceKm?: number
+  durationSeconds?: number
+  isWarmup?: boolean
+}
+
+/**
+ * Suggest values for the next set (index = currentSets.length).
+ * A) Previous finished workout at same set index for this exercise
+ * B) Last logged set in current workout
+ * C) null → inputs show placeholder (0)
+ */
+function getSuggestedSet(
+  exerciseId: string,
+  nextSetIndex: number,
+  historicWorkouts: TrackerWorkout[],
+  currentSets: TrackerSet[],
+): Suggestion | null {
+  // A: most recent past finished workout containing this exercise
+  for (const workout of historicWorkouts) {
+    const we = workout.exercises.find(e => e.exerciseId === exerciseId)
+    if (!we) continue
+    const sorted = [...we.sets].sort((a, b) => a.sortOrder - b.sortOrder)
+    const candidate = sorted[nextSetIndex]
+    if (candidate) {
+      return {
+        weightKg: candidate.weightKg,
+        reps: candidate.reps,
+        distanceKm: candidate.distanceMeters != null ? candidate.distanceMeters / 1000 : undefined,
+        durationSeconds: candidate.durationSeconds,
+        isWarmup: candidate.isWarmup,
+      }
+    }
+  }
+  // B: last set in current workout for this exercise
+  if (currentSets.length > 0) {
+    const last = currentSets[currentSets.length - 1]
+    return {
+      weightKg: last.weightKg,
+      reps: last.reps,
+      distanceKm: last.distanceMeters != null ? last.distanceMeters / 1000 : undefined,
+      durationSeconds: last.durationSeconds,
+      isWarmup: last.isWarmup,
+    }
+  }
+  return null
+}
+
 export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) {
-  const { addSet, removeSet, activeWorkout } = useTrackerStore()
+  const { addSet, removeSet, activeWorkout, workouts } = useTrackerStore()
   const ex = workoutExercise.exercise
   const type = ex.defaultTrackingType
 
@@ -33,6 +83,36 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
   const [rpe, setRpe] = useState<number | undefined>(undefined)
   const touchStartY = useRef(0)
 
+  const currentSets = activeWorkout?.exercises.find((we) => we.id === workoutExercise.id)?.sets ?? []
+
+  // Pre-fill inputs whenever currentSets.length changes (on mount and after each set added)
+  useEffect(() => {
+    const suggestion = getSuggestedSet(ex.id, currentSets.length, workouts, currentSets)
+    if (suggestion) {
+      if (type === 'weight_reps') {
+        setWeightKg(suggestion.weightKg)
+        setReps(suggestion.reps)
+      } else if (type === 'distance_time') {
+        setDistanceKm(suggestion.distanceKm)
+        if (suggestion.durationSeconds != null) {
+          setDurationMin(Math.floor(suggestion.durationSeconds / 60))
+          setDurationSec(suggestion.durationSeconds % 60)
+        }
+      } else {
+        if (suggestion.durationSeconds != null) {
+          setDurationMin(Math.floor(suggestion.durationSeconds / 60))
+          setDurationSec(suggestion.durationSeconds % 60)
+        }
+      }
+      if (suggestion.isWarmup != null) setIsWarmup(suggestion.isWarmup)
+    } else {
+      setWeightKg(undefined); setReps(undefined)
+      setDistanceKm(undefined); setDurationMin(undefined); setDurationSec(undefined)
+      setIsWarmup(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSets.length])
+
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
   function handleClose() { setVisible(false); setTimeout(onClose, 280) }
@@ -40,8 +120,6 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
   function onTouchEnd(e: React.TouchEvent) { if (e.changedTouches[0].clientY - touchStartY.current > 60) handleClose() }
 
   const catColor = ex.category === 'strength' ? '#5BB8FF' : ex.category === 'cardio' ? '#4ADE80' : '#A855F7'
-
-  const currentSets = activeWorkout?.exercises.find((we) => we.id === workoutExercise.id)?.sets ?? []
 
   async function handleAddSet() {
     const setData: Partial<TrackerSet> = { isWarmup, completed: true }
@@ -59,8 +137,8 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
       if (totalSecs > 0) setData.durationSeconds = totalSecs
     }
     await addSet(workoutExercise.id, setData)
-    setWeightKg(undefined); setReps(undefined); setDistanceKm(undefined)
-    setDurationMin(undefined); setDurationSec(undefined); setRir(undefined); setRpe(undefined)
+    // Values are reset by the useEffect on currentSets.length (pre-fill next suggestion)
+    setRir(undefined); setRpe(undefined)
   }
 
   const isAddDisabled = (() => {
@@ -80,7 +158,8 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
           width: '100%', maxWidth: 430, background: '#2E2E38',
           borderRadius: '24px 24px 0 0', padding: 24,
           display: 'flex', flexDirection: 'column',
-          maxHeight: 'calc(88vh - 50px)', marginBottom: 50,
+          // Popup extends to bottom of screen — no marginBottom offset
+          maxHeight: '90vh',
           transform: visible ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 280ms ease-out',
           boxShadow: '0 -4px 32px rgba(0,0,0,0.4)',
@@ -129,7 +208,6 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
               </div>
             )}
 
-            {/* Toggles */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <button
                 onClick={() => setIsWarmup(!isWarmup)}
@@ -153,7 +231,6 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
             )}
           </div>
 
-          {/* Logged sets */}
           {currentSets.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginBottom: 8 }}>
               {currentSets.map((s, i) => (
@@ -172,7 +249,6 @@ export default function SetLogger({ workoutExercise, onClose }: SetLoggerProps) 
           )}
         </div>
 
-        {/* CTA */}
         <button
           onClick={() => { void handleAddSet() }}
           disabled={isAddDisabled}

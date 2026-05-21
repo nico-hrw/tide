@@ -5,8 +5,8 @@ import { Home, History, BarChart2 } from 'lucide-react'
 
 const tabs = [
   { href: '/', label: 'Home', icon: Home },
-  { href: '/history', label: 'Verlauf', icon: History },
   { href: '/stats', label: 'Stats', icon: BarChart2 },
+  { href: '/history', label: 'Verlauf', icon: History },
 ]
 
 export default function BottomNav() {

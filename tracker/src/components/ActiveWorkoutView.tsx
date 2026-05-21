@@ -1,12 +1,12 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plus, CheckCircle, X } from 'lucide-react'
 import { useTrackerStore } from '@/store/useTrackerStore'
 import ExercisePicker from '@/components/ExercisePicker'
 import SetLogger from '@/components/SetLogger'
 import MuscleSVG from '@/components/MuscleSVG'
 import { getMusclesForExercise } from '@/lib/builtinExerciseMuscles'
-import type { ActiveWorkoutExercise, TrackerExercise } from '@/types/tracker'
+import type { ActiveWorkout, ActiveWorkoutExercise, TrackerExercise, MuscleId } from '@/types/tracker'
 
 interface ActiveWorkoutViewProps {
   onFinish?: () => void
@@ -29,6 +29,25 @@ function useElapsedTimer(startedAt: string | null): string {
   return elapsed
 }
 
+/** Returns a 0–1 intensity map: each muscle's count normalized to the most-hit muscle. */
+function buildIntensityMap(workout: ActiveWorkout): Partial<Record<MuscleId, number>> {
+  const counts: Partial<Record<MuscleId, number>> = {}
+  for (const we of workout.exercises) {
+    const primaryMuscles = we.exercise.primaryMuscles?.length
+      ? we.exercise.primaryMuscles
+      : getMusclesForExercise(we.exercise.name).primary
+    for (const id of primaryMuscles) {
+      counts[id] = (counts[id] ?? 0) + 1
+    }
+  }
+  const max = Math.max(...(Object.values(counts).filter(Boolean) as number[]), 1)
+  const result: Partial<Record<MuscleId, number>> = {}
+  for (const [id, count] of Object.entries(counts)) {
+    result[id as MuscleId] = count! / max
+  }
+  return result
+}
+
 export default function ActiveWorkoutView({ onFinish }: ActiveWorkoutViewProps) {
   const { activeWorkout, addExerciseToWorkout, removeExerciseFromWorkout, finishWorkout, cancelWorkout } = useTrackerStore()
   const [showPicker, setShowPicker] = useState(false)
@@ -37,6 +56,13 @@ export default function ActiveWorkoutView({ onFinish }: ActiveWorkoutViewProps) 
   const [submitting, setSubmitting] = useState(false)
 
   const elapsed = useElapsedTimer(activeWorkout?.startedAt ?? null)
+
+  // Rebuild intensity map whenever exercises change
+  const intensityMap = useMemo(
+    () => activeWorkout ? buildIntensityMap(activeWorkout) : {},
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeWorkout?.exercises.length]
+  )
 
   if (!activeWorkout) return null
 
@@ -63,7 +89,6 @@ export default function ActiveWorkoutView({ onFinish }: ActiveWorkoutViewProps) 
   }
 
   const hasExercises = activeWorkout.exercises.length > 0
-
   const dotColor = (cat: string) =>
     cat === 'strength' ? '#5BB8FF' : cat === 'cardio' ? '#4ADE80' : '#A855F7'
 
@@ -109,7 +134,13 @@ export default function ActiveWorkoutView({ onFinish }: ActiveWorkoutViewProps) 
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
                 {completedSets > 0 && <CheckCircle size={16} color="#4ADE80" />}
-                <MuscleSVG size="sm" primary={muscles.primary} secondary={muscles.secondary} />
+                {/* intensityMap shows how often each muscle is hit across the whole workout */}
+                <MuscleSVG
+                  size="sm"
+                  primary={muscles.primary}
+                  secondary={muscles.secondary}
+                  intensityMap={intensityMap}
+                />
               </div>
             </button>
             <button onClick={() => removeExerciseFromWorkout(we.id)} style={{ padding: 4, background: 'none', border: 'none', cursor: 'pointer' }}>

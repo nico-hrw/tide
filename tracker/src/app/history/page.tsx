@@ -28,7 +28,7 @@ function aggregateMuscles(w: TrackerWorkout): { primary: MuscleId[]; secondary: 
 
 export default function HistoryPage() {
   const { workouts, fetchWorkouts, deleteWorkout } = useTrackerStore()
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchWorkouts()
@@ -53,7 +53,12 @@ export default function HistoryPage() {
           <div key={w.id} style={{ background: '#27272F', borderRadius: 14, overflow: 'hidden' }}>
             <button
               style={{ width: '100%', padding: '14px 16px', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer' }}
-              onClick={() => setExpanded(expanded === w.id ? null : w.id)}
+              onClick={() => setExpanded(prev => {
+  const next = new Set(prev)
+  next.has(w.id) ? next.delete(w.id) : next.add(w.id)
+  return next
+})}
+
             >
               <div style={{ flex: 1 }}>
                 <div style={{ color: '#F9FAFB', fontSize: 13, fontWeight: 700 }}>{w.name}</div>
@@ -62,12 +67,12 @@ export default function HistoryPage() {
                   {' · '}{durationStr(w)}{' · '}{w.exercises.length} Übungen
                 </div>
               </div>
-              {expanded === w.id
+              {expanded.has(w.id)
                 ? <ChevronUp size={16} color="#6B7280" />
                 : <ChevronDown size={16} color="#6B7280" />}
             </button>
 
-            {expanded === w.id && (
+            {expanded.has(w.id) && (
               <div style={{ padding: '0 16px 16px', borderTop: '1px solid #2E2E38' }}>
                 <button
                   onClick={() => { if (confirm('Workout löschen?')) deleteWorkout(w.id) }}

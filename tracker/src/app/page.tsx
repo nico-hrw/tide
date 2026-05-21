@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { useTrackerStore } from '@/store/useTrackerStore'
 import ActiveWorkoutView from '@/components/ActiveWorkoutView'
 import FriendsWidget from '@/components/FriendsWidget'
@@ -48,6 +49,7 @@ export default function HomePage() {
   const [workoutName, setWorkoutName] = useState('')
   const [targetMuscles, setTargetMuscles] = useState<MuscleId[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [lastWorkoutExpanded, setLastWorkoutExpanded] = useState(false)
 
   const phrase = useMemo(() => PHRASES[Math.floor(Math.random() * PHRASES.length)], [])
   const workoutNameInputRef = useRef<HTMLInputElement>(null)
@@ -62,7 +64,6 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Sync state machine with store
   useEffect(() => {
     if (activeWorkout && homeState !== 'active') setHomeState('active')
     if (!activeWorkout && homeState === 'active') setHomeState('idle')
@@ -109,21 +110,23 @@ export default function HomePage() {
     }
   }
 
-  const panelStyle = (visible: boolean, direction: 'up' | 'down' = 'up'): React.CSSProperties => ({
+  // overflowY is 'hidden' for idle (no accidental page scroll) unless last workout is expanded
+  const panelStyle = (visible: boolean, direction: 'up' | 'down' = 'up', overflow: 'hidden' | 'auto' = 'auto'): React.CSSProperties => ({
     position: 'absolute',
     inset: 0,
     transition: 'opacity 280ms ease, transform 280ms ease',
     opacity: visible ? 1 : 0,
     transform: visible ? 'translateY(0)' : `translateY(${direction === 'up' ? '-40px' : '40px'})`,
     pointerEvents: visible ? 'auto' : 'none',
-    overflowY: 'auto',
+    overflowY: overflow,
   })
 
   return (
-    <div style={{ position: 'relative', minHeight: 'calc(100dvh - 50px)', background: '#1E1E24' }}>
+    // height (not minHeight) + overflow:hidden prevents the page from growing beyond the viewport
+    <div style={{ position: 'relative', height: 'calc(100dvh - 50px)', overflow: 'hidden', background: '#1E1E24' }}>
 
       {/* ── PANEL: IDLE ── */}
-      <div style={panelStyle(homeState === 'idle', 'up')}>
+      <div style={panelStyle(homeState === 'idle', 'up', lastWorkoutExpanded ? 'auto' : 'hidden')}>
         <div style={{ padding: '20px 16px 0' }}>
 
           {/* Header */}
@@ -136,11 +139,11 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Hero widgets */}
+          {/* Hero widgets — 1.6× taller: 192px */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 9 }}>
             <div style={{
               background: '#FF6B3D', borderRadius: 16, padding: '14px 14px 12px',
-              height: 120, display: 'flex', flexDirection: 'column',
+              height: 192, display: 'flex', flexDirection: 'column',
               justifyContent: 'space-between', boxSizing: 'border-box',
             }}>
               <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.09em', fontWeight: 600 }}>
@@ -151,7 +154,10 @@ export default function HomePage() {
                 <div style={{ fontSize: 38, lineHeight: 1, marginTop: 2 }}>🔥</div>
               </div>
             </div>
-            <FriendsWidget />
+            {/* FriendsWidget fills the 192px container */}
+            <div style={{ height: 192 }}>
+              <FriendsWidget />
+            </div>
           </div>
 
           {/* Weekly activity */}
@@ -159,34 +165,66 @@ export default function HomePage() {
             <WeeklyChart workouts={workouts} />
           </div>
 
-          {/* Last workout */}
+          {/* Last workout — expandable */}
           {lastWorkout && (
-            <div style={{
-              background: '#27272F', borderRadius: 13, padding: '11px 12px',
-              display: 'flex', alignItems: 'center', gap: 9,
-            }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: '#6B7280', fontSize: 7, textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600, marginBottom: 3 }}>
-                  Letztes Workout
+            <div
+              style={{ background: '#27272F', borderRadius: 13, padding: '11px 12px', cursor: 'pointer', marginBottom: 9 }}
+              onClick={() => setLastWorkoutExpanded(prev => !prev)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: '#6B7280', fontSize: 7, textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600, marginBottom: 3 }}>
+                    Letztes Workout
+                  </div>
+                  <div style={{ color: '#F9FAFB', fontSize: 12, fontWeight: 700 }}>{lastWorkout.name}</div>
+                  <div style={{ color: '#6B7280', fontSize: 9, marginTop: 1 }}>
+                    {new Date(lastWorkout.startedAt).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' })}
+                  </div>
+                  <div style={{ display: 'flex', gap: 3, marginTop: 5, flexWrap: 'wrap' }}>
+                    {lastWorkoutMuscles.primary.slice(0, 3).map((id) => (
+                      <div key={id} style={{ background: 'rgba(255,107,61,0.2)', borderRadius: 20, padding: '2px 7px', color: '#FF6B3D', fontSize: 7, fontWeight: 500 }}>
+                        {MUSCLE_GROUPS.find((m) => m.id === id)?.name ?? id}
+                      </div>
+                    ))}
+                    {lastWorkoutMuscles.secondary.slice(0, 2).map((id) => (
+                      <div key={id} style={{ background: 'rgba(91,184,255,0.15)', borderRadius: 20, padding: '2px 7px', color: '#5BB8FF', fontSize: 7, fontWeight: 500 }}>
+                        {MUSCLE_GROUPS.find((m) => m.id === id)?.name ?? id}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ color: '#F9FAFB', fontSize: 12, fontWeight: 700 }}>{lastWorkout.name}</div>
-                <div style={{ color: '#6B7280', fontSize: 9, marginTop: 1 }}>
-                  {new Date(lastWorkout.startedAt).toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' })}
-                </div>
-                <div style={{ display: 'flex', gap: 3, marginTop: 5, flexWrap: 'wrap' }}>
-                  {lastWorkoutMuscles.primary.slice(0, 3).map((id) => (
-                    <div key={id} style={{ background: 'rgba(255,107,61,0.2)', borderRadius: 20, padding: '2px 7px', color: '#FF6B3D', fontSize: 7, fontWeight: 500 }}>
-                      {MUSCLE_GROUPS.find((m) => m.id === id)?.name ?? id}
-                    </div>
-                  ))}
-                  {lastWorkoutMuscles.secondary.slice(0, 2).map((id) => (
-                    <div key={id} style={{ background: 'rgba(91,184,255,0.15)', borderRadius: 20, padding: '2px 7px', color: '#5BB8FF', fontSize: 7, fontWeight: 500 }}>
-                      {MUSCLE_GROUPS.find((m) => m.id === id)?.name ?? id}
-                    </div>
-                  ))}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <MuscleSVG size="sm" primary={lastWorkoutMuscles.primary} secondary={lastWorkoutMuscles.secondary} />
+                  {lastWorkoutExpanded
+                    ? <ChevronUp size={12} color="#6B7280" />
+                    : <ChevronDown size={12} color="#6B7280" />}
                 </div>
               </div>
-              <MuscleSVG size="sm" primary={lastWorkoutMuscles.primary} secondary={lastWorkoutMuscles.secondary} />
+
+              {lastWorkoutExpanded && (
+                <div style={{ borderTop: '1px solid #374151', paddingTop: 12, marginTop: 12 }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 12 }}>
+                    <MuscleSVG size="lg" primary={lastWorkoutMuscles.primary} secondary={lastWorkoutMuscles.secondary} />
+                  </div>
+                  {lastWorkout.exercises.map((we) => {
+                    const completedSets = we.sets.filter(s => s.completed && !s.isWarmup)
+                    return (
+                      <div key={we.id} style={{ marginBottom: 8 }}>
+                        <div style={{ color: '#F9FAFB', fontSize: 11, fontWeight: 600 }}>{we.exercise?.name ?? we.exerciseId}</div>
+                        <div style={{ color: '#9CA3AF', fontSize: 9, marginTop: 2 }}>
+                          {completedSets.length} Sätze
+                          {completedSets.length > 0 && completedSets[0].weightKg != null
+                            ? ` · bis ${Math.max(...completedSets.map(s => s.weightKg!))}kg`
+                            : ''}
+                          {completedSets.length > 0 && completedSets[0].reps != null
+                            ? ` × ${completedSets[0].reps}`
+                            : ''}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -214,7 +252,6 @@ export default function HomePage() {
             }}
           />
 
-          {/* Front + back SVG preview */}
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
             {/* TODO: Interactive muscle selection — replace pills with direct SVG tap targets.
                 Each <path> can receive onClick + visual highlight when interactive=true.
@@ -224,7 +261,6 @@ export default function HomePage() {
             <MuscleSVG size="md" primary={targetMuscles} secondary={[]} />
           </div>
 
-          {/* Grouped muscle pills */}
           {MUSCLE_REGIONS.map((region) => (
             <div key={region.label} style={{ marginBottom: 16 }}>
               <div style={{ color: '#6B7280', fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 8 }}>
@@ -269,10 +305,10 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ── STICKY CTA (idle) ── */}
+      {/* ── STICKY CTA (idle) — bottom:56 keeps it 6px above the nav ── */}
       {homeState === 'idle' && (
         <div style={{
-          position: 'fixed', bottom: 50,
+          position: 'fixed', bottom: 56,
           left: '50%', transform: 'translateX(-50%)',
           width: '100%', maxWidth: 430,
           padding: '10px 16px 0',
@@ -296,7 +332,7 @@ export default function HomePage() {
       {/* ── STICKY START BUTTON (starting) ── */}
       {homeState === 'starting' && (
         <div style={{
-          position: 'fixed', bottom: 50,
+          position: 'fixed', bottom: 56,
           left: '50%', transform: 'translateX(-50%)',
           width: '100%', maxWidth: 430,
           padding: '10px 16px 0',
