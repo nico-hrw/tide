@@ -42,6 +42,7 @@ const FinanceDashboard = dynamic(() => import('@/components/Finance/FinanceDashb
     loading: () => <div className="flex-1 flex items-center justify-center p-8 text-gray-400">Loading module...</div>
 });
 import EditorGutter from "@/components/Canvas/EditorGutter";
+import ShareManagementPanel from "@/components/ShareManagementPanel";
 import { useStyleFile } from "@/components/Canvas/useStyleFile";
 import { TextWidgetElement } from "@/types/canvas";
 import { useHighlight } from "@/components/HighlightContext";
@@ -237,6 +238,10 @@ export default function Dashboard() {
     const [activeFileKey, setActiveFileKey] = useState<CryptoKey | null>(null);
     const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving">("saved");
     const [fileName, setFileName] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [showSharePanel, setShowSharePanel] = useState(false);
     const [editorInstance, setEditorInstance] = useState<any>(null);
     const editorInstanceRef = useRef<any>(null);
     const [editorVersion, setEditorVersion] = useState(0);
@@ -556,41 +561,10 @@ export default function Dashboard() {
     // -------------------------------------------------------------------------
 
     const handleNewNote = async () => {
-        if (!publicKey || !privateKey) return;
         try {
-            const fileKey = await cryptoLib.generateFileKey();
-            const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", fileKey);
-            const emptyDoc = {
-                type: 'doc',
-                content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }]
-            };
-            const blob = new Blob([JSON.stringify(emptyDoc)], { type: 'application/json' });
-            const { iv, ciphertext } = await cryptoLib.encryptFile(blob, fileKey);
-
-            const metaPayload = { title: "", fileKey: fileKeyJwk, iv: iv };
-            const encryptedMeta = await cryptoLib.encryptMetadata(metaPayload, publicKey);
-
-            const res = await apiFetch("/api/v1/files", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    type: "note",
-                    size: blob.size,
-                    public_meta: {},
-                    secured_meta: encryptedMeta
-                })
-            });
-
-            if (res.ok) {
-                const newFile = await res.json();
-                await apiFetch(`/api/v1/files/${newFile.id}/upload`, { method: "POST", body: ciphertext });
-                const newFileObj = {
-                    ...newFile, title: "", type: "note",
-                    secured_meta: encryptedMeta, isGroup: false, parent_id: null
-                };
-                useDataStore.getState().appendFiles([newFileObj as any], []);
-                switchTab(newFile.id, 'file', "");
-            }
+            const { createNote, activeParentId } = useDataStore.getState();
+            const newFileId = await createNote("Untitled", undefined, activeParentId);
+            switchTab(newFileId, 'file', "Untitled");
         } catch (e) {
             console.error(e);
             alert("Error creating note");
@@ -3573,37 +3547,51 @@ export default function Dashboard() {
                                                             <Download size={16} />
                                                         </button>
                                                         {/* Save status indicator */}
-                                                        <span
-                                                            title={saveStatus === 'saved' ? (() => { const af = files.find(f => f.id === activeNoteId) as any; const ak = af?.access_keys; const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {}; return (af?.share_status === 'shared' || Object.keys(akObj).length > 1) ? 'Synced' : 'Gespeichert'; })() : saveStatus === 'saving' ? 'Wird gespeichert…' : 'Nicht gespeichert'}
-                                                            className="shrink-0 transition-all duration-300"
-                                                        >
-                                                            {saveStatus === 'saved' && (() => {
-                                                                const af = files.find(f => f.id === activeNoteId) as any;
-                                                                const isRecipient = af?.share_status === 'shared';
-                                                                const ak = af?.access_keys;
-                                                                const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {};
-                                                                const isSharedByOwner = Object.keys(akObj).length > 1;
-                                                                const isShared = isRecipient || isSharedByOwner;
-                                                                return (
-                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isShared ? "text-sky-400 opacity-70" : "text-green-400 opacity-60"}>
-                                                                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                                                                        <polyline points="22 4 12 14.01 9 11.01" />
+                                                        <div className="relative flex items-center justify-center">
+                                                            <button
+                                                                onClick={() => {
+                                                                    const af = files.find(f => f.id === activeNoteId) as any;
+                                                                    const isRecipient = af?.share_status === 'shared';
+                                                                    const ak = af?.access_keys;
+                                                                    const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {};
+                                                                    const isSharedByOwner = Object.keys(akObj).length > 1;
+                                                                    const isShared = isRecipient || isSharedByOwner;
+                                                                    if (isShared) {
+                                                                        setShowSharePanel(!showSharePanel);
+                                                                    }
+                                                                }}
+                                                                title={saveStatus === 'saved' ? (() => { const af = files.find(f => f.id === activeNoteId) as any; const ak = af?.access_keys; const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {}; return (af?.share_status === 'shared' || Object.keys(akObj).length > 1) ? 'Synced - Klick für Zugriff' : 'Gespeichert'; })() : saveStatus === 'saving' ? 'Wird gespeichert…' : 'Nicht gespeichert'}
+                                                                className={`p-1.5 rounded-lg transition-colors ${saveStatus === 'saved' && (() => { const af = files.find(f => f.id === activeNoteId) as any; const ak = af?.access_keys; const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {}; return (af?.share_status === 'shared' || Object.keys(akObj).length > 1); })() ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800' : 'cursor-default'}`}
+                                                            >
+                                                                {saveStatus === 'saved' && (() => {
+                                                                    const af = files.find(f => f.id === activeNoteId) as any;
+                                                                    const isRecipient = af?.share_status === 'shared';
+                                                                    const ak = af?.access_keys;
+                                                                    const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {};
+                                                                    const isSharedByOwner = Object.keys(akObj).length > 1;
+                                                                    const isShared = isRecipient || isSharedByOwner;
+                                                                    return (
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isShared ? "text-sky-400 opacity-70 hover:opacity-100" : "text-green-400 opacity-60"}>
+                                                                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                                                            <polyline points="22 4 12 14.01 9 11.01" />
+                                                                        </svg>
+                                                                    );
+                                                                })()}
+                                                                {saveStatus === 'saving' && (
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 opacity-60 animate-spin">
+                                                                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                                                                     </svg>
-                                                                );
-                                                            })()}
-                                                            {saveStatus === 'saving' && (
-                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 opacity-60 animate-spin">
-                                                                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                                                                </svg>
-                                                            )}
-                                                            {saveStatus === 'unsaved' && (
-                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400 opacity-70">
-                                                                    <circle cx="12" cy="12" r="10" />
-                                                                    <line x1="12" y1="8" x2="12" y2="12" />
-                                                                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                                                                </svg>
-                                                            )}
-                                                        </span>
+                                                                )}
+                                                                {saveStatus === 'unsaved' && (
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400 opacity-70">
+                                                                        <circle cx="12" cy="12" r="10" />
+                                                                        <line x1="12" y1="8" x2="12" y2="12" />
+                                                                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                                                                    </svg>
+                                                                )}
+                                                            </button>
+                                                            {showSharePanel && <ShareManagementPanel fileId={activeNoteId} onClose={() => setShowSharePanel(false)} />}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </>

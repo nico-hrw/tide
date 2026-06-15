@@ -337,19 +337,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         ? isSameDay(day, now) && start <= now && end >= now
         : false;
 
-    // Brighten a hex color for the live gradient
-    const brightenHex = (hex: string, f: number) => {
-        const h = hex.replace('#', '');
-        if (h.length !== 6) return hex;
-        const r = Math.min(255, Math.round(parseInt(h.slice(0, 2), 16) + (255 - parseInt(h.slice(0, 2), 16)) * f));
-        const g = Math.min(255, Math.round(parseInt(h.slice(2, 4), 16) + (255 - parseInt(h.slice(2, 4), 16)) * f));
-        const b = Math.min(255, Math.round(parseInt(h.slice(4, 6), 16) + (255 - parseInt(h.slice(4, 6), 16)) * f));
-        return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-    };
-
-    const liveColor = isLive && theme.bg.startsWith('#')
-        ? { base: theme.bg, bright: brightenHex(theme.bg, 0.35) }
-        : null;
+    const glowColor = theme.border !== 'transparent' ? theme.border : '#6366f1';
 
     return (
         <motion.div
@@ -358,15 +346,9 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             style={{
                 ...style, ...borderRadiusStyle,
                 borderLeft: `4px solid ${theme.border}`,
-                ...(isLive && liveColor ? {
-                    // Live-event gradient; pattern (if any) layers on top via background-image ordering
-                    backgroundImage: effectStyle?.backgroundImage
-                        ? `${effectStyle.backgroundImage}, linear-gradient(135deg, ${liveColor.base} 0%, ${liveColor.bright} 100%)`
-                        : `linear-gradient(135deg, ${liveColor.base} 0%, ${liveColor.bright} 100%)`,
-                    backgroundColor: undefined,
-                    boxShadow: `0 0 0 2px ${liveColor.base}60, 0 8px 24px ${liveColor.base}80, inset 0 1px 2px rgba(255,255,255,0.4)`,
-                    color: '#ffffff',
-                    borderLeft: `4px solid ${liveColor.bright}`,
+                ...(isLive ? {
+                    boxShadow: `0 0 0 2px ${glowColor}, 0 4px 20px ${glowColor}60`,
+                    zIndex: 90,
                 } : {}),
             }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -415,19 +397,11 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 }
             }}
         >
-            {/* Live-event rotating ring */}
+            {/* Premium Live Indicator Dot */}
             {isLive && (
-                <div className="absolute pointer-events-none" style={{ inset: '-3px', borderRadius: 'inherit', zIndex: -1, overflow: 'hidden' }}>
-                    <div
-                        className="absolute event-live-spin"
-                        style={{
-                            inset: 0,
-                            background: liveColor
-                                ? `conic-gradient(from 0deg, transparent 0%, ${liveColor.bright} 30%, ${liveColor.base} 50%, transparent 70%)`
-                                : 'conic-gradient(from 0deg, transparent 0%, rgba(255,255,255,0.8) 40%, transparent 70%)',
-                        }}
-                    />
-                    <div className="absolute inset-[2px]" style={{ borderRadius: 'calc(inherit - 2px)', background: liveColor?.base || theme.bg }} />
+                <div className="absolute top-1.5 right-1.5 flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: glowColor }}></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5" style={{ backgroundColor: glowColor }}></span>
                 </div>
             )}
 

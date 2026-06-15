@@ -596,17 +596,29 @@ export default function Sidebar({
                         </button>
                         
                         {contextMenu.type === 'folder' && (
-                            <button
-                                onClick={() => { 
-                                    setContextMenu(null); 
-                                    useDataStore.getState().setActiveParentId(contextMenu.id);
-                                    onNewNote();
-                                }}
-                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
-                            >
-                                <Plus size={16} className="text-gray-400 group-hover:text-blue-500" />
-                                <span className="font-medium">New Note here</span>
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => { 
+                                        setContextMenu(null); 
+                                        useDataStore.getState().setActiveParentId(contextMenu.id);
+                                        onNewNote();
+                                    }}
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                                >
+                                    <Plus size={16} className="text-gray-400 group-hover:text-blue-500" />
+                                    <span className="font-medium">New Note here</span>
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setContextMenu(null);
+                                        onCreateFolder?.(contextMenu.id);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                                >
+                                    <FolderPlus size={16} className="text-gray-400 group-hover:text-blue-500" />
+                                    <span className="font-medium">New Folder here</span>
+                                </button>
+                            </>
                         )}
 
                         <div className="relative group/sub">
@@ -931,11 +943,9 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
 
         if (!isOpen) {
             // Expand
-            if (!loadedDirectories.has(folder.id)) {
-                setIsLoading(true);
-                await fetchDirectory(folder.id);
-                setIsLoading(false);
-            }
+            setIsLoading(true);
+            await fetchDirectory(folder.id);
+            setIsLoading(false);
             toggleFolder(folder.id, true);
         } else {
             // Collapse

@@ -27,7 +27,7 @@ interface DataState {
     appendFiles: (files: DataItem[], events: DataItem[]) => void;
     orderedNoteIds: string[];
     setOrderedNoteIds: (ids: string[]) => void;
-    createNote: (title: string, initialContent?: any) => Promise<string>; // Returns the new ID
+    createNote: (title: string, initialContent?: any, parentIdOverride?: string | null) => Promise<string>; // Returns the new ID
     createCanvasNote: (title: string) => Promise<string>;
     insertMentionIntoNote: (noteId: string, targetId: string, title: string) => void;
     activeNoteId: string | null;
@@ -329,7 +329,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     }),
     orderedNoteIds: [],
     setOrderedNoteIds: (orderedNoteIds) => set({ orderedNoteIds }),
-    createNote: async (title, initialContent?: any) => {
+    createNote: async (title, initialContent?: any, parentIdOverride?: string | null) => {
         const state = get();
         if (!state.privateKey || !state.publicKey) {
             const fallbackId = crypto.randomUUID();
@@ -361,7 +361,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     type: "note",
-                    parent_id: state.activeParentId || null,
+                    parent_id: parentIdOverride !== undefined ? parentIdOverride : (state.activeParentId || null),
                     size: new Blob([v2Result.content_ciphertext]).size,
                     public_meta: {},
                     secured_meta: securedMeta,
@@ -665,7 +665,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                 }
 
                 const hasNoMetadata = !f.metadata || (typeof f.metadata === 'object' && Object.keys(f.metadata).length === 0);
-                if (!f.secured_meta && hasNoMetadata && f.visibility !== 'public' && f.type !== 'folder') {
+                if ((!f.secured_meta || f.secured_meta.trim() === '') && hasNoMetadata && (!f.access_keys || Object.keys(f.access_keys).length === 0) && f.visibility !== 'public' && f.type !== 'folder') {
                     console.warn(`[STATE-AUDIT] Skipping ghost/corrupted file ${f.id} with no metadata.`);
                     continue;
                 }
