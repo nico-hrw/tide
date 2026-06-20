@@ -180,11 +180,15 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
 
     const [ydoc] = useState(() => new Y.Doc());
     const [provider, setProvider] = useState<WebsocketProvider | null>(null);
-    const [isSynced, setIsSynced] = useState(false);
     const contentInitialized = useRef(false);
-
+    const [isSynced, setIsSynced] = useState(false);
     useEffect(() => {
-        if (!activeTabId || activeTabId.startsWith('chat-')) return;
+        if (!activeTabId || 
+            activeTabId.startsWith('chat-') || 
+            activeTabId.startsWith('profile:') || 
+            ['calendar', 'messages', 'social', 'ext_finance'].includes(activeTabId)) {
+            return;
+        }
 
         const userId = useDataStore.getState().myId || 'anonymous';
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
