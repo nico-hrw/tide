@@ -63,7 +63,7 @@ func (h *FileHandler) broadcastToFileUsers(fileID string, ownerID string, messag
 	shares, err := h.Store.ListSharesForFile(context.Background(), fileID)
 	if err == nil {
 		for _, s := range shares {
-			go h.Broker.Broadcast(s.RecipientID, message)
+			go h.Broker.Broadcast(s.UserID, message)
 		}
 	}
 }
