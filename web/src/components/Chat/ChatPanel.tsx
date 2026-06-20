@@ -983,6 +983,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                     </button>
                                 </div>
                             </div>
+                        </div>
                         )}
 
                         {/* Messages Area */}
