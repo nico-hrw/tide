@@ -242,6 +242,7 @@ export default function Dashboard() {
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [showSharePanel, setShowSharePanel] = useState(false);
+    const [activeCollaborators, setActiveCollaborators] = useState<any[]>([]);
     const [editorInstance, setEditorInstance] = useState<any>(null);
     const editorInstanceRef = useRef<any>(null);
     const [editorVersion, setEditorVersion] = useState(0);
@@ -3151,6 +3152,11 @@ export default function Dashboard() {
                                         }
                                     }
                                 }}
+                                onActiveUsersChange={(users) => {
+                                    // only show OTHER users
+                                    setActiveCollaborators(users.filter(u => u.id !== myId));
+                                }}
+                                userProfile={userProfile}
                                 onBlocksDeleted={(ids) => setDeletedBlockIds(ids)}
                                 onPopOut={(text, anchorBlockId) => {
                                     const widget: TextWidgetElement = {
@@ -3498,6 +3504,35 @@ export default function Dashboard() {
                                     <div className="flex-1 min-w-0 flex flex-col">
                                         {activeNoteId && openTabs.find(t => t.id === activeNoteId && t.type === 'file') && (
                                             <>
+                                                {(() => {
+                                                    const af = files.find(f => f.id === activeNoteId) as any;
+                                                    if (af && af.permission === 'view') {
+                                                        return (
+                                                            <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-xs py-2 px-4 rounded-lg flex items-center justify-center gap-2 mb-4 animate-in fade-in slide-in-from-top-4">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                                                Du hast nur Lesezugriff auf dieses Dokument
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
+                                                
+                                                {/* Active Collaborators Avatars */}
+                                                {activeCollaborators.length > 0 && (
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        {activeCollaborators.map(u => (
+                                                            <div key={u.id} className="relative group" title={`${u.name} (Aktiv)`}>
+                                                                <div className="w-8 h-8 rounded-full border-2 overflow-hidden shadow-sm transition-transform hover:scale-110" style={{ borderColor: u.color }}>
+                                                                    <Avatar seed={u.seed} size={28} />
+                                                                </div>
+                                                                <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">
+                                                                    {u.name}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
                                                 <div className="flex items-center gap-2 mb-6">
                                                     <input
                                                         type="text"

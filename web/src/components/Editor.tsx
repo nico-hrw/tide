@@ -18,6 +18,11 @@ import { FontSize } from './extensions/FontSize';
 import { MathBlock, InlineMath } from './extensions/MathBlock';
 import { ResizableImage } from './extensions/ResizableImage';
 
+import * as Y from 'yjs';
+import { WebsocketProvider } from 'y-websocket';
+import Collaboration from '@tiptap/extension-collaboration';
+import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
+
 import { InlineCommentNode } from './extensions/InlineCommentNode';
 import Mention from '@tiptap/extension-mention';
 import mentionSuggestion from './extensions/mentionSuggestion';
@@ -153,6 +158,8 @@ interface EditorProps {
     onReturnToTab?: (tabId: string) => void;
     onFileClick?: (id: string, title?: string) => void;
     onEventClick?: (id: string) => void;
+    onActiveUsersChange?: (users: any[]) => void;
+    userProfile?: any;
 }
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#ffffff', '#000000'];
@@ -167,9 +174,53 @@ const PLACELHODER_QUOTES = [
     "Nichts ist so beständig wie der Wandel."
 ];
 
-export default function Editor({ initialContent, editable = true, onChange, onLinkClick, onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady, onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick, onEventClick }: EditorProps) {
+export default function Editor({ initialContent, editable = true, onChange, onLinkClick, onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady, onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick, onEventClick, onActiveUsersChange, userProfile }: EditorProps) {
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
     const [showBackups, setShowBackups] = useState(false);
+
+    const [ydoc] = useState(() => new Y.Doc());
+    const [provider, setProvider] = useState<WebsocketProvider | null>(null);
+    const [isSynced, setIsSynced] = useState(false);
+    const contentInitialized = useRef(false);
+
+    useEffect(() => {
+        if (!activeTabId || activeTabId.startsWith('chat-')) return;
+
+        const userId = useDataStore.getState().myId || 'anonymous';
+        const wsUrl = `ws://localhost:8080/api/v1/files/${activeTabId}/ws?user_id=${userId}`;
+        
+        const wsProvider = new WebsocketProvider(wsUrl, activeTabId, ydoc);
+        
+        wsProvider.on('sync', (synced: boolean) => {
+            setIsSynced(synced);
+        });
+
+        const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+        wsProvider.awareness.setLocalStateField('user', {
+            name: userProfile?.username || 'User',
+            color: color,
+            id: userId,
+            seed: userProfile?.avatar_seed || userId
+        });
+
+        wsProvider.awareness.on('change', () => {
+            if (onActiveUsersChange) {
+                const states = Array.from(wsProvider.awareness.getStates().values());
+                const users = states.map((s: any) => s.user).filter(Boolean);
+                // Deduplicate by ID
+                const unique = Array.from(new Map(users.map(u => [u.id, u])).values());
+                onActiveUsersChange(unique);
+            }
+        });
+
+        setProvider(wsProvider);
+
+        return () => {
+            wsProvider.destroy();
+            setIsSynced(false);
+            contentInitialized.current = false;
+        };
+    }, [activeTabId, ydoc]);
 
     const onChangeRef = useRef(onChange);
     const onLinkClickRef = useRef(onLinkClick);
@@ -338,6 +389,18 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
             ReferenceMark, // ALWAYS added so documents don't crash and marks parse correctly
         ];
 
+        if (provider) {
+            baseExtensions.push(
+                Collaboration.configure({
+                    document: ydoc,
+                }),
+                CollaborationCursor.configure({
+                    provider: provider,
+                    user: provider.awareness.getLocalState()?.user || { name: 'Guest', color: '#ffcc00' },
+                })
+            );
+        }
+
         // Add optional Reference modes
         if (enabledExtensions.includes('references')) {
             baseExtensions.push(ReferenceScannerMode);
@@ -353,7 +416,6 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
 
     const editor = useEditor({
         extensions: extensions,
-        content: initialContent,
         editable: editable,
         immediatelyRender: false,
         onUpdate: ({ editor, transaction }) => {

@@ -57,6 +57,9 @@ func (h *FileHandler) RegisterRoutes(r chi.Router) {
 		r.Put("/visibility", h.SetVisibility)
 		r.Post("/purge", h.PurgeFiles)
 	})
+
+	// Register WebSocket endpoint for Live Sync
+	r.Get("/{fileID}/ws", ServeWs)
 }
 func (h *FileHandler) broadcastToFileUsers(fileID string, ownerID string, message string) {
 	go h.Broker.Broadcast(ownerID, message)

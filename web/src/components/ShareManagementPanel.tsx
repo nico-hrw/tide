@@ -64,6 +64,21 @@ export default function ShareManagementPanel({ fileId, onClose }: ShareManagemen
         }
     };
 
+    const handleUpdatePermission = async (shareId: string, newPermission: string) => {
+        try {
+            setShares(prev => prev.map(s => s.id === shareId ? { ...s, permission: newPermission as any } : s));
+            const res = await apiFetch(`/api/v1/files/${fileId}/shares/${shareId}`, {
+                method: "PATCH",
+                body: JSON.stringify({ permission: newPermission })
+            });
+            if (!res.ok) throw new Error();
+        } catch (e) {
+            console.error(e);
+            alert("Failed to update permission");
+            loadShares(); // Revert
+        }
+    };
+
     return (
         <div className="absolute right-0 top-12 w-80 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-800 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
             <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
@@ -97,9 +112,15 @@ export default function ShareManagementPanel({ fileId, onClose }: ShareManagemen
                                             {share.partner?.username || 'Unknown User'}
                                         </span>
                                         <span className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center gap-1">
-                                            {share.permission === 'view' && 'Can View'}
-                                            {share.permission === 'edit' && 'Can Edit'}
-                                            {share.permission === 'share' && 'Full Access'}
+                                            <select
+                                                value={share.permission}
+                                                onChange={(e) => handleUpdatePermission(share.id, e.target.value)}
+                                                className="bg-transparent border-none p-0 focus:ring-0 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
+                                            >
+                                                <option value="view">Lesezugriff</option>
+                                                <option value="edit">Bearbeiter</option>
+                                                <option value="share">Vollzugriff</option>
+                                            </select>
                                         </span>
                                     </div>
                                 </div>
