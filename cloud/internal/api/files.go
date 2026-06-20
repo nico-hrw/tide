@@ -430,12 +430,9 @@ func (h *FileHandler) RevokeShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Also remove the recipient's wrapped DEK from access_keys.
-	jsonPath := fmt.Sprintf("'$.%s'", targetUserID)
-	query := fmt.Sprintf(
-		`UPDATE files SET access_keys = json_remove(COALESCE(NULLIF(access_keys, ''), '{}'), %s), updated_at = ? WHERE id = ?`,
-		jsonPath,
-	)
-	_, _ = h.Store.DB.ExecContext(r.Context(), query, time.Now(), fileID)
+	jsonPath := fmt.Sprintf("$.%s", targetUserID)
+	query := `UPDATE files SET access_keys = json_remove(COALESCE(NULLIF(access_keys, ''), '{}'), ?), updated_at = ? WHERE id = ?`
+	_, _ = h.Store.DB.ExecContext(r.Context(), query, jsonPath, time.Now(), fileID)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "Share revoked"}`))
 }

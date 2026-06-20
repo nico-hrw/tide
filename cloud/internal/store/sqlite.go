@@ -866,9 +866,14 @@ func (s *SQLiteStore) GetSharePermission(ctx context.Context, fileID string, use
 // ListSharesForFile returns all shares for a given file (owner-only call).
 func (s *SQLiteStore) ListSharesForFile(ctx context.Context, fileID string) ([]*db.FileShare, error) {
 	rows, err := s.DB.QueryContext(ctx, `
-		SELECT fs.file_id, fs.user_id, fs.status, fs.permission, fs.created_at, COALESCE(u.username, '') as username
+		SELECT fs.file_id, fs.user_id, fs.status, fs.permission, fs.created_at, 
+		       COALESCE(u.username, '') as username,
+		       COALESCE(p.avatar_seed, '') as avatar_seed,
+		       COALESCE(p.avatar_salt, '') as avatar_salt,
+		       COALESCE(p.avatar_style, '') as avatar_style
 		FROM file_shares fs
 		LEFT JOIN users u ON u.id = fs.user_id
+		LEFT JOIN profiles p ON p.user_id = fs.user_id
 		WHERE fs.file_id = ?
 		ORDER BY fs.created_at ASC
 	`, fileID)
@@ -879,7 +884,7 @@ func (s *SQLiteStore) ListSharesForFile(ctx context.Context, fileID string) ([]*
 	var out []*db.FileShare
 	for rows.Next() {
 		var sh db.FileShare
-		if err := rows.Scan(&sh.FileID, &sh.UserID, &sh.Status, &sh.Permission, &sh.CreatedAt, &sh.Username); err != nil {
+		if err := rows.Scan(&sh.FileID, &sh.UserID, &sh.Status, &sh.Permission, &sh.CreatedAt, &sh.Username, &sh.AvatarSeed, &sh.AvatarSalt, &sh.AvatarStyle); err != nil {
 			return nil, err
 		}
 		out = append(out, &sh)
@@ -920,6 +925,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta, 
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
+			       COALESCE(fs.permission, 'edit') as permission,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -942,6 +948,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta, 
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
+			       COALESCE(fs.permission, 'edit') as permission,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -968,6 +975,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta,
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
+			       COALESCE(fs.permission, 'edit') as permission,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -982,6 +990,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta,
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
+			       COALESCE(fs.permission, 'edit') as permission,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -1018,6 +1027,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			&f.PublicMeta,
 			&f.SecuredMeta,
 			&f.ShareStatus,
+			&f.Permission,
 			&f.Version,
 			&md,
 			&ak,

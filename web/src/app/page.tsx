@@ -3508,9 +3508,9 @@ export default function Dashboard() {
                                                     const af = files.find(f => f.id === activeNoteId) as any;
                                                     if (af && af.permission === 'view') {
                                                         return (
-                                                            <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-xs py-2 px-4 rounded-lg flex items-center justify-center gap-2 mb-4 animate-in fade-in slide-in-from-top-4">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                                                                Du hast nur Lesezugriff auf dieses Dokument
+                                                            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm font-medium py-3 px-4 rounded-xl flex items-center justify-center gap-3 mb-6 animate-pulse shadow-sm">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                                                                <span className="tracking-wide">Lesezugriff – Du kannst dieses Dokument nicht bearbeiten</span>
                                                             </div>
                                                         );
                                                     }
@@ -3583,48 +3583,51 @@ export default function Dashboard() {
                                                         </button>
                                                         {/* Save status indicator */}
                                                         <div className="relative flex items-center justify-center">
-                                                            <button
-                                                                onClick={() => {
-                                                                    const af = files.find(f => f.id === activeNoteId) as any;
-                                                                    const isRecipient = af?.share_status === 'shared';
-                                                                    const ak = af?.access_keys;
-                                                                    const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {};
-                                                                    const isSharedByOwner = Object.keys(akObj).length > 1;
-                                                                    const isShared = isRecipient || isSharedByOwner;
-                                                                    if (isShared) {
-                                                                        setShowSharePanel(!showSharePanel);
-                                                                    }
-                                                                }}
-                                                                title={saveStatus === 'saved' ? (() => { const af = files.find(f => f.id === activeNoteId) as any; const ak = af?.access_keys; const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {}; return (af?.share_status === 'shared' || Object.keys(akObj).length > 1) ? 'Synced - Klick für Zugriff' : 'Gespeichert'; })() : saveStatus === 'saving' ? 'Wird gespeichert…' : 'Nicht gespeichert'}
-                                                                className={`p-1.5 rounded-lg transition-colors ${saveStatus === 'saved' && (() => { const af = files.find(f => f.id === activeNoteId) as any; const ak = af?.access_keys; const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {}; return (af?.share_status === 'shared' || Object.keys(akObj).length > 1); })() ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800' : 'cursor-default'}`}
-                                                            >
-                                                                {saveStatus === 'saved' && (() => {
-                                                                    const af = files.find(f => f.id === activeNoteId) as any;
-                                                                    const isRecipient = af?.share_status === 'shared';
-                                                                    const ak = af?.access_keys;
-                                                                    const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {};
-                                                                    const isSharedByOwner = Object.keys(akObj).length > 1;
-                                                                    const isShared = isRecipient || isSharedByOwner;
-                                                                    return (
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isShared ? "text-sky-400 opacity-70 hover:opacity-100" : "text-green-400 opacity-60"}>
-                                                                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                                                                            <polyline points="22 4 12 14.01 9 11.01" />
-                                                                        </svg>
-                                                                    );
-                                                                })()}
-                                                                {saveStatus === 'saving' && (
-                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 opacity-60 animate-spin">
-                                                                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                                                                    </svg>
-                                                                )}
-                                                                {saveStatus === 'unsaved' && (
-                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400 opacity-70">
-                                                                        <circle cx="12" cy="12" r="10" />
-                                                                        <line x1="12" y1="8" x2="12" y2="12" />
-                                                                        <line x1="12" y1="16" x2="12.01" y2="16" />
-                                                                    </svg>
-                                                                )}
-                                                            </button>
+                                                            {(() => {
+                                                                const af = files.find(f => f.id === activeNoteId) as any;
+                                                                const isRecipient = af?.share_status === 'shared';
+                                                                const ak = af?.access_keys;
+                                                                const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {};
+                                                                const isSharedByOwner = Object.keys(akObj).length > 1;
+                                                                const isShared = isRecipient || isSharedByOwner;
+                                                                
+                                                                // Fetch the owner name from searchResults or contacts if possible?
+                                                                // The API doesn't provide owner_username directly in 'files' unless it's in metadata?
+                                                                // Wait, we can just show "Geteilt von jemandem" or check if af.owner_id is in contacts
+                                                                
+                                                                return (
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (isSharedByOwner) {
+                                                                                setShowSharePanel(!showSharePanel);
+                                                                            } else if (isRecipient) {
+                                                                                alert("Dieses Dokument wurde mit dir geteilt.");
+                                                                            }
+                                                                        }}
+                                                                        title={saveStatus === 'saving' ? 'Wird gespeichert…' : saveStatus === 'unsaved' ? 'Nicht gespeichert' : (isSharedByOwner ? 'Synced - Klick für Rechteverwaltung' : (isRecipient ? 'Synced - Geteilt mit dir' : 'Gespeichert'))}
+                                                                        className={`p-1.5 rounded-lg transition-colors ${saveStatus === 'saved' && isSharedByOwner ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800' : 'cursor-default'}`}
+                                                                    >
+                                                                        {saveStatus === 'saved' && (
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isShared ? "text-sky-400 opacity-70 hover:opacity-100" : "text-green-400 opacity-60"}>
+                                                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                                                                <polyline points="22 4 12 14.01 9 11.01" />
+                                                                            </svg>
+                                                                        )}
+                                                                        {saveStatus === 'saving' && (
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 opacity-60 animate-spin">
+                                                                                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                                                                            </svg>
+                                                                        )}
+                                                                        {saveStatus === 'unsaved' && (
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400 opacity-70">
+                                                                                <circle cx="12" cy="12" r="10" />
+                                                                                <line x1="12" y1="8" x2="12" y2="12" />
+                                                                                <line x1="12" y1="16" x2="12.01" y2="16" />
+                                                                            </svg>
+                                                                        )}
+                                                                    </button>
+                                                                );
+                                                            })()}
                                                             {showSharePanel && <ShareManagementPanel fileId={activeNoteId} onClose={() => setShowSharePanel(false)} />}
                                                         </div>
                                                     </div>
@@ -3699,6 +3702,10 @@ export default function Dashboard() {
                                                     }}
                                                     activeTabId={activeTabId}
                                                     onReturnToTab={(tabId) => setActiveTabId(tabId)}
+                                                    onActiveUsersChange={(users) => {
+                                                        setActiveCollaborators(users.filter(u => u.id !== myId));
+                                                    }}
+                                                    userProfile={userProfile}
                                                 />
                                             );
                                         })()}

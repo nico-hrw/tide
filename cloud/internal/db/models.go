@@ -117,8 +117,11 @@ type FileShare struct {
 	UserID     string    `json:"user_id" db:"user_id"`
 	Status     string    `json:"status" db:"status"`         // 'pending' | 'accepted'
 	Permission string    `json:"permission" db:"permission"` // 'view' | 'edit' | 'share'
-	CreatedAt  time.Time `json:"created_at" db:"created_at"`
-	Username   string    `json:"username,omitempty"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	Username    string    `json:"username,omitempty"`
+	AvatarSeed  string    `json:"avatar_seed,omitempty"`
+	AvatarSalt  string    `json:"avatar_salt,omitempty"`
+	AvatarStyle string    `json:"avatar_style,omitempty"`
 }
 
 type FileBackup struct {

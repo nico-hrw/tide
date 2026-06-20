@@ -16,6 +16,9 @@ interface FileShare {
     username?: string;
     status: string;
     permission: 'view' | 'edit' | 'share';
+    avatar_seed?: string;
+    avatar_salt?: string;
+    avatar_style?: string;
 }
 
 export default function ShareManagementModal({ isOpen, onClose, fileId, fileTitle }: ShareManagementModalProps) {
@@ -113,7 +116,7 @@ export default function ShareManagementModal({ isOpen, onClose, fileId, fileTitl
                             {shares.map(share => (
                                 <div key={share.user_id} className="flex items-center justify-between bg-gray-50 dark:bg-white/5 p-3 rounded-xl border border-gray-100 dark:border-white/10">
                                     <div className="flex items-center gap-3">
-                                        <Avatar seed={share.user_id} size={36} />
+                                        <Avatar seed={(share.avatar_seed || share.user_id) + (share.avatar_salt || '')} style={share.avatar_style as any} size={36} />
                                         <div>
                                             <p className="font-medium text-sm text-gray-900 dark:text-gray-100">
                                                 {share.username || 'Unbekannt'}
