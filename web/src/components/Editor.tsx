@@ -187,10 +187,8 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         if (!activeTabId || activeTabId.startsWith('chat-')) return;
 
         const userId = useDataStore.getState().myId || 'anonymous';
-        // Dynamically determine the WebSocket URL based on the current origin
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host; // This includes port if present
-        // Or if you use a specific API URL env variable, you can parse it:
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
         let wsHost = host;
         if (apiUrl) {
@@ -199,9 +197,14 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                 wsHost = parsed.host;
             } catch (e) {}
         }
-        const wsUrl = `${protocol}//${wsHost}/api/v1/files/${activeTabId}/ws?user_id=${userId}`;
         
-        const wsProvider = new WebsocketProvider(wsUrl, activeTabId, ydoc);
+        const wsUrl = `${protocol}//${wsHost}/api/v1/files`;
+        
+        // y-websocket automatically appends `/${roomname}` to the serverUrl.
+        // We pass activeTabId + "/ws" as the room name, so it becomes /api/v1/files/tabId/ws
+        const wsProvider = new WebsocketProvider(wsUrl, `${activeTabId}/ws`, ydoc, {
+            params: { user_id: userId }
+        });
         
         wsProvider.on('sync', (synced: boolean) => {
             setIsSynced(synced);
