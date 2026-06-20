@@ -631,9 +631,30 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         },
     });
 
+    useEffect(() => {
+        if (!editor || contentInitialized.current) return;
 
-
-
+        if (provider) {
+            // Collaborative mode: wait for sync to complete
+            if (isSynced) {
+                const xmlFragment = ydoc.getXmlFragment('default');
+                if (xmlFragment.length === 0 && initialContent) {
+                    console.log('[Collaboration] Yjs document is empty. Initializing with database content.');
+                    editor.commands.setContent(initialContent, { emitUpdate: false });
+                } else {
+                    console.log('[Collaboration] Yjs document already has content. Skipping initialContent load.');
+                }
+                contentInitialized.current = true;
+            }
+        } else {
+            // Standard mode: load content immediately
+            if (initialContent) {
+                console.log('[Editor] Standard mode. Initializing content.');
+                editor.commands.setContent(initialContent, { emitUpdate: false });
+            }
+            contentInitialized.current = true;
+        }
+    }, [editor, provider, isSynced, initialContent, ydoc]);
 
     useEffect(() => {
         if (!editor) return;
