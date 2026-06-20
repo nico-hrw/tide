@@ -187,7 +187,19 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         if (!activeTabId || activeTabId.startsWith('chat-')) return;
 
         const userId = useDataStore.getState().myId || 'anonymous';
-        const wsUrl = `ws://localhost:8080/api/v1/files/${activeTabId}/ws?user_id=${userId}`;
+        // Dynamically determine the WebSocket URL based on the current origin
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host; // This includes port if present
+        // Or if you use a specific API URL env variable, you can parse it:
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+        let wsHost = host;
+        if (apiUrl) {
+            try {
+                const parsed = new URL(apiUrl);
+                wsHost = parsed.host;
+            } catch (e) {}
+        }
+        const wsUrl = `${protocol}//${wsHost}/api/v1/files/${activeTabId}/ws?user_id=${userId}`;
         
         const wsProvider = new WebsocketProvider(wsUrl, activeTabId, ydoc);
         
