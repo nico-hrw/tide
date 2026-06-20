@@ -82,8 +82,8 @@ export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, u
     }, [showRequests]);
 
     const handleChatScroll = (scrollTop: number, direction: 'up' | 'down') => {
-        if (direction === 'down' && scrollTop > 40) setProfileExpanded(false);
-        if (direction === 'up' || scrollTop < 10) setProfileExpanded(true);
+        // Removed auto-collapse to fix UI flickering / infinite layout loops.
+        // Users can manually toggle the profile header.
     };
 
     const handleSearch = async (e?: React.FormEvent) => {
@@ -279,6 +279,7 @@ export default function SocialHub({ onOpenProfile, onOpenFile, onOpenCalendar, u
                                     activePartner={activeChatPartner}
                                     onChatSelect={() => {}}
                                     onScroll={handleChatScroll}
+                                    hideHeader={true}
                                 />
                             </div>
                         </>

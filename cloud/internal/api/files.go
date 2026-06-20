@@ -29,6 +29,7 @@ func NewFileHandler(s *store.SQLiteStore, b store.BlobStore, broker *Broker) *Fi
 func (h *FileHandler) RegisterRoutes(r chi.Router) {
 	// Public routes
 	r.Get("/public/{userID}", h.ListPublicFiles)
+	r.Get("/public/{userID}/download/{fileID}", h.DownloadPublicFile)
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
@@ -56,6 +57,15 @@ func (h *FileHandler) RegisterRoutes(r chi.Router) {
 		r.Put("/visibility", h.SetVisibility)
 		r.Post("/purge", h.PurgeFiles)
 	})
+}
+func (h *FileHandler) broadcastToFileUsers(fileID string, ownerID string, message string) {
+	go h.Broker.Broadcast(ownerID, message)
+	shares, err := h.Store.ListSharesForFile(context.Background(), fileID)
+	if err == nil {
+		for _, s := range shares {
+			go h.Broker.Broadcast(s.RecipientID, message)
+		}
+	}
 }
 
 func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
@@ -93,7 +103,7 @@ func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Broadcast
-		go h.Broker.Broadcast(userID, fmt.Sprintf(`{"type":"file_deleted","file_id":"%s"}`, id))
+		h.broadcastToFileUsers(id, file.OwnerID, fmt.Sprintf(`{"type":"file_deleted","file_id":"%s"}`, id))
 	} else {
 		// Not Owner: Remove Share
 		if err := h.Store.RemoveShare(r.Context(), id, userID); err != nil {
@@ -317,6 +327,9 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[SHARE] Warning: atomic access_keys update failed for file %s: %v", fileID, dbErr)
 		}
 	}
+
+	// Broadcast to the recipient so their UI fetches it instantly
+	go h.Broker.Broadcast(recipient.ID, fmt.Sprintf(`{"type":"file_shared","file_id":"%s"}`, fileID))
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "Shared successfully"}`))
@@ -598,7 +611,7 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Broadcast event
-	go h.Broker.Broadcast(ownerID, fmt.Sprintf(`{"type":"file_created","file_id":"%s"}`, file.ID))
+	h.broadcastToFileUsers(file.ID, ownerID, fmt.Sprintf(`{"type":"file_created","file_id":"%s"}`, file.ID))
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(file)
@@ -693,7 +706,7 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Broadcast event
-	go h.Broker.Broadcast(file.OwnerID, fmt.Sprintf(`{"type":"file_updated","file_id":"%s"}`, file.ID))
+	h.broadcastToFileUsers(file.ID, file.OwnerID, fmt.Sprintf(`{"type":"file_updated","file_id":"%s"}`, file.ID))
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(file)
@@ -788,6 +801,40 @@ func (h *FileHandler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 	rc, err := h.BlobStore.Get(r.Context(), lookupID)
 	if err != nil {
 		log.Printf("[ERROR] DownloadFile: Blob not found key=%s: %v", lookupID, err)
+		http.Error(w, "Blob not found", http.StatusNotFound)
+		return
+	}
+	defer rc.Close()
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	io.Copy(w, rc)
+}
+
+func (h *FileHandler) DownloadPublicFile(w http.ResponseWriter, r *http.Request) {
+	fileID := chi.URLParam(r, "fileID")
+	if fileID == "" {
+		http.Error(w, "Missing file ID", http.StatusBadRequest)
+		return
+	}
+
+	file, err := h.Store.GetFile(r.Context(), fileID)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	if file.Visibility != "public" {
+		http.Error(w, "File is not public", http.StatusForbidden)
+		return
+	}
+
+	lookupID := fileID
+	if file.BlobPath != nil && *file.BlobPath != "" {
+		lookupID = *file.BlobPath
+	}
+
+	rc, err := h.BlobStore.Get(r.Context(), lookupID)
+	if err != nil {
 		http.Error(w, "Blob not found", http.StatusNotFound)
 		return
 	}

@@ -34,12 +34,13 @@ interface ChatPanelProps {
     privateKey: CryptoKey | null;
     onOpenFile: (fileId: string, title: string, fileData?: any) => void;
     onFileCreated?: (file: any) => void;
-    activePartner?: { id: string; username: string; email: string };
+    activePartner?: UserBasic;
     onChatSelect?: (partnerId: string, partnerName: string, partnerEmail: string) => void;
     onAccept?: () => void;
     onOpenCalendar?: () => void;
     onOpenProfile?: (userId: string, username: string) => void;
     onScroll?: (scrollTop: number, direction: 'up' | 'down') => void;
+    hideHeader?: boolean;
 }
 
 interface ProfileTreeProps {
@@ -98,7 +99,7 @@ function ProfileTree({ items, parentId, onSelect, level = 0 }: ProfileTreeProps)
     );
 }
 
-export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOpenProfile, onFileCreated, activePartner, onChatSelect, onAccept, onScroll }: ChatPanelProps) {
+export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOpenProfile, onFileCreated, activePartner, onChatSelect, onAccept, onScroll, hideHeader }: ChatPanelProps) {
     const [view, setView] = useState<'contacts' | 'search' | 'shared'>('contacts');
     const [showActionsMenu, setShowActionsMenu] = useState(false);
 
@@ -147,10 +148,10 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
 
     // Sync activePartner prop to internal state
     useEffect(() => {
-        if (activePartner) {
+        if (activePartner && (!partner || activePartner.id !== partner.id)) {
             setPartner(activePartner);
         }
-    }, [activePartner]);
+    }, [activePartner, partner]);
 
     const fetchContacts = async () => {
         try {
@@ -950,8 +951,9 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                 {partner ? (
                     <>
                         {/* Chat Header */}
-                        <div className="p-4 border-b border-white/40 bg-transparent">
-                            <div className="flex items-center justify-between">
+                        {!hideHeader && (
+                            <div className="p-4 border-b border-white/40 bg-transparent">
+                                <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div
                                         className="cursor-pointer hover:opacity-80 transition-opacity shrink-0"
@@ -981,7 +983,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                     </button>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Messages Area */}
                         <div

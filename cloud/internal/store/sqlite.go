@@ -822,7 +822,7 @@ func (s *SQLiteStore) RemoveShare(ctx context.Context, fileID, userID string) er
 
 func (s *SQLiteStore) ShareFile(ctx context.Context, fileID string, userID string, securedMeta []byte) error {
 	query := `INSERT OR REPLACE INTO file_shares (file_id, user_id, secured_meta, status, permission, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := s.DB.ExecContext(ctx, query, fileID, userID, securedMeta, "pending", "view", time.Now())
+	_, err := s.DB.ExecContext(ctx, query, fileID, userID, securedMeta, "accepted", "view", time.Now())
 	return err
 }
 
@@ -832,7 +832,7 @@ func (s *SQLiteStore) ShareFileWithPermission(ctx context.Context, fileID string
 		permission = "view"
 	}
 	query := `INSERT OR REPLACE INTO file_shares (file_id, user_id, secured_meta, status, permission, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := s.DB.ExecContext(ctx, query, fileID, userID, securedMeta, "pending", permission, time.Now())
+	_, err := s.DB.ExecContext(ctx, query, fileID, userID, securedMeta, "accepted", permission, time.Now())
 	return err
 }
 

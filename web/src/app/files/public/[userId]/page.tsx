@@ -34,7 +34,7 @@ export default function PublicProfilePage() {
         setPreviewContent(null);
 
         try {
-            const res = await apiFetch(`/api/v1/files/${file.id}/download`);
+            const res = await apiFetch(`/api/v1/files/public/${userId}/download/${file.id}`);
             if (!res.ok) throw new Error("Failed to download content");
 
             const text = await res.text();

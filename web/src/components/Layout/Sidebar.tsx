@@ -228,6 +228,7 @@ export default function Sidebar({
 
     const handleContextMenu = (e: React.MouseEvent, id: string, type: 'file' | 'folder') => {
         e.preventDefault();
+        e.stopPropagation();
         setContextMenu({ x: e.clientX, y: e.clientY, id, type });
     };
 
@@ -270,8 +271,23 @@ export default function Sidebar({
 
     return (
         <div className="w-64 h-full flex flex-col shrink-0 relative z-[100] transition-all duration-300 overflow-visible">
-            {/* Sticky top section: Recent */}
+            {/* Sticky top section: Navigation & Recent */}
             <div className="flex-shrink-0 p-2 pt-3 pb-0">
+                {/* Navigation Section */}
+                <div className="mb-4 px-1">
+                    <button
+                        onClick={() => onOpenSocial?.()}
+                        className={`w-full flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'social' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
+                    >
+                        <div className={`shrink-0 ${activeTabId === 'social' ? 'text-blue-500' : 'text-[var(--text-muted)] group-hover:text-blue-500 transition-colors'}`}>
+                            <Users size={16} />
+                        </div>
+                        <span className={`text-[13px] font-medium flex-1 text-left ${activeTabId === 'social' ? 'text-[var(--text-body)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-body)] transition-colors'}`}>
+                            Social
+                        </span>
+                    </button>
+                </div>
+
                 {/* RECENT Section */}
                 <div className="py-2">
                     <p className="text-[11px] font-medium uppercase tracking-[1px] text-[var(--text-subtle)] px-2 mb-1">
@@ -396,10 +412,8 @@ export default function Sidebar({
                     if (e.target === e.currentTarget) onNewNote();
                 }}
                 onContextMenu={(e) => {
-                    if (e.target === e.currentTarget) {
-                        e.preventDefault();
-                        setSidebarContextMenu({ x: e.clientX, y: e.clientY });
-                    }
+                    e.preventDefault();
+                    setSidebarContextMenu({ x: e.clientX, y: e.clientY });
                 }}
             >
                 <div className="space-y-0.5">
@@ -537,6 +551,11 @@ export default function Sidebar({
                                         enabledExtensions={enabledExtensions}
                                         myId={myId}
                                         onContextMenu={handleContextMenu}
+                                        dropIndicator={dropIndicator}
+                                        setDropIndicator={setDropIndicator}
+                                        orderedNoteIds={orderedNoteIds}
+                                        setOrderedNoteIds={setOrderedNoteIds}
+                                        handleReorder={handleReorder}
                                     />
                                 </div>
                             ) : (
@@ -929,9 +948,14 @@ interface FolderItemProps {
     enabledExtensions?: string[];
     myId?: string;
     index?: number;
+    dropIndicator?: { id: string, zone: 'top' | 'middle' | 'bottom' } | null;
+    setDropIndicator?: (indicator: { id: string, zone: 'top' | 'middle' | 'bottom' } | null) => void;
+    orderedNoteIds?: string[];
+    setOrderedNoteIds?: (ids: string[]) => void;
+    handleReorder?: (newItems: DecryptedFile[]) => void;
 }
 
-const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onCreateFolder, onMoveItem, onDragStart, onContextMenu, viewMode, enabledExtensions, myId, index }: FolderItemProps) => {
+const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onCreateFolder, onMoveItem, onDragStart, onContextMenu, viewMode, enabledExtensions, myId, index, dropIndicator, setDropIndicator, orderedNoteIds, setOrderedNoteIds, handleReorder }: FolderItemProps) => {
     const [isLoading, setIsLoading] = useState(false);
     const children = allFiles.filter(f => f.parent_id === folder.id);
     const { highlight } = useHighlight();
@@ -1004,47 +1028,148 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
             </motion.div>
             {isOpen && (
                 <div className="mt-0.5">
-                    {children.filter(f => f.type === 'folder').map((f, i) => (
-                        <FolderItem
-                            key={f.id}
-                            index={i}
-                            folder={f}
-                            allFiles={allFiles}
-                            level={level + 1}
-                            onSelect={onSelect}
-                            onDelete={onDelete}
-                            onRename={onRename}
-                            onVisibility={onVisibility}
-                            onShare={onShare}
-                            editingId={editingId}
-                            onRenameSubmit={onRenameSubmit}
-                            onCreateFolder={onCreateFolder}
-                            onMoveItem={onMoveItem}
-                            onDragStart={onDragStart}
-                            onContextMenu={onContextMenu}
-                            enabledExtensions={enabledExtensions}
-                            myId={myId}
-                        />
-                    ))}
-                    {children.filter(f => f.type !== 'folder' && f.type !== 'event' && f.type !== 'canvas-asset').map((f, i) => (
-                        <FileItem
-                            key={f.id}
-                            index={i + children.filter(c => c.type === 'folder').length}
-                            file={f}
-                            level={level + 1}
-                            onSelect={onSelect}
-                            onDelete={onDelete}
-                            onRename={onRename}
-                            onVisibility={onVisibility}
-                            onShare={onShare}
-                            editingId={editingId}
-                            onRenameSubmit={onRenameSubmit}
-                            onDragStart={onDragStart}
-                            onContextMenu={onContextMenu}
-                            enabledExtensions={enabledExtensions}
-                            myId={myId}
-                        />
-                    ))}
+                    {children
+                        .sort((a, b) => {
+                            if (!orderedNoteIds) return 0;
+                            const indexA = orderedNoteIds.indexOf(a.id);
+                            const indexB = orderedNoteIds.indexOf(b.id);
+                            if (indexA === -1 && indexB === -1) return 0;
+                            if (indexA === -1) return 1;
+                            if (indexB === -1) return -1;
+                            return indexA - indexB;
+                        })
+                        .map((f, i) => (
+                            <motion.div
+                                layout
+                                key={f.id}
+                                transition={{ layout: { type: 'spring', stiffness: 350, damping: 40, mass: 0.8 } }}
+                                className={
+                                    dropIndicator?.id === f.id && dropIndicator.zone === 'top'
+                                        ? 'border-t-2 border-blue-400 rounded-t'
+                                        : dropIndicator?.id === f.id && dropIndicator.zone === 'bottom'
+                                        ? 'border-b-2 border-blue-400 rounded-b'
+                                        : ''
+                                }
+                                onDragOver={(e: React.DragEvent) => {
+                                    if (e.dataTransfer.types.includes('tide/calendar-event')) return;
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const rowHeight = 32;
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                    const y = e.clientY - rect.top;
+                                    let zone: 'top' | 'middle' | 'bottom' = 'middle';
+                                    if (f.type === 'folder') {
+                                        if (y < rowHeight * 0.3) zone = 'top';
+                                        else if (y > rowHeight * 0.7) zone = 'bottom';
+                                    } else {
+                                        zone = y < rowHeight / 2 ? 'top' : 'bottom';
+                                    }
+                                    setDropIndicator?.({ id: f.id, zone });
+                                }}
+                                onDragLeave={(e: React.DragEvent) => {
+                                    if ((e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) return;
+                                    setDropIndicator?.(null);
+                                }}
+                                onDrop={(e: React.DragEvent) => {
+                                    if (e.dataTransfer.types.includes('tide/calendar-event')) return;
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const zone = dropIndicator?.zone || 'bottom';
+                                    setDropIndicator?.(null);
+                                    const draggedId = e.dataTransfer.getData("text/plain");
+                                    if (!draggedId || draggedId === f.id) return;
+
+                                    if (zone === 'middle' && f.type === 'folder') {
+                                        onMoveItem?.(draggedId, f.id);
+                                        return;
+                                    }
+
+                                    const draggedFile = allFiles.find(o => o.id === draggedId);
+                                    if (!draggedFile) return;
+
+                                    // If moved to a new folder, trigger move
+                                    if (draggedFile.parent_id !== folder.id) {
+                                        onMoveItem?.(draggedId, folder.id);
+                                    }
+
+                                    // Local reorder within the folder using orderedNoteIds
+                                    if (orderedNoteIds && setOrderedNoteIds) {
+                                        const sortedChildren = children.sort((a, b) => {
+                                            const iA = orderedNoteIds.indexOf(a.id);
+                                            const iB = orderedNoteIds.indexOf(b.id);
+                                            if (iA === -1 && iB === -1) return 0;
+                                            if (iA === -1) return 1;
+                                            if (iB === -1) return -1;
+                                            return iA - iB;
+                                        });
+                                        const newChildren = sortedChildren.filter(o => o.id !== draggedId);
+                                        let dropIdx = newChildren.findIndex(o => o.id === f.id);
+                                        if (zone === 'bottom') dropIdx += 1;
+                                        newChildren.splice(dropIdx, 0, draggedFile);
+
+                                        // Update global orderedNoteIds
+                                        const newOrderedIds = [...orderedNoteIds];
+                                        // Remove draggedId from its old place
+                                        const oldIdx = newOrderedIds.indexOf(draggedId);
+                                        if (oldIdx !== -1) newOrderedIds.splice(oldIdx, 1);
+                                        // Insert it relative to the target item in global order
+                                        const targetGlobalIdx = newOrderedIds.indexOf(f.id);
+                                        if (targetGlobalIdx !== -1) {
+                                            newOrderedIds.splice(zone === 'bottom' ? targetGlobalIdx + 1 : targetGlobalIdx, 0, draggedId);
+                                        } else {
+                                            newOrderedIds.push(draggedId);
+                                        }
+                                        setOrderedNoteIds(newOrderedIds);
+                                    }
+                                }}
+                            >
+                                {f.type === 'folder' ? (
+                                    <div className={`relative ${dropIndicator?.id === f.id && dropIndicator.zone === 'middle' ? 'ring-2 ring-blue-500 bg-blue-50/50 rounded-lg' : ''}`}>
+                                        <FolderItem
+                                            index={i}
+                                            folder={f}
+                                            allFiles={allFiles}
+                                            level={level + 1}
+                                            onSelect={onSelect}
+                                            onDelete={onDelete}
+                                            onRename={onRename}
+                                            onVisibility={onVisibility}
+                                            onShare={onShare}
+                                            editingId={editingId}
+                                            onRenameSubmit={onRenameSubmit}
+                                            onCreateFolder={onCreateFolder}
+                                            onMoveItem={onMoveItem}
+                                            onDragStart={onDragStart}
+                                            onContextMenu={onContextMenu}
+                                            enabledExtensions={enabledExtensions}
+                                            myId={myId}
+                                            dropIndicator={dropIndicator}
+                                            setDropIndicator={setDropIndicator}
+                                            orderedNoteIds={orderedNoteIds}
+                                            setOrderedNoteIds={setOrderedNoteIds}
+                                            handleReorder={handleReorder}
+                                        />
+                                    </div>
+                                ) : (
+                                    <FileItem
+                                        index={i}
+                                        file={f}
+                                        level={level + 1}
+                                        onSelect={onSelect}
+                                        onDelete={onDelete}
+                                        onRename={onRename}
+                                        onVisibility={onVisibility}
+                                        onShare={onShare}
+                                        editingId={editingId}
+                                        onRenameSubmit={onRenameSubmit}
+                                        onDragStart={onDragStart}
+                                        onContextMenu={onContextMenu}
+                                        enabledExtensions={enabledExtensions}
+                                        myId={myId}
+                                    />
+                                )}
+                            </motion.div>
+                        ))}
                 </div>
             )}
         </div>

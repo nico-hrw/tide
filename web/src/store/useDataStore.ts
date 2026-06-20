@@ -757,44 +757,76 @@ export const useDataStore = create<DataState>((set, get) => ({
             const visibleEvents = decryptedEvents.filter(e => (e.share_status || 'owner') !== 'pending');
 
             set(s => {
-                const visibleNoteIds = new Set(visibleNotes.map(vn => vn.id));
-                // Merge: keep notes not returned by server (e.g. optimistic entries),
-                // and preserve client-side flags (isGroup, effect, color) when the server
-                // version is missing them (e.g. decryption returned partial metadata).
+                const newNoteIds = new Set(visibleNotes.map(vn => vn.id));
+                const newEventIds = new Set(visibleEvents.map(ve => ve.id));
+
                 const mergedNotes = [
-                    ...s.notes.filter(n => !visibleNoteIds.has(n.id)),
+                    ...s.notes.filter(n => {
+                        if (newNoteIds.has(n.id)) return false;
+                        const noteParent = n.parent_id === null ? 'root' : n.parent_id;
+                        if (noteParent === dirKey) return false;
+                        return true;
+                    }),
                     ...visibleNotes.map(vn => {
                         const existing = s.notes.find(n => n.id === vn.id);
                         if (existing) {
-                            // For groups: prefer existing effect/color if the decrypted version lost them
                             if (existing.isGroup || vn.isGroup) {
                                 return {
                                     ...vn,
                                     isGroup: true,
                                     effect: vn.effect || existing.effect,
                                     color: vn.color || existing.color,
-                                    title: vn.title && vn.title !== 'Untitled' ? vn.title : existing.title,
+                                    title: vn.title && vn.title !== 'Untitled' && !vn.title.includes('Locked Note') ? vn.title : existing.title,
                                 };
                             }
+                            return {
+                                ...vn,
+                                title: vn.title && vn.title !== 'Untitled' && !vn.title.includes('Locked Note') ? vn.title : existing.title,
+                            };
                         }
                         return vn;
                     })
                 ];
-                // Merge newMetaCache INTO the current cache (not replace) so that
-                // concurrent optimistic updates (e.g. theme changes) are preserved.
+
+                const mergedEvents = [
+                    ...s.events.filter(e => {
+                        if (newEventIds.has(e.id)) return false;
+                        const eventParent = e.parent_id === null ? 'root' : e.parent_id;
+                        if (eventParent === dirKey) return false;
+                        return true;
+                    }),
+                    ...visibleEvents.map(ve => {
+                        const existing = s.events.find(e => e.id === ve.id);
+                        if (existing) {
+                            return {
+                                ...ve,
+                                title: ve.title && ve.title !== 'Untitled' && !ve.title.includes('Locked Note') ? ve.title : existing.title,
+                            };
+                        }
+                        return ve;
+                    })
+                ];
+
                 const mergedCache = { ...s.metadataCache };
                 for (const [key, val] of Object.entries(newMetaCache)) {
                     const current = mergedCache[key];
-                    if (current && (current.effect || current.color) && !(val as any).effect) {
-                        // Current cache has richer data (from an optimistic update) — keep it
-                        mergedCache[key] = { ...val, ...current };
+                    if (current) {
+                        let finalVal = { ...(val as object) } as any;
+                        if ((finalVal.title === 'Untitled' || finalVal.title === 'Locked Note (Decrypting...)') && current.title && current.title !== 'Untitled' && !current.title.includes('Locked Note')) {
+                            finalVal.title = current.title;
+                            finalVal.isLocked = current.isLocked || false;
+                        }
+                        if ((current.effect || current.color) && !finalVal.effect) {
+                            finalVal = { ...finalVal, effect: current.effect, color: current.color };
+                        }
+                        mergedCache[key] = finalVal;
                     } else {
                         mergedCache[key] = val;
                     }
                 }
                 return {
                     notes: mergedNotes,
-                    events: [...s.events.filter(e => !new Set(visibleEvents.map(ve => ve.id)).has(e.id)), ...visibleEvents],
+                    events: mergedEvents,
                     metadataCache: mergedCache,
                     loadedDirectories: new Set([...s.loadedDirectories, dirKey]),
                     fetchingDirectories: new Set([...s.fetchingDirectories].filter(d => d !== dirKey))
