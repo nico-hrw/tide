@@ -179,20 +179,18 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
     const [showBackups, setShowBackups] = useState(false);
 
     const [ydoc] = useState(() => new Y.Doc());
-    const [provider, setProvider] = useState<WebsocketProvider | null>(null);
-    const contentInitialized = useRef(false);
-    const [isSynced, setIsSynced] = useState(false);
-    useEffect(() => {
+    const [provider] = useState<WebsocketProvider | null>(() => {
+        if (typeof window === 'undefined') return null;
         if (!activeTabId || 
             activeTabId.startsWith('chat-') || 
             activeTabId.startsWith('profile:') || 
             ['calendar', 'messages', 'social', 'ext_finance'].includes(activeTabId)) {
-            return;
+            return null;
         }
 
         const userId = useDataStore.getState().myId || 'anonymous';
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host; // This includes port if present
+        const host = window.location.host;
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
         let wsHost = host;
         if (apiUrl) {
@@ -202,44 +200,53 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
             } catch (e) {}
         }
         
-        const wsUrl = `${protocol}//${wsHost}/api/v1/files`;
+        const wsUrl = `${protocol}//${wsHost}/api/v1/files/${activeTabId}`;
         
         // y-websocket automatically appends `/${roomname}` to the serverUrl.
-        // We pass activeTabId + "/ws" as the room name, so it becomes /api/v1/files/tabId/ws
-        const wsProvider = new WebsocketProvider(wsUrl, `${activeTabId}/ws`, ydoc, {
+        // We pass "ws" as the room name, so it becomes /api/v1/files/activeTabId/ws
+        return new WebsocketProvider(wsUrl, 'ws', ydoc, {
             params: { user_id: userId }
         });
-        
-        wsProvider.on('sync', (synced: boolean) => {
+    });
+    const contentInitialized = useRef(false);
+    const [isSynced, setIsSynced] = useState(false);
+
+    useEffect(() => {
+        if (!provider) return;
+
+        const handleSync = (synced: boolean) => {
             setIsSynced(synced);
-        });
+        };
+        provider.on('sync', handleSync);
 
         const color = COLORS[Math.floor(Math.random() * COLORS.length)];
-        wsProvider.awareness.setLocalStateField('user', {
+        const userId = useDataStore.getState().myId || 'anonymous';
+        provider.awareness.setLocalStateField('user', {
             name: userProfile?.username || 'User',
             color: color,
             id: userId,
             seed: userProfile?.avatar_seed || userId
         });
 
-        wsProvider.awareness.on('change', () => {
+        const handleChange = () => {
             if (onActiveUsersChange) {
-                const states = Array.from(wsProvider.awareness.getStates().values());
+                const states = Array.from(provider.awareness.getStates().values());
                 const users = states.map((s: any) => s.user).filter(Boolean);
                 // Deduplicate by ID
                 const unique = Array.from(new Map(users.map(u => [u.id, u])).values());
                 onActiveUsersChange(unique);
             }
-        });
-
-        setProvider(wsProvider);
+        };
+        provider.awareness.on('change', handleChange);
 
         return () => {
-            wsProvider.destroy();
+            provider.off('sync', handleSync);
+            provider.awareness.off('change', handleChange);
+            provider.destroy();
             setIsSynced(false);
             contentInitialized.current = false;
         };
-    }, [activeTabId, ydoc]);
+    }, [provider, userProfile, onActiveUsersChange]);
 
     const onChangeRef = useRef(onChange);
     const onLinkClickRef = useRef(onLinkClick);
@@ -431,7 +438,7 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
 
         return baseExtensions;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabledExtensions, autoScanEnabled]); // Only re-create extensions if the enabled set changes
+    }, [enabledExtensions, autoScanEnabled, provider, ydoc]); // Only re-create extensions if the enabled set changes
 
     const editor = useEditor({
         extensions: extensions,
@@ -635,7 +642,8 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
         if (!editor || contentInitialized.current) return;
 
         if (provider) {
-            // Collaborative mode: wait for sync to complete
+            let syncTimeout: NodeJS.Timeout | null = null;
+
             if (isSynced) {
                 const xmlFragment = ydoc.getXmlFragment('default');
                 if (xmlFragment.length === 0 && initialContent) {
@@ -645,7 +653,23 @@ export default function Editor({ initialContent, editable = true, onChange, onLi
                     console.log('[Collaboration] Yjs document already has content. Skipping initialContent load.');
                 }
                 contentInitialized.current = true;
+            } else {
+                // Set a timeout to load initialContent if sync takes too long (e.g. server offline)
+                syncTimeout = setTimeout(() => {
+                    if (!contentInitialized.current) {
+                        console.warn('[Collaboration] Sync timed out. Loading database content as fallback.');
+                        const xmlFragment = ydoc.getXmlFragment('default');
+                        if (xmlFragment.length === 0 && initialContent) {
+                            editor.commands.setContent(initialContent, { emitUpdate: false });
+                        }
+                        contentInitialized.current = true;
+                    }
+                }, 1500); // 1.5s timeout
             }
+
+            return () => {
+                if (syncTimeout) clearTimeout(syncTimeout);
+            };
         } else {
             // Standard mode: load content immediately
             if (initialContent) {
