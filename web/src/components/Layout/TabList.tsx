@@ -6,7 +6,7 @@ import { motion, Reorder, AnimatePresence } from 'framer-motion';
 export interface Tab {
     id: string;
     title: string;
-    type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social';
+    type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams';
     content?: any;
     _fileKey?: CryptoKey | null;
     _saveStatus?: "saved" | "unsaved" | "saving";
@@ -15,16 +15,17 @@ export interface Tab {
 interface TabListProps {
     tabs: Tab[];
     activeTabId: string;
-    onTabSelect: (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social') => void;
+    onTabSelect: (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams') => void;
     onTabClose: (e: React.MouseEvent, id: string) => void;
     onTabsReorder?: (newTabs: Tab[]) => void;
     enabledExtensions?: string[];
     onOpenMessages?: () => void;
     onOpenFinance?: () => void;
     onOpenSocial?: () => void;
+    onOpenExams?: () => void;
 }
 
-export default function TabList({ tabs, activeTabId, onTabSelect, onTabClose, onTabsReorder, enabledExtensions, onOpenMessages, onOpenFinance, onOpenSocial }: TabListProps) {
+export default function TabList({ tabs, activeTabId, onTabSelect, onTabClose, onTabsReorder, enabledExtensions, onOpenMessages, onOpenFinance, onOpenSocial, onOpenExams }: TabListProps) {
     const { highlight, isHighlighted } = useHighlight();
 
     const documentTabs = tabs.filter(t => ['file', 'chat', 'profile'].includes(t.type));

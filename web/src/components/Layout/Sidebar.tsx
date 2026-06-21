@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Layout, X } from "lucide-react";
+import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Layout, X, GraduationCap } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, Reorder, AnimatePresence, LayoutGroup } from "framer-motion";
 import { Tab } from '@/components/Layout/TabList';
@@ -56,6 +56,7 @@ interface SidebarProps {
     onOpenCalendar?: () => void;
     onOpenSocial?: () => void;
     onOpenFinance?: () => void;
+    onOpenExams?: () => void;
     onNewCanvasNote?: () => void;
 }
 
@@ -98,6 +99,7 @@ export default function Sidebar({
     onOpenCalendar,
     onOpenSocial,
     onOpenFinance,
+    onOpenExams,
     onNewCanvasNote,
 }: SidebarProps) {
     const { highlight } = useHighlight();
@@ -274,16 +276,27 @@ export default function Sidebar({
             {/* Sticky top section: Navigation & Recent */}
             <div className="flex-shrink-0 p-2 pt-3 pb-0">
                 {/* Navigation Section */}
-                <div className="mb-4 px-1">
+                <div className="mb-4 px-1 flex gap-1">
                     <button
                         onClick={() => onOpenSocial?.()}
-                        className={`w-full flex items-center gap-3 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'social' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
+                        className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'social' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
                     >
                         <div className={`shrink-0 ${activeTabId === 'social' ? 'text-blue-500' : 'text-[var(--text-muted)] group-hover:text-blue-500 transition-colors'}`}>
                             <Users size={16} />
                         </div>
                         <span className={`text-[13px] font-medium flex-1 text-left ${activeTabId === 'social' ? 'text-[var(--text-body)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-body)] transition-colors'}`}>
                             Social
+                        </span>
+                    </button>
+                    <button
+                        onClick={() => onOpenExams?.()}
+                        className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'exams' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
+                    >
+                        <div className={`shrink-0 ${activeTabId === 'exams' ? 'text-blue-500' : 'text-[var(--text-muted)] group-hover:text-blue-500 transition-colors'}`}>
+                            <GraduationCap size={16} />
+                        </div>
+                        <span className={`text-[13px] font-medium flex-1 text-left ${activeTabId === 'exams' ? 'text-[var(--text-body)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-body)] transition-colors'}`}>
+                            Prüfungen
                         </span>
                     </button>
                 </div>

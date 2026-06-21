@@ -41,6 +41,10 @@ import SmartIsland from "@/components/SmartIsland";
 const FinanceDashboard = dynamic(() => import('@/components/Finance/FinanceDashboard'), {
     loading: () => <div className="flex-1 flex items-center justify-center p-8 text-gray-400">Loading module...</div>
 });
+
+const ExamsPlanner = dynamic(() => import('@/components/Exams/ExamsPlanner'), {
+    loading: () => <div className="flex-1 flex items-center justify-center p-8 text-gray-400">Loading planner...</div>
+});
 import EditorGutter from "@/components/Canvas/EditorGutter";
 import ShareManagementPanel from "@/components/ShareManagementPanel";
 import { useStyleFile } from "@/components/Canvas/useStyleFile";
@@ -2872,7 +2876,7 @@ export default function Dashboard() {
 
     // 5. Tab Management & Messages
     // -------------------------------------------------------------------------
-    const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social') => {
+    const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams') => {
         if (type === 'social') {
             setActiveTabId('social');
             return;
@@ -3220,6 +3224,7 @@ export default function Dashboard() {
                     onTabsReorder={setOpenTabs}
                     onOpenCalendar={() => handleTabSelect('calendar', 'calendar')}
                     onOpenSocial={() => setActiveTabId('social')}
+                    onOpenExams={() => setActiveTabId('exams')}
                     onOpenFinance={() => handleFileSelect('ext_finance', 'Finance Tracker')}
                 />
             </div>
@@ -3427,7 +3432,13 @@ export default function Dashboard() {
                     )}
                 </div>
 
-                <div className={`flex-1 min-h-0 relative overflow-y-auto ${activeTabId === 'calendar' || activeTabId === 'messages' || activeTabId === 'social' || activeTabId.startsWith('chat-') || activeTabId === 'ext_finance' || activeTabId.startsWith('profile:') ? 'hidden' : 'block'}`}>
+                <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'exams' ? 'block' : 'hidden'}`}>
+                    {activeTabId === 'exams' && (
+                        <ExamsPlanner />
+                    )}
+                </div>
+
+                <div className={`flex-1 min-h-0 relative overflow-y-auto ${activeTabId === 'calendar' || activeTabId === 'messages' || activeTabId === 'social' || activeTabId === 'exams' || activeTabId.startsWith('chat-') || activeTabId === 'ext_finance' || activeTabId.startsWith('profile:') ? 'hidden' : 'block'}`}>
                     {isLoadingContent ? (
                         <div className="flex items-center justify-center h-full text-gray-400">Loading content...</div>
                     ) : (
