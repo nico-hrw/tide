@@ -174,7 +174,24 @@ const PLACELHODER_QUOTES = [
     "Nichts ist so beständig wie der Wandel."
 ];
 
-export default function Editor({ initialContent, editable = true, onChange, onLinkClick, onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady, onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick, onEventClick, onActiveUsersChange, userProfile }: EditorProps) {
+export default function Editor(props: EditorProps) {
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    if (!mounted) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
+                <span className="font-medium text-sm">Lade Editor...</span>
+            </div>
+        );
+    }
+
+    return <CollaborativeEditor {...props} />;
+}
+
+function CollaborativeEditor({ initialContent, editable = true, onChange, onLinkClick, onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady, onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick, onEventClick, onActiveUsersChange, userProfile }: EditorProps) {
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
     const [showBackups, setShowBackups] = useState(false);
 
