@@ -3157,6 +3157,7 @@ export default function Dashboard() {
                                     setActiveCollaborators(users.filter(u => u.id !== myId));
                                 }}
                                 userProfile={userProfile}
+                                myId={myId}
                                 onBlocksDeleted={(ids) => setDeletedBlockIds(ids)}
                                 onPopOut={(text, anchorBlockId) => {
                                     const widget: TextWidgetElement = {
@@ -3520,13 +3521,13 @@ export default function Dashboard() {
                                                 {/* Active Collaborators Avatars */}
                                                 {activeCollaborators.length > 0 && (
                                                     <div className="flex items-center gap-2 mb-2">
-                                                        {activeCollaborators.map(u => (
-                                                            <div key={u.id} className="relative group" title={`${u.name} (Aktiv)`}>
-                                                                <div className="w-8 h-8 rounded-full border-2 overflow-hidden shadow-sm transition-transform hover:scale-110" style={{ borderColor: u.color }}>
-                                                                    <Avatar seed={u.seed} size={28} />
+                                                        {activeCollaborators.map((u, idx) => (
+                                                            <div key={u?.id || `collab-${idx}`} className="relative group" title={`${u?.name || 'User'} (Aktiv)`}>
+                                                                <div className="w-8 h-8 rounded-full border-2 overflow-hidden shadow-sm transition-transform hover:scale-110" style={{ borderColor: u?.color || '#ccc' }}>
+                                                                    <Avatar seed={u?.seed || 'guest'} size={28} />
                                                                 </div>
                                                                 <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">
-                                                                    {u.name}
+                                                                    {u?.name || 'User'}
                                                                 </div>
                                                             </div>
                                                         ))}
@@ -3706,6 +3707,7 @@ export default function Dashboard() {
                                                         setActiveCollaborators(users.filter(u => u.id !== myId));
                                                     }}
                                                     userProfile={userProfile}
+                                                    myId={myId}
                                                 />
                                             );
                                         })()}

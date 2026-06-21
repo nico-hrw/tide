@@ -21,7 +21,7 @@ import { ResizableImage } from './extensions/ResizableImage';
 import * as Y from 'yjs';
 import { WebsocketProvider } from 'y-websocket';
 import Collaboration from '@tiptap/extension-collaboration';
-import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
+import CollaborationCaret from '@tiptap/extension-collaboration-caret';
 
 import { InlineCommentNode } from './extensions/InlineCommentNode';
 import Mention from '@tiptap/extension-mention';
@@ -160,6 +160,7 @@ interface EditorProps {
     onEventClick?: (id: string) => void;
     onActiveUsersChange?: (users: any[]) => void;
     userProfile?: any;
+    myId?: string;
 }
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#ffffff', '#000000'];
@@ -191,7 +192,7 @@ export default function Editor(props: EditorProps) {
     return <CollaborativeEditor {...props} />;
 }
 
-function CollaborativeEditor({ initialContent, editable = true, onChange, onLinkClick, onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady, onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick, onEventClick, onActiveUsersChange, userProfile }: EditorProps) {
+function CollaborativeEditor({ initialContent, editable = true, onChange, onLinkClick, onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady, onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick, onEventClick, onActiveUsersChange, userProfile, myId }: EditorProps) {
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
     const [showBackups, setShowBackups] = useState(false);
 
@@ -205,7 +206,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             return null;
         }
 
-        const userId = useDataStore.getState().myId || 'anonymous';
+        const userId = myId || useDataStore.getState().myId || 'anonymous';
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host;
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
@@ -226,6 +227,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
         });
     });
     const contentInitialized = useRef(false);
+    const syncTimedOutRef = useRef(false);
     const [isSynced, setIsSynced] = useState(false);
 
     useEffect(() => {
@@ -237,7 +239,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
         provider.on('sync', handleSync);
 
         const color = COLORS[Math.floor(Math.random() * COLORS.length)];
-        const userId = useDataStore.getState().myId || 'anonymous';
+        const userId = myId || useDataStore.getState().myId || 'anonymous';
         provider.awareness.setLocalStateField('user', {
             name: userProfile?.username || 'User',
             color: color,
@@ -259,11 +261,19 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
         return () => {
             provider.off('sync', handleSync);
             provider.awareness.off('change', handleChange);
-            provider.destroy();
             setIsSynced(false);
-            contentInitialized.current = false;
         };
     }, [provider, userProfile, onActiveUsersChange]);
+
+    useEffect(() => {
+        return () => {
+            if (provider) {
+                provider.destroy();
+                contentInitialized.current = false;
+                syncTimedOutRef.current = false;
+            }
+        };
+    }, [provider]);
 
     const onChangeRef = useRef(onChange);
     const onLinkClickRef = useRef(onLinkClick);
@@ -311,6 +321,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             italic: false,
             bold: false,
             strike: false,
+            undoRedo: provider ? false : undefined,
         }),
         TaskList.configure({ HTMLAttributes: { class: 'not-prose pl-0' } }),
         TaskItem.configure({ nested: true }),
@@ -437,9 +448,9 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
                 Collaboration.configure({
                     document: ydoc,
                 }),
-                CollaborationCursor.configure({
+                CollaborationCaret.configure({
                     provider: provider,
-                    user: provider.awareness.getLocalState()?.user || { name: 'Guest', color: '#ffcc00' },
+                    user: provider.awareness.getLocalState()?.user || { id: 'guest', name: 'Guest', color: '#ffcc00', seed: 'guest' },
                 })
             );
         }
@@ -465,6 +476,13 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             // Skip transactions that only update decorations (e.g. autopilot reference scan).
             // These don't change the document content and should NOT trigger a save or reset the save timer.
             if (!transaction.docChanged) return;
+
+            // Critical check: ignore editor updates during initialization to prevent
+            // overwriting loaded database content with empty Yjs documents.
+            if (!contentInitialized.current) {
+                console.log('[Collaboration] Ignoring docChange before content initialization.');
+                return;
+            }
 
             const content = editor.getJSON();
             if (onChangeRef.current) {
@@ -655,40 +673,83 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
         },
     });
 
+    const initialContentRef = useRef(initialContent);
+    useEffect(() => { initialContentRef.current = initialContent; }, [initialContent]);
+
     useEffect(() => {
         if (!editor || contentInitialized.current) return;
 
-        if (provider) {
-            let syncTimeout: NodeJS.Timeout | null = null;
-
-            if (isSynced) {
+        /**
+         * Helper: Inserts initialContent into the Yjs document so the
+         * Collaboration extension picks it up. editor.commands.setContent()
+         * does NOT work when Collaboration is active because Yjs owns the
+         * document state and overwrites ProseMirror's state immediately.
+         */
+        const insertContentIntoYjs = (content: any) => {
+            if (!content) return;
+            try {
+                const jsonContent = typeof content === 'string' ? JSON.parse(content) : content;
+                // Parse JSON with the editor's own schema (uses tiptap's prosemirror-model)
+                const doc = editor.schema.nodeFromJSON(jsonContent);
                 const xmlFragment = ydoc.getXmlFragment('default');
-                if (xmlFragment.length === 0 && initialContent) {
-                    console.log('[Collaboration] Yjs document is empty. Initializing with database content.');
-                    editor.commands.setContent(initialContent, { emitUpdate: false });
-                } else {
-                    console.log('[Collaboration] Yjs document already has content. Skipping initialContent load.');
-                }
-                contentInitialized.current = true;
-            } else {
-                // Set a timeout to load initialContent if sync takes too long (e.g. server offline)
-                syncTimeout = setTimeout(() => {
-                    if (!contentInitialized.current) {
-                        console.warn('[Collaboration] Sync timed out. Loading database content as fallback.');
-                        const xmlFragment = ydoc.getXmlFragment('default');
-                        if (xmlFragment.length === 0 && initialContent) {
-                            editor.commands.setContent(initialContent, { emitUpdate: false });
-                        }
-                        contentInitialized.current = true;
+                // Clear any existing (empty) content before populating
+                ydoc.transact(() => {
+                    while (xmlFragment.length > 0) {
+                        xmlFragment.delete(0, 1);
                     }
-                }, 1500); // 1.5s timeout
+                });
+                // Use @tiptap/y-tiptap (not y-prosemirror) to avoid prosemirror-model
+                // version mismatch. prosemirrorToYXmlFragment takes a Node, not JSON,
+                // so it doesn't call Node.fromJSON with a different prosemirror-model.
+                const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
+                prosemirrorToYXmlFragment(doc, xmlFragment);
+                console.log('[Collaboration] Content successfully inserted into Yjs document.');
+            } catch (e) {
+                console.error('[Collaboration] Failed to insert content into Yjs:', e);
+                // Last resort: try setContent (may not work but won't crash)
+                editor.commands.setContent(content, { emitUpdate: false });
             }
+        };
 
-            return () => {
-                if (syncTimeout) clearTimeout(syncTimeout);
-            };
+        const tryInitialize = (content: any) => {
+            const xmlFragment = ydoc.getXmlFragment('default');
+            // Check if the Yjs document is effectively empty (no meaningful text content).
+            // Can't use exact string matching because extensions like BlockId add
+            // attributes to the default empty paragraph (e.g. <paragraph blockId="...">).
+            let isYjsEmpty = xmlFragment.length === 0;
+            if (!isYjsEmpty && xmlFragment.length === 1) {
+                const firstChild = xmlFragment.get(0);
+                const childStr = firstChild?.toString() || '';
+                // A single paragraph (with or without attributes) that has no text content
+                isYjsEmpty = childStr.startsWith('<paragraph') && childStr.endsWith('></paragraph>');
+            }
+            
+            if (isYjsEmpty && content) {
+                insertContentIntoYjs(content);
+                contentInitialized.current = true;
+                return true;
+            } else if (!isYjsEmpty) {
+                // Yjs already has content (e.g. from a successful sync)
+                contentInitialized.current = true;
+                return true;
+            }
+            // isYjsEmpty && !content → can't initialize yet
+            return false;
+        };
+
+        if (provider) {
+            // Instantly try to load the database content into Yjs without waiting for sync.
+            // If the local Yjs document is empty, this seeds it with the database content.
+            // When WebRTC/WebSocket connects later, it will merge any external updates over this state.
+            const latestContent = initialContentRef.current;
+            if (latestContent && tryInitialize(latestContent)) {
+                console.log('[Collaboration] Instantly initialized with database content.');
+            }
+            // If tryInitialize returns false, it means Yjs is either not empty 
+            // (e.g., sync already populated it) or latestContent is null (still loading).
+            // When latestContent arrives, this effect will re-run.
         } else {
-            // Standard mode: load content immediately
+            // Standard mode (no collaboration): load content immediately
             if (initialContent) {
                 console.log('[Editor] Standard mode. Initializing content.');
                 editor.commands.setContent(initialContent, { emitUpdate: false });

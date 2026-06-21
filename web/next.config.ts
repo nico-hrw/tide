@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
   reactStrictMode: false,
   turbopack: {},
   webpack: (config, { dev }) => {
+    const path = require('path');
+    config.resolve.alias['yjs'] = path.resolve(__dirname, 'node_modules/yjs');
+
     if (dev) {
       config.watchOptions = {
         poll: 1000,

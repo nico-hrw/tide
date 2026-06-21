@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -311,7 +312,7 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 	if permission != "view" && permission != "edit" && permission != "share" {
 		permission = "view"
 	}
-	if err := h.Store.ShareFileWithPermission(r.Context(), fileID, recipient.ID, []byte(req.SecuredMeta), permission); err != nil {
+	if err := h.Store.ShareFileWithPermission(r.Context(), fileID, recipient.ID, decodeBase64OrRaw(req.SecuredMeta), permission); err != nil {
 		http.Error(w, "Failed to share file", http.StatusInternalServerError)
 		return
 	}
@@ -596,7 +597,7 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:   time.Now(),
 		Visibility:  visibility,
 		PublicMeta:  req.PublicMeta,
-		SecuredMeta: []byte(req.SecuredMeta),
+		SecuredMeta: decodeBase64OrRaw(req.SecuredMeta),
 		Version:     req.Version,
 		Metadata:    req.Metadata,
 		AccessKeys:  req.AccessKeys,
@@ -665,7 +666,7 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		file.PublicMeta = req.PublicMeta
 	}
 	if req.SecuredMeta != nil {
-		file.SecuredMeta = []byte(*req.SecuredMeta)
+		file.SecuredMeta = decodeBase64OrRaw(*req.SecuredMeta)
 	}
 	if req.Visibility != nil {
 		file.Visibility = *req.Visibility
@@ -1007,4 +1008,15 @@ func (h *FileHandler) handleBackupCascade(ctx context.Context, id string, blobBy
 			_ = h.Store.UpsertFileBackup(ctx, newB)
 		}
 	}
+}
+
+func decodeBase64OrRaw(s string) []byte {
+	if s == "" {
+		return nil
+	}
+	dec, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return []byte(s)
+	}
+	return dec
 }

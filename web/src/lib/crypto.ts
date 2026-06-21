@@ -323,10 +323,7 @@ export async function decryptMetadata(encryptedBase64: string, privateKey: Crypt
 
         const decrypted = await window.crypto.subtle.decrypt(
             {
-                name: "RSA-OAEP",
-                // Explicitly specify hash to ensure compatibility with keys imported with SHA-256
-                // @ts-ignore - some TS versions might not expect hash here but subtle crypto often needs it
-                hash: "SHA-256" 
+                name: "RSA-OAEP"
             },
             privateKey,
             ciphertext
