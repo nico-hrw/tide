@@ -7,6 +7,7 @@ export interface Exam {
     description?: string;
     grade?: string;
     credits?: number;
+    color?: string;
 }
 
 export interface Semester {
