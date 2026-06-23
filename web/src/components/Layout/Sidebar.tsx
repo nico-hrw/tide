@@ -339,7 +339,7 @@ export default function Sidebar({
                                                     onClick={() => onTabSelect?.(tab.id, tab.type)}
                                                     onContextMenu={(e) => {
                                                         if (tab.type === 'file') {
-                                                            onContextMenu(e, tab.id, 'file');
+                                                            handleContextMenu(e, tab.id, 'file');
                                                         }
                                                     }}
                                                     className={`group relative flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover
