@@ -142,7 +142,7 @@ const MentionNodeView = ({ node }: any) => {
 interface EditorProps {
     initialContent: any; // JSON
     editable?: boolean;
-    onChange?: (content: any) => void;
+    onChange?: (content: any, yjsUpdateBase64?: string) => void;
     onLinkClick?: (target: LinkTarget) => void;
     onForceSave?: (content: any) => void;
     /** Called when the user pops selected text out to the canvas layer */
@@ -489,7 +489,19 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
 
             const content = editor.getJSON();
             if (onChangeRef.current) {
-                onChangeRef.current(content);
+                // Encode the Yjs state as a binary update
+                const update = Y.encodeStateAsUpdate(ydoc);
+                
+                // Convert Uint8Array to base64 efficiently
+                let binary = '';
+                const bytes = new Uint8Array(update);
+                const len = bytes.byteLength;
+                for (let i = 0; i < len; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                const base64Update = btoa(binary);
+
+                onChangeRef.current(content, base64Update);
             }
 
             // Feature: Dynamically update reference previews (the 'next line')
@@ -691,36 +703,50 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
         const insertContentIntoYjs = (content: any) => {
             if (!content) return;
             try {
-                const jsonContent = typeof content === 'string' ? JSON.parse(content) : content;
-                // Parse JSON with the editor's own schema (uses tiptap's prosemirror-model)
-                const doc = editor.schema.nodeFromJSON(jsonContent);
-                const xmlFragment = ydoc.getXmlFragment('default');
+                if (content.__yjs) {
+                    const binaryString = atob(content.__yjs);
+                    const len = binaryString.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    const Y = require('yjs');
+                    Y.applyUpdate(ydoc, bytes);
+                    console.log('[Collaboration] Content successfully restored from Yjs binary state.');
+                    return;
+                }
+
+                // Fallback for older JSON-only states
+                const xmlFragment = ydoc.getXmlFragment('prosemirror');
                 // Clear any existing (empty) content before populating
                 ydoc.transact(() => {
                     while (xmlFragment.length > 0) {
                         xmlFragment.delete(0, 1);
                     }
                 });
-                // Use @tiptap/y-tiptap (not y-prosemirror) to avoid prosemirror-model
-                // version mismatch. prosemirrorToYXmlFragment takes a Node, not JSON,
-                // so it doesn't call Node.fromJSON with a different prosemirror-model.
+
+                const { Schema } = require('prosemirror-model');
+                const schema = new Schema({
+                    nodes: editor.schema.spec.nodes,
+                    marks: editor.schema.spec.marks,
+                });
+                
+                const jsonContent = typeof content === 'string' ? JSON.parse(content) : content;
+                const { Node } = require('prosemirror-model');
+                const doc = Node.fromJSON(schema, jsonContent);
+
                 const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
                 
-                // CRITICAL FIX: To prevent duplicated content when multiple users open the
-                // same note, we force the Yjs clientID to be exactly 1 during initialization.
-                // This makes the insertion mathematically deterministic. Yjs will generate
-                // the exact same item IDs on all clients, resulting in perfect deduplication
-                // when the clients sync via WebRTC/WebSocket.
                 const oldClientId = ydoc.clientID;
                 ydoc.clientID = 1;
                 prosemirrorToYXmlFragment(doc, xmlFragment);
                 ydoc.clientID = oldClientId;
                 
-                console.log('[Collaboration] Content successfully inserted into Yjs document (deterministic).');
+                console.log('[Collaboration] Content successfully inserted into Yjs document (fallback).');
             } catch (e) {
                 console.error('[Collaboration] Failed to insert content into Yjs:', e);
                 // Last resort: try setContent (may not work but won't crash)
-                editor.commands.setContent(content, { emitUpdate: false });
+                editor.commands.setContent(content);
             }
         };
 
@@ -1211,6 +1237,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             )}
 
             <div
+                className="min-h-[500px]"
                 onContextMenu={(e) => {
                     if (editor?.isActive('table')) {
                         e.preventDefault();
@@ -1218,6 +1245,31 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
                     }
                 }}
                 onDragOver={(e) => e.preventDefault()}
+                onClick={(e) => {
+                    if (!editor || !editable) return;
+                    const target = e.target as HTMLElement;
+                    // Only trigger if clicking on the empty space of the ProseMirror container
+                    if (target.classList.contains('ProseMirror')) {
+                        const lastChild = editor.view.dom.lastElementChild as HTMLElement;
+                        if (lastChild) {
+                            const rect = lastChild.getBoundingClientRect();
+                            // If clicked significantly below the last text block
+                            if (e.clientY > rect.bottom + 20) {
+                                const diff = e.clientY - rect.bottom;
+                                const linesToAdd = Math.floor(diff / 28); // Approx 28px per paragraph
+                                if (linesToAdd > 0) {
+                                    let html = '';
+                                    for (let i = 0; i < linesToAdd; i++) {
+                                        html += '<p></p>';
+                                    }
+                                    editor.chain().focus('end').insertContent(html).run();
+                                } else {
+                                    editor.chain().focus('end').run();
+                                }
+                            }
+                        }
+                    }
+                }}
             >
                 <EditorContent editor={editor} />
             </div>

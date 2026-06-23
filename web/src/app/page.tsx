@@ -332,9 +332,10 @@ export default function Dashboard() {
         setTimeout(() => { setEditorInstance(ed); editorInstanceRef.current = ed; }, 0);
     }, []);
 
-    const handleEditorChange = useCallback((json: any) => {
+    const handleEditorChange = useCallback((json: any, yjsUpdateBase64?: string) => {
         // console.log("[Pulse] Editor changed, scheduling save...");
-        setEditorContent(json);
+        const fullContent = yjsUpdateBase64 ? { ...json, __yjs: yjsUpdateBase64 } : json;
+        setEditorContent(fullContent);
         setSaveStatus("unsaved");
         setEditorVersion(v => v + 1);
     }, []);
@@ -709,10 +710,11 @@ export default function Dashboard() {
 
             const fileRecord = allFiles.find(f => f.id === fileId);
             if (!fileRecord) console.warn(`[V2-Save] File ${fileId} not found in store, falling back to fileNameRef`);
-            const title = fileRecord?.title || fileNameRef.current || 'Untitled';
+            let title = fileRecord?.title || fileNameRef.current || 'Untitled';
+            if (title.includes('(Corrupted)')) title = title.replace(' (Corrupted)', '').replace('(Corrupted)', '').trim() || 'Untitled';
 
             // Single atomic PUT: writes blob to BlobStore and updates metadata
-            const isOwner = (currentFile?.share_status || 'owner') === 'owner';
+            const isOwner = currentFile?.owner_id === freshMyId;
 
             // Re-encrypt secured_meta with RSA so fetchDirectory can decrypt the
             // title on the next reload. CRITICAL FIX: Only do this if we are the owner!
@@ -3614,15 +3616,9 @@ export default function Dashboard() {
                                                                 
                                                                 return (
                                                                     <button
-                                                                        onClick={() => {
-                                                                            if (isSharedByOwner) {
-                                                                                setShowSharePanel(!showSharePanel);
-                                                                            } else if (isRecipient) {
-                                                                                alert("Dieses Dokument wurde mit dir geteilt.");
-                                                                            }
-                                                                        }}
+                                                                        onClick={() => setShowSharePanel(!showSharePanel)}
                                                                         title={saveStatus === 'saving' ? 'Wird gespeichert…' : saveStatus === 'unsaved' ? 'Nicht gespeichert' : (isSharedByOwner ? 'Synced - Klick für Rechteverwaltung' : (isRecipient ? 'Synced - Geteilt mit dir' : 'Gespeichert'))}
-                                                                        className={`p-1.5 rounded-lg transition-colors ${saveStatus === 'saved' && isSharedByOwner ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800' : 'cursor-default'}`}
+                                                                        className={`p-1.5 rounded-lg transition-colors ${saveStatus === 'saved' && (isSharedByOwner || isRecipient) ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800' : 'cursor-default'}`}
                                                                     >
                                                                         {saveStatus === 'saved' && (
                                                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isShared ? "text-sky-400 opacity-70 hover:opacity-100" : "text-green-400 opacity-60"}>
@@ -3645,7 +3641,17 @@ export default function Dashboard() {
                                                                     </button>
                                                                 );
                                                             })()}
-                                                            {showSharePanel && <ShareManagementPanel fileId={activeNoteId} onClose={() => setShowSharePanel(false)} />}
+                                                            {showSharePanel && (() => {
+                                                                const af = files.find(f => f.id === activeNoteId) as any;
+                                                                return (
+                                                                    <ShareManagementPanel 
+                                                                        fileId={activeNoteId} 
+                                                                        onClose={() => setShowSharePanel(false)}
+                                                                        isOwner={af?.owner_id === myId}
+                                                                        myPermission={af?.permission || 'view'}
+                                                                    />
+                                                                );
+                                                            })()}
                                                         </div>
                                                     </div>
                                                 </div>

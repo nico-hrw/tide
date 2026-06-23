@@ -400,6 +400,11 @@ func (h *FileHandler) UpdateSharePermissionEndpoint(w http.ResponseWriter, r *ht
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// [FIX] Notify the target user so their frontend immediately updates permissions
+	eventData := fmt.Sprintf(`{"type":"file_updated","file_id":"%s"}`, fileID)
+	h.Broker.Broadcast(targetUserID, eventData)
+
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "Permission updated"}`))
 }
@@ -430,6 +435,11 @@ func (h *FileHandler) RevokeShare(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to revoke share", http.StatusInternalServerError)
 		return
 	}
+
+	// [FIX] Notify the target user so their frontend immediately locks the editor
+	eventData := fmt.Sprintf(`{"type":"file_updated","file_id":"%s"}`, fileID)
+	h.Broker.Broadcast(targetUserID, eventData)
+
 	// Also remove the recipient's wrapped DEK from access_keys.
 	jsonPath := fmt.Sprintf("$.%s", targetUserID)
 	query := `UPDATE files SET access_keys = json_remove(COALESCE(NULLIF(access_keys, ''), '{}'), ?), updated_at = ? WHERE id = ?`

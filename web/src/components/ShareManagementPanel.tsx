@@ -18,9 +18,11 @@ interface Share {
 interface ShareManagementPanelProps {
     fileId: string;
     onClose: () => void;
+    isOwner: boolean;
+    myPermission?: string;
 }
 
-export default function ShareManagementPanel({ fileId, onClose }: ShareManagementPanelProps) {
+export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermission }: ShareManagementPanelProps) {
     const [shares, setShares] = useState<Share[]>([]);
     const [loading, setLoading] = useState(true);
     const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -98,14 +100,30 @@ export default function ShareManagementPanel({ fileId, onClose }: ShareManagemen
                     <div className="p-4 text-center flex flex-col items-center justify-center text-gray-500 gap-2">
                         <ShieldAlert size={24} className="text-gray-300" />
                         <span className="text-sm">This note isn't shared with anyone yet.</span>
+                ) : !isOwner ? (
+                    <div className="p-4 flex flex-col items-center justify-center text-center space-y-2">
+                        <ShieldAlert size={32} className="text-blue-500 mb-2 opacity-80" />
+                        <p className="text-sm text-gray-700 dark:text-gray-300">
+                            Der Eigentümer hat diese Notiz mit dir geteilt.
+                        </p>
+                        <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                            Status: {myPermission === 'view' ? 'Lesezugriff' : myPermission === 'edit' ? 'Bearbeiter' : 'Vollzugriff'}
+                        </div>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-1">
+                    <div className="p-2 space-y-1">
+                        {shares.length === 0 && !loading && (
+                            <div className="p-4 text-center text-sm text-gray-500">
+                                Noch nicht geteilt.
+                            </div>
+                        )}
+                        
                         {shares.map(share => (
-                            <div key={share.user_id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
+                            <div key={share.user_id} className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg group">
                                 <div className="flex items-center gap-3 overflow-hidden">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
-                                        {(share.username || '?')[0].toUpperCase()}
+                                    <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold"
+                                            style={{ backgroundColor: share.avatar_style || '#3b82f6' }}>
+                                        {(share.username || 'U')[0].toUpperCase()}
                                     </div>
                                     <div className="flex flex-col truncate">
                                         <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
