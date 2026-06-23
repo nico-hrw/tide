@@ -96,10 +96,6 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
             <div className="p-2 max-h-64 overflow-y-auto">
                 {loading ? (
                     <div className="p-4 text-center text-sm text-gray-500 animate-pulse">Loading shares...</div>
-                ) : shares.length === 0 ? (
-                    <div className="p-4 text-center flex flex-col items-center justify-center text-gray-500 gap-2">
-                        <ShieldAlert size={24} className="text-gray-300" />
-                        <span className="text-sm">This note isn't shared with anyone yet.</span>
                 ) : !isOwner ? (
                     <div className="p-4 flex flex-col items-center justify-center text-center space-y-2">
                         <ShieldAlert size={32} className="text-blue-500 mb-2 opacity-80" />
@@ -110,14 +106,13 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
                             Status: {myPermission === 'view' ? 'Lesezugriff' : myPermission === 'edit' ? 'Bearbeiter' : 'Vollzugriff'}
                         </div>
                     </div>
+                ) : shares.length === 0 ? (
+                    <div className="p-4 text-center flex flex-col items-center justify-center text-gray-500 gap-2">
+                        <ShieldAlert size={24} className="text-gray-300" />
+                        <span className="text-sm">Noch nicht geteilt.</span>
+                    </div>
                 ) : (
                     <div className="p-2 space-y-1">
-                        {shares.length === 0 && !loading && (
-                            <div className="p-4 text-center text-sm text-gray-500">
-                                Noch nicht geteilt.
-                            </div>
-                        )}
-                        
                         {shares.map(share => (
                             <div key={share.user_id} className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg group">
                                 <div className="flex items-center gap-3 overflow-hidden">
