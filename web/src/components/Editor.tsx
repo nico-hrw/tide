@@ -238,8 +238,11 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
         };
         provider.on('sync', handleSync);
 
-        const color = COLORS[Math.floor(Math.random() * COLORS.length)];
         const userId = myId || useDataStore.getState().myId || 'anonymous';
+        // Deterministic color based on userId
+        const hash = Array.from(userId).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const color = COLORS[hash % COLORS.length];
+        
         provider.awareness.setLocalStateField('user', {
             name: userProfile?.username || 'User',
             color: color,
@@ -702,8 +705,18 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
                 // version mismatch. prosemirrorToYXmlFragment takes a Node, not JSON,
                 // so it doesn't call Node.fromJSON with a different prosemirror-model.
                 const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
+                
+                // CRITICAL FIX: To prevent duplicated content when multiple users open the
+                // same note, we force the Yjs clientID to be exactly 1 during initialization.
+                // This makes the insertion mathematically deterministic. Yjs will generate
+                // the exact same item IDs on all clients, resulting in perfect deduplication
+                // when the clients sync via WebRTC/WebSocket.
+                const oldClientId = ydoc.clientID;
+                ydoc.clientID = 1;
                 prosemirrorToYXmlFragment(doc, xmlFragment);
-                console.log('[Collaboration] Content successfully inserted into Yjs document.');
+                ydoc.clientID = oldClientId;
+                
+                console.log('[Collaboration] Content successfully inserted into Yjs document (deterministic).');
             } catch (e) {
                 console.error('[Collaboration] Failed to insert content into Yjs:', e);
                 // Last resort: try setContent (may not work but won't crash)

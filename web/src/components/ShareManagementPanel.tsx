@@ -5,14 +5,14 @@ import { Users, X, ShieldAlert, Check, UserMinus } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 interface Share {
-    id: string; // The access key ID
-    partner_id: string;
-    partner: {
-        id: string;
-        username: string;
-        email: string;
-    };
+    file_id: string;
+    user_id: string;
+    status: string;
     permission: 'view' | 'edit' | 'share';
+    username?: string;
+    avatar_seed?: string;
+    avatar_salt?: string;
+    avatar_style?: string;
 }
 
 interface ShareManagementPanelProps {
@@ -44,15 +44,15 @@ export default function ShareManagementPanel({ fileId, onClose }: ShareManagemen
         }
     };
 
-    const handleRevoke = async (shareId: string) => {
+    const handleRevoke = async (userId: string) => {
         if (!confirm("Remove access for this user?")) return;
-        setRevokingId(shareId);
+        setRevokingId(userId);
         try {
-            const res = await apiFetch(`/api/v1/files/${fileId}/shares/${shareId}`, {
+            const res = await apiFetch(`/api/v1/files/${fileId}/shares/${userId}`, {
                 method: "DELETE"
             });
             if (res.ok) {
-                setShares(prev => prev.filter(s => s.id !== shareId));
+                setShares(prev => prev.filter(s => s.user_id !== userId));
             } else {
                 alert("Failed to remove access");
             }
@@ -64,10 +64,10 @@ export default function ShareManagementPanel({ fileId, onClose }: ShareManagemen
         }
     };
 
-    const handleUpdatePermission = async (shareId: string, newPermission: string) => {
+    const handleUpdatePermission = async (userId: string, newPermission: string) => {
         try {
-            setShares(prev => prev.map(s => s.id === shareId ? { ...s, permission: newPermission as any } : s));
-            const res = await apiFetch(`/api/v1/files/${fileId}/shares/${shareId}`, {
+            setShares(prev => prev.map(s => s.user_id === userId ? { ...s, permission: newPermission as any } : s));
+            const res = await apiFetch(`/api/v1/files/${fileId}/shares/${userId}`, {
                 method: "PATCH",
                 body: JSON.stringify({ permission: newPermission })
             });
@@ -102,19 +102,19 @@ export default function ShareManagementPanel({ fileId, onClose }: ShareManagemen
                 ) : (
                     <div className="flex flex-col gap-1">
                         {shares.map(share => (
-                            <div key={share.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
+                            <div key={share.user_id} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
                                 <div className="flex items-center gap-3 overflow-hidden">
                                     <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs shrink-0">
-                                        {(share.partner?.username || '?')[0].toUpperCase()}
+                                        {(share.username || '?')[0].toUpperCase()}
                                     </div>
                                     <div className="flex flex-col truncate">
                                         <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                                            {share.partner?.username || 'Unknown User'}
+                                            {share.username || 'Unknown User'}
                                         </span>
                                         <span className="text-[10px] text-gray-500 uppercase tracking-wider flex items-center gap-1">
                                             <select
                                                 value={share.permission}
-                                                onChange={(e) => handleUpdatePermission(share.id, e.target.value)}
+                                                onChange={(e) => handleUpdatePermission(share.user_id, e.target.value)}
                                                 className="bg-transparent border-none p-0 focus:ring-0 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300"
                                             >
                                                 <option value="view">Lesezugriff</option>
@@ -125,8 +125,8 @@ export default function ShareManagementPanel({ fileId, onClose }: ShareManagemen
                                     </div>
                                 </div>
                                 <button 
-                                    onClick={() => handleRevoke(share.id)}
-                                    disabled={revokingId === share.id}
+                                    onClick={() => handleRevoke(share.user_id)}
+                                    disabled={revokingId === share.user_id}
                                     className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md opacity-0 group-hover:opacity-100 transition-all shrink-0"
                                     title="Remove Access"
                                 >

@@ -711,18 +711,21 @@ export default function Dashboard() {
             if (!fileRecord) console.warn(`[V2-Save] File ${fileId} not found in store, falling back to fileNameRef`);
             const title = fileRecord?.title || fileNameRef.current || 'Untitled';
 
-            // Re-encrypt secured_meta with RSA so fetchDirectory can decrypt the
-            // title on the next reload without hitting an OperationError from a
-            // stale V1-format secured_meta (which was written by handleNewNote).
-            let freshSecuredMeta: string | undefined;
-            try {
-                freshSecuredMeta = await cryptoLib.encryptMetadata({ title }, freshPubKey);
-            } catch (smErr) {
-                console.warn('[V2-Save] Could not encrypt secured_meta — title will fall back to metadata.title on reload', smErr);
-            }
-
             // Single atomic PUT: writes blob to BlobStore and updates metadata
             const isOwner = (currentFile?.share_status || 'owner') === 'owner';
+
+            // Re-encrypt secured_meta with RSA so fetchDirectory can decrypt the
+            // title on the next reload. CRITICAL FIX: Only do this if we are the owner!
+            // If a collaborator updates secured_meta, they would encrypt it with THEIR
+            // public key, corrupting the owner's title to 'Untitled (Corrupted)'.
+            let freshSecuredMeta: string | undefined;
+            if (isOwner) {
+                try {
+                    freshSecuredMeta = await cryptoLib.encryptMetadata({ title }, freshPubKey);
+                } catch (smErr) {
+                    console.warn('[V2-Save] Could not encrypt secured_meta — title will fall back to metadata.title on reload', smErr);
+                }
+            }
 
             // Stamp BEFORE the PUT so the SSE cooldown activates even if SSE arrives
             // before the HTTP response (server sends SSE immediately after processing).
@@ -3158,7 +3161,9 @@ export default function Dashboard() {
                                 }}
                                 onActiveUsersChange={(users) => {
                                     // only show OTHER users
-                                    setActiveCollaborators(users.filter(u => u.id !== myId));
+                                    if (myId) {
+                                        setActiveCollaborators(users.filter(u => u.id !== myId));
+                                    }
                                 }}
                                 userProfile={userProfile}
                                 myId={myId}
@@ -3715,7 +3720,9 @@ export default function Dashboard() {
                                                     activeTabId={activeTabId}
                                                     onReturnToTab={(tabId) => setActiveTabId(tabId)}
                                                     onActiveUsersChange={(users) => {
-                                                        setActiveCollaborators(users.filter(u => u.id !== myId));
+                                                        if (myId) {
+                                                            setActiveCollaborators(users.filter(u => u.id !== myId));
+                                                        }
                                                     }}
                                                     userProfile={userProfile}
                                                     myId={myId}
