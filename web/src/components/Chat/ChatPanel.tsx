@@ -570,7 +570,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                 ? `partner_id=${id}`
                 : `partner_email=${encodeURIComponent(email)}`;
                 
-            const res = await apiFetch(`/api/v1/messages/?${query}`);
+            const res = await apiFetch(`/api/v1/messages?${query}`);
             if (res.ok) {
                 setMessages(await res.json() || []);
             }

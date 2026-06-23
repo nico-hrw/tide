@@ -1179,50 +1179,13 @@ export default function Dashboard() {
     // SSE content-reload: when another client updates a file we have open, silently update content
     useEffect(() => {
         const handler = async (e: Event) => {
-            const { fileId } = (e as CustomEvent).detail;
-            if (fileId !== activeNoteId || isLoadingContent || editorContent === null) return;
-            // Never overwrite unsaved local changes — user is mid-edit
-            if (saveStatusRef.current === 'unsaved') {
-                console.log('[SSE] Skipping reload — user has unsaved changes');
-                return;
-            }
-            const ed = editorInstanceRef.current;
-            if (!ed) return;
+            const fileId = (e as CustomEvent).detail.fileId;
+            if (fileId !== activeNoteId) return;
 
-            console.log('[SSE] Silent content reload for open note:', fileId);
-            try {
-                const freshState = useDataStore.getState();
-                if (!freshState.privateKey || !freshState.myId) return;
-                const allFiles = [...freshState.notes, ...freshState.events] as any[];
-                const target = allFiles.find((f: any) => f.id === fileId);
-                if (!target || (target.version ?? 1) < 2 || !target.access_keys) return;
-
-                const cryptoV2 = await import('@/lib/cryptoV2');
-                const cryptoLib = await import('@/lib/crypto');
-                const accessKeys = typeof target.access_keys === 'string'
-                    ? JSON.parse(target.access_keys) : (target.access_keys || {});
-                const myAccess = accessKeys[freshState.myId];
-                if (!myAccess?.wrapped_key) return;
-
-                const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, freshState.privateKey);
-                const dek = await cryptoV2.importDEK(rawDek);
-                const res = await (await import('@/lib/api')).apiFetch(`/api/v1/files/${fileId}/download`);
-                if (!res.ok) return;
-                const blobText = await res.text();
-                const payload = JSON.parse(blobText);
-                if (!payload.data || !payload.iv) return;
-
-                const ivBuf = cryptoLib.base64ToArrayBuffer(payload.iv);
-                const dataBuf = cryptoLib.base64ToArrayBuffer(payload.data);
-                const decrypted = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBuf }, dek, dataBuf);
-                const contentText = new TextDecoder().decode(decrypted);
-                const parsed = JSON.parse(contentText);
-                // Update editor content in-place — no blank flash
-                ed.commands.setContent(parsed, false);
-            } catch (err) {
-                console.warn('[SSE] Silent reload failed, falling back to full reload:', err);
-                loadNoteContent(fileId, fileName);
-            }
+            // Since Collaboration handles syncing natively via Yjs and __yjs binary
+            // applying `setContent` will completely overwrite the editor, causing massive duplication.
+            // We just let the websocket or the next initial load handle it.
+            console.log('[SSE] Ignored tide:sse_reload because Collaboration natively handles it for file:', fileId);
         };
         window.addEventListener('tide:sse_reload', handler as EventListener);
         return () => window.removeEventListener('tide:sse_reload', handler as EventListener);
@@ -1291,6 +1254,18 @@ export default function Dashboard() {
             });
         }
     }, [privateKey, publicKey, myId, setKeys, fetchDirectory]);
+
+    // Cleanup orphaned tabs when access is revoked or file is deleted
+    useEffect(() => {
+        if (!isRestored || !files || files.length === 0) return;
+        setOpenTabs(prev => {
+            const next = prev.filter(tab => {
+                if (tab.id === 'calendar' || tab.id === 'messages' || tab.id.startsWith('ext_') || tab.id.startsWith('chat-') || tab.id.startsWith('profile:')) return true;
+                return files.some(f => f.id === tab.id);
+            });
+            return next.length !== prev.length ? next : prev;
+        });
+    }, [files, isRestored]);
 
     // Persistence Effect for Tabs & Layout
     useEffect(() => {

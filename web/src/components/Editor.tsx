@@ -688,6 +688,12 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
         },
     });
 
+    useEffect(() => {
+        if (editor && editable !== editor.isEditable) {
+            editor.setEditable(editable);
+        }
+    }, [editor, editable]);
+
     const initialContentRef = useRef(initialContent);
     useEffect(() => { initialContentRef.current = initialContent; }, [initialContent]);
 
@@ -724,16 +730,11 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
                         xmlFragment.delete(0, 1);
                     }
                 });
-
-                const { Schema } = require('prosemirror-model');
-                const schema = new Schema({
-                    nodes: editor.schema.spec.nodes,
-                    marks: editor.schema.spec.marks,
-                });
                 
                 const jsonContent = typeof content === 'string' ? JSON.parse(content) : content;
-                const { Node } = require('prosemirror-model');
-                const doc = Node.fromJSON(schema, jsonContent);
+                
+                // Use the editor's schema directly to avoid RangeError from multiple prosemirror-model versions
+                const doc = editor.schema.nodeFromJSON(jsonContent);
 
                 const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
                 
