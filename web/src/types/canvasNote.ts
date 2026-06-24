@@ -24,6 +24,7 @@ export interface CanvasImageItem extends CanvasNoteItemBase {
     height?: number;
     blobId: string;
     encryptedKey: string;
+    fileKeyJwk?: any;
     iv: string;
     mimeType: string;
 }

@@ -612,6 +612,15 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		Metadata:    req.Metadata,
 		AccessKeys:  req.AccessKeys,
 	}
+
+	// Inherit access_keys and visibility from parent if not explicitly provided
+	if req.ParentID != nil && *req.ParentID != "" && (req.AccessKeys == nil || len(req.AccessKeys) == 0 || string(req.AccessKeys) == "null" || string(req.AccessKeys) == "{}") {
+		if parentFile, err := h.Store.GetFile(r.Context(), *req.ParentID); err == nil {
+			file.Visibility = parentFile.Visibility
+			file.AccessKeys = parentFile.AccessKeys
+		}
+	}
+
 	if file.Version == 0 {
 		file.Version = 1
 	}

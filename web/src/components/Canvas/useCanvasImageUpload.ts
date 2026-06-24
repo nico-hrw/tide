@@ -10,6 +10,7 @@ export interface UploadedImage {
     type: 'image';
     blobId: string;
     encryptedKey: string;
+    fileKeyJwk?: any;
     iv: string;
     mimeType: string;
     width: number;
@@ -56,16 +57,17 @@ export function useCanvasImageUpload(
             const newFile = await createRes.json() as { id: string };
             await apiFetch(`/api/v1/files/${newFile.id}/upload`, { method: 'POST', body: ciphertext });
 
-            const result: UploadedImage = {
+            const result: UploadedImage & { fileKeyJwk?: any } = {
                 id: crypto.randomUUID(),
                 type: 'image',
                 blobId: newFile.id,
                 encryptedKey: encryptedMeta,
+                fileKeyJwk: fileKeyJwk,
                 iv,
                 mimeType: file.type,
                 width: 300,
             };
-            onDone(placeholderId, result);
+            onDone(placeholderId, result as UploadedImage);
         } catch (err) {
             console.error('[Canvas] Image upload failed:', err);
             onError(placeholderId);

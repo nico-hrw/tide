@@ -30,17 +30,24 @@ function ImageWidget({
         let cancelled = false;
         (async () => {
             try {
-                console.log('[ImageWidget] blobId:', item.blobId, 'encryptedKey length:', item.encryptedKey?.length);
-                const meta = await cryptoLib.decryptMetadata(item.encryptedKey, privateKey);
-                console.log('[ImageWidget] meta decrypted:', meta ? Object.keys(meta) : null);
-                if (!meta || !meta.fileKey) {
-                    console.error('[ImageWidget] Missing fileKey in meta:', meta);
-                    if (!cancelled) { setError('Invalid metadata'); setLoading(false); }
-                    return;
+                let fileKey: CryptoKey;
+                if (item.fileKeyJwk) {
+                    fileKey = await window.crypto.subtle.importKey(
+                        'jwk', item.fileKeyJwk as JsonWebKey, { name: 'AES-GCM' }, false, ['decrypt']
+                    );
+                } else {
+                    console.log('[ImageWidget] blobId:', item.blobId, 'encryptedKey length:', item.encryptedKey?.length);
+                    const meta = await cryptoLib.decryptMetadata(item.encryptedKey, privateKey);
+                    console.log('[ImageWidget] meta decrypted:', meta ? Object.keys(meta) : null);
+                    if (!meta || !meta.fileKey) {
+                        console.error('[ImageWidget] Missing fileKey in meta:', meta);
+                        if (!cancelled) { setError('Invalid metadata'); setLoading(false); }
+                        return;
+                    }
+                    fileKey = await window.crypto.subtle.importKey(
+                        'jwk', meta.fileKey as JsonWebKey, { name: 'AES-GCM' }, false, ['decrypt']
+                    );
                 }
-                const fileKey = await window.crypto.subtle.importKey(
-                    'jwk', meta.fileKey as JsonWebKey, { name: 'AES-GCM' }, false, ['decrypt']
-                );
                 const res = await apiFetch(`/api/v1/files/${item.blobId}/download`);
                 console.log('[ImageWidget] download status:', res.status);
                 if (!res.ok) {
