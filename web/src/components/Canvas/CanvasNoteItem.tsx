@@ -56,7 +56,7 @@ function ImageWidget({
                     if (!cancelled) { setError(msg); setLoading(false); }
                     return;
                 }
-                const dec = await cryptoLib.decryptFile(await res.blob(), meta.iv as string, fileKey);
+                const dec = await cryptoLib.decryptFile(await res.blob(), item.iv, fileKey);
                 const url = URL.createObjectURL(new Blob([await dec.arrayBuffer()], { type: item.mimeType }));
                 imageBlobCache.current.set(item.blobId, url);
                 if (!cancelled) { setSrc(url); setLoading(false); }
