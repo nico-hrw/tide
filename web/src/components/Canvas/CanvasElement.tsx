@@ -565,7 +565,7 @@ export default function CanvasElementComponent({
                 {!isMobile && pos !== null && !isBindingMode && (
                     <div className="absolute -top-7 left-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity
             bg-gray-900/80 backdrop-blur-sm rounded-lg px-1.5 py-0.5 border border-white/10 z-10 whitespace-nowrap">
-                        <GripVertical size={12} className="text-gray-400" />
+                        <GripVertical size={12} className="text-gray-400 dark:text-slate-500" />
                         <span className="text-xs text-gray-400 select-none">{isImageElement(element) ? 'Image' : 'Text'}</span>
                         {isUnbound && <span className="text-xs text-amber-400 ml-1">· unbound</span>}
                         <button className="ml-1 text-gray-400 hover:text-red-400 transition-colors"

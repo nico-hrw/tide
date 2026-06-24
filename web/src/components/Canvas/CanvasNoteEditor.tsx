@@ -251,11 +251,11 @@ export default function CanvasNoteEditor({
             {/* Zoom controls */}
             <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-white/90 dark:bg-gray-900/90 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 shadow-sm z-10">
                 <button onClick={() => zoomBy(-0.1)} className="p-1 hover:bg-gray-100 rounded transition-colors">
-                    <ZoomOut size={14} className="text-gray-500" />
+                    <ZoomOut size={14} className="text-gray-500 dark:text-slate-400" />
                 </button>
                 <span className="text-xs text-gray-500 w-10 text-center">{Math.round(zoom * 100)}%</span>
                 <button onClick={() => zoomBy(0.1)} className="p-1 hover:bg-gray-100 rounded transition-colors">
-                    <ZoomIn size={14} className="text-gray-500" />
+                    <ZoomIn size={14} className="text-gray-500 dark:text-slate-400" />
                 </button>
             </div>
         </div>

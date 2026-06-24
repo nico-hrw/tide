@@ -620,7 +620,7 @@ export default function Sidebar({
 
             {contextMenu && (
                 <div
-                    className="context-menu fixed z-[200] w-56 bg-white border border-gray-200 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
+                    className="context-menu fixed z-[200] w-56 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
                     style={{ left: contextMenu.x, top: contextMenu.y }}
                 >
                     <div className="px-2 py-1.5 flex flex-col gap-0.5">
@@ -664,33 +664,33 @@ export default function Sidebar({
                                     <Eye size={16} className="text-gray-400 group-hover:text-blue-500" />
                                     <span className="font-medium">Visibility</span>
                                 </div>
-                                <ChevronRight size={14} className="text-gray-400" />
+                                <ChevronRight size={14} className="text-gray-400 dark:text-slate-500" />
                             </button>
-                            <div className="hidden group-hover/sub:block absolute left-full top-0 ml-1 w-48 bg-white border border-gray-200 rounded-xl shadow-xl py-1">
+                            <div className="hidden group-hover/sub:block absolute left-full top-0 ml-1 w-48 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl py-1">
                                 {(() => {
                                     const currentFile = files.find((f: any) => f.id === contextMenu.id);
                                     const v = currentFile?.visibility || 'private';
                                     return (
                                         <>
-                                            <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'private'); }} className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 rounded-lg transition-colors group ${v === 'private' ? 'text-blue-600 bg-blue-50/50' : 'text-gray-700'}`}>
+                                            <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'private'); }} className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 rounded-lg transition-colors group ${v === 'private' ? 'text-blue-600 bg-blue-50/50' : 'text-gray-700 dark:text-slate-300'}`}>
                                                 <span className="font-medium">Private</span>
                                                 <div className="flex items-center gap-2">
                                                     {v === 'private' && <Check size={14} className="text-blue-600" />}
-                                                    <Lock size={14} className="text-gray-400" />
+                                                    <Lock size={14} className="text-gray-400 dark:text-slate-500" />
                                                 </div>
                                             </button>
-                                            <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'contacts'); }} className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 rounded-lg transition-colors group ${v === 'contacts' ? 'text-blue-600 bg-blue-50/50' : 'text-gray-700'}`}>
+                                            <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'contacts'); }} className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 rounded-lg transition-colors group ${v === 'contacts' ? 'text-blue-600 bg-blue-50/50' : 'text-gray-700 dark:text-slate-300'}`}>
                                                 <span className="font-medium">For Contacts</span>
                                                 <div className="flex items-center gap-2">
                                                     {v === 'contacts' && <Check size={14} className="text-blue-600" />}
-                                                    <Users size={14} className="text-gray-400" />
+                                                    <Users size={14} className="text-gray-400 dark:text-slate-500" />
                                                 </div>
                                             </button>
-                                            <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'public'); }} className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 rounded-lg transition-colors group ${v === 'public' ? 'text-blue-600 bg-blue-50/50' : 'text-gray-700'}`}>
+                                            <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'public'); }} className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 rounded-lg transition-colors group ${v === 'public' ? 'text-blue-600 bg-blue-50/50' : 'text-gray-700 dark:text-slate-300'}`}>
                                                 <span className="font-medium">Public link</span>
                                                 <div className="flex items-center gap-2">
                                                     {v === 'public' && <Check size={14} className="text-blue-600" />}
-                                                    <Globe size={14} className="text-gray-400" />
+                                                    <Globe size={14} className="text-gray-400 dark:text-slate-500" />
                                                 </div>
                                             </button>
                                         </>
@@ -732,7 +732,7 @@ export default function Sidebar({
 
             {sidebarContextMenu && (
                 <div
-                    className="context-menu fixed z-[200] w-56 bg-white border border-gray-200 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
+                    className="context-menu fixed z-[200] w-56 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
                     style={{ left: sidebarContextMenu.x, top: sidebarContextMenu.y }}
                 >
                     <div className="px-2 py-1.5 flex flex-col gap-0.5">
@@ -1020,9 +1020,9 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                     {isLoading ? (
                         <Loader2 size={15} className="text-gray-400 animate-spin" />
                     ) : isOpen ? (
-                        <FolderOpen size={15} className="text-gray-400" />
+                        <FolderOpen size={15} className="text-gray-400 dark:text-slate-500" />
                     ) : (
-                        <Folder size={15} className="text-gray-400" />
+                        <Folder size={15} className="text-gray-400 dark:text-slate-500" />
                     )}
                     {(folder as any).share_status === 'shared' && (
                         <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-sky-400" title="Geteilter Ordner" />

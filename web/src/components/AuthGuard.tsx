@@ -11,7 +11,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const [authorized, setAuthorized] = useState(false);
 
-    const { theme } = useDataStore();
+    const { theme, themePreference, setThemePreference } = useDataStore();
 
     useEffect(() => {
         // Initialize theme class
@@ -20,7 +20,18 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         } else {
             document.documentElement.classList.remove('dark');
         }
+    }, [theme]);
 
+    // Listen for OS color-scheme changes when preference is 'system'
+    useEffect(() => {
+        if (themePreference !== 'system') return;
+        const mql = window.matchMedia('(prefers-color-scheme: dark)');
+        const handler = () => setThemePreference('system'); // re-resolve
+        mql.addEventListener('change', handler);
+        return () => mql.removeEventListener('change', handler);
+    }, [themePreference, setThemePreference]);
+
+    useEffect(() => {
         const checkAuth = async () => {
             const isPublic = PUBLIC_PATHS.includes(pathname);
             if (isPublic) {

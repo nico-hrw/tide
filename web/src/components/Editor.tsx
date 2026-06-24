@@ -89,7 +89,7 @@ const MentionNodeView = ({ node }: any) => {
     };
 
     if (isGhost) {
-        colorClass = 'bg-gray-100 text-gray-500 hover:bg-gray-200 border-gray-200';
+        colorClass = 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600 border-gray-200 dark:border-slate-600';
     } else if (type === 'event') {
         if (liveFile?.color) {
             styleObj = {
@@ -183,7 +183,7 @@ export default function Editor(props: EditorProps) {
 
     if (!mounted) {
         return (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-slate-500 h-[50vh] mt-20">
                 <span className="font-medium text-sm">Lade Editor...</span>
             </div>
         );
@@ -394,7 +394,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
                 const start = node.attrs.start;
 
                 const baseClass = 'px-1.5 py-0.5 rounded-md font-medium cursor-pointer mention transition-colors';
-                const colorClass = isGhost ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' :
+                const colorClass = isGhost ? 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600' :
                     (type === 'event' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-purple-100 text-purple-700 hover:bg-purple-200');
 
                 return [
@@ -569,7 +569,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
         },
         editorProps: {
             attributes: {
-                class: 'prose max-w-none w-full focus:outline-none min-h-[500px] pb-32 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mt-1 [&_ul[data-type="taskList"]]:list-none [&_ul[data-type="taskList"]]:pl-0 [&_li[data-type="taskItem"]]:flex [&_li[data-type="taskItem"]]:items-start [&_li[data-type="taskItem"]>label]:mr-2 [&_li[data-type="taskItem"]>label]:mt-1 [&_li[data-type="taskItem"]>div]:mt-[2px] [&_table]:border-collapse [&_table]:table-fixed [&_table]:w-full [&_table]:my-4 [&_td]:border [&_td]:border-gray-300 [&_td]:p-2 [&_td]:relative [&_td]:min-w-[100px] [&_th]:border [&_th]:border-gray-300 [&_th]:p-2 [&_th]:bg-gray-50 [&_th]:relative [&_th]:min-w-[100px] [&_th]:font-semibold [&_.column-resize-handle]:absolute [&_.column-resize-handle]:-right-1.5 [&_.column-resize-handle]:top-0 [&_.column-resize-handle]:bottom-[calc(-1px)] [&_.column-resize-handle]:w-3 [&_.column-resize-handle]:bg-blue-500/20 [&_.column-resize-handle]:cursor-col-resize hover:[&_.column-resize-handle]:bg-blue-500',
+                class: 'prose max-w-none w-full focus:outline-none min-h-[500px] pb-32 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mt-1 [&_ul[data-type="taskList"]]:list-none [&_ul[data-type="taskList"]]:pl-0 [&_li[data-type="taskItem"]]:flex [&_li[data-type="taskItem"]]:items-start [&_li[data-type="taskItem"]>label]:mr-2 [&_li[data-type="taskItem"]>label]:mt-1 [&_li[data-type="taskItem"]>div]:mt-[2px] [&_table]:border-collapse [&_table]:table-fixed [&_table]:w-full [&_table]:my-4 [&_td]:border [&_td]:border-gray-300 dark:[&_td]:border-slate-600 [&_td]:p-2 [&_td]:relative [&_td]:min-w-[100px] [&_th]:border [&_th]:border-gray-300 dark:[&_th]:border-slate-600 [&_th]:p-2 [&_th]:bg-gray-50 dark:[&_th]:bg-slate-800/50 [&_th]:relative [&_th]:min-w-[100px] [&_th]:font-semibold [&_.column-resize-handle]:absolute [&_.column-resize-handle]:-right-1.5 [&_.column-resize-handle]:top-0 [&_.column-resize-handle]:bottom-[calc(-1px)] [&_.column-resize-handle]:w-3 [&_.column-resize-handle]:bg-blue-500/20 [&_.column-resize-handle]:cursor-col-resize hover:[&_.column-resize-handle]:bg-blue-500',
             },
             handleClick: (view, pos, event) => {
                 const target = event.target as HTMLElement;
@@ -1022,7 +1022,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
                             }
                         }}
                     />
-                    <span className="text-xs text-gray-400 pr-1">px</span>
+                    <span className="text-xs text-gray-400 dark:text-slate-500 pr-1">px</span>
 
                     <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1" />
 

@@ -46,7 +46,7 @@ export default function BottomSheet({
             key="bs-sheet"
             role="dialog"
             aria-modal="true"
-            className="fixed bottom-0 left-0 right-0 z-[401] bg-white rounded-t-[28px] flex flex-col overflow-hidden"
+            className="fixed bottom-0 left-0 right-0 z-[401] bg-white dark:bg-slate-900 rounded-t-[28px] flex flex-col overflow-hidden"
             style={{ maxHeight: snapHeight }}
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
@@ -55,14 +55,14 @@ export default function BottomSheet({
           >
             {/* Drag handle — TODO(dark): dark:bg-gray-700 */}
             <div className="flex justify-center pt-3 pb-1 shrink-0">
-              <div className="w-10 h-1 rounded-full bg-gray-200" />
+              <div className="w-10 h-1 rounded-full bg-gray-200 dark:bg-slate-700" />
             </div>
 
             {/* Optional title */}
             {title && (
               <div className="px-6 pt-3 pb-2 shrink-0">
                 {/* TODO(dark): dark:text-gray-100 */}
-                <h2 className="text-lg font-bold text-gray-900">{title}</h2>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">{title}</h2>
               </div>
             )}
 

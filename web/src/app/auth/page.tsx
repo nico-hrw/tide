@@ -300,7 +300,7 @@ function AuthContent() {
             <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', width: '100%' }}>
             <div style={{ textAlign: 'center' }}>
                 <h1>Welcome to Tide</h1>
-                <p style={{ color: 'gray' }}>Minimalist. Local-First. Encrypted.</p>
+                <p className="text-gray-500 dark:text-slate-400">Minimalist. Local-First. Encrypted.</p>
             </div>
 
             {step === "identifier" && (
@@ -393,7 +393,7 @@ function AuthContent() {
 
             {step === "details" && (
                 <form onSubmit={handleFinalSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '320px' }}>
-                    <div style={{ padding: '0.75rem', background: '#3c3c3a', borderRadius: 'var(--radius)', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="bg-gray-100 dark:bg-slate-800" style={{ padding: '0.75rem', borderRadius: 'var(--radius)', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span>{identifier}</span>
                         <button type="button" onClick={() => setStep("identifier")} className="text-sm underline text-blue-400">Change</button>
                     </div>

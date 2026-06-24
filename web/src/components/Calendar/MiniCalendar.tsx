@@ -44,13 +44,13 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
                         onClick={(e) => { e.stopPropagation(); prevMonth(); }}
                         className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
                     >
-                        <ChevronLeft size={14} className="text-gray-500" />
+                        <ChevronLeft size={14} className="text-gray-500 dark:text-slate-400" />
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); nextMonth(); }}
                         className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
                     >
-                        <ChevronRight size={14} className="text-gray-500" />
+                        <ChevronRight size={14} className="text-gray-500 dark:text-slate-400" />
                     </button>
                 </div>
             </div>

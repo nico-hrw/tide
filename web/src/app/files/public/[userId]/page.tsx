@@ -132,14 +132,14 @@ export default function PublicProfilePage() {
                 <h1 className="text-2xl font-bold">Public Files: {userId}</h1>
                 <button
                     onClick={() => router.push("/")}
-                    className="px-4 py-2 border rounded hover:bg-gray-100 transition-colors"
+                    className="px-4 py-2 border dark:border-slate-700 rounded hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
                 >
                     Go to My Dashboard
                 </button>
             </header>
 
             {notFoundFile && (
-                <div className="mb-6 p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 text-amber-800 dark:text-amber-300 rounded-lg flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
                     <span className="text-xl">⚠️</span>
                     <div>
                         <div className="font-bold">Notice</div>
@@ -150,24 +150,24 @@ export default function PublicProfilePage() {
 
             <div className="grid gap-4">
                 {files.length === 0 ? (
-                    <div className="text-gray-500 text-center py-12">No public files found.</div>
+                    <div className="text-gray-500 dark:text-slate-400 text-center py-12">No public files found.</div>
                 ) : (
                     files.map(file => (
                         <div key={file.id}
-                            className="p-4 border border-gray-100 rounded-xl bg-white shadow-sm flex justify-between items-center cursor-pointer hover:shadow-md hover:border-blue-200 transition-all active:scale-[0.99]"
+                            className="p-4 border border-gray-100 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm flex justify-between items-center cursor-pointer hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 transition-all active:scale-[0.99]"
                             onClick={() => handlePreview(file)}
                         >
                             <div className="flex-1 min-w-0 pr-4">
-                                <div className="font-bold text-lg text-gray-900 truncate">
+                                <div className="font-bold text-lg text-gray-900 dark:text-slate-100 truncate">
                                     {file.public_meta?.name || file.public_meta?.title || "Untitled"}
                                 </div>
-                                <div className="text-sm text-gray-500">
+                                <div className="text-sm text-gray-500 dark:text-slate-400">
                                     {file.type} • {(file.size / 1024).toFixed(1)} KB • {new Date(file.updated_at).toLocaleDateString()}
                                 </div>
                             </div>
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleCopy(file.id); }}
-                                className="text-blue-600 hover:text-blue-800 font-semibold px-4 py-1.5 border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors shrink-0"
+                                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-semibold px-4 py-1.5 border border-blue-100 dark:border-blue-800/40 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors shrink-0"
                                 title="Copy to my vault"
                             >
                                 Copy to Vault

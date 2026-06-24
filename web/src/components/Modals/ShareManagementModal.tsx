@@ -95,7 +95,7 @@ export default function ShareManagementModal({ isOpen, onClose, fileId, fileTitl
                         onClick={onClose}
                         className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-colors"
                     >
-                        <X size={20} className="text-gray-500" />
+                        <X size={20} className="text-gray-500 dark:text-slate-400" />
                     </button>
                 </div>
 

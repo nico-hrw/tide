@@ -135,7 +135,7 @@ export default function ShareModal({
                         onClick={onClose}
                         className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                     >
-                        <X size={20} className="text-gray-500" />
+                        <X size={20} className="text-gray-500 dark:text-slate-400" />
                     </button>
                 </div>
 

@@ -97,7 +97,12 @@ export const useDataStore = create<DataState>((set, get) => ({
         localStorage.setItem('tide_note_layout', next);
         return { noteLayout: next };
     }),
-    theme: 'light',
+    theme: (() => {
+        if (typeof window === 'undefined') return 'light';
+        const pref = (localStorage.getItem('tide_theme_preference') as 'light' | 'dark' | 'system' | null) || 'system';
+        if (pref === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        return pref;
+    })() as 'light' | 'dark',
     themePreference: (typeof window !== 'undefined' ? (localStorage.getItem('tide_theme_preference') as any) : null) || 'system',
     setThemePreference: (pref) => set(s => {
         localStorage.setItem('tide_theme_preference', pref);

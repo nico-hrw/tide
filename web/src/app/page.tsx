@@ -3238,14 +3238,14 @@ export default function Dashboard() {
                                     onClick={() => { setIsAvatarMenuOpen(false); setActiveTabId('social'); }}
                                     className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                                 >
-                                    <Users size={15} className="text-gray-400" />
+                                    <Users size={15} className="text-gray-400 dark:text-slate-500" />
                                     <span>Social</span>
                                 </button>
                                 <button
                                     onClick={() => { setIsAvatarMenuOpen(false); useDataStore.getState().setSettingsModalOpen(true); }}
                                     className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                                 >
-                                    <Settings size={15} className="text-gray-400" />
+                                    <Settings size={15} className="text-gray-400 dark:text-slate-500" />
                                     <span>Einstellungen</span>
                                 </button>
                                 <div className="h-px bg-gray-100 dark:bg-gray-800 my-1" />

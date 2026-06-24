@@ -136,6 +136,38 @@
   --glass-red-bg: rgba(239, 68, 68, 0.4);
   --glass-red-border: rgba(255, 255, 255, 0.1);
   --glass-red-glow: 0 0 20px rgba(239, 68, 68, 0.2), 0 4px 12px rgba(0, 0, 0, 0.5);
+
+  /* ─── Glow-Up Design Tokens (Dark) ──────────────────────────────────── */
+  --text-body:    #E2E8F0;
+  --text-muted:   #94A3B8;
+  --text-subtle:  #64748B;
+
+  --border-grid: rgba(255, 255, 255, 0.06);
+  --border-ui:   rgba(255, 255, 255, 0.10);
+
+  --shadow-float: 0px 8px 24px rgba(0, 0, 0, 0.3), 0px 2px 6px rgba(0, 0, 0, 0.2);
+
+  --hover-bg: rgba(255, 255, 255, 0.06);
+}
+
+/* Fallback: apply dark variables before JS loads via media query */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light-override) {
+    --background: #0F172A;
+    --foreground: #F8FAFC;
+    --sidebar-bg: #1E293B;
+    --border-color: #334155;
+    --muted-text: #94A3B8;
+    --input-text: #F8FAFC;
+    --input-placeholder: #475569;
+    --text-body: #E2E8F0;
+    --text-muted: #94A3B8;
+    --text-subtle: #64748B;
+    --border-grid: rgba(255, 255, 255, 0.06);
+    --border-ui: rgba(255, 255, 255, 0.10);
+    --shadow-float: 0px 8px 24px rgba(0, 0, 0, 0.3), 0px 2px 6px rgba(0, 0, 0, 0.2);
+    --hover-bg: rgba(255, 255, 255, 0.06);
+  }
 }
 
 body {
@@ -164,6 +196,10 @@ body {
 
 .shadow-float {
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+.dark .shadow-float {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
 }
 
 .shadow-float-left {
@@ -358,6 +394,10 @@ body {
   color: black;
 }
 
+.dark .liquidGlass-text {
+  color: #F8FAFC;
+}
+
 /* Tiptap TaskList / Checkbox Fix */
 ul[data-type="taskList"] li {
   display: flex !important;
@@ -537,6 +577,12 @@ span.task-mention-pill,
   margin-bottom: 0.25em;
 }
 
+.dark .ProseMirror h1,
+.dark .ProseMirror h2,
+.dark .ProseMirror h3 {
+  color: #F1F5F9;
+}
+
 /* ─── Table Redesign ─────────────────────────────────────────────────────── */
 .ProseMirror table {
   border: 1px solid var(--border-ui);
@@ -558,6 +604,10 @@ span.task-mention-pill,
   background: #FAFAFA;
   font-weight: 600;
   color: var(--text-body);
+}
+
+.dark .ProseMirror th {
+  background: #1E293B;
 }
 
 /* ─── Collaboration Cursors ──────────────────────────────────────────────── */

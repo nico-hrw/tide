@@ -444,7 +444,7 @@ export default function SettingsModal({
 
             {[
                 { id: 'finance', title: 'Finance Tracker', desc: 'Strict double-entry bookkeeping', version: 'v1.2.0', updated: 'Mar 1, 2026', icon: Blocks, color: 'text-emerald-500' },
-                { id: 'messenger', title: 'Messenger', desc: 'Under Maintenance', version: 'v0.9.5-beta', updated: 'Mar 3, 2026', icon: User, color: 'text-gray-500', disabled: true },
+                { id: 'messenger', title: 'Messenger', desc: 'Under Maintenance', version: 'v0.9.5-beta', updated: 'Mar 3, 2026', icon: User, color: 'text-gray-500 dark:text-slate-400', disabled: true },
                 { id: 'summary', title: 'Daily Summary', desc: 'Duolingo-style daily recap & streaks', version: 'v2.0.1', updated: 'Feb 28, 2026', icon: Flame, color: 'text-orange-500' },
                 { id: 'smart_island', title: 'Smart Island', desc: 'Context-aware sidebar assistant', version: 'v1.0.0', updated: 'Feb 26, 2026', icon: Sparkles, color: 'text-violet-500' },
                 { id: 'smart_date_detection', title: 'Smart Date Detection', desc: 'Erkennt Datum + Uhrzeit beim Tippen und schlägt Termine vor', version: 'v1.0.0', updated: 'Today', icon: Sparkles, color: 'text-blue-500' },

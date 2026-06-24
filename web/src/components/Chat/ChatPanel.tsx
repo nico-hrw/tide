@@ -861,7 +861,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                 <div className="font-semibold text-sm truncate">{res.title}</div>
                                             </div>
                                             <div className="text-xs text-gray-500 flex items-center gap-1">
-                                                Owner verified: {res.owner_is_verified ? <CheckCircle size={12} className="text-green-500" /> : <XCircle size={12} className="text-gray-400" />}
+                                                Owner verified: {res.owner_is_verified ? <CheckCircle size={12} className="text-green-500" /> : <XCircle size={12} className="text-gray-400 dark:text-slate-500" />}
                                             </div>
                                             <button
                                                 onClick={() => onOpenFile(res.id, res.title, null)}
@@ -1091,7 +1091,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                                 {shareData.file_name}
                                                                             </div>
                                                                             <div className="flex items-center gap-1.5 mt-0.5">
-                                                                                <span className={`text-[9px] uppercase tracking-wider font-extrabold ${isMe ? 'text-white/60' : 'text-gray-400'}`}>
+                                                                                <span className={`text-[9px] uppercase tracking-wider font-extrabold ${isMe ? 'text-white/60' : 'text-gray-400 dark:text-slate-500'}`}>
                                                                                     {shareData.file_type === 'event' ? 'Termin' : (shareData.file_type || 'Notiz').toUpperCase()}
                                                                                 </span>
                                                                                 {shareData.permission && (
@@ -1117,7 +1117,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                             </p>
                                                                         );
                                                                     })()}
-                                                                    <div className={`text-[10px] font-medium mt-1 ${isMe ? 'text-white/50 text-right' : 'text-gray-400'}`}>
+                                                                    <div className={`text-[10px] font-medium mt-1 ${isMe ? 'text-white/50 text-right' : 'text-gray-400 dark:text-slate-500'}`}>
                                                                         {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                     </div>
                                                                 </div>
@@ -1171,7 +1171,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                 <div className="text-[15px] leading-snug font-medium break-words whitespace-pre-wrap">
                                                                     {m.content}
                                                                 </div>
-                                                                <div className={`text-[10px] mt-1 font-medium ${isMe ? 'text-blue-100/80 text-right' : 'text-gray-400'}`}>
+                                                                <div className={`text-[10px] mt-1 font-medium ${isMe ? 'text-blue-100/80 text-right' : 'text-gray-400 dark:text-slate-500'}`}>
                                                                     {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                 </div>
                                                             </>

@@ -153,7 +153,7 @@ export default function FinanceDashboard() {
     const formatCurrency = (val: number) => val.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + '€';
 
     return (
-        <div className="h-full flex flex-col bg-white overflow-y-auto overflow-x-hidden text-black font-sans relative">
+        <div className="h-full flex flex-col bg-white dark:bg-slate-900 overflow-y-auto overflow-x-hidden text-black dark:text-white font-sans relative">
             <div className="max-w-[1000px] mx-auto w-full px-12 py-16 flex flex-col gap-12">
 
                 {/* Header Section: Logo + Title */}
@@ -161,11 +161,11 @@ export default function FinanceDashboard() {
                     <div className="w-12 h-12 bg-blue-600 flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.4)]">
                         <span className="text-white text-2xl font-bold">$</span>
                     </div>
-                    <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Finanzdashboard</h1>
+                    <h1 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-slate-100">Finanzdashboard</h1>
                 </div>
 
                 {/* Chart Section */}
-                <div className="w-full border-b-2 border-black flex items-end pb-2 gap-2 relative">
+                <div className="w-full border-b-2 border-black dark:border-slate-600 flex items-end pb-2 gap-2 relative">
                     <ResponsiveContainer width="100%" height={240}>
                         <AreaChart data={historyData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
                             <defs>
@@ -191,13 +191,13 @@ export default function FinanceDashboard() {
                     {/* Guthaben */}
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">
-                            <h2 className="text-lg font-medium text-gray-500">Guthaben</h2>
-                            <button onClick={handleOpenAsset} className="w-5 h-5 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
-                                <span className="text-gray-600 text-sm font-bold leading-none -mt-0.5">+</span>
+                            <h2 className="text-lg font-medium text-gray-500 dark:text-slate-400">Guthaben</h2>
+                            <button onClick={handleOpenAsset} className="w-5 h-5 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center justify-center transition-colors">
+                                <span className="text-gray-600 dark:text-slate-400 text-sm font-bold leading-none -mt-0.5">+</span>
                             </button>
                         </div>
-                        <div className="text-5xl font-semibold tracking-tight text-gray-900 mb-2">{formatCurrency(totalGuthaben)}</div>
-                        <ul className="text-base font-medium flex flex-col gap-1 text-gray-600">
+                        <div className="text-5xl font-semibold tracking-tight text-gray-900 dark:text-slate-100 mb-2">{formatCurrency(totalGuthaben)}</div>
+                        <ul className="text-base font-medium flex flex-col gap-1 text-gray-600 dark:text-slate-400">
                             {assetAccounts.map(a => (
                                 <li key={a.id} className="group flex justify-between items-center w-full max-w-[200px]">
                                     <span>-&gt; {formatCurrency(a.balance)} {a.name}</span>
@@ -216,9 +216,9 @@ export default function FinanceDashboard() {
                     {/* Monatsbudget */}
                     <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">
-                            <h2 className="text-lg font-medium text-gray-500">Monatsbudget</h2>
-                            <button onClick={handleOpenBudget} className="w-5 h-5 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
-                                <span className="text-gray-600 text-sm font-bold leading-none -mt-0.5">+</span>
+                            <h2 className="text-lg font-medium text-gray-500 dark:text-slate-400">Monatsbudget</h2>
+                            <button onClick={handleOpenBudget} className="w-5 h-5 rounded-full bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-600 flex items-center justify-center transition-colors">
+                                <span className="text-gray-600 dark:text-slate-400 text-sm font-bold leading-none -mt-0.5">+</span>
                             </button>
                         </div>
                         {(() => {
@@ -229,12 +229,12 @@ export default function FinanceDashboard() {
                             const fillPercent = targetBudget > 0 ? Math.min(100, (totalSpent / targetBudget) * 100) : 0;
                             return (
                                 <>
-                                    <div className="text-5xl font-semibold tracking-tight text-gray-900 mb-2">{totalSpent.toFixed(0)}<span className="text-3xl text-gray-400">/{targetBudget}€</span></div>
-                                    <div className="h-2 bg-gray-100 rounded-full w-full flex mt-2 overflow-hidden">
+                                    <div className="text-5xl font-semibold tracking-tight text-gray-900 dark:text-slate-100 mb-2">{totalSpent.toFixed(0)}<span className="text-3xl text-gray-400 dark:text-slate-500">/{targetBudget}€</span></div>
+                                    <div className="h-2 bg-gray-100 dark:bg-slate-800 rounded-full w-full flex mt-2 overflow-hidden">
                                         <div className={`rounded-full h-full transition-all duration-500 ease-out ${fillPercent > 100 ? 'bg-red-500' : 'bg-green-500'}`} style={{ width: `${fillPercent}%` }}></div>
                                     </div>
                                     {budgetAccounts.length > 0 && (
-                                        <ul className="text-xs font-medium flex flex-col gap-1 text-gray-400 mt-2">
+                                        <ul className="text-xs font-medium flex flex-col gap-1 text-gray-400 dark:text-slate-500 mt-2">
                                             {budgetAccounts.map(b => (
                                                 <li key={b.id} className="group flex justify-between items-center max-w-[200px]">
                                                     {b.name}
@@ -258,35 +258,35 @@ export default function FinanceDashboard() {
                 {/* Raw HTML Table Section */}
                 <div className="mt-8 flex flex-col gap-4 pb-40">
                     <div className="flex justify-between items-end">
-                        <h2 className="text-lg font-medium text-gray-500">Letzte Buchungen</h2>
+                        <h2 className="text-lg font-medium text-gray-500 dark:text-slate-400">Letzte Buchungen</h2>
                         <div className="flex gap-4">
-                            <button onClick={handleOpenBudget} className="text-sm font-medium text-gray-600 hover:text-black transition-colors">Add Budget</button>
-                            <button onClick={handleOpenIncome} className="text-sm font-medium text-gray-600 hover:text-black transition-colors">Add Income</button>
-                            <button onClick={handleOpenExpense} className="text-sm font-medium text-gray-600 hover:text-black transition-colors">Add Expense</button>
+                            <button onClick={handleOpenBudget} className="text-sm font-medium text-gray-600 dark:text-slate-400 hover:text-black dark:hover:text-white transition-colors">Add Budget</button>
+                            <button onClick={handleOpenIncome} className="text-sm font-medium text-gray-600 dark:text-slate-400 hover:text-black dark:hover:text-white transition-colors">Add Income</button>
+                            <button onClick={handleOpenExpense} className="text-sm font-medium text-gray-600 dark:text-slate-400 hover:text-black dark:hover:text-white transition-colors">Add Expense</button>
                         </div>
                     </div>
 
                     <table className="w-full text-left mt-2">
                         <thead>
-                            <tr className="border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500 font-semibold">
+                            <tr className="border-b border-gray-200 dark:border-slate-700 text-xs uppercase tracking-wider text-gray-500 dark:text-slate-400 font-semibold">
                                 <th className="py-4">Betrag</th>
                                 <th className="py-4">Beschreibung</th>
                                 <th className="py-4 text-right">Details</th>
                             </tr>
                         </thead>
-                        <tbody className="text-base font-medium text-gray-800">
+                        <tbody className="text-base font-medium text-gray-800 dark:text-slate-200">
                             {transactions.map(t => (
-                                <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                                <tr key={t.id} className="hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
                                     <td className={`py-4 ${t.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                         {t.amount >= 0 ? '+' : ''}{formatCurrency(t.amount)}
                                     </td>
                                     <td className="py-4">{t.description}</td>
-                                    <td className="py-4 text-right text-gray-500">{new Date(t.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</td>
+                                    <td className="py-4 text-right text-gray-500 dark:text-slate-400">{new Date(t.date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</td>
                                 </tr>
                             ))}
                             {transactions.length === 0 && (
                                 <tr>
-                                    <td colSpan={3} className="py-8 text-center text-gray-400">Keine Buchungen vorhanden.</td>
+                                    <td colSpan={3} className="py-8 text-center text-gray-400 dark:text-slate-500">Keine Buchungen vorhanden.</td>
                                 </tr>
                             )}
                         </tbody>
@@ -297,14 +297,14 @@ export default function FinanceDashboard() {
 
             {/* Clean Minimal Modals */}
             {(isIncomeModalOpen || isExpenseModalOpen || isBudgetModalOpen || isAssetModalOpen) && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 text-black">
-                    <div className="bg-white p-6 rounded-none shadow-xl border-4 border-black w-full max-w-sm">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 dark:bg-black/50 backdrop-blur-sm p-4 text-black dark:text-white">
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-none shadow-xl border-4 border-black dark:border-slate-600 w-full max-w-sm">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold uppercase tracking-widest">
                                 {isIncomeModalOpen ? "Add Income" : isExpenseModalOpen ? "Add Expense" : isBudgetModalOpen ? "Create Budget" : "Create Asset Account"}
                             </h3>
-                            <button onClick={handleCloseModals} className="p-1 hover:bg-gray-100 transition-colors">
-                                <X size={20} className="text-black" />
+                            <button onClick={handleCloseModals} className="p-1 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors">
+                                <X size={20} className="text-black dark:text-white" />
                             </button>
                         </div>
 
@@ -315,7 +315,7 @@ export default function FinanceDashboard() {
                                     placeholder="Amount"
                                     value={amount}
                                     onChange={e => setAmount(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-white border-2 border-black text-sm focus:outline-none focus:ring-2 focus:ring-black transition-all font-bold placeholder-gray-400"
+                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-black dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-slate-500 transition-all font-bold placeholder-gray-400 dark:placeholder-slate-500"
                                 />
                             )}
 
@@ -325,7 +325,7 @@ export default function FinanceDashboard() {
                                     placeholder={isAssetModalOpen ? "Account Name (e.g. PayPal)" : "Budget Name (e.g. Travel)"}
                                     value={description}
                                     onChange={e => setDescription(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-white border-2 border-black text-sm focus:outline-none focus:ring-2 focus:ring-black transition-all font-bold placeholder-gray-400"
+                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-black dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-slate-500 transition-all font-bold placeholder-gray-400 dark:placeholder-slate-500"
                                 />
                             )}
 
@@ -335,7 +335,7 @@ export default function FinanceDashboard() {
                                     placeholder="Target Amount"
                                     value={amount}
                                     onChange={e => setAmount(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-white border-2 border-black text-sm focus:outline-none focus:ring-2 focus:ring-black transition-all font-bold placeholder-gray-400"
+                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-black dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-slate-500 transition-all font-bold placeholder-gray-400 dark:placeholder-slate-500"
                                 />
                             )}
 
@@ -345,7 +345,7 @@ export default function FinanceDashboard() {
                                     placeholder="Description"
                                     value={description}
                                     onChange={e => setDescription(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-white border-2 border-black text-sm focus:outline-none focus:ring-2 focus:ring-black transition-all font-bold placeholder-gray-400"
+                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-black dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-slate-500 transition-all font-bold placeholder-gray-400 dark:placeholder-slate-500"
                                 />
                             )}
 
@@ -353,7 +353,7 @@ export default function FinanceDashboard() {
                                 <select
                                     value={category}
                                     onChange={e => setCategory(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-white border-2 border-black text-sm focus:outline-none focus:ring-2 focus:ring-black transition-all font-bold appearance-none cursor-pointer"
+                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-black dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-slate-500 transition-all font-bold appearance-none cursor-pointer"
                                 >
                                     <option value="">Select Category</option>
                                     <option value="salary">Salary</option>
@@ -366,7 +366,7 @@ export default function FinanceDashboard() {
                                 <select
                                     value={accountId}
                                     onChange={e => setAccountId(e.target.value)}
-                                    className="w-full px-4 py-2.5 bg-white border-2 border-black text-sm focus:outline-none focus:ring-2 focus:ring-black transition-all font-bold appearance-none cursor-pointer"
+                                    className="w-full px-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-black dark:border-slate-600 text-sm focus:outline-none focus:ring-2 focus:ring-black dark:focus:ring-slate-500 transition-all font-bold appearance-none cursor-pointer"
                                 >
                                     <option value="" disabled>Select Account</option>
                                     {assetAccounts.map(a => (
@@ -377,7 +377,7 @@ export default function FinanceDashboard() {
 
                             <button
                                 onClick={() => handleSubmitTransaction(isIncomeModalOpen ? 'income' : isExpenseModalOpen ? 'expense' : isBudgetModalOpen ? 'budget' : 'asset')}
-                                className="w-full py-3 bg-black hover:bg-gray-800 text-white text-sm font-bold uppercase tracking-widest transition-colors mt-2"
+                                className="w-full py-3 bg-black dark:bg-slate-100 hover:bg-gray-800 dark:hover:bg-white text-white dark:text-black text-sm font-bold uppercase tracking-widest transition-colors mt-2"
                             >
                                 Submit
                             </button>

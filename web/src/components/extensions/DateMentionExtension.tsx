@@ -105,7 +105,7 @@ const DateMentionNodeView: React.FC<NodeViewProps> = ({ node }) => {
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
                 onClick={handleClick}
-                className="cursor-pointer underline decoration-gray-400 decoration-dotted underline-offset-4 hover:decoration-gray-600 transition-colors"
+                className="cursor-pointer underline decoration-gray-400 dark:decoration-gray-500 decoration-dotted underline-offset-4 hover:decoration-gray-600 dark:hover:decoration-gray-300 transition-colors"
                 style={{
                     display: 'inline',
                     fontSize: 'inherit',
@@ -128,7 +128,7 @@ const DateMentionNodeView: React.FC<NodeViewProps> = ({ node }) => {
                         top: popoverPos?.top ?? 0,
                         left: popoverPos?.left ?? 0,
                         zIndex: 9999,
-                        background: 'var(--popover-bg, #fff)',
+                        background: 'var(--popover-bg, light-dark(#fff, #1e293b))',
                         border: '1px solid rgba(99,102,241,0.2)',
                         borderRadius: '12px',
                         boxShadow: '0 8px 30px rgba(0,0,0,0.12)',
@@ -141,21 +141,21 @@ const DateMentionNodeView: React.FC<NodeViewProps> = ({ node }) => {
                 >
                     {/* Header */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                        <span style={{ fontWeight: 700, fontSize: '0.85em', color: '#6366f1' }}>
+                        <span style={{ fontWeight: 700, fontSize: '0.85em' }} className="text-indigo-500 dark:text-indigo-400">
                             {format(parsedDate, 'EEEE, dd. MMMM yyyy')}
                         </span>
                         <span style={{
-                            fontSize: '0.7em', color: '#6366f1',
+                            fontSize: '0.7em',
                             background: 'rgba(99,102,241,0.1)', borderRadius: '4px',
                             padding: '1px 5px',
-                        }}>
+                        }} className="text-indigo-500 dark:text-indigo-400">
                             {dayEvents.length} event{dayEvents.length !== 1 ? 's' : ''}
                         </span>
                     </div>
 
                     {/* Timeline */}
                     {dayEvents.length === 0 ? (
-                        <div style={{ fontSize: '0.78em', color: '#9ca3af', textAlign: 'center', padding: '16px 0' }}>
+                        <div style={{ fontSize: '0.78em', textAlign: 'center', padding: '16px 0' }} className="text-gray-400 dark:text-gray-500">
                             No events on this day
                         </div>
                     ) : (
@@ -184,15 +184,15 @@ const DateMentionNodeView: React.FC<NodeViewProps> = ({ node }) => {
                                             marginTop: '4px',
                                             width: '8px', height: '8px',
                                             borderRadius: '50%', background: dotColor,
-                                            border: '2px solid white',
+                                            border: '2px solid var(--popover-bg, light-dark(white, #1e293b))',
                                             boxShadow: `0 0 0 1px ${dotColor}`,
                                             flexShrink: 0,
                                         }} />
                                         <div style={{ paddingLeft: '4px' }}>
-                                            <div style={{ fontSize: '0.78em', fontWeight: 600, color: 'var(--text-primary, #111827)', lineHeight: 1.3 }}>
+                                            <div style={{ fontSize: '0.78em', fontWeight: 600, lineHeight: 1.3 }} className="text-gray-900 dark:text-slate-100">
                                                 {(ev.title as string) || 'Untitled'}
                                             </div>
-                                            <div style={{ fontSize: '0.7em', color: '#9ca3af', marginTop: '1px' }}>
+                                            <div style={{ fontSize: '0.7em', marginTop: '1px' }} className="text-gray-400 dark:text-gray-500">
                                                 {timeStr}
                                             </div>
                                         </div>
@@ -200,7 +200,7 @@ const DateMentionNodeView: React.FC<NodeViewProps> = ({ node }) => {
                                 );
                             })}
                             {dayEvents.length > 6 && (
-                                <div style={{ fontSize: '0.72em', color: '#9ca3af', paddingLeft: '4px' }}>
+                                <div style={{ fontSize: '0.72em', paddingLeft: '4px' }} className="text-gray-400 dark:text-gray-500">
                                     +{dayEvents.length - 6} more…
                                 </div>
                             )}
@@ -210,10 +210,11 @@ const DateMentionNodeView: React.FC<NodeViewProps> = ({ node }) => {
                     {/* Open Calendar CTA */}
                     <div
                         onClick={handleClick}
+                        className="text-indigo-500 dark:text-indigo-400"
                         style={{
                             marginTop: '10px', padding: '6px', borderRadius: '8px',
                             background: 'rgba(99,102,241,0.08)', textAlign: 'center',
-                            fontSize: '0.75em', color: '#6366f1', fontWeight: 600,
+                            fontSize: '0.75em', fontWeight: 600,
                             cursor: 'pointer', transition: 'background 0.15s',
                         }}
                         onMouseEnter={e => (e.currentTarget.style.background = 'rgba(99,102,241,0.16)')}

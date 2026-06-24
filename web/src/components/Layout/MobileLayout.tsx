@@ -29,15 +29,15 @@ import Avatar from '../Profile/Avatar';
 // value based on a useColorScheme() hook, or use Tailwind dark: variants
 // throughout the JSX (search for every TODO(dark) comment in this file).
 const T = {
-  bg:          '#FFFFFF',
-  card:        '#FFFFFF',
+  bg:          'var(--background)',
+  card:        'var(--sidebar-bg)',
   accent:      '#3B82F6',
-  textPrimary: '#111827',
-  textSec:     '#6B7280',
-  textMuted:   '#9CA3AF',
-  border:      '#E5E7EB',
-  iconBg:      '#EFF6FF',
-  rowHover:    'rgba(0,0,0,0.035)',
+  textPrimary: 'var(--foreground)',
+  textSec:     'var(--muted-text)',
+  textMuted:   'var(--text-subtle)',
+  border:      'var(--border-color)',
+  iconBg:      'var(--hover-bg)',
+  rowHover:    'var(--hover-bg)',
 } as const;
 
 // ─── Shared animation preset — direction-aware ───────────────────────────────
@@ -1109,7 +1109,7 @@ export default function MobileLayout({
       {/* Floating dot navigation — 3 tabs + tracker */}
       {/* TODO(dark): dot color dark:rgba(255,255,255,0.25) */}
       <div className="fixed bottom-5 left-0 right-0 flex justify-center items-center z-50 pointer-events-none">
-        <div className="flex items-center gap-2.5 bg-white/60 backdrop-blur-sm rounded-full px-4 py-2">
+        <div className="flex items-center gap-2.5 bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-full px-4 py-2">
           {tabOrder.map((tab) => (
             <div
               key={tab}
@@ -1136,9 +1136,9 @@ export default function MobileLayout({
       {/* Tracker circular progress — appears when swiping from Profile toward Tracker */}
       {trackerProgress > 0 && (
         <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
-          <div className="flex flex-col items-center gap-3 bg-white/80 backdrop-blur-md rounded-3xl p-8 shadow-xl">
+          <div className="flex flex-col items-center gap-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md rounded-3xl p-8 shadow-xl">
             <svg width="80" height="80" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="34" fill="none" stroke="#E5E7EB" strokeWidth="4" />
+              <circle cx="40" cy="40" r="34" fill="none" stroke="currentColor" className="text-gray-200 dark:text-slate-700" strokeWidth="4" />
               <motion.circle
                 cx="40" cy="40" r="34"
                 fill="none"
