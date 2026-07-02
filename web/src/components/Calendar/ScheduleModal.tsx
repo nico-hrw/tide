@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Download, Upload, Plus, Trash2, X, AlertCircle, ListPlus } from 'lucide-react';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import BottomSheet from '@/components/Layout/BottomSheet';
@@ -18,11 +18,13 @@ export interface ScheduleEventData {
 interface ScheduleModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onApply: (events: ScheduleEventData[], theme: string, options?: { color?: string, effect?: string }) => Promise<void>;
+    onApply: (events: ScheduleEventData[], theme: string, options?: { color?: string; effect?: string; linkedNoteId?: string }) => Promise<void>;
     existingThemes: { id: string; title: string; effect?: string; color?: string }[];
+    notes?: { id: string; title: string }[];
+    linkedNoteId?: string;
 }
 
-export function ScheduleModal({ isOpen, onClose, onApply, existingThemes }: ScheduleModalProps) {
+export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes, linkedNoteId: initialLinkedNoteId }: ScheduleModalProps) {
     const [events, setEvents] = useState<ScheduleEventData[]>([
         { id: '1', title: '', description: '', startTime: '09:00', endTime: '10:00', allDay: false, recurrence: 'none', dateOffset: 0 }
     ]);
@@ -33,7 +35,13 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes }: Sche
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [activeDateSettings, setActiveDateSettings] = useState<string | null>(null);
+    const [themeExpanded, setThemeExpanded] = useState(false);
+    const [noteLinkId, setNoteLinkId] = useState(initialLinkedNoteId ?? '');
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (isOpen) setNoteLinkId(initialLinkedNoteId ?? '');
+    }, [isOpen, initialLinkedNoteId]);
 
     const isMobile = useMediaQuery('(max-width: 767px)');
 
@@ -137,7 +145,10 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes }: Sche
             setIsSaving(true);
             setError(null);
             const appliedTheme = theme === 'new-theme' ? themeName : theme;
-            const options = theme === 'new-theme' ? { color: themeColor, effect: themeEffect } : undefined;
+            const baseOptions = theme === 'new-theme' ? { color: themeColor, effect: themeEffect } : {};
+            const options = Object.keys(baseOptions).length > 0 || noteLinkId
+                ? { ...baseOptions, linkedNoteId: noteLinkId || undefined }
+                : undefined;
             await onApply(events, appliedTheme, options);
             onClose();
         } catch (e: any) {
@@ -149,103 +160,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes }: Sche
 
     const modalBody = (
         <div className="flex-1 overflow-hidden flex flex-col">
-            <div className="p-6 pb-2 border-b border-gray-100 dark:border-slate-800/50">
-                {/* Meta Settings */}
-                <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
-                    <div className="flex-1 w-full max-w-sm">
-                        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Group / Theme</label>
-                        <select
-                            className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                            value={theme}
-                            onChange={(e) => setTheme(e.target.value)}
-                        >
-                            <option value="new-theme">+ Create New Theme</option>
-                            <optgroup label="Existing Themes">
-                                {existingThemes.map(t => (
-                                    <option key={t.id} value={t.id}>{t.title || 'Untitled'}</option>
-                                ))}
-                            </optgroup>
-                        </select>
-                        {theme === 'new-theme' && (
-                            <div className="mt-3 flex flex-col gap-3 p-4 bg-gray-50/50 dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-slate-800">
-                                <input
-                                    type="text"
-                                    placeholder="Theme Name..."
-                                    maxLength={30}
-                                    value={themeName}
-                                    onChange={(e) => setThemeName(e.target.value)}
-                                    className="w-full bg-white dark:bg-[#2A2A2A] border border-gray-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm font-semibold focus:outline-none focus:border-blue-500 shadow-sm"
-                                />
-
-                                <div className="flex flex-col md:flex-row gap-4">
-                                    <div className="flex-1">
-                                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Color</label>
-                                        <div className="flex flex-wrap gap-2">
-                                            {['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'].map(c => (
-                                                <button
-                                                    key={c}
-                                                    onClick={() => setThemeColor(c)}
-                                                    className={`w-6 h-6 rounded-full transition-all border-2 ${themeColor === c ? 'border-blue-500 scale-110 shadow-md ring-2 ring-blue-500/20' : 'border-transparent hover:scale-105'}`}
-                                                    style={{ backgroundColor: c }}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="w-full md:w-32">
-                                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Effect</label>
-                                        <select
-                                            value={themeEffect}
-                                            onChange={(e) => setThemeEffect(e.target.value)}
-                                            className="w-full bg-white dark:bg-[#2A2A2A] border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none cursor-pointer"
-                                        >
-                                            <option value="none">Kein Muster</option>
-                                            <option value="stripes">Gestreift</option>
-                                            <option value="waves">Wellen</option>
-                                            <option value="dots">Punkte</option>
-                                            <option value="chess">Karo</option>
-                                            <option value="diamonds">Diamant</option>
-                                            <option value="gradient">Farbverlauf</option>
-                                            <option value="bars">Balken</option>
-                                            <option value="dimmed">Gedimmt</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-                        <input
-                            type="file"
-                            accept=".json"
-                            ref={fileInputRef}
-                            onChange={importFromJSON}
-                            className="hidden"
-                            id="schedule-import-input"
-                        />
-                        <label
-                            htmlFor="schedule-import-input"
-                            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-semibold hover:bg-gray-200 dark:hover:bg-slate-700 cursor-pointer transition-colors"
-                        >
-                            <Upload size={16} /> Import
-                        </label>
-                        <button
-                            onClick={exportToJSON}
-                            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl text-sm font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
-                        >
-                            <Download size={16} /> Export
-                        </button>
-                    </div>
-                </div>
-                {error && (
-                    <div className="mt-4 flex items-center gap-2 text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg text-sm font-medium">
-                        <AlertCircle size={16} /> {error}
-                    </div>
-                )}
-            </div>
-
-            {/* Events List */}
+            {/* Events List — first */}
             <div className="flex-1 overflow-y-auto p-6 space-y-3 max-h-[50vh]">
                 {events.map((event, index) => (
                     <div key={event.id} className="group relative flex flex-col md:flex-row items-start md:items-center gap-3 bg-gray-50/50 dark:bg-[#151515] border border-gray-200 dark:border-slate-800/80 rounded-2xl p-3 pl-4 transition-all hover:border-gray-300 dark:hover:border-slate-700/80">
@@ -357,6 +272,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes }: Sche
                 ))}
             </div>
 
+            {/* Add event + Apply */}
             <div className="px-6 py-3 border-t border-gray-100 dark:border-slate-800/50 flex flex-col gap-2">
                 <button
                     onClick={addEvent}
@@ -372,6 +288,131 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes }: Sche
                     {isSaving ? 'Saving…' : 'Apply Schedule'}
                 </button>
             </div>
+
+            {/* Verknüpfte Notiz */}
+            {notes && notes.length > 0 && (
+                <div className="border-t border-gray-100 dark:border-slate-800/50 px-6 py-3 flex items-center gap-3">
+                    <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider shrink-0">Verknüpfte Notiz</span>
+                    <select
+                        value={noteLinkId}
+                        onChange={e => setNoteLinkId(e.target.value)}
+                        className="flex-1 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    >
+                        <option value="">Keine</option>
+                        {notes.map(n => (
+                            <option key={n.id} value={n.id}>{n.title || 'Untitled'}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
+
+            {/* Group / Theme — collapsible */}
+            <div className="border-t border-gray-100 dark:border-slate-800/50">
+                <button
+                    onClick={() => setThemeExpanded(v => !v)}
+                    className="w-full flex items-center justify-between px-6 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors"
+                >
+                    <span>Group / Theme</span>
+                    <svg className={`w-4 h-4 text-gray-400 transition-transform ${themeExpanded ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                </button>
+            {themeExpanded && (
+            <div className="px-6 pb-4">
+                {/* Meta Settings */}
+                <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
+                    <div className="flex-1 w-full max-w-sm">
+                        <select
+                            className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                            value={theme}
+                            onChange={(e) => setTheme(e.target.value)}
+                        >
+                            <option value="new-theme">+ Create New Theme</option>
+                            <optgroup label="Existing Themes">
+                                {existingThemes.map(t => (
+                                    <option key={t.id} value={t.id}>{t.title || 'Untitled'}</option>
+                                ))}
+                            </optgroup>
+                        </select>
+                        {theme === 'new-theme' && (
+                            <div className="mt-3 flex flex-col gap-3 p-4 bg-gray-50/50 dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-slate-800">
+                                <input
+                                    type="text"
+                                    placeholder="Theme Name..."
+                                    maxLength={30}
+                                    value={themeName}
+                                    onChange={(e) => setThemeName(e.target.value)}
+                                    className="w-full bg-white dark:bg-[#2A2A2A] border border-gray-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm font-semibold focus:outline-none focus:border-blue-500 shadow-sm"
+                                />
+
+                                <div className="flex flex-col md:flex-row gap-4">
+                                    <div className="flex-1">
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Color</label>
+                                        <div className="flex flex-wrap gap-2">
+                                            {['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'].map(c => (
+                                                <button
+                                                    key={c}
+                                                    onClick={() => setThemeColor(c)}
+                                                    className={`w-6 h-6 rounded-full transition-all border-2 ${themeColor === c ? 'border-blue-500 scale-110 shadow-md ring-2 ring-blue-500/20' : 'border-transparent hover:scale-105'}`}
+                                                    style={{ backgroundColor: c }}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="w-full md:w-32">
+                                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Effect</label>
+                                        <select
+                                            value={themeEffect}
+                                            onChange={(e) => setThemeEffect(e.target.value)}
+                                            className="w-full bg-white dark:bg-[#2A2A2A] border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none cursor-pointer"
+                                        >
+                                            <option value="none">Kein Muster</option>
+                                            <option value="stripes">Gestreift</option>
+                                            <option value="waves">Wellen</option>
+                                            <option value="dots">Punkte</option>
+                                            <option value="chess">Karo</option>
+                                            <option value="diamonds">Diamant</option>
+                                            <option value="gradient">Farbverlauf</option>
+                                            <option value="bars">Balken</option>
+                                            <option value="dimmed">Gedimmt</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                        <input
+                            type="file"
+                            accept=".json"
+                            ref={fileInputRef}
+                            onChange={importFromJSON}
+                            className="hidden"
+                            id="schedule-import-input"
+                        />
+                        <label
+                            htmlFor="schedule-import-input"
+                            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-semibold hover:bg-gray-200 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                        >
+                            <Upload size={16} /> Import
+                        </label>
+                        <button
+                            onClick={exportToJSON}
+                            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl text-sm font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                        >
+                            <Download size={16} /> Export
+                        </button>
+                    </div>
+                </div>
+                {error && (
+                    <div className="mt-4 flex items-center gap-2 text-red-600 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg text-sm font-medium">
+                        <AlertCircle size={16} /> {error}
+                    </div>
+                )}
+            </div>
+            )}
+            </div>
+
         </div>
     );
 

@@ -471,6 +471,7 @@ export default function WeekView({
 
                                 if (e.allDay) {
                                     const startD = startOfDay(eStart);
+                                    // end is inclusive (TIDE stores last day, not exclusive day after)
                                     const endD = startOfDay(eEnd);
                                     const checkD = startOfDay(day);
                                     return checkD >= startD && checkD <= endD;
