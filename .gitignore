@@ -53,6 +53,24 @@ ADD_handleMoveFile.txt
 BACKEND_UpdateFile.go
 MANUAL_FIX_handleShare.txt
 
+# Build / lint / typecheck artifacts (never commit)
+web/build_log*.txt
+web/build_output*.txt
+web/lint_output*.txt
+web/tsc_output*.txt
+web/tsc*.out
+web/tsc*.txt
+*.tsbuildinfo
+
+# Claude-flow internal state
+.claude-flow/
+
+# Scratch/test files at root
+page_fixed.tsx
+test-*.js
+test-*.go
+test-out.txt
+
 # Misc
 .DS_Store
 .history/
