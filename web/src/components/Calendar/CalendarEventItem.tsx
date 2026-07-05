@@ -194,7 +194,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const hasChildren = isParent ?? timedEvents.some(e => (e as any).parent_id === event.id);
     const isActiveParent = hasChildren && activeParentId === event.id;
     const isCancelled = !!event.is_cancelled;
-    const zIndex = isActiveParent || isCancelled ? 0 : (isDragging ? 50 : 10);
+    const zIndex = isActiveParent || isCancelled ? 0 : (isDragging ? 50 : 10 + startMinutes);
 
     const [localTitle, setLocalTitle] = useState(event.title);
 
@@ -378,7 +378,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     setIsLinkingMode(false);
                 }
             }}
-            className={`event-item group absolute ${isTimePoint ? 'px-1 py-0 overflow-visible rounded-sm' : durationMinutes < 20 ? 'px-2 py-0 overflow-hidden' : 'px-2 py-1.5 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-all ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''}`}
+            className={`event-item group absolute ${isTimePoint ? 'px-1 py-0 overflow-visible rounded-sm' : durationMinutes < 45 ? 'px-2 py-0.5 overflow-hidden' : 'px-2 py-1.5 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-all ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''}`}
             onClick={(e) => {
                 e.stopPropagation();
 
@@ -538,7 +538,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             <Globe size={11} />
                         </div>
                     )}
-                    <div className={`text-[11px] font-bold leading-tight truncate pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
+                    <div className={`text-[11px] font-bold leading-tight break-words pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}
                     </div>
                 </div>
@@ -585,9 +585,9 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             )} {/* end isTimePoint conditional */}
 
             {/* Resize Handle */}
-            {!isDragging && (
+            {!isDragging && durationMinutes >= 15 && (
                 <div
-                    className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-[70] hover:bg-white/30 resize-handle"
+                    className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize z-[70] hover:bg-white/20 resize-handle"
                     onMouseDown={(e) => {
                         e.stopPropagation(); // CRITICAL: Prevents parent drag logic
                         if (onResizeMouseDown) onResizeMouseDown(e, event.id, event.start, event.end);

@@ -100,8 +100,14 @@ export const useDataStore = create<DataState>((set, get) => ({
     theme: (() => {
         if (typeof window === 'undefined') return 'light';
         const pref = (localStorage.getItem('tide_theme_preference') as 'light' | 'dark' | 'system' | null) || 'system';
-        if (pref === 'system') return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        return pref;
+        const resolved: 'light' | 'dark' = pref === 'system'
+            ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+            : pref;
+        // Apply classes immediately so CSS vars are correct before first paint
+        const cl = document.documentElement.classList;
+        if (resolved === 'dark') { cl.add('dark'); cl.remove('light-override'); }
+        else { cl.remove('dark'); cl.add('light-override'); }
+        return resolved;
     })() as 'light' | 'dark',
     themePreference: (typeof window !== 'undefined' ? (localStorage.getItem('tide_theme_preference') as any) : null) || 'system',
     setThemePreference: (pref) => set(s => {
@@ -113,8 +119,9 @@ export const useDataStore = create<DataState>((set, get) => ({
             resolvedTheme = pref;
         }
         if (typeof document !== 'undefined') {
-            if (resolvedTheme === 'dark') document.documentElement.classList.add('dark');
-            else document.documentElement.classList.remove('dark');
+            const cl = document.documentElement.classList;
+            if (resolvedTheme === 'dark') { cl.add('dark'); cl.remove('light-override'); }
+            else { cl.remove('dark'); cl.add('light-override'); }
         }
         return { themePreference: pref, theme: resolvedTheme };
     }),
@@ -670,12 +677,28 @@ export const useDataStore = create<DataState>((set, get) => ({
                 }
 
                 const hasNoMetadata = !f.metadata || (typeof f.metadata === 'object' && Object.keys(f.metadata).length === 0);
-                if ((!f.secured_meta || f.secured_meta.trim() === '') && hasNoMetadata && (!f.access_keys || Object.keys(f.access_keys).length === 0) && f.visibility !== 'public' && f.type !== 'folder') {
+                const isGCalEvent = f.type === 'event' && !!(f.public_meta as any)?.gcal_id;
+                if (!isGCalEvent && (!f.secured_meta || f.secured_meta.trim() === '') && hasNoMetadata && (!f.access_keys || Object.keys(f.access_keys).length === 0) && f.visibility !== 'public' && f.type !== 'folder') {
                     console.warn(`[STATE-AUDIT] Skipping ghost/corrupted file ${f.id} with no metadata.`);
                     continue;
                 }
 
                 let metaData: any = { title: "Untitled" };
+
+                if (isGCalEvent) {
+                    const pm = f.public_meta as any;
+                    metaData = {
+                        title: pm.title || 'Untitled Event',
+                        start: pm.start,
+                        end: pm.end,
+                        allDay: pm.allDay,
+                        gcal_id: pm.gcal_id,
+                        gcal_origin: true,
+                        color: pm.color,
+                        gcal_calendar_id: pm.gcal_calendar_id,
+                    };
+                    newMetaCache[f.id] = { ...metaData, parent_id: f.parent_id || null };
+                } else
                 
                 // Folders and V2 files store a plaintext title in metadata as a fallback
                 if (f.metadata && f.metadata.title) {
