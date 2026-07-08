@@ -58,6 +58,33 @@ import { useDragGhost } from "@/store/useDragGhost";
 import EventDragGhost from "@/components/Calendar/EventDragGhost";
 import { useDateDetection, DateDetectionMode } from "@/hooks/useDateDetection";
 
+interface ProseMirrorNodeLike {
+    type?: string;
+    content?: ProseMirrorNodeLike[];
+    text?: string;
+}
+
+function isDocEmpty(parsed: unknown): boolean {
+    if (!parsed) return true;
+    if (typeof parsed === 'string') return parsed.trim().length === 0;
+    if (typeof parsed === 'object' && parsed !== null) {
+        const obj = parsed as ProseMirrorNodeLike;
+        if (obj.type === 'doc') {
+            if (!obj.content || obj.content.length === 0) return true;
+            for (const node of obj.content) {
+                if (node.type !== 'paragraph') return false;
+                if (node.content && node.content.length > 0) {
+                    for (const textNode of node.content) {
+                        if (textNode.text && textNode.text.trim().length > 0) return false;
+                    }
+                }
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
 // Stable ref to avoid stale closures in event-listener callbacks
 function useLatestRef<T>(value: T) {
     const ref = useRef<T>(value);
@@ -566,10 +593,14 @@ export default function Dashboard() {
     // 1. Core Actions & Tab Management
     // -------------------------------------------------------------------------
 
-    const handleNewNote = async () => {
+    const handleNewNote = async (parentIdOverride?: string | null) => {
         try {
-            const { createNote, activeParentId } = useDataStore.getState();
-            const newFileId = await createNote("Untitled", undefined, activeParentId);
+            const { createNote, activeParentId, toggleFolder } = useDataStore.getState();
+            const parentId = parentIdOverride !== undefined ? parentIdOverride : activeParentId;
+            const newFileId = await createNote("Untitled", undefined, parentId);
+            if (parentId) {
+                toggleFolder(parentId, true);
+            }
             switchTab(newFileId, 'file', "Untitled");
         } catch (e) {
             console.error(e);
@@ -823,6 +854,7 @@ export default function Dashboard() {
 
             let contentText = "";
             let meta: any = null;
+            let fileKeyToUse: CryptoKey | null = null;
 
             if (target.visibility === 'public') {
                 const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
@@ -846,6 +878,7 @@ export default function Dashboard() {
                 const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey);
                 const dek = await cryptoV2.importDEK(rawDek);
                 setActiveFileKey(dek);
+                fileKeyToUse = dek;
 
                 let v2Title = (target.metadata as any)?.title || target.title;
                 if (target.secured_meta) {
@@ -945,6 +978,7 @@ export default function Dashboard() {
                     "jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
                 );
                 setActiveFileKey(importedFileKey);
+                fileKeyToUse = importedFileKey;
 
                 if (recoveredBackup) {
                     console.log("[RECOVERY] V1: Skipping server blob download, using recovered backup.");
@@ -978,22 +1012,117 @@ export default function Dashboard() {
 
             if (lastLoadIdRef.current !== loadId) return;
 
+            let parsedContent: any = null;
+            let isContentEmpty = true;
             if (contentText) {
                 try {
-                    const parsed = JSON.parse(contentText);
-                    // Detect canvas note content
-                    if (parsed?.version === 1 && Array.isArray(parsed?.items) && typeof parsed?.canvasWidth === 'number') {
-                        setCanvasNoteData(parsed);
-                        initialContentRef.current = parsed;
-                        setEditorContent(null);
-                    } else {
-                        setEditorContent(parsed);
-                        initialContentRef.current = parsed;
-                    }
+                    parsedContent = JSON.parse(contentText);
+                    isContentEmpty = isDocEmpty(parsedContent);
+                } catch (e) {
+                    parsedContent = contentText;
+                    isContentEmpty = typeof contentText === 'string' ? contentText.trim().length === 0 : true;
                 }
-                catch (e) {
-                    setEditorContent(contentText);
-                    initialContentRef.current = contentText;
+            }
+
+            // AUTO-RESTORE FROM BACKUP: If the content is empty but we have a backup history, restore it
+            if (isContentEmpty && !recoveredBackup) {
+                console.warn(`[RECOVERY] Note ${fileId} loaded empty. Attempting auto-restore from backup history...`);
+                try {
+                    const bListRes = await apiFetch(`/api/v1/files/${fileId}/backups`);
+                    if (bListRes.ok) {
+                        const backups = await bListRes.json();
+                        if (Array.isArray(backups) && backups.length > 0) {
+                            // Sort by updated_at descending
+                            const sortedSlots = backups.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+                            for (const slot of sortedSlots) {
+                                const slotName = slot.slot_name;
+                                const bRes = await apiFetch(`/api/v1/files/${fileId}/backups/${slotName}`);
+                                if (bRes.ok) {
+                                    const backupData = await bRes.json();
+                                    if (backupData.encrypted_blob) {
+                                        // Decode base64 blob to Uint8Array
+                                        const binaryString = atob(backupData.encrypted_blob);
+                                        const len = binaryString.length;
+                                        const bytes = new Uint8Array(len);
+                                        for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+
+                                        let decryptedText = "";
+                                        const isV2 = (backupData.version ?? 1) >= 2 || !!backupData.access_keys;
+                                        if (isV2) {
+                                            const accessKeys = typeof backupData.access_keys === 'string'
+                                                ? JSON.parse(backupData.access_keys)
+                                                : (backupData.access_keys || {});
+                                            const myAccess = accessKeys[myId];
+                                            if (myAccess?.wrapped_key) {
+                                                const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey);
+                                                const dek = await cryptoV2.importDEK(rawDek);
+                                                const blobText = new TextDecoder().decode(bytes);
+                                                const payload = JSON.parse(blobText);
+                                                const ivBuf = cryptoLib.base64ToArrayBuffer(payload.iv);
+                                                const dataBuf = cryptoLib.base64ToArrayBuffer(payload.data);
+                                                const decrypted = await window.crypto.subtle.decrypt(
+                                                    { name: 'AES-GCM', iv: ivBuf },
+                                                    dek,
+                                                    dataBuf
+                                                );
+                                                decryptedText = new TextDecoder().decode(decrypted);
+                                            }
+                                        } else {
+                                            if (backupData.secured_meta) {
+                                                const bMeta = await cryptoLib.decryptMetadata(backupData.secured_meta, privateKey);
+                                                if (!bMeta.isLocked) {
+                                                    const bFileKey = await window.crypto.subtle.importKey(
+                                                        "jwk", bMeta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
+                                                    );
+                                                    const blob = new Blob([bytes]);
+                                                    const decryptedBlob = await cryptoLib.decryptFile(blob, bMeta.iv as string, bFileKey, fileId);
+                                                    decryptedText = await decryptedBlob.text();
+                                                }
+                                            }
+                                        }
+
+                                        if (decryptedText) {
+                                            let parsedDecrypted: any = null;
+                                            try {
+                                                parsedDecrypted = JSON.parse(decryptedText);
+                                            } catch (_) {
+                                                parsedDecrypted = decryptedText;
+                                            }
+                                            if (!isDocEmpty(parsedDecrypted)) {
+                                                console.log(`[RECOVERY] Successfully found non-empty backup content in slot "${slotName}". Restoring...`);
+                                                parsedContent = parsedDecrypted;
+                                                isContentEmpty = false;
+                                                
+                                                // Save restored content back to server so it persists
+                                                const currentFile = [...useDataStore.getState().notes, ...useDataStore.getState().events].find(f => f.id === fileId);
+                                                const activeKey = fileKeyToUse;
+                                                if (currentFile && activeKey) {
+                                                    performSave(parsedDecrypted, fileId, activeKey, currentFile.visibility || 'private')
+                                                        .then(() => console.log(`[RECOVERY] Saved restored content for ${fileId}`))
+                                                        .catch(e => console.error(`[RECOVERY] Failed to save restored content for ${fileId}`, e));
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (recoveryErr) {
+                    console.error("[RECOVERY] Error during auto-restore:", recoveryErr);
+                }
+            }
+
+            if (!isContentEmpty && parsedContent) {
+                // Detect canvas note content
+                if (parsedContent?.version === 1 && Array.isArray(parsedContent?.items) && typeof parsedContent?.canvasWidth === 'number') {
+                    setCanvasNoteData(parsedContent);
+                    initialContentRef.current = parsedContent;
+                    setEditorContent(null);
+                } else {
+                    setEditorContent(parsedContent);
+                    initialContentRef.current = parsedContent;
                 }
             } else {
                 const emptyDoc = {
@@ -1047,6 +1176,7 @@ export default function Dashboard() {
         setCanvasNoteData(null);
         setActiveFileKey(null);
         setSaveStatus("saved");
+        setActiveCollaborators([]);
 
         if (type === 'file') {
             useDataStore.getState().setActiveNoteId(newId);
@@ -1552,6 +1682,10 @@ export default function Dashboard() {
 
             if (!res.ok) throw new Error("Failed to create folder");
             const newFolder = await res.json();
+
+            if (parentId) {
+                useDataStore.getState().toggleFolder(parentId, true);
+            }
 
             // Optimistic
             const decFolder: DecryptedFile = {
@@ -3138,9 +3272,8 @@ export default function Dashboard() {
                                 }}
                                 onActiveUsersChange={(users) => {
                                     // only show OTHER users
-                                    if (myId) {
-                                        setActiveCollaborators(users.filter(u => u.id !== myId));
-                                    }
+                                    const currentMyId = myId || useDataStore.getState().myId;
+                                    setActiveCollaborators(currentMyId ? users.filter(u => u.id !== currentMyId) : []);
                                 }}
                                 userProfile={userProfile}
                                 myId={myId}
@@ -3698,13 +3831,12 @@ export default function Dashboard() {
                                                             setActiveLinkBlockId(null);
                                                         }
                                                     }}
+                                                    onActiveUsersChange={(users) => {
+                                                        const currentMyId = myId || useDataStore.getState().myId;
+                                                        setActiveCollaborators(currentMyId ? users.filter(u => u.id !== currentMyId) : []);
+                                                    }}
                                                     activeTabId={activeTabId}
                                                     onReturnToTab={(tabId) => setActiveTabId(tabId)}
-                                                    onActiveUsersChange={(users) => {
-                                                        if (myId) {
-                                                            setActiveCollaborators(users.filter(u => u.id !== myId));
-                                                        }
-                                                    }}
                                                     userProfile={userProfile}
                                                     myId={myId}
                                                 />

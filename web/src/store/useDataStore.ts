@@ -393,8 +393,21 @@ export const useDataStore = create<DataState>((set, get) => ({
                 body: v2Result.content_ciphertext
             });
 
-            const newNote: DataItem = { id: newFile.id, title, type: 'note', parent_id: state.activeParentId || null };
-            set((s) => ({ notes: [...s.notes, newNote], metadataCache: { ...s.metadataCache, [newFile.id]: { title } } }));
+            const targetParentId = parentIdOverride !== undefined ? parentIdOverride : (state.activeParentId || null);
+            const newNote: DataItem = {
+                ...newFile,
+                title,
+                type: 'note',
+                parent_id: targetParentId,
+                isLocked: false
+            };
+            set((s) => ({
+                notes: [...s.notes, newNote],
+                metadataCache: {
+                    ...s.metadataCache,
+                    [newFile.id]: { title, isLocked: false, parent_id: targetParentId }
+                }
+            }));
             return newFile.id;
         } catch (e) {
             console.error("Failed to create note on server", e);
@@ -751,9 +764,12 @@ export const useDataStore = create<DataState>((set, get) => ({
                     } else if (metaData.title && !metaData.title.includes('Locked Note') && metaData.title !== 'Untitled') {
                         // Keep legacy title if we somehow have it, but mark as locked
                         metaData.isLocked = true;
-                    } else if (f.type !== 'folder') {
-                        metaData = { title: "Locked Note (Decrypting...)", isLocked: true };
-                        console.warn(`[CRYPTO-AUDIT] Failed to decrypt legacy metadata for ${f.id}`);
+                    } else {
+                        metaData = {
+                            title: f.type === 'folder' ? "Untitled" : "Locked Note (Decrypting...)",
+                            isLocked: true
+                        };
+                        console.warn(`[CRYPTO-AUDIT] Failed to decrypt legacy metadata for ${f.id} (${f.type})`);
                     }
                     // Always cache to prevent log storms
                     newMetaCache[f.id] = { ...metaData, parent_id: f.parent_id || null };
@@ -944,11 +960,10 @@ export const useDataStore = create<DataState>((set, get) => ({
                                 // Keep the title we found in unencrypted metadata
                                 metaData.isLocked = true;
                                 newMetaCache[f.id] = metaData;
-                            } else if (f.type !== 'folder') {
-                                // Decryption failed and no backup title — mark as locked
-                                metaData.title = "Locked Note (Decrypting...)";
+                            } else {
+                                metaData.title = f.type === 'folder' ? "Untitled" : "Locked Note (Decrypting...)";
                                 metaData.isLocked = true;
-                                // We don't necessarily cache "Decrypting..." here to allow fetchDirectory to try again
+                                newMetaCache[f.id] = metaData;
                             }
                         } else {
                             newMetaCache[f.id] = metaData;
@@ -963,8 +978,12 @@ export const useDataStore = create<DataState>((set, get) => ({
                             };
                             newMetaCache[f.id] = metaData;
                         } else {
-                            metaData = { title: "Untitled", isLocked: true };
-                            console.warn(`[CRYPTO-AUDIT] loadAllMetadata: Failed to decrypt legacy metadata for ${f.id}`);
+                            metaData = {
+                                title: f.type === 'folder' ? "Untitled" : "Locked Note (Decrypting...)",
+                                isLocked: true
+                            };
+                            newMetaCache[f.id] = metaData;
+                            console.warn(`[CRYPTO-AUDIT] loadAllMetadata: Failed to decrypt legacy metadata for ${f.id} (${f.type})`);
                         }
                     }
 
@@ -992,13 +1011,47 @@ export const useDataStore = create<DataState>((set, get) => ({
             const visibleNotes = decryptedNotes.filter(f => (f.share_status || 'owner') !== 'pending');
             const visibleEvents = decryptedEvents.filter(e => (e.share_status || 'owner') !== 'pending');
 
-            set(s => ({
-                notes: visibleNotes.length > 0 || s.notes.length === 0 ? visibleNotes : s.notes,
-                events: visibleEvents.length > 0 || s.events.length === 0 ? visibleEvents : s.events,
-                metadataCache: newMetaCache,
-                // We don't mark directories as loaded here because we only grabbed files,
-                // but this makes them available for suggestions.
-            }));
+            set(s => {
+                const noteMap = new Map(s.notes.map(n => [n.id, n]));
+                visibleNotes.forEach(vn => {
+                    const existing = noteMap.get(vn.id);
+                    if (existing) {
+                        const mergedTitle = (vn.title && vn.title !== 'Untitled' && !vn.title.includes('Locked Note'))
+                            ? vn.title
+                            : existing.title;
+                        noteMap.set(vn.id, {
+                            ...existing,
+                            ...vn,
+                            title: mergedTitle
+                        });
+                    } else {
+                        noteMap.set(vn.id, vn);
+                    }
+                });
+
+                const eventMap = new Map(s.events.map(e => [e.id, e]));
+                visibleEvents.forEach(ve => {
+                    const existing = eventMap.get(ve.id);
+                    if (existing) {
+                        const mergedTitle = (ve.title && ve.title !== 'Untitled' && !ve.title.includes('Locked Note'))
+                            ? ve.title
+                            : existing.title;
+                        eventMap.set(ve.id, {
+                            ...existing,
+                            ...ve,
+                            title: mergedTitle
+                        });
+                    } else {
+                        eventMap.set(ve.id, ve);
+                    }
+                });
+
+                return {
+                    notes: Array.from(noteMap.values()),
+                    events: Array.from(eventMap.values()),
+                    metadataCache: { ...s.metadataCache, ...newMetaCache },
+                };
+            });
 
             // Decrypt Tasks
             const loadedTasks: TaskItem[] = [];

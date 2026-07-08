@@ -27,7 +27,7 @@ interface DecryptedFile {
 interface SidebarProps {
     files: DecryptedFile[];
     onFileSelect: (fileId: string, title: string) => void;
-    onNewNote: () => void;
+    onNewNote: (parentId?: string | null) => void;
     onDeleteNote: (e: React.MouseEvent, id: string) => void;
     onRenameNote: (e: React.MouseEvent, id: string, currentTitle: string) => void;
     onToggleVisibility: (e: React.MouseEvent, id: string, currentVisibility: string) => void;
@@ -272,7 +272,14 @@ export default function Sidebar({
     };
 
     return (
-        <div className="w-64 h-full flex flex-col shrink-0 relative z-[100] transition-all duration-300 overflow-visible">
+        <div
+            className="w-64 h-full flex flex-col shrink-0 relative z-[100] transition-all duration-300 overflow-visible"
+            onContextMenu={(e) => {
+                if (e.defaultPrevented) return;
+                e.preventDefault();
+                setSidebarContextMenu({ x: e.clientX, y: e.clientY });
+            }}
+        >
             {/* Sticky top section: Navigation & Recent */}
             <div className="flex-shrink-0 p-2 pt-3 pb-0">
                 {/* Navigation Section */}
@@ -425,13 +432,6 @@ export default function Sidebar({
                         onMoveItem?.(id, null);
                     }
                     setDropIndicator(null);
-                }}
-                onDoubleClick={(e) => {
-                    if (e.target === e.currentTarget) onNewNote();
-                }}
-                onContextMenu={(e) => {
-                    e.preventDefault();
-                    setSidebarContextMenu({ x: e.clientX, y: e.clientY });
                 }}
             >
                 <div className="space-y-0.5">
@@ -632,31 +632,34 @@ export default function Sidebar({
                             <span className="font-medium">Open in new tab</span>
                         </button>
                         
-                        {contextMenu.type === 'folder' && (
-                            <>
-                                <button
-                                    onClick={() => { 
-                                        setContextMenu(null); 
-                                        useDataStore.getState().setActiveParentId(contextMenu.id);
-                                        onNewNote();
-                                    }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
-                                >
-                                    <Plus size={16} className="text-gray-400 group-hover:text-blue-500" />
-                                    <span className="font-medium">New Note here</span>
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setContextMenu(null);
-                                        onCreateFolder?.(contextMenu.id);
-                                    }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
-                                >
-                                    <FolderPlus size={16} className="text-gray-400 group-hover:text-blue-500" />
-                                    <span className="font-medium">New Folder here</span>
-                                </button>
-                            </>
-                        )}
+                        {(() => {
+                            const currentFile = files.find((f) => f.id === contextMenu.id);
+                            const parentId = contextMenu.type === 'folder' ? contextMenu.id : (currentFile?.parent_id || null);
+                            return (
+                                <>
+                                    <button
+                                        onClick={() => { 
+                                            setContextMenu(null); 
+                                            onNewNote(parentId);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                                    >
+                                        <Plus size={16} className="text-gray-400 group-hover:text-blue-500" />
+                                        <span className="font-medium">New Note here</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setContextMenu(null);
+                                            onCreateFolder?.(parentId);
+                                        }}
+                                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                                    >
+                                        <FolderPlus size={16} className="text-gray-400 group-hover:text-blue-500" />
+                                        <span className="font-medium">New Folder here</span>
+                                    </button>
+                                </>
+                            );
+                        })()}
 
                         <div className="relative group/sub">
                             <button className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group">

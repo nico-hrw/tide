@@ -772,16 +772,57 @@ blob_path=?, visibility=?, public_meta=?, secured_meta=?, version=?, metadata=?,
 }
 
 func (s *SQLiteStore) DeleteFile(ctx context.Context, id string) error {
-	query := `DELETE FROM files WHERE id = ?`
-	res, err := s.DB.ExecContext(ctx, query, id)
+	// Find all descendant IDs including the file itself using a recursive CTE query
+	queryDescendants := `
+		WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM files WHERE id = ?
+			UNION ALL
+			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
+		)
+		SELECT id FROM descendants
+	`
+	rows, err := s.DB.QueryContext(ctx, queryDescendants, id)
 	if err != nil {
 		return err
 	}
-	rows, _ := res.RowsAffected()
-	if rows == 0 {
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var dID string
+		if err := rows.Scan(&dID); err != nil {
+			return err
+		}
+		ids = append(ids, dID)
+	}
+
+	if len(ids) == 0 {
 		return ErrNotFound
 	}
-	return nil
+
+	// Delete all descendants from files, file_shares, and file_backups tables in a transaction
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	for _, dID := range ids {
+		_, err = tx.ExecContext(ctx, `DELETE FROM files WHERE id = ?`, dID)
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `DELETE FROM file_shares WHERE file_id = ?`, dID)
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `DELETE FROM file_backups WHERE file_id = ?`, dID)
+		if err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
 }
 func (s *SQLiteStore) SetVisibility(ctx context.Context, fileID string, visibility string) error {
 	query := `UPDATE files SET visibility = ?, updated_at = ? WHERE id = ?`
