@@ -197,13 +197,19 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
     const [showBackups, setShowBackups] = useState(false);
 
     const [ydoc] = useState(() => new Y.Doc());
-    const [provider] = useState<WebsocketProvider | null>(() => {
-        if (typeof window === 'undefined') return null;
+    const [provider, setProvider] = useState<WebsocketProvider | null>(null);
+    const contentInitialized = useRef(false);
+    const syncTimedOutRef = useRef(false);
+    const [isSynced, setIsSynced] = useState(false);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
         if (!activeTabId || 
             activeTabId.startsWith('chat-') || 
             activeTabId.startsWith('profile:') || 
             ['calendar', 'messages', 'social', 'ext_finance'].includes(activeTabId)) {
-            return null;
+            setProvider(null);
+            return;
         }
 
         const userId = myId || useDataStore.getState().myId || 'anonymous';
@@ -220,15 +226,17 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
         
         const wsUrl = `${protocol}//${wsHost}/api/v1/files/${activeTabId}`;
         
-        // y-websocket automatically appends `/${roomname}` to the serverUrl.
-        // We pass "ws" as the room name, so it becomes /api/v1/files/activeTabId/ws
-        return new WebsocketProvider(wsUrl, 'ws', ydoc, {
+        const newProvider = new WebsocketProvider(wsUrl, 'ws', ydoc, {
             params: { user_id: userId }
         });
-    });
-    const contentInitialized = useRef(false);
-    const syncTimedOutRef = useRef(false);
-    const [isSynced, setIsSynced] = useState(false);
+        setProvider(newProvider);
+
+        return () => {
+            newProvider.destroy();
+            contentInitialized.current = false;
+            syncTimedOutRef.current = false;
+        };
+    }, [activeTabId, myId, ydoc]);
 
     useEffect(() => {
         if (!provider) return;
@@ -266,17 +274,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             provider.awareness.off('change', handleChange);
             setIsSynced(false);
         };
-    }, [provider, userProfile, onActiveUsersChange]);
-
-    useEffect(() => {
-        return () => {
-            if (provider) {
-                provider.destroy();
-                contentInitialized.current = false;
-                syncTimedOutRef.current = false;
-            }
-        };
-    }, [provider]);
+    }, [provider, userProfile, myId, onActiveUsersChange]);
 
     const onChangeRef = useRef(onChange);
     const onLinkClickRef = useRef(onLinkClick);

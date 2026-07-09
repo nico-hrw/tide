@@ -194,3 +194,7 @@ export async function updateSearchIndex(
         drainWriteQueue();
     });
 }
+
+export function clearSearchIndexCache() {
+    cachedIndex = null;
+}

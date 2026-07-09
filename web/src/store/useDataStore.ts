@@ -934,8 +934,11 @@ export const useDataStore = create<DataState>((set, get) => ({
                 for (const f of items) {
                     if (newMetaCache[f.id]) {
                         const cached = newMetaCache[f.id];
-                        targetArr.push({ ...f, ...cached, parent_id: f.parent_id || null });
-                        continue;
+                        const isStale = cached.isLocked || cached.title === 'Locked Note (Decrypting...)';
+                        if (!isStale) {
+                            targetArr.push({ ...f, ...cached, parent_id: f.parent_id || null });
+                            continue;
+                        }
                     }
 
                     let metaData: any = { title: "Untitled" };

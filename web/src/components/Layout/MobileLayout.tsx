@@ -295,6 +295,97 @@ export default function MobileLayout({
     } catch { /* private mode or quota — ignore */ }
   }, [isSearchOpen]);
 
+  // ── [RECURRENCE-EXPANSION] ──────────────────────────────────────────────────────────
+  const expandedEvents = useMemo(() => {
+    const minDate = new Date(activeDate.getFullYear(), activeDate.getMonth() - 2, 1);
+    const maxDate = new Date(activeDate.getFullYear(), activeDate.getMonth() + 3, 1);
+    const expanded: any[] = [];
+
+    const processEvent = (evt: any, start: Date) => {
+      const duration = new Date(evt.end).getTime() - new Date(evt.start).getTime();
+      const end = new Date(start.getTime() + duration);
+      const occId = evt.id;
+      const isOcc = occId.includes('_');
+      const baseId = isOcc ? occId.split('_')[0] : occId;
+      const timeKey = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
+
+      // Check if this specific occurrence date is cancelled or has overrides
+      const overrides = evt.overrides || {};
+      if (overrides[timeKey]) {
+        const dayOverrides = overrides[timeKey];
+        if (dayOverrides.is_cancelled) {
+          return; // Skip cancelled occurrence
+        }
+        // Apply date overrides
+        if (dayOverrides.start) start = new Date(dayOverrides.start);
+        if (dayOverrides.end) {
+          end.setTime(new Date(dayOverrides.end).getTime());
+        }
+      }
+
+      expanded.push({
+        ...evt,
+        id: start.getTime() === new Date(evt.start).getTime() ? evt.id : `${evt.id}_${start.getTime()}`,
+        start: start.toISOString(),
+        end: end.toISOString()
+      });
+    };
+
+    events.forEach(e => {
+      const start = new Date(e.start);
+      if (isNaN(start.getTime())) {
+        return;
+      }
+
+      const rule = e.recurrence_rule;
+      const rrule = rule || `FREQ=${(e.recurrence && e.recurrence !== 'none') ? e.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`;
+
+      let freq = 'none';
+      let interval = 1;
+      const matchFreq = rrule.match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY|NONE)/i);
+      if (matchFreq) freq = matchFreq[1].toLowerCase();
+      const matchInterval = rrule.match(/INTERVAL=(\d+)/i);
+      if (matchInterval) interval = parseInt(matchInterval[1], 10);
+      interval = Math.max(1, interval);
+
+      if (freq === 'none') {
+        processEvent(e, start);
+      } else {
+        let current = new Date(start);
+        const recEndOrig = e.recurrence_end ? new Date(e.recurrence_end) : new Date(maxDate.getTime() + 31536000000);
+        if (isNaN(recEndOrig.getTime())) {
+          processEvent(e, start); // Fallback to single occurrence
+          return;
+        }
+        const safeRecEnd = recEndOrig < maxDate ? recEndOrig : maxDate;
+
+        while (current < minDate && current < safeRecEnd) {
+          if (freq === 'daily') current.setDate(current.getDate() + interval);
+          else if (freq === 'weekly') current.setDate(current.getDate() + (interval * 7));
+          else if (freq === 'monthly') current.setMonth(current.getMonth() + interval);
+          else if (freq === 'yearly') current.setFullYear(current.getFullYear() + interval);
+          else break;
+        }
+
+        let count = 0;
+        while (current < maxDate && current <= safeRecEnd && count < 1000) {
+          processEvent({
+            ...e,
+            parent_event_id: current.getTime() === start.getTime() ? undefined : e.id
+          }, new Date(current));
+          if (freq === 'daily') current.setDate(current.getDate() + interval);
+          else if (freq === 'weekly') current.setDate(current.getDate() + (interval * 7));
+          else if (freq === 'monthly') current.setMonth(current.getMonth() + interval);
+          else if (freq === 'yearly') current.setFullYear(current.getFullYear() + interval);
+          else break;
+          count++;
+        }
+      }
+    });
+
+    return expanded;
+  }, [events, activeDate]);
+
   const weekStart = useMemo(() => startOfWeek(activeDate, { weekStartsOn: 1 }), [activeDate]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const prevWeekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i - 7)), [weekStart]);
@@ -305,12 +396,12 @@ export default function MobileLayout({
   const allDayEventsForWeek = useMemo(() => {
     const wStart = new Date(weekDays[0]); wStart.setHours(0, 0, 0, 0);
     const wEnd   = new Date(weekDays[6]); wEnd.setHours(23, 59, 59, 999);
-    return events.filter(e => {
+    return expandedEvents.filter(e => {
       if (!e.allDay) return false;
       try { const s = new Date(e.start); const en = e.end ? new Date(e.end) : s; return s <= wEnd && en >= wStart; }
       catch { return false; }
     });
-  }, [events, weekDays]);
+  }, [expandedEvents, weekDays]);
 
   // Assign allday events to non-overlapping rows
   const allDayRows = useMemo(() => {
@@ -395,9 +486,9 @@ export default function MobileLayout({
   }, [calViewMode]);
 
   const nextEvent = useMemo(() =>
-    events.filter(e => { try { return new Date(e.start) > now; } catch { return false; } })
+    expandedEvents.filter(e => { try { return new Date(e.start) > now; } catch { return false; } })
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())[0] ?? null,
-    [events, now]);
+    [expandedEvents, now]);
 
   // Date/time recognition from search query (use new Date() inside so `now` tick doesn't re-run)
   const parsedDate = useMemo(() => {
@@ -433,12 +524,12 @@ export default function MobileLayout({
       (contentCache[f.id] ?? '').includes(q)
     )).map(f => ({ kind: 'note', ...f }));
     const now = Date.now();
-    const evts = events
+    const evts = expandedEvents
       .filter(e => (e.title || '').toLowerCase().includes(q))
       .sort((a, b) => Math.abs(new Date(a.start).getTime() - now) - Math.abs(new Date(b.start).getTime() - now))
       .map(e => ({ kind: 'event', ...e }));
     return [...notes, ...evts];
-  }, [searchQuery, files, events]);
+  }, [searchQuery, files, expandedEvents]);
 
   const openNote = useCallback((id: string, title: string) => {
     setIsSidebarOpen(false);
@@ -764,7 +855,7 @@ export default function MobileLayout({
                     <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: T.mut }}>Ergebnisse</p>
                     {searchResults.map(r => (
                       <button key={r.id}
-                        onClick={() => r.kind === 'note' ? openNote(r.id, r.title) : (() => { const ev = events.find(e => e.id === r.id); if (ev) setSelectedEvent(ev); setIsSearchOpen(false); })()}
+                        onClick={() => r.kind === 'note' ? openNote(r.id, r.title) : (() => { const ev = expandedEvents.find(e => e.id === r.id); if (ev) setSelectedEvent(ev); setIsSearchOpen(false); })()}
                         className="w-full flex items-center gap-3 py-3 text-left" style={{ borderBottom: `1px solid ${T.brd}` }}>
                         <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
                           style={{ background: r.kind === 'note' ? '#6366F122' : `${T.accent}22` }}>
@@ -981,12 +1072,12 @@ export default function MobileLayout({
                     </div>
                     <MobileWeekGrid
                       weekDays={wDays}
-                      events={events}
+                      events={expandedEvents}
                       now={now}
                       hideTimeStrip
                       onScrollY={slideIdx === 1 ? handleInfScrollY : undefined}
                       onHourHeightChange={h => setInfHourH(h)}
-                      onEventTap={id => { const ev = events.find(e => e.id === id); if (ev) setSelectedEvent(ev); onEventClick?.(id); }}
+                      onEventTap={id => { const ev = expandedEvents.find(e => e.id === id); if (ev) setSelectedEvent(ev); onEventClick?.(id); }}
                       onNewEvent={(start) => { onNewEvent?.(start); }}
                       onEventUpdate={onEventUpdate}
                       onWeekShift={dir => setActiveDate(d => addDays(d, dir * 7))}
@@ -1033,7 +1124,7 @@ export default function MobileLayout({
                     row.map(({ event, sc, ec }) => (
                       <button
                         key={event.id}
-                        onClick={() => { const ev = events.find(e => e.id === event.id); if (ev) setSelectedEvent(ev); }}
+                        onClick={() => { const ev = expandedEvents.find(e => e.id === event.id); if (ev) setSelectedEvent(ev); }}
                         style={{
                           position: 'absolute',
                           top: ri * 20 + 2,
@@ -1063,10 +1154,10 @@ export default function MobileLayout({
             <MobileWeekGrid
               key={weekStartStr}
               weekDays={weekDays}
-              events={events}
+              events={expandedEvents}
               now={now}
               onEventTap={id => {
-                const ev = events.find(e => e.id === id);
+                const ev = expandedEvents.find(e => e.id === id);
                 if (ev) setSelectedEvent(ev);
                 onEventClick?.(id);
               }}
@@ -1088,8 +1179,8 @@ export default function MobileLayout({
               {dayViewDays.map(day => {
                 const isToday = isSameDay(day, now);
                 const sameDay = (e: any) => { try { return isSameDay(new Date(e.start), day); } catch { return false; } };
-                const allDayEvs = events.filter(e => e.allDay && sameDay(e));
-                const dayEvs = events
+                const allDayEvs = expandedEvents.filter(e => e.allDay && sameDay(e));
+                const dayEvs = expandedEvents
                   .filter(e => !e.allDay && sameDay(e))
                   .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
                 return (
@@ -1104,7 +1195,7 @@ export default function MobileLayout({
                     </div>
                     {/* All-day events */}
                     {allDayEvs.map(ev => (
-                      <button key={`allday-${ev.id}`} onClick={() => { const found = events.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
+                      <button key={`allday-${ev.id}`} onClick={() => { const found = expandedEvents.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
                         className="w-full flex items-center gap-2 mb-2 text-left px-2 py-1.5 rounded-xl"
                         style={{ background: (ev.color || T.accent) + '22', border: `1px solid ${(ev.color || T.accent)}44` }}>
                         <div className="w-2 h-2 rounded-full shrink-0" style={{ background: ev.color || T.accent }} />
@@ -1119,7 +1210,7 @@ export default function MobileLayout({
                       const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
                       const color = ev.color || T.accent;
                       return (
-                        <button key={ev.id} onClick={() => { const found = events.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
+                        <button key={ev.id} onClick={() => { const found = expandedEvents.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
                           className="w-full flex items-stretch gap-0 mb-3 text-left">
                           {/* Time column */}
                           <div className="w-12 shrink-0 flex flex-col items-end justify-between pr-2 py-1">

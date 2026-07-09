@@ -113,18 +113,15 @@ export default function CalendarView({
     // Initial search index load wrapper
     const handleSearchClick = async () => {
         setIsSearchOpen(true);
-        if (!searchIndexData) {
-            try {
-                // In a real app we need masterKey and userID from a store/context
-                const store = require('@/store/useDataStore').useDataStore;
-                const { privateKey, myId } = store.getState();
-                if (privateKey && myId) {
-                    const data = await loadSearchIndex(privateKey, myId);
-                    setSearchIndexData(data);
-                }
-            } catch (e) {
-                console.error(e);
+        try {
+            const store = require('@/store/useDataStore').useDataStore;
+            const { privateKey, myId } = store.getState();
+            if (privateKey && myId) {
+                const data = await loadSearchIndex(privateKey, myId);
+                setSearchIndexData(data);
             }
+        } catch (e) {
+            console.error(e);
         }
     };
 

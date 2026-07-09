@@ -669,11 +669,19 @@ export default function Dashboard() {
                 const allPublicFiles = [...useDataStore.getState().notes, ...useDataStore.getState().events] as any[];
                 const publicFileRecord = allPublicFiles.find((f: any) => f.id === fileId);
                 const title = publicFileRecord?.title || fileNameRef.current || 'Untitled';
-                await apiFetch(`/api/v1/files/${fileId}`, {
+                const putRes = await apiFetch(`/api/v1/files/${fileId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ public_meta: { title } })
                 });
+                if (putRes.status === 404) {
+                    console.warn(`[AutoSave] Public file ${fileId} not found on server (404) — removing from tabs and store.`);
+                    setOpenTabs(prev => prev.filter(t => t.id !== fileId));
+                    useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
+                    const fallbackTab = openTabs.find(t => t.id !== fileId);
+                    if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
+                    return;
+                }
                 useDataStore.getState().updateFileRaw(fileId, { public_meta: { title }, title });
                 try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
                 return;
@@ -777,6 +785,14 @@ export default function Dashboard() {
                     ...(freshSecuredMeta ? { secured_meta: freshSecuredMeta } : {}),
                 })
             });
+            if (putRes.status === 404) {
+                console.warn(`[AutoSave] File ${fileId} not found on server (404) — removing from tabs and store.`);
+                setOpenTabs(prev => prev.filter(t => t.id !== fileId));
+                useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
+                const fallbackTab = openTabs.find(t => t.id !== fileId);
+                if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
+                return;
+            }
             if (!putRes.ok) throw new Error(`[V2-Save] PUT failed with status ${putRes.status}`);
 
             useDataStore.getState().updateFileRaw(fileId, {
@@ -927,6 +943,8 @@ export default function Dashboard() {
                     if (resBlob.status === 404) {
                         setOpenTabs(prev => prev.filter(t => t.id !== fileId));
                         useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
+                        const fallbackTab = openTabs.find(t => t.id !== fileId);
+                        if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
                         throw new Error("File not found on server (404)");
                     }
                     if (resBlob.ok) {
@@ -987,6 +1005,8 @@ export default function Dashboard() {
                     if (resBlob.status === 404) {
                         setOpenTabs(prev => prev.filter(t => t.id !== fileId));
                         useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
+                        const fallbackTab = openTabs.find(t => t.id !== fileId);
+                        if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
                         throw new Error("File not found on server (404)");
                     }
                     if (resBlob.ok) {
@@ -1249,6 +1269,7 @@ export default function Dashboard() {
                             setTimeout(() => {
                                 // Use metadataCache (no forceRefresh) so optimistic updates survive
                                 useDataStore.setState({ loadedDirectories: new Set() });
+                                import('@/lib/searchIndex').then(({ clearSearchIndexCache }) => clearSearchIndexCache());
                                 useDataStore.getState().fetchDirectory(null);
                             }, OWN_SAVE_COOLDOWN_MS - msSinceOwnSave);
                             return;
@@ -1256,6 +1277,7 @@ export default function Dashboard() {
                         // No forceRefresh: the metadataCache protects in-flight optimistic updates
                         // from being overwritten by server data that hasn't caught up yet.
                         useDataStore.setState({ loadedDirectories: new Set() });
+                        import('@/lib/searchIndex').then(({ clearSearchIndexCache }) => clearSearchIndexCache());
                         const fetchPromise = useDataStore.getState().fetchDirectory(null) as Promise<void> | undefined;
 
                         // If a file update arrives and we have a note open, reload its content
@@ -1384,6 +1406,29 @@ export default function Dashboard() {
             });
         }
     }, [privateKey, publicKey, myId, setKeys, fetchDirectory]);
+
+    // Debounced Search Index Sync Effect
+    useEffect(() => {
+        if (!privateKey || !publicKey || !myId || !isRestored) return;
+        
+        const timer = setTimeout(() => {
+            const s = useDataStore.getState();
+            const items = [
+                ...s.events.map(e => ({ id: e.id, title: e.title, date: e.start || new Date().toISOString(), type: 'event' as const })),
+                ...s.notes.map(n => ({ id: n.id, title: n.title, date: new Date().toISOString(), type: 'note' as const })),
+                ...s.tasks.map(t => ({ id: t.id, title: t.title, date: new Date().toISOString(), type: 'task' as const }))
+            ];
+            if (items.length > 0) {
+                import('@/lib/searchIndex').then(({ rebuildIndex }) => {
+                    rebuildIndex(items, publicKey, myId).catch(err => {
+                        console.error("[SearchIndexSync] Rebuild failed", err);
+                    });
+                });
+            }
+        }, 2000); // 2s debounce
+
+        return () => clearTimeout(timer);
+    }, [files, events, tasks, privateKey, publicKey, myId, isRestored]);
 
     // Cleanup orphaned tabs when access is revoked or file is deleted
     useEffect(() => {
@@ -2215,8 +2260,29 @@ export default function Dashboard() {
                 const isV2 = (target as any).version >= 2;
                 let encryptedMeta: string;
 
-                if (isV2 || target.type === 'folder') {
-                    // V2/Folders: direct re-encrypt — no legacy field preservation needed
+                if (isV2) {
+                    let fileKeyToUse = activeTabId === fileId ? activeFileKey : null;
+                    if (!fileKeyToUse && privateKey) {
+                        try {
+                            const accessKeys = typeof (target as any).access_keys === 'string'
+                                ? JSON.parse((target as any).access_keys)
+                                : ((target as any).access_keys || {});
+                            const myAccess = accessKeys[myId];
+                            if (myAccess?.wrapped_key) {
+                                const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey);
+                                fileKeyToUse = await cryptoV2.importDEK(rawDek);
+                            }
+                        } catch (dekErr) {
+                            console.warn("[submitRename] Failed to unwrap DEK on-demand, falling back to publicKey", dekErr);
+                        }
+                    }
+
+                    if (fileKeyToUse) {
+                        encryptedMeta = await cryptoLib.encryptMetadata({ title: newTitle, isLocked: false }, fileKeyToUse);
+                    } else {
+                        encryptedMeta = await cryptoLib.encryptMetadata({ title: newTitle, isLocked: false }, publicKey);
+                    }
+                } else if (target.type === 'folder') {
                     encryptedMeta = await cryptoLib.encryptMetadata({ title: newTitle, isLocked: false }, publicKey);
                 } else {
                     // V1: try to decrypt+merge to preserve fileKey/IV, fall back to fresh encrypt
