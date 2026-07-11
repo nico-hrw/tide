@@ -979,6 +979,18 @@ export default function MobileLayout({
           <Menu size={17} style={{ color: T.sec }} />
         </button>
         <div className="flex gap-2">
+          <a
+            href="https://go-tide.app/swipe/"
+            className="w-16 h-9 flex items-center justify-center rounded-xl text-xs font-bold transition-colors"
+            style={{
+              background: T.accent,
+              color: '#fff',
+              border: `1px solid ${T.accent}`,
+              textDecoration: 'none'
+            }}
+          >
+            Swipe
+          </a>
           <button onClick={() => setIsSocialOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl" style={{ background: T.card, border: `1px solid ${T.brd}` }}>
             <User size={16} style={{ color: T.sec }} />
           </button>
