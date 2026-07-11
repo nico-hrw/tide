@@ -143,24 +143,26 @@ export async function loadSearchIndex(
 
 export async function rebuildIndex(
     items: SearchIndexEntry[],
-    masterKey: CryptoKey,
+    privateKey: CryptoKey,
+    publicKey: CryptoKey,
     userID: string
 ) {
     const deduped = deduplicateIndex(items);
 
     // Resolve index file ID if we don't know it yet
     if (!indexFileId) {
-        const { fileId } = await fetchIndexFromServer(masterKey, userID);
+        const { fileId } = await fetchIndexFromServer(privateKey, userID);
         if (fileId) indexFileId = fileId;
     }
 
     cachedIndex = deduped;
-    await persistIndex(deduped, masterKey, userID);
+    await persistIndex(deduped, publicKey, userID);
 }
 
 export async function updateSearchIndex(
     entry: SearchIndexEntry,
-    masterKey: CryptoKey,
+    privateKey: CryptoKey,
+    publicKey: CryptoKey,
     userID: string
 ): Promise<void> {
     // Enqueue the write to serialize same-tab rapid saves
@@ -169,7 +171,7 @@ export async function updateSearchIndex(
             try {
                 // [RACE-FIX] Always load fresh from the server before mutating.
                 // The module-level cachedIndex is stale if another tab wrote concurrently.
-                const { entries: fresh, fileId } = await fetchIndexFromServer(masterKey, userID);
+                const { entries: fresh, fileId } = await fetchIndexFromServer(privateKey, userID);
                 if (fileId) indexFileId = fileId;
 
                 const baseId = entry.id.includes('_') ? entry.id.split('_')[0] : entry.id;
@@ -185,7 +187,7 @@ export async function updateSearchIndex(
                 const deduped = deduplicateIndex(fresh);
                 cachedIndex = deduped;
 
-                await persistIndex(deduped, masterKey, userID);
+                await persistIndex(deduped, publicKey, userID);
                 resolve();
             } catch (e) {
                 reject(e);

@@ -22,6 +22,8 @@ interface DecryptedFile {
     owner_email?: string;
     effect?: string;
     isGroup?: boolean;
+    share_status?: string;
+    permission?: string;
 }
 
 interface SidebarProps {
@@ -722,13 +724,27 @@ export default function Sidebar({
 
                         <div className="h-px bg-gray-100 my-1" />
 
-                        <button
-                            onClick={(e) => { setContextMenu(null); onDeleteNote(e, contextMenu.id); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-lg transition-colors group"
-                        >
-                            <Trash2 size={16} className="text-rose-400 group-hover:text-rose-600" />
-                            <span className="font-medium">Delete</span>
-                        </button>
+                        {(() => {
+                            const targetFile = files.find(f => f.id === contextMenu.id);
+                            const isShared = targetFile && targetFile.share_status && targetFile.share_status !== 'owner';
+                            const isFolder = contextMenu.type === 'folder';
+                            
+                            return (
+                                <button
+                                    onClick={(e) => { setContextMenu(null); onDeleteNote(e, contextMenu.id); }}
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-lg transition-colors group"
+                                >
+                                    {isShared ? (
+                                        <LogOut size={16} className="text-rose-400 group-hover:text-rose-600" />
+                                    ) : (
+                                        <Trash2 size={16} className="text-rose-400 group-hover:text-rose-600" />
+                                    )}
+                                    <span className="font-medium">
+                                        {isShared ? (isFolder ? "Leave Folder" : "Leave Note") : "Delete"}
+                                    </span>
+                                </button>
+                            );
+                        })()}
                     </div>
                 </div>
             )}

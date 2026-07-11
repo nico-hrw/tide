@@ -720,7 +720,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
                 // Resilience: Try to find existing title in store if we're doing a refresh
                 const existing = [...get().notes, ...get().events].find(x => x.id === f.id);
-                if (existing && existing.title && !existing.title.includes('Locked Note')) {
+                if (existing && existing.title && !existing.title.includes('Locked Note') && existing.title !== 'Untitled') {
                     metaData.title = existing.title;
                 }
 
@@ -942,10 +942,15 @@ export const useDataStore = create<DataState>((set, get) => ({
                     }
 
                     let metaData: any = { title: "Untitled" };
+
+                    // Folders and V2 files store a plaintext title in metadata as a fallback
+                    if (f.metadata && f.metadata.title) {
+                        metaData.title = f.metadata.title;
+                    }
                     
                     // Resilience: Try to find existing title in store
                     const existing = [...get().notes, ...get().events].find(x => x.id === f.id);
-                    if (existing && existing.title && !existing.title.includes('Locked Note')) {
+                    if (existing && existing.title && !existing.title.includes('Locked Note') && existing.title !== 'Untitled') {
                         metaData.title = existing.title;
                     }
                     if (f.visibility === 'public') {

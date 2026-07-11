@@ -1278,6 +1278,32 @@ export default function Dashboard() {
                         // from being overwritten by server data that hasn't caught up yet.
                         useDataStore.setState({ loadedDirectories: new Set() });
                         import('@/lib/searchIndex').then(({ clearSearchIndexCache }) => clearSearchIndexCache());
+
+                        if (data.type === 'file_deleted' && data.file_id) {
+                            useDataStore.setState(s => {
+                                const toRemove = new Set<string>([data.file_id]);
+                                let sizeBefore = 0;
+                                do {
+                                    sizeBefore = toRemove.size;
+                                    s.notes.forEach(n => {
+                                        if (n.parent_id && toRemove.has(n.parent_id)) {
+                                            toRemove.add(n.id);
+                                        }
+                                    });
+                                    s.events.forEach(e => {
+                                        if (e.parent_id && toRemove.has(e.parent_id)) {
+                                            toRemove.add(e.id);
+                                        }
+                                    });
+                                } while (toRemove.size > sizeBefore);
+
+                                return {
+                                    notes: s.notes.filter(n => !toRemove.has(n.id)),
+                                    events: s.events.filter(e => !toRemove.has(e.id))
+                                };
+                            });
+                        }
+
                         const fetchPromise = useDataStore.getState().fetchDirectory(null) as Promise<void> | undefined;
 
                         // If a file update arrives and we have a note open, reload its content
@@ -1393,10 +1419,8 @@ export default function Dashboard() {
                                 ...s.tasks.map(t => ({ id: t.id, title: t.title, date: new Date().toISOString(), type: 'task' as const }))
                             ];
                             if (items.length > 0) {
-                                // [FIX] rebuildIndex encrypts a new DEK via RSA-OAEP, which requires
-                                // the PUBLIC key (encrypt usage). Passing privateKey here caused
-                                // InvalidAccessError: key.usages does not permit this operation.
-                                await rebuildIndex(items, publicKey, myId);
+                                // Pass both privateKey and publicKey to support reading and writing the index
+                                await rebuildIndex(items, privateKey, publicKey, myId);
                             }
                         } catch (e) {
                             console.error("Index initialization failed", e);
@@ -1420,7 +1444,7 @@ export default function Dashboard() {
             ];
             if (items.length > 0) {
                 import('@/lib/searchIndex').then(({ rebuildIndex }) => {
-                    rebuildIndex(items, publicKey, myId).catch(err => {
+                    rebuildIndex(items, privateKey, publicKey, myId).catch(err => {
                         console.error("[SearchIndexSync] Rebuild failed", err);
                     });
                 });
@@ -2194,11 +2218,22 @@ export default function Dashboard() {
 
     const handleDeleteNote = async (e: React.MouseEvent, fileId: string) => {
         e.stopPropagation();
-        if (!confirm("Delete this note?")) return;
+        const freshNotes = useDataStore.getState().notes;
+        const target = freshNotes.find(f => f.id === fileId);
+        const isShared = target && target.share_status && target.share_status !== 'owner';
+        const isFolder = target?.type === 'folder';
+
+        const confirmMsg = isShared
+            ? (isFolder ? "Leave this shared folder?" : "Leave this shared note?")
+            : (isFolder ? "Delete this folder and all its contents?" : "Delete this note?");
+
+        if (!confirm(confirmMsg)) return;
         try {
             const res = await apiFetch(`/api/v1/files/${fileId}`, { method: "DELETE" });
             if (!res.ok && res.status !== 404) throw new Error("Backend failed to delete note");
-            useDataStore.getState().setNotes(files.filter(f => f.id !== fileId) as any);
+            
+            // Remove from local state immediately
+            useDataStore.getState().setNotes(freshNotes.filter(f => f.id !== fileId) as any);
             
             setOpenTabs(prev => {
                 const nextTabs = prev.filter(t => t.id !== fileId);
@@ -2209,7 +2244,7 @@ export default function Dashboard() {
             if (activeTabId === fileId) {
                 handleTabClose(e, fileId);
             }
-        } catch (err) { alert("Failed to delete"); }
+        } catch (err) { alert(isShared ? "Failed to leave shared item" : "Failed to delete"); }
     };
 
     // Rename File
