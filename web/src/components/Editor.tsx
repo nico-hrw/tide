@@ -721,7 +721,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
                 }
 
                 // Fallback for older JSON-only states
-                const xmlFragment = ydoc.getXmlFragment('prosemirror');
+                const xmlFragment = ydoc.getXmlFragment('default');
                 // Clear any existing (empty) content before populating
                 ydoc.transact(() => {
                     while (xmlFragment.length > 0) {
@@ -795,6 +795,36 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             contentInitialized.current = true;
         }
     }, [editor, provider, isSynced, initialContent, ydoc]);
+
+    useEffect(() => {
+        if (!editor) return;
+        const handleRestore = (e: Event) => {
+            const customEvent = e as CustomEvent;
+            const content = customEvent.detail;
+            if (content) {
+                const xmlFragment = ydoc.getXmlFragment('default');
+                ydoc.transact(() => {
+                    while (xmlFragment.length > 0) {
+                        xmlFragment.delete(0, 1);
+                    }
+                    try {
+                        const jsonContent = typeof content === 'string' ? JSON.parse(content) : content;
+                        const doc = editor.schema.nodeFromJSON(jsonContent);
+                        const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
+                        const oldClientId = ydoc.clientID;
+                        ydoc.clientID = 1;
+                        prosemirrorToYXmlFragment(doc, xmlFragment);
+                        ydoc.clientID = oldClientId;
+                    } catch (err) {
+                        console.error('Failed to restore via Yjs:', err);
+                        editor.commands.setContent(content);
+                    }
+                });
+            }
+        };
+        window.addEventListener('editor:restore-content', handleRestore);
+        return () => window.removeEventListener('editor:restore-content', handleRestore);
+    }, [editor, ydoc]);
 
     useEffect(() => {
         if (!editor) return;

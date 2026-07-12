@@ -4040,7 +4040,7 @@ export default function Dashboard() {
                     fileId={activeNoteId}
                     onCancel={() => setShowBackups(false)}
                     onRestore={(content) => {
-                        editorInstance?.commands.setContent(content);
+                        window.dispatchEvent(new CustomEvent('editor:restore-content', { detail: content }));
                         setShowBackups(false);
                         // Trigger a save with the restored content
                         const currentFile = files.find(f => f.id === activeNoteId);
