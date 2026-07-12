@@ -448,6 +448,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             baseExtensions.push(
                 Collaboration.configure({
                     document: ydoc,
+                    field: 'prosemirror',
                 }),
                 CollaborationCaret.configure({
                     provider: provider,
@@ -707,6 +708,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
         const insertContentIntoYjs = (content: any) => {
             if (!content) return;
             try {
+                let restoredFromBinary = false;
                 if (content.__yjs) {
                     const binaryString = atob(content.__yjs);
                     const len = binaryString.length;
@@ -716,12 +718,58 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
                     }
                     const Y = require('yjs');
                     Y.applyUpdate(ydoc, bytes);
-                    console.log('[Collaboration] Content successfully restored from Yjs binary state.');
+                    
+                    // Verify if active 'prosemirror' fragment has content
+                    const activeFragment = ydoc.getXmlFragment('prosemirror');
+                    let isActiveFragmentEmpty = activeFragment.length === 0;
+                    if (!isActiveFragmentEmpty && activeFragment.length === 1) {
+                        const firstChild = activeFragment.get(0);
+                        const childStr = firstChild?.toString() || '';
+                        isActiveFragmentEmpty = childStr.startsWith('<paragraph') && childStr.endsWith('></paragraph>');
+                    }
+                    
+                    if (!isActiveFragmentEmpty) {
+                        console.log('[Collaboration] Content successfully restored from Yjs binary state (prosemirror).');
+                        restoredFromBinary = true;
+                    } else {
+                        // Check if 'default' fragment has content
+                        const defaultFragment = ydoc.getXmlFragment('default');
+                        let isDefaultFragmentEmpty = defaultFragment.length === 0;
+                        if (!isDefaultFragmentEmpty && defaultFragment.length === 1) {
+                            const firstChild = defaultFragment.get(0);
+                            const childStr = firstChild?.toString() || '';
+                            isDefaultFragmentEmpty = childStr.startsWith('<paragraph') && childStr.endsWith('></paragraph>');
+                        }
+                        
+                        if (!isDefaultFragmentEmpty) {
+                            console.log('[Collaboration] Found content in Yjs default fragment. Copying to prosemirror...');
+                            try {
+                                ydoc.transact(() => {
+                                    while (activeFragment.length > 0) {
+                                        activeFragment.delete(0, 1);
+                                    }
+                                    const children: any[] = [];
+                                    for (let i = 0; i < defaultFragment.length; i++) {
+                                        children.push(defaultFragment.get(i).clone());
+                                    }
+                                    activeFragment.insert(0, children);
+                                });
+                                console.log('[Collaboration] Successfully copied default fragment to prosemirror.');
+                                restoredFromBinary = true;
+                            } catch (copyErr) {
+                                console.error('[Collaboration] Failed to copy default fragment:', copyErr);
+                            }
+                        }
+                    }
+                }
+
+                if (restoredFromBinary) {
                     return;
                 }
 
-                // Fallback for older JSON-only states
-                const xmlFragment = ydoc.getXmlFragment('default');
+                // Fallback for older JSON-only states or when binary restore yielded empty active fragment
+                console.log('[Collaboration] Binary restore empty or failed. Falling back to JSON content.');
+                const xmlFragment = ydoc.getXmlFragment('prosemirror');
                 // Clear any existing (empty) content before populating
                 ydoc.transact(() => {
                     while (xmlFragment.length > 0) {
@@ -729,7 +777,11 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
                     }
                 });
                 
-                const jsonContent = typeof content === 'string' ? JSON.parse(content) : content;
+                let jsonContent = typeof content === 'string' ? JSON.parse(content) : content;
+                if (jsonContent && jsonContent.__yjs) {
+                    const { __yjs, ...cleanJson } = jsonContent;
+                    jsonContent = cleanJson;
+                }
                 
                 // Use the editor's schema directly to avoid RangeError from multiple prosemirror-model versions
                 const doc = editor.schema.nodeFromJSON(jsonContent);
@@ -750,16 +802,48 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
         };
 
         const tryInitialize = (content: any) => {
-            const xmlFragment = ydoc.getXmlFragment('default');
+            const activeFragment = ydoc.getXmlFragment('prosemirror');
             // Check if the Yjs document is effectively empty (no meaningful text content).
             // Can't use exact string matching because extensions like BlockId add
             // attributes to the default empty paragraph (e.g. <paragraph blockId="...">).
-            let isYjsEmpty = xmlFragment.length === 0;
-            if (!isYjsEmpty && xmlFragment.length === 1) {
-                const firstChild = xmlFragment.get(0);
+            let isYjsEmpty = activeFragment.length === 0;
+            if (!isYjsEmpty && activeFragment.length === 1) {
+                const firstChild = activeFragment.get(0);
                 const childStr = firstChild?.toString() || '';
                 // A single paragraph (with or without attributes) that has no text content
                 isYjsEmpty = childStr.startsWith('<paragraph') && childStr.endsWith('></paragraph>');
+            }
+            
+            // Check default fragment if active is empty
+            if (isYjsEmpty) {
+                const defaultFragment = ydoc.getXmlFragment('default');
+                let isDefaultEmpty = defaultFragment.length === 0;
+                if (!isDefaultEmpty && defaultFragment.length === 1) {
+                    const firstChild = defaultFragment.get(0);
+                    const childStr = firstChild?.toString() || '';
+                    isDefaultEmpty = childStr.startsWith('<paragraph') && childStr.endsWith('></paragraph>');
+                }
+                
+                if (!isDefaultEmpty) {
+                    console.log('[Collaboration] tryInitialize: Found content in default fragment but prosemirror is empty. Copying...');
+                    try {
+                        ydoc.transact(() => {
+                            while (activeFragment.length > 0) {
+                                activeFragment.delete(0, 1);
+                            }
+                            const children: any[] = [];
+                            for (let i = 0; i < defaultFragment.length; i++) {
+                                children.push(defaultFragment.get(i).clone());
+                            }
+                            activeFragment.insert(0, children);
+                        });
+                        console.log('[Collaboration] tryInitialize: Successfully copied default to prosemirror.');
+                        contentInitialized.current = true;
+                        return true;
+                    } catch (copyErr) {
+                        console.error('[Collaboration] tryInitialize: Copy failed:', copyErr);
+                    }
+                }
             }
             
             if (isYjsEmpty && content) {
@@ -802,14 +886,19 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             const customEvent = e as CustomEvent;
             const content = customEvent.detail;
             if (content) {
-                const xmlFragment = ydoc.getXmlFragment('default');
+                const xmlFragment = ydoc.getXmlFragment('prosemirror');
                 ydoc.transact(() => {
                     while (xmlFragment.length > 0) {
                         xmlFragment.delete(0, 1);
                     }
                     try {
                         const jsonContent = typeof content === 'string' ? JSON.parse(content) : content;
-                        const doc = editor.schema.nodeFromJSON(jsonContent);
+                        let cleanJson = jsonContent;
+                        if (jsonContent && jsonContent.__yjs) {
+                            const { __yjs, ...rest } = jsonContent;
+                            cleanJson = rest;
+                        }
+                        const doc = editor.schema.nodeFromJSON(cleanJson);
                         const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
                         const oldClientId = ydoc.clientID;
                         ydoc.clientID = 1;
