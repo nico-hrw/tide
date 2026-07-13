@@ -364,6 +364,10 @@ export default function Dashboard() {
         const fullContent = yjsUpdateBase64 ? { ...json, __yjs: yjsUpdateBase64 } : json;
         setEditorContent(fullContent);
         setSaveStatus("unsaved");
+        const currentActiveId = activeNoteIdRef.current;
+        if (currentActiveId) {
+            unsavedNotesRef.current.add(currentActiveId);
+        }
         setEditorVersion(v => v + 1);
     }, []);
 
@@ -380,6 +384,8 @@ export default function Dashboard() {
     // (avoids IV mismatch when two saves race each other on the same file).
     const isSavingRef = useRef<Set<string>>(new Set());
     const initialContentRef = useRef<any>(null);
+    const unsavedNotesRef = useRef<Set<string>>(new Set());
+    const pendingRetriesRef = useRef<Set<string>>(new Set());
 
     useEffect(() => { activeNoteIdRef.current = activeNoteId ?? null; }, [activeNoteId]);
     useEffect(() => { activeFileKeyRef.current = activeFileKey; }, [activeFileKey]);
@@ -415,9 +421,9 @@ export default function Dashboard() {
         // completes, using the then-current content from editorContentRef.
         if (isSavingRef.current.has(noteId)) {
             console.log(`[AutoSave] Save in-flight for ${noteId} — scheduling retry`);
-            // Only schedule one pending retry at a time
-            if (!(triggerSave as any)._pendingRetry) {
-                (triggerSave as any)._pendingRetry = true;
+            // Only schedule one pending retry at a time per note
+            if (!pendingRetriesRef.current.has(noteId)) {
+                pendingRetriesRef.current.add(noteId);
                 const retryContent = editorContentRef.current;
                 const retryKey = activeFileKeyRef.current;
                 // Wait for in-flight save to finish by polling
@@ -425,8 +431,8 @@ export default function Dashboard() {
                     while (isSavingRef.current.has(noteId)) {
                         await new Promise(r => setTimeout(r, 200));
                     }
-                    (triggerSave as any)._pendingRetry = false;
-                    if (saveStatusRef.current === 'unsaved') {
+                    pendingRetriesRef.current.delete(noteId);
+                    if (unsavedNotesRef.current.has(noteId)) {
                         triggerSave(noteId, retryKey, editorContentRef.current || retryContent);
                     }
                 };
@@ -464,7 +470,10 @@ export default function Dashboard() {
         // empty doc is set), we must NOT save — that would overwrite real server content.
         const initialStr = typeof initialContentRef.current === 'string' ? initialContentRef.current : JSON.stringify(initialContentRef.current);
         if (contentStr === initialStr) {
-            setSaveStatus('saved');
+            unsavedNotesRef.current.delete(noteId);
+            if (noteId === activeNoteIdRef.current) {
+                setSaveStatus('saved');
+            }
             return;
         }
 
@@ -475,7 +484,9 @@ export default function Dashboard() {
 
         console.log(`[AutoSave] Triggering save for ${noteId} ("${(currentFile as any).title || 'Untitled'}")`);
         isSavingRef.current.add(noteId);
-        setSaveStatus('saving');
+        if (noteId === activeNoteIdRef.current) {
+            setSaveStatus('saving');
+        }
         try {
             await performSaveRef.current(content, noteId, fileKey, (currentFile as any).visibility ?? 'private');
             console.log(`[AutoSave] Successfully saved ${noteId}`);
@@ -485,7 +496,10 @@ export default function Dashboard() {
             const savedContentStr = typeof content === 'string' ? content : JSON.stringify(content);
 
             if (currentContentStr === savedContentStr) {
-                setSaveStatus('saved');
+                unsavedNotesRef.current.delete(noteId);
+                if (noteId === activeNoteIdRef.current) {
+                    setSaveStatus('saved');
+                }
                 // [FIX-1b] Update the cached _saveStatus on the open tab so that
                 // switching away and returning does not lose the 'saved' state.
                 setOpenTabs(prev => prev.map(tab =>
@@ -493,20 +507,35 @@ export default function Dashboard() {
                 ));
             } else {
                 console.log(`[AutoSave] Content changed during save for ${noteId}. Leaving as unsaved.`);
-                // Ensure saveStatus is 'unsaved' to re-trigger the debouncer
-                if (saveStatusRef.current !== 'unsaved') {
-                    setSaveStatus('unsaved');
+                unsavedNotesRef.current.add(noteId);
+                if (noteId === activeNoteIdRef.current) {
+                    if (saveStatusRef.current !== 'unsaved') {
+                        setSaveStatus('unsaved');
+                    }
+                } else {
+                    setOpenTabs(prev => prev.map(tab =>
+                        tab.id === noteId ? { ...tab, _saveStatus: 'unsaved' } : tab
+                    ));
                 }
             }
         } catch (e) {
             console.error(`[AutoSave] Save FAILED for ${noteId}:`, e);
             const errMsg = String((e as any)?.message || '');
-            if (errMsg.includes('403') || errMsg.includes('status 403')) {
-                // View-only file — silently ignore the save failure
-                setSaveStatus('saved');
+            const isForbidden = errMsg.includes('403') || errMsg.includes('status 403');
+            const targetStatus = isForbidden ? 'saved' : 'unsaved';
+
+            if (isForbidden) {
+                unsavedNotesRef.current.delete(noteId);
             } else {
-                setSaveStatus('unsaved');
+                unsavedNotesRef.current.add(noteId);
             }
+
+            if (noteId === activeNoteIdRef.current) {
+                setSaveStatus(targetStatus);
+            }
+            setOpenTabs(prev => prev.map(tab =>
+                tab.id === noteId ? { ...tab, _saveStatus: targetStatus } : tab
+            ));
         } finally {
             isSavingRef.current.delete(noteId);
         }
@@ -725,12 +754,14 @@ export default function Dashboard() {
                 }
             }
 
+            let generatedNewDek = false;
             if (!dek) {
                 // New file, V1→V2 migration, or DEK recovery failure: create a fresh DEK
                 dek = await cryptoV2.generateDEK();
                 const rawDek = await window.crypto.subtle.exportKey('raw', dek);
                 const wrapped = await cryptoV2.wrapDEKData(rawDek, freshPubKey);
                 accessKeysMap = { ...accessKeysMap, [freshMyId]: { wrapped_key: wrapped.ciphertext } };
+                generatedNewDek = true;
                 console.log(`[V2-Save] Generated new DEK for ${fileId}`);
             }
 
@@ -780,7 +811,7 @@ export default function Dashboard() {
                 body: JSON.stringify({
                     version: 2,
                     content_ciphertext: contentCiphertext,
-                    ...(isOwner ? { access_keys: accessKeysMap } : {}),
+                    ...(isOwner && generatedNewDek ? { access_keys: accessKeysMap } : {}),
                     metadata: { has_custom_password: false, title },
                     ...(freshSecuredMeta ? { secured_meta: freshSecuredMeta } : {}),
                 })

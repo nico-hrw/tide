@@ -197,19 +197,13 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
     const [showBackups, setShowBackups] = useState(false);
 
     const [ydoc] = useState(() => new Y.Doc());
-    const [provider, setProvider] = useState<WebsocketProvider | null>(null);
-    const contentInitialized = useRef(false);
-    const syncTimedOutRef = useRef(false);
-    const [isSynced, setIsSynced] = useState(false);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
+    const [provider] = useState<WebsocketProvider | null>(() => {
+        if (typeof window === 'undefined') return null;
         if (!activeTabId || 
             activeTabId.startsWith('chat-') || 
             activeTabId.startsWith('profile:') || 
             ['calendar', 'messages', 'social', 'ext_finance'].includes(activeTabId)) {
-            setProvider(null);
-            return;
+            return null;
         }
 
         const userId = myId || useDataStore.getState().myId || 'anonymous';
@@ -226,17 +220,23 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
         
         const wsUrl = `${protocol}//${wsHost}/api/v1/files/${activeTabId}`;
         
-        const newProvider = new WebsocketProvider(wsUrl, 'ws', ydoc, {
+        return new WebsocketProvider(wsUrl, 'ws', ydoc, {
             params: { user_id: userId }
         });
-        setProvider(newProvider);
+    });
+    const contentInitialized = useRef(false);
+    const syncTimedOutRef = useRef(false);
+    const [isSynced, setIsSynced] = useState(false);
 
+    useEffect(() => {
         return () => {
-            newProvider.destroy();
+            if (provider) {
+                provider.destroy();
+            }
             contentInitialized.current = false;
             syncTimedOutRef.current = false;
         };
-    }, [activeTabId, myId, ydoc]);
+    }, [provider]);
 
     useEffect(() => {
         if (!provider) return;

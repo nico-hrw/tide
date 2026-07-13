@@ -732,9 +732,11 @@ export const useDataStore = create<DataState>((set, get) => ({
                     // still decrypt it. Start with the crypto flags as a base.
                     metaData = {
                         ...f.metadata,
-                        title: f.metadata.title || "Untitled"
+                        title: f.metadata.title || "Untitled",
+                        isLocked: false
                     };
-                    if (f.secured_meta) {
+                    const isOwner = f.owner_id === state.myId;
+                    if (isOwner && f.secured_meta) {
                         const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `v2-${f.id}`);
                         if (!meta.isLocked) {
                             // Decryption succeeded — accept even if title is empty (empty notes are valid)
@@ -958,8 +960,13 @@ export const useDataStore = create<DataState>((set, get) => ({
                     } else if (f.version >= 2 && f.metadata) {
                         // V2 files: start with crypto flags, then get title from secured_meta.
                         // IMPORTANT: decryptMetadata never throws — check isLocked before caching.
-                        metaData = { ...f.metadata, title: f.metadata.title || "Untitled" };
-                        if (f.secured_meta) {
+                        metaData = {
+                            ...f.metadata,
+                            title: f.metadata.title || "Untitled",
+                            isLocked: false
+                        };
+                        const isOwner = f.owner_id === state.myId;
+                        if (isOwner && f.secured_meta) {
                             const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey!, `v2-lam-${f.id}`);
                             if (!meta.isLocked) {
                                 metaData = { ...metaData, ...meta, isLocked: false };
