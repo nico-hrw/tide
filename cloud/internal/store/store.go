@@ -42,6 +42,10 @@ type Store interface {
 	GetFile(ctx context.Context, id string) (*db.File, error)
 	UpdateFile(ctx context.Context, file *db.File) error
 	DeleteFile(ctx context.Context, id string) error
+	SoftDeleteFile(ctx context.Context, id string) error
+	RestoreFile(ctx context.Context, id string) error
+	ListTrashedFiles(ctx context.Context, viewerID string) ([]*db.File, error)
+	PurgeOldTrashedFiles(ctx context.Context) error
 	ListFiles(ctx context.Context, ownerID string, parentID *string) ([]*db.File, error) // Legacy
 	ListAccessibleFiles(ctx context.Context, viewerID string, parentID *string, query *string, recursive bool) ([]*db.File, error)
 	GetAccessibleFile(ctx context.Context, id string, viewerID string) (*db.File, error)

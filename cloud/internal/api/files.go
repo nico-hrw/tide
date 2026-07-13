@@ -54,6 +54,8 @@ func (h *FileHandler) RegisterRoutes(r chi.Router) {
 		r.Get("/{fileID}/download", h.DownloadFile)
 		r.Get("/{fileID}/backups", h.GetFileBackups)
 		r.Get("/{fileID}/backups/{slotName}", h.GetFileBackup)
+		r.Put("/{fileID}/backups/{slotName}", h.UpdateFileBackup)
+		r.Post("/{fileID}/restore", h.RestoreFile)
 
 		r.Put("/visibility", h.SetVisibility)
 		r.Post("/purge", h.PurgeFiles)
@@ -100,19 +102,28 @@ func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	permanent := r.URL.Query().Get("permanent") == "true"
+
 	if file.OwnerID == userID {
-		// Owner: Delete File
-		if err := h.Store.DeleteFile(r.Context(), id); err != nil {
-			http.Error(w, "Failed to delete file", http.StatusInternalServerError)
-			return
+		if permanent {
+			// Owner: Permanent Delete File
+			if err := h.Store.DeleteFile(r.Context(), id); err != nil {
+				http.Error(w, "Failed to delete file permanently", http.StatusInternalServerError)
+				return
+			}
+			h.broadcastToFileUsers(id, file.OwnerID, fmt.Sprintf(`{"type":"file_deleted","file_id":"%s"}`, id))
+		} else {
+			// Owner: Soft Delete File
+			if err := h.Store.SoftDeleteFile(r.Context(), id); err != nil {
+				http.Error(w, "Failed to soft delete file", http.StatusInternalServerError)
+				return
+			}
+			h.broadcastToFileUsers(id, file.OwnerID, fmt.Sprintf(`{"type":"file_deleted","file_id":"%s"}`, id))
 		}
-		// Broadcast
-		h.broadcastToFileUsers(id, file.OwnerID, fmt.Sprintf(`{"type":"file_deleted","file_id":"%s"}`, id))
 	} else {
-		// Not Owner: Remove Share
+		// Not Owner (Collaborator): Remove Share (permanent leave)
 		if err := h.Store.RemoveShare(r.Context(), id, userID); err != nil {
 			if err == store.ErrNotFound {
-				// Share not found?
 				http.Error(w, "Share not found", http.StatusNotFound)
 				return
 			}
@@ -192,6 +203,18 @@ func (h *FileHandler) ListFiles(w http.ResponseWriter, r *http.Request) {
 	var tFilter *string
 	if typeParam != "" {
 		tFilter = &typeParam
+	}
+
+	trashed := r.URL.Query().Get("trashed") == "true"
+	if trashed {
+		files, err := h.Store.ListTrashedFiles(r.Context(), userID)
+		if err != nil {
+			http.Error(w, "Failed to list trashed files", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(files)
+		return
 	}
 
 	// Use ListAccessibleFiles to show Own + Shared
@@ -700,12 +723,12 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		file.AccessKeys = req.AccessKeys
 	}
 	if req.ContentCiphertext != nil {
-		oldRc, err := h.BlobStore.Get(r.Context(), id)
-		var oldBlobBytes []byte
-		if err == nil {
-			oldBlobBytes, _ = io.ReadAll(oldRc)
-			oldRc.Close()
-		}
+		// oldRc, err := h.BlobStore.Get(r.Context(), id)
+		// var oldBlobBytes []byte
+		// if err == nil {
+		// 	oldBlobBytes, _ = io.ReadAll(oldRc)
+		// 	oldRc.Close()
+		// }
 
 		if err := h.BlobStore.Put(r.Context(), id, strings.NewReader(*req.ContentCiphertext)); err != nil {
 			http.Error(w, "Failed to write blob", http.StatusInternalServerError)
@@ -714,9 +737,10 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		path := id
 		file.BlobPath = &path
 
-		if len(oldBlobBytes) > 0 {
-			go h.handleBackupCascade(context.Background(), id, oldBlobBytes)
-		}
+		// Server-side backup cascade disabled (handled via client-side delta cascade)
+		// if len(oldBlobBytes) > 0 {
+		// 	go h.handleBackupCascade(context.Background(), id, oldBlobBytes)
+		// }
 	}
 	file.UpdatedAt = time.Now()
 
@@ -757,12 +781,12 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	oldRc, err := h.BlobStore.Get(r.Context(), id)
-	var oldBlobBytes []byte
-	if err == nil {
-		oldBlobBytes, _ = io.ReadAll(oldRc)
-		oldRc.Close()
-	}
+	// oldRc, err := h.BlobStore.Get(r.Context(), id)
+	// var oldBlobBytes []byte
+	// if err == nil {
+	// 	oldBlobBytes, _ = io.ReadAll(oldRc)
+	// 	oldRc.Close()
+	// }
 
 	// Stream body to BlobStore
 	if err := h.BlobStore.Put(r.Context(), id, r.Body); err != nil {
@@ -770,9 +794,10 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if len(oldBlobBytes) > 0 {
-		go h.handleBackupCascade(context.Background(), id, oldBlobBytes)
-	}
+	// Server-side backup cascade disabled (handled via client-side delta cascade)
+	// if len(oldBlobBytes) > 0 {
+	// 	go h.handleBackupCascade(context.Background(), id, oldBlobBytes)
+	// }
 
 	// Update file blob path (if not already set, though BlobStore abstracts path)
 	// We might want to mark it as "uploaded" or update size.
@@ -1038,4 +1063,107 @@ func decodeBase64OrRaw(s string) []byte {
 		return []byte(s)
 	}
 	return dec
+}
+
+func (h *FileHandler) UpdateFileBackup(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "fileID")
+	slotName := chi.URLParam(r, "slotName")
+	if id == "" || slotName == "" {
+		http.Error(w, "Missing arguments", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	hasAccess, err := h.Store.UserHasFileAccess(r.Context(), userID, id)
+	if err != nil || !hasAccess {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	var req struct {
+		EncryptedBlob string                 `json:"encrypted_blob"`
+		SecuredMeta   []byte                 `json:"secured_meta"`
+		AccessKeys    map[string]interface{} `json:"access_keys"`
+		Version       int                    `json:"version"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+
+	blobBytes := decodeBase64OrRaw(req.EncryptedBlob)
+	var accessKeysBytes []byte
+	if req.AccessKeys != nil {
+		accessKeysBytes, _ = json.Marshal(req.AccessKeys)
+	}
+
+	file, err := h.Store.GetFile(r.Context(), id)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	newB := &db.FileBackup{
+		ID:            uuid.New().String(),
+		FileID:        id,
+		SlotName:      slotName,
+		EncryptedBlob: blobBytes,
+		SecuredMeta:   req.SecuredMeta,
+		AccessKeys:    json.RawMessage(accessKeysBytes),
+		Version:       req.Version,
+		UpdatedAt:     time.Now(),
+	}
+
+	if len(newB.SecuredMeta) == 0 {
+		newB.SecuredMeta = file.SecuredMeta
+	}
+	if len(newB.AccessKeys) == 0 || string(newB.AccessKeys) == "{}" {
+		newB.AccessKeys = file.AccessKeys
+	}
+
+	if err := h.Store.UpsertFileBackup(r.Context(), newB); err != nil {
+		http.Error(w, "Failed to upsert backup", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *FileHandler) RestoreFile(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "fileID")
+	if id == "" {
+		http.Error(w, "Missing file ID", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	file, err := h.Store.GetFile(r.Context(), id)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	if file.OwnerID != userID {
+		http.Error(w, "Forbidden: only the owner can restore files", http.StatusForbidden)
+		return
+	}
+
+	if err := h.Store.RestoreFile(r.Context(), id); err != nil {
+		http.Error(w, "Failed to restore file", http.StatusInternalServerError)
+		return
+	}
+
+	h.broadcastToFileUsers(id, file.OwnerID, fmt.Sprintf(`{"type":"file_created","file_id":"%s"}`, id))
+
+	w.WriteHeader(http.StatusNoContent)
 }

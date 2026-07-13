@@ -33,9 +33,11 @@ const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEdi
 import DailySummary from "@/components/Calendar/DailySummary";
 import MobileLayout from "@/components/Layout/MobileLayout";
 import BackupHistory from "@/components/BackupHistory";
-import { Clock, Settings, LogOut, Users } from 'lucide-react';
+import { Clock, Settings, LogOut, Users, Trash2 } from 'lucide-react';
 import Avatar from "@/components/Profile/Avatar";
 import SmartIsland from "@/components/SmartIsland";
+import { createLinePatch, applyLinePatch } from "@/lib/diff";
+import TrashPanel from "@/components/TrashPanel";
 
 
 const FinanceDashboard = dynamic(() => import('@/components/Finance/FinanceDashboard'), {
@@ -103,6 +105,7 @@ interface DecryptedFile {
     visibility: string;
     parent_id?: string | null;
     owner_email?: string;
+    owner_id?: string;
     color?: string;
     isGroup?: boolean;
     effect?: string;
@@ -834,6 +837,126 @@ export default function Dashboard() {
             });
 
             // (timestamp already stamped before PUT — see above)
+
+            // --- Asynchronous client-side delta backup cascade ---
+            (async () => {
+                try {
+                    const bListRes = await apiFetch(`/api/v1/files/${fileId}/backups`);
+                    if (!bListRes.ok) return;
+                    const backups = await bListRes.json();
+                    
+                    const slotMap: Record<string, any> = {};
+                    if (Array.isArray(backups)) {
+                        for (const b of backups) {
+                            slotMap[b.slot_name.trim()] = b;
+                        }
+                    }
+                    
+                    const now = new Date();
+                    const slots = [
+                        { name: "10 minutes", dur: 10 * 60 * 1000 },
+                        { name: "30 minutes", dur: 30 * 60 * 1000 },
+                        { name: "1 hour", dur: 60 * 60 * 1000 },
+                        { name: "1 day", dur: 24 * 60 * 60 * 1000 },
+                        { name: "2 days", dur: 2 * 24 * 60 * 60 * 1000 },
+                        { name: "1 week", dur: 7 * 24 * 60 * 60 * 1000 },
+                    ];
+                    
+                    for (const slot of slots) {
+                        const b = slotMap[slot.name];
+                        const needsUpdate = !b || (now.getTime() - new Date(b.updated_at).getTime()) > slot.dur;
+                        if (needsUpdate) {
+                            console.log(`[Backup Cascade] Updating slot "${slot.name}" for file ${fileId}`);
+                            let oldJsonStr = "{}";
+                            if (b && b.encrypted_blob) {
+                                try {
+                                    const binaryString = atob(b.encrypted_blob);
+                                    const len = binaryString.length;
+                                    const bytes = new Uint8Array(len);
+                                    for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+                                    
+                                    let oldPatchText = "";
+                                    const isV2 = (b.version ?? 1) >= 2 || !!b.access_keys;
+                                    if (isV2) {
+                                        const accessKeys = typeof b.access_keys === 'string'
+                                            ? JSON.parse(b.access_keys)
+                                            : (b.access_keys || {});
+                                        const myAccess = accessKeys?.[freshMyId];
+                                        if (myAccess?.wrapped_key) {
+                                            const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, freshPrivKey);
+                                            const slotDek = await cryptoV2.importDEK(rawDek);
+                                            const blobText = new TextDecoder().decode(bytes);
+                                            const payload = JSON.parse(blobText);
+                                            const ivBuf = new Uint8Array(atob(payload.iv).split("").map(c => c.charCodeAt(0)));
+                                            const dataBuf = new Uint8Array(atob(payload.data).split("").map(c => c.charCodeAt(0)));
+                                            const decrypted = await window.crypto.subtle.decrypt(
+                                                { name: 'AES-GCM', iv: ivBuf },
+                                                slotDek,
+                                                dataBuf
+                                            );
+                                            oldPatchText = new TextDecoder().decode(decrypted);
+                                        }
+                                    } else {
+                                        if (b.secured_meta) {
+                                            const meta = await cryptoLib.decryptMetadata(b.secured_meta, freshPrivKey, `backup-${fileId}`);
+                                            if (!meta.isLocked) {
+                                                const fileKey = await window.crypto.subtle.importKey(
+                                                    "jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
+                                                );
+                                                const decryptedBlob = await cryptoLib.decryptFile(new Blob([bytes]), meta.iv as string, fileKey, fileId);
+                                                oldPatchText = await decryptedBlob.text();
+                                            }
+                                        }
+                                    }
+                                    
+                                    try {
+                                        const parsedPatch = JSON.parse(oldPatchText);
+                                        if (Array.isArray(parsedPatch)) {
+                                            oldJsonStr = applyLinePatch(contentString, parsedPatch);
+                                        } else {
+                                            oldJsonStr = oldPatchText;
+                                        }
+                                    } catch (_) {
+                                        oldJsonStr = oldPatchText;
+                                    }
+                                } catch (e) {
+                                    console.warn(`[Backup Cascade] Failed to decrypt old slot "${slot.name}"`, e);
+                                    oldJsonStr = "{}";
+                                }
+                            }
+                            
+                            const patch = createLinePatch(contentString, oldJsonStr);
+                            const patchStr = JSON.stringify(patch);
+                            
+                            const patchIv = window.crypto.getRandomValues(new Uint8Array(12));
+                            const patchBuffer = new TextEncoder().encode(patchStr);
+                            const encryptedPatch = await window.crypto.subtle.encrypt(
+                                { name: 'AES-GCM', iv: patchIv },
+                                dek!,
+                                patchBuffer
+                            );
+                            const patchCiphertext = JSON.stringify({
+                                data: cryptoLib.arrayBufferToBase64(encryptedPatch),
+                                iv:   cryptoLib.arrayBufferToBase64(patchIv.buffer as ArrayBuffer)
+                            });
+                            
+                            const b64Payload = btoa(patchCiphertext);
+                            
+                            await apiFetch(`/api/v1/files/${fileId}/backups/${slot.name}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    version: 2,
+                                    encrypted_blob: b64Payload,
+                                    access_keys: accessKeysMap,
+                                })
+                            });
+                        }
+                    }
+                } catch (bErr) {
+                    console.error("[Backup Cascade Error]", bErr);
+                }
+            })();
 
             try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
 
@@ -2275,7 +2398,25 @@ export default function Dashboard() {
             if (activeTabId === fileId) {
                 handleTabClose(e, fileId);
             }
-        } catch (err) { alert(isShared ? "Failed to leave shared item" : "Failed to delete"); }
+        } catch (err) {
+            console.error("Delete failed:", err);
+            const isCorrupt = !target || target.isLocked || (target.title && (target.title.includes("Corrupted") || target.title.includes("Locked") || target.title.includes("Decrypting")));
+            if (isCorrupt) {
+                if (confirm("Das Löschen auf dem Server ist fehlgeschlagen. Möchtest du diese fehlerhafte Notiz trotzdem erzwingend aus deiner Liste entfernen?")) {
+                    useDataStore.getState().setNotes(freshNotes.filter(f => f.id !== fileId) as any);
+                    setOpenTabs(prev => {
+                        const nextTabs = prev.filter(t => t.id !== fileId);
+                        localStorage.setItem("tide_open_tabs", JSON.stringify(nextTabs));
+                        return nextTabs;
+                    });
+                    if (activeTabId === fileId) {
+                        handleTabClose(e, fileId);
+                    }
+                    return;
+                }
+            }
+            alert(isShared ? "Failed to leave shared item" : "Failed to delete");
+        }
     };
 
     // Rename File
@@ -3513,6 +3654,13 @@ export default function Dashboard() {
                                     <Settings size={15} className="text-gray-400 dark:text-slate-500" />
                                     <span>Einstellungen</span>
                                 </button>
+                                <button
+                                    onClick={() => { setIsAvatarMenuOpen(false); setActiveTabId('trash'); }}
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                                >
+                                    <Trash2 size={15} className="text-gray-400 dark:text-slate-500" />
+                                    <span>Papierkorb</span>
+                                </button>
                                 <div className="h-px bg-gray-100 dark:bg-gray-800 my-1" />
                                 <button
                                     onClick={() => {
@@ -3685,7 +3833,13 @@ export default function Dashboard() {
                     )}
                 </div>
 
-                <div className={`flex-1 min-h-0 relative overflow-y-auto ${activeTabId === 'calendar' || activeTabId === 'messages' || activeTabId === 'social' || activeTabId === 'exams' || activeTabId.startsWith('chat-') || activeTabId === 'ext_finance' || activeTabId.startsWith('profile:') ? 'hidden' : 'block'}`}>
+                <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'trash' ? 'block' : 'hidden'}`}>
+                    {activeTabId === 'trash' && (
+                        <TrashPanel />
+                    )}
+                </div>
+
+                <div className={`flex-1 min-h-0 relative overflow-y-auto ${activeTabId === 'calendar' || activeTabId === 'messages' || activeTabId === 'social' || activeTabId === 'exams' || activeTabId === 'trash' || activeTabId.startsWith('chat-') || activeTabId === 'ext_finance' || activeTabId.startsWith('profile:') ? 'hidden' : 'block'}`}>
                     {isLoadingContent ? (
                         <div className="flex items-center justify-center h-full text-gray-400">Loading content...</div>
                     ) : (
@@ -3844,7 +3998,7 @@ export default function Dashboard() {
                                                         <div className="relative flex items-center justify-center">
                                                             {(() => {
                                                                 const af = files.find(f => f.id === activeNoteId) as any;
-                                                                const isRecipient = af?.share_status === 'shared';
+                                                                const isRecipient = af?.share_status === 'shared' || af?.share_status === 'accepted' || af?.share_status === 'pending';
                                                                 const ak = af?.access_keys;
                                                                 const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {};
                                                                 const isSharedByOwner = Object.keys(akObj).length > 1;
@@ -3889,6 +4043,10 @@ export default function Dashboard() {
                                                                         onClose={() => setShowSharePanel(false)}
                                                                         isOwner={af?.owner_id === myId}
                                                                         myPermission={af?.permission || 'view'}
+                                                                        onLeave={() => {
+                                                                            setShowSharePanel(false);
+                                                                            handleDeleteNote({ stopPropagation: () => {} } as any, activeNoteId);
+                                                                        }}
                                                                     />
                                                                 );
                                                             })()}
@@ -4069,6 +4227,7 @@ export default function Dashboard() {
             {showBackups && activeNoteId && (
                 <BackupHistory
                     fileId={activeNoteId}
+                    currentContent={editorContent}
                     onCancel={() => setShowBackups(false)}
                     onRestore={(content) => {
                         window.dispatchEvent(new CustomEvent('editor:restore-content', { detail: content }));

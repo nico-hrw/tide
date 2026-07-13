@@ -961,7 +961,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 	}
 
 	if recursive {
-		// Flat list of EVERYTHING accessible (Owned, Shared, Public)
+		// Flat list of EVERYTHING accessible (Owned, Shared)
 		query := `
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta, 
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
@@ -977,8 +977,8 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 				OR fs.user_id = ?
 				OR COALESCE(f.visibility, 'private') = 'public'
 				OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL
-			) ` + typeFilter
-
+			) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL ` + typeFilter
+ 
 		args = append(args, viewerID, viewerID, viewerID)
 		if filterType != nil {
 			args = append(args, *filterType)
@@ -1000,7 +1000,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 				OR fs.user_id = ?
 				OR COALESCE(f.visibility, 'private') = 'public'
 				OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL
-			)
+			) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 		`
 		args = append(args, *parentID)
 		if filterType != nil {
@@ -1022,7 +1022,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
-			WHERE f.type = ? AND (f.owner_id = ? OR fs.user_id = ? OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL)
+			WHERE f.type = ? AND (f.owner_id = ? OR fs.user_id = ? OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			`
 			rows, err = s.DB.QueryContext(ctx, query, viewerID, *filterType, viewerID, viewerID, viewerID)
 		} else {
@@ -1037,9 +1037,10 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
-			WHERE (f.owner_id = ? AND f.parent_id IS NULL)
+			WHERE ((f.owner_id = ? AND f.parent_id IS NULL)
 			OR fs.user_id = ?
-			OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL
+			OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL)
+			AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			`
 			rows, err = s.DB.QueryContext(ctx, query, viewerID, viewerID, viewerID, viewerID)
 		}
@@ -1622,6 +1623,119 @@ func (s *SQLiteStore) UpsertFileBackup(ctx context.Context, b *db.FileBackup) er
 	`
 	_, err := s.DB.ExecContext(ctx, query, b.ID, b.FileID, b.SlotName, b.EncryptedBlob, b.SecuredMeta, ak, b.Version, b.UpdatedAt)
 	return err
+}
+
+func (s *SQLiteStore) SoftDeleteFile(ctx context.Context, id string) error {
+	nowStr := time.Now().Format(time.RFC3339)
+	query := `
+		WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM files WHERE id = ?
+			UNION ALL
+			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
+		)
+		UPDATE files 
+		SET metadata = json_set(COALESCE(NULLIF(metadata, ''), '{}'), '$.deleted_at', ?), updated_at = ?
+		WHERE id IN (SELECT id FROM descendants)
+	`
+	_, err := s.DB.ExecContext(ctx, query, nowStr, time.Now(), id)
+	return err
+}
+
+func (s *SQLiteStore) RestoreFile(ctx context.Context, id string) error {
+	query := `
+		WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM files WHERE id = ?
+			UNION ALL
+			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
+		)
+		UPDATE files 
+		SET metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.deleted_at'), updated_at = ?
+		WHERE id IN (SELECT id FROM descendants)
+	`
+	_, err := s.DB.ExecContext(ctx, query, time.Now(), id)
+	return err
+}
+
+func (s *SQLiteStore) ListTrashedFiles(ctx context.Context, viewerID string) ([]*db.File, error) {
+	query := `
+		SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, COALESCE(visibility, 'private') as visibility, public_meta, 
+			   COALESCE(secured_meta, x'') as secured_meta,
+			   'owner' as share_status,
+			   'owner' as permission,
+			   COALESCE(version, 1) as version,
+			   COALESCE(NULLIF(metadata, ''), '{}') as metadata,
+			   COALESCE(NULLIF(access_keys, ''), '{}') as access_keys
+		FROM files
+		WHERE owner_id = ? AND json_extract(metadata, '$.deleted_at') IS NOT NULL
+		ORDER BY json_extract(metadata, '$.deleted_at') DESC
+	`
+	rows, err := s.DB.QueryContext(ctx, query, viewerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*db.File
+	for rows.Next() {
+		var f db.File
+		var md, ak string
+		err := rows.Scan(
+			&f.ID,
+			&f.OwnerID,
+			&f.ParentID,
+			&f.Type,
+			&f.MIMEType,
+			&f.Size,
+			&f.CreatedAt,
+			&f.UpdatedAt,
+			&f.BlobPath,
+			&f.Visibility,
+			&f.PublicMeta,
+			&f.SecuredMeta,
+			&f.ShareStatus,
+			&f.Permission,
+			&f.Version,
+			&md,
+			&ak,
+		)
+		if err != nil {
+			return nil, err
+		}
+		f.Metadata = json.RawMessage(md)
+		f.AccessKeys = json.RawMessage(ak)
+		out = append(out, &f)
+	}
+	return out, nil
+}
+
+func (s *SQLiteStore) PurgeOldTrashedFiles(ctx context.Context) error {
+	query := `
+		SELECT id FROM files 
+		WHERE json_extract(metadata, '$.deleted_at') IS NOT NULL 
+		  AND datetime(json_extract(metadata, '$.deleted_at')) < datetime('now', '-7 days')
+	`
+	rows, err := s.DB.QueryContext(ctx, query)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		ids = append(ids, id)
+	}
+
+	for _, id := range ids {
+		log.Printf("[GC] Permanently deleting old trashed file: %s", id)
+		if err := s.DeleteFile(ctx, id); err != nil {
+			log.Printf("[GC] Failed to permanently delete old trashed file %s: %v", id, err)
+		}
+	}
+	return nil
 }
 
 

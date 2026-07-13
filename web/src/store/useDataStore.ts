@@ -692,7 +692,10 @@ export const useDataStore = create<DataState>((set, get) => ({
                 const hasNoMetadata = !f.metadata || (typeof f.metadata === 'object' && Object.keys(f.metadata).length === 0);
                 const isGCalEvent = f.type === 'event' && !!(f.public_meta as any)?.gcal_id;
                 if (!isGCalEvent && (!f.secured_meta || f.secured_meta.trim() === '') && hasNoMetadata && (!f.access_keys || Object.keys(f.access_keys).length === 0) && f.visibility !== 'public' && f.type !== 'folder') {
-                    console.warn(`[STATE-AUDIT] Skipping ghost/corrupted file ${f.id} with no metadata.`);
+                    console.warn(`[STATE-AUDIT] Auto-deleting ghost/corrupted file ${f.id} from database...`);
+                    apiFetch(`/api/v1/files/${f.id}`, { method: 'DELETE' }).catch(err => {
+                        console.error(`[STATE-AUDIT] Failed to auto-delete ghost file ${f.id}`, err);
+                    });
                     continue;
                 }
 

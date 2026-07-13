@@ -20,6 +20,7 @@ interface DecryptedFile {
     parent_id?: string | null;
     color?: string;
     owner_email?: string;
+    owner_id?: string;
     effect?: string;
     isGroup?: boolean;
     share_status?: string;
@@ -967,7 +968,7 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                         className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-1 text-sm outline-none text-gray-900 dark:text-gray-100"
                     />
                 ) : (
-                    <span className="text-sm text-gray-600 dark:text-gray-400 truncate font-medium group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors">
+                    <span className={`text-sm text-gray-600 dark:text-gray-400 truncate font-medium group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors ${file.owner_id && myId && file.owner_id !== myId ? 'purple-shimmer-text' : ''}`}>
                         {file.title.startsWith('#') ? file.title.slice(1).trim() : file.title}
                     </span>
                 )}

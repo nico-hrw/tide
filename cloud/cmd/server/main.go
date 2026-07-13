@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -168,6 +170,20 @@ func main() {
 		// SSE Endpoint (Wrapped with AuthMiddleware for security)
 		r.With(api.AuthMiddleware).Get("/events", broker.ServeHTTP)
 	})
+
+	// Start background cleanup worker for trashed files older than 1 week
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		// Run once on startup:
+		if err := sqliteStore.PurgeOldTrashedFiles(context.Background()); err != nil {
+			log.Printf("[GC] Error purging old trashed files: %v", err)
+		}
+		for range ticker.C {
+			if err := sqliteStore.PurgeOldTrashedFiles(context.Background()); err != nil {
+				log.Printf("[GC] Error purging old trashed files: %v", err)
+			}
+		}
+	}()
 
 	log.Printf("Server starting on port %s...", port)
 	if err := http.ListenAndServe(":"+port, r); err != nil {

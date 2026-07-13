@@ -20,9 +20,10 @@ interface ShareManagementPanelProps {
     onClose: () => void;
     isOwner: boolean;
     myPermission?: string;
+    onLeave?: () => void;
 }
 
-export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermission }: ShareManagementPanelProps) {
+export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermission, onLeave }: ShareManagementPanelProps) {
     const [shares, setShares] = useState<Share[]>([]);
     const [loading, setLoading] = useState(true);
     const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -105,6 +106,14 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
                         <div className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                             Status: {myPermission === 'view' ? 'Lesezugriff' : myPermission === 'edit' ? 'Bearbeiter' : 'Vollzugriff'}
                         </div>
+                        {onLeave && (
+                            <button
+                                onClick={onLeave}
+                                className="mt-4 px-4 py-2 text-xs font-semibold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 dark:hover:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-lg transition-colors border border-rose-200/50 dark:border-rose-900/40 active:scale-[0.98] transition-transform"
+                            >
+                                Notiz verlassen
+                            </button>
+                        )}
                     </div>
                 ) : shares.length === 0 ? (
                     <div className="p-4 text-center flex flex-col items-center justify-center text-gray-500 gap-2">
