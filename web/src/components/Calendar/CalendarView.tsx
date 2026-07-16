@@ -120,7 +120,8 @@ export default function CalendarView({
         }
         const fuse = new Fuse(events, {
             keys: ['title', 'description'],
-            threshold: 0.3
+            threshold: 0.4,
+            ignoreLocation: true
         });
         const results = fuse.search(searchQuery).map(r => ({
             id: r.item.id,
@@ -432,21 +433,33 @@ export default function CalendarView({
         // Each week has 7 days. Total weeks = loadedWeeks.length.
         // We can find the current index of the week based on scroll percentage.
         // Or simply query the DOM for the center day column:
-        const centerElement = document.elementFromPoint(
-            container.getBoundingClientRect().left + 60 + (clientWidth - 60) / 2,
-            container.getBoundingClientRect().top + 100
-        );
-        const dayCol = centerElement?.closest('[data-day-col]');
-        if (dayCol) {
-            const dayStr = dayCol.getAttribute('data-day-col');
+        const centerScrollX = container.scrollLeft + (container.clientWidth / 2);
+        let closestDayCol: HTMLElement | null = null;
+        let minDistance = Infinity;
+
+        const dayCols = container.querySelectorAll('[data-day-col]');
+        dayCols.forEach((el) => {
+            const htmlEl = el as HTMLElement;
+            // The DayColumn's parent has `flex` and some padding but DayColumn is positioned relative to container content
+            const colCenter = htmlEl.offsetLeft + (htmlEl.offsetWidth / 2);
+            const dist = Math.abs(colCenter - centerScrollX);
+            if (dist < minDistance) {
+                minDistance = dist;
+                closestDayCol = htmlEl;
+            }
+        });
+
+        if (closestDayCol) {
+            const dayStr = (closestDayCol as HTMLElement).getAttribute('data-day-col');
             if (dayStr) {
                 const currentCenterDate = new Date(dayStr);
-                // Update parent date state so the month header changes
                 // check if the month or year actually changed compared to `date` prop to avoid excessive calls
-                onDateChange(currentCenterDate);
+                if (currentCenterDate.getMonth() !== date.getMonth() || currentCenterDate.getFullYear() !== date.getFullYear()) {
+                    onDateChange(currentCenterDate);
+                }
             }
         }
-    }, [onDateChange]);
+    }, [onDateChange, date]);
 
     useEffect(() => {
         const container = scrollContainerRef.current;
@@ -1247,9 +1260,9 @@ export default function CalendarView({
                     style={{ touchAction: 'none', overscrollBehavior: 'none' }}
                 >
                     {/* Time Column (Sticky Left) */}
-                    <div className="w-[60px] flex-shrink-0 sticky left-0 z-[400] bg-white/70 dark:bg-[#0F172A]/70 backdrop-blur-xl border-r border-gray-100 dark:border-slate-800/50 h-fit min-h-full pb-[40px]">
+                    <div className="w-[60px] flex-shrink-0 sticky left-0 z-[400] bg-white/30 dark:bg-slate-900/40 backdrop-blur-2xl border-r border-gray-100 dark:border-slate-800/50 h-fit min-h-full pb-[40px]">
                         {/* Corner */}
-                        <div className="h-[50px] border-b border-gray-100 dark:border-slate-800/50 sticky top-0 z-[410] bg-white/70 dark:bg-[#0F172A]/70 backdrop-blur-xl"></div>
+                        <div className="h-[50px] border-b border-gray-100 dark:border-slate-800/50 sticky top-0 z-[410] bg-white/30 dark:bg-slate-900/40 backdrop-blur-2xl"></div>
                         {
                             Array.from({ length: 24 }).map((_, i) => (
                                 <div key={i} className="h-[60px] relative group border-b border-dashed border-gray-100 dark:border-slate-800/50">

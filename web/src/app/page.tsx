@@ -277,6 +277,7 @@ export default function Dashboard() {
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [showSharePanel, setShowSharePanel] = useState(false);
+    const [deleteError, setDeleteError] = useState<{ fileId: string, title: string, message: string, isCorrupt: boolean } | null>(null);
     const [activeCollaborators, setActiveCollaborators] = useState<any[]>([]);
     const [editorInstance, setEditorInstance] = useState<any>(null);
     const editorInstanceRef = useRef<any>(null);
@@ -2408,20 +2409,21 @@ export default function Dashboard() {
             console.error("Delete failed:", err);
             const isCorrupt = !target || target.isLocked || (target.title && (target.title.includes("Corrupted") || target.title.includes("Locked") || target.title.includes("Decrypting")));
             if (isCorrupt) {
-                if (confirm("Das Löschen auf dem Server ist fehlgeschlagen. Möchtest du diese fehlerhafte Notiz trotzdem erzwingend aus deiner Liste entfernen?")) {
-                    useDataStore.getState().setNotes(freshNotes.filter(f => f.id !== fileId) as any);
-                    setOpenTabs(prev => {
-                        const nextTabs = prev.filter(t => t.id !== fileId);
-                        localStorage.setItem("tide_open_tabs", JSON.stringify(nextTabs));
-                        return nextTabs;
-                    });
-                    if (activeTabId === fileId) {
-                        handleTabClose(null as any, fileId);
-                    }
-                    return;
-                }
+                setDeleteError({
+                    fileId,
+                    title: "Fehler beim Löschen",
+                    message: "Das Löschen auf dem Server ist fehlgeschlagen. Möchtest du diese fehlerhafte Notiz trotzdem erzwingend aus deiner Liste entfernen?",
+                    isCorrupt: true
+                });
+                return;
             }
-            alert(deleteConfirm.isShared ? "Failed to leave shared item" : "Failed to delete");
+            setDeleteError({
+                fileId,
+                title: "Fehler",
+                message: deleteConfirm.isShared ? "Die Notiz konnte nicht verlassen werden." : "Die Notiz konnte nicht gelöscht werden.",
+                isCorrupt: false
+            });
+            setDeleteConfirm(null);
         }
     };
 
@@ -2957,7 +2959,8 @@ export default function Dashboard() {
                 effect: (event as any).effect,
                 recurrence_rule: (event as any).recurrence_rule,
                 recurrence_end: (event as any).recurrence_end,
-                tags: (event as any).tags
+                tags: (event as any).tags,
+                is_important: (event as any).is_important
             };
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
             await apiFetch(`/api/v1/files/${id}`, {
@@ -3028,7 +3031,8 @@ export default function Dashboard() {
                 is_task: updates.is_task !== undefined ? updates.is_task : event.is_task,
                 shading: updates.shading !== undefined ? updates.shading : (event as any).shading,
                 linkedTaskId: (event as any).linkedTaskId,
-                tags: updates.tags !== undefined ? updates.tags : (event as any).tags
+                tags: updates.tags !== undefined ? updates.tags : (event as any).tags,
+                is_important: updates.is_important !== undefined ? updates.is_important : (event as any).is_important
             };
             if (updates.recurrence_rule !== undefined) meta.recurrence_rule = updates.recurrence_rule;
             else if ((event as any).recurrence_rule) meta.recurrence_rule = (event as any).recurrence_rule;
@@ -3938,8 +3942,12 @@ export default function Dashboard() {
                                                 })()}
                                                 
                                                 {/* Active Collaborators Avatars */}
-                                                {activeCollaborators.length > 0 && (
-                                                    <div className="flex items-center gap-2 mb-2">
+                                                {(() => {
+                                                    const af = files.find(f => f.id === activeNoteId) as any;
+                                                    const isSharedNote = af && (af.isShared || (af.owner_id && af.owner_id !== myId));
+                                                    if (!isSharedNote || activeCollaborators.length === 0) return null;
+                                                    return (
+                                                        <div className="flex items-center gap-2 mb-2">
                                                         {activeCollaborators.map((u, idx) => (
                                                             <div key={u?.id || `collab-${idx}`} className="relative group" title={`${u?.name || 'User'} (Aktiv)`}>
                                                                 <div className="w-8 h-8 rounded-full border-2 overflow-hidden shadow-sm transition-transform hover:scale-110" style={{ borderColor: u?.color || '#ccc' }}>
@@ -3950,8 +3958,9 @@ export default function Dashboard() {
                                                                 </div>
                                                             </div>
                                                         ))}
-                                                    </div>
-                                                )}
+                                                        </div>
+                                                    );
+                                                })()}
 
                                                 <div className="flex items-center gap-2 mb-6">
                                                     <input
@@ -4262,6 +4271,33 @@ export default function Dashboard() {
                 confirmText={deleteConfirm?.isShared ? "Verlassen" : "Löschen"}
                 onConfirm={executeDeleteNote}
                 onCancel={() => setDeleteConfirm(null)}
+            />
+
+            <ConfirmModal
+                isOpen={!!deleteError}
+                title={deleteError?.title || "Fehler"}
+                message={deleteError?.message || ""}
+                confirmText={deleteError?.isCorrupt ? "Trotzdem entfernen" : "OK"}
+                cancelText={deleteError?.isCorrupt ? "Abbrechen" : undefined}
+                onConfirm={() => {
+                    if (deleteError?.isCorrupt) {
+                        useDataStore.getState().setNotes(files.filter(f => f.id !== deleteError.fileId) as any);
+                        setOpenTabs(prev => {
+                            const nextTabs = prev.filter(t => t.id !== deleteError.fileId);
+                            localStorage.setItem("tide_open_tabs", JSON.stringify(nextTabs));
+                            return nextTabs;
+                        });
+                        if (activeTabId === deleteError.fileId) {
+                            handleTabClose(null as any, deleteError.fileId);
+                        }
+                    }
+                    setDeleteError(null);
+                    setDeleteConfirm(null);
+                }}
+                onCancel={() => {
+                    setDeleteError(null);
+                    setDeleteConfirm(null);
+                }}
             />
         </div>
     );

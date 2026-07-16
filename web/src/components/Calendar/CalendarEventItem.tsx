@@ -337,6 +337,9 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         ? isSameDay(day, now) && start <= now && end >= now
         : false;
 
+    const isImportant = (event as any).is_important;
+    const shouldGlow = isLive || isImportant;
+
     const glowColor = theme.border !== 'transparent' ? theme.border : '#6366f1';
 
     return (
@@ -346,7 +349,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             style={{
                 ...style, ...borderRadiusStyle,
                 borderLeft: `4px solid ${theme.border}`,
-                ...(isLive ? {
+                ...(shouldGlow ? {
                     boxShadow: `0 0 0 2px ${glowColor}, 0 4px 20px ${glowColor}60`,
                     zIndex: 90,
                 } : {}),

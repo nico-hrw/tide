@@ -698,7 +698,7 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 			f.owner_id = ? 
 			OR fs.user_id = ?
 			OR COALESCE(f.visibility, 'private') = 'public'
-			OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL
+			OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL
 		)
 	`
 	row := s.DB.QueryRowContext(ctx, query, viewerID, id, viewerID, viewerID, viewerID)
@@ -808,15 +808,15 @@ func (s *SQLiteStore) DeleteFile(ctx context.Context, id string) error {
 	defer tx.Rollback()
 
 	for _, dID := range ids {
-		_, err = tx.ExecContext(ctx, `DELETE FROM files WHERE id = ?`, dID)
-		if err != nil {
-			return err
-		}
 		_, err = tx.ExecContext(ctx, `DELETE FROM file_shares WHERE file_id = ?`, dID)
 		if err != nil {
 			return err
 		}
 		_, err = tx.ExecContext(ctx, `DELETE FROM file_backups WHERE file_id = ?`, dID)
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `DELETE FROM files WHERE id = ?`, dID)
 		if err != nil {
 			return err
 		}
@@ -870,7 +870,7 @@ func (s *SQLiteStore) RemoveShare(ctx context.Context, fileID, userID string) er
 			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
 		)
 		UPDATE files
-		SET access_keys = json_remove(COALESCE(NULLIF(access_keys, ''), '{}'), '$.' || ?)
+		SET access_keys = json_remove(COALESCE(NULLIF(access_keys, ''), '{}'), '$."' || ? || '"')
 		WHERE id IN (SELECT id FROM descendants)
 	`
 	s.DB.ExecContext(ctx, cleanQuery, fileID, userID)
@@ -996,7 +996,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 				f.owner_id = ? 
 				OR fs.user_id = ?
 				OR COALESCE(f.visibility, 'private') = 'public'
-				OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL
+				OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL
 			) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL ` + typeFilter
  
 		args = append(args, viewerID, viewerID, viewerID)
@@ -1019,7 +1019,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 				f.owner_id = ? 
 				OR fs.user_id = ?
 				OR COALESCE(f.visibility, 'private') = 'public'
-				OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL
+				OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL
 			) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 		`
 		args = append(args, *parentID)
@@ -1042,7 +1042,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
-			WHERE f.type = ? AND (f.owner_id = ? OR fs.user_id = ? OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
+			WHERE f.type = ? AND (f.owner_id = ? OR fs.user_id = ? OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			`
 			rows, err = s.DB.QueryContext(ctx, query, viewerID, *filterType, viewerID, viewerID, viewerID)
 		} else {
@@ -1059,7 +1059,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE ((f.owner_id = ? AND f.parent_id IS NULL)
 			OR fs.user_id = ?
-			OR json_extract(f.access_keys, '$.' || ?) IS NOT NULL)
+			OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL)
 			AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			`
 			rows, err = s.DB.QueryContext(ctx, query, viewerID, viewerID, viewerID, viewerID)

@@ -47,7 +47,7 @@ export default function EventPopover({
 
     const [title, setTitle] = useState(event.title || '');
     const [description, setDescription] = useState(event.description || '');
-    const [isAllDay, setIsAllDay] = useState(!!event.allDay);
+    const [isImportant, setIsImportant] = useState(!!(event as any).is_important);
     const [isTask, setIsTask] = useState(!!event.is_task);
     const [isCompleted, setIsCompleted] = useState(!!event.is_completed);
     const [color, setColor] = useState(event.color || '#6366f1');
@@ -84,7 +84,7 @@ export default function EventPopover({
     useEffect(() => {
         setTitle(event.title || '');
         setDescription(event.description || '');
-        setIsAllDay(!!event.allDay);
+        setIsImportant(!!(event as any).is_important);
         setIsTask(!!event.is_task);
         setIsCompleted(!!event.is_completed);
         setColor(event.color || '#6366f1');
@@ -116,13 +116,13 @@ export default function EventPopover({
         const activeTags = tags.filter(t => t.trim() !== '');
         const currentTags = event.tags ?? [];
         if (JSON.stringify(activeTags) !== JSON.stringify(currentTags) && updates.tags === undefined) updates.tags = activeTags;
-        if (isAllDay !== !!event.allDay && updates.allDay === undefined) updates.allDay = isAllDay;
+        if (isImportant !== !!(event as any).is_important && (updates as any).is_important === undefined) (updates as any).is_important = isImportant;
         const newRecurrenceRule = freq === 'none' ? 'NONE' : `FREQ=${freq.toUpperCase()};INTERVAL=${interval}`;
         const currentRecurrenceRule = event.recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`;
         if (newRecurrenceRule !== currentRecurrenceRule && (updates as any).recurrence_rule === undefined) (updates as any).recurrence_rule = newRecurrenceRule;
         if (recurrenceEnd !== (event.recurrence_end || '') && updates.recurrence_end === undefined) updates.recurrence_end = recurrenceEnd;
         if (Object.keys(updates).length > 0) onEventSave(event.id, updates);
-    }, [event, title, description, isAllDay, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, onEventSave]);
+    }, [event, title, description, isImportant, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, onEventSave]);
 
     // Keep ref current so the unmount cleanup always calls the latest version
     useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
@@ -130,7 +130,7 @@ export default function EventPopover({
     useEffect(() => {
         const timer = setTimeout(() => handleSave(), 300);
         return () => clearTimeout(timer);
-    }, [title, description, isAllDay, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, handleSave]);
+    }, [title, description, isImportant, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, handleSave]);
 
     // Save on unmount only when the popup was dismissed without the explicit close button
     // (scroll-away, click-outside). handleClose sets savedOnCloseRef to avoid a double-save.
@@ -243,15 +243,17 @@ export default function EventPopover({
                     {format(new Date(event.start), "d. MMM yyyy")}
                 </span>
                 <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    {/* Ganztägig Toggle */}
+                    {/* Wichtig Toggle */}
                     <button 
-                        onClick={() => setIsAllDay(!isAllDay)}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${isAllDay ? 'bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/30' : 'bg-white dark:bg-white/5 text-gray-400 border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10'}`}
+                        onClick={() => setIsImportant(!isImportant)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${isImportant ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30' : 'bg-white dark:bg-white/5 text-gray-400 border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10'}`}
                     >
-                        <div className={`w-2 h-2 rounded-full ${isAllDay ? 'bg-violet-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
-                        Ganztägig
+                        <div className={`w-2 h-2 rounded-full ${isImportant ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                        Wichtig
                     </button>
-                    {!isAllDay && (
+                    {event.allDay ? (
+                        <span className="font-bold uppercase tracking-wider text-[10px] bg-gray-200 dark:bg-white/10 px-2 py-0.5 rounded-full">Ganztägig</span>
+                    ) : (
                         <>
                             <svg className="w-3 h-3 ml-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                             <span className="font-medium">{format(new Date(event.start), "HH:mm")}</span>

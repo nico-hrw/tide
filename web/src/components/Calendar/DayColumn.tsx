@@ -347,7 +347,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                  h-[50px] border-b border-gray-100 dark:border-slate-800/50
                  sticky top-0 z-[2000]
                  flex items-center justify-center gap-2 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors
-                 bg-white/70 dark:bg-[#0F172A]/70 backdrop-blur-xl
+                 bg-white/30 dark:bg-slate-900/40 backdrop-blur-2xl
              `}
                 onClick={() => {
                     if (readOnly) return;
@@ -438,7 +438,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             {/* All-Day Events Area */}
             {allDayEvents.length > 0 && (
                 <div className="sticky top-[50px] z-[65] w-full h-0 pointer-events-auto">
-                    <div className="absolute top-0 left-0 right-0 w-[150px] md:w-[200px] bg-white/75 dark:bg-black/70 backdrop-blur-md p-1 flex flex-col gap-1 border-b border-gray-200/60 dark:border-slate-800/60 rounded-b-xl">
+                    <div className="absolute top-0 left-0 right-0 w-[150px] md:w-[200px] bg-white/30 dark:bg-slate-900/40 backdrop-blur-2xl p-1 flex flex-col gap-1 border-b border-gray-200/60 dark:border-slate-800/60 rounded-b-xl">
                         {allDayEvents.map(event => {
                             const theme = getEventTheme(event);
                             const isHighlightedEvent = isHighlighted(event.id, 'event');
