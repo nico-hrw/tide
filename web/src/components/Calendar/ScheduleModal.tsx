@@ -11,6 +11,7 @@ export interface ScheduleEventData {
     endTime: string;   // HH:mm
     allDay: boolean;
     recurrence: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+    recurrenceEnd?: string;
     dateOffset: number; // Support multi-day schedules in future implicitly
     dateOverride?: string; // yyyy-MM-dd
 }
@@ -54,6 +55,8 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                 startTime: e.startTime,
                 endTime: e.endTime,
                 allDay: e.allDay,
+                recurrence: e.recurrence,
+                recurrenceEnd: e.recurrenceEnd,
                 dateOverride: e.dateOverride
             }))
         };
@@ -85,6 +88,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                         endTime: ev.endTime || '10:00',
                         allDay: !!ev.allDay,
                         recurrence: ev.recurrence || 'none',
+                        recurrenceEnd: ev.recurrenceEnd,
                         dateOffset: 0,
                         dateOverride: ev.dateOverride || ''
                     }));
@@ -237,6 +241,26 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                                 <option value="yearly">Jährlich</option>
                                             </select>
                                         </label>
+
+                                        {event.recurrence !== 'none' && (
+                                            <label className="flex flex-col gap-1 text-xs font-semibold text-gray-500">
+                                                Endet am (Optional)
+                                                <input
+                                                    type="date"
+                                                    value={event.recurrenceEnd ? new Date(event.recurrenceEnd).toISOString().split('T')[0] : ''}
+                                                    onChange={(e) => {
+                                                        if (e.target.value) {
+                                                            const d = new Date(e.target.value);
+                                                            d.setHours(23, 59, 59, 999);
+                                                            updateEvent(event.id, { recurrenceEnd: d.toISOString() });
+                                                        } else {
+                                                            updateEvent(event.id, { recurrenceEnd: undefined });
+                                                        }
+                                                    }}
+                                                    className="mt-1 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                />
+                                            </label>
+                                        )}
 
                                         {!event.allDay && (
                                             <div className="flex items-center gap-2 pt-1">

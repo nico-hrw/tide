@@ -2921,7 +2921,8 @@ export default function Dashboard() {
                 title: ev.title || "New Event",
                 description: ev.description,
                 parent_id: targetThemeId === 'none' ? null : targetThemeId,
-                recurrence_rule: ev.recurrence !== 'none' ? `FREQ=${ev.recurrence.toUpperCase()};INTERVAL=1` : undefined
+                recurrence_rule: ev.recurrence !== 'none' ? `FREQ=${ev.recurrence.toUpperCase()};INTERVAL=1` : undefined,
+                recurrence_end: ev.recurrenceEnd ? new Date(ev.recurrenceEnd).toISOString() : undefined
             });
         }
     };

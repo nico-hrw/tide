@@ -15,6 +15,7 @@ export interface EventPopoverEvent {
     allDay?: boolean;
     recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
     recurrence_rule?: string;
+    recurrence_end?: string;
     exdates?: string[];
     completed_dates?: string[];
     is_task?: boolean;
@@ -71,6 +72,7 @@ export default function EventPopover({
     const initialRRule = getRRuleParts(event);
     const [freq, setFreq] = useState(initialRRule.freq);
     const [interval, setIntervalVal] = useState(initialRRule.interval);
+    const [recurrenceEnd, setRecurrenceEnd] = useState(event.recurrence_end || '');
 
     const occurrenceDateKey = format(new Date(event.start), "yyyy-MM-dd");
     const isThisOccCancelledOrig = event.exdates?.includes(occurrenceDateKey) || !!event.is_cancelled;
@@ -89,6 +91,7 @@ export default function EventPopover({
         const parts = getRRuleParts(event);
         setFreq(parts.freq);
         setIntervalVal(parts.interval);
+        setRecurrenceEnd(event.recurrence_end || '');
         setIsExpanded(false);
         setShowHints(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,8 +117,9 @@ export default function EventPopover({
         const newRecurrenceRule = freq === 'none' ? 'NONE' : `FREQ=${freq.toUpperCase()};INTERVAL=${interval}`;
         const currentRecurrenceRule = event.recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`;
         if (newRecurrenceRule !== currentRecurrenceRule && (updates as any).recurrence_rule === undefined) (updates as any).recurrence_rule = newRecurrenceRule;
+        if (recurrenceEnd !== (event.recurrence_end || '') && updates.recurrence_end === undefined) updates.recurrence_end = recurrenceEnd;
         if (Object.keys(updates).length > 0) onEventSave(event.id, updates);
-    }, [event, title, description, isTask, isCompleted, isCancelled, color, tags, freq, interval, onEventSave]);
+    }, [event, title, description, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, onEventSave]);
 
     // Keep ref current so the unmount cleanup always calls the latest version
     useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
@@ -123,7 +127,7 @@ export default function EventPopover({
     useEffect(() => {
         const timer = setTimeout(() => handleSave(), 300);
         return () => clearTimeout(timer);
-    }, [title, description, isTask, isCompleted, isCancelled, color, tags, freq, interval, handleSave]);
+    }, [title, description, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, handleSave]);
 
     // Save on unmount only when the popup was dismissed without the explicit close button
     // (scroll-away, click-outside). handleClose sets savedOnCloseRef to avoid a double-save.
@@ -291,6 +295,27 @@ export default function EventPopover({
                     </div>
                 </div>
             </div>
+            {freq !== 'none' && (
+                <div className="flex flex-col gap-1 -mt-1">
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest px-1">Endet am (Optional)</span>
+                    <input 
+                        type="date"
+                        value={recurrenceEnd ? format(new Date(recurrenceEnd), 'yyyy-MM-dd') : ''}
+                        onChange={(e) => {
+                            // Convert back to full ISO string with proper end of day if they pick a date
+                            if (e.target.value) {
+                                const d = new Date(e.target.value);
+                                d.setHours(23, 59, 59, 999);
+                                setRecurrenceEnd(d.toISOString());
+                            } else {
+                                setRecurrenceEnd('');
+                            }
+                        }}
+                        onBlur={() => handleSave()}
+                        className="bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-300 outline-none w-full"
+                    />
+                </div>
+            )}
 
             {/* Description */}
             <textarea

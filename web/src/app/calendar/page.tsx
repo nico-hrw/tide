@@ -17,7 +17,9 @@ interface CalendarEvent {
     end: string;
     description?: string;
     color?: string;
+    recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
     recurrence_rule?: string;
+    recurrence_end?: string;
     exdates?: string[];
     completed_dates?: string[];
     is_task?: boolean;
@@ -112,6 +114,7 @@ export default function CalendarPage() {
                             description: (meta.description as string) || "",
                             color: (meta.color as string),
                             recurrence_rule: meta.recurrence_rule as string,
+                            recurrence_end: meta.recurrence_end as string,
                             exdates: meta.exdates as string[],
                             completed_dates: meta.completed_dates as string[],
                             is_task: !!meta.is_task,
@@ -129,6 +132,7 @@ export default function CalendarPage() {
                             description: (meta.description as string),
                             color: (meta.color as string),
                             recurrence_rule: meta.recurrence_rule as string,
+                            recurrence_end: meta.recurrence_end as string,
                             exdates: meta.exdates as string[],
                             completed_dates: meta.completed_dates as string[],
                             is_task: !!meta.is_task,
@@ -304,9 +308,10 @@ export default function CalendarPage() {
                 color: updatedEvent.color,
                 description: updatedEvent.description,
                 recurrence_rule: (updatedEvent as any).recurrence_rule,
-                exdates: (updatedEvent as any).exdates || [],
-                completed_dates: (updatedEvent as any).completed_dates || [],
-                is_task: !!(updatedEvent as any).is_task,
+                recurrence_end: (updatedEvent as any).recurrence_end,
+                exdates: (updatedEvent as any).exdates,
+                completed_dates: (updatedEvent as any).completed_dates,
+                is_task: (updatedEvent as any).is_task,
                 is_completed: !!(updatedEvent as any).is_completed,
                 is_cancelled: !!(updatedEvent as any).is_cancelled,
                 isLocked: false
@@ -340,9 +345,10 @@ export default function CalendarPage() {
                     color: updatedEvent.color,
                     description: (updatedEvent as any).description || "",
                     recurrence_rule: (updatedEvent as any).recurrence_rule,
-                    exdates: (updatedEvent as any).exdates || [],
-                    completed_dates: (updatedEvent as any).completed_dates || [],
-                    is_task: !!(updatedEvent as any).is_task,
+                    recurrence_end: (updatedEvent as any).recurrence_end,
+                    exdates: (updatedEvent as any).exdates,
+                    completed_dates: (updatedEvent as any).completed_dates,
+                    is_task: (updatedEvent as any).is_task,
                     is_completed: !!(updatedEvent as any).is_completed,
                     is_cancelled: !!(updatedEvent as any).is_cancelled
                 };
