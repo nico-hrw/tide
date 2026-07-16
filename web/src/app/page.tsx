@@ -38,7 +38,7 @@ import Avatar from "@/components/Profile/Avatar";
 import SmartIsland from "@/components/SmartIsland";
 import { createLinePatch, applyLinePatch } from "@/lib/diff";
 import TrashPanel from "@/components/TrashPanel";
-
+import ConfirmModal from "@/components/Modals/ConfirmModal";
 
 const FinanceDashboard = dynamic(() => import('@/components/Finance/FinanceDashboard'), {
     loading: () => <div className="flex-1 flex items-center justify-center p-8 text-gray-400">Loading module...</div>
@@ -246,6 +246,7 @@ export default function Dashboard() {
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const [summaryStats, setSummaryStats] = useState({ events: 0, tasks: 0 });
     const [showBackups, setShowBackups] = useState(false);
+    const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; fileId: string; isShared: boolean; isFolder: boolean } | null>(null);
 
     // Data State (selectors)
     const {
@@ -2377,12 +2378,17 @@ export default function Dashboard() {
         const isShared = target && target.share_status && target.share_status !== 'owner';
         const isFolder = target?.type === 'folder';
 
-        const confirmMsg = isShared
-            ? (isFolder ? "Leave this shared folder?" : "Leave this shared note?")
-            : (isFolder ? "Delete this folder and all its contents?" : "Delete this note?");
+        setDeleteConfirm({ isOpen: true, fileId, isShared: !!isShared, isFolder });
+    };
 
-        if (!confirm(confirmMsg)) return;
+    const executeDeleteNote = async () => {
+        if (!deleteConfirm) return;
+        const { fileId } = deleteConfirm;
+        const freshNotes = useDataStore.getState().notes;
+        const target = freshNotes.find(f => f.id === fileId);
+
         try {
+            setDeleteConfirm(null);
             const res = await apiFetch(`/api/v1/files/${fileId}`, { method: "DELETE" });
             if (!res.ok && res.status !== 404) throw new Error("Backend failed to delete note");
             
@@ -2396,7 +2402,7 @@ export default function Dashboard() {
             });
             
             if (activeTabId === fileId) {
-                handleTabClose(e, fileId);
+                handleTabClose(null as any, fileId);
             }
         } catch (err) {
             console.error("Delete failed:", err);
@@ -2410,12 +2416,12 @@ export default function Dashboard() {
                         return nextTabs;
                     });
                     if (activeTabId === fileId) {
-                        handleTabClose(e, fileId);
+                        handleTabClose(null as any, fileId);
                     }
                     return;
                 }
             }
-            alert(isShared ? "Failed to leave shared item" : "Failed to delete");
+            alert(deleteConfirm.isShared ? "Failed to leave shared item" : "Failed to delete");
         }
     };
 
@@ -4244,7 +4250,19 @@ export default function Dashboard() {
                     }}
                 />
             )}
-        </div>
 
+            <ConfirmModal
+                isOpen={!!deleteConfirm}
+                title={deleteConfirm?.isFolder ? "Ordner löschen" : "Notiz löschen"}
+                message={
+                    deleteConfirm?.isShared
+                        ? (deleteConfirm.isFolder ? "Möchtest du diesen geteilten Ordner wirklich verlassen?" : "Möchtest du diese geteilte Notiz wirklich verlassen?")
+                        : (deleteConfirm?.isFolder ? "Möchtest du diesen Ordner und alle Inhalte wirklich löschen?" : "Möchtest du diese Notiz wirklich löschen?")
+                }
+                confirmText={deleteConfirm?.isShared ? "Verlassen" : "Löschen"}
+                onConfirm={executeDeleteNote}
+                onCancel={() => setDeleteConfirm(null)}
+            />
+        </div>
     );
 }

@@ -305,13 +305,22 @@ export default function CalendarView({
     // Initialize with current, prev, and next week
     useEffect(() => {
         const currentStart = startOfWeek(date, { weekStartsOn: 1 });
+        // Only reset if the new date is outside our currently loaded range
+        if (loadedWeeks.length > 0) {
+            const firstWeek = loadedWeeks[0];
+            const lastWeek = loadedWeeks[loadedWeeks.length - 1];
+            if (currentStart >= firstWeek && currentStart <= lastWeek) {
+                return; // Date is already in view, no need to reset
+            }
+        }
+        
         setLoadedWeeks([
             subWeeks(currentStart, 1),
             currentStart,
             addWeeks(currentStart, 1)
         ]);
         isPrependingRef.current = true; // Force initial scroll center
-    }, [date]);
+    }, [date, loadedWeeks]);
 
     // Auto-update current time
     useEffect(() => {
@@ -418,7 +427,26 @@ export default function CalendarView({
                 return [...prev, newNext];
             });
         }
-    }, []);
+
+        // Determine which week/day is in the center and update the month
+        // Each week has 7 days. Total weeks = loadedWeeks.length.
+        // We can find the current index of the week based on scroll percentage.
+        // Or simply query the DOM for the center day column:
+        const centerElement = document.elementFromPoint(
+            container.getBoundingClientRect().left + 60 + (clientWidth - 60) / 2,
+            container.getBoundingClientRect().top + 100
+        );
+        const dayCol = centerElement?.closest('[data-day-col]');
+        if (dayCol) {
+            const dayStr = dayCol.getAttribute('data-day-col');
+            if (dayStr) {
+                const currentCenterDate = new Date(dayStr);
+                // Update parent date state so the month header changes
+                // check if the month or year actually changed compared to `date` prop to avoid excessive calls
+                onDateChange(currentCenterDate);
+            }
+        }
+    }, [onDateChange]);
 
     useEffect(() => {
         const container = scrollContainerRef.current;

@@ -856,6 +856,26 @@ func (s *SQLiteStore) RemoveShare(ctx context.Context, fileID, userID string) er
 	}
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
+		// If they don't have a direct share, they might be trying to leave a file they inherited access to.
+		// We still want to remove them from access_keys below, so we shouldn't return ErrNotFound immediately
+		// if we are just trying to leave. But wait, if they have no share, they can't leave.
+		// For now, let's just proceed to clean up access keys anyway just in case.
+	}
+
+	// Clean up access_keys recursively so they lose V2 access
+	cleanQuery := `
+		WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM files WHERE id = ?
+			UNION ALL
+			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
+		)
+		UPDATE files
+		SET access_keys = json_remove(COALESCE(NULLIF(access_keys, ''), '{}'), '$.' || ?)
+		WHERE id IN (SELECT id FROM descendants)
+	`
+	s.DB.ExecContext(ctx, cleanQuery, fileID, userID)
+
+	if rows == 0 {
 		return ErrNotFound
 	}
 	return nil
@@ -1637,7 +1657,7 @@ func (s *SQLiteStore) SoftDeleteFile(ctx context.Context, id string) error {
 		SET metadata = json_set(COALESCE(NULLIF(metadata, ''), '{}'), '$.deleted_at', ?), updated_at = ?
 		WHERE id IN (SELECT id FROM descendants)
 	`
-	_, err := s.DB.ExecContext(ctx, query, nowStr, time.Now(), id)
+	_, err := s.DB.ExecContext(ctx, query, id, nowStr, time.Now())
 	return err
 }
 

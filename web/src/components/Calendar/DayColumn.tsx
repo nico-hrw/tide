@@ -331,7 +331,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     return (
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
-            className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-gray-300 dark:border-slate-700 relative bg-transparent`}
+            className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-gray-300 dark:border-slate-700 relative z-[10] bg-transparent`}
             onMouseMove={(e) => {
                 physicalMouseRef.current = { x: e.clientX, y: e.clientY };
                 gearedMouseRef.current = { x: e.clientX, y: e.clientY };
@@ -345,7 +345,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             <div
                 className={`
                  h-[50px] border-b border-gray-100 dark:border-slate-800/50
-                 sticky top-0 z-[80]
+                 sticky top-0 z-[2000]
                  flex items-center justify-center gap-2 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors
                  bg-white/70 dark:bg-[#0F172A]/70 backdrop-blur-xl
              `}
@@ -427,10 +427,10 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             {/* Today column — subtle red hatching overlay */}
             {isToday && (
                 <div
-                    className="absolute inset-0 pointer-events-none z-[1] border-l border-r border-red-500/30 dark:border-red-500/40 shadow-[inset_0_0_20px_rgba(239,68,68,0.05)]"
+                    className="absolute inset-0 pointer-events-none z-[1] border-l-[2px] border-r-[2px] border-red-500/50 dark:border-red-500/60 shadow-[inset_0_0_40px_rgba(239,68,68,0.08)] bg-red-500/[0.02] dark:bg-red-500/[0.03]"
                     style={{
                         top: '50px',
-                        backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 14px, rgba(239,68,68,0.06) 14px, rgba(239,68,68,0.06) 28px)',
+                        backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 14px, rgba(239,68,68,0.1) 14px, rgba(239,68,68,0.1) 28px)',
                     }}
                 />
             )}
@@ -519,7 +519,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             )}
 
             <div 
-                className="relative h-[1440px] shrink-0" 
+                className="relative h-[1440px] shrink-0 z-[10]" 
                 onMouseDown={(e) => {
                     if (readOnly) return;
                     useDataStore.getState().setActiveParentId(null);

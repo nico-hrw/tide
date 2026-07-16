@@ -47,6 +47,7 @@ export default function EventPopover({
 
     const [title, setTitle] = useState(event.title || '');
     const [description, setDescription] = useState(event.description || '');
+    const [isAllDay, setIsAllDay] = useState(!!event.allDay);
     const [isTask, setIsTask] = useState(!!event.is_task);
     const [isCompleted, setIsCompleted] = useState(!!event.is_completed);
     const [color, setColor] = useState(event.color || '#6366f1');
@@ -83,6 +84,7 @@ export default function EventPopover({
     useEffect(() => {
         setTitle(event.title || '');
         setDescription(event.description || '');
+        setIsAllDay(!!event.allDay);
         setIsTask(!!event.is_task);
         setIsCompleted(!!event.is_completed);
         setColor(event.color || '#6366f1');
@@ -114,12 +116,13 @@ export default function EventPopover({
         const activeTags = tags.filter(t => t.trim() !== '');
         const currentTags = event.tags ?? [];
         if (JSON.stringify(activeTags) !== JSON.stringify(currentTags) && updates.tags === undefined) updates.tags = activeTags;
+        if (isAllDay !== !!event.allDay && updates.allDay === undefined) updates.allDay = isAllDay;
         const newRecurrenceRule = freq === 'none' ? 'NONE' : `FREQ=${freq.toUpperCase()};INTERVAL=${interval}`;
         const currentRecurrenceRule = event.recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`;
         if (newRecurrenceRule !== currentRecurrenceRule && (updates as any).recurrence_rule === undefined) (updates as any).recurrence_rule = newRecurrenceRule;
         if (recurrenceEnd !== (event.recurrence_end || '') && updates.recurrence_end === undefined) updates.recurrence_end = recurrenceEnd;
         if (Object.keys(updates).length > 0) onEventSave(event.id, updates);
-    }, [event, title, description, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, onEventSave]);
+    }, [event, title, description, isAllDay, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, onEventSave]);
 
     // Keep ref current so the unmount cleanup always calls the latest version
     useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
@@ -127,7 +130,7 @@ export default function EventPopover({
     useEffect(() => {
         const timer = setTimeout(() => handleSave(), 300);
         return () => clearTimeout(timer);
-    }, [title, description, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, handleSave]);
+    }, [title, description, isAllDay, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, handleSave]);
 
     // Save on unmount only when the popup was dismissed without the explicit close button
     // (scroll-away, click-outside). handleClose sets savedOnCloseRef to avoid a double-save.
@@ -239,12 +242,18 @@ export default function EventPopover({
                 <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
                     {format(new Date(event.start), "d. MMM yyyy")}
                 </span>
-                <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                    {event.allDay ? (
-                        <span className="font-bold uppercase tracking-wider text-[10px] bg-gray-200 dark:bg-white/10 px-2 py-0.5 rounded-full">Ganztägig</span>
-                    ) : (
+                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                    {/* Ganztägig Toggle */}
+                    <button 
+                        onClick={() => setIsAllDay(!isAllDay)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${isAllDay ? 'bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-500/20 dark:text-violet-300 dark:border-violet-500/30' : 'bg-white dark:bg-white/5 text-gray-400 border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10'}`}
+                    >
+                        <div className={`w-2 h-2 rounded-full ${isAllDay ? 'bg-violet-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                        Ganztägig
+                    </button>
+                    {!isAllDay && (
                         <>
-                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            <svg className="w-3 h-3 ml-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                             <span className="font-medium">{format(new Date(event.start), "HH:mm")}</span>
                             <span className="text-gray-300 dark:text-gray-600">→</span>
                             <span className="font-medium">{format(new Date(event.end), "HH:mm")}</span>
