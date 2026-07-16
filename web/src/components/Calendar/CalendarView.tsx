@@ -107,36 +107,29 @@ export default function CalendarView({
     const [searchQuery, setSearchQuery] = useState("");
     const [searchResults, setSearchResults] = useState<SearchIndexEntry[]>([]);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
-    const [searchIndexData, setSearchIndexData] = useState<SearchIndexEntry[] | null>(null);
     const [todayButtonDir, setTodayButtonDir] = useState<'hidden' | 'left' | 'right'>('hidden');
 
-    // Initial search index load wrapper
-    const handleSearchClick = async () => {
+    const handleSearchClick = () => {
         setIsSearchOpen(true);
-        try {
-            const store = require('@/store/useDataStore').useDataStore;
-            const { privateKey, myId } = store.getState();
-            if (privateKey && myId) {
-                const data = await loadSearchIndex(privateKey, myId);
-                setSearchIndexData(data);
-            }
-        } catch (e) {
-            console.error(e);
-        }
     };
 
     useEffect(() => {
-        if (!searchIndexData || !searchQuery) {
+        if (!searchQuery) {
             setSearchResults([]);
             return;
         }
-        const fuse = new Fuse(searchIndexData, {
+        const fuse = new Fuse(events, {
             keys: ['title', 'description'],
             threshold: 0.3
         });
-        const results = fuse.search(searchQuery).map(r => r.item);
+        const results = fuse.search(searchQuery).map(r => ({
+            id: r.item.id,
+            title: r.item.title,
+            date: r.item.start,
+            type: 'event' as const
+        }));
         setSearchResults(results);
-    }, [searchQuery, searchIndexData]);
+    }, [searchQuery, events]);
 
 
     // Track today column visibility → show directional Today button when off-screen
@@ -1226,9 +1219,9 @@ export default function CalendarView({
                     style={{ touchAction: 'none', overscrollBehavior: 'none' }}
                 >
                     {/* Time Column (Sticky Left) */}
-                    <div className="w-[60px] flex-shrink-0 sticky left-0 z-[150] bg-white dark:bg-[#0F172A] border-r border-gray-100 dark:border-slate-800/50 h-fit min-h-full pb-[40px]">
+                    <div className="w-[60px] flex-shrink-0 sticky left-0 z-[400] bg-white/70 dark:bg-[#0F172A]/70 backdrop-blur-xl border-r border-gray-100 dark:border-slate-800/50 h-fit min-h-full pb-[40px]">
                         {/* Corner */}
-                        <div className="h-[50px] border-b border-gray-100 dark:border-slate-800/50 sticky top-0 z-[160] bg-white dark:bg-[#0F172A]"></div>
+                        <div className="h-[50px] border-b border-gray-100 dark:border-slate-800/50 sticky top-0 z-[410] bg-white/70 dark:bg-[#0F172A]/70 backdrop-blur-xl"></div>
                         {
                             Array.from({ length: 24 }).map((_, i) => (
                                 <div key={i} className="h-[60px] relative group border-b border-dashed border-gray-100 dark:border-slate-800/50">

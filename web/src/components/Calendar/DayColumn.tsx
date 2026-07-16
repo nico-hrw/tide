@@ -347,7 +347,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                  h-[50px] border-b border-gray-100 dark:border-slate-800/50
                  sticky top-0 z-[80]
                  flex items-center justify-center gap-2 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors
-                 bg-white dark:bg-[#0F172A]
+                 bg-white/70 dark:bg-[#0F172A]/70 backdrop-blur-xl
              `}
                 onClick={() => {
                     if (readOnly) return;
@@ -427,10 +427,10 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             {/* Today column — subtle red hatching overlay */}
             {isToday && (
                 <div
-                    className="absolute inset-0 pointer-events-none z-[1]"
+                    className="absolute inset-0 pointer-events-none z-[1] border-l border-r border-red-500/30 dark:border-red-500/40 shadow-[inset_0_0_20px_rgba(239,68,68,0.05)]"
                     style={{
                         top: '50px',
-                        backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 14px, rgba(239,68,68,0.03) 14px, rgba(239,68,68,0.03) 28px)',
+                        backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 14px, rgba(239,68,68,0.06) 14px, rgba(239,68,68,0.06) 28px)',
                     }}
                 />
             )}

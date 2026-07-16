@@ -343,7 +343,9 @@ export async function decryptMetadata(encryptedBase64: string, privateKey: Crypt
             return { title: "Untitled (Corrupted)", isLocked: false };
         }
     } catch (err: any) {
-        console.warn(`[CRYPTO-AUDIT] Decryption failed for ${label || 'unknown'}. Error: ${err?.name || 'UnknownError'} - ${err?.message || ''}`);
+        if (!label?.startsWith('v2-')) {
+            console.warn(`[CRYPTO-AUDIT] Decryption failed for ${label || 'unknown'}. Error: ${err?.name || 'UnknownError'} - ${err?.message || ''}`);
+        }
         // If it's a size mismatch, it's a huge hint for V1 vs V2 key issues
         if (err?.message?.includes("data size")) {
             console.error("[CRYPTO-AUDIT] RSA Size Mismatch: Ciphertext length does not match key modulus. (Key mismatch?)");
