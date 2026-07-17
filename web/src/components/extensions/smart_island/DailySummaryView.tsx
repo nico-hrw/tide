@@ -80,6 +80,18 @@ export default function DailySummaryView({ mode, userName, onClose }: DailySumma
             localStorage.setItem('tide_stats_words_written', '0');
             localStorage.setItem('tide_stats_active_minutes', '0');
             localStorage.setItem('tide_stats_completed_tasks', '0');
+            localStorage.setItem('tide_day_finished', 'true');
+        } catch (err) {
+            console.error(err);
+        }
+        onClose();
+    };
+
+    const isDayFinished = typeof window !== 'undefined' && localStorage.getItem('tide_day_finished') === 'true';
+
+    const handleResumeWorking = () => {
+        try {
+            localStorage.removeItem('tide_day_finished');
         } catch (err) {
             console.error(err);
         }
@@ -249,12 +261,21 @@ export default function DailySummaryView({ mode, userName, onClose }: DailySumma
             </div>
 
             {/* Footer button */}
-            <button
-                onClick={handleFinishDay}
-                className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-500 to-orange-500 text-white font-black text-sm tracking-wide shadow-xl shadow-red-500/15 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-            >
-                <LogOut size={16} /> Feierabend machen & zurücksetzen
-            </button>
+            {isDayFinished ? (
+                <button
+                    onClick={handleResumeWorking}
+                    className="w-full py-3.5 rounded-2xl bg-zinc-800 border border-white/10 hover:bg-zinc-700 text-zinc-100 font-black text-sm tracking-wide shadow-xl active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                    <Sparkles size={16} className="text-emerald-400" /> Doch weiterarbeiten
+                </button>
+            ) : (
+                <button
+                    onClick={handleFinishDay}
+                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-red-500 to-orange-500 text-white font-black text-sm tracking-wide shadow-xl shadow-red-500/15 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                    <LogOut size={16} /> Feierabend machen & zurücksetzen
+                </button>
+            )}
         </div>
     );
 }

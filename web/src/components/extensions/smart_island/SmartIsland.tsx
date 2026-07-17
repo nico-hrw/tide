@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Check, Calendar as CalendarIcon, MessageSquare, Bell, TrendingUp, Sparkles, Loader2, FileText, ExternalLink, Calendar, Plus, Clock, Link2, GripVertical, FileEdit, AlarmClock, X, CheckCircle2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Check, Calendar as CalendarIcon, MessageSquare, Bell, TrendingUp, Sparkles, Loader2, FileText, ExternalLink, Calendar, Plus, Clock, Link2, GripVertical, FileEdit, AlarmClock, X, CheckCircle2, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MiniCalendar from '../../Calendar/MiniCalendar';
 import { useIslandStore, IslandView } from './useIslandStore';
@@ -74,14 +75,6 @@ function WelcomeView({ payload }: { payload?: Record<string, any> }) {
                     <p className="text-[12px] text-zinc-400 font-medium">Keine anstehenden Termine für heute.</p>
                 )}
             </div>
-
-            {/* Done Button */}
-            <button
-                onClick={() => setDailySummaryMode('evening')}
-                className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-zinc-300 font-black text-[12px] tracking-wide shadow-sm border border-white/5 hover:text-white transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
-            >
-                <CheckCircle2 size={13} className="text-emerald-400" /> Tag beenden
-            </button>
         </div>
     );
 }
@@ -463,6 +456,9 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
     const onCreateEvent = payload?.onCreateEvent;
     const onDismiss = payload?.onDismiss;
 
+    const storeNotes = useDataStore(s => s.notes) || [];
+    const storeEvents = useDataStore(s => s.events) || [];
+
     // Inline event suggestion state
     const [eventDismissed, setEventDismissed] = useState(false);
     const [eventEditing, setEventEditing] = useState(false);
@@ -472,11 +468,14 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
     const [editEnd, setEditEnd] = useState<Date | null>(null);
     const titleInputRef = useRef<HTMLInputElement>(null);
 
-    // Listen for real-time text updates from the collector
+    // Listen for real-time text updates from the passive keyboard listener
     useEffect(() => {
         const handler = (e: Event) => {
             const text = (e as CustomEvent).detail?.text;
-            if (typeof text === 'string') setLiveText(text);
+            if (typeof text === 'string') {
+                setLiveText(text);
+                setEventDismissed(false); // Reset dismiss state on new input
+            }
         };
         window.addEventListener('tide:collector-update', handler);
         return () => window.removeEventListener('tide:collector-update', handler);
@@ -484,10 +483,13 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
 
     // Also sync if payload.text changes
     useEffect(() => {
-        if (payload?.text) setLiveText(payload.text);
+        if (payload?.text) {
+            setLiveText(payload.text);
+            setEventDismissed(false);
+        }
     }, [payload?.text]);
 
-    const displayText = liveText || payload?.text || '';
+    const displayText = liveText || '';
 
     // Run date detection on the live text
     const parseResult = useMemo(() => {
@@ -496,7 +498,7 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
         return results.length > 0 ? results[0] : null;
     }, [displayText]);
 
-    // Sync edit fields when parse result changes (and not dismissed)
+    // Sync edit fields when parse result changes
     useEffect(() => {
         if (parseResult && !eventDismissed) {
             setEditTitle(parseResult.titleHint || 'Neuer Termin');
@@ -518,114 +520,144 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
         }
     };
 
+    // Filter workspace notes and events
+    const searchResults = useMemo(() => {
+        if (!displayText.trim()) return { notes: [], events: [] };
+        const query = displayText.toLowerCase();
+        
+        const filteredNotes = storeNotes
+            .filter((n: any) => n.title && n.title.toLowerCase().includes(query) && !n.title.startsWith('.'))
+            .slice(0, 3);
+            
+        const filteredEvents = storeEvents
+            .filter((e: any) => e.title && e.title.toLowerCase().includes(query))
+            .slice(0, 3);
+
+        return { notes: filteredNotes, events: filteredEvents };
+    }, [displayText, storeNotes, storeEvents]);
+
+    const handleSelectNote = (note: any) => {
+        window.dispatchEvent(new CustomEvent('tide:select-note', { detail: { id: note.id, title: note.title } }));
+        if (onDismiss) onDismiss();
+    };
+
+    const handleSelectEvent = (event: any) => {
+        window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id: event.id } }));
+        if (onDismiss) onDismiss();
+    };
+
     return (
-        <div className="flex flex-col gap-2.5 px-4 py-3 w-[20rem] select-none">
-            {/* Header */}
-            <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
-                    <FileEdit size={12} className="text-white" />
-                </div>
-                <div className="flex-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Notiz-Entwurf</div>
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        <div className="flex flex-col gap-3 px-3 py-3 w-[20rem] sm:w-[22rem] select-none text-zinc-100">
+            {/* Search Input Box */}
+            <div className="flex items-center gap-2 p-2 rounded-xl bg-white/5 border border-white/10 shadow-inner">
+                <Search size={14} className="text-zinc-400 ml-1 flex-shrink-0" />
+                <input
+                    type="text"
+                    value={liveText}
+                    onChange={(e) => {
+                        setLiveText(e.target.value);
+                        setEventDismissed(false);
+                        window.dispatchEvent(new CustomEvent('tide:collector-update', { detail: { text: e.target.value } }));
+                    }}
+                    placeholder="Suchen oder tippen..."
+                    className="flex-1 bg-transparent text-xs font-bold outline-none text-zinc-100 placeholder:text-zinc-500"
+                    autoFocus
+                />
+                <button
+                    onClick={() => onCreateNote && onCreateNote(liveText)}
+                    className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-all active:scale-95 flex-shrink-0"
+                    title="Notiz erstellen"
+                >
+                    <FileEdit size={13} />
+                </button>
             </div>
 
-            {/* Captured text */}
-            <div
-                draggable
-                onDragStart={(e) => {
-                    e.dataTransfer.setData('text/plain', displayText);
-                    e.dataTransfer.setData('tide/collector-text', displayText);
-                    e.dataTransfer.effectAllowed = 'copyMove';
-                }}
-                className="p-3 rounded-xl bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 cursor-grab active:cursor-grabbing hover:shadow-sm transition-shadow min-h-[2rem]"
-            >
-                <p className="text-[13px] text-gray-800 dark:text-gray-200 leading-relaxed break-words whitespace-pre-wrap font-medium">
-                    {displayText}<span className="inline-block w-[2px] h-[14px] bg-emerald-500 animate-pulse ml-[1px] align-text-bottom" />
-                </p>
-                <div className="flex items-center gap-1 mt-2 text-[10px] text-gray-400 dark:text-gray-500">
-                    <GripVertical size={10} />
-                    <span>In eine Notiz ziehen</span>
-                </div>
-            </div>
-
-            {/* Inline event suggestion */}
+            {/* Event Suggestion Card (Expanded box if date parsed) */}
             {showEventSuggestion && editStart && editEnd && editDate && (
-                <div className="p-2.5 rounded-xl bg-indigo-50/80 dark:bg-indigo-900/20 border border-indigo-200/60 dark:border-indigo-700/30">
-                    <div className="flex items-center gap-1.5 mb-2">
-                        <CalendarIcon size={11} className="text-indigo-500" />
-                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Termin erkannt</span>
+                <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                            <CalendarIcon size={12} className="text-indigo-400" />
+                            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Termin erkannt</span>
+                        </div>
+                        <button 
+                            onClick={() => setEventDismissed(true)} 
+                            className="text-zinc-500 hover:text-zinc-300 text-xs font-bold"
+                        >
+                            ✕
+                        </button>
                     </div>
+
                     {eventEditing ? (
                         <input
                             ref={titleInputRef}
                             autoFocus
                             value={editTitle}
                             onChange={(e) => setEditTitle(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') setEventEditing(false); if (e.key === 'Escape') setEventEditing(false); }}
-                            className="w-full px-2 py-1 mb-1.5 text-[12px] font-semibold bg-white dark:bg-white/10 border border-indigo-300 dark:border-indigo-600 rounded-lg text-gray-900 dark:text-gray-100 outline-none ring-1 ring-indigo-400/30"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') setEventEditing(false);
+                                if (e.key === 'Escape') setEventEditing(false);
+                            }}
+                            className="w-full px-2 py-0.5 text-xs font-bold bg-white/5 border border-indigo-500/30 rounded-lg text-zinc-100 outline-none"
                         />
                     ) : (
-                        <div className="text-[12px] font-bold text-gray-800 dark:text-gray-200 mb-1.5 truncate">
+                        <div 
+                            onClick={() => setEventEditing(true)}
+                            className="text-xs font-bold text-zinc-100 hover:underline cursor-pointer truncate"
+                        >
                             {editTitle}
                         </div>
                     )}
-                    <div className="flex flex-wrap gap-1 mb-2">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-800/40 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">
+
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/15 text-[9px] font-bold text-indigo-300 border border-indigo-500/10">
                             <Calendar size={9} />
                             {format(editDate, 'EEE dd. MMM', { locale: de })}
                         </span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-800/40 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/15 text-[9px] font-bold text-indigo-300 border border-indigo-500/10">
                             <Clock size={9} />
                             {format(editStart, 'HH:mm')} – {format(editEnd, 'HH:mm')}
                         </span>
                     </div>
-                    <div className="flex gap-1.5">
-                        <button
-                            onClick={() => setEventDismissed(true)}
-                            className="px-2 py-1 rounded-lg text-[10px] font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
-                        >
-                            Nein
-                        </button>
-                        <button
-                            onClick={() => setEventEditing(!eventEditing)}
-                            className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors ${eventEditing ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10'}`}
-                        >
-                            {eventEditing ? 'Fertig' : 'Ändern'}
-                        </button>
-                        <div className="flex-1" />
-                        <button
-                            onClick={handleAcceptEvent}
-                            className="px-3 py-1 rounded-lg text-[10px] font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-sm transition-all active:scale-[0.97]"
-                        >
-                            <Check size={11} className="inline mr-0.5" />
-                            Termin
-                        </button>
-                    </div>
+
+                    <button
+                        onClick={handleAcceptEvent}
+                        className="w-full py-1.5 mt-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95"
+                    >
+                        <Check size={11} strokeWidth={3} /> Termin erstellen
+                    </button>
                 </div>
             )}
 
-            {/* Actions */}
-            <div className="flex gap-2">
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (onDismiss) onDismiss();
-                    }}
-                    className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl text-[12px] font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
-                >
-                    <X size={13} />
-                    Verwerfen
-                </button>
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        if (onCreateNote) onCreateNote(displayText);
-                    }}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[12px] font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-300/30 dark:shadow-emerald-900/30 transition-all active:scale-[0.98]"
-                >
-                    <Plus size={14} />
-                    Neue Notiz
-                </button>
+            {/* Search Results */}
+            {displayText.trim().length > 0 && (searchResults.notes.length > 0 || searchResults.events.length > 0) && (
+                <div className="flex flex-col gap-1.5 p-2 rounded-xl bg-zinc-900/30 border border-white/5 max-h-32 overflow-y-auto">
+                    {searchResults.notes.map((note: any) => (
+                        <div 
+                            key={note.id} 
+                            onClick={() => handleSelectNote(note)}
+                            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition-colors"
+                        >
+                            <FileText size={12} className="text-emerald-400 flex-shrink-0" />
+                            <span className="text-xs font-semibold text-zinc-200 truncate">{note.title || 'Untitled'}</span>
+                        </div>
+                    ))}
+                    {searchResults.events.map((event: any) => (
+                        <div 
+                            key={event.id} 
+                            onClick={() => handleSelectEvent(event)}
+                            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition-colors"
+                        >
+                            <CalendarIcon size={12} className="text-indigo-400 flex-shrink-0" />
+                            <span className="text-xs font-semibold text-zinc-200 truncate">{event.title}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Weekstrip Calendar below */}
+            <div className="pt-2 border-t border-white/5 mt-1">
+                <WeekStrip />
             </div>
         </div>
     );
@@ -735,116 +767,119 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
         ? 'fixed top-[20vh] left-[calc(50%-11rem)] sm:left-[calc(50%-13rem)] z-[9999]'
         : 'relative';
 
-    return (
-        <div className="select-none relative z-[100]">
-            <AnimatePresence>
-                {isCentered && (
+    const islandShell = (
+        <motion.div
+            layoutId="smart-island-shell"
+            transition={{
+                type: "spring",
+                stiffness: 250,
+                damping: 30,
+                mass: 0.9
+            }}
+            className={`liquidGlass-wrapper dark text-gray-800 dark:text-gray-100 ${positionClass} ${sizeClass}`}
+        >
+            {/* Layer 1: Distortion blur */}
+            <div className="liquidGlass-effect" />
+            {/* Layer 2: Tint */}
+            <div className="liquidGlass-tint" />
+            {/* Layer 3: Inner shine */}
+            <div className="liquidGlass-shine" />
+            {/* Layer 4: Content */}
+            <div className="liquidGlass-text w-full">
+                <AnimatePresence mode="wait" initial={false}>
+                    {isCentered ? (
+                        <motion.div
+                            key={`summary-${state.dailySummaryMode}`}
+                            initial={{ opacity: 0, scale: 0.96 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.96 }}
+                            transition={{
+                                opacity: { delay: 0.1, duration: 0.15 },
+                                scale: { type: "spring", stiffness: 300, damping: 30 },
+                                default: { type: "spring", stiffness: 300, damping: 30 }
+                            }}
+                            layout="position"
+                        >
+                            <DailySummaryView 
+                                mode={state.dailySummaryMode!} 
+                                userName={userName}
+                                onClose={() => setDailySummaryMode(null)} 
+                            />
+                        </motion.div>
+                    ) : !state.current ? (
+                        <motion.div
+                            key="default-calendar"
+                            initial={{ opacity: 0, scale: 0.96 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.96 }}
+                            transition={{
+                                opacity: { delay: 0.1, duration: 0.15 },
+                                default: { type: "spring", stiffness: 300, damping: 30 }
+                            }}
+                            layout="position"
+                        >
+                            <MiniCalendar
+                                selectedDate={selectedDate}
+                                onSelect={(date) => {
+                                    onSelect?.(date);
+                                }}
+                            />
+                            {/* In-Meeting progress bar below calendar */}
+                            <InMeetingBar events={todayEvents} />
+                        </motion.div>
+                    ) : (
+                        <motion.div
+                            key={state.current.id}
+                            initial={{ opacity: 0, y: 15, filter: 'blur(8px)' }}
+                            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                            exit={{ opacity: 0, y: -15, filter: 'blur(8px)' }}
+                            transition={{
+                                opacity: { delay: 0.1, duration: 0.15 },
+                                y: { type: "spring", stiffness: 300, damping: 30 },
+                                filter: { delay: 0.1, duration: 0.15 },
+                                default: { type: "spring", stiffness: 300, damping: 30 }
+                            }}
+                            layout="position"
+                        >
+                            {(() => {
+                                const ViewComponent = registeredPlugins[state.current.type];
+                                if (!ViewComponent) return null;
+                                
+                                const payload = { ...state.current.payload };
+                                if (state.current.type === 'morning') payload.userName = userName;
+                                
+                                return <ViewComponent payload={payload} />;
+                            })()}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+        </motion.div>
+    );
+
+    if (isCentered && typeof window !== 'undefined') {
+        return createPortal(
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
+                <AnimatePresence>
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9998]"
+                        className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9998] pointer-events-auto"
                         onClick={() => setDailySummaryMode(null)}
                     />
-                )}
-            </AnimatePresence>
-
-            {/* The Morphing Liquid Glass Shell */}
-            <motion.div
-                layout
-                initial={false}
-                transition={{
-                    type: "spring",
-                    stiffness: 250,
-                    damping: 30,
-                    mass: 0.9
-                }}
-                className={`liquidGlass-wrapper dark text-gray-800 dark:text-gray-100 ${positionClass} ${sizeClass}`}
-            >
-                {/* Layer 1: Distortion blur */}
-                <div className="liquidGlass-effect" />
-                {/* Layer 2: Tint */}
-                <div className="liquidGlass-tint" />
-                {/* Layer 3: Inner shine */}
-                <div className="liquidGlass-shine" />
-                {/* Layer 4: Content */}
-                <div className="liquidGlass-text w-full">
-                    <AnimatePresence mode="wait" initial={false}>
-                        {isCentered ? (
-                            <motion.div
-                                key={`summary-${state.dailySummaryMode}`}
-                                initial={{ opacity: 0, scale: 0.96 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.96 }}
-                                transition={{
-                                    opacity: { delay: 0.1, duration: 0.15 },
-                                    scale: { type: "spring", stiffness: 300, damping: 30 },
-                                    default: { type: "spring", stiffness: 300, damping: 30 }
-                                }}
-                                layout="position"
-                            >
-                                <DailySummaryView 
-                                    mode={state.dailySummaryMode!} 
-                                    userName={userName}
-                                    onClose={() => setDailySummaryMode(null)} 
-                                />
-                            </motion.div>
-                        ) : !state.current ? (
-                            <motion.div
-                                key="default-calendar"
-                                initial={{ opacity: 0, scale: 0.96 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.96 }}
-                                transition={{
-                                    opacity: { delay: 0.1, duration: 0.15 },
-                                    default: { type: "spring", stiffness: 300, damping: 30 }
-                                }}
-                                layout="position"
-                            >
-                                <MiniCalendar
-                                    selectedDate={selectedDate}
-                                    onSelect={(date) => {
-                                        onSelect?.(date);
-                                    }}
-                                />
-                                {/* In-Meeting progress bar below calendar */}
-                                <InMeetingBar events={todayEvents} />
-                                {/* Tag beenden button under the calendar */}
-                                <button
-                                    onClick={() => setDailySummaryMode('evening')}
-                                    className="mt-2 mb-2 mx-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-zinc-300 font-bold text-xs tracking-wide shadow-sm border border-white/5 hover:text-white transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] w-[calc(100%-2.5rem)]"
-                                >
-                                    <CheckCircle2 size={13} className="text-emerald-400" /> Tag beenden
-                                </button>
-                            </motion.div>
-                        ) : (
-                            <motion.div
-                                key={state.current.id}
-                                initial={{ opacity: 0, y: 15, filter: 'blur(8px)' }}
-                                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                                exit={{ opacity: 0, y: -15, filter: 'blur(8px)' }}
-                                transition={{
-                                    opacity: { delay: 0.1, duration: 0.15 },
-                                    y: { type: "spring", stiffness: 300, damping: 30 },
-                                    filter: { delay: 0.1, duration: 0.15 },
-                                    default: { type: "spring", stiffness: 300, damping: 30 }
-                                }}
-                                layout="position"
-                            >
-                                {(() => {
-                                    const ViewComponent = registeredPlugins[state.current.type];
-                                    if (!ViewComponent) return null;
-                                    
-                                    const payload = { ...state.current.payload };
-                                    if (state.current.type === 'morning') payload.userName = userName;
-                                    
-                                    return <ViewComponent payload={payload} />;
-                                })()}
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
+                </AnimatePresence>
+                <div className="pointer-events-auto relative">
+                    {islandShell}
                 </div>
-            </motion.div>
+            </div>,
+            document.body
+        );
+    }
+
+    return (
+        <div className="select-none relative z-[100]">
+            {islandShell}
         </div>
     );
 }

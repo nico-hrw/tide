@@ -1508,67 +1508,7 @@ export default function CalendarView({
                 />
             )}
 
-            {/* Floating Search Bar — draggable between 4 anchor points */}
-            {(() => {
-                const anchors = [
-                    { pos: 'absolute bottom-5 left-[80px]', dropDir: 'right', label: '→' },  // 0: bottom-left
-                    { pos: 'absolute bottom-5 left-1/2 -translate-x-1/2', dropDir: null, label: null }, // 1: bottom-center
-                    { pos: 'absolute bottom-5 right-4', dropDir: 'left', label: '←' },        // 2: bottom-right
-                    { pos: 'absolute top-[60px] left-1/2 -translate-x-1/2', dropDir: null, label: null }, // 3: top-center
-                ];
-                const isBottom = searchAnchor < 3;
-                const anchor = anchors[searchAnchor];
-                return (
-                    <div className={`pointer-events-none ${anchor.pos}`} style={{ zIndex: 490 }}>
-                        <div className="pointer-events-auto relative">
-                            <div className="flex items-center gap-3 bg-white dark:bg-slate-900 rounded-2xl border border-gray-200 dark:border-white/10 px-5 py-3 shadow-xl w-96">
-                                <Search size={16} className="text-gray-400 flex-shrink-0" />
-                                <input
-                                    type="text"
-                                    placeholder="Ereignisse suchen…"
-                                    onClick={handleSearchClick}
-                                    value={searchQuery}
-                                    onChange={e => setSearchQuery(e.target.value)}
-                                    className="flex-1 bg-transparent text-sm font-medium outline-none text-gray-700 dark:text-gray-200 placeholder:text-gray-400"
-                                />
-                                {searchQuery && (
-                                    <button onClick={() => { setSearchQuery(''); setIsSearchOpen(false); }} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                                    </button>
-                                )}
-                                {/* Anchor cycle button */}
-                                <button
-                                    onClick={() => setSearchAnchor(a => (a + 1) % 4)}
-                                    className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-gray-300 dark:text-gray-600 hover:text-gray-500 transition-colors"
-                                    title="Position verschieben"
-                                >
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="5 9 2 12 5 15" /><polyline points="9 5 12 2 15 5" /><polyline points="15 19 12 22 9 19" /><polyline points="19 9 22 12 19 15" /><line x1="2" y1="12" x2="22" y2="12" /><line x1="12" y1="2" x2="12" y2="22" /></svg>
-                                </button>
-                            </div>
-                            {isSearchOpen && searchResults.length > 0 && (
-                                <div
-                                    className={`absolute ${isBottom ? 'bottom-full mb-2' : 'top-full mt-2'} left-0 right-0 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-gray-100 dark:border-white/10 p-2 max-h-60 overflow-auto`}
-                                    style={{ zIndex: 9999 }}
-                                >
-                                    {searchResults.map(res => (
-                                        <div
-                                            key={res.id}
-                                            className="p-2 hover:bg-gray-50 dark:hover:bg-white/5 rounded-lg cursor-pointer text-sm"
-                                            onClick={() => {
-                                                setIsSearchOpen(false);
-                                                window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id: res.id, start: res.date } }));
-                                            }}
-                                        >
-                                            <div className="font-bold text-gray-800 dark:text-gray-200">{res.title}</div>
-                                            <div className="text-[10px] text-gray-500">{new Date(res.date).toLocaleDateString()}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                );
-            })()}
+
 
             {/* Directional Today Button — appears at edge when today is off-screen */}
             {todayButtonDir !== 'hidden' && (

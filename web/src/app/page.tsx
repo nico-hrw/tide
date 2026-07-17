@@ -52,13 +52,14 @@ import ShareManagementPanel from "@/components/ShareManagementPanel";
 import { useStyleFile } from "@/components/Canvas/useStyleFile";
 import { TextWidgetElement } from "@/types/canvas";
 import { useHighlight } from "@/components/HighlightContext";
-import { CheckCircle2, Loader2, Plus, ChevronDown, Share, Download } from 'lucide-react';
+import { CheckCircle2, Loader2, Plus, ChevronDown, Share, Download, Check } from 'lucide-react';
 import { useIslandStore } from '@/components/extensions/smart_island/useIslandStore';
 import { isSameDay } from 'date-fns';
 import { useDataStore, DataItem } from "@/store/useDataStore";
 import { useDragGhost } from "@/store/useDragGhost";
 import EventDragGhost from "@/components/Calendar/EventDragGhost";
 import { useDateDetection, DateDetectionMode } from "@/hooks/useDateDetection";
+import { motion } from 'framer-motion';
 
 interface ProseMirrorNodeLike {
     type?: string;
@@ -1476,6 +1477,28 @@ export default function Dashboard() {
     // 2. Continuous Hooks (Effects)
     // -------------------------------------------------------------------------
 
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const handleSelectNote = (e: Event) => {
+            const { id, title } = (e as CustomEvent).detail;
+            handleFileSelect(id, title);
+        };
+        
+        const handleSelectEvent = (e: Event) => {
+            const { id } = (e as CustomEvent).detail;
+            setActiveEventId(id);
+        };
+
+        window.addEventListener('tide:select-note', handleSelectNote);
+        window.addEventListener('tide:select-event', handleSelectEvent);
+
+        return () => {
+            window.removeEventListener('tide:select-note', handleSelectNote);
+            window.removeEventListener('tide:select-event', handleSelectEvent);
+        };
+    }, [handleFileSelect]);
+
     // SSE Effect — robust reconnect with exponential backoff
     useEffect(() => {
         if (!myId) return;
@@ -1766,53 +1789,20 @@ export default function Dashboard() {
         if (booted) return;
         sessionStorage.setItem('island_boot_done', '1');
 
-        const now = Date.now();
-        const todayStr = format(now, 'yyyy-MM-dd');
-        const firstLoadDate = localStorage.getItem('tide_first_load_date');
-        const lastActiveStr = localStorage.getItem('tide_last_active');
-        const lastActive = lastActiveStr ? parseInt(lastActiveStr, 10) : 0;
-
-        const userName = (() => {
-            const email = sessionStorage.getItem('tide_user_email') || localStorage.getItem('tide_user_email');
-            if (!email) return undefined;
-            const rec = localStorage.getItem('tide_user_' + email);
-            if (rec) { try { const p = JSON.parse(rec); if (p.username) return p.username as string; } catch { } }
-            return email.split('@')[0];
-        })();
-
-        const today = new Date();
-        const todayEvents = events.filter(e => { try { return isSameDay(new Date(e.start), today); } catch { return false; } });
-        const upcomingEvents = todayEvents.filter(e => new Date(e.start) > today).sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-        const nextEvent = upcomingEvents[0] ?? null;
-
-        // Check if first load of the day
-        if (!firstLoadDate || firstLoadDate !== todayStr) {
-            localStorage.setItem('tide_first_load_date', todayStr);
-            // First load of the day: show Morning Briefing popup in center
+        // Check if day finished persistence mode is active
+        const dayFinished = localStorage.getItem('tide_day_finished');
+        if (dayFinished === 'true') {
             setTimeout(() => {
-                setDailySummaryMode('morning');
+                setDailySummaryMode('evening');
             }, 1500);
             return;
         }
 
-        // Check if returning after 1h30m of inactivity
-        const isReturningAfterInactivity = lastActive && (now - lastActive >= 1.5 * 60 * 60 * 1000);
-        
-        if (isReturningAfterInactivity || !lastActive) {
-            // Inactivity welcome briefing sequence
-            setTimeout(() => {
-                islandPush({ type: 'welcome', payload: { userName } });
-                setTimeout(() => {
-                    islandPush({ type: 'timeline', payload: { events: todayEvents.map(e => ({ title: e.title, start: e.start })), duration: 5000 } });
-                }, 100);
-                if (nextEvent) {
-                    setTimeout(() => {
-                        islandPush({ type: 'next_event', payload: { event: { title: nextEvent.title, start: nextEvent.start } } });
-                    }, 200);
-                }
-            }, 1500);
-        }
-    }, [events, enabledExtensions, islandPush, setDailySummaryMode]);
+        // Test mode: ALWAYS trigger morning summary
+        setTimeout(() => {
+            setDailySummaryMode('morning');
+        }, 1500);
+    }, [events, enabledExtensions, setDailySummaryMode]);
 
     // ── Reminder: 10 min before event ─────────────────────────────────────────
     const remindedEventsRef = useRef<Set<string>>(new Set());
@@ -4356,6 +4346,19 @@ export default function Dashboard() {
                     setDeleteConfirm(null);
                 }}
             />
+
+            {/* Floating Done Button (Tag beenden FAB) */}
+            {enabledExtensions.includes('smart_island') && (
+                <motion.button
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setDailySummaryMode('evening')}
+                    className="fixed bottom-6 right-6 z-[999] w-12 h-12 rounded-full flex items-center justify-center shadow-xl border border-gray-200/50 dark:border-white/10 bg-white dark:bg-zinc-800 text-gray-800 dark:text-zinc-200 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors"
+                    title="Tag beenden"
+                >
+                    <Check size={20} strokeWidth={3} />
+                </motion.button>
+            )}
         </div>
     );
 }
