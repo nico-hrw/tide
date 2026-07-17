@@ -1,32 +1,43 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Check, Calendar as CalendarIcon, MessageSquare, Bell, TrendingUp, Sparkles, Loader2, FileText, ExternalLink, Calendar, Plus, Clock, Link2, GripVertical, FileEdit, AlarmClock, X } from 'lucide-react';
+import { Check, Calendar as CalendarIcon, MessageSquare, Bell, TrendingUp, Sparkles, Loader2, FileText, ExternalLink, Calendar, Plus, Clock, Link2, GripVertical, FileEdit, AlarmClock, X, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MiniCalendar from '../../Calendar/MiniCalendar';
 import { useIslandStore, IslandView } from './useIslandStore';
 import { useDataStore } from '@/store/useDataStore';
 import { format, isSameDay } from 'date-fns';
+import { de } from 'date-fns/locale';
+import WeekStrip from './WeekStrip';
+import DailySummaryView from './DailySummaryView';
 
 // ─── Boot Sequence Views ──────────────────────────────────────────────────────
 
 function WelcomeView({ payload }: { payload?: Record<string, any> }) {
+    const { setDailySummaryMode } = useIslandStore();
+    const storeEvents = useDataStore(s => s.events) || [];
+    
     const hour = new Date().getHours();
-    const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+    const greeting = hour < 12 ? 'Guten Morgen' : hour < 17 ? 'Guten Tag' : hour < 22 ? 'Guten Abend' : 'Gute Nacht';
     const name = payload?.userName ? `, ${payload.userName}` : '';
-    const eventCount: number = payload?.eventCount ?? 0;
-    const taskCount: number = payload?.taskCount ?? 0;
-
-    const buildSummary = () => {
-        const parts: string[] = [];
-        if (eventCount > 0) parts.push(`${eventCount} event${eventCount !== 1 ? 's' : ''}`);
-        if (taskCount > 0) parts.push(`${taskCount} task${taskCount !== 1 ? 's' : ''}`);
-        if (parts.length === 0) return "Your schedule is clear. Enjoy your day.";
-        return `You have ${parts.join(' and ')} today. Let's get to work.`;
-    };
+    
+    // Get next 1-2 events today
+    const upcomingEvents = useMemo(() => {
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const now = new Date();
+        return storeEvents
+            .filter((e: any) => {
+                try {
+                    const start = new Date(e.start);
+                    return e.start.startsWith(todayStr) && start >= now;
+                } catch { return false; }
+            })
+            .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+            .slice(0, 2);
+    }, [storeEvents]);
 
     return (
-        <div className="flex flex-col gap-3 select-none">
+        <div className="flex flex-col gap-4 select-none text-zinc-100 w-full">
             {/* Greeting row */}
             <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-[1rem] bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center shadow-md flex-shrink-0">
@@ -35,37 +46,42 @@ function WelcomeView({ payload }: { payload?: Record<string, any> }) {
                     </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold uppercase tracking-wider">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-                    <div className="text-[17px] font-black text-gray-900 dark:text-gray-100 leading-tight tracking-tight">
+                    <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
+                        {new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
+                    </div>
+                    <div className="text-[17px] font-black text-white leading-tight tracking-tight">
                         {greeting}{name}.
                     </div>
                 </div>
             </div>
 
-            {/* Summary line */}
-            <div className="pl-1">
-                <p className="text-[13px] text-gray-500 dark:text-gray-400 leading-snug font-medium">
-                    {buildSummary()}
-                </p>
+            {/* Weekstrip Calendar */}
+            <WeekStrip />
+
+            {/* Next Events */}
+            <div className="flex flex-col gap-2">
+                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Nächste Termine</div>
+                {upcomingEvents.length > 0 ? (
+                    <div className="flex flex-col gap-1.5">
+                        {upcomingEvents.map((ev, i) => (
+                            <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5 text-xs text-zinc-200">
+                                <span className="font-bold truncate max-w-[12rem]">{ev.title}</span>
+                                <span className="text-zinc-400 font-semibold">{format(new Date(ev.start), 'HH:mm')} Uhr</span>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-[12px] text-zinc-400 font-medium">Keine anstehenden Termine für heute.</p>
+                )}
             </div>
 
-            {/* Quick stats row */}
-            {(eventCount > 0 || taskCount > 0) && (
-                <div className="flex gap-2">
-                    {eventCount > 0 && (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
-                            <CalendarIcon size={12} className="text-indigo-500 dark:text-indigo-400" />
-                            <span className="text-[12px] text-indigo-700 dark:text-indigo-300 font-bold">{eventCount} event{eventCount !== 1 ? 's' : ''}</span>
-                        </div>
-                    )}
-                    {taskCount > 0 && (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 dark:bg-violet-900/30 rounded-xl border border-violet-100 dark:border-violet-800/50">
-                            <Check size={12} className="text-violet-500 dark:text-violet-400" />
-                            <span className="text-[12px] text-violet-700 dark:text-violet-300 font-bold">{taskCount} task{taskCount !== 1 ? 's' : ''}</span>
-                        </div>
-                    )}
-                </div>
-            )}
+            {/* Done Button */}
+            <button
+                onClick={() => setDailySummaryMode('evening')}
+                className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-zinc-300 font-black text-[12px] tracking-wide shadow-sm border border-white/5 hover:text-white transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
+            >
+                <CheckCircle2 size={13} className="text-emerald-400" /> Tag beenden
+            </button>
         </div>
     );
 }
@@ -440,7 +456,6 @@ const ReminderView = ({ payload }: { payload: any }) => {
 // ─── Text Collector View (Sammelbecken) ─────────────────────────────────────
 
 import { parseGermanDate } from '@/lib/dateParser';
-import { de } from 'date-fns/locale';
 
 const TextCollectorView = ({ payload }: { payload: any }) => {
     const [liveText, setLiveText] = useState<string>(payload?.text || '');
@@ -685,7 +700,7 @@ const registeredPlugins: Record<string, React.FC<{ payload: any }>> = {
 };
 
 export default function SmartIsland({ selectedDate, onSelect, userName }: SmartIslandProps) {
-    const { state } = useIslandStore();
+    const { state, setDailySummaryMode } = useIslandStore();
     const storeEvents = useDataStore(s => s.events);
 
     // Build today's events for InMeetingBar (exclude all-day events)
@@ -696,24 +711,43 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
         }).map((e: any) => ({ title: e.title, start: e.start, end: e.end, description: e.description, is_all_day: e.is_all_day }));
     }, [storeEvents]);
 
-    const sizeClass = state.current?.type === 'timeline'
-        ? 'p-5 rounded-[2.5rem] w-[21rem]'
-        : state.current?.type === 'interactive_card'
-            ? 'p-5 rounded-[2rem] w-[23rem]'
-            : state.current?.type === 'event_suggestion'
-                ? 'rounded-[1.75rem] w-[23rem]'
-                : state.current?.type === 'reminder'
-                    ? 'rounded-[2rem] w-[21rem]'
-                    : state.current?.type === 'text_collector'
+    const isCentered = !!state.dailySummaryMode;
+
+    const sizeClass = isCentered
+        ? 'p-6 rounded-[2.5rem] w-[22rem] sm:w-[26rem]'
+        : state.current?.type === 'timeline'
+            ? 'p-5 rounded-[2.5rem] w-[21rem]'
+            : state.current?.type === 'interactive_card'
+                ? 'p-5 rounded-[2rem] w-[23rem]'
+                : state.current?.type === 'event_suggestion'
+                    ? 'rounded-[1.75rem] w-[23rem]'
+                    : state.current?.type === 'reminder'
                         ? 'rounded-[2rem] w-[21rem]'
-                        : state.current?.type === 'welcome' || state.current?.type === 'morning' || state.current?.type === 'event_preview'
-                            ? 'p-5 rounded-[2rem] w-[21rem]'
-                            : state.current?.type === 'message'
-                                ? 'p-4 rounded-[1.75rem] w-[19rem]'
-                                : 'p-3 rounded-[2rem] w-[17rem]';
+                        : state.current?.type === 'text_collector'
+                            ? 'rounded-[2rem] w-[21rem]'
+                            : state.current?.type === 'welcome' || state.current?.type === 'morning' || state.current?.type === 'event_preview'
+                                ? 'p-5 rounded-[2rem] w-[21rem]'
+                                : state.current?.type === 'message'
+                                    ? 'p-4 rounded-[1.75rem] w-[19rem]'
+                                    : 'p-3 rounded-[2rem] w-[17rem]';
+
+    const positionClass = isCentered
+        ? 'fixed top-[20vh] left-[calc(50%-11rem)] sm:left-[calc(50%-13rem)] z-[9999]'
+        : 'relative';
 
     return (
         <div className="select-none relative z-[100]">
+            <AnimatePresence>
+                {isCentered && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9998]"
+                        onClick={() => setDailySummaryMode(null)}
+                    />
+                )}
+            </AnimatePresence>
 
             {/* The Morphing Liquid Glass Shell */}
             <motion.div
@@ -725,7 +759,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                     damping: 30,
                     mass: 0.9
                 }}
-                className={`liquidGlass-wrapper text-gray-800 dark:text-gray-100 ${sizeClass}`}
+                className={`liquidGlass-wrapper dark text-gray-800 dark:text-gray-100 ${positionClass} ${sizeClass}`}
             >
                 {/* Layer 1: Distortion blur */}
                 <div className="liquidGlass-effect" />
@@ -735,17 +769,39 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                 <div className="liquidGlass-shine" />
                 {/* Layer 4: Content */}
                 <div className="liquidGlass-text w-full">
-                    <AnimatePresence mode="popLayout" initial={false}>
-                        {!state.current ? (
+                    <AnimatePresence mode="wait" initial={false}>
+                        {isCentered ? (
+                            <motion.div
+                                key={`summary-${state.dailySummaryMode}`}
+                                initial={{ opacity: 0, scale: 0.96 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.96 }}
+                                transition={{
+                                    opacity: { delay: 0.1, duration: 0.15 },
+                                    scale: { type: "spring", stiffness: 300, damping: 30 },
+                                    default: { type: "spring", stiffness: 300, damping: 30 }
+                                }}
+                                layout="position"
+                            >
+                                <DailySummaryView 
+                                    mode={state.dailySummaryMode!} 
+                                    userName={userName}
+                                    onClose={() => setDailySummaryMode(null)} 
+                                />
+                            </motion.div>
+                        ) : !state.current ? (
                             <motion.div
                                 key="default-calendar"
                                 initial={{ opacity: 0, scale: 0.96 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.96 }}
-                                transition={{ duration: 0.2 }}
+                                transition={{
+                                    opacity: { delay: 0.1, duration: 0.15 },
+                                    default: { type: "spring", stiffness: 300, damping: 30 }
+                                }}
                                 layout="position"
                             >
-                            <MiniCalendar
+                                <MiniCalendar
                                     selectedDate={selectedDate}
                                     onSelect={(date) => {
                                         onSelect?.(date);
@@ -753,6 +809,13 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                                 />
                                 {/* In-Meeting progress bar below calendar */}
                                 <InMeetingBar events={todayEvents} />
+                                {/* Tag beenden button under the calendar */}
+                                <button
+                                    onClick={() => setDailySummaryMode('evening')}
+                                    className="mt-2 mb-2 mx-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-zinc-300 font-bold text-xs tracking-wide shadow-sm border border-white/5 hover:text-white transition-all flex items-center justify-center gap-1.5 active:scale-[0.98] w-[calc(100%-2.5rem)]"
+                                >
+                                    <CheckCircle2 size={13} className="text-emerald-400" /> Tag beenden
+                                </button>
                             </motion.div>
                         ) : (
                             <motion.div
@@ -761,9 +824,10 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                                 animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                                 exit={{ opacity: 0, y: -15, filter: 'blur(8px)' }}
                                 transition={{
-                                    type: "spring",
-                                    stiffness: 300,
-                                    damping: 30
+                                    opacity: { delay: 0.1, duration: 0.15 },
+                                    y: { type: "spring", stiffness: 300, damping: 30 },
+                                    filter: { delay: 0.1, duration: 0.15 },
+                                    default: { type: "spring", stiffness: 300, damping: 30 }
                                 }}
                                 layout="position"
                             >
@@ -784,3 +848,5 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
         </div>
     );
 }
+
+

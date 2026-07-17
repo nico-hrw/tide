@@ -31,6 +31,7 @@ interface IslandState {
     /** Payload for the periodic idle timeline push */
     idlePayload?: Record<string, any>;
     focusMode: IslandFocusMode;
+    dailySummaryMode: 'morning' | 'evening' | null;
 }
 
 type IslandAction =
@@ -39,6 +40,7 @@ type IslandAction =
     | { type: 'TOGGLE_DEV_MODE' }
     | { type: 'SET_IDLE_PAYLOAD'; payload: Record<string, any> }
     | { type: 'SET_FOCUS_MODE'; mode: IslandFocusMode }
+    | { type: 'SET_DAILY_SUMMARY_MODE'; mode: 'morning' | 'evening' | null }
     | { type: 'CLEAR_ALL' };
 
 // ─── Reducer ────────────────────────────────────────────────────────────────
@@ -176,8 +178,11 @@ function islandReducer(state: IslandState, action: IslandAction): IslandState {
         case 'SET_FOCUS_MODE': {
             return { ...state, focusMode: action.mode };
         }
+        case 'SET_DAILY_SUMMARY_MODE': {
+            return { ...state, dailySummaryMode: action.mode };
+        }
         case 'CLEAR_ALL': {
-            return { ...state, current: null, queue: [], timerActive: false, currentStartedAt: null, interruptedView: null };
+            return { ...state, current: null, queue: [], timerActive: false, currentStartedAt: null, interruptedView: null, dailySummaryMode: null };
         }
     }
 }
@@ -191,6 +196,7 @@ const initialState: IslandState = {
     devMode: false,
     idlePayload: undefined,
     focusMode: 'ALL',
+    dailySummaryMode: null,
 };
 
 // ─── Context ────────────────────────────────────────────────────────────────
@@ -203,6 +209,7 @@ interface IslandContextValue {
     toggleDevMode: () => void;
     setIdlePayload: (payload: Record<string, any>) => void;
     setFocusMode: (mode: IslandFocusMode) => void;
+    setDailySummaryMode: (mode: 'morning' | 'evening' | null) => void;
 }
 
 const IslandContext = createContext<IslandContextValue | null>(null);
@@ -240,6 +247,10 @@ export function IslandProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'SET_FOCUS_MODE', mode });
     }, []);
 
+    const setDailySummaryMode = useCallback((mode: 'morning' | 'evening' | null) => {
+        dispatch({ type: 'SET_DAILY_SUMMARY_MODE', mode });
+    }, []);
+
     // ── Per-view display timer ─────────────────────────────────────────────
     useEffect(() => {
         if (state.current && state.timerActive) {
@@ -273,7 +284,7 @@ export function IslandProvider({ children }: { children: React.ReactNode }) {
     }, [state.current?.id, state.timerActive, state.currentStartedAt]);
 
     return (
-        <IslandContext.Provider value={{ state, push, dismiss, clearAll, toggleDevMode, setIdlePayload, setFocusMode }}>
+        <IslandContext.Provider value={{ state, push, dismiss, clearAll, toggleDevMode, setIdlePayload, setFocusMode, setDailySummaryMode }}>
             {children}
         </IslandContext.Provider>
     );

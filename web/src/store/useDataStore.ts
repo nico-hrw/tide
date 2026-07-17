@@ -315,7 +315,22 @@ export const useDataStore = create<DataState>((set, get) => ({
         const state = get();
         const task = state.tasks.find(t => t.id === id);
         if (!task) return;
-        get().updateTask(id, { isCompleted: !task.isCompleted });
+        
+        const newCompleted = !task.isCompleted;
+        get().updateTask(id, { isCompleted: newCompleted });
+
+        if (typeof window !== 'undefined') {
+            try {
+                const currentCount = parseInt(localStorage.getItem('tide_stats_completed_tasks') || '0', 10);
+                if (newCompleted) {
+                    localStorage.setItem('tide_stats_completed_tasks', (currentCount + 1).toString());
+                } else {
+                    localStorage.setItem('tide_stats_completed_tasks', Math.max(0, currentCount - 1).toString());
+                }
+            } catch (e) {
+                console.error("Failed to update completed tasks stats", e);
+            }
+        }
     },
     deleteTask: async (id) => {
         // Optimistic removal

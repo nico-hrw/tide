@@ -309,7 +309,7 @@ export default function Dashboard() {
     const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
 
     // Extensions State
-    const { push: islandPush, setIdlePayload, clearAll: islandClearAll } = useIslandStore();
+    const { push: islandPush, setIdlePayload, clearAll: islandClearAll, setDailySummaryMode } = useIslandStore();
 
     // Layout Options
     const [isRestored, setIsRestored] = useState(false);
@@ -364,6 +364,20 @@ export default function Dashboard() {
         setTimeout(() => { setEditorInstance(ed); editorInstanceRef.current = ed; }, 0);
     }, []);
 
+    const countWordsInTipTapJson = useCallback((node: any): number => {
+        if (!node) return 0;
+        let count = 0;
+        if (node.text && typeof node.text === 'string') {
+            count += node.text.trim().split(/\s+/).filter(Boolean).length;
+        }
+        if (node.content && Array.isArray(node.content)) {
+            for (const child of node.content) {
+                count += countWordsInTipTapJson(child);
+            }
+        }
+        return count;
+    }, []);
+
     const handleEditorChange = useCallback((json: any, yjsUpdateBase64?: string) => {
         // console.log("[Pulse] Editor changed, scheduling save...");
         const fullContent = yjsUpdateBase64 ? { ...json, __yjs: yjsUpdateBase64 } : json;
@@ -372,9 +386,42 @@ export default function Dashboard() {
         const currentActiveId = activeNoteIdRef.current;
         if (currentActiveId) {
             unsavedNotesRef.current.add(currentActiveId);
+
+            // Stats tracking: edited notes
+            try {
+                const editedStr = localStorage.getItem('tide_stats_edited_notes');
+                const editedNotes = editedStr ? JSON.parse(editedStr) : [];
+                if (Array.isArray(editedNotes) && !editedNotes.includes(currentActiveId)) {
+                    editedNotes.push(currentActiveId);
+                    localStorage.setItem('tide_stats_edited_notes', JSON.stringify(editedNotes));
+                }
+            } catch (e) {
+                console.error("Failed to update edited notes stats", e);
+            }
+
+            // Stats tracking: words written
+            if (json) {
+                try {
+                    const currentWordCount = countWordsInTipTapJson(json);
+                    if (lastNoteWordCountsRef.current[currentActiveId] === undefined) {
+                        // Initial load of the note, set baseline
+                        lastNoteWordCountsRef.current[currentActiveId] = currentWordCount;
+                    } else {
+                        const prevCount = lastNoteWordCountsRef.current[currentActiveId];
+                        if (currentWordCount > prevCount) {
+                            const diff = currentWordCount - prevCount;
+                            const totalWords = parseInt(localStorage.getItem('tide_stats_words_written') || '0', 10);
+                            localStorage.setItem('tide_stats_words_written', (totalWords + diff).toString());
+                        }
+                        lastNoteWordCountsRef.current[currentActiveId] = currentWordCount;
+                    }
+                } catch (e) {
+                    console.error("Failed to update words written stats", e);
+                }
+            }
         }
         setEditorVersion(v => v + 1);
-    }, []);
+    }, [countWordsInTipTapJson]);
 
     // ── Auto-Save ──────────────────────────────────────────────────────────────────────
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -407,6 +454,52 @@ export default function Dashboard() {
         };
         document.addEventListener('mousedown', handleClick);
         return () => document.removeEventListener('mousedown', handleClick);
+    }, []);
+
+    // ── Activity Tracking & Passive Productivity Stats ───────────────────────────
+    const lastNoteWordCountsRef = useRef<Record<string, number>>({});
+    const wasActiveInLastMinuteRef = useRef(false);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        // Activity listener to update last active timestamp & set activity flag
+        const handleUserActivity = () => {
+            wasActiveInLastMinuteRef.current = true;
+            
+            const now = Date.now();
+            const lastActiveStr = localStorage.getItem('tide_last_active');
+            const lastActive = lastActiveStr ? parseInt(lastActiveStr, 10) : 0;
+            
+            // Throttle localStorage writes to once every 10 seconds
+            if (now - lastActive > 10000) {
+                localStorage.setItem('tide_last_active', now.toString());
+            }
+        };
+
+        window.addEventListener('mousemove', handleUserActivity, { passive: true });
+        window.addEventListener('keydown', handleUserActivity, { passive: true });
+        window.addEventListener('click', handleUserActivity, { passive: true });
+
+        // Interval to track active minutes (checks once a minute)
+        const activeMinutesInterval = setInterval(() => {
+            if (wasActiveInLastMinuteRef.current) {
+                try {
+                    const currentMins = parseInt(localStorage.getItem('tide_stats_active_minutes') || '0', 10);
+                    localStorage.setItem('tide_stats_active_minutes', (currentMins + 1).toString());
+                } catch (e) {
+                    console.error("Failed to update active minutes stat", e);
+                }
+                wasActiveInLastMinuteRef.current = false;
+            }
+        }, 60000);
+
+        return () => {
+            window.removeEventListener('mousemove', handleUserActivity);
+            window.removeEventListener('keydown', handleUserActivity);
+            window.removeEventListener('click', handleUserActivity);
+            clearInterval(activeMinutesInterval);
+        };
     }, []);
 
     // Always-current ref to performSave so triggerSave (stable useCallback) never
@@ -1664,23 +1757,22 @@ export default function Dashboard() {
         };
     }, []);
 
-    // Island Welcome Effect
+    // Island Welcome Effect (Inactivity check & Morning Briefing / Welcome sequence)
     useEffect(() => {
         if (!enabledExtensions.includes('smart_island')) return;
-        if (events.length === 0) return;
+        if (events.length === 0) return; // Wait until events are loaded
+
         const booted = sessionStorage.getItem('island_boot_done');
         if (booted) return;
         sessionStorage.setItem('island_boot_done', '1');
 
-        const today = new Date();
-        const todayEvents = events.filter(e => { try { return isSameDay(new Date(e.start), today); } catch { return false; } });
-        const upcomingEvents = todayEvents.filter(e => new Date(e.start) > today).sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-        const nextEvent = upcomingEvents[0] ?? null;
+        const now = Date.now();
+        const todayStr = format(now, 'yyyy-MM-dd');
+        const firstLoadDate = localStorage.getItem('tide_first_load_date');
+        const lastActiveStr = localStorage.getItem('tide_last_active');
+        const lastActive = lastActiveStr ? parseInt(lastActiveStr, 10) : 0;
 
         const userName = (() => {
-            const sName = sessionStorage.getItem('tide_user_name');
-            if (sName) return sName;
-
             const email = sessionStorage.getItem('tide_user_email') || localStorage.getItem('tide_user_email');
             if (!email) return undefined;
             const rec = localStorage.getItem('tide_user_' + email);
@@ -1688,22 +1780,39 @@ export default function Dashboard() {
             return email.split('@')[0];
         })();
 
-        if (typeof document !== 'undefined') document.title = `tide - ${userName || 'User'}`;
+        const today = new Date();
+        const todayEvents = events.filter(e => { try { return isSameDay(new Date(e.start), today); } catch { return false; } });
+        const upcomingEvents = todayEvents.filter(e => new Date(e.start) > today).sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+        const nextEvent = upcomingEvents[0] ?? null;
 
-        const hour = today.getHours();
-        let realVariant = 'morning';
-        if (hour >= 17) realVariant = 'evening';
-        else if (sessionStorage.getItem('tide_returned_today')) realVariant = 'return';
-        sessionStorage.setItem('tide_returned_today', '1');
+        // Check if first load of the day
+        if (!firstLoadDate || firstLoadDate !== todayStr) {
+            localStorage.setItem('tide_first_load_date', todayStr);
+            // First load of the day: show Morning Briefing popup in center
+            setTimeout(() => {
+                setDailySummaryMode('morning');
+            }, 1500);
+            return;
+        }
 
-        setTimeout(() => {
-            if (enabledExtensions.includes('smart_island') && enabledExtensions.includes('summary')) {
-                islandPush({ type: 'welcome', payload: { userName, eventCount: todayEvents.length, variant: realVariant } });
-                setTimeout(() => islandPush({ type: 'timeline', payload: { events: todayEvents.map(e => ({ title: e.title, start: e.start })), duration: 5000 } }), 100);
-                if (nextEvent) setTimeout(() => islandPush({ type: 'next_event', payload: { event: { title: nextEvent.title, start: nextEvent.start } } }), 200);
-            }
-        }, 1500);
-    }, [events, enabledExtensions, islandPush]);
+        // Check if returning after 1h30m of inactivity
+        const isReturningAfterInactivity = lastActive && (now - lastActive >= 1.5 * 60 * 60 * 1000);
+        
+        if (isReturningAfterInactivity || !lastActive) {
+            // Inactivity welcome briefing sequence
+            setTimeout(() => {
+                islandPush({ type: 'welcome', payload: { userName } });
+                setTimeout(() => {
+                    islandPush({ type: 'timeline', payload: { events: todayEvents.map(e => ({ title: e.title, start: e.start })), duration: 5000 } });
+                }, 100);
+                if (nextEvent) {
+                    setTimeout(() => {
+                        islandPush({ type: 'next_event', payload: { event: { title: nextEvent.title, start: nextEvent.start } } });
+                    }, 200);
+                }
+            }, 1500);
+        }
+    }, [events, enabledExtensions, islandPush, setDailySummaryMode]);
 
     // ── Reminder: 10 min before event ─────────────────────────────────────────
     const remindedEventsRef = useRef<Set<string>>(new Set());
@@ -2317,59 +2426,7 @@ export default function Dashboard() {
         setIdlePayload({ events: todayEvents.map(e => ({ title: e.title, start: e.start })) });
     }, [events, setIdlePayload]);
 
-    useEffect(() => {
-        if (!enabledExtensions.includes('smart_island')) return;
-        if (events.length === 0) return; // Wait until events are loaded
-        const booted = sessionStorage.getItem('island_boot_done');
-        if (booted) return;
-        sessionStorage.setItem('island_boot_done', '1');
 
-        const today = new Date();
-        const todayEvents = events.filter(e => {
-            try { return isSameDay(new Date(e.start), today); } catch { return false; }
-        });
-        const upcomingEvents = todayEvents
-            .filter(e => new Date(e.start) > today)
-            .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-        const nextEvent = upcomingEvents[0] ?? null;
-
-        const userName = (() => {
-            const email = sessionStorage.getItem('tide_user_email') || localStorage.getItem('tide_user_email');
-            if (!email) return undefined;
-            const rec = localStorage.getItem('tide_user_' + email);
-            if (rec) { try { const p = JSON.parse(rec); if (p.username) return p.username as string; } catch { } }
-            return email.split('@')[0];
-        })();
-
-        if (typeof document !== 'undefined') {
-            document.title = `tide - ${userName || 'User'}`;
-        }
-
-        // Calculate real variant for production
-        const hour = today.getHours();
-        let realVariant = 'morning';
-        if (hour >= 17) realVariant = 'evening';
-        else if (sessionStorage.getItem('tide_returned_today')) realVariant = 'return';
-        sessionStorage.setItem('tide_returned_today', '1');
-
-        // Push only the relevant welcome message
-        setTimeout(() => {
-            islandPush({ type: 'welcome', payload: { userName, eventCount: todayEvents.length, variant: realVariant } });
-
-            // Next: Timeline (first time only 5s)
-            setTimeout(() => {
-                islandPush({ type: 'timeline', payload: { events: todayEvents.map(e => ({ title: e.title, start: e.start })), duration: 5000 } });
-            }, 100);
-
-            // Finally: Next Event (if any)
-            if (nextEvent) {
-                setTimeout(() => {
-                    islandPush({ type: 'next_event', payload: { event: { title: nextEvent.title, start: nextEvent.start } } });
-                }, 200);
-            }
-        }, 1500);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [events, enabledExtensions]);
 
 
     const handleDeleteNote = async (e: React.MouseEvent, fileId: string) => {
