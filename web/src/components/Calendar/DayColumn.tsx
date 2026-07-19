@@ -161,18 +161,31 @@ const arrangeEvents = (events: CalendarEvent[], day: Date, allDayEvents?: Calend
 };
 
 const getEventTheme = (evt: CalendarEvent) => {
-    // If we have an individual color, use it as bg
-    if (evt.color) {
-        return { bg: evt.color, text: '#ffffff', border: evt.color };
+    let col = evt.color?.toLowerCase() || '';
+    
+    const isPink = col === 'pink' || col.startsWith('#ec') || col.startsWith('#d9') || col.startsWith('#e8') || col.startsWith('#f4') || col.startsWith('#f0');
+    const isRed = col === 'red' || col.startsWith('#ef') || col.startsWith('#f8') || col.startsWith('#ea') || col.startsWith('#eb');
+    const isBlue = col === 'blue' || col.startsWith('#3b') || col.startsWith('#25') || col.startsWith('#1d') || col.startsWith('#63') || col.startsWith('#4f');
+    const isGreen = col === 'green' || col.startsWith('#10') || col.startsWith('#22') || col.startsWith('#15');
+    const isOrange = col === 'orange' || col.startsWith('#f5') || col.startsWith('#f9') || col.startsWith('#fb') || col.startsWith('#d9');
+
+    if (isPink || evt.effect === 'pink') {
+        return { bg: '#E8E2F8', text: '#5B21B6', border: '#C084FC' };
+    }
+    if (isBlue || evt.effect === 'sky') {
+        return { bg: '#D8F0F4', text: '#0B4F6C', border: '#93C5FD' };
+    }
+    if (isGreen || evt.effect === 'green') {
+        return { bg: '#E2F6EA', text: '#065F46', border: '#86EFAC' };
+    }
+    if (isOrange || evt.effect === 'orange') {
+        return { bg: '#FFF0D4', text: '#9A3412', border: '#FDBA74' };
+    }
+    if (isRed || evt.effect === 'red') {
+        return { bg: '#FCE8E6', text: '#991B1B', border: '#FCA5A5' };
     }
 
-    const effectMap: Record<string, { bg: string; text: string; border: string }> = {
-        'sky': { bg: '#e0f2fe', text: '#0369a1', border: '#7dd3fc' },
-        'green': { bg: '#dcfce7', text: '#15803d', border: '#86efac' },
-        'orange': { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' },
-        'none': { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }
-    };
-    return effectMap[evt.effect || 'none'] || effectMap['none'];
+    return { bg: '#F1F5F9', text: '#334155', border: '#CBD5E1' };
 };
 
 const DayColumnBase: React.FC<DayColumnProps> = ({
@@ -331,7 +344,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     return (
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
-            className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-gray-300 dark:border-slate-700 relative z-[10] bg-transparent`}
+            className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-gray-100/80 dark:border-slate-900/50 relative z-[10] bg-transparent`}
             onMouseMove={(e) => {
                 physicalMouseRef.current = { x: e.clientX, y: e.clientY };
                 gearedMouseRef.current = { x: e.clientX, y: e.clientY };
@@ -344,10 +357,10 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
         >
             <div
                 className={`
-                 h-[50px] border-b border-gray-100 dark:border-slate-800/50
+                 h-[50px] border-b border-gray-100/80 dark:border-slate-900/50
                  sticky top-0 z-[2000]
                  flex items-center justify-center gap-2 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors
-                 bg-white/30 dark:bg-slate-900/40 backdrop-blur-2xl
+                 bg-white dark:bg-slate-950
              `}
                 onClick={() => {
                     if (readOnly) return;
@@ -416,21 +429,30 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 }}
                 title="Click to add all-day event"
             >
-                <span className={`text-[24px] leading-none self-center ${isToday ? 'text-red-500 font-black' : 'text-gray-900 dark:text-gray-100 font-bold'}`}>
-                    {format(day, "d")}
-                </span>
-                <span className={`text-[13px] leading-none self-center uppercase tracking-wide ${isToday ? 'text-red-500 font-bold' : 'text-gray-400 dark:text-gray-500 font-semibold'}`}>
-                    {format(day, "EEE")}
-                </span>
+                {isToday ? (
+                    <div className="px-3.5 py-1.5 rounded-full bg-black dark:bg-white text-white dark:text-black text-xs font-bold flex items-center justify-center gap-1 shadow-sm select-none">
+                        <span>{format(day, "d")}</span>
+                        <span className="opacity-60 uppercase text-[9px] font-black">–</span>
+                        <span className="opacity-80 uppercase text-[9px] tracking-wide font-black">{format(day, "EEE")}</span>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-1 select-none">
+                        <span className="text-[20px] font-bold text-gray-800 dark:text-gray-200">
+                            {format(day, "d")}
+                        </span>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                            {format(day, "EEE")}
+                        </span>
+                    </div>
+                )}
             </div>
 
-            {/* Today column — subtle red hatching overlay */}
+            {/* Today column — subtle solid gray overlay */}
             {isToday && (
                 <div
-                    className="absolute inset-0 pointer-events-none z-[1] border-l-[2px] border-r-[2px] border-red-500/50 dark:border-red-500/60 shadow-[inset_0_0_40px_rgba(239,68,68,0.08)] bg-red-500/[0.02] dark:bg-red-500/[0.03]"
+                    className="absolute inset-0 pointer-events-none z-[1] bg-gray-50/50 dark:bg-white/[0.015]"
                     style={{
                         top: '50px',
-                        backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 14px, rgba(239,68,68,0.1) 14px, rgba(239,68,68,0.1) 28px)',
                     }}
                 />
             )}

@@ -222,7 +222,7 @@ const MessageView = ({ payload }: { payload: any }) => {
 };
 
 const UploadProgressView = ({ payload }: { payload: any }) => (
-    <div className="flex flex-col items-center justify-center gap-4 py-8 px-4 w-[16rem]">
+    <div className="flex flex-col items-center justify-center gap-4 py-8 px-4 w-full">
         <div className="relative flex items-center justify-center">
             {/* Pulsing ring */}
             <div className="absolute inset-0 rounded-full bg-indigo-200 animate-ping opacity-75" style={{ animationDuration: '2s' }} />
@@ -244,7 +244,7 @@ const UploadProgressView = ({ payload }: { payload: any }) => (
 const InteractiveCardView = ({ payload }: { payload: any }) => {
     const isEvent = payload?.fileType === 'event';
     return (
-        <div className="flex flex-col gap-3 px-3 py-2 w-[18rem]">
+        <div className="flex flex-col gap-3 px-3 py-2 w-full">
             <div className="flex items-center gap-2 mb-1">
                 <div className={`w-2.5 h-2.5 rounded-full ${isEvent ? 'bg-amber-500 animate-pulse' : 'bg-blue-500 animate-pulse'}`} />
                 <div className="text-[12px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -325,7 +325,7 @@ const EventPreviewView = ({ payload }: { payload: any }) => {
     }
 
     return (
-        <div className="flex flex-col gap-3 px-3 py-2 w-[18rem]">
+        <div className="flex flex-col gap-3 px-3 py-2 w-full">
             <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
                     <div className={`w-2.5 h-2.5 rounded-full ${event.is_cancelled ? 'bg-gray-300 dark:bg-gray-600' : isPast ? 'bg-gray-400 dark:bg-gray-500' : isNow ? 'bg-indigo-500 animate-pulse' : 'bg-blue-500'}`} />
@@ -398,7 +398,7 @@ const ReminderView = ({ payload }: { payload: any }) => {
     };
 
     return (
-        <div className="flex flex-col gap-3 px-4 py-3 w-[20rem] select-none">
+        <div className="flex flex-col gap-3 px-4 py-3 w-full select-none">
             {/* Header */}
             <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-sm">
@@ -547,7 +547,7 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
     };
 
     return (
-        <div className="flex flex-col gap-3 px-3 py-3 w-[20rem] sm:w-[22rem] select-none text-zinc-100">
+        <div className="flex flex-col gap-3 px-3 py-3 w-full select-none text-zinc-100">
             {/* Search Input Box */}
             <div className="flex items-center gap-2 p-2 rounded-xl bg-white/5 border border-white/10 shadow-inner">
                 <Search size={14} className="text-zinc-400 ml-1 flex-shrink-0" />
@@ -748,20 +748,20 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
     const sizeClass = isCentered
         ? 'p-6 rounded-[2.5rem] w-[22rem] sm:w-[26rem]'
         : state.current?.type === 'timeline'
-            ? 'p-5 rounded-[2.5rem] w-[21rem]'
+            ? 'p-4 rounded-[2rem] w-full'
             : state.current?.type === 'interactive_card'
-                ? 'p-5 rounded-[2rem] w-[23rem]'
+                ? 'p-4 rounded-[1.75rem] w-full'
                 : state.current?.type === 'event_suggestion'
-                    ? 'rounded-[1.75rem] w-[23rem]'
+                    ? 'rounded-[1.5rem] w-full'
                     : state.current?.type === 'reminder'
-                        ? 'rounded-[2rem] w-[21rem]'
+                        ? 'rounded-[1.75rem] w-full'
                         : state.current?.type === 'text_collector'
-                            ? 'rounded-[2rem] w-[21rem]'
+                            ? 'rounded-[1.75rem] w-full'
                             : state.current?.type === 'welcome' || state.current?.type === 'morning' || state.current?.type === 'event_preview'
-                                ? 'p-5 rounded-[2rem] w-[21rem]'
+                                ? 'p-4 rounded-[1.75rem] w-full'
                                 : state.current?.type === 'message'
-                                    ? 'p-4 rounded-[1.75rem] w-[19rem]'
-                                    : 'p-3 rounded-[2rem] w-[17rem]';
+                                    ? 'p-3 rounded-[1.5rem] w-full'
+                                    : 'p-2 rounded-[1.75rem] w-full';
 
     const positionClass = isCentered
         ? 'fixed top-[20vh] left-[calc(50%-11rem)] sm:left-[calc(50%-13rem)] z-[9999]'

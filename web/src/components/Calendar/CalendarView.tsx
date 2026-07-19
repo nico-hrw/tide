@@ -1228,9 +1228,21 @@ export default function CalendarView({
                 {/* Toolbar — position:relative + zIndex:500 creates a stacking context above
                     all sticky calendar elements (time col z-[160], day headers z-[150]). */}
                 <div className="flex items-center justify-between px-4 py-3 bg-transparent" style={{ position: 'relative', zIndex: 500 }}>
-                    <h2 className="text-xl font-black text-gray-900 dark:text-gray-100 uppercase tracking-widest">
-                        {format(date, "MMMM yyyy")}
-                    </h2>
+                    <div className="flex items-center gap-6">
+                        <h2 className="text-xl font-extrabold text-[#1F2937] dark:text-[#E2E8F0] tracking-tight">
+                            {format(date, "MMMM yyyy")}
+                        </h2>
+                        <div className="hidden sm:flex items-center gap-1.5">
+                            <span className="px-3 py-1 text-xs font-bold bg-black dark:bg-white text-white dark:text-black rounded-full shadow-sm cursor-pointer hover:opacity-90 transition-all flex items-center gap-1">
+                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                All
+                            </span>
+                            <span className="px-3 py-1 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300 rounded-full cursor-pointer transition-colors">Math</span>
+                            <span className="px-3 py-1 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300 rounded-full cursor-pointer transition-colors">Art</span>
+                            <span className="px-3 py-1 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300 rounded-full cursor-pointer transition-colors">Physics</span>
+                            <span className="px-3 py-1 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300 rounded-full cursor-pointer transition-colors">Sport</span>
+                        </div>
+                    </div>
                     <div className="flex items-center gap-2 mr-14">
                         <button
                             onClick={() => setIsScheduleModalOpen(true)}
@@ -1260,12 +1272,12 @@ export default function CalendarView({
                     style={{ touchAction: 'none', overscrollBehavior: 'none' }}
                 >
                     {/* Time Column (Sticky Left) */}
-                    <div className="w-[60px] flex-shrink-0 sticky left-0 z-[400] bg-white/30 dark:bg-slate-900/40 backdrop-blur-2xl border-r border-gray-100 dark:border-slate-800/50 h-fit min-h-full pb-[40px]">
+                    <div className="w-[60px] flex-shrink-0 sticky left-0 z-[400] bg-white dark:bg-slate-950 border-r border-gray-100/80 dark:border-slate-900/50 h-fit min-h-full pb-[40px]">
                         {/* Corner */}
-                        <div className="h-[50px] border-b border-gray-100 dark:border-slate-800/50 sticky top-0 z-[410] bg-white/30 dark:bg-slate-900/40 backdrop-blur-2xl"></div>
+                        <div className="h-[50px] border-b border-gray-100/80 dark:border-slate-900/50 sticky top-0 z-[410] bg-white dark:bg-slate-950"></div>
                         {
                             Array.from({ length: 24 }).map((_, i) => (
-                                <div key={i} className="h-[60px] relative group border-b border-dashed border-gray-100 dark:border-slate-800/50">
+                                <div key={i} className="h-[60px] relative group border-b border-dashed border-gray-100/50 dark:border-slate-900/40">
                                     <span className="absolute -top-3 right-3 text-[11px] font-semibold text-gray-400 dark:text-gray-500 z-[10]">{i}:00</span>
                                 </div>
                             ))
@@ -1277,14 +1289,13 @@ export default function CalendarView({
 
                         {/* Global Current Time Line - Now Inside the relative flex container */}
                         <div
-                            className="absolute z-[155] pointer-events-none"
+                            className="absolute z-[155] pointer-events-none flex items-center"
                             style={{ top: `${globalTimeTop + 50}px`, left: '-60px', width: 'calc(100% + 60px)' }}
                         >
-                            <div className="h-[2px] bg-red-500/80 dark:bg-red-400/80 w-full relative">
-                                <div className="w-10 h-5 rounded-full bg-red-500 dark:bg-red-400 text-white dark:text-slate-900 text-[10px] font-bold flex items-center justify-center absolute left-0 -top-2.5 shadow-sm">
-                                    {format(currentTime, "HH:mm")}
-                                </div>
+                            <div className="w-[50px] h-[18px] rounded-full bg-black dark:bg-white text-white dark:text-black text-[9px] font-extrabold flex items-center justify-center shadow-md relative z-[156] ml-2.5">
+                                {format(currentTime, "HH:mm")}
                             </div>
+                            <div className="h-[1.5px] bg-black/80 dark:bg-white/80 flex-1 relative z-[155] -ml-2.5" />
                         </div>
 
                         {

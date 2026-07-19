@@ -28,18 +28,31 @@ interface CalendarEvent {
 }
 
 const getEventTheme = (evt: CalendarEvent) => {
-    // If we have an individual color, use it as bg
-    if (evt.color) {
-        return { bg: evt.color, text: '#ffffff', border: evt.color };
+    let col = evt.color?.toLowerCase() || '';
+    
+    const isPink = col === 'pink' || col.startsWith('#ec') || col.startsWith('#d9') || col.startsWith('#e8') || col.startsWith('#f4') || col.startsWith('#f0');
+    const isRed = col === 'red' || col.startsWith('#ef') || col.startsWith('#f8') || col.startsWith('#ea') || col.startsWith('#eb');
+    const isBlue = col === 'blue' || col.startsWith('#3b') || col.startsWith('#25') || col.startsWith('#1d') || col.startsWith('#63') || col.startsWith('#4f');
+    const isGreen = col === 'green' || col.startsWith('#10') || col.startsWith('#22') || col.startsWith('#15');
+    const isOrange = col === 'orange' || col.startsWith('#f5') || col.startsWith('#f9') || col.startsWith('#fb') || col.startsWith('#d9');
+
+    if (isPink || evt.effect === 'pink') {
+        return { bg: '#E8E2F8', text: '#5B21B6', border: '#C084FC' };
+    }
+    if (isBlue || evt.effect === 'sky') {
+        return { bg: '#D8F0F4', text: '#0B4F6C', border: '#93C5FD' };
+    }
+    if (isGreen || evt.effect === 'green') {
+        return { bg: '#E2F6EA', text: '#065F46', border: '#86EFAC' };
+    }
+    if (isOrange || evt.effect === 'orange') {
+        return { bg: '#FFF0D4', text: '#9A3412', border: '#FDBA74' };
+    }
+    if (isRed || evt.effect === 'red') {
+        return { bg: '#FCE8E6', text: '#991B1B', border: '#FCA5A5' };
     }
 
-    const effectMap: Record<string, { bg: string; text: string; border: string }> = {
-        'sky': { bg: '#e0f2fe', text: '#0369a1', border: '#7dd3fc' },
-        'green': { bg: '#dcfce7', text: '#15803d', border: '#86efac' },
-        'orange': { bg: '#ffedd5', text: '#c2410c', border: '#fdba74' },
-        'none': { bg: '#f1f5f9', text: '#475569', border: '#cbd5e1' }
-    };
-    return effectMap[evt.effect || 'none'] || effectMap['none'];
+    return { bg: '#F1F5F9', text: '#334155', border: '#CBD5E1' };
 };
 
 
@@ -234,10 +247,10 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     let style: any;
     if (isDragging) {
         style = {
-            top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes})`,
-            height: isTimePoint ? '8px' : `calc(var(--hour-height, 60px) / 60 * ${minRenderedMinutes})`,
-            left: `${pos.left}%`,
-            width: `${pos.width}%`,
+            top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes} + 2px)`,
+            height: isTimePoint ? '6px' : `calc(var(--hour-height, 60px) / 60 * ${minRenderedMinutes} - 4px)`,
+            left: `calc(${pos.left}% + 3px)`,
+            width: `calc(${pos.width}% - 6px)`,
             backgroundColor: theme.bg,
             color: theme.text,
             opacity: 0,
@@ -246,10 +259,10 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         };
     } else if (isResizing) {
         style = {
-            top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes})`,
+            top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes} + 2px)`,
             height: resizeHeightMV,
-            left: `${pos.left}%`,
-            width: `${pos.width}%`,
+            left: `calc(${pos.left}% + 3px)`,
+            width: `calc(${pos.width}% - 6px)`,
             backgroundColor: theme.bg,
             color: theme.text,
             zIndex: 100,
@@ -258,15 +271,17 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     } else {
         const baseColor = isActiveParent ? 'transparent' : (event.color || theme.bg);
         style = {
-            top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes})`,
-            height: isTimePoint ? '8px' : `calc(var(--hour-height, 60px) / 60 * ${minRenderedMinutes})`,
-            left: `${pos.left}%`,
-            width: `${pos.width}%`,
+            top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes} + 2px)`,
+            height: isTimePoint ? '6px' : `calc(var(--hour-height, 60px) / 60 * ${minRenderedMinutes} - 4px)`,
+            left: `calc(${pos.left}% + 3px)`,
+            width: `calc(${pos.width}% - 6px)`,
             backgroundColor: baseColor,
             // Layer pattern on top of solid background-color (CSS bg-image renders above bg-color).
             // For the live-event state the pattern is prepended to the gradient.
             ...(effectStyle || {}),
-            boxShadow: isActiveParent ? `inset 0 0 20px 2px ${theme.border}` : 'none',
+            boxShadow: isActiveParent 
+                ? `inset 0 0 20px 2px ${theme.border}` 
+                : '0 4px 16px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03)',
             color: theme.text,
             zIndex: zIndex,
             maskImage: maskImage !== 'none' ? maskImage : undefined,
@@ -304,8 +319,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     });
 
     // Base Radius
-    const R = '7px'; // Normal radius
-    const adjR = '4px'; // Attached radius (1/3 of normal)
+    const R = '12px'; // Normal radius
+    const adjR = '6px'; // Attached radius (1/2 of normal)
 
     const borderRadiusStyle = {
         borderTopLeftRadius: isAdjacentTop ? adjR : R,
@@ -381,7 +396,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     setIsLinkingMode(false);
                 }
             }}
-            className={`event-item group absolute ${isTimePoint ? 'px-1 py-0 overflow-visible rounded-sm' : durationMinutes < 45 ? 'px-2 py-0.5 overflow-hidden' : 'px-2 py-1.5 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-all ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''}`}
+            className={`event-item group absolute ${isTimePoint ? 'px-1.5 py-0 overflow-visible rounded-sm' : durationMinutes < 45 ? 'px-3 py-1.5 overflow-hidden' : 'px-3.5 py-3 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-all ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''}`}
             onClick={(e) => {
                 e.stopPropagation();
 
@@ -544,6 +559,9 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     <div className={`text-[11px] font-bold leading-tight break-words pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}
                     </div>
+                    {!isDragging && !isResizing && (
+                        <span className="text-[10px] opacity-30 font-bold ml-auto select-none pointer-events-none group-hover:opacity-75 transition-opacity">···</span>
+                    )}
                 </div>
 
                 {/* Sub-titles (Tags) - Feature Requirement */}
@@ -578,10 +596,25 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     </div>
                 )}
 
-                {/* Conditional time rendering */}
+                {/* Conditional time rendering and Confirmed badge */}
                 {durationMinutes > 30 && (
-                    <div className="text-[10px] opacity-70 pointer-events-none mt-auto pb-0.5">
-                        {format(start, "HH:mm")} - {format(end, "HH:mm")}
+                    <div className="text-[10px] opacity-75 pointer-events-none mt-auto pb-0.5 flex items-center justify-between">
+                        {durationMinutes > 60 ? (
+                            <span 
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] text-[8px] font-black tracking-wide uppercase border shadow-sm"
+                                style={{
+                                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                                    borderColor: 'rgba(16, 185, 129, 0.2)',
+                                    color: '#047857',
+                                }}
+                            >
+                                <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                Confirmed
+                            </span>
+                        ) : null}
+                        <span className="font-semibold ml-auto">
+                            {format(start, "HH:mm")} - {format(end, "HH:mm")}
+                        </span>
                     </div>
                 )}
             </div>
