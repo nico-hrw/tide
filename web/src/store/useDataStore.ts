@@ -76,6 +76,10 @@ interface DataState {
     setThemePreference: (pref: 'light' | 'dark' | 'system') => void;
     language: 'en' | 'de';
     setLanguage: (lang: 'en' | 'de') => void;
+    calendarColorPalette: 'modern-dark' | 'soft-pastels' | 'classic-tide';
+    setCalendarColorPalette: (palette: 'modern-dark' | 'soft-pastels' | 'classic-tide') => void;
+    calendarOverlapMode: 'overlap' | 'stack';
+    setCalendarOverlapMode: (mode: 'overlap' | 'stack') => void;
 }
 
 export const useDataStore = create<DataState>((set, get) => ({
@@ -129,6 +133,16 @@ export const useDataStore = create<DataState>((set, get) => ({
     setLanguage: (lang) => set(s => {
         localStorage.setItem('tide_language', lang);
         return { language: lang };
+    }),
+    calendarColorPalette: typeof window !== 'undefined' ? (localStorage.getItem('tide_calendar_color_palette') as any || 'modern-dark') : 'modern-dark',
+    setCalendarColorPalette: (palette) => set(s => {
+        localStorage.setItem('tide_calendar_color_palette', palette);
+        return { calendarColorPalette: palette };
+    }),
+    calendarOverlapMode: typeof window !== 'undefined' ? (localStorage.getItem('tide_calendar_overlap_mode') as any || 'stack') : 'stack',
+    setCalendarOverlapMode: (mode) => set(s => {
+        localStorage.setItem('tide_calendar_overlap_mode', mode);
+        return { calendarOverlapMode: mode };
     }),
     isUpdatingMetadata: new Set(),
     openFolderIds: new Set(

@@ -90,9 +90,8 @@ export default function CalendarView({
     onOpenScheduleThemes,
 }: CalendarViewProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
-    const [selectedThemes, setSelectedThemes] = useState<Set<string>>(new Set());
+    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
     const [isGroupsSidebarOpen, setIsGroupsSidebarOpen] = useState(false);
-    const [isThemesOpen, setIsThemesOpen] = useState(false);
 
     // Feature Tracking
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -1080,6 +1079,10 @@ export default function CalendarView({
         const minDate = startOfDay(loadedWeeks[0]);
         const maxDate = startOfDay(addDays(loadedWeeks[loadedWeeks.length - 1], 7));
 
+        const filteredEvents = selectedGroupId
+            ? events.filter(e => e.parent_id === selectedGroupId)
+            : events;
+
         const processEvent = (e: CalendarEvent, occurrenceStart: Date) => {
             if (isNaN(occurrenceStart.getTime())) {
                 console.warn(`[CALENDAR-DRV] Invalid occurrenceStart for event ${e.id}`);
@@ -1156,7 +1159,7 @@ export default function CalendarView({
             }
         };
 
-        events.forEach(e => {
+        filteredEvents.forEach(e => {
             const start = new Date(e.start);
             if (isNaN(start.getTime())) {
                 console.warn(`[CALENDAR-DRV] Base start date invalid for event ${e.id}:`, e.start);
@@ -1210,7 +1213,7 @@ export default function CalendarView({
             }
         });
         return { timedMap, allDayMap };
-    }, [events, loadedWeeks]);
+    }, [events, loadedWeeks, selectedGroupId]);
 
     return (
         <React.Fragment>
@@ -1233,14 +1236,24 @@ export default function CalendarView({
                             {format(date, "MMMM yyyy")}
                         </h2>
                         <div className="hidden sm:flex items-center gap-1.5">
-                            <span className="px-3 py-1 text-xs font-bold bg-black dark:bg-white text-white dark:text-black rounded-full shadow-sm cursor-pointer hover:opacity-90 transition-all flex items-center gap-1">
-                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            <span 
+                                onClick={() => setSelectedGroupId(null)}
+                                className={`px-3 py-1 text-xs font-bold rounded-full shadow-sm cursor-pointer hover:opacity-90 transition-all flex items-center gap-1 ${!selectedGroupId ? 'bg-black dark:bg-white text-white dark:text-black' : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300'}`}
+                            >
+                                {!selectedGroupId && (
+                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                )}
                                 All
                             </span>
-                            <span className="px-3 py-1 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300 rounded-full cursor-pointer transition-colors">Math</span>
-                            <span className="px-3 py-1 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300 rounded-full cursor-pointer transition-colors">Art</span>
-                            <span className="px-3 py-1 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300 rounded-full cursor-pointer transition-colors">Physics</span>
-                            <span className="px-3 py-1 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300 rounded-full cursor-pointer transition-colors">Sport</span>
+                            {themes.map(group => (
+                                <span 
+                                    key={group.id}
+                                    onClick={() => setSelectedGroupId(group.id)}
+                                    className={`px-3 py-1 text-xs font-semibold rounded-full cursor-pointer transition-all ${selectedGroupId === group.id ? 'bg-black dark:bg-white text-white dark:text-black font-bold shadow-sm' : 'bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300'}`}
+                                >
+                                    {group.title}
+                                </span>
+                            ))}
                         </div>
                     </div>
                     <div className="flex items-center gap-2 mr-14">
@@ -1252,16 +1265,6 @@ export default function CalendarView({
                             <ListPlus size={16} />
                             <span></span>
                         </button>
-                        {onOpenScheduleThemes && (
-                            <button
-                                onClick={onOpenScheduleThemes}
-                                className="hidden md:flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-white/15 transition-colors"
-                                title="Schedule Themes"
-                            >
-                                <Palette size={16} />
-                                <span></span>
-                            </button>
-                        )}
                     </div>
                 </div >
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useReferenceStore } from '@/store/useReferenceStore';
-import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon } from 'lucide-react';
+import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon, Calendar, Share, Plus } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 
 import { motion, AnimatePresence } from 'framer-motion';
@@ -16,6 +16,13 @@ interface SettingsModalProps {
     onLogout?: () => void;
     noteLayout?: 'thin' | 'normal' | 'wide' | 'extra-wide';
     onSetNoteLayout?: (layout: 'thin' | 'normal' | 'wide' | 'extra-wide') => void;
+    groups?: { id: string; title: string; effect?: string; color?: string }[];
+    hiddenGroupIds?: string[];
+    onToggleGroupVisibility?: (id: string) => void;
+    onUpdateGroup?: (id: string, updates: any) => void;
+    onShareGroup?: (e: any, id: string) => void;
+    onDeleteGroup?: (e: any, id: string) => void;
+    onCreateGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 }
 
 export default function SettingsModal({
@@ -26,10 +33,17 @@ export default function SettingsModal({
     userProfile,
     onLogout,
     noteLayout = 'normal',
-    onSetNoteLayout
+    onSetNoteLayout,
+    groups = [],
+    hiddenGroupIds = [],
+    onToggleGroupVisibility,
+    onUpdateGroup,
+    onShareGroup,
+    onDeleteGroup,
+    onCreateGroup
 }: SettingsModalProps) {
 
-    const [activeTab, setActiveTab] = useState<'account' | 'extensions' | 'appearance' | 'info'>('account');
+    const [activeTab, setActiveTab] = useState<'account' | 'calendar' | 'extensions' | 'appearance' | 'info'>('account');
     const [pinInputValue, setPinInputValue] = useState("");
     const autoScanEnabled = useReferenceStore((state) => state.autoScanEnabled);
     const references = useReferenceStore((state) => state.references);
@@ -77,6 +91,7 @@ export default function SettingsModal({
 
     const tabs = [
         { id: 'account', label: 'Account', icon: User },
+        { id: 'calendar', label: 'Calendar', icon: Calendar },
         { id: 'appearance', label: 'Appearance', icon: Palette },
         { id: 'extensions', label: 'Extensions', icon: Puzzle },
         { id: 'info', label: 'Info', icon: Info },
@@ -585,6 +600,314 @@ export default function SettingsModal({
         </div>
     );
 
+    const {
+        calendarColorPalette,
+        setCalendarColorPalette,
+        calendarOverlapMode,
+        setCalendarOverlapMode
+    } = useDataStore();
+
+    const [newGroupName, setNewGroupName] = useState('');
+
+    const handleCreateGroupLocal = async () => {
+        if (!newGroupName.trim() || !onCreateGroup) return;
+        await onCreateGroup(newGroupName.trim());
+        setNewGroupName('');
+    };
+
+    const renderCalendarSettings = () => {
+        const palette = calendarColorPalette;
+        const overlap = calendarOverlapMode;
+
+        const getDummyStyle = (color: string) => {
+            let bg = '#7c3aed';
+            let text = '#ffffff';
+            
+            if (palette === 'soft-pastels') {
+                if (color === 'blue') { bg = '#E2E8F0'; text = '#1F2937'; }
+                else if (color === 'pink') { bg = '#EDE9FE'; text = '#1F2937'; }
+                else if (color === 'green') { bg = '#D1FAE5'; text = '#1F2937'; }
+            } else if (palette === 'classic-tide') {
+                if (color === 'blue') { bg = '#3B82F6'; text = '#FFFFFF'; }
+                else if (color === 'pink') { bg = '#6366F1'; text = '#FFFFFF'; }
+                else if (color === 'green') { bg = '#10B981'; text = '#FFFFFF'; }
+            } else {
+                if (color === 'blue') { bg = '#0284C7'; text = '#FFFFFF'; }
+                else if (color === 'pink') { bg = '#7C3AED'; text = '#FFFFFF'; }
+                else if (color === 'green') { bg = '#059669'; text = '#FFFFFF'; }
+            }
+
+            return {
+                backgroundColor: bg,
+                color: text,
+                border: 'none',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+            };
+        };
+
+        let layout1, layout2, layout3;
+        if (overlap === 'overlap') {
+            layout1 = { left: '0%', width: '80%', top: '15px', height: '55px' };
+            layout2 = { left: '15%', width: '70%', top: '40px', height: '55px' };
+            layout3 = { left: '30%', width: '60%', top: '70px', height: '55px' };
+        } else {
+            layout1 = { left: '0%', width: '31%', top: '15px', height: '55px' };
+            layout2 = { left: '33%', width: '31%', top: '40px', height: '55px' };
+            layout3 = { left: '66%', width: '31%', top: '70px', height: '55px' };
+        }
+
+        return (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="space-y-6">
+                        <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
+                            <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">Color Palette</h4>
+                            <p className="text-xs text-gray-500 mb-3">Choose the appearance theme for calendar events.</p>
+                            <div className="flex flex-col gap-2">
+                                {[
+                                    { id: 'modern-dark', label: 'Modern Dark', desc: 'Richer solid colors with white text' },
+                                    { id: 'soft-pastels', label: 'Soft Pastels', desc: 'Pale backgrounds with dark text' },
+                                    { id: 'classic-tide', label: 'Classic Tide', desc: 'Tide classic colors with white text' }
+                                ].map((p) => (
+                                    <button
+                                        key={p.id}
+                                        onClick={() => setCalendarColorPalette(p.id as any)}
+                                        className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${palette === p.id
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
+                                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-200 dark:hover:border-white/10'
+                                        }`}
+                                    >
+                                        <div>
+                                            <div className={`text-sm font-bold ${palette === p.id ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{p.label}</div>
+                                            <div className="text-[10px] opacity-80 mt-0.5">{p.desc}</div>
+                                        </div>
+                                        {palette === p.id && <Check className="w-4 h-4 shrink-0" />}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
+                            <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">Event Arrangement</h4>
+                            <p className="text-xs text-gray-500 mb-3">Decide how overlapping events are displayed.</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                {[
+                                    { id: 'stack', label: 'Side-by-Side', desc: 'Equal split width' },
+                                    { id: 'overlap', label: 'Overlap / Stacking', desc: 'Layered cards' }
+                                ].map((o) => (
+                                    <button
+                                        key={o.id}
+                                        onClick={() => setCalendarOverlapMode(o.id as any)}
+                                        className={`flex flex-col p-3 rounded-xl border text-left transition-all ${overlap === o.id
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
+                                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-200 dark:hover:border-white/10'
+                                        }`}
+                                    >
+                                        <div className={`text-sm font-bold ${overlap === o.id ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{o.label}</div>
+                                        <div className="text-[10px] opacity-80 mt-1">{o.desc}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col border border-gray-100 dark:border-white/5 rounded-2xl p-4 bg-gray-50/50 dark:bg-white/[0.02]">
+                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Live Preview</h4>
+                        <div className="relative border border-gray-200 dark:border-white/10 rounded-xl bg-white dark:bg-slate-900 h-[170px] overflow-hidden select-none mb-4">
+                            <div className="absolute left-0 top-0 bottom-0 w-[45px] border-r border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-black/10 flex flex-col justify-between py-3 text-[9px] text-gray-400 font-semibold px-2">
+                                <span>09:00</span>
+                                <span>10:00</span>
+                                <span>11:00</span>
+                            </div>
+                            
+                            <div className="absolute left-[45px] right-0 top-0 bottom-0">
+                                <div className="absolute top-[15px] left-0 right-0 border-b border-dashed border-gray-100 dark:border-white/5" />
+                                <div className="absolute top-[70px] left-0 right-0 border-b border-dashed border-gray-100 dark:border-white/5" />
+                                
+                                <div 
+                                    className="absolute rounded-[8px] p-1.5 text-[9px] font-bold transition-all duration-300"
+                                    style={{ ...layout1, ...getDummyStyle('blue') }}
+                                >
+                                    Meeting
+                                    <div className="text-[7.5px] opacity-70 mt-0.5">09:00 - 10:30</div>
+                                </div>
+                                <div 
+                                    className="absolute rounded-[8px] p-1.5 text-[9px] font-bold transition-all duration-300"
+                                    style={{ ...layout2, ...getDummyStyle('pink') }}
+                                >
+                                    Vorlesung
+                                    <div className="text-[7.5px] opacity-70 mt-0.5">09:30 - 11:00</div>
+                                </div>
+                                <div 
+                                    className="absolute rounded-[8px] p-1.5 text-[9px] font-bold transition-all duration-300"
+                                    style={{ ...layout3, ...getDummyStyle('green') }}
+                                >
+                                    Sport
+                                    <div className="text-[7.5px] opacity-70 mt-0.5">10:15 - 11:45</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="pt-6 border-t border-gray-100 dark:border-white/5">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 className="text-sm font-bold text-gray-900 dark:text-white">Calendar Groups</h3>
+                            <p className="text-xs text-gray-500 mt-0.5">Manage event categories and styles.</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={newGroupName}
+                                onChange={e => setNewGroupName(e.target.value)}
+                                placeholder="New group name..."
+                                className="bg-white dark:bg-black/40 text-xs text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:border-blue-500 transition-colors rounded-lg px-3 py-1.5 w-40"
+                                onKeyDown={e => e.key === 'Enter' && handleCreateGroupLocal()}
+                            />
+                            <button
+                                onClick={handleCreateGroupLocal}
+                                className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                                title="Create Group"
+                            >
+                                <Plus size={14} />
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[220px] overflow-y-auto pr-1">
+                        {groups.map(group => (
+                            <GroupItem
+                                key={group.id}
+                                group={group}
+                                hiddenGroupIds={hiddenGroupIds}
+                                onToggleVisibility={onToggleGroupVisibility}
+                                onUpdate={onUpdateGroup}
+                                onShare={onShareGroup}
+                                onDelete={onDeleteGroup}
+                            />
+                        ))}
+                        {groups.length === 0 && (
+                            <p className="text-xs text-gray-400 italic col-span-2 text-center py-4">No custom groups created yet.</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const GroupItem = ({ group, hiddenGroupIds, onToggleVisibility, onUpdate, onShare, onDelete }: any) => {
+        const [localTitle, setLocalTitle] = useState(group.title);
+
+        useEffect(() => {
+            setLocalTitle(group.title);
+        }, [group.title]);
+
+        const handleBlur = () => {
+            if (localTitle !== group.title) {
+                onUpdate(group.id, { title: localTitle });
+            }
+        };
+
+        return (
+            <div className="group relative flex flex-col gap-2 p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 hover:bg-white dark:hover:bg-white/10 hover:shadow-sm transition-all">
+                <div className="flex items-center gap-2">
+                    <input
+                        type="checkbox"
+                        checked={!(hiddenGroupIds || []).includes(group.id)}
+                        onChange={() => onToggleVisibility(group.id)}
+                        className="w-4 h-4 rounded-md border-gray-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500/20 bg-white dark:bg-zinc-800 cursor-pointer"
+                        title="Toggle Visibility"
+                    />
+                    <input
+                        type="text"
+                        value={localTitle}
+                        onChange={(e) => setLocalTitle(e.target.value)}
+                        onBlur={handleBlur}
+                        onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
+                        className="bg-transparent border-none p-0 text-[13px] font-bold focus:ring-0 outline-none text-gray-800 dark:text-white flex-1 placeholder:text-gray-400"
+                        placeholder="Group name..."
+                    />
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                        <button
+                            onClick={(e) => onShare(e, group.id)}
+                            className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-gray-400 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                            title="Share Group"
+                        >
+                            <Share size={11} />
+                        </button>
+                        <button
+                            onClick={(e) => onDelete(e, group.id)}
+                            className="p-1 hover:bg-rose-50 dark:hover:bg-rose-500/20 rounded text-gray-400 dark:text-gray-300 hover:text-rose-500 transition-all font-semibold"
+                            title="Delete Group"
+                        >
+                            ✗
+                        </button>
+                    </div>
+                </div>
+                
+                <div className="flex flex-col gap-2 pl-6">
+                    <div className="flex flex-wrap gap-1">
+                        {([
+                            { id: 'none',    label: 'Solid'   },
+                            { id: 'stripes', label: 'Streifen' },
+                            { id: 'waves',   label: 'Wellen'  },
+                            { id: 'dots',    label: 'Punkte'  },
+                            { id: 'chess',   label: 'Karo'    },
+                            { id: 'diamonds',label: 'Diamant' },
+                            { id: 'gradient',label: 'Verlauf' },
+                            { id: 'bars',    label: 'Balken'  },
+                            { id: 'dimmed',  label: 'Gedimmt' },
+                        ] as const).map(({ id, label }) => {
+                            const active = (group.effect || 'none') === id;
+                            const swatchColor = group.color || '#3b82f6';
+                            return (
+                                <button
+                                    key={id}
+                                    onClick={() => onUpdate(group.id, { effect: id })}
+                                    title={label}
+                                    className={`flex flex-col items-center gap-0.5 p-0.5 rounded border transition-all ${active ? 'border-blue-500 scale-105 shadow-sm' : 'border-transparent hover:border-gray-300 dark:hover:border-zinc-700'}`}
+                                >
+                                    <div
+                                        className={`w-6 h-3 rounded-sm ${id !== 'none' ? `effect-${id}` : ''}`}
+                                        style={{
+                                            backgroundColor: swatchColor,
+                                            opacity: id === 'dimmed' ? 0.55 : 1,
+                                        }}
+                                    />
+                                    <span className="text-[6.5px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide">{label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                        {[
+                            '#3b82f6', // blue
+                            '#10b981', // green
+                            '#f59e0b', // orange
+                            '#ef4444', // red
+                            '#8b5cf6', // purple/lila
+                            '#6366f1', // indigo
+                            '#ec4899', // pink
+                            '#64748b', // slate
+                        ].map(c => {
+                            const active = group.color === c;
+                            return (
+                                <button
+                                    key={c}
+                                    onClick={() => onUpdate(group.id, { color: c })}
+                                    className={`w-3.5 h-3.5 rounded-full border transition-all ${active ? 'border-gray-900 dark:border-white scale-110 shadow-sm' : 'border-transparent hover:scale-105'}`}
+                                    style={{ backgroundColor: c }}
+                                />
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center pointer-events-none p-4 sm:p-0">
             <motion.div
@@ -649,6 +972,7 @@ export default function SettingsModal({
                                     className="h-full"
                                 >
                                     {activeTab === 'account' && renderAccount()}
+                                    {activeTab === 'calendar' && renderCalendarSettings()}
                                     {activeTab === 'appearance' && renderAppearance()}
                                     {activeTab === 'extensions' && renderExtensions()}
                                     {activeTab === 'info' && renderInfo()}

@@ -61,8 +61,8 @@ interface DayColumnProps {
 // Layout helper for overlapping events within a single day
 // "Background" events (group parents with children, or multi-day midpoints) are excluded
 // from collision detection so they render full-width behind all other events.
-const arrangeEvents = (events: CalendarEvent[], day: Date, allDayEvents?: CalendarEvent[]) => {
-    const allEvts = allDayEvents || events;
+const arrangeEvents = (timedEvents: CalendarEvent[], day: Date, allEvents: CalendarEvent[], overlapMode: 'overlap' | 'stack' = 'stack') => {
+    const allEvts = allEvents || timedEvents;
 
     // Determine which event IDs are "parents" (have children pointing to them)
     const parentIds = new Set(allEvts.map(e => (e as any).parent_id).filter(Boolean));
@@ -71,7 +71,7 @@ const arrangeEvents = (events: CalendarEvent[], day: Date, allDayEvents?: Calend
     const bgEvents: CalendarEvent[] = [];
     const normalEvents: CalendarEvent[] = [];
 
-    events.forEach(evt => {
+    timedEvents.forEach(evt => {
         const start = new Date(evt.start);
         const end = new Date(evt.end);
         const isMultiDay = !isSameDay(start, end);
@@ -147,20 +147,30 @@ const arrangeEvents = (events: CalendarEvent[], day: Date, allDayEvents?: Calend
             }
         });
 
-        const widthPercent = 100 / lanes.length;
-        cluster.forEach(evt => {
-            const lane = eventLanes.get(evt.id) || 0;
-            layout.set(evt.id, {
-                left: lane * widthPercent,
-                width: widthPercent
+        if (overlapMode === 'overlap') {
+            cluster.forEach(evt => {
+                const lane = eventLanes.get(evt.id) || 0;
+                layout.set(evt.id, {
+                    left: lane * 15,
+                    width: Math.max(50, 100 - (lane * 15))
+                });
             });
-        });
+        } else {
+            const widthPercent = 100 / lanes.length;
+            cluster.forEach(evt => {
+                const lane = eventLanes.get(evt.id) || 0;
+                layout.set(evt.id, {
+                    left: lane * widthPercent,
+                    width: widthPercent
+                });
+            });
+        }
     });
 
     return layout;
 };
 
-const getEventTheme = (evt: CalendarEvent) => {
+const getEventTheme = (evt: CalendarEvent, palette: 'modern-dark' | 'soft-pastels' | 'classic-tide' = 'modern-dark') => {
     let col = evt.color?.toLowerCase() || '';
     
     const isPink = col === 'pink' || col.startsWith('#ec') || col.startsWith('#d9') || col.startsWith('#e8') || col.startsWith('#f4') || col.startsWith('#f0');
@@ -169,23 +179,31 @@ const getEventTheme = (evt: CalendarEvent) => {
     const isGreen = col === 'green' || col.startsWith('#10') || col.startsWith('#22') || col.startsWith('#15');
     const isOrange = col === 'orange' || col.startsWith('#f5') || col.startsWith('#f9') || col.startsWith('#fb') || col.startsWith('#d9');
 
-    if (isPink || evt.effect === 'pink') {
-        return { bg: '#EDE9FE', text: '#1F2937', border: '#EDE9FE' };
-    }
-    if (isBlue || evt.effect === 'sky') {
-        return { bg: '#E2E8F0', text: '#1F2937', border: '#E2E8F0' };
-    }
-    if (isGreen || evt.effect === 'green') {
-        return { bg: '#D1FAE5', text: '#1F2937', border: '#D1FAE5' };
-    }
-    if (isOrange || evt.effect === 'orange') {
-        return { bg: '#FEF3C7', text: '#1F2937', border: '#FEF3C7' };
-    }
-    if (isRed || evt.effect === 'red') {
-        return { bg: '#FEE2E2', text: '#1F2937', border: '#FEE2E2' };
+    if (palette === 'soft-pastels') {
+        if (isPink || evt.effect === 'pink') return { bg: '#EDE9FE', text: '#1F2937', border: '#EDE9FE' };
+        if (isBlue || evt.effect === 'sky') return { bg: '#E2E8F0', text: '#1F2937', border: '#E2E8F0' };
+        if (isGreen || evt.effect === 'green') return { bg: '#D1FAE5', text: '#1F2937', border: '#D1FAE5' };
+        if (isOrange || evt.effect === 'orange') return { bg: '#FEF3C7', text: '#1F2937', border: '#FEF3C7' };
+        if (isRed || evt.effect === 'red') return { bg: '#FEE2E2', text: '#1F2937', border: '#FEE2E2' };
+        return { bg: '#F1F5F9', text: '#1F2937', border: '#F1F5F9' };
     }
 
-    return { bg: '#F1F5F9', text: '#1F2937', border: '#F1F5F9' };
+    if (palette === 'classic-tide') {
+        if (isPink || evt.effect === 'pink') return { bg: '#6366F1', text: '#FFFFFF', border: '#6366F1' };
+        if (isBlue || evt.effect === 'sky') return { bg: '#3B82F6', text: '#FFFFFF', border: '#3B82F6' };
+        if (isGreen || evt.effect === 'green') return { bg: '#10B981', text: '#FFFFFF', border: '#10B981' };
+        if (isOrange || evt.effect === 'orange') return { bg: '#F97316', text: '#FFFFFF', border: '#F97316' };
+        if (isRed || evt.effect === 'red') return { bg: '#EF4444', text: '#FFFFFF', border: '#EF4444' };
+        return { bg: '#475569', text: '#FFFFFF', border: '#475569' };
+    }
+
+    // Default: 'modern-dark' (rich colors with white text)
+    if (isPink || evt.effect === 'pink') return { bg: '#7C3AED', text: '#FFFFFF', border: '#7C3AED' };
+    if (isBlue || evt.effect === 'sky') return { bg: '#0284C7', text: '#FFFFFF', border: '#0284C7' };
+    if (isGreen || evt.effect === 'green') return { bg: '#059669', text: '#FFFFFF', border: '#059669' };
+    if (isOrange || evt.effect === 'orange') return { bg: '#D97706', text: '#FFFFFF', border: '#D97706' };
+    if (isRed || evt.effect === 'red') return { bg: '#DC2626', text: '#FFFFFF', border: '#DC2626' };
+    return { bg: '#64748B', text: '#FFFFFF', border: '#64748B' };
 };
 
 const DayColumnBase: React.FC<DayColumnProps> = ({
@@ -268,7 +286,9 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     const allDayEvents = useMemo(() => visibleEvents.filter(e => e.allDay), [visibleEvents]);
     const timedEvents = useMemo(() => visibleEvents.filter(e => !e.allDay), [visibleEvents]);
 
-    const layout = useMemo(() => arrangeEvents(timedEvents, day, allEvents), [timedEvents, day, allEvents]);
+    const calendarOverlapMode = useDataStore(s => s.calendarOverlapMode || 'stack');
+    const calendarColorPalette = useDataStore(s => s.calendarColorPalette || 'modern-dark');
+    const layout = useMemo(() => arrangeEvents(timedEvents, day, allEvents, calendarOverlapMode), [timedEvents, day, allEvents, calendarOverlapMode]);
     const currentTimeTop = currentTime ? getHours(currentTime) * 60 + getMinutes(currentTime) + currentTime.getSeconds() / 60 : 0;
 
     const now = currentTime || new Date();
@@ -462,7 +482,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 <div className="sticky top-[50px] z-[65] w-full h-0 pointer-events-auto">
                     <div className="absolute top-0 left-0 right-0 w-[150px] md:w-[200px] bg-white/30 dark:bg-slate-900/40 backdrop-blur-2xl p-1 flex flex-col gap-1 border-b border-gray-200/60 dark:border-slate-800/60 rounded-b-xl">
                         {allDayEvents.map(event => {
-                            const theme = getEventTheme(event);
+                            const theme = getEventTheme(event, calendarColorPalette);
                             const isHighlightedEvent = isHighlighted(event.id, 'event');
                             return (
                                 <div
