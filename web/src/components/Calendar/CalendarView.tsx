@@ -1287,16 +1287,7 @@ export default function CalendarView({
                     {/* Days Wrapper with Relative positioning for the Time Line */}
                     <div className="flex relative items-start pb-[40px]" ref={gridDaysRef}>
 
-                        {/* Global Current Time Line - Now Inside the relative flex container */}
-                        <div
-                            className="absolute z-[155] pointer-events-none flex items-center"
-                            style={{ top: `${globalTimeTop + 50}px`, left: '-60px', width: 'calc(100% + 60px)' }}
-                        >
-                            <div className="w-[50px] h-[18px] rounded-full bg-black dark:bg-white text-white dark:text-black text-[9px] font-extrabold flex items-center justify-center shadow-md relative z-[156] ml-2.5">
-                                {format(currentTime, "HH:mm")}
-                            </div>
-                            <div className="h-[1.5px] bg-black/80 dark:bg-white/80 flex-1 relative z-[155] -ml-2.5" />
-                        </div>
+
 
                         {
                             loadedWeeks.map(weekStart => {

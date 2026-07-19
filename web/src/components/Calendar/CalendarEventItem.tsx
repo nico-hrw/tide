@@ -37,22 +37,22 @@ const getEventTheme = (evt: CalendarEvent) => {
     const isOrange = col === 'orange' || col.startsWith('#f5') || col.startsWith('#f9') || col.startsWith('#fb') || col.startsWith('#d9');
 
     if (isPink || evt.effect === 'pink') {
-        return { bg: '#E8E2F8', text: '#5B21B6', border: '#C084FC' };
+        return { bg: '#EDE9FE', text: '#1F2937', border: '#EDE9FE' };
     }
     if (isBlue || evt.effect === 'sky') {
-        return { bg: '#D8F0F4', text: '#0B4F6C', border: '#93C5FD' };
+        return { bg: '#E2E8F0', text: '#1F2937', border: '#E2E8F0' };
     }
     if (isGreen || evt.effect === 'green') {
-        return { bg: '#E2F6EA', text: '#065F46', border: '#86EFAC' };
+        return { bg: '#D1FAE5', text: '#1F2937', border: '#D1FAE5' };
     }
     if (isOrange || evt.effect === 'orange') {
-        return { bg: '#FFF0D4', text: '#9A3412', border: '#FDBA74' };
+        return { bg: '#FEF3C7', text: '#1F2937', border: '#FEF3C7' };
     }
     if (isRed || evt.effect === 'red') {
-        return { bg: '#FCE8E6', text: '#991B1B', border: '#FCA5A5' };
+        return { bg: '#FEE2E2', text: '#1F2937', border: '#FEE2E2' };
     }
 
-    return { bg: '#F1F5F9', text: '#334155', border: '#CBD5E1' };
+    return { bg: '#F1F5F9', text: '#1F2937', border: '#F1F5F9' };
 };
 
 
@@ -319,8 +319,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     });
 
     // Base Radius
-    const R = '12px'; // Normal radius
-    const adjR = '6px'; // Attached radius (1/2 of normal)
+    const R = '8px'; // Normal radius
+    const adjR = '4px'; // Attached radius (1/2 of normal)
 
     const borderRadiusStyle = {
         borderTopLeftRadius: isAdjacentTop ? adjR : R,
@@ -363,7 +363,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             style={{
                 ...style, ...borderRadiusStyle,
-                borderLeft: `4px solid ${theme.border}`,
+                borderLeft: 'none',
                 ...(shouldGlow ? {
                     boxShadow: `0 0 0 2px ${glowColor}, 0 4px 20px ${glowColor}60`,
                     zIndex: 90,
@@ -596,23 +596,10 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     </div>
                 )}
 
-                {/* Conditional time rendering and Confirmed badge */}
+                {/* Conditional time rendering */}
                 {durationMinutes > 30 && (
-                    <div className="text-[10px] opacity-75 pointer-events-none mt-auto pb-0.5 flex items-center justify-between">
-                        {durationMinutes > 60 ? (
-                            <span 
-                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px] text-[8px] font-black tracking-wide uppercase border shadow-sm"
-                                style={{
-                                    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-                                    borderColor: 'rgba(16, 185, 129, 0.2)',
-                                    color: '#047857',
-                                }}
-                            >
-                                <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                Confirmed
-                            </span>
-                        ) : null}
-                        <span className="font-semibold ml-auto">
+                    <div className="text-[10px] opacity-75 pointer-events-none mt-auto pb-0.5 flex justify-end">
+                        <span className="font-semibold">
                             {format(start, "HH:mm")} - {format(end, "HH:mm")}
                         </span>
                     </div>

@@ -170,22 +170,22 @@ const getEventTheme = (evt: CalendarEvent) => {
     const isOrange = col === 'orange' || col.startsWith('#f5') || col.startsWith('#f9') || col.startsWith('#fb') || col.startsWith('#d9');
 
     if (isPink || evt.effect === 'pink') {
-        return { bg: '#E8E2F8', text: '#5B21B6', border: '#C084FC' };
+        return { bg: '#EDE9FE', text: '#1F2937', border: '#EDE9FE' };
     }
     if (isBlue || evt.effect === 'sky') {
-        return { bg: '#D8F0F4', text: '#0B4F6C', border: '#93C5FD' };
+        return { bg: '#E2E8F0', text: '#1F2937', border: '#E2E8F0' };
     }
     if (isGreen || evt.effect === 'green') {
-        return { bg: '#E2F6EA', text: '#065F46', border: '#86EFAC' };
+        return { bg: '#D1FAE5', text: '#1F2937', border: '#D1FAE5' };
     }
     if (isOrange || evt.effect === 'orange') {
-        return { bg: '#FFF0D4', text: '#9A3412', border: '#FDBA74' };
+        return { bg: '#FEF3C7', text: '#1F2937', border: '#FEF3C7' };
     }
     if (isRed || evt.effect === 'red') {
-        return { bg: '#FCE8E6', text: '#991B1B', border: '#FCA5A5' };
+        return { bg: '#FEE2E2', text: '#1F2937', border: '#FEE2E2' };
     }
 
-    return { bg: '#F1F5F9', text: '#334155', border: '#CBD5E1' };
+    return { bg: '#F1F5F9', text: '#1F2937', border: '#F1F5F9' };
 };
 
 const DayColumnBase: React.FC<DayColumnProps> = ({
@@ -269,7 +269,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     const timedEvents = useMemo(() => visibleEvents.filter(e => !e.allDay), [visibleEvents]);
 
     const layout = useMemo(() => arrangeEvents(timedEvents, day, allEvents), [timedEvents, day, allEvents]);
-    const currentTimeTop = currentTime ? getHours(currentTime) * 60 + getMinutes(currentTime) : 0;
+    const currentTimeTop = currentTime ? getHours(currentTime) * 60 + getMinutes(currentTime) + currentTime.getSeconds() / 60 : 0;
 
     const now = currentTime || new Date();
     let currentEventInfo: string | null = null;
@@ -717,15 +717,18 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
 
                 {isToday && (
                     <div 
-                        className="absolute left-0 right-0 z-[60] pointer-events-none flex flex-col items-start"
+                        className="absolute left-0 right-0 z-[60] pointer-events-none flex items-center"
                         style={{ top: `${currentTimeTop}px` }}
                     >
+                        {/* Red indicator dot */}
+                        <div className="w-1.5 h-1.5 rounded-full bg-red-500 z-50 shadow-sm relative -ml-[3px]" />
+                        
                         {/* Minimal pulse line */}
-                        <div className="absolute left-0 right-0 h-[2px] bg-red-500 z-40 opacity-40 animate-pulse"></div>
+                        <div className="absolute left-0 right-0 h-[1.5px] bg-red-500/80 z-40 opacity-70"></div>
                         
                         {/* Minimal Label */}
                         {currentEventInfo && (
-                            <div className="absolute left-1 -top-[16px] text-[10px] font-medium text-gray-500 dark:text-gray-400">
+                            <div className="absolute left-3 -top-[14px] text-[9px] font-semibold text-red-500 dark:text-red-400 bg-white dark:bg-slate-950 px-1 rounded shadow-sm">
                                 {currentEventInfo} left
                             </div>
                         )}
