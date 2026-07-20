@@ -80,6 +80,8 @@ interface DataState {
     setCalendarColorPalette: (palette: 'modern-dark' | 'soft-pastels' | 'classic-tide') => void;
     calendarOverlapMode: 'overlap' | 'stack';
     setCalendarOverlapMode: (mode: 'overlap' | 'stack') => void;
+    visibleCalendarRange?: { start: string; end: string } | null;
+    setVisibleCalendarRange: (range: { start: string; end: string } | null) => void;
 }
 
 export const useDataStore = create<DataState>((set, get) => ({
@@ -144,6 +146,8 @@ export const useDataStore = create<DataState>((set, get) => ({
         localStorage.setItem('tide_calendar_overlap_mode', mode);
         return { calendarOverlapMode: mode };
     }),
+    visibleCalendarRange: null,
+    setVisibleCalendarRange: (range) => set({ visibleCalendarRange: range }),
     isUpdatingMetadata: new Set(),
     openFolderIds: new Set(
         typeof window !== 'undefined' 

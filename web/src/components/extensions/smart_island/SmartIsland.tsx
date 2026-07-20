@@ -542,7 +542,7 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
     };
 
     const handleSelectEvent = (event: any) => {
-        window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id: event.id } }));
+        window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id: event.id, start: event.start } }));
         if (onDismiss) onDismiss();
     };
 
@@ -630,30 +630,43 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
             )}
 
             {/* Search Results */}
-            {displayText.trim().length > 0 && (searchResults.notes.length > 0 || searchResults.events.length > 0) && (
-                <div className="flex flex-col gap-1.5 p-2 rounded-xl bg-zinc-900/30 border border-white/5 max-h-32 overflow-y-auto">
-                    {searchResults.notes.map((note: any) => (
-                        <div 
-                            key={note.id} 
-                            onClick={() => handleSelectNote(note)}
-                            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition-colors"
-                        >
-                            <FileText size={12} className="text-emerald-400 flex-shrink-0" />
-                            <span className="text-xs font-semibold text-zinc-200 truncate">{note.title || 'Untitled'}</span>
-                        </div>
-                    ))}
-                    {searchResults.events.map((event: any) => (
-                        <div 
-                            key={event.id} 
-                            onClick={() => handleSelectEvent(event)}
-                            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/5 cursor-pointer transition-colors"
-                        >
-                            <CalendarIcon size={12} className="text-indigo-400 flex-shrink-0" />
-                            <span className="text-xs font-semibold text-zinc-200 truncate">{event.title}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
+            <AnimatePresence>
+                {displayText.trim().length > 0 && (searchResults.notes.length > 0 || searchResults.events.length > 0) && (
+                    <motion.div
+                        initial={{ opacity: 0, height: 0, scale: 0.96 }}
+                        animate={{ opacity: 1, height: 'auto', scale: 1 }}
+                        exit={{ opacity: 0, height: 0, scale: 0.96 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                        className="flex flex-col gap-1.5 p-2 rounded-xl bg-zinc-900/40 border border-white/10 max-h-40 overflow-y-auto"
+                    >
+                        {searchResults.notes.map((note: any) => (
+                            <div 
+                                key={note.id} 
+                                onClick={() => handleSelectNote(note)}
+                                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/10 cursor-pointer transition-colors"
+                            >
+                                <FileText size={12} className="text-emerald-400 flex-shrink-0" />
+                                <span className="text-xs font-semibold text-zinc-200 truncate">{note.title || 'Untitled'}</span>
+                            </div>
+                        ))}
+                        {searchResults.events.map((event: any) => (
+                            <div 
+                                key={event.id} 
+                                onClick={() => handleSelectEvent(event)}
+                                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/10 cursor-pointer transition-colors"
+                            >
+                                <CalendarIcon size={12} className="text-indigo-400 flex-shrink-0" />
+                                <div className="flex flex-col min-w-0 flex-1">
+                                    <span className="text-xs font-semibold text-zinc-200 truncate">{event.title}</span>
+                                    {event.start && (
+                                        <span className="text-[9.5px] text-zinc-400">{format(new Date(event.start), 'dd. MMM HH:mm')} Uhr</span>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* Weekstrip Calendar below */}
             <div className="pt-2 border-t border-white/5 mt-1">
@@ -756,7 +769,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                     : state.current?.type === 'reminder'
                         ? 'rounded-[1.75rem] w-full'
                         : state.current?.type === 'text_collector'
-                            ? 'rounded-[1.75rem] w-full'
+                            ? 'rounded-[1.75rem] w-full sm:w-[24rem]'
                             : state.current?.type === 'welcome' || state.current?.type === 'morning' || state.current?.type === 'event_preview'
                                 ? 'p-4 rounded-[1.75rem] w-full'
                                 : state.current?.type === 'message'

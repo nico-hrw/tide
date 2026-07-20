@@ -1486,8 +1486,20 @@ export default function Dashboard() {
         };
         
         const handleSelectEvent = (e: Event) => {
-            const { id } = (e as CustomEvent).detail;
-            setActiveEventId(id);
+            const { id, start } = (e as CustomEvent).detail || {};
+            setActiveTabId('calendar');
+            setOpenTabs(prev => prev.some(t => t.id === 'calendar') ? prev : [...prev, { id: 'calendar', title: 'Calendar', type: 'calendar' }]);
+            const ev = events.find((item: any) => item.id === id);
+            const eventStart = start || ev?.start;
+            if (eventStart) {
+                setCalendarDate(new Date(eventStart));
+            }
+            if (id) {
+                setActiveEventId(id);
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id, start: eventStart } }));
+                }, 150);
+            }
         };
 
         window.addEventListener('tide:select-note', handleSelectNote);
@@ -1497,7 +1509,7 @@ export default function Dashboard() {
             window.removeEventListener('tide:select-note', handleSelectNote);
             window.removeEventListener('tide:select-event', handleSelectEvent);
         };
-    }, [handleFileSelect]);
+    }, [handleFileSelect, events]);
 
     // SSE Effect — robust reconnect with exponential backoff
     useEffect(() => {

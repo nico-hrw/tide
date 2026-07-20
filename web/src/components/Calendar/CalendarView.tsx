@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMe
 import DayColumn from "@/components/Calendar/DayColumn";
 import "@/app/calendar/calendar.css";
 import { format, addDays, subDays, startOfWeek, addWeeks, subWeeks, isSameDay, getMinutes, getHours, startOfDay } from "date-fns";
-import { ChevronLeft, ChevronRight, ListPlus, Palette } from "lucide-react";
+import { ChevronLeft, ChevronRight, ListPlus, Palette, ArrowRight } from "lucide-react";
 import { loadSearchIndex, SearchIndexEntry } from "@/lib/searchIndex";
 import Fuse from "fuse.js";
 import { Search } from "lucide-react";
@@ -13,6 +13,7 @@ import { DragGhost } from './DragGhost';
 import { MagnifiedEventView } from './MagnifiedEventView';
 import { getEventsForDate } from "@/lib/calendarUtils";
 import EventPopover from "./EventPopover";
+import { useDataStore } from "@/store/useDataStore";
 
 interface CalendarEvent {
     id: string;
@@ -107,6 +108,7 @@ export default function CalendarView({
     const [searchResults, setSearchResults] = useState<SearchIndexEntry[]>([]);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [todayButtonDir, setTodayButtonDir] = useState<'hidden' | 'left' | 'right'>('hidden');
+    const [todayAngle, setTodayAngle] = useState<number>(0);
 
     const handleSearchClick = () => {
         setIsSearchOpen(true);
@@ -132,24 +134,60 @@ export default function CalendarView({
     }, [searchQuery, events]);
 
 
-    // Track today column visibility → show directional Today button when off-screen
+    // Track today column visibility & direction angle to current time
     useEffect(() => {
         const container = scrollContainerRef.current;
         if (!container) return;
         const check = () => {
             const todayIso = format(new Date(), "yyyy-MM-dd");
-            const todayCol = container.querySelector(`[data-day-col="${todayIso}"]`);
+            const todayCol = container.querySelector(`[data-day-col="${todayIso}"]`) as HTMLElement | null;
             if (!todayCol) { setTodayButtonDir('hidden'); return; }
             const colRect = todayCol.getBoundingClientRect();
             const cRect = container.getBoundingClientRect();
             if (colRect.right < cRect.left + 80) setTodayButtonDir('left');
             else if (colRect.left > cRect.right - 80) setTodayButtonDir('right');
             else setTodayButtonDir('hidden');
+
+            const now = new Date();
+            const nowMinutes = now.getHours() * 60 + now.getMinutes();
+            const todayYInContainer = 50 + nowMinutes;
+
+            const todayTargetX = colRect.left + (colRect.width / 2);
+            const todayTargetY = cRect.top + (todayYInContainer - container.scrollTop);
+
+            const buttonX = colRect.right < cRect.left + 80 ? cRect.left + 90 : cRect.right - 40;
+            const buttonY = cRect.top + (cRect.height / 2);
+
+            const dx = todayTargetX - buttonX;
+            const dy = todayTargetY - buttonY;
+            const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+            setTodayAngle(angle);
         };
         container.addEventListener('scroll', check, { passive: true });
         const t = setTimeout(check, 300);
         return () => { container.removeEventListener('scroll', check); clearTimeout(t); };
     }, [loadedWeeks]);
+
+    const handleScrollToToday = useCallback(() => {
+        const now = new Date();
+        onDateChange(now);
+        const container = scrollContainerRef.current;
+        if (!container) return;
+        const todayIso = format(now, "yyyy-MM-dd");
+        const todayCol = container.querySelector(`[data-day-col="${todayIso}"]`) as HTMLElement | null;
+        
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        const targetScrollY = Math.max(0, nowMinutes - 120);
+        container.scrollTo({ top: targetScrollY, behavior: 'smooth' });
+
+        if (todayCol) {
+            const containerWidth = container.clientWidth;
+            const colLeft = todayCol.offsetLeft;
+            const colWidth = todayCol.offsetWidth;
+            const targetScrollX = Math.max(0, colLeft - (containerWidth / 2) + (colWidth / 2));
+            container.scrollTo({ left: targetScrollX, behavior: 'smooth' });
+        }
+    }, [onDateChange]);
 
     const isPrependingRef = useRef(false);
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
@@ -437,9 +475,18 @@ export default function CalendarView({
         let minDistance = Infinity;
 
         const dayCols = container.querySelectorAll('[data-day-col]');
+        const leftEdge = container.scrollLeft;
+        const rightEdge = container.scrollLeft + container.clientWidth;
+        const visibleDayStrs: string[] = [];
+
         dayCols.forEach((el) => {
             const htmlEl = el as HTMLElement;
-            // The DayColumn's parent has `flex` and some padding but DayColumn is positioned relative to container content
+            const colLeft = htmlEl.offsetLeft;
+            const colRight = htmlEl.offsetLeft + htmlEl.offsetWidth;
+            if (colRight >= leftEdge && colLeft <= rightEdge) {
+                const dayStr = htmlEl.getAttribute('data-day-col');
+                if (dayStr) visibleDayStrs.push(dayStr);
+            }
             const colCenter = htmlEl.offsetLeft + (htmlEl.offsetWidth / 2);
             const dist = Math.abs(colCenter - centerScrollX);
             if (dist < minDistance) {
@@ -448,12 +495,17 @@ export default function CalendarView({
             }
         });
 
+        if (visibleDayStrs.length > 0) {
+            const startIso = visibleDayStrs[0];
+            const endIso = visibleDayStrs[visibleDayStrs.length - 1];
+            useDataStore.getState().setVisibleCalendarRange({ start: startIso, end: endIso });
+        }
+
         if (closestDayCol) {
             const dayStr = (closestDayCol as HTMLElement).getAttribute('data-day-col');
             if (dayStr) {
                 const currentCenterDate = new Date(dayStr);
-                // check if the month or year actually changed compared to `date` prop to avoid excessive calls
-                if (currentCenterDate.getMonth() !== date.getMonth() || currentCenterDate.getFullYear() !== date.getFullYear()) {
+                if (!isSameDay(currentCenterDate, date)) {
                     onDateChange(currentCenterDate);
                 }
             }
@@ -1522,14 +1574,16 @@ export default function CalendarView({
                     style={{ zIndex: 490 }}
                 >
                     <button
-                        className="pointer-events-auto flex flex-col items-center gap-1 px-3 py-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-xl hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors text-gray-800 dark:text-gray-200"
-                        onClick={() => onDateChange(new Date())}
+                        className="pointer-events-auto flex flex-col items-center gap-1 px-3 py-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-xl hover:bg-gray-50 dark:hover:bg-slate-800 transition-all text-gray-800 dark:text-gray-200 group"
+                        onClick={handleScrollToToday}
                         title="Zu heute"
                     >
-                        {todayButtonDir === 'left'
-                            ? <ChevronLeft size={22} strokeWidth={2.5} className="text-gray-900 dark:text-gray-100" />
-                            : <ChevronRight size={22} strokeWidth={2.5} className="text-gray-900 dark:text-gray-100" />
-                        }
+                        <ArrowRight
+                            size={20}
+                            strokeWidth={2.5}
+                            style={{ transform: `rotate(${todayAngle}deg)` }}
+                            className="transition-transform duration-150 text-indigo-600 dark:text-indigo-400 group-hover:scale-110"
+                        />
                         <span className="text-[10px] font-bold uppercase tracking-wider">Today</span>
                     </button>
                 </div>

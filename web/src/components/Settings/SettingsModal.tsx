@@ -25,6 +25,118 @@ interface SettingsModalProps {
     onCreateGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 }
 
+function GroupItem({ group, hiddenGroupIds, onToggleVisibility, onUpdate, onShare, onDelete }: any) {
+    const [localTitle, setLocalTitle] = useState(group.title);
+
+    useEffect(() => {
+        setLocalTitle(group.title);
+    }, [group.title]);
+
+    const handleBlur = () => {
+        if (localTitle !== group.title) {
+            onUpdate(group.id, { title: localTitle });
+        }
+    };
+
+    return (
+        <div className="group relative flex flex-col gap-2 p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 hover:bg-white dark:hover:bg-white/10 hover:shadow-sm transition-all">
+            <div className="flex items-center gap-2">
+                <input
+                    type="checkbox"
+                    checked={!(hiddenGroupIds || []).includes(group.id)}
+                    onChange={() => onToggleVisibility(group.id)}
+                    className="w-4 h-4 rounded-md border-gray-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500/20 bg-white dark:bg-zinc-800 cursor-pointer"
+                    title="Toggle Visibility"
+                />
+                <input
+                    type="text"
+                    value={localTitle}
+                    onChange={(e) => setLocalTitle(e.target.value)}
+                    onBlur={handleBlur}
+                    onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
+                    className="bg-transparent border-none p-0 text-[13px] font-bold focus:ring-0 outline-none text-gray-800 dark:text-white flex-1 placeholder:text-gray-400"
+                    placeholder="Group name..."
+                />
+                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                    <button
+                        onClick={(e) => onShare(e, group.id)}
+                        className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-gray-400 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
+                        title="Share Group"
+                    >
+                        <Share size={11} />
+                    </button>
+                    <button
+                        onClick={(e) => onDelete(e, group.id)}
+                        className="p-1 hover:bg-rose-50 dark:hover:bg-rose-500/20 rounded text-gray-400 dark:text-gray-300 hover:text-rose-500 transition-all font-semibold"
+                        title="Delete Group"
+                    >
+                        ✗
+                    </button>
+                </div>
+            </div>
+            
+            <div className="flex flex-col gap-2 pl-6">
+                <div className="flex flex-wrap gap-1">
+                    {([
+                        { id: 'none',    label: 'Solid'   },
+                        { id: 'stripes', label: 'Streifen' },
+                        { id: 'waves',   label: 'Wellen'  },
+                        { id: 'dots',    label: 'Punkte'  },
+                        { id: 'chess',   label: 'Karo'    },
+                        { id: 'diamonds',label: 'Diamant' },
+                        { id: 'gradient',label: 'Verlauf' },
+                        { id: 'bars',    label: 'Balken'  },
+                        { id: 'dimmed',  label: 'Gedimmt' },
+                    ] as const).map(({ id, label }) => {
+                        const active = (group.effect || 'none') === id;
+                        const swatchColor = group.color || '#3b82f6';
+                        return (
+                            <button
+                                key={id}
+                                onClick={() => onUpdate(group.id, { effect: id })}
+                                title={label}
+                                className={`flex flex-col items-center gap-0.5 p-0.5 rounded border transition-all ${active ? 'border-blue-500 scale-105 shadow-sm' : 'border-transparent hover:border-gray-300 dark:hover:border-zinc-700'}`}
+                            >
+                                <div
+                                    className={`w-6 h-3 rounded-sm ${id !== 'none' ? `effect-${id}` : ''}`}
+                                    style={{
+                                        backgroundColor: swatchColor,
+                                        opacity: id === 'dimmed' ? 0.55 : 1,
+                                    }}
+                                />
+                                <span className="text-[6.5px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide">{label}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+                
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                    {[
+                        '#3b82f6', // blue
+                        '#10b981', // green
+                        '#f59e0b', // orange
+                        '#ef4444', // red
+                        '#8b5cf6', // purple/lila
+                        '#6366f1', // indigo
+                        '#ec4899', // pink
+                        '#64748b', // slate
+                    ].map(c => {
+                        const active = group.color === c;
+                        return (
+                            <button
+                                key={c}
+                                onClick={() => onUpdate(group.id, { color: c })}
+                                className={`w-3.5 h-3.5 rounded-full border transition-all ${active ? 'border-gray-900 dark:border-white scale-110 shadow-sm' : 'border-transparent hover:scale-105'}`}
+                                style={{ backgroundColor: c }}
+                            />
+                        );
+                    })}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function SettingsModal({
     isOpen,
     onClose,
@@ -66,7 +178,9 @@ export default function SettingsModal({
     const [emailPinInput, setEmailPinInput] = useState('');
     const [emailStatus, setEmailStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
-    const { themePreference, setThemePreference, language, setLanguage } = useDataStore();
+    const { themePreference, setThemePreference, language, setLanguage, calendarColorPalette, setCalendarColorPalette, calendarOverlapMode, setCalendarOverlapMode } = useDataStore();
+
+    const [newGroupName, setNewGroupName] = useState('');
 
     // Reset state when modal opens/closes
     useEffect(() => {
@@ -600,15 +714,6 @@ export default function SettingsModal({
         </div>
     );
 
-    const {
-        calendarColorPalette,
-        setCalendarColorPalette,
-        calendarOverlapMode,
-        setCalendarOverlapMode
-    } = useDataStore();
-
-    const [newGroupName, setNewGroupName] = useState('');
-
     const handleCreateGroupLocal = async () => {
         if (!newGroupName.trim() || !onCreateGroup) return;
         await onCreateGroup(newGroupName.trim());
@@ -796,117 +901,7 @@ export default function SettingsModal({
         );
     };
 
-    const GroupItem = ({ group, hiddenGroupIds, onToggleVisibility, onUpdate, onShare, onDelete }: any) => {
-        const [localTitle, setLocalTitle] = useState(group.title);
 
-        useEffect(() => {
-            setLocalTitle(group.title);
-        }, [group.title]);
-
-        const handleBlur = () => {
-            if (localTitle !== group.title) {
-                onUpdate(group.id, { title: localTitle });
-            }
-        };
-
-        return (
-            <div className="group relative flex flex-col gap-2 p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 hover:bg-white dark:hover:bg-white/10 hover:shadow-sm transition-all">
-                <div className="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        checked={!(hiddenGroupIds || []).includes(group.id)}
-                        onChange={() => onToggleVisibility(group.id)}
-                        className="w-4 h-4 rounded-md border-gray-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500/20 bg-white dark:bg-zinc-800 cursor-pointer"
-                        title="Toggle Visibility"
-                    />
-                    <input
-                        type="text"
-                        value={localTitle}
-                        onChange={(e) => setLocalTitle(e.target.value)}
-                        onBlur={handleBlur}
-                        onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
-                        className="bg-transparent border-none p-0 text-[13px] font-bold focus:ring-0 outline-none text-gray-800 dark:text-white flex-1 placeholder:text-gray-400"
-                        placeholder="Group name..."
-                    />
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
-                        <button
-                            onClick={(e) => onShare(e, group.id)}
-                            className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded text-gray-400 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-all"
-                            title="Share Group"
-                        >
-                            <Share size={11} />
-                        </button>
-                        <button
-                            onClick={(e) => onDelete(e, group.id)}
-                            className="p-1 hover:bg-rose-50 dark:hover:bg-rose-500/20 rounded text-gray-400 dark:text-gray-300 hover:text-rose-500 transition-all font-semibold"
-                            title="Delete Group"
-                        >
-                            ✗
-                        </button>
-                    </div>
-                </div>
-                
-                <div className="flex flex-col gap-2 pl-6">
-                    <div className="flex flex-wrap gap-1">
-                        {([
-                            { id: 'none',    label: 'Solid'   },
-                            { id: 'stripes', label: 'Streifen' },
-                            { id: 'waves',   label: 'Wellen'  },
-                            { id: 'dots',    label: 'Punkte'  },
-                            { id: 'chess',   label: 'Karo'    },
-                            { id: 'diamonds',label: 'Diamant' },
-                            { id: 'gradient',label: 'Verlauf' },
-                            { id: 'bars',    label: 'Balken'  },
-                            { id: 'dimmed',  label: 'Gedimmt' },
-                        ] as const).map(({ id, label }) => {
-                            const active = (group.effect || 'none') === id;
-                            const swatchColor = group.color || '#3b82f6';
-                            return (
-                                <button
-                                    key={id}
-                                    onClick={() => onUpdate(group.id, { effect: id })}
-                                    title={label}
-                                    className={`flex flex-col items-center gap-0.5 p-0.5 rounded border transition-all ${active ? 'border-blue-500 scale-105 shadow-sm' : 'border-transparent hover:border-gray-300 dark:hover:border-zinc-700'}`}
-                                >
-                                    <div
-                                        className={`w-6 h-3 rounded-sm ${id !== 'none' ? `effect-${id}` : ''}`}
-                                        style={{
-                                            backgroundColor: swatchColor,
-                                            opacity: id === 'dimmed' ? 0.55 : 1,
-                                        }}
-                                    />
-                                    <span className="text-[6.5px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide">{label}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                        {[
-                            '#3b82f6', // blue
-                            '#10b981', // green
-                            '#f59e0b', // orange
-                            '#ef4444', // red
-                            '#8b5cf6', // purple/lila
-                            '#6366f1', // indigo
-                            '#ec4899', // pink
-                            '#64748b', // slate
-                        ].map(c => {
-                            const active = group.color === c;
-                            return (
-                                <button
-                                    key={c}
-                                    onClick={() => onUpdate(group.id, { color: c })}
-                                    className={`w-3.5 h-3.5 rounded-full border transition-all ${active ? 'border-gray-900 dark:border-white scale-110 shadow-sm' : 'border-transparent hover:scale-105'}`}
-                                    style={{ backgroundColor: c }}
-                                />
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
-        );
-    };
 
     return (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center pointer-events-none p-4 sm:p-0">

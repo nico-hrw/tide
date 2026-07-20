@@ -2,11 +2,13 @@
 import React, { useState } from 'react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, isToday } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useDataStore } from '@/store/useDataStore';
 
 export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?: Date, onSelect?: (date: Date) => void }) {
     const [currentDateInternal, setCurrentDateInternal] = useState(new Date());
 
     const activeDate = selectedDate || new Date();
+    const visibleCalendarRange = useDataStore(s => s.visibleCalendarRange);
 
     React.useEffect(() => {
         if (selectedDate && !isSameMonth(selectedDate, currentDateInternal)) {
@@ -65,23 +67,30 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
 
             <div className="grid grid-cols-7 gap-0.5 text-center">
                 {days.map((day, i) => {
+                    const dayIso = format(day, "yyyy-MM-dd");
                     const isSelected = isSameDay(day, activeDate);
                     const isCurrentMonth = isSameMonth(day, monthStart);
                     const isDayToday = isToday(day);
 
-                    let className = "text-[11px] w-6 h-6 flex items-center justify-center rounded-full cursor-pointer transition-all";
+                    const isVisibleInGrid = visibleCalendarRange
+                        ? (dayIso >= visibleCalendarRange.start && dayIso <= visibleCalendarRange.end)
+                        : false;
+
+                    let className = "text-[11px] w-6 h-6 flex items-center justify-center rounded-full cursor-pointer transition-all relative";
 
                     if (!isCurrentMonth) {
                         className += " text-gray-300 dark:text-gray-700";
+                    } else if (isVisibleInGrid && !isDayToday && !isSelected) {
+                        className += " bg-indigo-500/15 dark:bg-indigo-400/20 text-indigo-600 dark:text-indigo-300 font-bold shadow-xs";
                     } else {
                         className += " text-[var(--text-body)] dark:text-gray-200";
                     }
 
                     if (isDayToday) {
-                        className = "text-[11px] w-6 h-6 flex items-center justify-center rounded-full cursor-pointer transition-all bg-[var(--today-accent)] text-white font-semibold";
+                        className = "text-[11px] w-6 h-6 flex items-center justify-center rounded-full cursor-pointer transition-all bg-[var(--today-accent)] text-white font-semibold shadow-sm";
                     } else if (isSelected) {
                         className += " bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold shadow-sm";
-                    } else {
+                    } else if (!isVisibleInGrid) {
                         className += " hover:bg-black/5 dark:hover:bg-white/10";
                     }
 
@@ -92,6 +101,9 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
                             className={className}
                         >
                             {format(day, dateFormat)}
+                            {isVisibleInGrid && !isDayToday && !isSelected && (
+                                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-3 h-0.5 rounded-full bg-indigo-500/60 dark:bg-indigo-400/60" />
+                            )}
                         </div>
                     );
                 })}
