@@ -11,6 +11,7 @@ import { format, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import WeekStrip from './WeekStrip';
 import DailySummaryView from './DailySummaryView';
+import { searchHolidays } from '@/lib/holidays';
 
 // ─── Boot Sequence Views ──────────────────────────────────────────────────────
 
@@ -520,21 +521,82 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
         }
     };
 
-    // Filter workspace notes and events
-    const searchResults = useMemo(() => {
-        if (!displayText.trim()) return { notes: [], events: [] };
-        const query = displayText.toLowerCase();
-        
-        const filteredNotes = storeNotes
-            .filter((n: any) => n.title && n.title.toLowerCase().includes(query) && !n.title.startsWith('.'))
-            .slice(0, 3);
-            
-        const filteredEvents = storeEvents
-            .filter((e: any) => e.title && e.title.toLowerCase().includes(query))
-            .slice(0, 3);
+    const calendarHolidayPackage = useDataStore(s => s.calendarHolidayPackage) || 'DE';
+    const calendarHolidaysEnabled = useDataStore(s => s.calendarHolidaysEnabled) ?? true;
+    const [selectedIndex, setSelectedIndex] = useState(0);
 
-        return { notes: filteredNotes, events: filteredEvents };
-    }, [displayText, storeNotes, storeEvents]);
+    // Compute search items: parsed date, matching holidays, notes, events
+    const searchItems = useMemo(() => {
+        if (!displayText.trim()) return [];
+        const query = displayText.toLowerCase().trim();
+        const items: Array<{ id: string; type: 'date' | 'holiday' | 'note' | 'event'; label: string; sublabel?: string; date?: Date; note?: any; event?: any }> = [];
+
+        // 1. Check if query parses to a date (e.g. "1.6.", "Dienstag", "21. Juli")
+        const parsedResults = parseGermanDate(displayText, new Date());
+        if (parsedResults.length > 0 && parsedResults[0].proposedDate) {
+            const d = parsedResults[0].proposedDate;
+            items.push({
+                id: `date-${d.toISOString()}`,
+                type: 'date',
+                label: format(d, 'EEEE, d. MMMM yyyy', { locale: de }),
+                sublabel: 'Datum aufrufen',
+                date: d
+            });
+        }
+
+        // 2. Check public holidays
+        if (calendarHolidaysEnabled) {
+            const hResults = searchHolidays(query, new Date().getFullYear(), calendarHolidayPackage);
+            hResults.slice(0, 2).forEach(h => {
+                const hDate = new Date(h.date);
+                items.push({
+                    id: `holiday-${h.date}-${h.name}`,
+                    type: 'holiday',
+                    label: h.name,
+                    sublabel: format(hDate, 'dd.MM.yyyy'),
+                    date: hDate
+                });
+            });
+        }
+
+        // 3. Notes
+        storeNotes
+            .filter((n: any) => n.title && n.title.toLowerCase().includes(query) && !n.title.startsWith('.'))
+            .slice(0, 3)
+            .forEach((n: any) => {
+                items.push({
+                    id: `note-${n.id}`,
+                    type: 'note',
+                    label: n.title || 'Neue Notiz',
+                    note: n
+                });
+            });
+
+        // 4. Events
+        storeEvents
+            .filter((e: any) => e.title && e.title.toLowerCase().includes(query))
+            .slice(0, 3)
+            .forEach((e: any) => {
+                items.push({
+                    id: `event-${e.id}`,
+                    type: 'event',
+                    label: e.title,
+                    sublabel: e.start ? `${format(new Date(e.start), 'dd. MMM HH:mm')} Uhr` : undefined,
+                    event: e
+                });
+            });
+
+        return items;
+    }, [displayText, storeNotes, storeEvents, calendarHolidaysEnabled, calendarHolidayPackage]);
+
+    useEffect(() => {
+        setSelectedIndex(0);
+    }, [searchItems.length, displayText]);
+
+    const handleSelectDate = (date: Date) => {
+        window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { start: date.toISOString() } }));
+        if (onDismiss) onDismiss();
+    };
 
     const handleSelectNote = (note: any) => {
         window.dispatchEvent(new CustomEvent('tide:select-note', { detail: { id: note.id, title: note.title } }));
@@ -544,6 +606,32 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
     const handleSelectEvent = (event: any) => {
         window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id: event.id, start: event.start } }));
         if (onDismiss) onDismiss();
+    };
+
+    const handleSelectItem = (item: any) => {
+        if (item.type === 'date' || item.type === 'holiday') {
+            if (item.date) handleSelectDate(item.date);
+        } else if (item.type === 'note') {
+            handleSelectNote(item.note);
+        } else if (item.type === 'event') {
+            handleSelectEvent(item.event);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (searchItems.length === 0) return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setSelectedIndex(prev => (prev + 1) % searchItems.length);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setSelectedIndex(prev => (prev - 1 + searchItems.length) % searchItems.length);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (searchItems[selectedIndex]) {
+                handleSelectItem(searchItems[selectedIndex]);
+            }
+        }
     };
 
     return (
@@ -559,6 +647,7 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
                         setEventDismissed(false);
                         window.dispatchEvent(new CustomEvent('tide:collector-update', { detail: { text: e.target.value } }));
                     }}
+                    onKeyDown={handleKeyDown}
                     placeholder="Suchen oder tippen..."
                     className="flex-1 bg-transparent text-xs font-bold outline-none text-zinc-100 placeholder:text-zinc-500"
                     autoFocus
@@ -631,39 +720,35 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
 
             {/* Search Results */}
             <AnimatePresence>
-                {displayText.trim().length > 0 && (searchResults.notes.length > 0 || searchResults.events.length > 0) && (
+                {displayText.trim().length > 0 && searchItems.length > 0 && (
                     <motion.div
                         initial={{ opacity: 0, height: 0, scale: 0.96 }}
                         animate={{ opacity: 1, height: 'auto', scale: 1 }}
                         exit={{ opacity: 0, height: 0, scale: 0.96 }}
                         transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                        className="flex flex-col gap-1.5 p-2 rounded-xl bg-zinc-900/40 border border-white/10 max-h-40 overflow-y-auto"
+                        className="flex flex-col gap-1.5 p-2 rounded-xl bg-zinc-900/60 border border-white/10 max-h-48 overflow-y-auto"
                     >
-                        {searchResults.notes.map((note: any) => (
-                            <div 
-                                key={note.id} 
-                                onClick={() => handleSelectNote(note)}
-                                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/10 cursor-pointer transition-colors"
-                            >
-                                <FileText size={12} className="text-emerald-400 flex-shrink-0" />
-                                <span className="text-xs font-semibold text-zinc-200 truncate">{note.title || 'Untitled'}</span>
-                            </div>
-                        ))}
-                        {searchResults.events.map((event: any) => (
-                            <div 
-                                key={event.id} 
-                                onClick={() => handleSelectEvent(event)}
-                                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-white/10 cursor-pointer transition-colors"
-                            >
-                                <CalendarIcon size={12} className="text-indigo-400 flex-shrink-0" />
-                                <div className="flex flex-col min-w-0 flex-1">
-                                    <span className="text-xs font-semibold text-zinc-200 truncate">{event.title}</span>
-                                    {event.start && (
-                                        <span className="text-[9.5px] text-zinc-400">{format(new Date(event.start), 'dd. MMM HH:mm')} Uhr</span>
-                                    )}
+                        {searchItems.map((item, idx) => {
+                            const isSelected = idx === selectedIndex;
+                            return (
+                                <div
+                                    key={item.id}
+                                    onClick={() => handleSelectItem(item)}
+                                    className={`flex items-center gap-2 p-1.5 rounded-lg cursor-pointer transition-all ${isSelected ? 'bg-indigo-600/40 border border-indigo-400/40' : 'hover:bg-white/10 border border-transparent'}`}
+                                >
+                                    {item.type === 'date' && <Calendar size={12} className="text-blue-400 flex-shrink-0" />}
+                                    {item.type === 'holiday' && <Sparkles size={12} className="text-amber-400 flex-shrink-0" />}
+                                    {item.type === 'note' && <FileText size={12} className="text-emerald-400 flex-shrink-0" />}
+                                    {item.type === 'event' && <CalendarIcon size={12} className="text-indigo-400 flex-shrink-0" />}
+                                    <div className="flex flex-col min-w-0 flex-1">
+                                        <span className="text-xs font-semibold text-zinc-200 truncate">{item.label}</span>
+                                        {item.sublabel && (
+                                            <span className="text-[9.5px] text-zinc-400">{item.sublabel}</span>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -795,6 +880,8 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
             <div className="liquidGlass-effect" />
             {/* Layer 2: Tint */}
             <div className="liquidGlass-tint" />
+            {/* Layer 2.5: Ambient yellow-white glow */}
+            <div className="liquidGlass-glow" />
             {/* Layer 3: Inner shine */}
             <div className="liquidGlass-shine" />
             {/* Layer 4: Content */}

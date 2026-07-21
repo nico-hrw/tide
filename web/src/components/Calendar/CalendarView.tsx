@@ -252,32 +252,43 @@ export default function CalendarView({
 
     const [dropBounds, setDropBounds] = useState<DOMRect | null>(null);
 
+    const [isSpeedTraveling, setIsSpeedTraveling] = useState(false);
+
     useEffect(() => {
         const handleScrollTo = (e: any) => {
             const { id, start } = e.detail;
             if (start) {
                 const targetDate = new Date(start);
                 onDateChange(targetDate);
+                setIsSpeedTraveling(true);
 
-                // After date change, scroll to event
+                // After date change, scroll smoothly to event or date column
                 setTimeout(() => {
-                    const el = document.getElementById(`event-${id}`);
                     const container = scrollContainerRef.current;
-                    if (el && container) {
-                        const eventTop = el.offsetTop;
-                        container.scrollTop = Math.max(0, eventTop - 150);
+                    const todayIso = format(targetDate, "yyyy-MM-dd");
+                    const dayCol = (id ? document.getElementById(`event-${id}`)?.closest('[data-day-col]') : container?.querySelector(`[data-day-col="${todayIso}"]`)) as HTMLElement | null;
+                    const el = id ? document.getElementById(`event-${id}`) : null;
 
-                        // Also horizontal scroll
-                        const dayCol = el.closest('[data-day-col]') as HTMLElement;
+                    if (container) {
+                        const targetTop = el ? Math.max(0, el.offsetTop - 150) : 400;
+                        let targetLeft = container.scrollLeft;
+
                         if (dayCol) {
                             const colLeft = dayCol.offsetLeft;
                             const colWidth = dayCol.offsetWidth;
                             const containerWidth = container.clientWidth;
-                            const targetScrollX = colLeft - (containerWidth / 2) + (colWidth / 2) - 30;
-                            container.scrollLeft = Math.max(0, targetScrollX);
+                            targetLeft = Math.max(0, colLeft - (containerWidth / 2) + (colWidth / 2) - 30);
                         }
+
+                        container.scrollTo({
+                            left: targetLeft,
+                            top: targetTop,
+                            behavior: 'smooth'
+                        });
                     }
-                }, 400); // Increased delay for network/decryption
+
+                    setTimeout(() => setIsSpeedTraveling(false), 500);
+                }, 150);
             }
         };
         window.addEventListener('calendar:scroll-to', handleScrollTo);
@@ -1323,7 +1334,7 @@ export default function CalendarView({
                 {/* Main Scroll Area */}
                 <div
                     ref={scrollContainerRef}
-                    className="flex-1 relative flex trackpad-scroll-free"
+                    className={`flex-1 relative flex trackpad-scroll-free transition-all duration-300 ${isSpeedTraveling ? 'blur-[1.5px] brightness-105' : ''}`}
                     style={{ touchAction: 'none', overscrollBehavior: 'none' }}
                 >
                     {/* Time Column (Sticky Left) */}

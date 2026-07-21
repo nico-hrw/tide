@@ -82,6 +82,12 @@ interface DataState {
     setCalendarOverlapMode: (mode: 'overlap' | 'stack') => void;
     visibleCalendarRange?: { start: string; end: string } | null;
     setVisibleCalendarRange: (range: { start: string; end: string } | null) => void;
+    calendarHolidaysEnabled: boolean;
+    setCalendarHolidaysEnabled: (enabled: boolean) => void;
+    calendarHolidayPackage: 'DE' | 'AT' | 'CH' | 'US';
+    setCalendarHolidayPackage: (pkg: 'DE' | 'AT' | 'CH' | 'US') => void;
+    noteCaretPositions: Record<string, { from: number; to: number }>;
+    setNoteCaretPosition: (noteId: string, pos: { from: number; to: number }) => void;
 }
 
 export const useDataStore = create<DataState>((set, get) => ({
@@ -148,6 +154,20 @@ export const useDataStore = create<DataState>((set, get) => ({
     }),
     visibleCalendarRange: null,
     setVisibleCalendarRange: (range) => set({ visibleCalendarRange: range }),
+    calendarHolidaysEnabled: typeof window !== 'undefined' ? (localStorage.getItem('tide_calendar_holidays_enabled') !== 'false') : true,
+    setCalendarHolidaysEnabled: (enabled) => set(s => {
+        localStorage.setItem('tide_calendar_holidays_enabled', String(enabled));
+        return { calendarHolidaysEnabled: enabled };
+    }),
+    calendarHolidayPackage: typeof window !== 'undefined' ? (localStorage.getItem('tide_calendar_holiday_package') as any || 'DE') : 'DE',
+    setCalendarHolidayPackage: (pkg) => set(s => {
+        localStorage.setItem('tide_calendar_holiday_package', pkg);
+        return { calendarHolidayPackage: pkg };
+    }),
+    noteCaretPositions: {},
+    setNoteCaretPosition: (noteId, pos) => set(s => ({
+        noteCaretPositions: { ...s.noteCaretPositions, [noteId]: pos }
+    })),
     isUpdatingMetadata: new Set(),
     openFolderIds: new Set(
         typeof window !== 'undefined' 

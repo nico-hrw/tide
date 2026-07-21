@@ -16,6 +16,7 @@ import SettingsModal from "@/components/Settings/SettingsModal";
 import ProfilePage from "@/components/Profile/ProfilePage";
 import SocialHub from "@/components/Social/SocialHub";
 import dynamic from 'next/dynamic';
+import { getTranslation, useTranslation } from "@/lib/i18n";
 import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { ScheduleModal, ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 
@@ -1430,13 +1431,14 @@ export default function Dashboard() {
                 } : t);
             }
             const existingTab = nextTabs.find(t => t.id === newId);
+            const defaultNoteTitle = getTranslation(useDataStore.getState().language || 'de', 'common', 'newNote');
             nextTabs = nextTabs.filter(t => t.id !== newId);
             if (type === 'file') {
-                nextTabs.unshift({ ...(existingTab || {}), id: newId, title: forcedTitle || existingTab?.title || "Untitled", type: 'file' });
+                nextTabs.unshift({ ...(existingTab || {}), id: newId, title: forcedTitle || existingTab?.title || defaultNoteTitle, type: 'file' });
             } else if (existingTab) {
                 nextTabs.unshift(existingTab);
             } else {
-                nextTabs.unshift({ id: newId, title: forcedTitle || "Untitled", type: type as any });
+                nextTabs.unshift({ id: newId, title: forcedTitle || defaultNoteTitle, type: type as any });
             }
             return nextTabs.length > 5 ? nextTabs.slice(0, 5) : nextTabs;
         });
@@ -1460,6 +1462,24 @@ export default function Dashboard() {
             } else {
                 loadNoteContent(newId, finalTitle, fallbackData);
             }
+
+            // Auto-focus logic: Title input if empty/default title, otherwise Editor at last caret position
+            const defaultTitleStr = getTranslation(useDataStore.getState().language || 'de', 'common', 'newNote');
+            const isUnsetTitle = !finalTitle || finalTitle === defaultTitleStr || finalTitle === 'Untitled' || finalTitle === 'Neue Notiz' || finalTitle === 'New Note';
+            setTimeout(() => {
+                if (isUnsetTitle) {
+                    const inputEl = document.getElementById('note-title-input') as HTMLInputElement | null;
+                    if (inputEl) {
+                        inputEl.focus();
+                        inputEl.select();
+                    }
+                } else {
+                    const pos = useDataStore.getState().noteCaretPositions[newId];
+                    if (editorInstance) {
+                        editorInstance.commands.focus(pos ? pos.from : 'end');
+                    }
+                }
+            }, 180);
         } else {
             useDataStore.getState().setActiveNoteId(null);
         }
@@ -4014,6 +4034,7 @@ export default function Dashboard() {
 
                                                 <div className="flex items-center gap-2 mb-6">
                                                     <input
+                                                        id="note-title-input"
                                                         type="text"
                                                         autoFocus
                                                         value={fileName}
@@ -4037,12 +4058,12 @@ export default function Dashboard() {
                                                             }
                                                         }}
                                                         onKeyDown={(e) => {
-                                                            if (e.key === 'Enter') {
+                                                            if (e.key === 'Enter' || e.key === 'Tab') {
                                                                 e.preventDefault();
                                                                 editorInstance?.commands.focus();
                                                             }
                                                         }}
-                                                        placeholder="Untitled Note"
+                                                        placeholder={getTranslation(useDataStore.getState().language || 'de', 'common', 'newNote')}
                                                         className="text-4xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-700 pb-1 leading-normal overflow-visible flex-1"
                                                     />
                                                     <div className="flex items-center gap-1 shrink-0 self-end mb-2">

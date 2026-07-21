@@ -79,19 +79,15 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
                     let className = "text-[11px] w-6 h-6 flex items-center justify-center rounded-full cursor-pointer transition-all relative";
 
                     if (!isCurrentMonth) {
-                        className += " text-gray-300 dark:text-gray-700";
-                    } else if (isVisibleInGrid && !isDayToday && !isSelected) {
-                        className += " bg-indigo-500/15 dark:bg-indigo-400/20 text-indigo-600 dark:text-indigo-300 font-bold shadow-xs";
-                    } else {
-                        className += " text-[var(--text-body)] dark:text-gray-200";
-                    }
-
-                    if (isDayToday) {
-                        className = "text-[11px] w-6 h-6 flex items-center justify-center rounded-full cursor-pointer transition-all bg-[var(--today-accent)] text-white font-semibold shadow-sm";
+                        className += " text-zinc-400 dark:text-zinc-500 font-medium";
+                    } else if (isDayToday) {
+                        className = "text-[11px] w-6 h-6 flex items-center justify-center rounded-full cursor-pointer transition-all bg-red-500 text-white font-bold shadow-xs";
                     } else if (isSelected) {
-                        className += " bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-bold shadow-sm";
-                    } else if (!isVisibleInGrid) {
-                        className += " hover:bg-black/5 dark:hover:bg-white/10";
+                        className = "text-[11px] w-6 h-6 flex items-center justify-center rounded-full cursor-pointer transition-all bg-purple-600 dark:bg-purple-500 text-white font-bold shadow-xs";
+                    } else if (isVisibleInGrid) {
+                        className += " bg-purple-500/10 dark:bg-purple-400/15 text-purple-700 dark:text-purple-300 font-semibold rounded-md";
+                    } else {
+                        className += " text-[var(--text-body)] dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10";
                     }
 
                     return (

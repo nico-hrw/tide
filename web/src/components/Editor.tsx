@@ -508,7 +508,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
                 if (referencePreviewTimerRef.current) clearTimeout(referencePreviewTimerRef.current);
                 referencePreviewTimerRef.current = setTimeout(() => {
                     const activeId = activeTabIdRef.current;
-                    if (!activeId || activeId.startsWith('chat-') || activeId === 'calendar') return;
+                    if (!activeId) return;
                     
                     const store = useReferenceStore.getState();
                     const myRefs = store.references.filter(r => r.sourceNoteId === activeId);
@@ -564,6 +564,13 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
                 }
             } catch (e) {
                 console.warn("[BACKUP] Local storage fallback failed:", e);
+            }
+        },
+        onSelectionUpdate: ({ editor }) => {
+            const activeId = activeTabIdRef.current;
+            if (activeId && !activeId.startsWith('chat-') && activeId !== 'calendar') {
+                const { from, to } = editor.state.selection;
+                useDataStore.getState().setNoteCaretPosition(activeId, { from, to });
             }
         },
         editorProps: {

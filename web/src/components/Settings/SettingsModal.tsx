@@ -178,7 +178,7 @@ export default function SettingsModal({
     const [emailPinInput, setEmailPinInput] = useState('');
     const [emailStatus, setEmailStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
-    const { themePreference, setThemePreference, language, setLanguage, calendarColorPalette, setCalendarColorPalette, calendarOverlapMode, setCalendarOverlapMode } = useDataStore();
+    const { themePreference, setThemePreference, language, setLanguage, calendarColorPalette, setCalendarColorPalette, calendarOverlapMode, setCalendarOverlapMode, calendarHolidaysEnabled, setCalendarHolidaysEnabled, calendarHolidayPackage, setCalendarHolidayPackage } = useDataStore();
 
     const [newGroupName, setNewGroupName] = useState('');
 
@@ -813,6 +813,38 @@ export default function SettingsModal({
                                     </button>
                                 ))}
                             </div>
+                        </div>
+
+                        {/* Public Holidays Section */}
+                        <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
+                            <div className="flex items-center justify-between mb-3">
+                                <div>
+                                    <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-0.5">Gesetzliche Feiertage</h4>
+                                    <p className="text-xs text-gray-500">Feiertage im Kalender und in der Suche anzeigen.</p>
+                                </div>
+                                <button
+                                    onClick={() => setCalendarHolidaysEnabled(!calendarHolidaysEnabled)}
+                                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${calendarHolidaysEnabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+                                >
+                                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${calendarHolidaysEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                                </button>
+                            </div>
+
+                            {calendarHolidaysEnabled && (
+                                <div className="pt-3 border-t border-gray-200/50 dark:border-white/5 flex items-center justify-between">
+                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Feiertagspaket (Land)</span>
+                                    <select
+                                        value={calendarHolidayPackage}
+                                        onChange={(e) => setCalendarHolidayPackage(e.target.value as any)}
+                                        className="bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-lg px-2.5 py-1 text-xs font-bold text-gray-900 dark:text-white outline-none"
+                                    >
+                                        <option value="DE">Deutschland (DE)</option>
+                                        <option value="AT">Österreich (AT)</option>
+                                        <option value="CH">Schweiz (CH)</option>
+                                        <option value="US">United States (US)</option>
+                                    </select>
+                                </div>
+                            )}
                         </div>
                     </div>
 

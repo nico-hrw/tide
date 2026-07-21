@@ -5,6 +5,7 @@ import { motion, useTransform, MotionValue, useMotionValue } from "framer-motion
 import { CalendarEventItem } from './CalendarEventItem';
 import { useDataStore } from "@/store/useDataStore";
 import { extractTimeFromText } from "@/lib/timeParser";
+import { getHolidayForDate } from "@/lib/holidays";
 
 interface CalendarEvent {
     id: string;
@@ -465,6 +466,20 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         </span>
                     </div>
                 )}
+
+                {(() => {
+                    const holidaysEnabled = useDataStore.getState().calendarHolidaysEnabled;
+                    const holidayPkg = useDataStore.getState().calendarHolidayPackage || 'DE';
+                    if (!holidaysEnabled) return null;
+                    const dayIso = format(day, "yyyy-MM-dd");
+                    const holiday = getHolidayForDate(dayIso, holidayPkg);
+                    if (!holiday) return null;
+                    return (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-500/15 dark:bg-amber-400/20 text-amber-600 dark:text-amber-300 text-[8.5px] font-bold truncate max-w-[65px]" title={holiday.name}>
+                            {holiday.name}
+                        </span>
+                    );
+                })()}
             </div>
 
             {/* Today column — subtle solid gray overlay */}
