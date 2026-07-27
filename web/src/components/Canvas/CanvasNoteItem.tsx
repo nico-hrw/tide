@@ -22,7 +22,6 @@ function ImageWidget({
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!privateKey) return;
         if (item.blobId === '__pending__') return;
         const cached = imageBlobCache.current.get(item.blobId);
         if (cached) { setSrc(cached); setLoading(false); return; }
@@ -36,6 +35,7 @@ function ImageWidget({
                         'jwk', item.fileKeyJwk as JsonWebKey, { name: 'AES-GCM' }, false, ['decrypt']
                     );
                 } else {
+                    if (!privateKey) return;
                     console.log('[ImageWidget] blobId:', item.blobId, 'encryptedKey length:', item.encryptedKey?.length);
                     const meta = await cryptoLib.decryptMetadata(item.encryptedKey, privateKey);
                     console.log('[ImageWidget] meta decrypted:', meta ? Object.keys(meta) : null);

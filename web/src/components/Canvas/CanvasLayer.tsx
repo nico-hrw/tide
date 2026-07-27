@@ -237,11 +237,18 @@ export default function CanvasLayer({
             const fileKey = await cryptoLib.generateFileKey();
             const fileKeyJwk = await window.crypto.subtle.exportKey('jwk', fileKey);
             const { iv, ciphertext } = await cryptoLib.encryptFile(file, fileKey);
-            const encryptedMeta = await cryptoLib.encryptMetadata({ title: `.canvas-img-${elementId}`, fileKey: fileKeyJwk, iv }, publicKey);
+            const encryptedMeta = publicKey ? await cryptoLib.encryptMetadata({ title: `.canvas-img-${elementId}`, fileKey: fileKeyJwk, iv }, publicKey) : '';
             const createRes = await apiFetch('/api/v1/files', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'note', size: ciphertext.size, public_meta: {}, secured_meta: encryptedMeta, visibility: 'private' }),
+                body: JSON.stringify({
+                    type: 'canvas-asset',
+                    parent_id: noteId,
+                    size: ciphertext.size,
+                    public_meta: {},
+                    secured_meta: encryptedMeta,
+                    visibility: 'private',
+                }),
             });
             if (!createRes.ok) throw new Error('Failed to create image record');
             const newFile = await createRes.json() as { id: string };
@@ -251,13 +258,13 @@ export default function CanvasLayer({
                 id: crypto.randomUUID(), type: 'image',
                 anchorBlockId: initialAnchorId as string,
                 offsetX: initialOffsetX, offsetY: initialOffsetY,
-                blobId: newFile.id, encryptedKey: encryptedMeta, iv, mimeType: file.type, width: 300,
+                blobId: newFile.id, encryptedKey: encryptedMeta, fileKeyJwk, iv, mimeType: file.type, width: 300,
             } as ImageElement);
         } catch (err) {
             console.error('[Canvas] Image upload failed:', err);
             await onElementRemove(elementId);
         }
-    }, [publicKey, userId, onElementAdd, onElementRemove]);
+    }, [publicKey, userId, noteId, onElementAdd, onElementRemove]);
 
     // ── Drop & Paste ──────────────────────────────────────────────────────────
     const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {

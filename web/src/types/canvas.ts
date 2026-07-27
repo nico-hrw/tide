@@ -43,6 +43,8 @@ export interface ImageElement extends BaseCanvasElement {
     blobId: string;
     /** Base64-encoded encrypted AES key (wrapped with the user's RSA public key) */
     encryptedKey: string;
+    /** Exported JWK for key in memory / sidecar */
+    fileKeyJwk?: any;
     /** Base64-encoded AES-GCM IV used to encrypt the blob */
     iv: string;
     /** Original MIME type of the image e.g. "image/png" */

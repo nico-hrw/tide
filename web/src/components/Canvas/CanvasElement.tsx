@@ -204,12 +204,25 @@ function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
         if (element.blobId === '__pending__') { setLoading(true); setSrc(null); setError(false); return; }
         const cached = imageBlobCache.current.get(element.blobId);
         if (cached) { setSrc(cached); setLoading(false); return; }
-        if (!privateKey) return;
+
         let cancelled = false;
         (async () => {
             try {
-                const meta = await cryptoLib.decryptMetadata(element.encryptedKey, privateKey);
-                const fileKey = await window.crypto.subtle.importKey('jwk', meta.fileKey as JsonWebKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
+                let fileKey: CryptoKey;
+                if (element.fileKeyJwk) {
+                    fileKey = await window.crypto.subtle.importKey(
+                        'jwk', element.fileKeyJwk as JsonWebKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']
+                    );
+                } else {
+                    if (!privateKey) return;
+                    const meta = await cryptoLib.decryptMetadata(element.encryptedKey, privateKey);
+                    if (!meta || !meta.fileKey) {
+                        throw new Error('Missing fileKey in metadata');
+                    }
+                    fileKey = await window.crypto.subtle.importKey(
+                        'jwk', meta.fileKey as JsonWebKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']
+                    );
+                }
                 const res = await apiFetch(`/api/v1/files/${element.blobId}/download`);
                 if (!res.ok) {
                     const msg = `HTTP ${res.status} for blob ${element.blobId}`;
@@ -217,14 +230,17 @@ function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
                     if (!cancelled) { setError(true); setErrorMsg(msg); setLoading(false); }
                     return;
                 }
-                const dec = await cryptoLib.decryptFile(await res.blob(), meta.iv as string, fileKey);
+                const dec = await cryptoLib.decryptFile(await res.blob(), element.iv, fileKey);
                 const url = URL.createObjectURL(new Blob([await dec.arrayBuffer()], { type: element.mimeType }));
                 imageBlobCache.current.set(element.blobId, url);
                 if (!cancelled) { setSrc(url); setLoading(false); }
-            } catch (e) { console.error('[Canvas] decrypt:', e); if (!cancelled) { setError(true); setLoading(false); } }
+            } catch (e: any) {
+                console.error('[Canvas] decrypt:', e);
+                if (!cancelled) { setError(true); setErrorMsg(e?.message || 'Decryption failed'); setLoading(false); }
+            }
         })();
         return () => { cancelled = true; };
-    }, [element.blobId, element.encryptedKey, element.mimeType, userId, privateKey, imageBlobCache]);
+    }, [element.blobId, element.encryptedKey, element.fileKeyJwk, element.iv, element.mimeType, userId, privateKey, imageBlobCache]);
 
     if (loading) return (
         <div style={{ width: element.width ?? 200, height: 120 }}
@@ -234,9 +250,9 @@ function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
     );
     if (error || !src) return (
         <div style={{ width: element.width ?? 200, height: 80 }}
-            className="flex items-center justify-center rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-2">
-            Failed to load
-            {errorMsg && <span className="block text-[10px] opacity-50 mt-1 ml-1">{errorMsg}</span>}
+            className="flex items-center justify-center rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-2 flex-col">
+            <span>Failed to load</span>
+            {errorMsg && <span className="block text-[10px] opacity-50 mt-1 max-w-full truncate">{errorMsg}</span>}
         </div>
     );
     return <img src={src} alt="" draggable={false} className="rounded-lg block select-none"
