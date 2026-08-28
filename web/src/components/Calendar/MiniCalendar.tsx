@@ -9,6 +9,8 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
 
     const activeDate = selectedDate || new Date();
     const visibleCalendarRange = useDataStore(s => s.visibleCalendarRange);
+    const activeNoteId = useDataStore(s => s.activeNoteId);
+    const isInCalendar = activeNoteId === null;
 
     React.useEffect(() => {
         if (selectedDate && !isSameMonth(selectedDate, currentDateInternal)) {
@@ -68,11 +70,11 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
             <div className="grid grid-cols-7 gap-0.5 text-center">
                 {days.map((day, i) => {
                     const dayIso = format(day, "yyyy-MM-dd");
-                    const isSelected = isSameDay(day, activeDate);
+                    const isSelected = isInCalendar && isSameDay(day, activeDate);
                     const isCurrentMonth = isSameMonth(day, monthStart);
                     const isDayToday = isToday(day);
 
-                    const isVisibleInGrid = visibleCalendarRange
+                    const isVisibleInGrid = isInCalendar && visibleCalendarRange
                         ? (dayIso >= visibleCalendarRange.start && dayIso <= visibleCalendarRange.end)
                         : false;
 
@@ -85,7 +87,7 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
                     } else if (isSelected) {
                         className = "text-[11px] w-6 h-6 flex items-center justify-center rounded-full cursor-pointer transition-all bg-purple-600 dark:bg-purple-500 text-white font-bold shadow-xs";
                     } else if (isVisibleInGrid) {
-                        className += " bg-purple-500/10 dark:bg-purple-400/15 text-purple-700 dark:text-purple-300 font-semibold rounded-md";
+                        className += " bg-purple-500/5 dark:bg-purple-400/5 text-purple-600 dark:text-purple-400 font-semibold rounded-md";
                     } else {
                         className += " text-[var(--text-body)] dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10";
                     }
@@ -98,7 +100,7 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
                         >
                             {format(day, dateFormat)}
                             {isVisibleInGrid && !isDayToday && !isSelected && (
-                                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-3 h-0.5 rounded-full bg-indigo-500/60 dark:bg-indigo-400/60" />
+                                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-3.5 h-[1.5px] rounded-full bg-purple-500/50 dark:bg-purple-400/50" />
                             )}
                         </div>
                     );

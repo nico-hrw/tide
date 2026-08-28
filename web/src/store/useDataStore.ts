@@ -722,6 +722,7 @@ export const useDataStore = create<DataState>((set, get) => ({
             const cryptoLib = await import('@/lib/crypto');
 
             for (const f of allFiles) {
+                if (f.type === 'index' || f.type === 'canvas-asset') continue;
                 // Check Cache First — but skip stale entries (still locked or placeholder title)
                 if (!forceRefresh && newMetaCache[f.id]) {
                     const cached = newMetaCache[f.id];
@@ -990,6 +991,7 @@ export const useDataStore = create<DataState>((set, get) => ({
 
             const processItems = async (items: any[], targetArr: DataItem[], type: string) => {
                 for (const f of items) {
+                    if (f.type === 'index' || f.type === 'canvas-asset') continue;
                     if (newMetaCache[f.id]) {
                         const cached = newMetaCache[f.id];
                         const isStale = cached.isLocked || cached.title === 'Locked Note (Decrypting...)';

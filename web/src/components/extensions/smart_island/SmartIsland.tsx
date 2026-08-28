@@ -844,7 +844,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
     const isCentered = !!state.dailySummaryMode;
 
     const sizeClass = isCentered
-        ? 'p-6 rounded-[2.5rem] w-[22rem] sm:w-[26rem]'
+        ? 'p-6 rounded-[2.5rem] w-[26rem] sm:w-[30rem]'
         : state.current?.type === 'timeline'
             ? 'p-4 rounded-[2rem] w-full'
             : state.current?.type === 'interactive_card'
@@ -861,9 +861,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                                     ? 'p-3 rounded-[1.5rem] w-full'
                                     : 'p-2 rounded-[1.75rem] w-full';
 
-    const positionClass = isCentered
-        ? 'fixed top-[20vh] left-[calc(50%-11rem)] sm:left-[calc(50%-13rem)] z-[9999]'
-        : 'relative';
+    const positionClass = 'relative';
 
     const islandShell = (
         <motion.div
@@ -959,19 +957,8 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
 
     if (isCentered && typeof window !== 'undefined') {
         return createPortal(
-            <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none">
-                <AnimatePresence>
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 bg-black/60 backdrop-blur-md z-[9998] pointer-events-auto"
-                        onClick={() => setDailySummaryMode(null)}
-                    />
-                </AnimatePresence>
-                <div className="pointer-events-auto relative">
-                    {islandShell}
-                </div>
+            <div className="fixed bottom-6 left-6 z-[9999] pointer-events-auto">
+                {islandShell}
             </div>,
             document.body
         );

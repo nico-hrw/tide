@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { Sparkles, FileText, CheckCircle2, Clock, Edit2, LogOut, Check } from 'lucide-react';
+import { Sparkles, FileText, CheckCircle2, Clock, Edit2, LogOut, Check, X } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { format } from 'date-fns';
 
@@ -56,7 +56,7 @@ export default function DailySummaryView({ mode, userName, onClose }: DailySumma
         return {
             eventsCount: todayEvents.length,
             tasksCount: openTasks.length,
-            events: todayEvents.slice(0, 2)
+            events: todayEvents.slice(0, 5)
         };
     }, [storeEvents, storeTasks]);
 
@@ -100,20 +100,28 @@ export default function DailySummaryView({ mode, userName, onClose }: DailySumma
 
     if (mode === 'morning') {
         return (
-            <div className="flex flex-col gap-6 py-4 px-2 w-[22rem] sm:w-[26rem] select-none text-zinc-100">
+            <div className="flex flex-col gap-6 py-4 px-2 w-full select-none text-zinc-100">
                 {/* Header */}
-                <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 flex items-center justify-center shadow-lg shadow-orange-500/20">
-                        <Sparkles size={22} className="text-white" />
+                <div className="flex items-center justify-between gap-3.5">
+                    <div className="flex items-center gap-3.5">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 via-orange-500 to-red-500 flex items-center justify-center shadow-lg shadow-orange-500/20">
+                            <Sparkles size={22} className="text-white" />
+                        </div>
+                        <div>
+                            <h2 className="text-[20px] font-black tracking-tight leading-tight">
+                                Guten Morgen{userName ? `, ${userName}` : ''}!
+                            </h2>
+                            <p className="text-[12px] text-zinc-400 font-semibold mt-0.5 uppercase tracking-wider">
+                                Bereit für einen produktiven Tag?
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h2 className="text-[20px] font-black tracking-tight leading-tight">
-                            Guten Morgen{userName ? `, ${userName}` : ''}!
-                        </h2>
-                        <p className="text-[12px] text-zinc-400 font-semibold mt-0.5 uppercase tracking-wider">
-                            Bereit für einen produktiven Tag?
-                        </p>
-                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-1.5 rounded-full hover:bg-white/10 text-zinc-400 hover:text-zinc-200 transition-colors flex-shrink-0"
+                    >
+                        <X size={16} />
+                    </button>
                 </div>
 
                 {/* Today's schedule */}
@@ -142,7 +150,7 @@ export default function DailySummaryView({ mode, userName, onClose }: DailySumma
 
                     {todayBriefing.events.length > 0 && (
                         <div className="flex flex-col gap-2 mt-2">
-                            <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Erste Termine</div>
+                            <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Anstehende Termine</div>
                             {todayBriefing.events.map((ev, i) => (
                                 <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-950/60 border border-white/5 text-xs">
                                     <span className="font-bold text-zinc-200 truncate max-w-[12rem]">{ev.title}</span>
@@ -154,33 +162,33 @@ export default function DailySummaryView({ mode, userName, onClose }: DailySumma
                         </div>
                     )}
                 </div>
-
-                {/* Footer button */}
-                <button
-                    onClick={onClose}
-                    className="w-full py-3.5 rounded-2xl bg-white text-zinc-950 font-black text-sm tracking-wide shadow-xl shadow-white/5 hover:bg-zinc-100 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                >
-                    <Check size={16} strokeWidth={3} /> Tag starten
-                </button>
             </div>
         );
     }
 
     return (
-        <div className="flex flex-col gap-6 py-4 px-2 w-[22rem] sm:w-[26rem] select-none text-zinc-100">
+        <div className="flex flex-col gap-6 py-4 px-2 w-full select-none text-zinc-100">
             {/* Header */}
-            <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                    <CheckCircle2 size={22} className="text-white" />
+            <div className="flex items-center justify-between gap-3.5">
+                <div className="flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/20">
+                        <CheckCircle2 size={22} className="text-white" />
+                    </div>
+                    <div>
+                        <h2 className="text-[20px] font-black tracking-tight leading-tight">
+                            Schönen Feierabend{userName ? `, ${userName}` : ''}!
+                        </h2>
+                        <p className="text-[12px] text-zinc-400 font-semibold mt-0.5 uppercase tracking-wider">
+                            Dein Tag in Zahlen
+                        </p>
+                    </div>
                 </div>
-                <div>
-                    <h2 className="text-[20px] font-black tracking-tight leading-tight">
-                        Schönen Feierabend{userName ? `, ${userName}` : ''}!
-                    </h2>
-                    <p className="text-[12px] text-zinc-400 font-semibold mt-0.5 uppercase tracking-wider">
-                        Dein Tag in Zahlen
-                    </p>
-                </div>
+                <button
+                    onClick={onClose}
+                    className="p-1.5 rounded-full hover:bg-white/10 text-zinc-400 hover:text-zinc-200 transition-colors flex-shrink-0"
+                >
+                    <X size={16} />
+                </button>
             </div>
 
             {/* Circular Progress & Productivity Score */}

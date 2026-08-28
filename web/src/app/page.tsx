@@ -79,6 +79,7 @@ function isDocEmpty(parsed: unknown): boolean {
                 if (node.type !== 'paragraph') return false;
                 if (node.content && node.content.length > 0) {
                     for (const textNode of node.content) {
+                        if (textNode.type && textNode.type !== 'text') return false;
                         if (textNode.text && textNode.text.trim().length > 0) return false;
                     }
                 }
@@ -2456,7 +2457,7 @@ export default function Dashboard() {
 
     const executeDeleteNote = async () => {
         if (!deleteConfirm) return;
-        const { fileId } = deleteConfirm;
+        const { fileId, isShared } = deleteConfirm;
         const freshNotes = useDataStore.getState().notes;
         const target = freshNotes.find(f => f.id === fileId);
 
@@ -2468,15 +2469,7 @@ export default function Dashboard() {
             // Remove from local state immediately
             useDataStore.getState().setNotes(freshNotes.filter(f => f.id !== fileId) as any);
             
-            setOpenTabs(prev => {
-                const nextTabs = prev.filter(t => t.id !== fileId);
-                localStorage.setItem("tide_open_tabs", JSON.stringify(nextTabs));
-                return nextTabs;
-            });
-            
-            if (activeTabId === fileId) {
-                handleTabClose(null as any, fileId);
-            }
+            handleTabClose(null, fileId);
         } catch (err) {
             console.error("Delete failed:", err);
             const isCorrupt = !target || target.isLocked || (target.title && (target.title.includes("Corrupted") || target.title.includes("Locked") || target.title.includes("Decrypting")));
@@ -2492,7 +2485,7 @@ export default function Dashboard() {
             setDeleteError({
                 fileId,
                 title: "Fehler",
-                message: deleteConfirm.isShared ? "Die Notiz konnte nicht verlassen werden." : "Die Notiz konnte nicht gelöscht werden.",
+                message: isShared ? "Die Notiz konnte nicht verlassen werden." : "Die Notiz konnte nicht gelöscht werden.",
                 isCorrupt: false
             });
             setDeleteConfirm(null);
@@ -3354,8 +3347,8 @@ export default function Dashboard() {
         switchTab(id, type);
     };
 
-    const handleTabClose = (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
+    const handleTabClose = (e: React.MouseEvent | null, id: string) => {
+        if (e) e.stopPropagation();
 
         let nextTarget: Tab | null = null;
 
