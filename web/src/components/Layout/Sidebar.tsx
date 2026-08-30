@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Layout, X, GraduationCap } from "lucide-react";
+import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Layout, X, GraduationCap, ShieldCheck } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, Reorder, AnimatePresence, LayoutGroup } from "framer-motion";
 import { Tab } from '@/components/Layout/TabList';
@@ -11,6 +11,9 @@ import { useDataStore } from "@/store/useDataStore";
 import { useDragGhost } from "@/store/useDragGhost";
 import { apiFetch, getApiBase } from "@/lib/api";
 import Avatar from "@/components/Profile/Avatar";
+import SecuritySettingsModal from "@/components/Security/SecuritySettingsModal";
+import PinPromptModal from "@/components/Security/PinPromptModal";
+import { ItemSecuritySettings, isItemUnlocked } from "@/lib/pinSecurity";
 
 interface DecryptedFile {
     id: string;
@@ -25,6 +28,7 @@ interface DecryptedFile {
     isGroup?: boolean;
     share_status?: string;
     permission?: string;
+    metadata?: any;
 }
 
 interface SidebarProps {
@@ -126,6 +130,68 @@ export default function Sidebar({
     const [sidebarContextMenu, setSidebarContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [dropIndicator, setDropIndicator] = useState<{ id: string, zone: 'top' | 'middle' | 'bottom' } | null>(null);
 
+    // Security & PIN Protection State
+    const [securityModalItem, setSecurityModalItem] = useState<{ id: string; title: string; type: 'file' | 'folder' | 'note' | 'canvas'; metadata?: any } | null>(null);
+    const [pinPromptItem, setPinPromptItem] = useState<{ id: string; title: string; type: 'file' | 'folder' | 'note' | 'canvas'; metadata?: any; onUnlocked?: () => void } | null>(null);
+
+    const handleOpenSecuritySettings = (id: string) => {
+        const target = files.find(f => f.id === id);
+        if (target) {
+            setSecurityModalItem({
+                id: target.id,
+                title: target.title,
+                type: (target.type as any) || 'note',
+                metadata: target.metadata
+            });
+        }
+    };
+
+    const handleSaveSecuritySettings = async (settings: ItemSecuritySettings | null) => {
+        if (!securityModalItem) return;
+        const itemId = securityModalItem.id;
+        const target = files.find(f => f.id === itemId);
+        const currentMeta = target?.metadata || {};
+        const updatedMeta = settings ? {
+            ...currentMeta,
+            has_custom_password: true,
+            pwd_salt: settings.pwd_salt,
+            pin_hash: settings.pin_hash,
+            security_settings: settings
+        } : {
+            ...currentMeta,
+            has_custom_password: false,
+            pwd_salt: undefined,
+            pin_hash: undefined,
+            security_settings: null
+        };
+
+        const res = await apiFetch(`/api/v1/files/${itemId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ metadata: updatedMeta })
+        });
+        if (!res.ok) {
+            throw new Error('Fehler beim Speichern der Sicherheitseinstellungen.');
+        }
+        useDataStore.getState().updateFileRaw(itemId, { metadata: updatedMeta });
+    };
+
+    const handleProtectedSelect = (fileId: string, title: string) => {
+        const target = files.find(f => f.id === fileId);
+        const settings = target?.metadata?.security_settings || (target?.metadata?.has_custom_password ? target?.metadata : null);
+        if (settings?.has_custom_password && !isItemUnlocked(fileId, settings)) {
+            setPinPromptItem({
+                id: fileId,
+                title: title || target?.title || 'Notiz',
+                type: (target?.type as any) || 'note',
+                metadata: target?.metadata,
+                onUnlocked: () => onFileSelect(fileId, title)
+            });
+            return;
+        }
+        onFileSelect(fileId, title);
+    };
+
     const userProfile = propProfile || sidebarUserProfile;
 
     const topLevelItems = useMemo(() => {
@@ -196,6 +262,27 @@ export default function Sidebar({
                     .catch(() => { });
             }
         }
+    }, []);
+
+    useEffect(() => {
+        const handlePromptPin = (e: Event) => {
+            const detail = (e as CustomEvent)?.detail;
+            if (detail) {
+                setPinPromptItem({
+                    id: detail.id,
+                    title: detail.title,
+                    type: detail.type,
+                    metadata: detail.metadata,
+                    onUnlocked: () => {
+                        if (detail.type === 'folder') {
+                            useDataStore.getState().toggleFolder(detail.id, true);
+                        }
+                    }
+                });
+            }
+        };
+        window.addEventListener('tide:prompt-pin', handlePromptPin);
+        return () => window.removeEventListener('tide:prompt-pin', handlePromptPin);
     }, []);
 
     useEffect(() => {
@@ -462,7 +549,7 @@ export default function Sidebar({
                                             key={item.id}
                                             file={item}
                                             level={0}
-                                            onSelect={onFileSelect}
+                                            onSelect={handleProtectedSelect}
                                             onDelete={onDeleteNote}
                                             onRename={onRenameNote}
                                             onVisibility={onToggleVisibility}
@@ -558,7 +645,7 @@ export default function Sidebar({
                                         allFiles={files}
                                         level={0}
                                         viewMode={'files'}
-                                        onSelect={onFileSelect}
+                                        onSelect={handleProtectedSelect}
                                         onDelete={onDeleteNote}
                                         onRename={onRenameNote}
                                         onVisibility={onToggleVisibility}
@@ -584,7 +671,7 @@ export default function Sidebar({
                                 <FileItem
                                     file={item}
                                     level={0}
-                                    onSelect={onFileSelect}
+                                    onSelect={handleProtectedSelect}
                                     onDelete={onDeleteNote}
                                     onRename={onRenameNote}
                                     onVisibility={onToggleVisibility}
@@ -629,7 +716,7 @@ export default function Sidebar({
                 >
                     <div className="px-2 py-1.5 flex flex-col gap-0.5">
                         <button
-                            onClick={() => { setContextMenu(null); onFileSelect(contextMenu.id, ""); }}
+                            onClick={() => { setContextMenu(null); handleProtectedSelect(contextMenu.id, ""); }}
                             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
                         >
                             <FileText size={16} className="text-gray-400 group-hover:text-blue-500" />
@@ -716,6 +803,30 @@ export default function Sidebar({
                             <span className="font-medium">Share</span>
                         </button>
 
+                        {(() => {
+                            const targetFile = files.find(f => f.id === contextMenu.id);
+                            const isProtected = !!(targetFile?.metadata?.has_custom_password || targetFile?.metadata?.security_settings?.has_custom_password);
+                            return (
+                                <button
+                                    onClick={() => {
+                                        const targetId = contextMenu.id;
+                                        setContextMenu(null);
+                                        handleOpenSecuritySettings(targetId);
+                                    }}
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                                >
+                                    {isProtected ? (
+                                        <ShieldCheck size={16} className="text-amber-500 group-hover:text-amber-600" />
+                                    ) : (
+                                        <Lock size={16} className="text-gray-400 group-hover:text-purple-500" />
+                                    )}
+                                    <span className="font-medium">
+                                        {isProtected ? "Sicherheit & PIN verwalten" : "PIN-Schutz aktivieren"}
+                                    </span>
+                                </button>
+                            );
+                        })()}
+
                         <button
                             onClick={(e) => { setContextMenu(null); onRenameNote(e, contextMenu.id, ""); }}
                             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
@@ -790,6 +901,35 @@ export default function Sidebar({
                         </button>
                     </div>
                 </div>
+            )}
+
+            {securityModalItem && (
+                <SecuritySettingsModal
+                    isOpen={!!securityModalItem}
+                    onClose={() => setSecurityModalItem(null)}
+                    item={securityModalItem}
+                    userEmail={userProfile?.email}
+                    onSaveSettings={handleSaveSecuritySettings}
+                />
+            )}
+
+            {pinPromptItem && (
+                <PinPromptModal
+                    isOpen={!!pinPromptItem}
+                    onClose={() => setPinPromptItem(null)}
+                    item={pinPromptItem}
+                    userEmail={userProfile?.email}
+                    onUnlock={() => {
+                        const cb = pinPromptItem.onUnlocked;
+                        setPinPromptItem(null);
+                        cb?.();
+                    }}
+                    onOpenSecuritySettings={() => {
+                        const itemToConfigure = pinPromptItem;
+                        setPinPromptItem(null);
+                        setSecurityModalItem(itemToConfigure);
+                    }}
+                />
             )}
 
             <style jsx>{`
@@ -943,6 +1083,11 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                     : file.type === 'canvas'
                         ? <Layout size={15} className="shrink-0 text-gray-400" />
                         : <FileText size={15} className="shrink-0 text-gray-400" />}
+                {(file.metadata?.has_custom_password || file.metadata?.security_settings?.has_custom_password) && (
+                    <span title="PIN-geschützt" className="shrink-0 inline-flex items-center">
+                        <Lock size={13} className="text-amber-500" />
+                    </span>
+                )}
                 {(file as any).share_status === 'shared' && (
                     <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-sky-400" title="Geteilte Notiz" />
                 )}
@@ -1004,6 +1149,19 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
     const handleToggle = async (e: React.MouseEvent) => {
         e.stopPropagation();
 
+        const isFolderProtected = !!(folder.metadata?.has_custom_password || folder.metadata?.security_settings?.has_custom_password);
+        if (isFolderProtected && !isOpen && !isItemUnlocked(folder.id, folder.metadata?.security_settings || folder.metadata)) {
+            window.dispatchEvent(new CustomEvent('tide:prompt-pin', {
+                detail: {
+                    id: folder.id,
+                    title: folder.title,
+                    type: 'folder',
+                    metadata: folder.metadata
+                }
+            }));
+            return;
+        }
+
         if (!isOpen) {
             // Expand
             setIsLoading(true);
@@ -1044,6 +1202,11 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                         <FolderOpen size={15} className="text-gray-400 dark:text-slate-500" />
                     ) : (
                         <Folder size={15} className="text-gray-400 dark:text-slate-500" />
+                    )}
+                    {(folder.metadata?.has_custom_password || folder.metadata?.security_settings?.has_custom_password) && (
+                        <span title="PIN-geschützt" className="shrink-0 inline-flex items-center">
+                            <Lock size={13} className="text-amber-500" />
+                        </span>
                     )}
                     {(folder as any).share_status === 'shared' && (
                         <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-sky-400" title="Geteilter Ordner" />

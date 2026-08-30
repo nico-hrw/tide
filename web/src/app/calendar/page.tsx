@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import CalendarView from "@/components/Calendar/CalendarView";
 import { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import { useDataStore } from "@/store/useDataStore";
+import CloudStatusBanner from "@/components/CloudStatusBanner";
 import "./calendar.css";
 
 interface CalendarEvent {
@@ -485,6 +486,7 @@ export default function CalendarPage() {
 
     return (
         <div className="calendar-page">
+            <CloudStatusBanner />
             <header className="calendar-header">
                 <div className="calendar-header-left">
                     <button onClick={handleBack} className="calendar-btn calendar-btn-nav">

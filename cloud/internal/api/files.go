@@ -589,6 +589,7 @@ func (h *FileHandler) CopyFile(w http.ResponseWriter, r *http.Request) {
 
 
 type CreateFileRequest struct {
+	ID          *string         `json:"id,omitempty"`
 	ParentID    *string         `json:"parent_id"`
 	Type        db.FileType     `json:"type"`
 	MIMEType    *string         `json:"mime_type"`
@@ -619,8 +620,13 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 		visibility = "private"
 	}
 
+	fileID := uuid.New().String()
+	if req.ID != nil && *req.ID != "" {
+		fileID = *req.ID
+	}
+
 	file := &db.File{
-		ID:          uuid.New().String(),
+		ID:          fileID,
 		OwnerID:     ownerID,
 		ParentID:    req.ParentID,
 		Type:        req.Type,

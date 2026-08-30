@@ -59,6 +59,7 @@ import { isSameDay } from 'date-fns';
 import { useDataStore, DataItem } from "@/store/useDataStore";
 import { useDragGhost } from "@/store/useDragGhost";
 import EventDragGhost from "@/components/Calendar/EventDragGhost";
+import CloudStatusBanner from "@/components/CloudStatusBanner";
 import { useDateDetection, DateDetectionMode } from "@/hooks/useDateDetection";
 import { motion } from 'framer-motion';
 
@@ -1143,7 +1144,21 @@ export default function Dashboard() {
                 }
 
                 // Unwrap DEK with RSA private key, then import for AES-GCM
-                const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey);
+                let rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey);
+                if (target.metadata?.has_custom_password) {
+                    const { getSessionPin } = await import('@/lib/pinSecurity');
+                    const sessionPin = getSessionPin(fileId);
+                    if (sessionPin && target.metadata.pwd_salt) {
+                        try {
+                            const saltBuffer = cryptoLib.base64ToArrayBuffer(target.metadata.pwd_salt);
+                            const pwdKey = await cryptoLib.deriveKeyFromPassword(sessionPin, saltBuffer);
+                            const innerB64 = cryptoLib.arrayBufferToBase64(rawDek);
+                            rawDek = await cryptoV2.unwrapDEKData(innerB64, pwdKey, myAccess.pwd_iv);
+                        } catch (pwdErr) {
+                            console.warn('[V2-Load] PIN unwrap with session PIN failed:', pwdErr);
+                        }
+                    }
+                }
                 const dek = await cryptoV2.importDEK(rawDek);
                 setActiveFileKey(dek);
                 fileKeyToUse = dek;
@@ -3495,6 +3510,7 @@ export default function Dashboard() {
     // -------------------------------------------------------------------------
     return (
         <div className="flex h-screen w-full bg-[var(--background)] text-foreground overflow-hidden">
+            <CloudStatusBanner />
             {/* Global drag ghost — rendered via Portal so it sits above sidebar/calendar/editor */}
             <EventDragGhost />
             <SmartIsland

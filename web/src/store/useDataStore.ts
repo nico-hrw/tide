@@ -949,7 +949,6 @@ export const useDataStore = create<DataState>((set, get) => ({
     loadAllMetadata: async () => {
         const state = get();
         if (!state.privateKey || !state.myId) return;
-        if (typeof navigator !== 'undefined' && !navigator.onLine) return;
 
         try {
             const results = await Promise.allSettled([
