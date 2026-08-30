@@ -844,22 +844,22 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
     const isCentered = !!state.dailySummaryMode;
 
     const sizeClass = isCentered
-        ? 'p-6 rounded-[2.5rem] w-[26rem] sm:w-[30rem]'
+        ? 'p-6 rounded-2xl w-[26rem] sm:w-[30rem]'
         : state.current?.type === 'timeline'
-            ? 'p-4 rounded-[2rem] w-full'
+            ? 'p-4 rounded-xl w-full'
             : state.current?.type === 'interactive_card'
-                ? 'p-4 rounded-[1.75rem] w-full'
+                ? 'p-4 rounded-xl w-full'
                 : state.current?.type === 'event_suggestion'
-                    ? 'rounded-[1.5rem] w-full'
+                    ? 'rounded-xl w-full'
                     : state.current?.type === 'reminder'
-                        ? 'rounded-[1.75rem] w-full'
+                        ? 'rounded-xl w-full'
                         : state.current?.type === 'text_collector'
-                            ? 'rounded-[1.75rem] w-full sm:w-[24rem]'
+                            ? 'rounded-xl w-full sm:w-[24rem]'
                             : state.current?.type === 'welcome' || state.current?.type === 'morning' || state.current?.type === 'event_preview'
-                                ? 'p-4 rounded-[1.75rem] w-full'
+                                ? 'p-4 rounded-xl w-full'
                                 : state.current?.type === 'message'
-                                    ? 'p-3 rounded-[1.5rem] w-full'
-                                    : 'p-2 rounded-[1.75rem] w-full';
+                                    ? 'p-3 rounded-xl w-full'
+                                    : 'p-2 rounded-xl w-full';
 
     const positionClass = 'relative';
 

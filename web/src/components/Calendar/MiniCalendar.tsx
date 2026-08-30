@@ -1,13 +1,12 @@
 
 import React, { useState } from 'react';
-import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isSameDay, isToday } from 'date-fns';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isToday } from 'date-fns';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 
 export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?: Date, onSelect?: (date: Date) => void }) {
     const [currentDateInternal, setCurrentDateInternal] = useState(new Date());
 
-    const activeDate = selectedDate || new Date();
     const visibleCalendarRange = useDataStore(s => s.visibleCalendarRange);
     const activeNoteId = useDataStore(s => s.activeNoteId);
     const isInCalendar = activeNoteId === null;
@@ -35,12 +34,12 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
 
     return (
         <div
-            className="p-3 py-2.5 bg-transparent select-none cursor-pointer"
+            className="p-3 py-2 bg-transparent select-none cursor-pointer"
             onClick={() => onSelect?.(new Date())}
             title="Go to today"
         >
-            <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+            <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[13px] font-semibold text-gray-800 dark:text-gray-100">
                     {format(displayDate, "MMMM yyyy")}
                 </span>
                 <div className="flex gap-1">
@@ -59,18 +58,20 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
                 </div>
             </div>
 
+            {/* Subtle divider line */}
+            <div className="h-px bg-black/[0.06] dark:bg-white/[0.08] mb-2" />
+
             <div className="grid grid-cols-7 gap-0.5 text-center mb-1">
                 {weekDays.map(day => (
-                    <div key={day} className="text-[9px] font-medium text-[var(--text-subtle)] uppercase tracking-[0.5px]">
+                    <div key={day} className="text-[9px] font-semibold text-gray-800 dark:text-gray-100 uppercase tracking-[0.5px]">
                         {day}
                     </div>
                 ))}
             </div>
 
             <div className="grid grid-cols-7 gap-0.5 text-center">
-                {days.map((day, i) => {
+                {days.map((day) => {
                     const dayIso = format(day, "yyyy-MM-dd");
-                    const isSelected = isInCalendar && isSameDay(day, activeDate);
                     const isCurrentMonth = isSameMonth(day, monthStart);
                     const isDayToday = isToday(day);
 
@@ -78,18 +79,16 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
                         ? (dayIso >= visibleCalendarRange.start && dayIso <= visibleCalendarRange.end)
                         : false;
 
-                    let className = "text-[11px] w-6 h-6 flex items-center justify-center rounded-full cursor-pointer transition-all relative";
+                    let className = "text-[11px] w-6 h-6 flex items-center justify-center cursor-pointer transition-all relative";
 
                     if (!isCurrentMonth) {
-                        className += " text-zinc-400 dark:text-zinc-500 font-medium";
+                        className += " text-gray-400 dark:text-gray-500 font-medium rounded-full hover:bg-black/5 dark:hover:bg-white/10";
                     } else if (isDayToday) {
-                        className = "text-[11px] w-6 h-6 flex items-center justify-center rounded-full cursor-pointer transition-all bg-red-500 text-white font-bold shadow-xs";
-                    } else if (isSelected) {
-                        className = "text-[11px] w-6 h-6 flex items-center justify-center rounded-full cursor-pointer transition-all bg-purple-600 dark:bg-purple-500 text-white font-bold shadow-xs";
+                        className += " bg-red-500 text-white font-bold rounded-full shadow-xs";
                     } else if (isVisibleInGrid) {
-                        className += " bg-purple-500/5 dark:bg-purple-400/5 text-purple-600 dark:text-purple-400 font-semibold rounded-md";
+                        className += " bg-purple-500/10 dark:bg-purple-400/15 text-gray-800 dark:text-gray-100 font-medium rounded-md hover:bg-purple-500/20 dark:hover:bg-purple-400/25";
                     } else {
-                        className += " text-[var(--text-body)] dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10";
+                        className += " text-gray-800 dark:text-gray-100 font-medium rounded-full hover:bg-black/5 dark:hover:bg-white/10";
                     }
 
                     return (
@@ -99,9 +98,6 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
                             className={className}
                         >
                             {format(day, dateFormat)}
-                            {isVisibleInGrid && !isDayToday && !isSelected && (
-                                <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-3.5 h-[1.5px] rounded-full bg-purple-500/50 dark:bg-purple-400/50" />
-                            )}
                         </div>
                     );
                 })}

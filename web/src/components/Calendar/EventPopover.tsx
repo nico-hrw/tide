@@ -2,6 +2,91 @@
 
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import { format } from "date-fns";
+import { Star, Ban, Trash2, X, ChevronDown, Check, Clock } from "lucide-react";
+
+interface CustomDropdownOption {
+    value: string;
+    label: string;
+    color?: string;
+}
+
+function ModernDropdown({
+    value,
+    options,
+    onChange,
+    placeholder = "Auswählen"
+}: {
+    value: string;
+    options: CustomDropdownOption[];
+    onChange: (val: string) => void;
+    placeholder?: string;
+}) {
+    const [open, setOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+                setOpen(false);
+            }
+        };
+        if (open) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [open]);
+
+    const selectedOption = options.find(o => o.value === value);
+
+    return (
+        <div ref={dropdownRef} className="relative w-full">
+            <button
+                type="button"
+                onClick={() => setOpen(!open)}
+                className="w-full flex items-center justify-between bg-gray-50/80 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl px-2.5 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-all text-left"
+            >
+                <div className="flex items-center gap-1.5 truncate">
+                    {selectedOption?.color && (
+                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: selectedOption.color }} />
+                    )}
+                    <span className="truncate">{selectedOption?.label || placeholder}</span>
+                </div>
+                <ChevronDown size={11} className={`text-gray-400 shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+            </button>
+
+            {open && (
+                <div className="absolute top-full mt-1 left-0 right-0 z-[120] bg-white dark:bg-[#222222] border border-gray-100 dark:border-white/10 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 max-h-48 overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-100">
+                    {options.map(opt => {
+                        const isSelected = opt.value === value;
+                        return (
+                            <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => {
+                                    onChange(opt.value);
+                                    setOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left ${
+                                    isSelected
+                                        ? 'bg-violet-50 dark:bg-violet-500/20 text-violet-600 dark:text-violet-300'
+                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5'
+                                }`}
+                            >
+                                <div className="flex items-center gap-1.5 truncate">
+                                    {opt.color && (
+                                        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: opt.color }} />
+                                    )}
+                                    <span className="truncate">{opt.label}</span>
+                                </div>
+                                {isSelected && <Check size={11} className="text-violet-600 dark:text-violet-300 shrink-0" />}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
 
 export interface EventPopoverEvent {
     id: string;
@@ -169,7 +254,7 @@ export default function EventPopover({
             style={{ top: `${pos.top}px`, left: `${pos.left}px` }}
         >
             {/* ── Header ── */}
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
                 <div
                     className="w-3.5 h-3.5 rounded-full shrink-0 cursor-pointer hover:scale-110 transition-transform shadow-sm"
                     style={{ backgroundColor: color }}
@@ -182,34 +267,52 @@ export default function EventPopover({
                     onChange={(e) => setTitle(e.target.value)}
                     onBlur={() => handleSave()}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
-                    className="flex-1 text-sm font-bold text-gray-900 dark:text-gray-100 bg-transparent border-none focus:ring-0 p-0 outline-none placeholder:text-gray-400"
+                    className={`flex-1 text-sm font-bold bg-transparent border-none focus:ring-0 p-0 outline-none placeholder:text-gray-400 transition-all ${isCancelled ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}
                     placeholder="Was passiert?"
                 />
-                {/* Cancel icon */}
+                {/* Wichtig Toggle (Icon only) */}
                 <button
+                    type="button"
+                    onClick={() => setIsImportant(!isImportant)}
+                    className={`p-1.5 rounded-full transition-all ${
+                        isImportant
+                            ? 'text-amber-500 bg-amber-50 dark:bg-amber-500/20 ring-1 ring-amber-400/40 shadow-xs'
+                            : 'text-gray-300 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-white/10'
+                    }`}
+                    title={isImportant ? 'Wichtig entfernen' : 'Als wichtig markieren'}
+                >
+                    <Star size={14} className={isImportant ? 'fill-amber-500 stroke-amber-500' : ''} />
+                </button>
+                {/* Cancel icon - clearly visually highlighted when active */}
+                <button
+                    type="button"
                     onClick={() => setIsCancelled(!isCancelled)}
-                    className={`p-1.5 rounded-full transition-all ${isCancelled ? 'text-gray-500 bg-gray-100 dark:bg-white/10' : 'text-gray-300 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-white/10'}`}
+                    className={`p-1.5 rounded-full transition-all ${
+                        isCancelled
+                            ? 'text-red-600 bg-red-100 dark:bg-red-500/25 ring-1 ring-red-400/50 shadow-xs font-bold'
+                            : 'text-gray-300 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-white/10'
+                    }`}
                     title={isCancelled ? 'Absage rückgängig' : 'Termin absagen'}
                 >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
-                    </svg>
+                    <Ban size={14} />
                 </button>
                 {/* Delete icon */}
                 <button
-                    onClick={() => { onEventDelete && onEventDelete(event.id); }}
+                    type="button"
+                    onClick={() => { onEventDelete?.(event.id); }}
                     className="p-1.5 rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all"
                     title="Löschen"
                 >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                    </svg>
+                    <Trash2 size={14} />
                 </button>
                 {/* Close icon */}
-                <button onClick={handleClose} className="p-1.5 rounded-full text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
+                <button 
+                    type="button"
+                    onClick={handleClose} 
+                    className="p-1.5 rounded-full text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
+                    title="Schließen"
+                >
+                    <X size={14} />
                 </button>
             </div>
 
@@ -238,28 +341,20 @@ export default function EventPopover({
             )}
 
             {/* Time & Date */}
-            <div className="flex items-center justify-between bg-gray-50/60 dark:bg-white/5 rounded-xl px-3 py-2 border border-gray-100/50 dark:border-white/5">
+            <div className="flex items-center justify-between bg-gray-50/70 dark:bg-white/5 rounded-xl px-3 py-2 border border-gray-100/50 dark:border-white/5">
                 <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
                     {format(new Date(event.start), "d. MMM yyyy")}
                 </span>
-                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                    {/* Wichtig Toggle */}
-                    <button 
-                        onClick={() => setIsImportant(!isImportant)}
-                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${isImportant ? 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30' : 'bg-white dark:bg-white/5 text-gray-400 border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/10'}`}
-                    >
-                        <div className={`w-2 h-2 rounded-full ${isImportant ? 'bg-amber-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
-                        Wichtig
-                    </button>
+                <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                     {event.allDay ? (
-                        <span className="font-bold uppercase tracking-wider text-[10px] bg-gray-200 dark:bg-white/10 px-2 py-0.5 rounded-full">Ganztägig</span>
+                        <span className="font-bold uppercase tracking-wider text-[10px] bg-gray-200/80 dark:bg-white/10 px-2 py-0.5 rounded-full">Ganztägig</span>
                     ) : (
                         <>
-                            <svg className="w-3 h-3 ml-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            <Clock size={12} className="text-gray-400 dark:text-gray-500" />
                             <span className="font-medium">{format(new Date(event.start), "HH:mm")}</span>
                             <span className="text-gray-300 dark:text-gray-600">→</span>
                             <span className="font-medium">{format(new Date(event.end), "HH:mm")}</span>
-                            <span className="text-[10px] text-gray-400 bg-gray-200/70 dark:bg-white/10 px-1.5 py-0.5 rounded-full font-bold ml-1">
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 bg-gray-200/70 dark:bg-white/10 px-1.5 py-0.5 rounded-full font-bold ml-0.5">
                                 {(() => { const m = Math.round((new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000); return m >= 60 ? `${Math.floor(m / 60)}h${m % 60 > 0 ? ` ${m % 60}m` : ''}` : `${m}m`; })()}
                             </span>
                         </>
@@ -271,60 +366,86 @@ export default function EventPopover({
             <div className="grid grid-cols-2 gap-2">
                 <div className="flex flex-col gap-1">
                     <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest px-1">Theme</span>
-                    <div className="relative">
-                        <select
-                            value={event.parent_id || 'general-theme'}
-                            onChange={(e) => { const val = e.target.value === 'general-theme' ? null : e.target.value; onEventSave(event.id, { parent_id: val }); }}
-                            className="w-full bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-300 outline-none cursor-pointer appearance-none hover:bg-gray-100 dark:hover:bg-white/10 transition-all"
-                        >
-                            <option value="general-theme">Kein Theme</option>
-                            {themes.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
-                        </select>
-                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                        </div>
-                    </div>
+                    <ModernDropdown
+                        value={event.parent_id || 'general-theme'}
+                        options={[
+                            { value: 'general-theme', label: 'Kein Theme' },
+                            ...themes.map(t => ({ value: t.id, label: t.title, color: t.color }))
+                        ]}
+                        onChange={(val) => {
+                            const nextParent = val === 'general-theme' ? null : val;
+                            onEventSave(event.id, { parent_id: nextParent });
+                        }}
+                        placeholder="Kein Theme"
+                    />
                 </div>
                 <div className="flex flex-col gap-1">
                     <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest px-1">Wiederholen</span>
-                    <div className="flex items-center bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl pr-2 hover:bg-gray-100 dark:hover:bg-white/10 transition-all">
-                        <select
-                            value={freq}
-                            onChange={(e) => updateRecurrence(e.target.value, interval)}
-                            className="flex-1 bg-transparent border-none text-xs font-bold text-gray-700 dark:text-gray-300 outline-none cursor-pointer appearance-none px-3 py-1.5"
-                        >
-                            <option value="none">Nie</option>
-                            <option value="daily">Täglich</option>
-                            <option value="weekly">Wöchentlich</option>
-                            <option value="monthly">Monatlich</option>
-                            <option value="yearly">Jährlich</option>
-                        </select>
-                        {freq !== 'none' && (
-                            <input type="number" min="1" max="99" value={interval} onChange={(e) => { let v = parseInt(e.target.value, 10); if (isNaN(v) || v < 1) v = 1; updateRecurrence(freq, v); }}
-                                className="w-5 text-center bg-transparent border-none p-0 text-[10px] font-bold text-violet-500 font-mono outline-none" />
-                        )}
-                    </div>
+                    <ModernDropdown
+                        value={freq}
+                        options={[
+                            { value: 'none', label: 'Nie' },
+                            { value: 'daily', label: 'Täglich' },
+                            { value: 'weekly', label: 'Wöchentlich' },
+                            { value: 'monthly', label: 'Monatlich' },
+                            { value: 'yearly', label: 'Jährlich' }
+                        ]}
+                        onChange={(val) => updateRecurrence(val, interval)}
+                        placeholder="Nie"
+                    />
                 </div>
             </div>
             {freq !== 'none' && (
-                <div className="flex flex-col gap-1 -mt-1">
+                <div className="flex items-center justify-between px-1 -mt-1 text-[11px] text-gray-500 dark:text-gray-400 font-medium">
+                    <span>Intervall:</span>
+                    <div className="flex items-center gap-1.5">
+                        <span>Alle</span>
+                        <input 
+                            type="number" 
+                            min="1" 
+                            max="99" 
+                            value={interval} 
+                            onChange={(e) => { 
+                                let v = parseInt(e.target.value, 10); 
+                                if (isNaN(v) || v < 1) v = 1; 
+                                updateRecurrence(freq, v); 
+                            }}
+                            className="w-8 text-center bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-md py-0.5 text-xs font-bold text-violet-500 font-mono outline-none focus:ring-1 focus:ring-violet-500" 
+                        />
+                        <span>{freq === 'daily' ? 'Tag(e)' : freq === 'weekly' ? 'Woche(n)' : freq === 'monthly' ? 'Monat(e)' : 'Jahr(e)'}</span>
+                    </div>
+                </div>
+            )}
+            {freq !== 'none' && (
+                <div className="flex flex-col gap-1 -mt-0.5">
                     <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest px-1">Endet am (Optional)</span>
-                    <input 
-                        type="date"
-                        value={recurrenceEnd ? format(new Date(recurrenceEnd), 'yyyy-MM-dd') : ''}
-                        onChange={(e) => {
-                            // Convert back to full ISO string with proper end of day if they pick a date
-                            if (e.target.value) {
-                                const d = new Date(e.target.value);
-                                d.setHours(23, 59, 59, 999);
-                                setRecurrenceEnd(d.toISOString());
-                            } else {
-                                setRecurrenceEnd('');
-                            }
-                        }}
-                        onBlur={() => handleSave()}
-                        className="bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-300 outline-none w-full"
-                    />
+                    <div className="relative flex items-center">
+                        <input 
+                            type="date"
+                            value={recurrenceEnd ? format(new Date(recurrenceEnd), 'yyyy-MM-dd') : ''}
+                            onChange={(e) => {
+                                if (e.target.value) {
+                                    const d = new Date(e.target.value);
+                                    d.setHours(23, 59, 59, 999);
+                                    setRecurrenceEnd(d.toISOString());
+                                } else {
+                                    setRecurrenceEnd('');
+                                }
+                            }}
+                            onBlur={() => handleSave()}
+                            className="bg-gray-50/80 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl px-2.5 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-300 outline-none w-full [color-scheme:light_dark] cursor-pointer hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                        />
+                        {recurrenceEnd && (
+                            <button
+                                type="button"
+                                onClick={() => { setRecurrenceEnd(''); handleSave(); }}
+                                className="absolute right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-0.5 rounded-full"
+                                title="Datum löschen"
+                            >
+                                <X size={12} />
+                            </button>
+                        )}
+                    </div>
                 </div>
             )}
 
