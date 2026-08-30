@@ -192,6 +192,24 @@ export default function Sidebar({
         onFileSelect(fileId, title);
     };
 
+    const handleProtectedTabSelect = (tabId: string, tabType: any) => {
+        if (tabType === 'file') {
+            const target = files.find(f => f.id === tabId);
+            const settings = target?.metadata?.security_settings || (target?.metadata?.has_custom_password ? target?.metadata : null);
+            if (settings?.has_custom_password && !isItemUnlocked(tabId, settings)) {
+                setPinPromptItem({
+                    id: tabId,
+                    title: target?.title || 'Notiz',
+                    type: (target?.type as any) || 'note',
+                    metadata: target?.metadata,
+                    onUnlocked: () => onTabSelect?.(tabId, tabType)
+                });
+                return;
+            }
+        }
+        onTabSelect?.(tabId, tabType);
+    };
+
     const userProfile = propProfile || sidebarUserProfile;
 
     const topLevelItems = useMemo(() => {
@@ -434,7 +452,7 @@ export default function Sidebar({
                                                 transition={{ type: 'spring', stiffness: 500, damping: 38 }}
                                             >
                                                 <div
-                                                    onClick={() => onTabSelect?.(tab.id, tab.type)}
+                                                    onClick={() => handleProtectedTabSelect(tab.id, tab.type)}
                                                     onContextMenu={(e) => {
                                                         if (tab.type === 'file') {
                                                             handleContextMenu(e, tab.id, 'file');
@@ -452,6 +470,11 @@ export default function Sidebar({
                                                                 ? <User size={14} />
                                                                 : <FileText size={14} />}
                                                     </div>
+                                                    {files.some(f => f.id === tab.id && (f.metadata?.has_custom_password || f.metadata?.security_settings?.has_custom_password)) && (
+                                                        <span title="PIN-geschützt" className="shrink-0 inline-flex items-center">
+                                                            <Lock size={12} className="text-amber-500" />
+                                                        </span>
+                                                    )}
                                                     <span className="text-[13px] text-[var(--text-body)] truncate flex-1 min-w-0">
                                                         {tab.title && tab.title !== 'Untitled'
                                                             ? tab.title
@@ -543,25 +566,58 @@ export default function Sidebar({
                                 </div>
                             </button>
                             {isSharedFolderOpen && (
-                                <div className="ml-3 mt-0.5 space-y-0.5">
-                                    {sharedWithMeItems.map((item) => (
-                                        <FileItem
-                                            key={item.id}
-                                            file={item}
-                                            level={0}
-                                            onSelect={handleProtectedSelect}
-                                            onDelete={onDeleteNote}
-                                            onRename={onRenameNote}
-                                            onVisibility={onToggleVisibility}
-                                            onShare={onShare}
-                                            editingId={editingFileId}
-                                            onRenameSubmit={onRenameSubmit}
-                                            onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
-                                            enabledExtensions={enabledExtensions}
-                                            myId={myId}
-                                            onContextMenu={handleContextMenu}
-                                        />
-                                    ))}
+                                <div className="ml-1 mt-0.5 space-y-0.5 border-l border-violet-200/60 dark:border-violet-800/40 pl-1.5">
+                                    {(() => {
+                                        const topShared = sharedWithMeItems.filter(f => !f.parent_id || !sharedWithMeItems.some(p => p.id === f.parent_id));
+                                        return topShared.map((item) => (
+                                            item.type === 'folder' ? (
+                                                <FolderItem
+                                                    key={item.id}
+                                                    folder={item}
+                                                    allFiles={files}
+                                                    level={0}
+                                                    viewMode={'files'}
+                                                    onSelect={handleProtectedSelect}
+                                                    onDelete={onDeleteNote}
+                                                    onRename={onRenameNote}
+                                                    onVisibility={onToggleVisibility}
+                                                    onShare={onShare}
+                                                    editingId={editingFileId}
+                                                    onRenameSubmit={onRenameSubmit}
+                                                    onCreateFolder={onCreateFolder}
+                                                    onMoveItem={onMoveItem}
+                                                    onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
+                                                    hiddenThemeIds={hiddenThemeIds}
+                                                    onToggleThemeVisibility={(id) => onToggleThemeVisibility && onToggleThemeVisibility(id)}
+                                                    enabledExtensions={enabledExtensions}
+                                                    myId={myId}
+                                                    onContextMenu={handleContextMenu}
+                                                    dropIndicator={dropIndicator}
+                                                    setDropIndicator={setDropIndicator}
+                                                    orderedNoteIds={orderedNoteIds}
+                                                    setOrderedNoteIds={setOrderedNoteIds}
+                                                    handleReorder={handleReorder}
+                                                />
+                                            ) : (
+                                                <FileItem
+                                                    key={item.id}
+                                                    file={item}
+                                                    level={0}
+                                                    onSelect={handleProtectedSelect}
+                                                    onDelete={onDeleteNote}
+                                                    onRename={onRenameNote}
+                                                    onVisibility={onToggleVisibility}
+                                                    onShare={onShare}
+                                                    editingId={editingFileId}
+                                                    onRenameSubmit={onRenameSubmit}
+                                                    onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
+                                                    enabledExtensions={enabledExtensions}
+                                                    myId={myId}
+                                                    onContextMenu={handleContextMenu}
+                                                />
+                                            )
+                                        ));
+                                    })()}
                                 </div>
                             )}
                         </div>

@@ -3,15 +3,17 @@ package api
 import (
 	"log"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for now
+		return true // Allow all origins for web app clients
 	},
 }
 
@@ -32,6 +34,13 @@ type Client struct {
 	fileID string
 	userID string
 	conn   *websocket.Conn
+	wmu    sync.Mutex
+}
+
+func (c *Client) writeMessage(messageType int, data []byte) error {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	return c.conn.WriteMessage(messageType, data)
 }
 
 func (h *Hub) addClient(c *Client) {
@@ -41,7 +50,7 @@ func (h *Hub) addClient(c *Client) {
 		h.rooms[c.fileID] = make(map[*Client]bool)
 	}
 	h.rooms[c.fileID][c] = true
-	log.Printf("WS Client joined room %s (Total: %d)", c.fileID, len(h.rooms[c.fileID]))
+	log.Printf("[WebSocket] Client joined room %s (Total in room: %d)", c.fileID, len(h.rooms[c.fileID]))
 }
 
 func (h *Hub) removeClient(c *Client) {
@@ -51,8 +60,9 @@ func (h *Hub) removeClient(c *Client) {
 		delete(h.rooms[c.fileID], c)
 		if len(h.rooms[c.fileID]) == 0 {
 			delete(h.rooms, c.fileID)
+			log.Printf("[WebSocket] Room %s closed (empty)", c.fileID)
 		} else {
-			log.Printf("WS Client left room %s (Remaining: %d)", c.fileID, len(h.rooms[c.fileID]))
+			log.Printf("[WebSocket] Client left room %s (Remaining: %d)", c.fileID, len(h.rooms[c.fileID]))
 		}
 	}
 }
@@ -65,9 +75,9 @@ func (h *Hub) broadcast(sender *Client, message []byte) {
 	for client := range room {
 		if client != sender {
 			// Broadcast to everyone else in the room
-			err := client.conn.WriteMessage(websocket.BinaryMessage, message)
+			err := client.writeMessage(websocket.BinaryMessage, message)
 			if err != nil {
-				log.Printf("WS error writing to client: %v", err)
+				log.Printf("[WebSocket] Error writing to client %s: %v", client.userID, err)
 				client.conn.Close()
 			}
 		}
@@ -83,18 +93,36 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 
 	userID, ok := r.Context().Value("user_id").(string)
 	if !ok || userID == "" {
-		// Allow anonymous connections for public files, but limit what they can do
-		// Wait, for this MVP we allow it if the frontend requested it.
-		// Usually the frontend sends authentication via query param for WebSockets.
-		userID = r.URL.Query().Get("user_id")
+		tokenStr := r.URL.Query().Get("token")
+		if tokenStr != "" {
+			jwtKeyStr := os.Getenv("JWT_SECRET")
+			if jwtKeyStr != "" {
+				token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+					if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+						return nil, http.ErrAbortHandler
+					}
+					return []byte(jwtKeyStr), nil
+				})
+				if err == nil && token.Valid {
+					if claims, ok := token.Claims.(jwt.MapClaims); ok {
+						if sub, ok := claims["sub"].(string); ok && sub != "" {
+							userID = sub
+						}
+					}
+				}
+			}
+		}
 		if userID == "" {
-			userID = "anonymous"
+			userID = r.URL.Query().Get("user_id")
+			if userID == "" {
+				userID = "anonymous"
+			}
 		}
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Println("WS Upgrade error:", err)
+		log.Println("[WebSocket] Upgrade error:", err)
 		return
 	}
 
@@ -117,11 +145,11 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 			_, message, err := client.conn.ReadMessage()
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					log.Printf("WS Read error: %v", err)
+					log.Printf("[WebSocket] Read error: %v", err)
 				}
 				break
 			}
-			// Yjs updates are binary, broadcast them to the room
+			// Yjs updates are binary, broadcast them directly to all other room members
 			client.hub.broadcast(client, message)
 		}
 	}()

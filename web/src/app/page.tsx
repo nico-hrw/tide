@@ -2863,7 +2863,13 @@ export default function Dashboard() {
         setShareModalFile({ id: baseId, title: file.title, type: (file as any).type });
     };
 
-    const performShare = async (recipientId: string, recipientEmail: string, recipientPubKeySpki: string, permission: 'view' | 'edit' | 'share' = 'view') => {
+    const performShare = async (
+        recipientId: string, 
+        recipientEmail: string, 
+        recipientPubKeySpki: string, 
+        permission: 'view' | 'edit' | 'share' = 'view',
+        dependencyFileIds: string[] = []
+    ) => {
         if (!shareModalFile || !privateKey || !publicKey) return;
 
         // Note: upload_progress push removed — sending a note/event should not
@@ -2894,6 +2900,7 @@ export default function Dashboard() {
                 recipientEmail,
                 recipientPubKeySpki,
                 permission,
+                dependencyFileIds
             );
         }
 

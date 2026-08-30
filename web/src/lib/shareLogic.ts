@@ -11,7 +11,8 @@ export async function performMessengerShare(
     recipientId: string,
     recipientEmail: string,
     recipientPubKeySpki: string,
-    permission: 'view' | 'edit' | 'share' = 'view'
+    permission: 'view' | 'edit' | 'share' = 'view',
+    dependencyFileIds: string[] = []
 ) {
     if (!shareModalFile || !privateKey || !publicKey) {
         throw new Error("Invalid state");
@@ -64,6 +65,38 @@ export async function performMessengerShare(
         if (!shareRes.ok) {
             const errText = await shareRes.text();
             throw new Error(`Failed to share file: ${shareRes.status} - ${errText}`);
+        }
+
+        // 3b. Batch-share selected dependency files/assets
+        if (dependencyFileIds && dependencyFileIds.length > 0) {
+            for (const depId of dependencyFileIds) {
+                try {
+                    const depRes = await apiFetch(`/api/v1/files/${depId}`);
+                    if (!depRes.ok) continue;
+                    const depFile = await depRes.json().catch(() => null);
+                    if (!depFile) continue;
+
+                    const depAccessKeys = typeof depFile.access_keys === 'string' ? JSON.parse(depFile.access_keys) : (depFile.access_keys || {});
+                    const depMyAccess = depAccessKeys[myId];
+                    if (!depMyAccess || !depMyAccess.wrapped_key) continue;
+
+                    const depRawDek = await cryptoV2.unwrapDEKData(depMyAccess.wrapped_key, privateKey);
+                    const depRecipientWrapped = await cryptoV2.wrapDEKData(depRawDek, recipientPubKey);
+
+                    await apiFetch(`/api/v1/files/${depId}/share`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            recipient_id: recipientId,
+                            email: recipientEmail,
+                            secured_meta: depRecipientWrapped.ciphertext,
+                            permission,
+                        })
+                    });
+                } catch (depErr) {
+                    console.warn(`[Share] Failed to share dependency ${depId}:`, depErr);
+                }
+            }
         }
 
         // Build a readable share-card payload for the chat. Events get start/end metadata.

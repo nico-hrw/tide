@@ -192,21 +192,40 @@ export default function Editor(props: EditorProps) {
     return <CollaborativeEditor {...props} />;
 }
 
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+    let binary = '';
+    const len = bytes.byteLength;
+    const chunkSize = 0x8000;
+    for (let i = 0; i < len; i += chunkSize) {
+        binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunkSize)));
+    }
+    return btoa(binary);
+}
+
 function CollaborativeEditor({ initialContent, editable = true, onChange, onLinkClick, onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady, onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick, onEventClick, onActiveUsersChange, userProfile, myId }: EditorProps) {
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
     const [showBackups, setShowBackups] = useState(false);
 
-    const [ydoc] = useState(() => new Y.Doc());
-    const [provider] = useState<WebsocketProvider | null>(() => {
-        if (typeof window === 'undefined') return null;
+    const [ydoc, setYdoc] = useState(() => new Y.Doc());
+    const [provider, setProvider] = useState<WebsocketProvider | null>(null);
+    const contentInitialized = useRef(false);
+    const syncTimedOutRef = useRef(false);
+    const [isSynced, setIsSynced] = useState(false);
+
+    useEffect(() => {
         if (!activeTabId || 
             activeTabId.startsWith('chat-') || 
             activeTabId.startsWith('profile:') || 
             ['calendar', 'messages', 'social', 'ext_finance'].includes(activeTabId)) {
-            return null;
+            setProvider(null);
+            return;
         }
 
+        const doc = new Y.Doc();
+        setYdoc(doc);
+
         const userId = myId || useDataStore.getState().myId || 'anonymous';
+        const token = sessionStorage.getItem('tide_session_token') || localStorage.getItem('tide_session_token') || '';
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host;
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
@@ -219,24 +238,19 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
         }
         
         const wsUrl = `${protocol}//${wsHost}/api/v1/files/${activeTabId}`;
-        
-        return new WebsocketProvider(wsUrl, 'ws', ydoc, {
-            params: { user_id: userId }
+        const wsProvider = new WebsocketProvider(wsUrl, 'ws', doc, {
+            params: { user_id: userId, token: token }
         });
-    });
-    const contentInitialized = useRef(false);
-    const syncTimedOutRef = useRef(false);
-    const [isSynced, setIsSynced] = useState(false);
 
-    useEffect(() => {
+        setProvider(wsProvider);
+
         return () => {
-            if (provider) {
-                provider.destroy();
-            }
+            wsProvider.destroy();
+            doc.destroy();
             contentInitialized.current = false;
             syncTimedOutRef.current = false;
         };
-    }, [provider]);
+    }, [activeTabId, myId]);
 
     useEffect(() => {
         if (!provider) return;
@@ -488,18 +502,9 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
 
             const content = editor.getJSON();
             if (onChangeRef.current) {
-                // Encode the Yjs state as a binary update
+                // Encode the Yjs state as a binary update efficiently
                 const update = Y.encodeStateAsUpdate(ydoc);
-                
-                // Convert Uint8Array to base64 efficiently
-                let binary = '';
-                const bytes = new Uint8Array(update);
-                const len = bytes.byteLength;
-                for (let i = 0; i < len; i++) {
-                    binary += String.fromCharCode(bytes[i]);
-                }
-                const base64Update = btoa(binary);
-
+                const base64Update = uint8ArrayToBase64(new Uint8Array(update));
                 onChangeRef.current(content, base64Update);
             }
 
