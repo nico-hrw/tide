@@ -419,7 +419,7 @@ export default function Sidebar({
 
                 {/* RECENT Section */}
                 <div className="py-2">
-                    <p className="text-[11px] font-medium uppercase tracking-[1px] text-[var(--text-subtle)] px-2 mb-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-[1.2px] text-gray-700 dark:text-slate-300 px-2 mb-1">
                         Recent
                     </p>
                     {(!openTabs || openTabs.filter(t => ['file', 'chat', 'profile'].includes(t.type)).length === 0) ? (
@@ -501,7 +501,7 @@ export default function Sidebar({
 
             {/* Notes label — outside scrollable area so it stays visible while scrolling */}
             <div className="flex-shrink-0 px-4 pt-2 pb-1">
-                <p className="text-[11px] font-medium uppercase tracking-[1px] text-[var(--text-subtle)]">
+                <p className="text-[11px] font-semibold uppercase tracking-[1.2px] text-gray-700 dark:text-slate-300">
                     Notes
                 </p>
             </div>
@@ -553,10 +553,17 @@ export default function Sidebar({
                         <div className="mb-1">
                             <button
                                 onClick={() => setIsSharedFolderOpen(o => !o)}
-                                className="group flex items-center justify-between w-full p-2 rounded-lg hover:bg-[var(--hover-bg)] interactive-hover transition-colors"
+                                className="group flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover transition-colors"
                             >
-                                <div className="flex items-center gap-2 truncate flex-1">
-                                    {isSharedFolderOpen ? <FolderOpen size={15} className="text-violet-400" /> : <Folder size={15} className="text-violet-400" />}
+                                <div className="flex items-center gap-1.5 truncate flex-1">
+                                    <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300 transition-colors">
+                                        {isSharedFolderOpen ? (
+                                            <ChevronDown size={12} className="shrink-0 transition-transform duration-150" />
+                                        ) : (
+                                            <ChevronRight size={12} className="shrink-0 transition-transform duration-150" />
+                                        )}
+                                    </span>
+                                    {isSharedFolderOpen ? <FolderOpen size={15} className="text-violet-400 shrink-0" /> : <Folder size={15} className="text-violet-400 shrink-0" />}
                                     <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">Geteilt mit mir</span>
                                     {pendingShareCount > 0 && (
                                         <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
@@ -566,7 +573,7 @@ export default function Sidebar({
                                 </div>
                             </button>
                             {isSharedFolderOpen && (
-                                <div className="ml-1 mt-0.5 space-y-0.5 border-l border-violet-200/60 dark:border-violet-800/40 pl-1.5">
+                                <div className="relative mt-0.5 ml-3 pl-2.5 border-l border-violet-200/60 dark:border-violet-800/40 space-y-0.5">
                                     {(() => {
                                         const topShared = sharedWithMeItems.filter(f => !f.parent_id || !sharedWithMeItems.some(p => p.id === f.parent_id));
                                         return topShared.map((item) => (
@@ -597,6 +604,7 @@ export default function Sidebar({
                                                     orderedNoteIds={orderedNoteIds}
                                                     setOrderedNoteIds={setOrderedNoteIds}
                                                     handleReorder={handleReorder}
+                                                    activeTabId={activeTabId}
                                                 />
                                             ) : (
                                                 <FileItem
@@ -614,6 +622,7 @@ export default function Sidebar({
                                                     enabledExtensions={enabledExtensions}
                                                     myId={myId}
                                                     onContextMenu={handleContextMenu}
+                                                    activeTabId={activeTabId}
                                                 />
                                             )
                                         ));
@@ -721,6 +730,7 @@ export default function Sidebar({
                                         orderedNoteIds={orderedNoteIds}
                                         setOrderedNoteIds={setOrderedNoteIds}
                                         handleReorder={handleReorder}
+                                        activeTabId={activeTabId}
                                     />
                                 </div>
                             ) : (
@@ -738,6 +748,7 @@ export default function Sidebar({
                                     enabledExtensions={enabledExtensions}
                                     myId={myId}
                                     onContextMenu={handleContextMenu}
+                                    activeTabId={activeTabId}
                                 />
                             )}
                         </motion.div>
@@ -1011,12 +1022,17 @@ interface FileItemProps {
     enabledExtensions?: string[];
     myId?: string;
     index?: number;
+    activeTabId?: string;
 }
 
-const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onDragStart, onContextMenu, enabledExtensions, myId, index }: FileItemProps) => {
+const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onDragStart, onContextMenu, enabledExtensions, myId, index, activeTabId }: FileItemProps) => {
     const { isHighlighted, highlight } = useHighlight();
     const startGhost = useDragGhost(s => s.startGhost);
     const [isCalendarDropTarget, setIsCalendarDropTarget] = useState(false);
+    const activeNoteId = useDataStore(s => s.activeNoteId);
+
+    // Active state: activeTabId, activeNoteId in store, or "tide plan" note
+    const isActive = activeTabId === file.id || activeNoteId === file.id || (file.title && file.title.toLowerCase().trim() === 'tide plan');
 
     // Custom-drag detection: the calendar's main drag uses mousedown/mousemove,
     // not HTML5 DnD, so onDragOver never fires. We listen for the global custom
@@ -1122,12 +1138,16 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                     onSelect(file.id, file.title);
                 }
             }}
-            className={`group flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-all duration-200
+            className={`group flex items-center justify-between w-full px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-150
                 ${isCalendarDropTarget ? 'ring-2 ring-violet-400 bg-violet-50 dark:bg-violet-900/20' : ''}
-                ${isHighlighted(file.id, 'file') ? 'bg-purple-50 dark:bg-purple-900/20' : 'hover:bg-[var(--hover-bg)] interactive-hover'}
+                ${isActive
+                    ? 'bg-[#EBF5FF] dark:bg-blue-950/40 text-blue-950 dark:text-blue-100 font-medium'
+                    : isHighlighted(file.id, 'file')
+                        ? 'bg-purple-50 dark:bg-purple-900/20'
+                        : 'hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover text-gray-700 dark:text-gray-300'
+                }
                 ${highlight.isSelectingLink ? 'bg-purple-50/30 dark:bg-purple-900/10' : ''}`}
             style={{
-                marginLeft: `${level * 12}px`,
                 boxShadow: highlight.isSelectingLink
                     ? '0 0 10px rgba(168, 85, 247, 0.6)'
                     : (isHighlighted(file.id, 'file') ? '0 0 5px rgba(168, 85, 247, 0.4)' : 'none')
@@ -1135,10 +1155,10 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
         >
             <div className="flex items-center gap-2 truncate flex-1 flex-shrink-0">
                 {file.title.startsWith('#')
-                    ? <Lock size={15} className="shrink-0 text-gray-400" />
+                    ? <Lock size={15} className={`shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
                     : file.type === 'canvas'
-                        ? <Layout size={15} className="shrink-0 text-gray-400" />
-                        : <FileText size={15} className="shrink-0 text-gray-400" />}
+                        ? <Layout size={15} className={`shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
+                        : <FileText size={15} className={`shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />}
                 {(file.metadata?.has_custom_password || file.metadata?.security_settings?.has_custom_password) && (
                     <span title="PIN-geschützt" className="shrink-0 inline-flex items-center">
                         <Lock size={13} className="text-amber-500" />
@@ -1158,7 +1178,11 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                         className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-1 text-sm outline-none text-gray-900 dark:text-gray-100"
                     />
                 ) : (
-                    <span className={`text-sm text-gray-600 dark:text-gray-400 truncate font-medium group-hover:text-gray-800 dark:group-hover:text-gray-200 transition-colors ${file.owner_id && myId && file.owner_id !== myId ? 'purple-shimmer-text' : ''}`}>
+                    <span className={`text-sm truncate transition-colors ${
+                        isActive
+                            ? 'text-blue-950 dark:text-blue-100 font-semibold'
+                            : 'text-gray-700 dark:text-gray-300 font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100'
+                    } ${file.owner_id && myId && file.owner_id !== myId ? 'purple-shimmer-text' : ''}`}>
                         {file.title.startsWith('#') ? file.title.slice(1).trim() : file.title}
                     </span>
                 )}
@@ -1193,9 +1217,10 @@ interface FolderItemProps {
     orderedNoteIds?: string[];
     setOrderedNoteIds?: (ids: string[]) => void;
     handleReorder?: (newItems: DecryptedFile[]) => void;
+    activeTabId?: string;
 }
 
-const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onCreateFolder, onMoveItem, onDragStart, onContextMenu, viewMode, enabledExtensions, myId, index, dropIndicator, setDropIndicator, orderedNoteIds, setOrderedNoteIds, handleReorder }: FolderItemProps) => {
+const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onCreateFolder, onMoveItem, onDragStart, onContextMenu, viewMode, enabledExtensions, myId, index, dropIndicator, setDropIndicator, orderedNoteIds, setOrderedNoteIds, handleReorder, activeTabId }: FolderItemProps) => {
     const [isLoading, setIsLoading] = useState(false);
     const children = allFiles.filter(f => f.parent_id === folder.id);
     const { highlight } = useHighlight();
@@ -1248,16 +1273,22 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                     if (id && id !== folder.id) onMoveItem?.(id, folder.id);
                 } : undefined}
                 onClick={handleToggle}
-                className={`group flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-all duration-200 hover:bg-[var(--hover-bg)] interactive-hover`}
-                style={{ marginLeft: `${level * 12}px` }}
+                className={`group flex items-center justify-between w-full px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-150 hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover`}
             >
-                <div className="flex items-center gap-2 truncate flex-1">
+                <div className="flex items-center gap-1.5 truncate flex-1">
+                    <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300 transition-colors">
+                        {isOpen ? (
+                            <ChevronDown size={12} className="shrink-0 transition-transform duration-150" />
+                        ) : (
+                            <ChevronRight size={12} className="shrink-0 transition-transform duration-150" />
+                        )}
+                    </span>
                     {isLoading ? (
-                        <Loader2 size={15} className="text-gray-400 animate-spin" />
+                        <Loader2 size={15} className="text-gray-400 animate-spin shrink-0" />
                     ) : isOpen ? (
-                        <FolderOpen size={15} className="text-gray-400 dark:text-slate-500" />
+                        <FolderOpen size={15} className="text-gray-400 dark:text-slate-500 shrink-0" />
                     ) : (
-                        <Folder size={15} className="text-gray-400 dark:text-slate-500" />
+                        <Folder size={15} className="text-gray-400 dark:text-slate-500 shrink-0" />
                     )}
                     {(folder.metadata?.has_custom_password || folder.metadata?.security_settings?.has_custom_password) && (
                         <span title="PIN-geschützt" className="shrink-0 inline-flex items-center">
@@ -1285,7 +1316,7 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                 </div>
             </motion.div>
             {isOpen && (
-                <div className="mt-0.5">
+                <div className="relative mt-0.5 ml-3 pl-2.5 border-l border-gray-200/90 dark:border-white/10 space-y-0.5">
                     {children
                         .sort((a, b) => {
                             if (!orderedNoteIds) return 0;
@@ -1406,6 +1437,7 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                                             orderedNoteIds={orderedNoteIds}
                                             setOrderedNoteIds={setOrderedNoteIds}
                                             handleReorder={handleReorder}
+                                            activeTabId={activeTabId}
                                         />
                                     </div>
                                 ) : (
@@ -1424,6 +1456,7 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                                         onContextMenu={onContextMenu}
                                         enabledExtensions={enabledExtensions}
                                         myId={myId}
+                                        activeTabId={activeTabId}
                                     />
                                 )}
                             </motion.div>

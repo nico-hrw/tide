@@ -63,7 +63,7 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
 
             <div className="grid grid-cols-7 gap-0.5 text-center mb-1">
                 {weekDays.map(day => (
-                    <div key={day} className="text-[9px] font-semibold text-gray-800 dark:text-gray-100 uppercase tracking-[0.5px]">
+                    <div key={day} className="text-[9px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-[0.5px]">
                         {day}
                     </div>
                 ))}
@@ -82,13 +82,13 @@ export default function MiniCalendar({ selectedDate, onSelect }: { selectedDate?
                     let className = "text-[11px] w-6 h-6 flex items-center justify-center cursor-pointer transition-all relative";
 
                     if (!isCurrentMonth) {
-                        className += " text-gray-400 dark:text-gray-500 font-medium rounded-full hover:bg-black/5 dark:hover:bg-white/10";
+                        className += " text-neutral-400 dark:text-neutral-500 font-medium rounded-full hover:bg-black/5 dark:hover:bg-white/10";
                     } else if (isDayToday) {
                         className += " bg-red-500 text-white font-bold rounded-full shadow-xs";
                     } else if (isVisibleInGrid) {
-                        className += " bg-purple-500/10 dark:bg-purple-400/15 text-gray-800 dark:text-gray-100 font-medium rounded-md hover:bg-purple-500/20 dark:hover:bg-purple-400/25";
+                        className += " bg-purple-500/15 dark:bg-purple-400/20 text-neutral-800 dark:text-neutral-100 font-medium rounded-md hover:bg-purple-500/25 dark:hover:bg-purple-400/30";
                     } else {
-                        className += " text-gray-800 dark:text-gray-100 font-medium rounded-full hover:bg-black/5 dark:hover:bg-white/10";
+                        className += " text-neutral-800 dark:text-neutral-200 font-medium rounded-full hover:bg-black/5 dark:hover:bg-white/10";
                     }
 
                     return (
