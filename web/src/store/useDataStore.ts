@@ -792,8 +792,10 @@ export const useDataStore = create<DataState>((set, get) => ({
                         title: f.metadata.title || "Untitled",
                         isLocked: false
                     };
-                    const isOwner = f.owner_id === state.myId;
-                    if (isOwner && f.secured_meta) {
+                    // [COLLAB-FIX] Try decrypting secured_meta for ALL users (owner + shared).
+                    // The backend COALESCE returns the per-user encrypted metadata from file_shares
+                    // for shared users, and the owner's own secured_meta for the owner.
+                    if (f.secured_meta) {
                         const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `v2-${f.id}`);
                         if (!meta.isLocked) {
                             // Decryption succeeded — accept even if title is empty (empty notes are valid)
@@ -806,11 +808,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                             metaData.title = "Locked Note (Decrypting...)";
                             metaData.isLocked = true;
                         }
-                        // Always cache (even failures) to prevent crypto log storms on every fetch
-                        newMetaCache[f.id] = { ...metaData, parent_id: f.parent_id || null };
-                    } else {
-                        newMetaCache[f.id] = { ...metaData, parent_id: f.parent_id || null };
                     }
+                    // Always cache (even failures) to prevent crypto log storms on every fetch
+                    newMetaCache[f.id] = { ...metaData, parent_id: f.parent_id || null };
                 } else if (f.secured_meta) {
                     const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey, `lazy-${f.id}`);
                     if (!meta.isLocked) {
@@ -1022,24 +1022,20 @@ export const useDataStore = create<DataState>((set, get) => ({
                             title: f.metadata.title || "Untitled",
                             isLocked: false
                         };
-                        const isOwner = f.owner_id === state.myId;
-                        if (isOwner && f.secured_meta) {
+                        // [COLLAB-FIX] Try decrypting secured_meta for ALL users (owner + shared).
+                        if (f.secured_meta) {
                             const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey!, `v2-lam-${f.id}`);
                             if (!meta.isLocked) {
                                 metaData = { ...metaData, ...meta, isLocked: false };
-                                newMetaCache[f.id] = metaData;
                             } else if (metaData.title && !metaData.title.includes('Locked Note')) {
                                 // Keep the title we found in unencrypted metadata
                                 metaData.isLocked = true;
-                                newMetaCache[f.id] = metaData;
                             } else {
                                 metaData.title = f.type === 'folder' ? "Untitled" : "Locked Note (Decrypting...)";
                                 metaData.isLocked = true;
-                                newMetaCache[f.id] = metaData;
                             }
-                        } else {
-                            newMetaCache[f.id] = metaData;
                         }
+                        newMetaCache[f.id] = metaData;
                     } else if (f.secured_meta) {
                         const meta = await cryptoLib.decryptMetadata(f.secured_meta, state.privateKey!, `lam-${f.id}`);
                         if (!meta.isLocked) {

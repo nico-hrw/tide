@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/go-chi/chi/v5"
@@ -84,20 +85,37 @@ func (h *Hub) broadcast(sender *Client, message []byte) {
 	}
 }
 
-func ServeWs(w http.ResponseWriter, r *http.Request) {
+func (h *FileHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
 	fileID := chi.URLParam(r, "fileID")
 	if fileID == "" {
 		http.Error(w, "Missing file ID", http.StatusBadRequest)
 		return
 	}
 
-	userID, ok := r.Context().Value("user_id").(string)
-	if !ok || userID == "" {
-		tokenStr := r.URL.Query().Get("token")
-		if tokenStr != "" {
+	var userID string
+	if ctxUserID, ok := r.Context().Value("user_id").(string); ok && ctxUserID != "" {
+		userID = ctxUserID
+	}
+
+	if userID == "" {
+		tokenString := ""
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+		if tokenString == "" {
+			tokenString = r.URL.Query().Get("token")
+		}
+		if tokenString == "" {
+			if cookie, err := r.Cookie("tide_session"); err == nil {
+				tokenString = cookie.Value
+			}
+		}
+
+		if tokenString != "" {
 			jwtKeyStr := os.Getenv("JWT_SECRET")
 			if jwtKeyStr != "" {
-				token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+				token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
 					if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 						return nil, http.ErrAbortHandler
 					}
@@ -112,12 +130,17 @@ func ServeWs(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		if userID == "" {
-			userID = r.URL.Query().Get("user_id")
-			if userID == "" {
-				userID = "anonymous"
-			}
-		}
+	}
+
+	if userID == "" {
+		http.Error(w, "Unauthorized: Authentication required for collaboration", http.StatusUnauthorized)
+		return
+	}
+
+	// [COLLAB-AUTH] Verify that user has access to this file
+	if _, err := h.Store.GetAccessibleFile(r.Context(), fileID, userID); err != nil {
+		http.Error(w, "Forbidden: No access to file", http.StatusForbidden)
+		return
 	}
 
 	conn, err := upgrader.Upgrade(w, r, nil)

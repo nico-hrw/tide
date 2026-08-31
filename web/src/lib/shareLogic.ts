@@ -37,8 +37,8 @@ export async function performMessengerShare(
         );
 
         // 3. True Zero-Knowledge Sharing via DEK unwrapping/wrapping
-        let accessKeysMap = typeof file.access_keys === 'string' ? JSON.parse(file.access_keys) : (file.access_keys || {});
-        let myAccess = accessKeysMap[myId];
+        const accessKeysMap = typeof file.access_keys === 'string' ? JSON.parse(file.access_keys) : (file.access_keys || {});
+        const myAccess = accessKeysMap[myId];
         
         if (!myAccess || !myAccess.wrapped_key) {
             throw new Error("No access key found for the owner. Ensure file is V2 encrypted.");
@@ -49,16 +49,28 @@ export async function performMessengerShare(
         
         // Wrap the DEK using the recipient's public key
         const recipientWrapped = await cryptoV2.wrapDEKData(rawDek, recipientPubKey);
+
+        // [COLLAB-FIX] Encrypt the file title with recipient's public key so they
+        // can see the title in their sidebar. Previously this sent the wrapped DEK
+        // as secured_meta, which made recipient metadata decryption fail.
+        const recipientSecuredMeta = await cryptoLib.encryptMetadata(
+            { title: shareModalFile.title },
+            recipientPubKey
+        );
         
-        // Push the sharing update to the backend
+        // Push the sharing update to the backend.
+        // secured_meta = RSA-encrypted title for the recipient (stored in file_shares).
+        // The backend ShareFile handler atomically inserts the wrapped DEK into
+        // the file's access_keys map via json_set (see files.go L343-356).
         const shareRes = await apiFetch(`/api/v1/files/${fileId}/share`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 recipient_id: recipientId,
                 email: recipientEmail,
-                secured_meta: recipientWrapped.ciphertext, // wrapped DEK for recipient
-                permission,                                // 'view' | 'edit' | 'share'
+                secured_meta: recipientSecuredMeta,   // RSA-encrypted title for recipient
+                wrapped_dek: recipientWrapped.ciphertext, // wrapped DEK for access_keys
+                permission,                            // 'view' | 'edit' | 'share'
             })
         });
 
@@ -83,13 +95,21 @@ export async function performMessengerShare(
                     const depRawDek = await cryptoV2.unwrapDEKData(depMyAccess.wrapped_key, privateKey);
                     const depRecipientWrapped = await cryptoV2.wrapDEKData(depRawDek, recipientPubKey);
 
+                    // Encrypt dep title for recipient
+                    const depTitle = depFile.metadata?.title || depFile.title || 'Untitled';
+                    const depSecuredMeta = await cryptoLib.encryptMetadata(
+                        { title: depTitle },
+                        recipientPubKey
+                    );
+
                     await apiFetch(`/api/v1/files/${depId}/share`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             recipient_id: recipientId,
                             email: recipientEmail,
-                            secured_meta: depRecipientWrapped.ciphertext,
+                            secured_meta: depSecuredMeta,
+                            wrapped_dek: depRecipientWrapped.ciphertext,
                             permission,
                         })
                     });

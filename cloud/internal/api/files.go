@@ -62,7 +62,7 @@ func (h *FileHandler) RegisterRoutes(r chi.Router) {
 	})
 
 	// Register WebSocket endpoint for Live Sync
-	r.Get("/{fileID}/ws", ServeWs)
+	r.Get("/{fileID}/ws", h.ServeWs)
 }
 func (h *FileHandler) broadcastToFileUsers(fileID string, ownerID string, message string) {
 	go h.Broker.Broadcast(ownerID, message)
@@ -280,8 +280,9 @@ func (h *FileHandler) ListPublicFiles(w http.ResponseWriter, r *http.Request) {
 type ShareRequest struct {
 	RecipientID    string `json:"recipient_id"`
 	RecipientEmail string `json:"email"`
-	SecuredMeta    string `json:"secured_meta"`
-	Permission     string `json:"permission"` // 'view' | 'edit' | 'share' (defaults to 'view')
+	SecuredMeta    string `json:"secured_meta"` // RSA-encrypted title for file_shares
+	WrappedDEK     string `json:"wrapped_dek"`  // Wrapped DEK for access_keys (V2)
+	Permission     string `json:"permission"`   // 'view' | 'edit' | 'share' (defaults to 'view')
 }
 
 func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
@@ -340,10 +341,16 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. [V2-FIX] Atomically update the file's access_keys map so the recipient can unwrap the DEK.
-	//    Using json_set avoids the read-modify-write race when two shares happen concurrently.
-	if req.SecuredMeta != "" {
-		wrappedKeyJSON, _ := json.Marshal(map[string]string{"wrapped_key": req.SecuredMeta})
+	// 3. [V2-FIX / COLLAB-FIX] Atomically update the file's access_keys map so
+	//    the recipient can unwrap the DEK. Use `wrapped_dek` if provided (new clients),
+	//    fall back to `secured_meta` for backward compatibility (old clients that sent
+	//    the wrapped DEK as secured_meta).
+	dekToStore := req.WrappedDEK
+	if dekToStore == "" {
+		dekToStore = req.SecuredMeta // backward compat
+	}
+	if dekToStore != "" {
+		wrappedKeyJSON, _ := json.Marshal(map[string]string{"wrapped_key": dekToStore})
 		// recipient.ID is a UUID fetched from DB — safe to use in json_set path.
 		jsonPath := fmt.Sprintf("'$.%s'", recipient.ID)
 		query := fmt.Sprintf(
@@ -714,7 +721,12 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		file.PublicMeta = req.PublicMeta
 	}
 	if req.SecuredMeta != nil {
-		file.SecuredMeta = decodeBase64OrRaw(*req.SecuredMeta)
+		if file.OwnerID == requesterID {
+			file.SecuredMeta = decodeBase64OrRaw(*req.SecuredMeta)
+		} else {
+			// If a collaborator updates secured_meta (e.g. rename), update their own entry in file_shares
+			_, _ = h.Store.DB.ExecContext(r.Context(), `UPDATE file_shares SET secured_meta = ? WHERE file_id = ? AND user_id = ?`, decodeBase64OrRaw(*req.SecuredMeta), id, requesterID)
+		}
 	}
 	if req.Visibility != nil {
 		file.Visibility = *req.Visibility
@@ -725,7 +737,7 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 	if req.Metadata != nil {
 		file.Metadata = req.Metadata
 	}
-	if req.AccessKeys != nil {
+	if req.AccessKeys != nil && file.OwnerID == requesterID {
 		file.AccessKeys = req.AccessKeys
 	}
 	if req.ContentCiphertext != nil {
