@@ -416,87 +416,6 @@ export default function Sidebar({
                     </button>
 
                 </div>
-
-                {/* RECENT Section */}
-                <div className="py-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[1.2px] text-gray-700 dark:text-slate-300 px-2 mb-1">
-                        Recent
-                    </p>
-                    {(!openTabs || openTabs.filter(t => ['file', 'chat', 'profile'].includes(t.type)).length === 0) ? (
-                        <p className="text-[12px] text-[var(--text-subtle)] px-2 py-1.5">Nichts geöffnet</p>
-                    ) : (
-                        <Reorder.Group
-                            axis="y"
-                            values={openTabs.filter(t => ['file', 'chat', 'profile'].includes(t.type))}
-                            onReorder={(newDocs) => {
-                                if (onTabsReorder) {
-                                    const systemTabs = (openTabs || []).filter(t => !['file', 'chat', 'profile'].includes(t.type));
-                                    onTabsReorder([...newDocs, ...systemTabs]);
-                                }
-                            }}
-                            className="flex flex-col gap-1 list-none m-0 p-0"
-                        >
-                            <AnimatePresence initial={false}>
-                                {openTabs
-                                    .filter(t => ['file', 'chat', 'profile'].includes(t.type))
-                                    .map(tab => {
-                                        const isActive = activeTabId === tab.id;
-                                        return (
-                                            <Reorder.Item
-                                                key={tab.id}
-                                                value={tab}
-                                                className="list-none"
-                                                initial={{ opacity: 0, y: -6 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0, y: -6, transition: { duration: 0.15 } }}
-                                                transition={{ type: 'spring', stiffness: 500, damping: 38 }}
-                                            >
-                                                <div
-                                                    onClick={() => handleProtectedTabSelect(tab.id, tab.type)}
-                                                    onContextMenu={(e) => {
-                                                        if (tab.type === 'file') {
-                                                            handleContextMenu(e, tab.id, 'file');
-                                                        }
-                                                    }}
-                                                    className={`group relative flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover
-                                                    ${isActive
-                                                            ? 'bg-[#EBEBEB] dark:bg-white/10'
-                                                            : 'hover:bg-[var(--hover-bg)]'}`}
-                                                >
-                                                    <div className="shrink-0 text-[var(--text-muted)]">
-                                                        {tab.type === 'chat'
-                                                            ? <MessageSquare size={14} />
-                                                            : tab.type === 'profile'
-                                                                ? <User size={14} />
-                                                                : <FileText size={14} />}
-                                                    </div>
-                                                    {files.some(f => f.id === tab.id && (f.metadata?.has_custom_password || f.metadata?.security_settings?.has_custom_password)) && (
-                                                        <span title="PIN-geschützt" className="shrink-0 inline-flex items-center">
-                                                            <Lock size={12} className="text-amber-500" />
-                                                        </span>
-                                                    )}
-                                                    <span className="text-[13px] text-[var(--text-body)] truncate flex-1 min-w-0">
-                                                        {tab.title && tab.title !== 'Untitled'
-                                                            ? tab.title
-                                                            : tab.type === 'chat' ? 'Chat' : tab.type === 'profile' ? 'Profile' : 'Untitled'}
-                                                    </span>
-                                                    {tab._saveStatus === 'unsaved' && (
-                                                        <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Ungespeichert" />
-                                                    )}
-                                                    <button
-                                                        onClick={(e) => { e.stopPropagation(); onTabClose?.(e, tab.id); }}
-                                                        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-black/10 text-[var(--text-muted)]"
-                                                    >
-                                                        <X size={12} />
-                                                    </button>
-                                                </div>
-                                            </Reorder.Item>
-                                        );
-                                    })}
-                            </AnimatePresence>
-                        </Reorder.Group>
-                    )}
-                </div>
             </div>{/* end sticky top section */}
 
             {/* Notes label — outside scrollable area so it stays visible while scrolling */}
@@ -605,6 +524,7 @@ export default function Sidebar({
                                                     setOrderedNoteIds={setOrderedNoteIds}
                                                     handleReorder={handleReorder}
                                                     activeTabId={activeTabId}
+                                                    openTabs={openTabs}
                                                 />
                                             ) : (
                                                 <FileItem
@@ -623,6 +543,7 @@ export default function Sidebar({
                                                     myId={myId}
                                                     onContextMenu={handleContextMenu}
                                                     activeTabId={activeTabId}
+                                                    openTabs={openTabs}
                                                 />
                                             )
                                         ));
@@ -731,6 +652,7 @@ export default function Sidebar({
                                         setOrderedNoteIds={setOrderedNoteIds}
                                         handleReorder={handleReorder}
                                         activeTabId={activeTabId}
+                                        openTabs={openTabs}
                                     />
                                 </div>
                             ) : (
@@ -749,6 +671,7 @@ export default function Sidebar({
                                     myId={myId}
                                     onContextMenu={handleContextMenu}
                                     activeTabId={activeTabId}
+                                    openTabs={openTabs}
                                 />
                             )}
                         </motion.div>
@@ -782,94 +705,60 @@ export default function Sidebar({
                     style={{ left: contextMenu.x, top: contextMenu.y }}
                 >
                     <div className="px-2 py-1.5 flex flex-col gap-0.5">
+                        {/* 1. Rename */}
                         <button
-                            onClick={() => { setContextMenu(null); handleProtectedSelect(contextMenu.id, ""); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                            onClick={(e) => { setContextMenu(null); onRenameNote(e, contextMenu.id, ""); }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
                         >
-                            <FileText size={16} className="text-gray-400 group-hover:text-blue-500" />
-                            <span className="font-medium">Open in new tab</span>
+                            <Edit3 size={15} className="text-gray-400 group-hover:text-blue-500" />
+                            <span className="font-medium">Umbenennen</span>
                         </button>
-                        
+
+                        {/* 2. New Note | Folder (auf einer Zeile) */}
                         {(() => {
                             const currentFile = files.find((f) => f.id === contextMenu.id);
                             const parentId = contextMenu.type === 'folder' ? contextMenu.id : (currentFile?.parent_id || null);
                             return (
-                                <>
+                                <div className="grid grid-cols-2 gap-1 my-0.5">
                                     <button
                                         onClick={() => { 
                                             setContextMenu(null); 
                                             onNewNote(parentId);
                                         }}
-                                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                                        className="flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-slate-800/80 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors border border-gray-200/50 dark:border-slate-700/50"
+                                        title="Neue Notiz"
                                     >
-                                        <Plus size={16} className="text-gray-400 group-hover:text-blue-500" />
-                                        <span className="font-medium">New Note here</span>
+                                        <Plus size={14} className="text-blue-500" />
+                                        <span>Notiz</span>
                                     </button>
                                     <button
                                         onClick={() => {
                                             setContextMenu(null);
                                             onCreateFolder?.(parentId);
                                         }}
-                                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                                        className="flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-slate-800/80 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors border border-gray-200/50 dark:border-slate-700/50"
+                                        title="Neuer Ordner"
                                     >
-                                        <FolderPlus size={16} className="text-gray-400 group-hover:text-blue-500" />
-                                        <span className="font-medium">New Folder here</span>
+                                        <FolderPlus size={14} className="text-amber-500" />
+                                        <span>Ordner</span>
                                     </button>
-                                </>
+                                </div>
                             );
                         })()}
 
-                        <div className="relative group/sub">
-                            <button className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group">
-                                <div className="flex items-center gap-3">
-                                    <Eye size={16} className="text-gray-400 group-hover:text-blue-500" />
-                                    <span className="font-medium">Visibility</span>
-                                </div>
-                                <ChevronRight size={14} className="text-gray-400 dark:text-slate-500" />
-                            </button>
-                            <div className="hidden group-hover/sub:block absolute left-full top-0 ml-1 w-48 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-xl py-1">
-                                {(() => {
-                                    const currentFile = files.find((f: any) => f.id === contextMenu.id);
-                                    const v = currentFile?.visibility || 'private';
-                                    return (
-                                        <>
-                                            <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'private'); }} className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 rounded-lg transition-colors group ${v === 'private' ? 'text-blue-600 bg-blue-50/50' : 'text-gray-700 dark:text-slate-300'}`}>
-                                                <span className="font-medium">Private</span>
-                                                <div className="flex items-center gap-2">
-                                                    {v === 'private' && <Check size={14} className="text-blue-600" />}
-                                                    <Lock size={14} className="text-gray-400 dark:text-slate-500" />
-                                                </div>
-                                            </button>
-                                            <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'contacts'); }} className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 rounded-lg transition-colors group ${v === 'contacts' ? 'text-blue-600 bg-blue-50/50' : 'text-gray-700 dark:text-slate-300'}`}>
-                                                <span className="font-medium">For Contacts</span>
-                                                <div className="flex items-center gap-2">
-                                                    {v === 'contacts' && <Check size={14} className="text-blue-600" />}
-                                                    <Users size={14} className="text-gray-400 dark:text-slate-500" />
-                                                </div>
-                                            </button>
-                                            <button onClick={(e) => { setContextMenu(null); onToggleVisibility(e, contextMenu.id, 'public'); }} className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 rounded-lg transition-colors group ${v === 'public' ? 'text-blue-600 bg-blue-50/50' : 'text-gray-700 dark:text-slate-300'}`}>
-                                                <span className="font-medium">Public link</span>
-                                                <div className="flex items-center gap-2">
-                                                    {v === 'public' && <Check size={14} className="text-blue-600" />}
-                                                    <Globe size={14} className="text-gray-400 dark:text-slate-500" />
-                                                </div>
-                                            </button>
-                                        </>
-                                    );
-                                })()}
-                            </div>
-                        </div>
+                        {/* 3. Trennlinie */}
+                        <div className="h-px bg-gray-100 dark:bg-slate-800 my-1" />
 
-                        <div className="h-px bg-gray-100 my-1" />
-
+                        {/* 4. Share (inkl. Sichtbarkeit) */}
                         <button
                             onClick={(e) => { setContextMenu(null); onShare(e, contextMenu.id); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
                         >
-                            <Share2 size={16} className="text-gray-400 group-hover:text-blue-500" />
-                            <span className="font-medium">Share</span>
+                            <Share2 size={15} className="text-gray-400 group-hover:text-blue-500" />
+                            <span className="font-medium">Teilen</span>
                         </button>
 
+                        {/* 5. Secure (PIN) */}
                         {(() => {
                             const targetFile = files.find(f => f.id === contextMenu.id);
                             const isProtected = !!(targetFile?.metadata?.has_custom_password || targetFile?.metadata?.security_settings?.has_custom_password);
@@ -880,30 +769,24 @@ export default function Sidebar({
                                         setContextMenu(null);
                                         handleOpenSecuritySettings(targetId);
                                     }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
                                 >
                                     {isProtected ? (
-                                        <ShieldCheck size={16} className="text-amber-500 group-hover:text-amber-600" />
+                                        <ShieldCheck size={15} className="text-amber-500 group-hover:text-amber-600" />
                                     ) : (
-                                        <Lock size={16} className="text-gray-400 group-hover:text-purple-500" />
+                                        <Lock size={15} className="text-gray-400 group-hover:text-purple-500" />
                                     )}
                                     <span className="font-medium">
-                                        {isProtected ? "Sicherheit & PIN verwalten" : "PIN-Schutz aktivieren"}
+                                        {isProtected ? "PIN-Schutz verwalten" : "Sichern"}
                                     </span>
                                 </button>
                             );
                         })()}
 
-                        <button
-                            onClick={(e) => { setContextMenu(null); onRenameNote(e, contextMenu.id, ""); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
-                        >
-                            <Edit3 size={16} className="text-gray-400 group-hover:text-blue-500" />
-                            <span className="font-medium">Rename</span>
-                        </button>
+                        {/* 6. Trennlinie */}
+                        <div className="h-px bg-gray-100 dark:bg-slate-800 my-1" />
 
-                        <div className="h-px bg-gray-100 my-1" />
-
+                        {/* 7. Delete */}
                         {(() => {
                             const targetFile = files.find(f => f.id === contextMenu.id);
                             const isShared = targetFile && targetFile.share_status && targetFile.share_status !== 'owner';
@@ -912,15 +795,15 @@ export default function Sidebar({
                             return (
                                 <button
                                     onClick={(e) => { setContextMenu(null); onDeleteNote(e, contextMenu.id); }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 rounded-lg transition-colors group"
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors group"
                                 >
                                     {isShared ? (
-                                        <LogOut size={16} className="text-rose-400 group-hover:text-rose-600" />
+                                        <LogOut size={15} className="text-rose-400 group-hover:text-rose-600" />
                                     ) : (
-                                        <Trash2 size={16} className="text-rose-400 group-hover:text-rose-600" />
+                                        <Trash2 size={15} className="text-rose-400 group-hover:text-rose-600" />
                                     )}
                                     <span className="font-medium">
-                                        {isShared ? (isFolder ? "Leave Folder" : "Leave Note") : "Delete"}
+                                        {isShared ? (isFolder ? "Ordner verlassen" : "Notiz verlassen") : (isFolder ? "Ordner löschen" : "Löschen")}
                                     </span>
                                 </button>
                             );
@@ -1023,16 +906,18 @@ interface FileItemProps {
     myId?: string;
     index?: number;
     activeTabId?: string;
+    openTabs?: Tab[];
 }
 
-const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onDragStart, onContextMenu, enabledExtensions, myId, index, activeTabId }: FileItemProps) => {
+const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onDragStart, onContextMenu, enabledExtensions, myId, index, activeTabId, openTabs }: FileItemProps) => {
     const { isHighlighted, highlight } = useHighlight();
     const startGhost = useDragGhost(s => s.startGhost);
     const [isCalendarDropTarget, setIsCalendarDropTarget] = useState(false);
     const activeNoteId = useDataStore(s => s.activeNoteId);
 
-    // Active state: activeTabId, activeNoteId in store, or "tide plan" note
-    const isActive = activeTabId === file.id || activeNoteId === file.id || (file.title && file.title.toLowerCase().trim() === 'tide plan');
+    // Active state and Open tabs state
+    const isActive = activeTabId === file.id || activeNoteId === file.id;
+    const isOpen = !!openTabs?.some(t => t.id === file.id);
 
     // Custom-drag detection: the calendar's main drag uses mousedown/mousemove,
     // not HTML5 DnD, so onDragOver never fires. We listen for the global custom
@@ -1141,10 +1026,12 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
             className={`group flex items-center justify-between w-full px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-150
                 ${isCalendarDropTarget ? 'ring-2 ring-violet-400 bg-violet-50 dark:bg-violet-900/20' : ''}
                 ${isActive
-                    ? 'bg-[#EBF5FF] dark:bg-blue-950/40 text-blue-950 dark:text-blue-100 font-medium'
-                    : isHighlighted(file.id, 'file')
-                        ? 'bg-purple-50 dark:bg-purple-900/20'
-                        : 'hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover text-gray-700 dark:text-gray-300'
+                    ? 'bg-blue-100/90 dark:bg-blue-950/60 text-blue-900 dark:text-blue-100 font-semibold ring-1 ring-blue-400/40'
+                    : isOpen
+                        ? 'bg-blue-50/75 dark:bg-blue-950/30 text-blue-800 dark:text-blue-200 font-medium'
+                        : isHighlighted(file.id, 'file')
+                            ? 'bg-purple-50 dark:bg-purple-900/20'
+                            : 'hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover text-gray-700 dark:text-gray-300'
                 }
                 ${highlight.isSelectingLink ? 'bg-purple-50/30 dark:bg-purple-900/10' : ''}`}
             style={{
@@ -1155,10 +1042,10 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
         >
             <div className="flex items-center gap-2 truncate flex-1 flex-shrink-0">
                 {file.title.startsWith('#')
-                    ? <Lock size={15} className={`shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
+                    ? <Lock size={15} className={`shrink-0 ${isActive || isOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
                     : file.type === 'canvas'
-                        ? <Layout size={15} className={`shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
-                        : <FileText size={15} className={`shrink-0 ${isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />}
+                        ? <Layout size={15} className={`shrink-0 ${isActive || isOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
+                        : <FileText size={15} className={`shrink-0 ${isActive || isOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />}
                 {(file.metadata?.has_custom_password || file.metadata?.security_settings?.has_custom_password) && (
                     <span title="PIN-geschützt" className="shrink-0 inline-flex items-center">
                         <Lock size={13} className="text-amber-500" />
@@ -1181,7 +1068,9 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                     <span className={`text-sm truncate transition-colors ${
                         isActive
                             ? 'text-blue-950 dark:text-blue-100 font-semibold'
-                            : 'text-gray-700 dark:text-gray-300 font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100'
+                            : isOpen
+                                ? 'text-blue-800 dark:text-blue-200 font-medium'
+                                : 'text-gray-700 dark:text-gray-300 font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100'
                     } ${file.owner_id && myId && file.owner_id !== myId ? 'purple-shimmer-text' : ''}`}>
                         {file.title.startsWith('#') ? file.title.slice(1).trim() : file.title}
                     </span>
@@ -1218,9 +1107,10 @@ interface FolderItemProps {
     setOrderedNoteIds?: (ids: string[]) => void;
     handleReorder?: (newItems: DecryptedFile[]) => void;
     activeTabId?: string;
+    openTabs?: Tab[];
 }
 
-const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onCreateFolder, onMoveItem, onDragStart, onContextMenu, viewMode, enabledExtensions, myId, index, dropIndicator, setDropIndicator, orderedNoteIds, setOrderedNoteIds, handleReorder, activeTabId }: FolderItemProps) => {
+const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onCreateFolder, onMoveItem, onDragStart, onContextMenu, viewMode, enabledExtensions, myId, index, dropIndicator, setDropIndicator, orderedNoteIds, setOrderedNoteIds, handleReorder, activeTabId, openTabs }: FolderItemProps) => {
     const [isLoading, setIsLoading] = useState(false);
     const children = allFiles.filter(f => f.parent_id === folder.id);
     const { highlight } = useHighlight();
@@ -1438,6 +1328,7 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                                             setOrderedNoteIds={setOrderedNoteIds}
                                             handleReorder={handleReorder}
                                             activeTabId={activeTabId}
+                                            openTabs={openTabs}
                                         />
                                     </div>
                                 ) : (
@@ -1457,6 +1348,7 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                                         enabledExtensions={enabledExtensions}
                                         myId={myId}
                                         activeTabId={activeTabId}
+                                        openTabs={openTabs}
                                     />
                                 )}
                             </motion.div>

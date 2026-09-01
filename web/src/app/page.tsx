@@ -12,6 +12,9 @@ import TabList, { Tab } from "@/components/Layout/TabList";
 import CalendarView from "@/components/Calendar/CalendarView";
 import WeekView from "@/components/Calendar/WeekView";
 import ShareModal from "@/components/ShareModal";
+import SaveStatusMenu from "@/components/Editor/SaveStatusMenu";
+import SecuritySettingsModal from "@/components/Security/SecuritySettingsModal";
+import { ItemSecuritySettings } from "@/lib/pinSecurity";
 import SettingsModal from "@/components/Settings/SettingsModal";
 import ProfilePage from "@/components/Profile/ProfilePage";
 import SocialHub from "@/components/Social/SocialHub";
@@ -281,6 +284,8 @@ export default function Dashboard() {
     const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [showSharePanel, setShowSharePanel] = useState(false);
+    const [showSaveStatusMenu, setShowSaveStatusMenu] = useState(false);
+    const [noteSecurityModalItem, setNoteSecurityModalItem] = useState<{ id: string; title: string; type: 'file' | 'folder' | 'canvas' | 'note'; metadata?: any } | null>(null);
     const [deleteError, setDeleteError] = useState<{ fileId: string, title: string, message: string, isCorrupt: boolean } | null>(null);
     const [activeCollaborators, setActiveCollaborators] = useState<any[]>([]);
     const [editorInstance, setEditorInstance] = useState<any>(null);
@@ -1448,15 +1453,20 @@ export default function Dashboard() {
             }
             const existingTab = nextTabs.find(t => t.id === newId);
             const defaultNoteTitle = getTranslation(useDataStore.getState().language || 'de', 'common', 'newNote');
-            nextTabs = nextTabs.filter(t => t.id !== newId);
-            if (type === 'file') {
-                nextTabs.unshift({ ...(existingTab || {}), id: newId, title: forcedTitle || existingTab?.title || defaultNoteTitle, type: 'file' });
-            } else if (existingTab) {
-                nextTabs.unshift(existingTab);
+
+            if (existingTab) {
+                if (forcedTitle && forcedTitle !== existingTab.title) {
+                    return nextTabs.map(t => t.id === newId ? { ...t, title: forcedTitle } : t);
+                }
+                return nextTabs;
             } else {
-                nextTabs.unshift({ id: newId, title: forcedTitle || defaultNoteTitle, type: type as any });
+                const newTab: Tab = {
+                    id: newId,
+                    title: forcedTitle || (type === 'calendar' ? 'Calendar' : defaultNoteTitle),
+                    type: type as any
+                };
+                return [...nextTabs, newTab];
             }
-            return nextTabs.length > 5 ? nextTabs.slice(0, 5) : nextTabs;
         });
 
         setActiveTabId(newId);
@@ -2908,6 +2918,36 @@ export default function Dashboard() {
         useDataStore.getState().fetchDirectory(null);
     };
 
+    const handleSaveNoteSecuritySettings = async (settings: ItemSecuritySettings | null) => {
+        if (!noteSecurityModalItem) return;
+        const itemId = noteSecurityModalItem.id;
+        const target = files.find(f => f.id === itemId);
+        const currentMeta = (target as any)?.metadata || {};
+        const updatedMeta = settings ? {
+            ...currentMeta,
+            has_custom_password: true,
+            pwd_salt: settings.pwd_salt,
+            pin_hash: settings.pin_hash,
+            security_settings: settings
+        } : {
+            ...currentMeta,
+            has_custom_password: false,
+            pwd_salt: undefined,
+            pin_hash: undefined,
+            security_settings: null
+        };
+
+        const res = await apiFetch(`/api/v1/files/${itemId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ metadata: updatedMeta })
+        });
+        if (!res.ok) {
+            throw new Error('Fehler beim Speichern der Sicherheitseinstellungen.');
+        }
+        useDataStore.getState().updateFileRaw(itemId, { metadata: updatedMeta });
+    };
+
 
     // -------------------------------------------------------------------------
     // DateMention Calendar Navigation
@@ -3361,42 +3401,34 @@ export default function Dashboard() {
 
     // 5. Tab Management & Messages
     // -------------------------------------------------------------------------
-    const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams') => {
+    const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'trash') => {
         if (type === 'social') {
             setActiveTabId('social');
             return;
         }
-        switchTab(id, type);
+        if (type === 'trash') {
+            setActiveTabId('trash');
+            return;
+        }
+        switchTab(id, type as any);
     };
 
     const handleTabClose = (e: React.MouseEvent | null, id: string) => {
         if (e) e.stopPropagation();
 
-        let nextTarget: Tab | null = null;
-
-        setOpenTabs(prev => {
-            const filtered = prev.filter(t => t.id !== id);
-            if (activeTabId === id) {
-                nextTarget = filtered.length > 0 ? filtered[filtered.length - 1] : null;
-            }
-            return filtered;
-        });
+        const currentIndex = openTabs.findIndex(t => t.id === id);
+        const filtered = openTabs.filter(t => t.id !== id);
+        setOpenTabs(filtered);
 
         if (activeTabId === id) {
-            const targetId = nextTarget ? (nextTarget as Tab).id : 'calendar';
-            const targetType = nextTarget ? (nextTarget as Tab).type : 'calendar';
-            setActiveTabId(targetId);
-
-            if (targetType === 'file' && nextTarget) {
-                setFileName((nextTarget as Tab).title);
-                if ((nextTarget as Tab).content) {
-                    setEditorContent((nextTarget as Tab).content);
-                    setActiveFileKey((nextTarget as Tab)._fileKey || null);
-                    setSaveStatus((nextTarget as Tab)._saveStatus || 'saved');
-                } else {
-                    loadNoteContent(targetId, (nextTarget as Tab).title);
-                }
+            let nextTab: Tab | undefined;
+            if (filtered.length > 0) {
+                const targetIdx = Math.min(Math.max(0, currentIndex - 1), filtered.length - 1);
+                nextTab = filtered[targetIdx] || filtered[filtered.length - 1];
             }
+            const targetId = nextTab ? nextTab.id : 'calendar';
+            const targetType = nextTab ? nextTab.type : 'calendar';
+            switchTab(targetId, targetType, nextTab?.title);
         }
     };
 
@@ -3718,70 +3750,36 @@ export default function Dashboard() {
 
             {/* Right: Workspace */}
             <div className={`hidden md:flex flex-1 flex-col min-w-0 bg-[var(--background)] relative overflow-hidden`}>
+                {/* Horizontal Browser Tab Bar */}
+                <TabList
+                    tabs={openTabs}
+                    activeTabId={activeTabId}
+                    onTabSelect={handleTabSelect}
+                    onTabClose={handleTabClose}
+                    onTabsReorder={setOpenTabs}
+                    onNewTab={() => handleNewNote()}
+                    userProfile={userProfile}
+                    myId={myId}
+                    isAvatarMenuOpen={isAvatarMenuOpen}
+                    setIsAvatarMenuOpen={setIsAvatarMenuOpen}
+                    avatarMenuRef={avatarMenuRef}
+                    onOpenSocial={() => setActiveTabId('social')}
+                    onOpenSettings={() => useDataStore.getState().setSettingsModalOpen(true)}
+                    onOpenTrash={() => setActiveTabId('trash')}
+                    onLogout={() => {
+                        setIsAvatarMenuOpen(false);
+                        sessionStorage.clear();
+                        localStorage.removeItem('tide_user_email');
+                        localStorage.removeItem('tide_user_id');
+                        localStorage.removeItem('tide_session_token');
+                        window.location.reload();
+                    }}
+                />
 
-                {/* Avatar-Button oben rechts */}
-                <div ref={avatarMenuRef} className="absolute top-4 right-4 z-[150]">
-                    <button
-                        onClick={() => setIsAvatarMenuOpen(o => !o)}
-                        className="w-8 h-8 rounded-full overflow-hidden hover:ring-2 hover:ring-blue-400 transition-all hover:scale-105 active:scale-95"
-                        title="Profil"
-                    >
-                        <Avatar
-                            seed={(userProfile?.avatar_seed || userProfile?.user_id || userProfile?.id || myId || 'default') + (userProfile?.avatar_salt || '')}
-                            size={32}
-                        />
-                    </button>
-
-                    {isAvatarMenuOpen && (
-                        <div className="absolute right-0 top-10 w-48 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100">
-                            <div className="px-3 py-2 border-b border-gray-100 dark:border-gray-800">
-                                <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{userProfile?.username || 'User'}</p>
-                                <p className="text-xs text-gray-400 truncate">{userProfile?.email || ''}</p>
-                            </div>
-                            <div className="py-1 px-1">
-                                <button
-                                    onClick={() => { setIsAvatarMenuOpen(false); setActiveTabId('social'); }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                                >
-                                    <Users size={15} className="text-gray-400 dark:text-slate-500" />
-                                    <span>Social</span>
-                                </button>
-                                <button
-                                    onClick={() => { setIsAvatarMenuOpen(false); useDataStore.getState().setSettingsModalOpen(true); }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                                >
-                                    <Settings size={15} className="text-gray-400 dark:text-slate-500" />
-                                    <span>Einstellungen</span>
-                                </button>
-                                <button
-                                    onClick={() => { setIsAvatarMenuOpen(false); setActiveTabId('trash'); }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                                >
-                                    <Trash2 size={15} className="text-gray-400 dark:text-slate-500" />
-                                    <span>Papierkorb</span>
-                                </button>
-                                <div className="h-px bg-gray-100 dark:bg-gray-800 my-1" />
-                                <button
-                                    onClick={() => {
-                                        setIsAvatarMenuOpen(false);
-                                        sessionStorage.clear();
-                                        localStorage.removeItem('tide_user_email');
-                                        localStorage.removeItem('tide_user_id');
-                                        localStorage.removeItem('tide_session_token');
-                                        window.location.reload();
-                                    }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg transition-colors"
-                                >
-                                    <LogOut size={15} className="text-rose-400" />
-                                    <span>Abmelden</span>
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Unscheduled Tasks Panel — top-left corner, below calendar toolbar, only when calendar is active */}
-                {activeTabId === 'calendar' && tasks && tasks.filter(t => !t.isCompleted && !t.scheduledDate).length > 0 && (
+                {/* Main Workspace Body */}
+                <div className="flex-1 min-h-0 relative overflow-hidden flex flex-col">
+                    {/* Unscheduled Tasks Panel — top-left corner, below calendar toolbar, only when calendar is active */}
+                    {activeTabId === 'calendar' && tasks && tasks.filter(t => !t.isCompleted && !t.scheduledDate).length > 0 && (
                     <div className="absolute left-16 top-[52px] z-[55] pointer-events-none flex flex-col max-h-[calc(100%-60px)]">
                         <div className="flex flex-col gap-1.5 p-2 overflow-y-auto pointer-events-none max-h-full">
                             <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 px-1 pointer-events-none">Tasks</h3>
@@ -4090,14 +4088,7 @@ export default function Dashboard() {
                                                         >
                                                             <Clock size={16} />
                                                         </button>
-                                                        <button
-                                                            onClick={handleExportNote}
-                                                            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 hover:text-indigo-600 transition-colors"
-                                                            title="Exportieren (.md)"
-                                                        >
-                                                            <Download size={16} />
-                                                        </button>
-                                                        {/* Save status indicator */}
+                                                        {/* Save status indicator with interactive popover menu */}
                                                         <div className="relative flex items-center justify-center">
                                                             {(() => {
                                                                 const af = files.find(f => f.id === activeNoteId) as any;
@@ -4106,51 +4097,76 @@ export default function Dashboard() {
                                                                 const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {};
                                                                 const isSharedByOwner = Object.keys(akObj).length > 1;
                                                                 const isShared = isRecipient || isSharedByOwner;
-                                                                
-                                                                // Fetch the owner name from searchResults or contacts if possible?
-                                                                // The API doesn't provide owner_username directly in 'files' unless it's in metadata?
-                                                                // Wait, we can just show "Geteilt von jemandem" or check if af.owner_id is in contacts
-                                                                
+                                                                const isProtected = !!(af?.metadata?.has_custom_password || af?.metadata?.security_settings?.has_custom_password);
+
                                                                 return (
-                                                                    <button
-                                                                        onClick={() => setShowSharePanel(!showSharePanel)}
-                                                                        title={saveStatus === 'saving' ? 'Wird gespeichert…' : saveStatus === 'unsaved' ? 'Nicht gespeichert' : (isSharedByOwner ? 'Synced - Klick für Rechteverwaltung' : (isRecipient ? 'Synced - Geteilt mit dir' : 'Gespeichert'))}
-                                                                        className={`p-1.5 rounded-lg transition-colors ${saveStatus === 'saved' && (isSharedByOwner || isRecipient) ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800' : 'cursor-default'}`}
-                                                                    >
-                                                                        {saveStatus === 'saved' && (
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isShared ? "text-sky-400 opacity-70 hover:opacity-100" : "text-green-400 opacity-60"}>
-                                                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                                                                                <polyline points="22 4 12 14.01 9 11.01" />
-                                                                            </svg>
+                                                                    <>
+                                                                        <button
+                                                                            onClick={() => setShowSaveStatusMenu(prev => !prev)}
+                                                                            title={saveStatus === 'saving' ? 'Wird gespeichert…' : saveStatus === 'unsaved' ? 'Nicht gespeichert – Klick für Details' : 'Gespeichert – Klick für Details'}
+                                                                            className="p-1.5 rounded-lg transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center"
+                                                                        >
+                                                                            {saveStatus === 'saved' && (
+                                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isShared ? "text-sky-400 opacity-80 hover:opacity-100" : "text-emerald-500 opacity-80 hover:opacity-100"}>
+                                                                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                                                                    <polyline points="22 4 12 14.01 9 11.01" />
+                                                                                </svg>
+                                                                            )}
+                                                                            {saveStatus === 'saving' && (
+                                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500 opacity-80 animate-spin">
+                                                                                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                                                                                </svg>
+                                                                            )}
+                                                                            {saveStatus === 'unsaved' && (
+                                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500 opacity-80">
+                                                                                    <circle cx="12" cy="12" r="10" />
+                                                                                    <line x1="12" y1="8" x2="12" y2="12" />
+                                                                                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                                                                                </svg>
+                                                                            )}
+                                                                        </button>
+                                                                        {showSaveStatusMenu && af && (
+                                                                            <SaveStatusMenu
+                                                                                fileId={activeNoteId}
+                                                                                saveStatus={saveStatus}
+                                                                                visibility={af.visibility}
+                                                                                isShared={isShared}
+                                                                                isSharedByOwner={isSharedByOwner}
+                                                                                isRecipient={isRecipient}
+                                                                                isProtected={isProtected}
+                                                                                onClose={() => setShowSaveStatusMenu(false)}
+                                                                                onOpenShare={() => {
+                                                                                    setShowSaveStatusMenu(false);
+                                                                                    if (isShared && !isSharedByOwner) {
+                                                                                        setShowSharePanel(true);
+                                                                                    } else {
+                                                                                        handleShare({ stopPropagation: () => {} } as any, activeNoteId);
+                                                                                    }
+                                                                                }}
+                                                                                onOpenSecurity={() => {
+                                                                                    setShowSaveStatusMenu(false);
+                                                                                    setNoteSecurityModalItem({
+                                                                                        id: af.id,
+                                                                                        title: af.title,
+                                                                                        type: (af.type as any) || 'note',
+                                                                                        metadata: af.metadata
+                                                                                    });
+                                                                                }}
+                                                                            />
                                                                         )}
-                                                                        {saveStatus === 'saving' && (
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-400 opacity-60 animate-spin">
-                                                                                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                                                                            </svg>
+                                                                        {showSharePanel && af && (
+                                                                            <ShareManagementPanel 
+                                                                                fileId={activeNoteId} 
+                                                                                onClose={() => setShowSharePanel(false)}
+                                                                                isOwner={af?.owner_id === myId}
+                                                                                myPermission={af?.permission || 'view'}
+                                                                                onLeave={() => {
+                                                                                    setShowSharePanel(false);
+                                                                                    handleDeleteNote({ stopPropagation: () => {} } as any, activeNoteId);
+                                                                                }}
+                                                                            />
                                                                         )}
-                                                                        {saveStatus === 'unsaved' && (
-                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400 opacity-70">
-                                                                                <circle cx="12" cy="12" r="10" />
-                                                                                <line x1="12" y1="8" x2="12" y2="12" />
-                                                                                <line x1="12" y1="16" x2="12.01" y2="16" />
-                                                                            </svg>
-                                                                        )}
-                                                                    </button>
-                                                                );
-                                                            })()}
-                                                            {showSharePanel && (() => {
-                                                                const af = files.find(f => f.id === activeNoteId) as any;
-                                                                return (
-                                                                    <ShareManagementPanel 
-                                                                        fileId={activeNoteId} 
-                                                                        onClose={() => setShowSharePanel(false)}
-                                                                        isOwner={af?.owner_id === myId}
-                                                                        myPermission={af?.permission || 'view'}
-                                                                        onLeave={() => {
-                                                                            setShowSharePanel(false);
-                                                                            handleDeleteNote({ stopPropagation: () => {} } as any, activeNoteId);
-                                                                        }}
-                                                                    />
+                                                                    </>
                                                                 );
                                                             })()}
                                                         </div>
@@ -4241,6 +4257,7 @@ export default function Dashboard() {
                         </div>
                     )}
                 </div>
+                </div>
             </div>
 
             {/* Share Modal */}
@@ -4251,6 +4268,17 @@ export default function Dashboard() {
                     onClose={() => setShareModalFile(null)}
                     onShare={performShare}
                     myId={myId}
+                />
+            )}
+
+            {/* Note Security / PIN Settings Modal */}
+            {noteSecurityModalItem && (
+                <SecuritySettingsModal
+                    isOpen={!!noteSecurityModalItem}
+                    onClose={() => setNoteSecurityModalItem(null)}
+                    item={noteSecurityModalItem}
+                    userEmail={userProfile?.email}
+                    onSaveSettings={handleSaveNoteSecuritySettings}
                 />
             )}
 
