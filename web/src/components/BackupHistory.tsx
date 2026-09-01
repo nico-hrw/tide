@@ -35,21 +35,22 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
     const orderedSlots = [
         "10 minutes",
         "30 minutes",
-        " 1 hour",
-        " 1 day",
-        " 2 days",
-        " 1 week"
+        "1 hour",
+        "1 day",
+        "2 days",
+        "1 week"
     ];
 
     const getFriendlySlotName = (name: string) => {
-        switch (name.trim()) {
+        const n = name.trim();
+        switch (n) {
             case "10 minutes": return "Vor 10 Minuten";
             case "30 minutes": return "Vor 30 Minuten";
             case "1 hour": return "Vor 1 Stunde";
             case "1 day": return "Vor 1 Tag";
             case "2 days": return "Vor 2 Tagen";
-            case "1 week": return "Vor 1 Woche";
-            default: return name;
+            case "1 week": return "Vor 1 Woche (Basis)";
+            default: return n;
         }
     };
 
@@ -68,6 +69,53 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
             .catch(console.error);
     }, [fileId]);
 
+    /** Decrypts a backup blob (V1 or V2) and returns the plaintext string. */
+    const decryptBackupBlob = async (backupData: BackupSlot & { encrypted_blob?: string }, privateKey: CryptoKey, myId: string): Promise<string> => {
+        if (!backupData.encrypted_blob) throw new Error("Kein Blob vorhanden.");
+
+        const binaryString = atob(backupData.encrypted_blob);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+
+        const isV2 = (backupData.version ?? 1) >= 2 || !!backupData.access_keys;
+
+        if (isV2) {
+            if (!myId) throw new Error("Benutzer-ID nicht verfügbar");
+            const accessKeys = typeof backupData.access_keys === 'string'
+                ? JSON.parse(backupData.access_keys)
+                : (backupData.access_keys || {});
+            const myAccess = accessKeys?.[myId];
+            if (!myAccess?.wrapped_key) throw new Error("Kein Zugriffsschlüssel für dieses Backup.");
+
+            const rawDek = await unwrapDEKData(myAccess.wrapped_key, privateKey);
+            const dek = await importDEK(rawDek);
+
+            const blobText = new TextDecoder().decode(bytes);
+            const payload = JSON.parse(blobText);
+            const ivBuf = new Uint8Array(atob(payload.iv).split("").map(c => c.charCodeAt(0)));
+            const dataBuf = new Uint8Array(atob(payload.data).split("").map(c => c.charCodeAt(0)));
+
+            const decrypted = await window.crypto.subtle.decrypt(
+                { name: 'AES-GCM', iv: ivBuf },
+                dek,
+                dataBuf
+            );
+            return new TextDecoder().decode(decrypted);
+        } else {
+            if (!backupData.secured_meta) throw new Error("Metadata fehlt im Backup.");
+            const meta = await decryptMetadata(backupData.secured_meta, privateKey, `backup-${fileId}`);
+            if (meta.isLocked) throw new Error("Backup-Metadaten konnten nicht entschlüsselt werden.");
+
+            const fileKey = await window.crypto.subtle.importKey(
+                "jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
+            );
+            const blob = new Blob([bytes]);
+            const decryptedBlob = await decryptFile(blob, meta.iv as string, fileKey, fileId);
+            return await decryptedBlob.text();
+        }
+    };
+
     const handleSelect = async (slotName: string) => {
         const slot = slots[slotName.trim()];
         if (!slot) return;
@@ -79,11 +127,13 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
         setRestoredJson(null);
 
         try {
-            const bRes = await apiFetch(`/api/v1/files/${fileId}/backups/${slot.slot_name}`);
-            const backupData = await bRes.json();
-
             const { privateKey, myId } = useDataStore.getState();
             if (!privateKey) throw new Error("Kein privater RSA-Schlüssel vorhanden.");
+            if (!myId) throw new Error("Benutzer-ID nicht verfügbar.");
+
+            // Fetch the selected slot's encrypted backup
+            const bRes = await apiFetch(`/api/v1/files/${fileId}/backups/${slot.slot_name}`);
+            const backupData = await bRes.json();
 
             if (!backupData.encrypted_blob) {
                 setErrorMsg("Noch kein Backup für diesen Zeitraum vorhanden.");
@@ -91,78 +141,51 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                 return;
             }
 
-            // Decode base64 encrypted patch
-            const binaryString = atob(backupData.encrypted_blob);
-            const len = binaryString.length;
-            const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+            // Decrypt the backup blob
+            const decryptedText = await decryptBackupBlob(backupData, privateKey, myId);
 
-            const isV2 = (backupData.version ?? 1) >= 2 || !!backupData.access_keys;
-            let patchText = "";
-
-            if (isV2) {
-                if (!myId) throw new Error("Benutzer-ID nicht verfügbar");
-
-                const accessKeys = typeof backupData.access_keys === 'string'
-                    ? JSON.parse(backupData.access_keys)
-                    : (backupData.access_keys || {});
-
-                const myAccess = accessKeys?.[myId];
-                if (!myAccess?.wrapped_key) throw new Error("Kein Zugriffsschlüssel für dieses Backup.");
-
-                const rawDek = await unwrapDEKData(myAccess.wrapped_key, privateKey);
-                const dek = await importDEK(rawDek);
-
-                const blobText = new TextDecoder().decode(bytes);
-                const payload = JSON.parse(blobText);
-                const ivBuf = new Uint8Array(atob(payload.iv).split("").map(c => c.charCodeAt(0)));
-                const dataBuf = new Uint8Array(atob(payload.data).split("").map(c => c.charCodeAt(0)));
-
-                const decrypted = await window.crypto.subtle.decrypt(
-                    { name: 'AES-GCM', iv: ivBuf },
-                    dek,
-                    dataBuf
-                );
-                patchText = new TextDecoder().decode(decrypted);
-            } else {
-                if (!backupData.secured_meta) throw new Error("Metadata fehlt im Backup.");
-                const meta = await decryptMetadata(backupData.secured_meta, privateKey, `backup-${fileId}`);
-                if (meta.isLocked) throw new Error("Backup-Metadaten konnten nicht entschlüsselt werden.");
-
-                const fileKey = await window.crypto.subtle.importKey(
-                    "jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
-                );
-
-                const blob = new Blob([bytes]);
-                const decryptedBlob = await decryptFile(blob, meta.iv as string, fileKey, fileId);
-                patchText = await decryptedBlob.text();
-            }
-
-            // Reconstruct the backup JSON from currentContent and the line-based patch
-            const currentJsonStr = JSON.stringify(currentContent || {}, null, 2);
-            let backupJsonStr = currentJsonStr;
-            let isPatch = false;
-
+            // Determine if decrypted content is a delta patch or a full copy
+            let backupJsonStr = decryptedText;
             try {
-                // If it is a line patch (JSON array format), apply it
-                const patchObj = JSON.parse(patchText);
-                if (Array.isArray(patchObj)) {
-                    backupJsonStr = applyLinePatch(currentJsonStr, patchObj);
-                    isPatch = true;
-                } else {
-                    // Fallback: it's a full copy (old backup version)
-                    backupJsonStr = patchText;
+                const parsed = JSON.parse(decryptedText);
+                if (Array.isArray(parsed)) {
+                    // Delta patch — need the "1 week" base to reconstruct
+                    const baseSlot = slots["1 week"];
+                    if (!baseSlot) {
+                        setErrorMsg("Basis-Backup (1 Woche) fehlt — Delta kann nicht rekonstruiert werden.");
+                        setLoading(false);
+                        return;
+                    }
+                    const baseRes = await apiFetch(`/api/v1/files/${fileId}/backups/${baseSlot.slot_name}`);
+                    const baseData = await baseRes.json();
+                    if (!baseData.encrypted_blob) {
+                        setErrorMsg("Basis-Backup (1 Woche) ist leer — Delta kann nicht rekonstruiert werden.");
+                        setLoading(false);
+                        return;
+                    }
+                    const baseText = await decryptBackupBlob(baseData, privateKey, myId);
+                    backupJsonStr = applyLinePatch(baseText, parsed);
                 }
+                // else: it's a full JSON copy, use as-is
             } catch (_) {
-                // Not JSON or failed patch: fallback to raw text
-                backupJsonStr = patchText;
+                // Not valid JSON — use raw text as fallback
             }
 
-            let backupJsonObj = {};
+            let backupJsonObj: Record<string, unknown> | null = null;
             try {
                 backupJsonObj = JSON.parse(backupJsonStr);
             } catch (e) {
-                console.warn("Reconstructed note is not valid JSON, using empty object", e);
+                console.warn("Rekonstruierte Notiz ist kein gültiges JSON", e);
+                setErrorMsg("Die rekonstruierte Version ist beschädigt und kann nicht wiederhergestellt werden.");
+                setLoading(false);
+                return;
+            }
+
+            // Safety: don't offer restore for empty documents
+            if (!backupJsonObj || (typeof backupJsonObj === 'object' && Object.keys(backupJsonObj).length === 0)) {
+                setErrorMsg("Der rekonstruierte Stand ist leer und kann nicht wiederhergestellt werden.");
+                setLoading(false);
+                return;
             }
 
             setRestoredJson(backupJsonObj);
@@ -237,7 +260,7 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                                             <span className={`font-semibold text-sm ${isActive ? 'text-violet-600 dark:text-violet-400' : 'text-gray-900 dark:text-gray-100'}`}>
                                                 {getFriendlySlotName(slotName)}
                                             </span>
-                                            {slot && <span className="text-[10px] bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 px-1.5 py-0.5 rounded font-mono uppercase">V2 Delta</span>}
+                                            {slot && <span className="text-[10px] bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 px-1.5 py-0.5 rounded font-mono uppercase">{slotName.trim() === '1 week' ? 'Full' : 'Delta'}</span>}
                                         </div>
                                         {slot ? (
                                             <span className="text-xs text-gray-400 dark:text-slate-500 flex items-center gap-1.5 mt-0.5">

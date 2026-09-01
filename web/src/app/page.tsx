@@ -942,7 +942,9 @@ export default function Dashboard() {
 
             // (timestamp already stamped before PUT — see above)
 
-            // --- Asynchronous client-side delta backup cascade ---
+            // --- Asynchronous client-side HYBRID backup cascade ---
+            // "1 week" = full-copy base (managed by server-side cascade)
+            // Other slots = delta patches computed against the "1 week" base
             (async () => {
                 try {
                     const bListRes = await apiFetch(`/api/v1/files/${fileId}/backups`);
@@ -956,80 +958,103 @@ export default function Dashboard() {
                         }
                     }
                     
+                    // Ensure a "1 week" full-copy base exists (server cascade may not
+                    // have created it yet if it ran asynchronously or this is a new file).
+                    if (!slotMap["1 week"]) {
+                        console.log(`[Backup Cascade] Creating initial "1 week" base for file ${fileId}`);
+                        const baseIv = window.crypto.getRandomValues(new Uint8Array(12));
+                        const baseBuffer = new TextEncoder().encode(contentString);
+                        const encryptedBase = await window.crypto.subtle.encrypt(
+                            { name: 'AES-GCM', iv: baseIv },
+                            dek!,
+                            baseBuffer
+                        );
+                        const baseCiphertext = JSON.stringify({
+                            data: cryptoLib.arrayBufferToBase64(encryptedBase),
+                            iv:   cryptoLib.arrayBufferToBase64(baseIv.buffer as ArrayBuffer)
+                        });
+                        const b64Base = btoa(baseCiphertext);
+                        await apiFetch(`/api/v1/files/${fileId}/backups/1 week`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                version: 2,
+                                encrypted_blob: b64Base,
+                                access_keys: accessKeysMap,
+                            })
+                        });
+                        // No deltas to compute yet (base was just created with current content)
+                        return;
+                    }
+
+                    // Decrypt the "1 week" base to use as the stable reference for deltas
+                    let basePlainJson = "";
+                    const baseSlot = slotMap["1 week"];
+                    try {
+                        if (baseSlot.encrypted_blob) {
+                            const binaryString = atob(baseSlot.encrypted_blob);
+                            const bLen = binaryString.length;
+                            const bBytes = new Uint8Array(bLen);
+                            for (let i = 0; i < bLen; i++) bBytes[i] = binaryString.charCodeAt(i);
+
+                            const isV2 = (baseSlot.version ?? 1) >= 2 || !!baseSlot.access_keys;
+                            if (isV2) {
+                                const ak = typeof baseSlot.access_keys === 'string'
+                                    ? JSON.parse(baseSlot.access_keys) : (baseSlot.access_keys || {});
+                                const myAccess = ak?.[freshMyId];
+                                if (myAccess?.wrapped_key) {
+                                    const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, freshPrivKey);
+                                    const baseDek = await cryptoV2.importDEK(rawDek);
+                                    const blobText = new TextDecoder().decode(bBytes);
+                                    const payload = JSON.parse(blobText);
+                                    const ivBuf = new Uint8Array(atob(payload.iv).split("").map(c => c.charCodeAt(0)));
+                                    const dataBuf = new Uint8Array(atob(payload.data).split("").map(c => c.charCodeAt(0)));
+                                    const decrypted = await window.crypto.subtle.decrypt(
+                                        { name: 'AES-GCM', iv: ivBuf }, baseDek, dataBuf
+                                    );
+                                    basePlainJson = new TextDecoder().decode(decrypted);
+                                }
+                            } else {
+                                if (baseSlot.secured_meta) {
+                                    const meta = await cryptoLib.decryptMetadata(baseSlot.secured_meta, freshPrivKey, `backup-${fileId}`);
+                                    if (!meta.isLocked) {
+                                        const fk = await window.crypto.subtle.importKey(
+                                            "jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
+                                        );
+                                        const decBlob = await cryptoLib.decryptFile(new Blob([bBytes]), meta.iv as string, fk, fileId);
+                                        basePlainJson = await decBlob.text();
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("[Backup Cascade] Failed to decrypt base slot", e);
+                    }
+
+                    if (!basePlainJson) {
+                        console.warn("[Backup Cascade] Base slot empty or undecryptable, skipping delta cascade");
+                        return;
+                    }
+
+                    // Delta slots: compute patches relative to the stable "1 week" base
                     const now = new Date();
-                    const slots = [
+                    const deltaSlots = [
                         { name: "10 minutes", dur: 10 * 60 * 1000 },
                         { name: "30 minutes", dur: 30 * 60 * 1000 },
                         { name: "1 hour", dur: 60 * 60 * 1000 },
                         { name: "1 day", dur: 24 * 60 * 60 * 1000 },
                         { name: "2 days", dur: 2 * 24 * 60 * 60 * 1000 },
-                        { name: "1 week", dur: 7 * 24 * 60 * 60 * 1000 },
                     ];
                     
-                    for (const slot of slots) {
+                    for (const slot of deltaSlots) {
                         const b = slotMap[slot.name];
                         const needsUpdate = !b || (now.getTime() - new Date(b.updated_at).getTime()) > slot.dur;
                         if (needsUpdate) {
-                            console.log(`[Backup Cascade] Updating slot "${slot.name}" for file ${fileId}`);
-                            let oldJsonStr = "{}";
-                            if (b && b.encrypted_blob) {
-                                try {
-                                    const binaryString = atob(b.encrypted_blob);
-                                    const len = binaryString.length;
-                                    const bytes = new Uint8Array(len);
-                                    for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
-                                    
-                                    let oldPatchText = "";
-                                    const isV2 = (b.version ?? 1) >= 2 || !!b.access_keys;
-                                    if (isV2) {
-                                        const accessKeys = typeof b.access_keys === 'string'
-                                            ? JSON.parse(b.access_keys)
-                                            : (b.access_keys || {});
-                                        const myAccess = accessKeys?.[freshMyId];
-                                        if (myAccess?.wrapped_key) {
-                                            const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, freshPrivKey);
-                                            const slotDek = await cryptoV2.importDEK(rawDek);
-                                            const blobText = new TextDecoder().decode(bytes);
-                                            const payload = JSON.parse(blobText);
-                                            const ivBuf = new Uint8Array(atob(payload.iv).split("").map(c => c.charCodeAt(0)));
-                                            const dataBuf = new Uint8Array(atob(payload.data).split("").map(c => c.charCodeAt(0)));
-                                            const decrypted = await window.crypto.subtle.decrypt(
-                                                { name: 'AES-GCM', iv: ivBuf },
-                                                slotDek,
-                                                dataBuf
-                                            );
-                                            oldPatchText = new TextDecoder().decode(decrypted);
-                                        }
-                                    } else {
-                                        if (b.secured_meta) {
-                                            const meta = await cryptoLib.decryptMetadata(b.secured_meta, freshPrivKey, `backup-${fileId}`);
-                                            if (!meta.isLocked) {
-                                                const fileKey = await window.crypto.subtle.importKey(
-                                                    "jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
-                                                );
-                                                const decryptedBlob = await cryptoLib.decryptFile(new Blob([bytes]), meta.iv as string, fileKey, fileId);
-                                                oldPatchText = await decryptedBlob.text();
-                                            }
-                                        }
-                                    }
-                                    
-                                    try {
-                                        const parsedPatch = JSON.parse(oldPatchText);
-                                        if (Array.isArray(parsedPatch)) {
-                                            oldJsonStr = applyLinePatch(contentString, parsedPatch);
-                                        } else {
-                                            oldJsonStr = oldPatchText;
-                                        }
-                                    } catch (_) {
-                                        oldJsonStr = oldPatchText;
-                                    }
-                                } catch (e) {
-                                    console.warn(`[Backup Cascade] Failed to decrypt old slot "${slot.name}"`, e);
-                                    oldJsonStr = "{}";
-                                }
-                            }
+                            console.log(`[Backup Cascade] Updating delta slot "${slot.name}" for file ${fileId}`);
                             
-                            const patch = createLinePatch(contentString, oldJsonStr);
+                            // Compute delta: diff(basePlainJson, contentString)
+                            // Applying this delta to the base reconstructs contentString
+                            const patch = createLinePatch(basePlainJson, contentString);
                             const patchStr = JSON.stringify(patch);
                             
                             const patchIv = window.crypto.getRandomValues(new Uint8Array(12));
@@ -1324,8 +1349,18 @@ export default function Dashboard() {
                     if (bListRes.ok) {
                         const backups = await bListRes.json();
                         if (Array.isArray(backups) && backups.length > 0) {
-                            // Sort by updated_at descending
-                            const sortedSlots = backups.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+                            // Prioritise "1 week" (full copy base) first, then sort by recency
+                            const sortedSlots = backups.sort((a, b) => {
+                                const aIsBase = a.slot_name.trim() === '1 week' ? -1 : 0;
+                                const bIsBase = b.slot_name.trim() === '1 week' ? -1 : 0;
+                                if (aIsBase !== bIsBase) return aIsBase - bIsBase;
+                                return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+                            });
+
+                            // Pre-fetch the "1 week" base in case we need it for delta reconstruction
+                            let basePlainText = "";
+                            const baseSlotEntry = backups.find(s => s.slot_name.trim() === '1 week');
+
                             for (const slot of sortedSlots) {
                                 const slotName = slot.slot_name;
                                 const bRes = await apiFetch(`/api/v1/files/${fileId}/backups/${slotName}`);
@@ -1374,12 +1409,67 @@ export default function Dashboard() {
                                         }
 
                                         if (decryptedText) {
+                                            // Cache the "1 week" base plain text for delta reconstruction
+                                            if (slotName.trim() === '1 week') {
+                                                basePlainText = decryptedText;
+                                            }
+
                                             let parsedDecrypted: any = null;
                                             try {
                                                 parsedDecrypted = JSON.parse(decryptedText);
                                             } catch (_) {
                                                 parsedDecrypted = decryptedText;
                                             }
+
+                                            // Check if this is a delta patch (Array) — needs base to reconstruct
+                                            if (Array.isArray(parsedDecrypted)) {
+                                                if (!basePlainText) {
+                                                    // Need the base first — try to fetch it
+                                                    if (baseSlotEntry) {
+                                                        try {
+                                                            const baseRes = await apiFetch(`/api/v1/files/${fileId}/backups/${baseSlotEntry.slot_name}`);
+                                                            if (baseRes.ok) {
+                                                                const baseData = await baseRes.json();
+                                                                if (baseData.encrypted_blob) {
+                                                                    const baseBin = atob(baseData.encrypted_blob);
+                                                                    const baseBytes = new Uint8Array(baseBin.length);
+                                                                    for (let bi = 0; bi < baseBin.length; bi++) baseBytes[bi] = baseBin.charCodeAt(bi);
+                                                                    const baseIsV2 = (baseData.version ?? 1) >= 2 || !!baseData.access_keys;
+                                                                    if (baseIsV2) {
+                                                                        const bak = typeof baseData.access_keys === 'string' ? JSON.parse(baseData.access_keys) : (baseData.access_keys || {});
+                                                                        const bma = bak[myId];
+                                                                        if (bma?.wrapped_key) {
+                                                                            const brd = await cryptoV2.unwrapDEKData(bma.wrapped_key, privateKey);
+                                                                            const bdek = await cryptoV2.importDEK(brd);
+                                                                            const bbt = new TextDecoder().decode(baseBytes);
+                                                                            const bpl = JSON.parse(bbt);
+                                                                            const biv = cryptoLib.base64ToArrayBuffer(bpl.iv);
+                                                                            const bdb = cryptoLib.base64ToArrayBuffer(bpl.data);
+                                                                            const bdec = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv: biv }, bdek, bdb);
+                                                                            basePlainText = new TextDecoder().decode(bdec);
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        } catch (baseErr) {
+                                                            console.warn("[RECOVERY] Failed to decrypt base for delta reconstruction", baseErr);
+                                                        }
+                                                    }
+                                                }
+                                                if (basePlainText) {
+                                                    try {
+                                                        const reconstructed = applyLinePatch(basePlainText, parsedDecrypted);
+                                                        parsedDecrypted = JSON.parse(reconstructed);
+                                                    } catch (patchErr) {
+                                                        console.warn(`[RECOVERY] Delta patch failed for slot "${slotName}"`, patchErr);
+                                                        continue; // Try next slot
+                                                    }
+                                                } else {
+                                                    console.warn(`[RECOVERY] No base available for delta in slot "${slotName}", skipping`);
+                                                    continue;
+                                                }
+                                            }
+
                                             if (!isDocEmpty(parsedDecrypted)) {
                                                 console.log(`[RECOVERY] Successfully found non-empty backup content in slot "${slotName}". Restoring...`);
                                                 parsedContent = parsedDecrypted;

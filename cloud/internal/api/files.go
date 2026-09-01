@@ -741,12 +741,12 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		file.AccessKeys = req.AccessKeys
 	}
 	if req.ContentCiphertext != nil {
-		// oldRc, err := h.BlobStore.Get(r.Context(), id)
-		// var oldBlobBytes []byte
-		// if err == nil {
-		// 	oldBlobBytes, _ = io.ReadAll(oldRc)
-		// 	oldRc.Close()
-		// }
+		oldRc, blobErr := h.BlobStore.Get(r.Context(), id)
+		var oldBlobBytes []byte
+		if blobErr == nil {
+			oldBlobBytes, _ = io.ReadAll(oldRc)
+			oldRc.Close()
+		}
 
 		if err := h.BlobStore.Put(r.Context(), id, strings.NewReader(*req.ContentCiphertext)); err != nil {
 			http.Error(w, "Failed to write blob", http.StatusInternalServerError)
@@ -755,10 +755,10 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		path := id
 		file.BlobPath = &path
 
-		// Server-side backup cascade disabled (handled via client-side delta cascade)
-		// if len(oldBlobBytes) > 0 {
-		// 	go h.handleBackupCascade(context.Background(), id, oldBlobBytes)
-		// }
+		// Server-side backup cascade: maintains the "1 week" full-copy base slot
+		if len(oldBlobBytes) > 0 {
+			go h.handleBackupCascade(context.Background(), id, oldBlobBytes)
+		}
 	}
 	file.UpdatedAt = time.Now()
 
@@ -799,12 +799,12 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// oldRc, err := h.BlobStore.Get(r.Context(), id)
-	// var oldBlobBytes []byte
-	// if err == nil {
-	// 	oldBlobBytes, _ = io.ReadAll(oldRc)
-	// 	oldRc.Close()
-	// }
+	oldRc, blobErr := h.BlobStore.Get(r.Context(), id)
+	var oldBlobBytes []byte
+	if blobErr == nil {
+		oldBlobBytes, _ = io.ReadAll(oldRc)
+		oldRc.Close()
+	}
 
 	// Stream body to BlobStore
 	if err := h.BlobStore.Put(r.Context(), id, r.Body); err != nil {
@@ -812,10 +812,10 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Server-side backup cascade disabled (handled via client-side delta cascade)
-	// if len(oldBlobBytes) > 0 {
-	// 	go h.handleBackupCascade(context.Background(), id, oldBlobBytes)
-	// }
+	// Server-side backup cascade: maintains the "1 week" full-copy base slot
+	if len(oldBlobBytes) > 0 {
+		go h.handleBackupCascade(context.Background(), id, oldBlobBytes)
+	}
 
 	// Update file blob path (if not already set, though BlobStore abstracts path)
 	// We might want to mark it as "uploaded" or update size.
@@ -1034,15 +1034,13 @@ func (h *FileHandler) handleBackupCascade(ctx context.Context, id string, blobBy
 		slotMap[backups[i].SlotName] = &backups[i]
 	}
 
+	// Only the "1 week" base slot is maintained server-side (full copy).
+	// Shorter slots (10min–2d) are handled client-side as delta patches.
 	slots := []struct {
 		name string
 		dur  time.Duration
 	}{
-		{"10 minutes", 10 * time.Minute},
-		{"30 minutes", 30 * time.Minute},
-		{" 1 hour", 1 * time.Hour},
-		{" 1 day", 24 * time.Hour},
-		{" 2 days", 48 * time.Hour},
+		{"1 week", 7 * 24 * time.Hour},
 	}
 
 	file, err := h.Store.GetFile(ctx, id)
