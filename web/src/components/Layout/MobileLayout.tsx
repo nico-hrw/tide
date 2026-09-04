@@ -7,7 +7,7 @@ import {
   ChevronRight, Plus, Search, Calendar as CalendarIcon,
   Trash2, GraduationCap,
   DollarSign, X, PenLine, FolderPlus, GripVertical,
-  Crosshair, BookOpen,
+  Crosshair, BookOpen, Clock, CheckCircle2,
 } from 'lucide-react';
 import { isSameDay, format, startOfWeek, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -1139,31 +1139,270 @@ export default function MobileLayout({
                         <span className="text-[10px] shrink-0" style={{ color: T.mut }}>Ganztag</span>
                       </button>
                     ))}
+                    {/* Next Event / Active Event Progress Bar on Today */}
+                    {isToday && (() => {
+                      const activeEv = dayEvs.find(e => {
+                        try {
+                          const s = new Date(e.start);
+                          const en = e.end ? new Date(e.end) : new Date(s.getTime() + 3_600_000);
+                          return s <= now && en > now;
+                        } catch { return false; }
+                      });
+
+                      const nextEv = dayEvs.find(e => {
+                        try {
+                          const s = new Date(e.start);
+                          return s > now;
+                        } catch { return false; }
+                      });
+
+                      const prevEvs = dayEvs.filter(e => {
+                        try {
+                          const en = e.end ? new Date(e.end) : new Date(new Date(e.start).getTime() + 3_600_000);
+                          return en <= now;
+                        } catch { return false; }
+                      });
+                      const prevEv = prevEvs[prevEvs.length - 1];
+
+                      if (activeEv) {
+                        const s = new Date(activeEv.start);
+                        const en = activeEv.end ? new Date(activeEv.end) : new Date(s.getTime() + 3_600_000);
+                        const totalMs = Math.max(60_000, en.getTime() - s.getTime());
+                        const elapsedMs = Math.max(0, now.getTime() - s.getTime());
+                        const pct = Math.min(100, Math.max(0, Math.round((elapsedMs / totalMs) * 100)));
+                        const remMins = Math.max(0, Math.round((en.getTime() - now.getTime()) / 60_000));
+                        const evColor = activeEv.color || T.accent;
+
+                        return (
+                          <div
+                            className="mb-4 p-3.5 rounded-2xl border transition-all shadow-sm"
+                            style={{
+                              background: theme === 'dark' ? 'rgba(30, 41, 59, 0.65)' : 'rgba(255, 255, 255, 0.85)',
+                              borderColor: `${evColor}44`,
+                              backdropFilter: 'blur(16px)',
+                            }}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: evColor }} />
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: evColor }}>
+                                  Aktueller Termin
+                                </span>
+                              </div>
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded-md" style={{ background: `${evColor}18`, color: evColor }}>
+                                noch {remMins} Min.
+                              </span>
+                            </div>
+                            <div className="text-sm font-bold truncate mb-2" style={{ color: T.pri }}>
+                              {activeEv.title}
+                            </div>
+                            <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}>
+                              <div
+                                className="h-full rounded-full transition-all duration-500 ease-out"
+                                style={{
+                                  width: `${pct}%`,
+                                  background: `linear-gradient(90deg, ${evColor}aa, ${evColor})`,
+                                }}
+                              />
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] mt-1.5 font-medium" style={{ color: T.mut }}>
+                              <span>{format(s, 'HH:mm')} Uhr</span>
+                              <span style={{ color: T.sec }}>{pct}% vergangen</span>
+                              <span>{format(en, 'HH:mm')} Uhr</span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (nextEv) {
+                        const s = new Date(nextEv.start);
+                        const diffMins = Math.max(1, Math.round((s.getTime() - now.getTime()) / 60_000));
+                        const evColor = nextEv.color || T.accent;
+
+                        let pct = 0;
+                        if (prevEv) {
+                          const prevEnd = prevEv.end ? new Date(prevEv.end) : new Date(new Date(prevEv.start).getTime() + 3_600_000);
+                          const gapTotal = s.getTime() - prevEnd.getTime();
+                          const gapElapsed = now.getTime() - prevEnd.getTime();
+                          if (gapTotal > 0) {
+                            pct = Math.min(100, Math.max(0, Math.round((gapElapsed / gapTotal) * 100)));
+                          }
+                        } else {
+                          pct = Math.min(100, Math.max(0, Math.round(((120 - Math.min(120, diffMins)) / 120) * 100)));
+                        }
+
+                        const timeString = diffMins >= 60
+                          ? `${Math.floor(diffMins / 60)} Std. ${diffMins % 60 > 0 ? `${diffMins % 60} Min.` : ''}`
+                          : `${diffMins} Min.`;
+
+                        return (
+                          <div
+                            className="mb-4 p-3.5 rounded-2xl border transition-all shadow-sm"
+                            style={{
+                              background: theme === 'dark' ? 'rgba(30, 41, 59, 0.65)' : 'rgba(255, 255, 255, 0.85)',
+                              borderColor: `${evColor}33`,
+                              backdropFilter: 'blur(16px)',
+                            }}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-1.5">
+                                <Clock size={12} style={{ color: evColor }} />
+                                <span className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: evColor }}>
+                                  Bis zum nächsten Termin
+                                </span>
+                              </div>
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-md" style={{ background: `${evColor}18`, color: evColor }}>
+                                in {timeString}
+                              </span>
+                            </div>
+                            <div className="text-sm font-bold truncate mb-2" style={{ color: T.pri }}>
+                              {nextEv.title}
+                            </div>
+                            <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}>
+                              <div
+                                className="h-full rounded-full transition-all duration-500 ease-out"
+                                style={{
+                                  width: `${pct}%`,
+                                  background: `linear-gradient(90deg, ${evColor}88, ${evColor})`,
+                                }}
+                              />
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] mt-1.5 font-medium" style={{ color: T.mut }}>
+                              <span>Noch {timeString}</span>
+                              <span style={{ color: T.sec }}>Beginnt um {format(s, 'HH:mm')} Uhr</span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (dayEvs.length > 0) {
+                        return (
+                          <div
+                            className="mb-4 p-3 rounded-2xl border flex items-center gap-2.5"
+                            style={{
+                              background: theme === 'dark' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.06)',
+                              borderColor: 'rgba(16, 185, 129, 0.25)',
+                            }}
+                          >
+                            <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
+                            <span className="text-xs font-semibold text-emerald-500 flex-1">
+                              Alle Termine für heute abgeschlossen
+                            </span>
+                          </div>
+                        );
+                      }
+
+                      return null;
+                    })()}
+
+                    {/* Events Timeline */}
                     {dayEvs.length === 0 && allDayEvs.length === 0 ? (
                       <p className="text-xs pb-3 pl-1" style={{ color: T.mut }}>Keine Ereignisse</p>
-                    ) : dayEvs.map(ev => {
-                      const evStart = new Date(ev.start);
-                      const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
-                      const color = ev.color || T.accent;
-                      return (
-                        <button key={ev.id} onClick={() => { const found = expandedEvents.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
-                          className="w-full flex items-stretch gap-0 mb-3 text-left">
-                          <div className="w-12 shrink-0 flex flex-col items-end justify-between pr-2 py-1">
-                            <span className="text-[11px] font-bold leading-none" style={{ color: T.sec }}>{format(evStart, 'HH:mm')}</span>
-                            <span className="text-[10px] leading-none" style={{ color: T.mut }}>{format(evEnd, 'HH:mm')}</span>
-                          </div>
-                          <div className="flex flex-col items-center w-5 shrink-0 py-1">
-                            <div className="w-px flex-1" style={{ background: color + '66', minHeight: 6 }} />
-                            <div className="w-3 h-3 rounded-full border-2 shrink-0 my-0.5" style={{ borderColor: color, background: T.card }} />
-                            <div className="w-px flex-1" style={{ background: color + '66', minHeight: 6 }} />
-                          </div>
-                          <div className="flex-1 rounded-2xl px-3 py-2.5 ml-2" style={{ background: color + '22', border: `1px solid ${color}44` }}>
-                            <p className="text-sm font-bold leading-snug" style={{ color: T.pri }}>{ev.title}</p>
-                            <p className="text-[11px] mt-0.5" style={{ color: T.sec }}>{format(evStart, 'HH:mm')} – {format(evEnd, 'HH:mm')}</p>
-                          </div>
-                        </button>
-                      );
-                    })}
+                    ) : (
+                      <div className="relative py-1">
+                        {/* Continuous vertical timeline line: uniform border color, unbroken */}
+                        {dayEvs.length > 0 && (
+                          <div
+                            className="absolute top-2 bottom-3 w-[2px] rounded-full pointer-events-none"
+                            style={{ left: 63, background: T.brd }}
+                          />
+                        )}
+
+                        {dayEvs.map((ev, idx) => {
+                          const evStart = new Date(ev.start);
+                          const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
+                          const color = ev.color || T.accent;
+                          const durationMins = Math.max(15, Math.round((evEnd.getTime() - evStart.getTime()) / 60_000));
+
+                          let cardHeight: number | undefined = undefined;
+                          let topSpacer = 0;
+
+                          if (isToday) {
+                            // Proportional height for today: ~0.85px per minute, clamped between 52px and 220px
+                            cardHeight = Math.min(220, Math.max(52, Math.round(durationMins * 0.85)));
+
+                            // Proportional spacing between events for today
+                            if (idx > 0) {
+                              const prevEv = dayEvs[idx - 1];
+                              const prevEnd = prevEv.end ? new Date(prevEv.end) : new Date(new Date(prevEv.start).getTime() + 3_600_000);
+                              const gapMins = Math.round((evStart.getTime() - prevEnd.getTime()) / 60_000);
+                              if (gapMins > 0) {
+                                topSpacer = Math.min(150, Math.max(6, Math.round(gapMins * 0.75)));
+                              }
+                            }
+                          }
+
+                          return (
+                            <React.Fragment key={ev.id}>
+                              {/* Proportional gap spacer for today */}
+                              {isToday && topSpacer > 0 && (
+                                <div className="flex items-center" style={{ height: topSpacer }}>
+                                  {topSpacer >= 40 && (
+                                    <span className="text-[9px] font-semibold pl-[80px]" style={{ color: T.mut }}>
+                                      {Math.floor((topSpacer / 0.75) / 60) > 0
+                                        ? `${Math.floor((topSpacer / 0.75) / 60)} Std. Pause`
+                                        : `${Math.round(topSpacer / 0.75)} Min. Pause`}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                              <button
+                                onClick={() => { const found = expandedEvents.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
+                                className="w-full flex items-start text-left group"
+                                style={{ marginBottom: isToday ? 8 : 12 }}
+                              >
+                                {/* Time column */}
+                                <div className="w-[52px] shrink-0 flex flex-col items-end pr-2 pt-0.5">
+                                  <span className="text-[11px] font-bold leading-none" style={{ color: T.sec }}>
+                                    {format(evStart, 'HH:mm')}
+                                  </span>
+                                  <span className="text-[10px] leading-none mt-1" style={{ color: T.mut }}>
+                                    {format(evEnd, 'HH:mm')}
+                                  </span>
+                                </div>
+
+                                {/* Marker column (centered on the vertical line at x=64) */}
+                                <div className="w-[24px] shrink-0 flex items-center justify-center pt-1 z-10">
+                                  <div
+                                    className="w-3.5 h-3.5 rounded-full border-2 shrink-0 shadow-sm transition-transform group-active:scale-125"
+                                    style={{
+                                      borderColor: color,
+                                      background: T.card,
+                                    }}
+                                  />
+                                </div>
+
+                                {/* Event Card */}
+                                <div
+                                  className="flex-1 rounded-2xl px-3.5 py-2.5 ml-2 flex flex-col justify-between transition-all"
+                                  style={{
+                                    background: `${color}18`,
+                                    border: `1px solid ${color}44`,
+                                    height: cardHeight ? `${cardHeight}px` : undefined,
+                                    minHeight: 48,
+                                  }}
+                                >
+                                  <div>
+                                    <p className="text-sm font-bold leading-snug" style={{ color: T.pri }}>
+                                      {ev.title}
+                                    </p>
+                                    <p className="text-[11px] mt-0.5" style={{ color: T.sec }}>
+                                      {format(evStart, 'HH:mm')} – {format(evEnd, 'HH:mm')} Uhr ({durationMins} Min.)
+                                    </p>
+                                  </div>
+                                  {ev.description && cardHeight && cardHeight > 80 && (
+                                    <p className="text-xs line-clamp-2 mt-1" style={{ color: T.mut }}>
+                                      {ev.description}
+                                    </p>
+                                  )}
+                                </div>
+                              </button>
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}

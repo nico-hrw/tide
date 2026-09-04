@@ -318,7 +318,7 @@ export default function Dashboard() {
     const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
 
     // Extensions State
-    const { push: islandPush, setIdlePayload, clearAll: islandClearAll, setDailySummaryMode } = useIslandStore();
+    const { push: islandPush, setIdlePayload, clearAll: islandClearAll } = useIslandStore();
 
     // Layout Options
     const [isRestored, setIsRestored] = useState(false);
@@ -1928,22 +1928,6 @@ export default function Dashboard() {
         };
     }, []);
 
-    // Island Welcome Effect (Inactivity check & Morning Briefing / Welcome sequence)
-    useEffect(() => {
-        if (!enabledExtensions.includes('smart_island')) return;
-        if (events.length === 0) return; // Wait until events are loaded
-
-        const booted = sessionStorage.getItem('island_boot_done');
-        if (booted) return;
-        sessionStorage.setItem('island_boot_done', '1');
-
-
-
-        // Test mode: ALWAYS trigger morning summary
-        setTimeout(() => {
-            setDailySummaryMode('morning');
-        }, 1500);
-    }, [events, enabledExtensions, setDailySummaryMode]);
 
     // ── Reminder: 10 min before event ─────────────────────────────────────────
     const remindedEventsRef = useRef<Set<string>>(new Set());

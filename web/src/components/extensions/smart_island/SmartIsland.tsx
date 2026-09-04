@@ -841,7 +841,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
         }).map((e: any) => ({ title: e.title, start: e.start, end: e.end, description: e.description, is_all_day: e.is_all_day }));
     }, [storeEvents]);
 
-    const isCentered = !!state.dailySummaryMode;
+    const isCentered = !!state.dailySummaryMode && state.dailySummaryMode !== 'morning';
 
     const sizeClass = isCentered
         ? 'p-6 rounded-2xl w-[26rem] sm:w-[30rem]'
@@ -957,7 +957,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
 
     if (isCentered && typeof window !== 'undefined') {
         return createPortal(
-            <div className="fixed bottom-6 left-6 z-[9999] pointer-events-auto">
+            <div className="hidden md:block fixed bottom-6 left-6 z-[9999] pointer-events-auto">
                 {islandShell}
             </div>,
             document.body
@@ -965,7 +965,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
     }
 
     return (
-        <div className="select-none relative z-[100]">
+        <div className="hidden md:block select-none relative z-[100]">
             {islandShell}
         </div>
     );
