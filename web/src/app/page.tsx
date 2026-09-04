@@ -3642,6 +3642,7 @@ export default function Dashboard() {
             <CloudStatusBanner />
             {/* Global drag ghost — rendered via Portal so it sits above sidebar/calendar/editor */}
             <EventDragGhost />
+            <div className="hidden md:block">
             <SmartIsland
                 onConfirm={(parsedData, text) => {
                     const now = new Date();
@@ -3662,6 +3663,7 @@ export default function Dashboard() {
                     setScheduleModalOpen(true);
                 }}
             />
+            </div>
             {/* Mobile Layout Wrapper */}
             <MobileLayout
                 events={events}

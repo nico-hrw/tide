@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Menu, User, Settings, ArrowLeft, Folder, FileText,
+  Menu, Settings, ArrowLeft, Folder, FileText,
   ChevronRight, Plus, Search, Calendar as CalendarIcon,
-  Trash2, GraduationCap, MessageCircle,
-  DollarSign, X, PenLine, FolderPlus, GripVertical, LayoutList, LayoutGrid,
-  Crosshair, Infinity as InfinityIcon,
+  Trash2, GraduationCap,
+  DollarSign, X, PenLine, FolderPlus, GripVertical,
+  Crosshair, BookOpen,
 } from 'lucide-react';
 import { isSameDay, format, startOfWeek, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -213,17 +213,16 @@ export default function MobileLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isEditingNote, setIsEditingNote] = useState(false);
-  const [isSocialOpen, setIsSocialOpen] = useState(false);
   const [isExamsOpen, setIsExamsOpen] = useState(false);
   const [isFinanceOpen, setIsFinanceOpen] = useState(false);
   const [activeDate, setActiveDate] = useState(new Date());
-  const [isMonthExpanded, setIsMonthExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [contextMenu, setContextMenu] = useState<{ type: 'note' | 'folder'; id: string; title: string; parentId?: string | null } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [calViewMode, setCalViewMode] = useState<'week' | 'day'>('week');
+  const [calViewMode, setCalViewMode] = useState<'day' | 'week' | 'month'>('day');
+  const [activeTab, setActiveTab] = useState<'calendar' | 'notes'>('calendar');
   const [dayViewDays, setDayViewDays] = useState<Date[]>([]);
   const dayViewSentinelRef = useRef<HTMLDivElement>(null);
 
@@ -240,19 +239,6 @@ export default function MobileLayout({
   const eventDragActiveRef = useRef(false);
   const [eventDragActive, setEventDragActive] = useState(false);
 
-  const [infiniteScrollMode, setInfiniteScrollMode] = useState(false);
-  const infScrollRef = useRef<HTMLDivElement>(null);
-  const infScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const infResetting = useRef(false);
-  const timeStripInnerRef = useRef<HTMLDivElement>(null);
-  const [infHourH, setInfHourH] = useState<number>(() => {
-    if (typeof window === 'undefined') return 54;
-    const s = localStorage.getItem('tide_mobile_hour_h');
-    return s ? Math.max(24, Math.min(120, parseFloat(s))) : 54;
-  });
-  const handleInfScrollY = useCallback((top: number) => {
-    if (timeStripInnerRef.current) timeStripInnerRef.current.style.transform = `translateY(-${top}px)`;
-  }, []);
 
   // Top bar right-swipe → open sidebar
   const topBarTouch = useRef({ x0: 0, y0: 0 });
@@ -351,7 +337,7 @@ export default function MobileLayout({
       if (freq === 'none') {
         processEvent(e, start);
       } else {
-        let current = new Date(start);
+        const current = new Date(start);
         const recEndOrig = e.recurrence_end ? new Date(e.recurrence_end) : new Date(maxDate.getTime() + 31536000000);
         if (isNaN(recEndOrig.getTime())) {
           processEvent(e, start); // Fallback to single occurrence
@@ -388,8 +374,6 @@ export default function MobileLayout({
 
   const weekStart = useMemo(() => startOfWeek(activeDate, { weekStartsOn: 1 }), [activeDate]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
-  const prevWeekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i - 7)), [weekStart]);
-  const nextWeekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i + 7)), [weekStart]);
   const weekStartStr = weekStart.toISOString().slice(0, 10);
 
   // AllDay events for the week view row
@@ -421,44 +405,7 @@ export default function MobileLayout({
     return rows;
   }, [allDayEventsForWeek, weekDays]);
 
-  // Center infinite scroll on current week whenever week changes or mode enabled.
-  // useLayoutEffect so scrollLeft is set before paint — avoids visible flash on left slide.
-  useLayoutEffect(() => {
-    if (!infiniteScrollMode) return;
-    const el = infScrollRef.current;
-    if (!el) return;
-    infResetting.current = true;
-    // Temporarily disable snap so we can jump without animation
-    el.style.scrollSnapType = 'none';
-    el.scrollLeft = el.offsetWidth;
-    // Re-enable snap after a frame so user swipes still snap
-    const raf = requestAnimationFrame(() => {
-      el.style.scrollSnapType = '';
-      setTimeout(() => { infResetting.current = false; }, 80);
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [infiniteScrollMode, weekStartStr]);
-
-  const handleInfScroll = useCallback(() => {
-    if (infResetting.current) return;
-    if (infScrollTimer.current) clearTimeout(infScrollTimer.current);
-    infScrollTimer.current = setTimeout(() => {
-      const el = infScrollRef.current;
-      if (!el) return;
-      const w = el.offsetWidth;
-      const sl = el.scrollLeft;
-      if (sl < w * 0.4) {
-        infResetting.current = true; setActiveDate(d => addDays(d, -7));
-      } else if (sl > w * 1.6) {
-        infResetting.current = true; setActiveDate(d => addDays(d, 7));
-      } else if (Math.abs(sl - w) > 4) {
-        // Partial swipe — spring back to center without changing week
-        infResetting.current = true;
-        el.scrollTo({ left: w, behavior: 'smooth' });
-        setTimeout(() => { infResetting.current = false; }, 400);
-      }
-    }, 100);
-  }, []);
+  // (infinite scroll mode removed)
 
   // Reset day-view list when the calendar week changes
   useEffect(() => {
@@ -485,11 +432,6 @@ export default function MobileLayout({
     return () => obs.disconnect();
   }, [calViewMode]);
 
-  const nextEvent = useMemo(() =>
-    expandedEvents.filter(e => { try { return new Date(e.start) > now; } catch { return false; } })
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())[0] ?? null,
-    [expandedEvents, now]);
-
   // Date/time recognition from search query (use new Date() inside so `now` tick doesn't re-run)
   const parsedDate = useMemo(() => {
     const q = searchQuery.trim();
@@ -503,7 +445,7 @@ export default function MobileLayout({
   // Text collector: open search on key press
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (isSearchOpen || isEditingNote || isSidebarOpen) return;
+      if (isSearchOpen || isEditingNote || isSidebarOpen || activeTab === 'notes') return;
       const el = document.activeElement;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable)) return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -513,7 +455,7 @@ export default function MobileLayout({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [isSearchOpen, isEditingNote, isSidebarOpen]);
+  }, [isSearchOpen, isEditingNote, isSidebarOpen, activeTab]);
 
   const searchResults = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -574,7 +516,7 @@ export default function MobileLayout({
   }, []);
 
   const onSwipeStart = (e: React.TouchEvent) => {
-    if (snapping || eventDragActiveRef.current || infiniteScrollMode) return;
+    if (snapping || eventDragActiveRef.current) return;
     swipeX0.current = e.touches[0].clientX;
     swipeY0.current = e.touches[0].clientY;
     isSwipingWeek.current = false;
@@ -584,9 +526,7 @@ export default function MobileLayout({
     if (snapping || eventDragActiveRef.current || document.body.hasAttribute('data-ev-drag')) return;
     const dx = e.touches[0].clientX - swipeX0.current;
     const dy = Math.abs(e.touches[0].clientY - swipeY0.current);
-    // Cancel swipe if vertical movement dominates (user is scrolling)
     if (dy > 12 && !isSwipingWeek.current) return;
-    // Don't start week swipe if touch began on the time label column (~first 50px)
     if (!isSwipingWeek.current && Math.abs(dx) > dy && Math.abs(dx) > 12 && swipeX0.current > 50) {
       isSwipingWeek.current = true;
     }
@@ -594,7 +534,6 @@ export default function MobileLayout({
   };
   const onSwipeEnd = (e: React.TouchEvent) => {
     if (snapping) return;
-    // dx computed from changedTouches — swipeDx is 0 for time-column touches that never set isSwipingWeek
     const dx = e.changedTouches[0].clientX - swipeX0.current;
     if (isSwipingWeek.current && Math.abs(swipeDx) > 45) {
       const dir = swipeDx < 0 ? 'left' : 'right';
@@ -605,7 +544,6 @@ export default function MobileLayout({
         setSwipeDx(0);
       }, 240);
     } else if (!isSwipingWeek.current && dx > 60 && swipeX0.current < 55) {
-      // Right swipe from time column → open sidebar
       setIsSidebarOpen(true);
       setSwipeDx(0);
     } else {
@@ -674,12 +612,11 @@ export default function MobileLayout({
                 );
               })()}
             </div>
-            {/* Feature tabs */}
+            {/* Feature tabs — Social/Chat removed */}
             <div style={{ borderTop: `1px solid ${T.brd}`, flexShrink: 0 }}>
               <div className="flex overflow-x-auto gap-2 px-3 py-3 no-scrollbar">
                 {[
                   { id: 'exams', icon: <GraduationCap size={18} />, label: 'Prüfungen', ext: 'exams', action: () => { setIsSidebarOpen(false); setIsExamsOpen(true); } },
-                  { id: 'chat', icon: <MessageCircle size={18} />, label: 'Chat', ext: undefined, action: () => { setIsSidebarOpen(false); setIsSocialOpen(true); } },
                   { id: 'finance', icon: <DollarSign size={18} />, label: 'Finanzen', ext: 'finance', action: () => { setIsSidebarOpen(false); setIsFinanceOpen(true); } },
                 ].map(tab => {
                   const enabled = !tab.ext || enabledExtensions.includes(tab.ext);
@@ -742,12 +679,7 @@ export default function MobileLayout({
           </motion.div>
         )}
 
-        {/* Social */}
-        {isSocialOpen && (
-          <OverlayShell key="social" title="Social" onBack={() => setIsSocialOpen(false)} from="bottom">
-            <div className="flex-1 overflow-y-auto">{socialHubElement}</div>
-          </OverlayShell>
-        )}
+        {/* Social removed from mobile */}
 
         {/* Exams */}
         {isExamsOpen && (
@@ -979,20 +911,8 @@ export default function MobileLayout({
           <Menu size={17} style={{ color: T.sec }} />
         </button>
         <div className="flex gap-2">
-          <a
-            href="https://go-tide.app/swipe/"
-            className="w-16 h-9 flex items-center justify-center rounded-xl text-xs font-bold transition-colors"
-            style={{
-              background: T.accent,
-              color: '#fff',
-              border: `1px solid ${T.accent}`,
-              textDecoration: 'none'
-            }}
-          >
-            Swipe
-          </a>
-          <button onClick={() => setIsSocialOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl" style={{ background: T.card, border: `1px solid ${T.brd}` }}>
-            <User size={16} style={{ color: T.sec }} />
+          <button onClick={() => { setSearchQuery(''); setIsSearchOpen(true); }} className="w-9 h-9 flex items-center justify-center rounded-xl" style={{ background: T.card, border: `1px solid ${T.brd}` }}>
+            <Search size={16} style={{ color: T.sec }} />
           </button>
           <button onClick={() => setSettingsOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl" style={{ background: T.card, border: `1px solid ${T.brd}` }}>
             <Settings size={16} style={{ color: T.sec }} />
@@ -1000,106 +920,53 @@ export default function MobileLayout({
         </div>
       </div>
 
-      {/* ── Calendar header (month title + nav) ─────── */}
+      {/* ── Calendar header (month title + segmented control) ─────── */}
+      {activeTab === 'calendar' && (
       <div className="shrink-0">
         <div className="px-5 flex items-center justify-between">
-          <button onClick={() => setIsMonthExpanded(v => !v)} className="text-lg font-extrabold" style={{ color: T.pri }}>
+          <span className="text-lg font-extrabold" style={{ color: T.pri }}>
             {format(activeDate, 'MMMM yyyy', { locale: de }).toUpperCase()}
+          </span>
+          <button onClick={() => {
+              setActiveDate(new Date());
+              if (calViewMode === 'day') requestAnimationFrame(() => document.getElementById(`day-${format(new Date(), 'yyyy-MM-dd')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+            }}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold"
+            style={{ background: `${T.accent}18`, color: T.accent, border: `1px solid ${T.accent}30` }}>
+            <Crosshair size={12} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Heute
           </button>
-          <div className="flex gap-2 items-center">
-            <button onClick={() => setCalViewMode(m => m === 'week' ? 'day' : 'week')} className="w-8 h-8 flex items-center justify-center rounded-xl" style={{ background: calViewMode === 'day' ? `${T.accent}20` : T.card, border: `1px solid ${calViewMode === 'day' ? T.accent : T.brd}` }}>
-              {calViewMode === 'week' ? <LayoutList size={14} style={{ color: T.sec }} /> : <LayoutGrid size={14} style={{ color: T.accent }} />}
-            </button>
-            <button onClick={() => setInfiniteScrollMode(m => !m)} className="w-8 h-8 flex items-center justify-center rounded-xl" style={{ background: infiniteScrollMode ? `${T.accent}20` : T.card, border: `1px solid ${infiniteScrollMode ? T.accent : T.brd}` }}>
-              <InfinityIcon size={14} style={{ color: infiniteScrollMode ? T.accent : T.sec }} />
-            </button>
-            <button onClick={() => {
-                setActiveDate(new Date());
-                if (calViewMode === 'day') requestAnimationFrame(() => document.getElementById(`day-${format(new Date(), 'yyyy-MM-dd')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-              }}
-              className="w-8 h-8 flex items-center justify-center rounded-xl"
-              style={{ background: T.card, border: `1px solid ${T.brd}` }}>
-              <Crosshair size={14} style={{ color: T.accent }} />
-            </button>
-            <button onClick={() => setActiveDate(d => addDays(d, -7))} className="w-8 h-8 flex items-center justify-center rounded-xl" style={{ background: T.card, border: `1px solid ${T.brd}` }}>
-              <ChevronRight size={14} style={{ color: T.sec, transform: 'rotate(180deg)' }} />
-            </button>
-            <button onClick={() => setActiveDate(d => addDays(d, 7))} className="w-8 h-8 flex items-center justify-center rounded-xl" style={{ background: T.card, border: `1px solid ${T.brd}` }}>
-              <ChevronRight size={14} style={{ color: T.sec }} />
-            </button>
-          </div>
         </div>
-
-        <motion.div animate={{ height: isMonthExpanded ? 290 : 0 }} transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }} className="overflow-hidden relative">
-          <motion.div animate={{ opacity: isMonthExpanded ? 1 : 0, y: isMonthExpanded ? 0 : -12 }} transition={{ duration: 0.2 }}
-            style={{ position: 'absolute', inset: 0, pointerEvents: isMonthExpanded ? 'auto' : 'none' }}>
-            <MiniCalendar selectedDate={activeDate} onSelect={d => { setActiveDate(d); setIsMonthExpanded(false); }} />
-          </motion.div>
-        </motion.div>
+        {/* Segmented control: Tag / Woche / Monat */}
+        <div className="flex mx-4 mt-2 mb-1 p-1 rounded-xl" style={{ background: T.hov, border: `1px solid ${T.brd}` }}>
+          {(['day', 'week', 'month'] as const).map(mode => {
+            const labels = { day: 'Tag', week: 'Woche', month: 'Monat' };
+            const isActive = calViewMode === mode;
+            return (
+              <button key={mode} onClick={() => setCalViewMode(mode)}
+                className="flex-1 py-1.5 rounded-lg text-xs font-bold transition-all"
+                style={{
+                  background: isActive ? T.accent : 'transparent',
+                  color: isActive ? '#fff' : T.sec,
+                  boxShadow: isActive ? '0 1px 4px rgba(0,0,0,0.15)' : 'none',
+                }}>
+                {labels[mode]}
+              </button>
+            );
+          })}
+        </div>
       </div>
+      )}
 
-      {/* ── Calendar views ───────────────────────────── */}
+      {/* ── Main content area ───────────────────────────── */}
+      {activeTab === 'calendar' ? (
       <div
         className="flex flex-col"
-        style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(68px + env(safe-area-inset-bottom))' }}
-        onTouchStart={onSwipeStart}
-        onTouchMove={onSwipeMove}
-        onTouchEnd={onSwipeEnd}
+        style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(60px + env(safe-area-inset-bottom))' }}
+        onTouchStart={calViewMode === 'week' ? onSwipeStart : undefined}
+        onTouchMove={calViewMode === 'week' ? onSwipeMove : undefined}
+        onTouchEnd={calViewMode === 'week' ? onSwipeEnd : undefined}
       >
         {calViewMode === 'week' ? (
-          infiniteScrollMode ? (
-            /* ── Infinite horizontal week scroll ── */
-            <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-              {/* Shared time strip — fixed left, scrolls vertically in sync with visible slide */}
-              <div style={{ width: 38, flexShrink: 0, overflow: 'hidden', position: 'relative', borderRight: `1px solid ${T.brd}` }}>
-                <div ref={timeStripInnerRef} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: `${24 * infHourH}px` }}>
-                  {Array.from({ length: 24 }, (_, h) => h).map(h => h > 0 && (
-                    <div key={h} style={{ position: 'absolute', top: h * infHourH - 7, right: 5, left: 0, textAlign: 'right' }}>
-                      <span style={{ fontSize: 9, color: T.mut, fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{h}:00</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {/* Horizontal carousel — no snap, free scroll */}
-              <div ref={infScrollRef} className="no-scrollbar" style={{ flex: 1, display: 'flex', overflowX: 'auto' }} onScroll={handleInfScroll}>
-                {[prevWeekDays, weekDays, nextWeekDays].map((wDays, slideIdx) => (
-                  <div key={slideIdx} style={{ flex: '0 0 100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                    <div className="flex shrink-0" style={{ borderBottom: `1px solid ${T.brd}` }}>
-                      {wDays.map(d => {
-                        const isToday = isSameDay(d, now);
-                        const isSel = isSameDay(d, activeDate);
-                        return (
-                          <button key={d.toISOString()} className="flex-1 flex flex-col items-center py-1" onClick={() => setActiveDate(d)}>
-                            <span className="text-[9px] font-bold uppercase" style={{ color: isToday ? T.accent : T.mut }}>
-                              {format(d, 'eeeee', { locale: de })}
-                            </span>
-                            <span className="text-xs w-7 h-7 flex items-center justify-center rounded-full"
-                              style={{ background: isToday ? T.danger : isSel ? `${T.accent}20` : 'transparent', color: isToday ? '#fff' : isSel ? T.accent : T.pri, fontWeight: isSel || isToday ? 700 : 500 }}>
-                              {format(d, 'd')}
-                            </span>
-                            <div className="w-1 h-1 rounded-full" style={{ background: isToday ? T.danger : 'transparent', marginTop: 1 }} />
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <MobileWeekGrid
-                      weekDays={wDays}
-                      events={expandedEvents}
-                      now={now}
-                      hideTimeStrip
-                      onScrollY={slideIdx === 1 ? handleInfScrollY : undefined}
-                      onHourHeightChange={h => setInfHourH(h)}
-                      onEventTap={id => { const ev = expandedEvents.find(e => e.id === id); if (ev) setSelectedEvent(ev); onEventClick?.(id); }}
-                      onNewEvent={(start) => { onNewEvent?.(start); }}
-                      onEventUpdate={onEventUpdate}
-                      onWeekShift={dir => setActiveDate(d => addDays(d, dir * 7))}
-                      onEventDragChange={active => { eventDragActiveRef.current = active; setEventDragActive(active); }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
           <div
             style={{
               transform: snapping === 'left' ? 'translateX(-100%)' : snapping === 'right' ? 'translateX(100%)' : `translateX(${swipeDx * 0.4}px)`,
@@ -1113,7 +980,7 @@ export default function MobileLayout({
                 const isSel = isSameDay(d, activeDate);
                 return (
                   <button key={d.toISOString()} className="flex-1 flex flex-col items-center py-1"
-                    style={{ borderLeft: '1px solid var(--border-color)', background: isToday ? 'rgba(59,130,246,0.04)' : 'transparent', border: 'none', cursor: 'pointer' }}
+                    style={{ background: isToday ? 'rgba(59,130,246,0.04)' : 'transparent', border: 'none', cursor: 'pointer' }}
                     onClick={() => setActiveDate(d)}>
                     <span className="text-[9px] font-bold uppercase" style={{ color: isToday ? T.accent : T.mut }}>
                       {format(d, 'eeeee', { locale: de })}
@@ -1128,7 +995,7 @@ export default function MobileLayout({
               })}
             </div>
 
-            {/* AllDay events strip — Google Calendar style */}
+            {/* AllDay events strip */}
             {allDayRows.length > 0 && (
               <div className="shrink-0" style={{ paddingLeft: 38, borderBottom: `1px solid ${T.brd}`, height: allDayRows.length * 20 + 4 }}>
                 <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -1179,7 +1046,64 @@ export default function MobileLayout({
               onEventDragChange={active => { eventDragActiveRef.current = active; setEventDragActive(active); }}
             />
           </div>
-          )
+        ) : calViewMode === 'month' ? (
+          /* ── Month view ── */
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ flexShrink: 0 }}>
+              <MiniCalendar selectedDate={activeDate} onSelect={d => { setActiveDate(d); setCalViewMode('day'); }} />
+            </div>
+            {/* Events for selected date */}
+            <div className="flex-1 overflow-y-auto px-4 pb-4">
+              <div className="flex items-center gap-3 py-3">
+                <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: T.accent }}>
+                  {format(activeDate, 'EEEE d. MMM', { locale: de }).toUpperCase()}
+                </span>
+                <div className="flex-1 h-px" style={{ background: T.brd }} />
+              </div>
+              {(() => {
+                const sameDay = (e: { start: string; allDay?: boolean }) => { try { return isSameDay(new Date(e.start), activeDate); } catch { return false; } };
+                const allDayEvs = expandedEvents.filter(e => e.allDay && sameDay(e));
+                const dayEvs = expandedEvents.filter(e => !e.allDay && sameDay(e)).sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+                if (allDayEvs.length === 0 && dayEvs.length === 0) return <p className="text-xs pl-1" style={{ color: T.mut }}>Keine Ereignisse</p>;
+                return (
+                  <>
+                    {allDayEvs.map(ev => (
+                      <button key={`allday-${ev.id}`} onClick={() => { const found = expandedEvents.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
+                        className="w-full flex items-center gap-2 mb-2 text-left px-2 py-1.5 rounded-xl"
+                        style={{ background: (ev.color || T.accent) + '22', border: `1px solid ${(ev.color || T.accent)}44` }}>
+                        <div className="w-2 h-2 rounded-full shrink-0" style={{ background: ev.color || T.accent }} />
+                        <span className="text-xs font-semibold flex-1 truncate" style={{ color: T.pri }}>{ev.title}</span>
+                        <span className="text-[10px] shrink-0" style={{ color: T.mut }}>Ganztag</span>
+                      </button>
+                    ))}
+                    {dayEvs.map(ev => {
+                      const evStart = new Date(ev.start);
+                      const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
+                      const color = ev.color || T.accent;
+                      return (
+                        <button key={ev.id} onClick={() => { const found = expandedEvents.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
+                          className="w-full flex items-stretch gap-0 mb-3 text-left">
+                          <div className="w-12 shrink-0 flex flex-col items-end justify-between pr-2 py-1">
+                            <span className="text-[11px] font-bold leading-none" style={{ color: T.sec }}>{format(evStart, 'HH:mm')}</span>
+                            <span className="text-[10px] leading-none" style={{ color: T.mut }}>{format(evEnd, 'HH:mm')}</span>
+                          </div>
+                          <div className="flex flex-col items-center w-5 shrink-0 py-1">
+                            <div className="w-px flex-1" style={{ background: color + '66', minHeight: 6 }} />
+                            <div className="w-3 h-3 rounded-full border-2 shrink-0 my-0.5" style={{ borderColor: color, background: T.card }} />
+                            <div className="w-px flex-1" style={{ background: color + '66', minHeight: 6 }} />
+                          </div>
+                          <div className="flex-1 rounded-2xl px-3 py-2.5 ml-2" style={{ background: color + '22', border: `1px solid ${color}44` }}>
+                            <p className="text-sm font-bold leading-snug" style={{ color: T.pri }}>{ev.title}</p>
+                            <p className="text-[11px] mt-0.5" style={{ color: T.sec }}>{format(evStart, 'HH:mm')} – {format(evEnd, 'HH:mm')}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
         ) : (
           /* ── Day / Agenda view (infinite scroll) ── */
           <div
@@ -1190,7 +1114,7 @@ export default function MobileLayout({
             <div className="flex-1 overflow-y-auto pb-4" style={{ paddingLeft: 12, paddingRight: 12 }}>
               {dayViewDays.map(day => {
                 const isToday = isSameDay(day, now);
-                const sameDay = (e: any) => { try { return isSameDay(new Date(e.start), day); } catch { return false; } };
+                const sameDay = (e: { start: string; allDay?: boolean }) => { try { return isSameDay(new Date(e.start), day); } catch { return false; } };
                 const allDayEvs = expandedEvents.filter(e => e.allDay && sameDay(e));
                 const dayEvs = expandedEvents
                   .filter(e => !e.allDay && sameDay(e))
@@ -1224,18 +1148,15 @@ export default function MobileLayout({
                       return (
                         <button key={ev.id} onClick={() => { const found = expandedEvents.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
                           className="w-full flex items-stretch gap-0 mb-3 text-left">
-                          {/* Time column */}
                           <div className="w-12 shrink-0 flex flex-col items-end justify-between pr-2 py-1">
                             <span className="text-[11px] font-bold leading-none" style={{ color: T.sec }}>{format(evStart, 'HH:mm')}</span>
                             <span className="text-[10px] leading-none" style={{ color: T.mut }}>{format(evEnd, 'HH:mm')}</span>
                           </div>
-                          {/* Timeline */}
                           <div className="flex flex-col items-center w-5 shrink-0 py-1">
                             <div className="w-px flex-1" style={{ background: color + '66', minHeight: 6 }} />
                             <div className="w-3 h-3 rounded-full border-2 shrink-0 my-0.5" style={{ borderColor: color, background: T.card }} />
                             <div className="w-px flex-1" style={{ background: color + '66', minHeight: 6 }} />
                           </div>
-                          {/* Event card */}
                           <div className="flex-1 rounded-2xl px-3 py-2.5 ml-2" style={{ background: color + '22', border: `1px solid ${color}44` }}>
                             <p className="text-sm font-bold leading-snug" style={{ color: T.pri }}>{ev.title}</p>
                             <p className="text-[11px] mt-0.5" style={{ color: T.sec }}>{format(evStart, 'HH:mm')} – {format(evEnd, 'HH:mm')}</p>
@@ -1252,38 +1173,101 @@ export default function MobileLayout({
           </div>
         )}
       </div>
+      ) : (
+      /* ── Notes tab ── */
+      <div className="flex flex-col" style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(60px + env(safe-area-inset-bottom))' }}>
+        {/* Notes header */}
+        <div className="px-5 py-3 flex items-center gap-3">
+          <span className="text-lg font-extrabold flex-1" style={{ color: T.pri }}>Notizen</span>
+          <button onClick={() => { onNewNote(); setIsEditingNote(true); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
+            style={{ background: T.accent, color: '#fff' }}>
+            <Plus size={14} /> Neu
+          </button>
+        </div>
+        {/* Notes search */}
+        <div className="mx-4 mb-3 flex items-center gap-2 px-3 py-2 rounded-xl"
+          style={{ background: T.hov, border: `1px solid ${T.brd}` }}>
+          <Search size={14} style={{ color: T.sec }} />
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Notiz suchen…"
+            className="flex-1 bg-transparent outline-none text-sm"
+            style={{ color: T.pri }}
+          />
+          {searchQuery && <button onClick={() => setSearchQuery('')}><X size={14} style={{ color: T.sec }} /></button>}
+        </div>
+        {/* Notes list */}
+        <div className="flex-1 overflow-y-auto px-2">
+          {(() => {
+            const q = searchQuery.toLowerCase().trim();
+            const filteredFiles = q.length >= 2
+              ? files.filter(f => f.type !== 'folder' && (f.title || '').toLowerCase().includes(q))
+              : null;
 
-      {/* ── Bottom smart bar — liquid glass ─────────── */}
-      <button
-        onClick={() => { setSearchQuery(''); setIsSearchOpen(true); }}
-        className="fixed left-3 right-3 flex items-center gap-3 px-4 py-3 rounded-2xl z-20"
+            if (filteredFiles) {
+              return filteredFiles.length > 0 ? filteredFiles.map(f => (
+                <NoteRow key={f.id} file={f} onOpen={() => openNote(f.id, f.title || 'Untitled')} onDragStart={handleNoteDragStart} onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })} />
+              )) : (
+                <p className="text-sm py-4 text-center" style={{ color: T.mut }}>Keine Ergebnisse</p>
+              );
+            }
+
+            const recentFiles = files.filter(f => f.type !== 'folder').slice(0, 3);
+            const recentIds = new Set(recentFiles.map(f => f.id));
+            return (
+              <>
+                <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Zuletzt</p>
+                {recentFiles.map(f => (
+                  <NoteRow key={f.id} file={f} onOpen={() => openNote(f.id, f.title || 'Untitled')} onDragStart={handleNoteDragStart} onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })} />
+                ))}
+                <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Ordner</p>
+                {folders.filter(f => !f.parent_id).map(folder => (
+                  <FolderItem key={folder.id} folder={folder} allFiles={files} onOpen={openNote} dragOverId={dragOverFolderId} onDragOver={setDragOverFolderId} onDragLeave={() => setDragOverFolderId(null)}
+                    onContextMenu={f => setContextMenu({ type: 'folder', id: f.id, title: f.title || 'Ordner', parentId: f.parent_id })}
+                    onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                    onNoteDragStart={handleNoteDragStart} />
+                ))}
+                <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Alle Notizen</p>
+                {files.filter(f => !f.parent_id && f.type !== 'folder' && !recentIds.has(f.id)).map(f => (
+                  <NoteRow key={f.id} file={f} onOpen={() => openNote(f.id, f.title || 'Untitled')} onDragStart={handleNoteDragStart} onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })} />
+                ))}
+              </>
+            );
+          })()}
+        </div>
+      </div>
+      )}
+
+      {/* ── Bottom tab bar ─────────── */}
+      <div
+        className="fixed left-0 right-0 flex z-20"
         style={{
-          bottom: kbOffset > 0 ? kbOffset + 8 : 'max(16px, calc(env(safe-area-inset-bottom) + 8px))',
-          background: theme === 'dark' ? 'rgba(15,23,42,0.72)' : 'rgba(255,255,255,0.72)',
+          bottom: 0,
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          background: theme === 'dark' ? 'rgba(15,23,42,0.88)' : 'rgba(255,255,255,0.88)',
           backdropFilter: 'blur(20px) saturate(160%)',
           WebkitBackdropFilter: 'blur(20px) saturate(160%)',
-          border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
-          boxShadow: theme === 'dark' ? '0 8px 32px rgba(0,0,0,0.4)' : '0 8px 32px rgba(0,0,0,0.12)',
+          borderTop: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
         }}
       >
-        <div className="flex-1 text-left">
-          <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: T.mut }}>
-            {format(now, 'EEE, d. MMM', { locale: de })} · Nächstes Ereignis
-          </p>
-          {nextEvent ? (
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full shrink-0" style={{ background: nextEvent.color || T.accent }} />
-              <span className="text-sm font-semibold truncate" style={{ color: T.pri }}>{nextEvent.title}</span>
-              <span className="text-xs shrink-0" style={{ color: T.mut }}>{format(new Date(nextEvent.start), 'HH:mm')}</span>
-            </div>
-          ) : (
-            <span className="text-sm" style={{ color: T.mut }}>Tippe zum Suchen oder Erfassen…</span>
-          )}
-        </div>
-        <div className="w-8 h-8 flex items-center justify-center rounded-xl shrink-0" style={{ background: T.hov }}>
-          <Search size={14} style={{ color: T.sec }} />
-        </div>
-      </button>
+        {[
+          { id: 'calendar' as const, icon: <CalendarIcon size={20} />, label: 'Kalender' },
+          { id: 'notes' as const, icon: <BookOpen size={20} />, label: 'Notizen' },
+        ].map(tab => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className="flex-1 flex flex-col items-center gap-0.5 py-2"
+              style={{ color: isActive ? T.accent : T.sec }}
+            >
+              {tab.icon}
+              <span className="text-[10px] font-semibold">{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
