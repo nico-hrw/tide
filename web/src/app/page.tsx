@@ -1100,7 +1100,16 @@ export default function Dashboard() {
     performSaveRef.current = performSave;
 
     const loadNoteContent = async (fileId: string, titleFn: string, passedFile?: any) => {
-        if (!privateKey) return;
+        const effectivePrivKey = privateKey || useDataStore.getState().privateKey;
+        if (!effectivePrivKey) {
+            console.warn("[loadNoteContent] privateKey not yet ready, scheduling retry");
+            setTimeout(() => {
+                const retryKey = useDataStore.getState().privateKey;
+                if (retryKey) loadNoteContent(fileId, titleFn, passedFile);
+            }, 300);
+            return;
+        }
+        const effectiveMyId = myId || useDataStore.getState().myId || (typeof window !== 'undefined' ? (localStorage.getItem("tide_user_id") || sessionStorage.getItem("tide_user_id") || "") : "");
         const loadId = crypto.randomUUID();
         lastLoadIdRef.current = loadId;
         setIsLoadingContent(true);
@@ -1168,13 +1177,13 @@ export default function Dashboard() {
                 const accessKeys = typeof target.access_keys === 'string'
                     ? JSON.parse(target.access_keys)
                     : (target.access_keys || {});
-                const myAccess = accessKeys[myId];
+                const myAccess = (effectiveMyId ? accessKeys[effectiveMyId] : null) || Object.values(accessKeys)[0] as any;
                 if (!myAccess?.wrapped_key) {
-                    throw new Error(`[V2-Load] No access key found for user ${myId}. Cannot decrypt file ${fileId}.`);
+                    throw new Error(`[V2-Load] No access key found for user ${effectiveMyId}. Cannot decrypt file ${fileId}.`);
                 }
 
                 // Unwrap DEK with RSA private key, then import for AES-GCM
-                let rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey);
+                let rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, effectivePrivKey);
                 if (target.metadata?.has_custom_password) {
                     const { getSessionPin } = await import('@/lib/pinSecurity');
                     const sessionPin = getSessionPin(fileId);
@@ -1211,12 +1220,12 @@ export default function Dashboard() {
                             if (parsedMeta.title) v2Title = parsedMeta.title;
                         } else {
                             // Fallback to RSA decryption
-                            const meta = await cryptoLib.decryptMetadata(target.secured_meta, privateKey, `load-v2-${fileId}`);
+                            const meta = await cryptoLib.decryptMetadata(target.secured_meta, effectivePrivKey, `load-v2-${fileId}`);
                             if (meta.title) v2Title = meta.title as string;
                         }
                     } catch (e) {
                         try {
-                            const meta = await cryptoLib.decryptMetadata(target.secured_meta, privateKey, `load-v2-${fileId}`);
+                            const meta = await cryptoLib.decryptMetadata(target.secured_meta, effectivePrivKey, `load-v2-${fileId}`);
                             if (meta.title) v2Title = meta.title as string;
                         } catch (err2) {
                             console.warn("[V2-Load] Metadata decryption failed", err2);
@@ -1275,7 +1284,7 @@ export default function Dashboard() {
             } else {
                 // ── [V1-LOAD] Legacy path (secured_meta contains file key + IV) ────────
                 if (!target.secured_meta) throw new Error("Missing metadata");
-                meta = await cryptoLib.decryptMetadata(target.secured_meta, privateKey, `load-${fileId}`);
+                meta = await cryptoLib.decryptMetadata(target.secured_meta, effectivePrivKey, `load-${fileId}`);
 
                 // Resolve "Locked Note" title once decrypted
                 if (meta.title && (target.title !== meta.title || target.isLocked)) {
@@ -1362,6 +1371,7 @@ export default function Dashboard() {
                             const baseSlotEntry = backups.find(s => s.slot_name.trim() === '1 week');
 
                             for (const slot of sortedSlots) {
+                                if (!effectivePrivKey) break;
                                 const slotName = slot.slot_name;
                                 const bRes = await apiFetch(`/api/v1/files/${fileId}/backups/${slotName}`);
                                 if (bRes.ok) {
@@ -1379,9 +1389,9 @@ export default function Dashboard() {
                                             const accessKeys = typeof backupData.access_keys === 'string'
                                                 ? JSON.parse(backupData.access_keys)
                                                 : (backupData.access_keys || {});
-                                            const myAccess = accessKeys[myId];
+                                            const myAccess = accessKeys[effectiveMyId] || Object.values(accessKeys)[0];
                                             if (myAccess?.wrapped_key) {
-                                                const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey);
+                                                const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, effectivePrivKey);
                                                 const dek = await cryptoV2.importDEK(rawDek);
                                                 const blobText = new TextDecoder().decode(bytes);
                                                 const payload = JSON.parse(blobText);
@@ -1396,7 +1406,7 @@ export default function Dashboard() {
                                             }
                                         } else {
                                             if (backupData.secured_meta) {
-                                                const bMeta = await cryptoLib.decryptMetadata(backupData.secured_meta, privateKey);
+                                                const bMeta = await cryptoLib.decryptMetadata(backupData.secured_meta, effectivePrivKey);
                                                 if (!bMeta.isLocked) {
                                                     const bFileKey = await window.crypto.subtle.importKey(
                                                         "jwk", bMeta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
@@ -1437,9 +1447,9 @@ export default function Dashboard() {
                                                                     const baseIsV2 = (baseData.version ?? 1) >= 2 || !!baseData.access_keys;
                                                                     if (baseIsV2) {
                                                                         const bak = typeof baseData.access_keys === 'string' ? JSON.parse(baseData.access_keys) : (baseData.access_keys || {});
-                                                                        const bma = bak[myId];
+                                                                        const bma = bak[effectiveMyId] || Object.values(bak)[0];
                                                                         if (bma?.wrapped_key) {
-                                                                            const brd = await cryptoV2.unwrapDEKData(bma.wrapped_key, privateKey);
+                                                                            const brd = await cryptoV2.unwrapDEKData(bma.wrapped_key, effectivePrivKey);
                                                                             const bdek = await cryptoV2.importDEK(brd);
                                                                             const bbt = new TextDecoder().decode(baseBytes);
                                                                             const bpl = JSON.parse(bbt);
@@ -1515,7 +1525,15 @@ export default function Dashboard() {
                 initialContentRef.current = emptyDoc;
             }
         } catch (err) {
-            if (lastLoadIdRef.current === loadId) console.error("Failed to load note:", err);
+            if (lastLoadIdRef.current === loadId) {
+                console.error("Failed to load note:", err);
+                const fallbackDoc = {
+                    type: 'doc',
+                    content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() }, content: [{ type: 'text', text: '' }] }]
+                };
+                setEditorContent(fallbackDoc);
+                initialContentRef.current = fallbackDoc;
+            }
         } finally {
             if (lastLoadIdRef.current === loadId) setIsLoadingContent(false);
         }
@@ -3662,9 +3680,10 @@ export default function Dashboard() {
                 }}
                 activeNoteId={activeNoteId}
                 activeNoteTitle={fileName}
-                onNewEvent={(date: Date) => {
-                    setScheduleInitialStart(date);
-                    setScheduleModalOpen(true);
+                onNewEvent={(date: Date, endDate?: Date, meta?: { title?: string; color?: string; description?: string }) => {
+                    const start = date;
+                    const end = endDate || new Date(date.getTime() + 3_600_000);
+                    handleEventCreate(start, end, false, meta || { title: 'Neuer Termin' });
                 }}
                 onEventClick={(id: string) => {
                     setActiveEventId(id);

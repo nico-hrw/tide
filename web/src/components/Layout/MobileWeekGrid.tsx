@@ -214,36 +214,66 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
     const startX = e.touches[0].clientX;
     const startY = e.touches[0].clientY;
 
-    // Resize handles: activate immediately (deliberate small-target touch)
+    // Resize handles: require a deliberate hold (~220ms) before activating
+    // so that normal vertical scrolling never accidentally drags and resizes the event.
     if (type !== 'move') {
-      e.stopPropagation();
-      e.preventDefault();
       clearHold();
       isCreatingRef.current = false;
       setCreation(null);
-      didHandleRef.current = true;
 
+      let resizeActivated = false;
       const originalStart = new Date(ev.start);
       const originalEnd = ev.end ? new Date(ev.end) : new Date(originalStart.getTime() + 3_600_000);
-      const drag: EventDrag = {
-        eventId, type, colIdx, originalColIdx: colIdx,
-        startTouchY: startY, startTouchX: startX,
-        originalStart, originalEnd,
-        previewStart: new Date(originalStart), previewEnd: new Date(originalEnd),
+
+      const activateResize = () => {
+        if (resizeActivated) return;
+        resizeActivated = true;
+        didHandleRef.current = true;
+        const drag: EventDrag = {
+          eventId, type, colIdx, originalColIdx: colIdx,
+          startTouchY: startY, startTouchX: startX,
+          originalStart, originalEnd,
+          previewStart: new Date(originalStart), previewEnd: new Date(originalEnd),
+        };
+        evDragRef.current = drag;
+        flushSync(() => setEvDrag({ ...drag }));
+        onEventDragChange?.(true);
+        document.body.setAttribute('data-ev-drag', '1');
       };
-      evDragRef.current = drag;
-      flushSync(() => setEvDrag({ ...drag }));
-      onEventDragChange?.(true);
-      document.body.setAttribute('data-ev-drag', '1');
+
+      const resizeHoldTimer = setTimeout(() => {
+        activateResize();
+      }, 220);
+
+      const cleanup = () => {
+        clearTimeout(resizeHoldTimer);
+        stopAutoScroll();
+        stopEdgeTimer();
+        document.removeEventListener('touchmove', onMove, { capture: true });
+        document.removeEventListener('touchend', onEnd, { capture: true });
+        document.removeEventListener('touchcancel', onEnd, { capture: true });
+      };
 
       const onMove = (evt: TouchEvent) => {
-        const d = evDragRef.current;
-        if (!d || evt.touches.length === 0) return;
-        evt.preventDefault();
+        if (evt.touches.length === 0) return;
         const touch = evt.touches[0];
+        const dy = touch.clientY - startY;
+        const dx = touch.clientX - startX;
+
+        if (!resizeActivated) {
+          // If the finger moves before the 220ms hold, it's a scroll gesture - abort resize!
+          if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+            cleanup();
+            return;
+          }
+          return;
+        }
+
+        evt.preventDefault();
+        const d = evDragRef.current;
+        if (!d) return;
         const hh = hourHRef.current;
-        const dy = touch.clientY - d.startTouchY;
-        const deltaMins = snapMins(pxToMins(dy, hh));
+        const deltaMins = snapMins(pxToMins(touch.clientY - d.startTouchY, hh));
         let previewStart: Date, previewEnd: Date;
         if (d.type === 'resize-bottom') {
           previewStart = new Date(d.originalStart);
@@ -263,12 +293,10 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
         setEvDrag({ ...updated });
         triggerAutoScroll(touch.clientY);
       };
+
       const onEnd = () => {
-        stopAutoScroll();
-        stopEdgeTimer();
-        document.removeEventListener('touchmove', onMove, { capture: true });
-        document.removeEventListener('touchend', onEnd, { capture: true });
-        document.removeEventListener('touchcancel', onEnd, { capture: true });
+        cleanup();
+        if (!resizeActivated) return;
         document.body.removeAttribute('data-ev-drag');
         if (dragOverlayRef.current) { dragOverlayRef.current.remove(); dragOverlayRef.current = null; }
         columnsRef.current?.querySelectorAll<HTMLElement>('[data-col-idx]').forEach(el => el.style.removeProperty('background'));
@@ -278,8 +306,11 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
         onEventDragChange?.(false);
         // iOS: preventDefault() during drag can freeze UIScrollView. Jiggling scrollTop re-enables it.
         if (scrollRef.current) { const st = scrollRef.current.scrollTop; scrollRef.current.scrollTop = st + 1; scrollRef.current.scrollTop = st; }
-        if (d) onEventUpdateRef.current?.(d.eventId, d.previewStart, d.previewEnd);
+        if (d && (d.previewStart.getTime() !== d.originalStart.getTime() || d.previewEnd.getTime() !== d.originalEnd.getTime())) {
+          onEventUpdateRef.current?.(d.eventId, d.previewStart, d.previewEnd);
+        }
       };
+
       document.addEventListener('touchmove', onMove, { passive: false, capture: true });
       document.addEventListener('touchend', onEnd, { capture: true });
       document.addEventListener('touchcancel', onEnd, { capture: true });
