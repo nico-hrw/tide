@@ -15,7 +15,9 @@ The application uses **SQLite** as its primary data store, managed via the `mode
 - `enabled_extensions` (TEXT): JSON array of enabled extensions (e.g. `["finance", "calendar"]`).
 - `pin_hash` (TEXT): Hashed PIN for lockscreen/auth.
 - `login_code` (TEXT): Temporary login code.
+- `username` (TEXT): Plaintext username.
 - `created_at` (DATETIME): Creation timestamp.
+- `is_verified` (INTEGER): Boolean flag (0/1) for account verification.
 
 ### `files`
 Node-based file system structure.
@@ -31,8 +33,20 @@ Node-based file system structure.
 - `visibility` (TEXT): `private`, `public`, etc.
 - `public_meta` (JSON): Unencrypted metadata.
 - `secured_meta` (BLOB): Encrypted metadata (e.g. filename, theme, properties).
-- `is_task` (INTEGER): Boolean flag (0/1) for task items.
-- `is_completed` (INTEGER): Boolean flag (0/1) for task completion status.
+- `version` (INTEGER): Version number for file content/metadata.
+- `metadata` (TEXT): JSON metadata.
+- `access_keys` (TEXT): JSON map of per-user wrapped DEKs.
+
+### `file_backups`
+- `id` (TEXT, PRIMARY KEY)
+- `file_id` (TEXT, FOREIGN KEY to `files(id)`)
+- `slot_name` (TEXT)
+- `encrypted_blob` (TEXT)
+- `secured_meta` (BLOB)
+- `access_keys` (TEXT)
+- `version` (INTEGER)
+- `updated_at` (DATETIME)
+*(Unique: `file_id`, `slot_name`)*
 
 ### `file_shares`
 Access control list for shared files.
@@ -40,6 +54,7 @@ Access control list for shared files.
 - `user_id` (TEXT, FOREIGN KEY to `users(id)`)
 - `secured_meta` (BLOB): Encrypted symmetric key or metadata specific to this share.
 - `status` (TEXT): `pending` or `accepted`.
+- `permission` (TEXT): `view`, `edit`, or `share`.
 - `created_at` (DATETIME)
 *(Primary Key: `file_id`, `user_id`)*
 
@@ -77,3 +92,25 @@ Session/Authentication tokens.
 - `ext_finance_accounts`
 - `ext_finance_transactions`
 - `ext_finance_entries`
+
+### `tasks`
+- `id` (TEXT, PRIMARY KEY)
+- `user_id` (TEXT, FOREIGN KEY to `users(id)`)
+- `encrypted_vault` (BLOB)
+- `created_at` (DATETIME)
+- `updated_at` (DATETIME)
+
+### `profiles`
+- `user_id` (TEXT, PRIMARY KEY, FOREIGN KEY to `users(id)`)
+- `avatar_seed` (TEXT)
+- `avatar_style` (TEXT)
+- `avatar_salt` (TEXT)
+- `bio` (TEXT)
+- `title` (TEXT)
+- `profile_status` (INTEGER)
+
+### Tracker Extension Tables (Ext)
+- `ext_tracker_exercises`: `id`, `user_id`, `name`, `category`, `default_tracking_type`, `muscles`, `primary_muscles`, `secondary_muscles`, `created_at`
+- `ext_tracker_workouts`: `id`, `user_id`, `name`, `notes`, `started_at`, `finished_at`
+- `ext_tracker_workout_exercises`: `id`, `workout_id`, `exercise_id`, `sort_order`
+- `ext_tracker_sets`: `id`, `workout_exercise_id`, `sort_order`, `reps`, `weight_kg`, `distance_meters`, `duration_seconds`, `is_warmup`, `completed`, `rir`, `rpe`

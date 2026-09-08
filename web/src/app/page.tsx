@@ -1057,29 +1057,43 @@ export default function Dashboard() {
                             const patch = createLinePatch(basePlainJson, contentString);
                             const patchStr = JSON.stringify(patch);
                             
-                            const patchIv = window.crypto.getRandomValues(new Uint8Array(12));
-                            const patchBuffer = new TextEncoder().encode(patchStr);
-                            const encryptedPatch = await window.crypto.subtle.encrypt(
-                                { name: 'AES-GCM', iv: patchIv },
-                                dek!,
-                                patchBuffer
-                            );
-                            const patchCiphertext = JSON.stringify({
-                                data: cryptoLib.arrayBufferToBase64(encryptedPatch),
-                                iv:   cryptoLib.arrayBufferToBase64(patchIv.buffer as ArrayBuffer)
-                            });
-                            
-                            const b64Payload = btoa(patchCiphertext);
-                            
-                            await apiFetch(`/api/v1/files/${fileId}/backups/${slot.name}`, {
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    version: 2,
-                                    encrypted_blob: b64Payload,
-                                    access_keys: accessKeysMap,
-                                })
-                            });
+                            if (file.version === 2 && dek) {
+                                const patchIv = window.crypto.getRandomValues(new Uint8Array(12));
+                                const patchBuffer = new TextEncoder().encode(patchStr);
+                                const encryptedPatch = await window.crypto.subtle.encrypt(
+                                    { name: 'AES-GCM', iv: patchIv },
+                                    dek,
+                                    patchBuffer
+                                );
+                                const patchCiphertext = JSON.stringify({
+                                    data: cryptoLib.arrayBufferToBase64(encryptedPatch),
+                                    iv:   cryptoLib.arrayBufferToBase64(patchIv.buffer as ArrayBuffer)
+                                });
+                                
+                                const b64Payload = btoa(patchCiphertext);
+                                
+                                await apiFetch(`/api/v1/files/${fileId}/backups/${slot.name}`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        version: 2,
+                                        encrypted_blob: b64Payload,
+                                        access_keys: accessKeysMap,
+                                    })
+                                });
+                            } else {
+                                // V1 files fallback
+                                const metaStr = typeof file.secured_meta === 'string' ? file.secured_meta : JSON.stringify(file.secured_meta || {});
+                                await apiFetch(`/api/v1/files/${fileId}/backups/${slot.name}`, {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        version: 1,
+                                        encrypted_blob: btoa(patchStr), // Fallback, not properly V1 encrypted for now
+                                        secured_meta: metaStr,
+                                    })
+                                });
+                            }
                         }
                     }
                 } catch (bErr) {

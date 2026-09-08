@@ -94,15 +94,17 @@ All routes under `/api/v1/`. Auth via `X-User-ID` header (JWT session token).
 | Prefix | Handler | Domain |
 |--------|---------|--------|
 | `/auth` | `api/auth.go` | Register, login, verify magic link |
-| `/files` | `api/files.go` | CRUD notes/folders, blob upload/download |
-| `/events` | `api/events.go` | Calendar events |
+| `/files` | `api/files.go` | CRUD notes/folders, blob upload/download (and WebSockets via `/{fileID}/ws`) |
+| `/links` | `api/links.go` | Note backlinks |
 | `/messages` | `api/messages.go` | Chat messages |
 | `/contacts` | `api/contacts.go` | Social contacts |
-| `/links` | `api/links.go` | Note backlinks |
-| `/tasks` | `api/tasks.go` | Task items |
+| `/profiles` | `api/profiles.go` | Public user profiles and `/search` |
+| `/user/extensions`| `api/extensions.go` | User enabled extensions |
 | `/tabs` | `api/tabs.go` | Open tab state |
-| `/integrations/gcal` | `api/gcal_handler.go` | Google Calendar OAuth + sync |
-| `/ws` | `api/websocket.go` | WebSocket hub |
+| `/tasks` | `api/tasks.go` | Task items |
+| `/finance` | `api/finance.go` | Finance extension |
+| `/tracker` | `api/tracker.go` | Fitness tracker extension |
+| `/events` | `api/events.go` | Server-Sent Events (SSE) for live synchronization |
 
 ## Data Layer
 

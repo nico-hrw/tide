@@ -1934,6 +1934,21 @@ export default function MobileLayout({
         )}
       </AnimatePresence>
 
+      {/* Note Editor Overlay */}
+      <AnimatePresence>
+        {(activeNoteId || isEditingNote) && editorElement && (
+          <OverlayShell 
+            title={activeNoteTitle || 'Notiz'} 
+            onBack={() => { 
+              onNoteSelect('', ''); 
+              setIsEditingNote(false); 
+            }}
+          >
+            {editorElement}
+          </OverlayShell>
+        )}
+      </AnimatePresence>
+
       {/* ── Bottom tab bar ─────────── */}
       <div
         className="fixed left-0 right-0 flex z-20"

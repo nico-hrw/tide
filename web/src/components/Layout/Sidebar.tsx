@@ -684,7 +684,7 @@ export default function Sidebar({
             <div className="flex-shrink-0 h-[300px]" />
 
             {/* Smart Island — absolutely positioned, extends beyond sidebar */}
-            <div className="absolute bottom-4 left-3.5 right-3.5 sm:right-auto z-[100] max-w-none">
+            <div className="absolute bottom-4 left-4 right-4 z-[100]">
                 {enabledExtensions?.includes('smart_island') ? (
                     <SmartIsland
                         selectedDate={selectedDate || new Date()}
