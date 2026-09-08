@@ -1056,8 +1056,7 @@ export default function Dashboard() {
                             // Applying this delta to the base reconstructs contentString
                             const patch = createLinePatch(basePlainJson, contentString);
                             const patchStr = JSON.stringify(patch);
-                            
-                            if (file.version === 2 && dek) {
+                            if (currentFile?.version === 2 && dek) {
                                 const patchIv = window.crypto.getRandomValues(new Uint8Array(12));
                                 const patchBuffer = new TextEncoder().encode(patchStr);
                                 const encryptedPatch = await window.crypto.subtle.encrypt(
@@ -1083,7 +1082,7 @@ export default function Dashboard() {
                                 });
                             } else {
                                 // V1 files fallback
-                                const metaStr = typeof file.secured_meta === 'string' ? file.secured_meta : JSON.stringify(file.secured_meta || {});
+                                const metaStr = typeof currentFile?.secured_meta === 'string' ? currentFile.secured_meta : JSON.stringify(currentFile?.secured_meta || {});
                                 await apiFetch(`/api/v1/files/${fileId}/backups/${slot.name}`, {
                                     method: 'PUT',
                                     headers: { 'Content-Type': 'application/json' },
