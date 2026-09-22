@@ -14,6 +14,7 @@ import Avatar from "@/components/Profile/Avatar";
 import SecuritySettingsModal from "@/components/Security/SecuritySettingsModal";
 import PinPromptModal from "@/components/Security/PinPromptModal";
 import { ItemSecuritySettings, isItemUnlocked } from "@/lib/pinSecurity";
+import { importTideBundle, exportTideBundle, markdownToTipTap, tipTapToMarkdown } from "@/lib/bundleImportExport";
 
 interface DecryptedFile {
     id: string;
@@ -344,39 +345,80 @@ export default function Sidebar({
 
     const effectiveUserName = userProfile?.username || (typeof window !== 'undefined' ? sessionStorage.getItem('tide_user_name') : null) || (userProfile?.email || "").split('@')[0] || "User";
 
-    const handleImport = () => {
+    const handleImport = (targetFolderId: string | null = null) => {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = '.md';
+        input.accept = '.tide.json,.json,.md,.txt';
         input.onchange = async (e: any) => {
             const file = e.target.files?.[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = async (event) => {
-                const rawContent = event.target?.result as string;
-                const title = file.name.replace(/\.md$/, '');
-                const lines = rawContent.split('\n');
-                const contentNodes = lines
-                    .map((line: string) => line.trimEnd())
-                    .filter((line: string) => line.length > 0)
-                    .map((line: string) => ({
-                        type: 'paragraph',
-                        attrs: { blockId: crypto.randomUUID() },
-                        content: [{ type: 'text', text: line }]
-                    }));
-                const tiptapDoc = {
-                    type: 'doc',
-                    content: contentNodes.length > 0 ? contentNodes : [
-                        { type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }
-                    ]
-                };
-                const newId = await useDataStore.getState().createNote(title, tiptapDoc);
-                useDataStore.getState().fetchDirectory(null, true);
-                onFileSelect(newId, title);
+                try {
+                    const rawContent = event.target?.result as string;
+                    if (file.name.endsWith('.json') || file.name.endsWith('.tide.json')) {
+                        const parsed = JSON.parse(rawContent);
+                        if (parsed && (parsed.version || Array.isArray(parsed.notes))) {
+                            const res = await importTideBundle(parsed, targetFolderId);
+                            await useDataStore.getState().fetchDirectory(null, true);
+                            if (res.importedNoteIds.length > 0) {
+                                onFileSelect(res.importedNoteIds[0], "Importiert");
+                            }
+                            return;
+                        }
+                    }
+
+                    const title = file.name.replace(/\.(md|txt|json)$/, '');
+                    const tiptapDoc = markdownToTipTap(rawContent);
+                    const newId = await useDataStore.getState().createNote(title, tiptapDoc, targetFolderId);
+                    await useDataStore.getState().fetchDirectory(null, true);
+                    onFileSelect(newId, title);
+                } catch (err: any) {
+                    console.error("Import error:", err);
+                    alert("Import fehlgeschlagen: " + (err?.message || "Ungültige Datei"));
+                }
             };
             reader.readAsText(file);
         };
         input.click();
+    };
+
+    const handleExport = async (itemId: string, format: 'bundle' | 'markdown') => {
+        const targetFile = files.find(f => f.id === itemId);
+        if (!targetFile) return;
+
+        try {
+            if (format === 'bundle') {
+                const bundle = await exportTideBundle([itemId], true);
+                const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const safeTitle = (targetFile.title || 'tide_bundle').replace(/[/\\?%*:|"<>]/g, '_');
+                a.download = `${safeTitle}.tide.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } else {
+                const bundle = await exportTideBundle([itemId], false);
+                const noteItem = bundle.items.find(i => i.id === itemId);
+                const md = tipTapToMarkdown(noteItem?.content, noteItem?.title || targetFile.title);
+                const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const safeTitle = (targetFile.title || 'note').replace(/[/\\?%*:|"<>]/g, '_');
+                a.download = `${safeTitle}.md`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+        } catch (err: any) {
+            console.error("Export error:", err);
+            alert("Export fehlgeschlagen: " + (err?.message || "Fehler"));
+        }
     };
 
     return (
@@ -418,11 +460,34 @@ export default function Sidebar({
                 </div>
             </div>{/* end sticky top section */}
 
-            {/* Notes label — outside scrollable area so it stays visible while scrolling */}
-            <div className="flex-shrink-0 px-4 pt-2 pb-1">
+            {/* Notes label with quick actions */}
+            <div className="flex-shrink-0 px-3 pt-2 pb-1 flex items-center justify-between">
                 <p className="text-[11px] font-semibold uppercase tracking-[1.2px] text-gray-700 dark:text-slate-300">
                     Notes
                 </p>
+                <div className="flex items-center gap-0.5">
+                    <button
+                        onClick={() => handleImport(null)}
+                        className="p-1 rounded-md text-gray-400 hover:text-gray-900 dark:text-slate-500 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="Notiz oder Bundle importieren (.tide.json, .md)"
+                    >
+                        <Upload size={13} />
+                    </button>
+                    <button
+                        onClick={() => onCreateFolder?.(null)}
+                        className="p-1 rounded-md text-gray-400 hover:text-gray-900 dark:text-slate-500 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="Neuer Ordner"
+                    >
+                        <FolderPlus size={13} />
+                    </button>
+                    <button
+                        onClick={() => onNewNote(null)}
+                        className="p-1 rounded-md text-gray-400 hover:text-blue-600 dark:text-slate-500 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="Neue Notiz"
+                    >
+                        <Plus size={14} />
+                    </button>
+                </div>
             </div>
 
             {/* Scrollable notes section — flex-based height so RECENT expansion doesn't push content under Smart Island */}
@@ -783,10 +848,52 @@ export default function Sidebar({
                             );
                         })()}
 
-                        {/* 6. Trennlinie */}
+                        {/* 6. Export & Import */}
+                        <div className="h-px bg-gray-100 dark:bg-slate-800 my-1" />
+                        <button
+                            onClick={() => {
+                                const targetId = contextMenu.id;
+                                setContextMenu(null);
+                                handleExport(targetId, 'bundle');
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                            title="Exportiert als komplettes Bundle inklusive interner Referenzen"
+                        >
+                            <Download size={15} className="text-gray-400 group-hover:text-blue-500" />
+                            <span className="font-medium">Export (.tide.json)</span>
+                        </button>
+                        {contextMenu.type === 'file' && (
+                            <button
+                                onClick={() => {
+                                    const targetId = contextMenu.id;
+                                    setContextMenu(null);
+                                    handleExport(targetId, 'markdown');
+                                }}
+                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                                title="Exportiert reines Markdown"
+                            >
+                                <FileText size={15} className="text-gray-400 group-hover:text-blue-500" />
+                                <span className="font-medium">Export (.md)</span>
+                            </button>
+                        )}
+                        <button
+                            onClick={() => {
+                                const currentFile = files.find(f => f.id === contextMenu.id);
+                                const targetFolder = contextMenu.type === 'folder' ? contextMenu.id : (currentFile?.parent_id || null);
+                                setContextMenu(null);
+                                handleImport(targetFolder);
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                            title="Importiert Notizen oder Bundles direkt an diese Stelle"
+                        >
+                            <Upload size={15} className="text-gray-400 group-hover:text-blue-500" />
+                            <span className="font-medium">Hier importieren</span>
+                        </button>
+
+                        {/* 7. Trennlinie */}
                         <div className="h-px bg-gray-100 dark:bg-slate-800 my-1" />
 
-                        {/* 7. Delete */}
+                        {/* 8. Delete */}
                         {(() => {
                             const targetFile = files.find(f => f.id === contextMenu.id);
                             const isShared = targetFile && targetFile.share_status && targetFile.share_status !== 'owner';
@@ -847,7 +954,7 @@ export default function Sidebar({
                             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
                         >
                             <Upload size={16} className="text-gray-400 group-hover:text-blue-500" />
-                            <span className="font-medium">Importieren (.md)</span>
+                            <span className="font-medium">Importieren (.tide.json, .md)</span>
                         </button>
                     </div>
                 </div>

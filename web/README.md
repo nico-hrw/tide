@@ -16,11 +16,12 @@ npx tsc --noEmit     # typecheck (must be clean)
 
 | File | Role |
 |------|------|
-| `src/app/page.tsx` | Root orchestrator — 3900 lines, mounts all views |
+| `src/app/page.tsx` | Root orchestrator — mounts all views |
 | `src/lib/designTokens.ts` | **All visual constants** — never hardcode colors/radii |
 | `src/lib/api.ts` | `apiFetch` — **all HTTP calls go here** |
 | `src/lib/crypto.ts` | Encryption v1 (AES-GCM, base64 helpers) |
 | `src/lib/cryptoV2.ts` | Encryption v2 (DEK wrap/unwrap, RSA-OAEP) |
+| `src/lib/bundleImportExport.ts` | TIDE Bundle & Markdown import/export engine |
 | `src/store/useDataStore.ts` | Global Zustand store — notes, events, tasks |
 
 ## Structure
@@ -29,11 +30,15 @@ npx tsc --noEmit     # typecheck (must be clean)
 src/
   app/          ← Next.js App Router pages
   components/   ← React components by domain
-  lib/          ← Pure utilities (crypto, api, tokens, parsers)
+  lib/          ← Pure utilities (crypto, api, tokens, bundles)
   store/        ← Zustand stores
   hooks/        ← Custom React hooks
   types/        ← Shared TypeScript types
 ```
 
-See [`../docs/COMPONENTS.md`](../docs/COMPONENTS.md) for the full component register.
-See [`../docs/CONVENTIONS.md`](../docs/CONVENTIONS.md) for coding rules.
+## Documentation
+
+- [`docs/COMPONENTS.md`](docs/COMPONENTS.md) — Component register, design system tokens, and mobile touch pitfalls
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Next.js architecture, Zustand state store, and client-side encryption
+- [`docs/NOTE_SPECIFICATION.md`](docs/NOTE_SPECIFICATION.md) — Note element specification, TipTap AST, and `.tide.json` schema
+- [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) — Coding rules, TypeScript guidelines, and styling conventions

@@ -76,7 +76,7 @@
 
 | Component | File | Role |
 |-----------|------|------|
-| Editor | `web/src/components/Editor.tsx` | TipTap editor wrapper (SSR-disabled). BubbleMenu toolbar: **5 primary actions always visible** (Bold, Italic, Underline, Clear, ▼ expand chevron). Secondary actions (font size, text color, highlight, math, reference, smart island, pop-out, connect image) shown when chevron toggled. `toolbarExpanded` state controls secondary visibility. |
+| Editor | `web/src/components/Editor.tsx` | TipTap editor wrapper (SSR-disabled). Features dual modes via `isShared`: (1) **Solo mode** (`isShared=false`): zero WebSocket/Yjs overhead, native undo/redo, instant ProseMirror JSON loading via `content` prop; (2) **Collaborative mode** (`isShared=true`): pre-seeded Yjs doc + WebSocket room. Robust against phantom blank overwrites via `isDocEmpty` checks, late-arriving content recovery, and user typing detection (`userHasTypedRef`). BubbleMenu toolbar: **5 primary actions always visible** (Bold, Italic, Underline, Clear, ▼ expand chevron). Secondary actions (font size, text color, highlight, math, reference, smart island, pop-out, connect image) shown when chevron toggled. `toolbarExpanded` state controls secondary visibility. |
 | SlashCommand | `web/src/components/extensions/SlashCommand.tsx` | `/` command menu |
 | DateMention | `web/src/components/extensions/DateMentionExtension.tsx` | Inline date chip |
 | CalendarEventMention | `web/src/components/extensions/CalendarEventMentionExtension.tsx` | Inline event chip |
@@ -293,6 +293,13 @@ Full reverse mapping (TIDE → GCal) lives in `gcal.go`.
 | Profiles | `cloud/internal/api/profiles.go` | Public profiles |
 | Finance | `cloud/internal/api/finance.go` | Finance extension |
 | Tabs | `cloud/internal/api/tabs.go` | Browser-style tabs state |
-| Tracker | `cloud/internal/api/tracker.go` | Tracker module |
 | Extensions | `cloud/internal/api/extensions.go` | Extension toggle |
 | Middleware | `cloud/internal/api/middleware.go` | Auth middleware (JWT) |
+
+## Note Specification & Bundle Import/Export
+
+| Module | File | Role |
+|--------|------|------|
+| NOTE_SPECIFICATION | `web/docs/NOTE_SPECIFICATION.md` | Complete specification of supported TipTap ProseMirror schema, blocks, marks, custom mention chips (`dateMention`, `calendarEventMention`, `taskMention`), math, and `.tide.json` bundle format. |
+| bundleImportExport | `web/src/lib/bundleImportExport.ts` | Complete TIDE bundle import/export engine. Supports AST reference rewriting (`rewriteTipTapReferences`), ID remapping for inter-connected notes, folders, and calendar events, Markdown conversion (`tipTapToMarkdown`, `markdownToTipTap`), and V2 DEK encryption. |
+

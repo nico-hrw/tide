@@ -141,6 +141,7 @@ const MentionNodeView = ({ node }: any) => {
 
 interface EditorProps {
     initialContent: any; // JSON
+    isShared?: boolean;
     editable?: boolean;
     onChange?: (content: any, yjsUpdateBase64?: string) => void;
     onLinkClick?: (target: LinkTarget) => void;
@@ -161,6 +162,45 @@ interface EditorProps {
     onActiveUsersChange?: (users: any[]) => void;
     userProfile?: any;
     myId?: string;
+}
+
+function isDocEmpty(parsed: unknown): boolean {
+    if (!parsed) return true;
+    if (typeof parsed === 'string') return parsed.trim().length === 0;
+    if (typeof parsed === 'object' && parsed !== null) {
+        const obj = parsed as any;
+        if (obj.type === 'doc') {
+            if (!obj.content || obj.content.length === 0) return true;
+            for (const node of obj.content) {
+                if (node.type !== 'paragraph') return false;
+                if (node.content && node.content.length > 0) {
+                    for (const textNode of node.content) {
+                        if (textNode.type && textNode.type !== 'text') return false;
+                        if (textNode.text && textNode.text.trim().length > 0) return false;
+                    }
+                }
+            }
+            return true;
+        }
+    }
+    return false;
+}
+
+function getCleanDocContent(content: any) {
+    if (!content) return null;
+    let parsed = content;
+    if (typeof content === 'string') {
+        try {
+            parsed = JSON.parse(content);
+        } catch (_) {
+            return content;
+        }
+    }
+    if (parsed && typeof parsed === 'object' && parsed.__yjs) {
+        const { __yjs, ...clean } = parsed;
+        return clean;
+    }
+    return parsed;
 }
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#ffffff', '#000000'];
@@ -202,7 +242,7 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
     return btoa(binary);
 }
 
-function CollaborativeEditor({ initialContent, editable = true, onChange, onLinkClick, onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady, onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick, onEventClick, onActiveUsersChange, userProfile, myId }: EditorProps) {
+function CollaborativeEditor({ initialContent, isShared = false, editable = true, onChange, onLinkClick, onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady, onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick, onEventClick, onActiveUsersChange, userProfile, myId }: EditorProps) {
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
     const [showBackups, setShowBackups] = useState(false);
 
@@ -211,9 +251,11 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
     const contentInitialized = useRef(false);
     const syncTimedOutRef = useRef(false);
     const [isSynced, setIsSynced] = useState(false);
+    const userHasTypedRef = useRef(false);
+    const cleanInitial = useMemo(() => getCleanDocContent(initialContent), [initialContent]);
 
     useEffect(() => {
-        if (!activeTabId || 
+        if (!isShared || !activeTabId || 
             activeTabId.startsWith('chat-') || 
             activeTabId.startsWith('profile:') || 
             ['calendar', 'messages', 'social', 'ext_finance'].includes(activeTabId)) {
@@ -250,7 +292,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             contentInitialized.current = false;
             syncTimedOutRef.current = false;
         };
-    }, [activeTabId, myId]);
+    }, [activeTabId, myId, isShared]);
 
     useEffect(() => {
         if (!provider) return;
@@ -336,7 +378,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             italic: false,
             bold: false,
             strike: false,
-            undoRedo: provider ? false : undefined,
+            undoRedo: (provider && isShared) ? false : undefined,
         }),
         TaskList.configure({ HTMLAttributes: { class: 'not-prose pl-0' } }),
         TaskItem.configure({ nested: true }),
@@ -458,7 +500,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             ReferenceMark, // ALWAYS added so documents don't crash and marks parse correctly
         ];
 
-        if (provider) {
+        if (provider && isShared) {
             baseExtensions.push(
                 Collaboration.configure({
                     document: ydoc,
@@ -482,10 +524,11 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
 
         return baseExtensions;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabledExtensions, autoScanEnabled, provider, ydoc]); // Only re-create extensions if the enabled set changes
+    }, [enabledExtensions, autoScanEnabled, provider, ydoc, isShared]); // Only re-create extensions if the enabled set changes
 
     const editor = useEditor({
         extensions: extensions,
+        content: (!isShared && cleanInitial && !isDocEmpty(cleanInitial)) ? cleanInitial : undefined,
         editable: editable,
         immediatelyRender: false,
         onUpdate: ({ editor, transaction }) => {
@@ -501,11 +544,25 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             }
 
             const content = editor.getJSON();
+            const isEmptyNow = isDocEmpty(content);
+            const hadInitialContent = !isDocEmpty(initialContent);
+
+            // Safety check: Never overwrite non-empty initial content with an empty document
+            // unless the user intentionally typed or edited the document.
+            if (isEmptyNow && hadInitialContent && !userHasTypedRef.current) {
+                console.warn('[Editor] Suppressing empty doc change before user interaction.');
+                return;
+            }
+
             if (onChangeRef.current) {
-                // Encode the Yjs state as a binary update efficiently
-                const update = Y.encodeStateAsUpdate(ydoc);
-                const base64Update = uint8ArrayToBase64(new Uint8Array(update));
-                onChangeRef.current(content, base64Update);
+                if (provider && isShared) {
+                    // Encode the Yjs state as a binary update efficiently
+                    const update = Y.encodeStateAsUpdate(ydoc);
+                    const base64Update = uint8ArrayToBase64(new Uint8Array(update));
+                    onChangeRef.current(content, base64Update);
+                } else {
+                    onChangeRef.current(content);
+                }
             }
 
             // Feature: Dynamically update reference previews (the 'next line')
@@ -565,7 +622,9 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             try {
                 const currentId = activeTabIdRef.current;
                 if (currentId && !currentId.startsWith('chat-') && currentId !== 'calendar' && currentId !== 'messages') {
-                    localStorage.setItem(`tide_backup_${currentId}`, JSON.stringify(content));
+                    if (!isEmptyNow || userHasTypedRef.current) {
+                        localStorage.setItem(`tide_backup_${currentId}`, JSON.stringify(content));
+                    }
                 }
             } catch (e) {
                 console.warn("[BACKUP] Local storage fallback failed:", e);
@@ -579,6 +638,14 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             }
         },
         editorProps: {
+            handleKeyDown: () => {
+                userHasTypedRef.current = true;
+                return false;
+            },
+            handleTextInput: () => {
+                userHasTypedRef.current = true;
+                return false;
+            },
             attributes: {
                 class: 'prose max-w-none w-full focus:outline-none min-h-[500px] pb-32 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mt-1 [&_ul[data-type="taskList"]]:list-none [&_ul[data-type="taskList"]]:pl-0 [&_li[data-type="taskItem"]]:flex [&_li[data-type="taskItem"]]:items-start [&_li[data-type="taskItem"]>label]:mr-2 [&_li[data-type="taskItem"]>label]:mt-1 [&_li[data-type="taskItem"]>div]:mt-[2px] [&_table]:border-collapse [&_table]:table-fixed [&_table]:w-full [&_table]:my-4 [&_td]:border [&_td]:border-gray-300 dark:[&_td]:border-slate-600 [&_td]:p-2 [&_td]:relative [&_td]:min-w-[100px] [&_th]:border [&_th]:border-gray-300 dark:[&_th]:border-slate-600 [&_th]:p-2 [&_th]:bg-gray-50 dark:[&_th]:bg-slate-800/50 [&_th]:relative [&_th]:min-w-[100px] [&_th]:font-semibold [&_.column-resize-handle]:absolute [&_.column-resize-handle]:-right-1.5 [&_.column-resize-handle]:top-0 [&_.column-resize-handle]:bottom-[calc(-1px)] [&_.column-resize-handle]:w-3 [&_.column-resize-handle]:bg-blue-500/20 [&_.column-resize-handle]:cursor-col-resize hover:[&_.column-resize-handle]:bg-blue-500',
             },
@@ -871,7 +938,7 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             return false;
         };
 
-        if (provider) {
+        if (provider && isShared) {
             // Instantly try to load the database content into Yjs without waiting for sync.
             // If the local Yjs document is empty, this seeds it with the database content.
             // When WebRTC/WebSocket connects later, it will merge any external updates over this state.
@@ -884,13 +951,45 @@ function CollaborativeEditor({ initialContent, editable = true, onChange, onLink
             // When latestContent arrives, this effect will re-run.
         } else {
             // Standard mode (no collaboration): load content immediately
-            if (initialContent) {
-                console.log('[Editor] Standard mode. Initializing content.');
-                editor.commands.setContent(initialContent, { emitUpdate: false });
+            if (cleanInitial && !isDocEmpty(cleanInitial)) {
+                const currentDoc = editor.getJSON();
+                if (isDocEmpty(currentDoc)) {
+                    console.log('[Editor] Standard mode. Initializing content.');
+                    editor.commands.setContent(cleanInitial, { emitUpdate: false });
+                }
             }
             contentInitialized.current = true;
         }
-    }, [editor, provider, isSynced, initialContent, ydoc]);
+    }, [editor, provider, isSynced, isShared, cleanInitial, ydoc]);
+
+    // Safety fallback: Ensure content is loaded if initialContent arrives late (e.g. async decryption)
+    useEffect(() => {
+        if (!editor || editor.isDestroyed) return;
+        if (!cleanInitial || isDocEmpty(cleanInitial)) return;
+
+        const currentDoc = editor.getJSON();
+        if (isDocEmpty(currentDoc)) {
+            console.log('[Editor] Late-arriving content populated into empty editor.');
+            if (provider && isShared) {
+                const activeFragment = ydoc.getXmlFragment('prosemirror');
+                if (activeFragment.length === 0) {
+                    try {
+                        const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
+                        const doc = editor.schema.nodeFromJSON(cleanInitial);
+                        const oldId = ydoc.clientID;
+                        ydoc.clientID = 1;
+                        prosemirrorToYXmlFragment(doc, activeFragment);
+                        ydoc.clientID = oldId;
+                    } catch (e) {
+                        editor.commands.setContent(cleanInitial, { emitUpdate: false });
+                    }
+                }
+            } else {
+                editor.commands.setContent(cleanInitial, { emitUpdate: false });
+            }
+            contentInitialized.current = true;
+        }
+    }, [editor, cleanInitial, provider, isShared, ydoc]);
 
     useEffect(() => {
         if (!editor) return;

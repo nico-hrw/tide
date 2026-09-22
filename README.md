@@ -36,6 +36,7 @@ Each part of the project has its own dedicated documentation:
 - **Frontend Documentation (`web/docs/`)**:
   - [`web/docs/COMPONENTS.md`](web/docs/COMPONENTS.md) — Component register, design system tokens, and mobile touch pitfalls
   - [`web/docs/ARCHITECTURE.md`](web/docs/ARCHITECTURE.md) — Next.js architecture, Zustand state store, and client-side encryption
+  - [`web/docs/NOTE_SPECIFICATION.md`](web/docs/NOTE_SPECIFICATION.md) — Note element specification, TipTap AST, and `.tide.json` schema
   - [`web/docs/CONVENTIONS.md`](web/docs/CONVENTIONS.md) — Coding rules, TypeScript guidelines, and styling conventions
 
 - **Backend Documentation (`cloud/docs/`)**:

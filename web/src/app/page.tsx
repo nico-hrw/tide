@@ -37,10 +37,11 @@ const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEdi
 import DailySummary from "@/components/Calendar/DailySummary";
 import MobileLayout from "@/components/Layout/MobileLayout";
 import BackupHistory from "@/components/BackupHistory";
-import { Clock, Settings, LogOut, Users, Trash2 } from 'lucide-react';
+import { Clock, Settings, LogOut, Users, Trash2, GraduationCap, Copy } from 'lucide-react';
 import Avatar from "@/components/Profile/Avatar";
 import SmartIsland from "@/components/SmartIsland";
 import { createLinePatch, applyLinePatch } from "@/lib/diff";
+import { tipTapToMarkdown } from "@/lib/bundleImportExport";
 import TrashPanel from "@/components/TrashPanel";
 import ConfirmModal from "@/components/Modals/ConfirmModal";
 
@@ -989,9 +990,19 @@ export default function Dashboard() {
 
                     // Decrypt the "1 week" base to use as the stable reference for deltas
                     let basePlainJson = "";
-                    const baseSlot = slotMap["1 week"];
+                    let baseSlot = slotMap["1 week"];
+                    if (baseSlot && !baseSlot.encrypted_blob) {
+                        try {
+                            const fullBaseRes = await apiFetch(`/api/v1/files/${fileId}/backups/1 week`);
+                            if (fullBaseRes.ok) {
+                                baseSlot = await fullBaseRes.json();
+                            }
+                        } catch (fetchBaseErr) {
+                            console.warn("[Backup Cascade] Failed to fetch full 1 week base backup slot", fetchBaseErr);
+                        }
+                    }
                     try {
-                        if (baseSlot.encrypted_blob) {
+                        if (baseSlot && baseSlot.encrypted_blob) {
                             const binaryString = atob(baseSlot.encrypted_blob);
                             const bLen = binaryString.length;
                             const bBytes = new Uint8Array(bLen);
@@ -1138,12 +1149,15 @@ export default function Dashboard() {
             try {
                 const backupStr = localStorage.getItem(`tide_backup_${fileId}`);
                 if (backupStr) {
-                    console.warn(`[RECOVERY] Found unsaved local backup for ${fileId}. Restoring content, but still loading keys.`);
-                    recoveredBackup = JSON.parse(backupStr);
-                    setEditorContent(recoveredBackup);
-                    setSaveStatus("unsaved");
-                    // We DO NOT return here anymore. We need to load the metadata to get the FileKey,
-                    // otherwise subsequent saves will fail due to missing keys.
+                    const parsedBackup = JSON.parse(backupStr);
+                    if (!isDocEmpty(parsedBackup)) {
+                        console.warn(`[RECOVERY] Found non-empty unsaved local backup for ${fileId}. Restoring content, but still loading keys.`);
+                        recoveredBackup = parsedBackup;
+                        setEditorContent(recoveredBackup);
+                        setSaveStatus("unsaved");
+                    } else {
+                        try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
+                    }
                 }
             } catch (backupErr) {
                 console.error("Failed to recover local backup:", backupErr);
@@ -1255,7 +1269,7 @@ export default function Dashboard() {
                     }
                 }
 
-                if (recoveredBackup) {
+                if (recoveredBackup && !isDocEmpty(recoveredBackup)) {
                     console.log('[RECOVERY] V2: Skipping server download, using recovered local backup.');
                 } else {
                     const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
@@ -1317,7 +1331,7 @@ export default function Dashboard() {
                 setActiveFileKey(importedFileKey);
                 fileKeyToUse = importedFileKey;
 
-                if (recoveredBackup) {
+                if (recoveredBackup && !isDocEmpty(recoveredBackup)) {
                     console.log("[RECOVERY] V1: Skipping server blob download, using recovered backup.");
                 } else {
                     const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
@@ -1520,6 +1534,7 @@ export default function Dashboard() {
             }
 
             if (!isContentEmpty && parsedContent) {
+                try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
                 // Detect canvas note content
                 if (parsedContent?.version === 1 && Array.isArray(parsedContent?.items) && typeof parsedContent?.canvasWidth === 'number') {
                     setCanvasNoteData(parsedContent);
@@ -1529,6 +1544,9 @@ export default function Dashboard() {
                     setEditorContent(parsedContent);
                     initialContentRef.current = parsedContent;
                 }
+            } else if (recoveredBackup && !isDocEmpty(recoveredBackup)) {
+                setEditorContent(recoveredBackup);
+                initialContentRef.current = recoveredBackup;
             } else {
                 const emptyDoc = {
                     type: 'doc',
@@ -2490,14 +2508,7 @@ export default function Dashboard() {
                             const validActive = parsed.find((t: any) => t.id === savedActiveId);
                             const activeIdToSet = validActive ? validActive.id : parsed[0].id;
                             const activeTypeToSet = validActive ? validActive.type : parsed[0].type;
-                            // Initialize content load for ALL open file tabs to ensure they are ready
-                            parsed.forEach((t: any) => {
-                                if (t.type === 'file' && !t.content && t.id !== activeIdToSet) {
-                                    setTimeout(() => {
-                                        loadNoteContent(t.id, t.title);
-                                    }, 100);
-                                }
-                            });
+                            // Only the active tab is loaded immediately; other tabs load on-demand when clicked.
 
                             if (activeTypeToSet === 'file') {
                                 const activeTitle = validActive ? validActive.title : parsed[0].title;
@@ -3756,6 +3767,9 @@ export default function Dashboard() {
                             );
                         }
 
+                        const currentAf = files.find(f => f.id === activeNoteId);
+                        const isSharedNote = Boolean(currentAf && ((currentAf as any).isShared || ((currentAf as any).owner_id && (currentAf as any).owner_id !== myId)));
+
                         return editorContent === null ? (
                             <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
                                 <span className="font-medium text-sm">Lade...</span>
@@ -3763,6 +3777,7 @@ export default function Dashboard() {
                         ) : (
                             <Editor
                                 key={activeTabId}
+                                isShared={isSharedNote}
                                 initialContent={editorContent}
                                 editable={(() => {
                                     const af = files.find(f => f.id === activeNoteId);
@@ -4124,9 +4139,53 @@ export default function Dashboard() {
                                                     const af = files.find(f => f.id === activeNoteId) as any;
                                                     if (af && af.permission === 'view') {
                                                         return (
-                                                            <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm font-medium py-3 px-4 rounded-xl flex items-center justify-center gap-3 mb-6 animate-pulse shadow-sm">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                                                                <span className="tracking-wide">Lesezugriff – Du kannst dieses Dokument nicht bearbeiten</span>
+                                                            <div className="bg-sky-50/80 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-800/60 rounded-xl p-3.5 mb-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                                                <div className="flex items-center gap-3 text-sky-900 dark:text-sky-200">
+                                                                    <div className="p-2 rounded-xl bg-sky-100 dark:bg-sky-900/60 text-sky-600 dark:text-sky-400 shrink-0">
+                                                                        <GraduationCap size={20} />
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+                                                                            Lehrseite / Schreibgeschützt
+                                                                        </div>
+                                                                        <div className="text-xs text-sky-800/80 dark:text-sky-300/80">
+                                                                            Du hast Lesezugriff auf dieses Dokument. Verlinkungen und Event-Referenzen sind interaktiv.
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                                                                    <button
+                                                                        onClick={async () => {
+                                                                            const newTitle = `${af.title || 'Dokument'} (Kopie)`;
+                                                                            const newId = await useDataStore.getState().createNote(newTitle, editorContent);
+                                                                            await useDataStore.getState().fetchDirectory(null, true);
+                                                                            handleFileSelect(newId, newTitle);
+                                                                        }}
+                                                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 border border-sky-200 dark:border-sky-700/80 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                                                        title="Erstelle deine eigene bearbeitbare Kopie dieser Notiz"
+                                                                    >
+                                                                        <Copy size={13} />
+                                                                        <span>In eigene Notizen duplizieren</span>
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const md = tipTapToMarkdown(editorContent);
+                                                                            const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+                                                                            const url = URL.createObjectURL(blob);
+                                                                            const a = document.createElement('a');
+                                                                            a.href = url;
+                                                                            a.download = `${(af.title || 'note').replace(/[/\\?%*:|"<>]/g, '_')}.md`;
+                                                                            document.body.appendChild(a);
+                                                                            a.click();
+                                                                            document.body.removeChild(a);
+                                                                            URL.revokeObjectURL(url);
+                                                                        }}
+                                                                        className="p-1.5 rounded-lg text-xs bg-white dark:bg-slate-800 border border-sky-200 dark:border-sky-700/80 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
+                                                                        title="Als Markdown herunterladen"
+                                                                    >
+                                                                        <Download size={14} />
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         );
                                                     }
@@ -4160,7 +4219,9 @@ export default function Dashboard() {
                                                         type="text"
                                                         autoFocus
                                                         value={fileName}
+                                                        readOnly={(files.find(f => f.id === activeNoteId) as any)?.permission === 'view'}
                                                         onChange={(e) => {
+                                                            if ((files.find(f => f.id === activeNoteId) as any)?.permission === 'view') return;
                                                             const newTitle = e.target.value;
                                                             setFileName(newTitle);
                                                             // Mark as unsaved so the debounced triggerSave fires
@@ -4173,6 +4234,7 @@ export default function Dashboard() {
                                                             }
                                                         }}
                                                         onBlur={(e) => {
+                                                            if ((files.find(f => f.id === activeNoteId) as any)?.permission === 'view') return;
                                                             if (activeNoteId) {
                                                                 // Fast-path: update only secured_meta immediately on blur
                                                                 // Full content save is handled by the debounced auto-save above
@@ -4305,9 +4367,13 @@ export default function Dashboard() {
                                                 );
                                             }
 
+                                            const currentAfMobile = files.find(f => f.id === activeNoteId);
+                                            const isSharedNoteMobile = Boolean(currentAfMobile && ((currentAfMobile as any).isShared || ((currentAfMobile as any).owner_id && (currentAfMobile as any).owner_id !== myId)));
+
                                             return (
                                                 <Editor
                                                     key={activeTabId}
+                                                    isShared={isSharedNoteMobile}
                                                     initialContent={editorContent}
                                                     editable={(() => {
                                                         const af = files.find(f => f.id === activeNoteId);

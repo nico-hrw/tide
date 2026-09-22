@@ -12,11 +12,11 @@ const CalendarEventNodeView: React.FC<NodeViewProps> = ({ node }) => {
     // Dynamically fetch event data from the global store
     const liveEvent = useDataStore((s) => s.events.find(e => e.id === eventId)) as any;
 
-    const isDeleted = !liveEvent;
-    const title = liveEvent?.title || 'gelöschter Termin';
-    const start = liveEvent?.start || '';
-    const end = liveEvent?.end || '';
-    const color = isDeleted ? '#94a3b8' : (liveEvent?.color || '#6366f1');
+    const isDeleted = !liveEvent && !node.attrs.title;
+    const title = liveEvent?.title || node.attrs.title || 'Termin';
+    const start = liveEvent?.start || node.attrs.start || '';
+    const end = liveEvent?.end || node.attrs.end || '';
+    const color = isDeleted ? '#94a3b8' : (liveEvent?.color || node.attrs.color || '#6366f1');
     const accentColor = color;
 
     const formatTime = (iso: string) => {
