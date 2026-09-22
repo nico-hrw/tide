@@ -1,8 +1,12 @@
+# Build outputs & Binaries
 tide-server
-web/build.tar
+*/tide-server
+*.tar
+*.tar.gz
+*.exe
 web/.next/
-node_modules/
 cloud/data/
+node_modules/
 
 
 # Dependency directories

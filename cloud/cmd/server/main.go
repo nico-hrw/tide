@@ -82,7 +82,6 @@ func main() {
 
 	tabsHandler := api.NewTabsHandler(sqliteStore)
 	financeHandler := api.NewFinanceHandler(sqliteStore, broker)
-	trackerHandler := api.NewTrackerHandler(sqliteStore)
 
 	// 3. Setup Router
 	r := chi.NewRouter()
@@ -98,9 +97,7 @@ func main() {
 			origin := r.Header.Get("Origin")
 			trustedOrigins := []string{
 				"http://localhost:3000",
-				"http://localhost:3001",
 				"https://go-tide.app",
-				"https://track.go-tide.app",
 			}
 
 			isTrusted := false
@@ -165,7 +162,6 @@ func main() {
 		r.Route("/tabs", tabsHandler.RegisterRoutes)
 		r.Route("/tasks", taskHandler.RegisterRoutes)
 		r.Route("/finance", financeHandler.RegisterRoutes)
-		r.Route("/tracker", trackerHandler.RegisterRoutes)
 
 		// SSE Endpoint (Wrapped with AuthMiddleware for security)
 		r.With(api.AuthMiddleware).Get("/events", broker.ServeHTTP)

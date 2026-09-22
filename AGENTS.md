@@ -1,7 +1,7 @@
 # AGENTS — Operating Manual for AI Contributors
 
 > Also valid for Claude Code: this file doubles as `CLAUDE.md` context.
-> Read `docs/INDEX.md` next to locate any specific file or module.
+> Read `web/docs/` and `cloud/docs/` for specific architecture, database, and component documentation.
 
 ## Build / verify commands (run these after every change)
 
@@ -51,7 +51,7 @@ One-liner: `cd web && npx tsc --noEmit && cd ../cloud && go build ./... && go ve
 7. **`designTokens` for all visuals.** Never hardcode colors, blur values, or radii.
 8. **Keep files under 500 lines.** If a file grows past this, flag it for splitting.
 9. **No `any` in new code.** Existing `any` errors are grandfathered; don't add more.
-10. **Update docs when changing components.** `docs/COMPONENTS.md` is the component register.
+10. **Update docs when changing components.** `web/docs/COMPONENTS.md` is the component register.
 
 ## Known gotchas
 
@@ -77,7 +77,7 @@ One-liner: `cd web && npx tsc --noEmit && cd ../cloud && go build ./... && go ve
 <type>(<scope>): <short imperative description>
 
 Types: feat, fix, refactor, docs, chore, style
-Scope: web, cloud, tracker, docs (optional but helpful)
+Scope: web, cloud, docs (optional but helpful)
 
 Examples:
   fix(web): clear evDrag before calling onEventUpdate
