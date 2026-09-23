@@ -388,7 +388,10 @@ export default function Dashboard() {
         return count;
     }, []);
 
+    const userHasTypedRef = useRef(false);
+
     const handleEditorChange = useCallback((json: any, yjsUpdateBase64?: string) => {
+        userHasTypedRef.current = true;
         // console.log("[Pulse] Editor changed, scheduling save...");
         const fullContent = yjsUpdateBase64 ? { ...json, __yjs: yjsUpdateBase64 } : json;
         setEditorContent(fullContent);
@@ -561,8 +564,8 @@ export default function Dashboard() {
         
         // Safety check: Don't save if content is null or an empty doc shell that might
         // be a side-effect of a component unmount or state transition.
-        if (!content || (content.type === 'doc' && (!content.content || content.content.length === 0))) {
-            console.warn(`[AutoSave] Aborted: Content is null or empty doc shell. Possible race condition during tab switch.`);
+        if (!content || (isDocEmpty(content) && !isDocEmpty(initialContentRef.current) && !userHasTypedRef.current)) {
+            console.warn(`[AutoSave] Aborted: Prevented overwriting loaded content with empty doc shell`);
             return;
         }
 
@@ -604,14 +607,14 @@ export default function Dashboard() {
             const savedContentStr = typeof content === 'string' ? content : JSON.stringify(content);
 
             if (currentContentStr === savedContentStr) {
+                initialContentRef.current = content;
                 unsavedNotesRef.current.delete(noteId);
                 if (noteId === activeNoteIdRef.current) {
                     setSaveStatus('saved');
                 }
-                // [FIX-1b] Update the cached _saveStatus on the open tab so that
-                // switching away and returning does not lose the 'saved' state.
+                // [FIX-1b] Update the cached _saveStatus, content and _fileKey on openTabs
                 setOpenTabs(prev => prev.map(tab =>
-                    tab.id === noteId ? { ...tab, _saveStatus: 'saved' } : tab
+                    tab.id === noteId ? { ...tab, _saveStatus: 'saved', content, _fileKey: fileKey } : tab
                 ));
             } else {
                 console.log(`[AutoSave] Content changed during save for ${noteId}. Leaving as unsaved.`);
@@ -975,7 +978,7 @@ export default function Dashboard() {
                             iv:   cryptoLib.arrayBufferToBase64(baseIv.buffer as ArrayBuffer)
                         });
                         const b64Base = btoa(baseCiphertext);
-                        await apiFetch(`/api/v1/files/${fileId}/backups/1 week`, {
+                        await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent("1 week")}`, {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
@@ -993,7 +996,7 @@ export default function Dashboard() {
                     let baseSlot = slotMap["1 week"];
                     if (baseSlot && !baseSlot.encrypted_blob) {
                         try {
-                            const fullBaseRes = await apiFetch(`/api/v1/files/${fileId}/backups/1 week`);
+                            const fullBaseRes = await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent("1 week")}`);
                             if (fullBaseRes.ok) {
                                 baseSlot = await fullBaseRes.json();
                             }
@@ -1082,7 +1085,7 @@ export default function Dashboard() {
                                 
                                 const b64Payload = btoa(patchCiphertext);
                                 
-                                await apiFetch(`/api/v1/files/${fileId}/backups/${slot.name}`, {
+                                await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent(slot.name)}`, {
                                     method: 'PUT',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
@@ -1094,7 +1097,7 @@ export default function Dashboard() {
                             } else {
                                 // V1 files fallback
                                 const metaStr = typeof currentFile?.secured_meta === 'string' ? currentFile.secured_meta : JSON.stringify(currentFile?.secured_meta || {});
-                                await apiFetch(`/api/v1/files/${fileId}/backups/${slot.name}`, {
+                                await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent(slot.name)}`, {
                                     method: 'PUT',
                                     headers: { 'Content-Type': 'application/json' },
                                     body: JSON.stringify({
@@ -1544,9 +1547,11 @@ export default function Dashboard() {
                     setEditorContent(parsedContent);
                     initialContentRef.current = parsedContent;
                 }
+                userHasTypedRef.current = false;
             } else if (recoveredBackup && !isDocEmpty(recoveredBackup)) {
                 setEditorContent(recoveredBackup);
                 initialContentRef.current = recoveredBackup;
+                userHasTypedRef.current = false;
             } else {
                 const emptyDoc = {
                     type: 'doc',
@@ -1554,6 +1559,7 @@ export default function Dashboard() {
                 };
                 setEditorContent(emptyDoc);
                 initialContentRef.current = emptyDoc;
+                userHasTypedRef.current = false;
             }
         } catch (err) {
             if (lastLoadIdRef.current === loadId) {
@@ -1564,6 +1570,7 @@ export default function Dashboard() {
                 };
                 setEditorContent(fallbackDoc);
                 initialContentRef.current = fallbackDoc;
+                userHasTypedRef.current = false;
             }
         } finally {
             if (lastLoadIdRef.current === loadId) setIsLoadingContent(false);
@@ -1622,9 +1629,12 @@ export default function Dashboard() {
             setFileName(finalTitle);
             if (existingTab && existingTab.content) {
                 setEditorContent(existingTab.content);
+                initialContentRef.current = existingTab.content;
+                userHasTypedRef.current = false;
                 if (existingTab._fileKey) setActiveFileKey(existingTab._fileKey);
                 setSaveStatus(existingTab._saveStatus || 'saved');
             } else {
+                userHasTypedRef.current = false;
                 loadNoteContent(newId, finalTitle, fallbackData);
             }
 
@@ -2508,6 +2518,7 @@ export default function Dashboard() {
                             const validActive = parsed.find((t: any) => t.id === savedActiveId);
                             const activeIdToSet = validActive ? validActive.id : parsed[0].id;
                             const activeTypeToSet = validActive ? validActive.type : parsed[0].type;
+                            setActiveTabId(activeIdToSet);
                             // Only the active tab is loaded immediately; other tabs load on-demand when clicked.
 
                             if (activeTypeToSet === 'file') {
@@ -4370,7 +4381,11 @@ export default function Dashboard() {
                                             const currentAfMobile = files.find(f => f.id === activeNoteId);
                                             const isSharedNoteMobile = Boolean(currentAfMobile && ((currentAfMobile as any).isShared || ((currentAfMobile as any).owner_id && (currentAfMobile as any).owner_id !== myId)));
 
-                                            return (
+                                            return editorContent === null ? (
+                                                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
+                                                    <span className="font-medium text-sm">Lade...</span>
+                                                </div>
+                                            ) : (
                                                 <Editor
                                                     key={activeTabId}
                                                     isShared={isSharedNoteMobile}
@@ -4501,13 +4516,21 @@ export default function Dashboard() {
                     onCancel={() => setShowBackups(false)}
                     onRestore={(content) => {
                         window.dispatchEvent(new CustomEvent('editor:restore-content', { detail: content }));
+                        setEditorContent(content);
+                        initialContentRef.current = content;
+                        userHasTypedRef.current = true;
                         setShowBackups(false);
                         // Trigger a save with the restored content
                         const currentFile = files.find(f => f.id === activeNoteId);
                         if (currentFile) {
                             setSaveStatus("saving");
                             performSave(content, activeNoteId, activeFileKey, currentFile.visibility)
-                                .then(() => setSaveStatus("saved"))
+                                .then(() => {
+                                    setSaveStatus("saved");
+                                    setOpenTabs(prev => prev.map(tab =>
+                                        tab.id === activeNoteId ? { ...tab, content, _saveStatus: 'saved' } : tab
+                                    ));
+                                })
                                 .catch(() => setSaveStatus("unsaved"));
                         }
                     }}

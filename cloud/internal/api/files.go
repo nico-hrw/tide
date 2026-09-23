@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -987,6 +988,10 @@ func (h *FileHandler) GetFileBackups(w http.ResponseWriter, r *http.Request) {
 func (h *FileHandler) GetFileBackup(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "fileID")
 	slotName := chi.URLParam(r, "slotName")
+	if unescaped, err := url.PathUnescape(slotName); err == nil {
+		slotName = unescaped
+	}
+	slotName = strings.TrimSpace(slotName)
 
 	// [FIX HOCH-1] Same access check as GetFileBackups — caller must own or have
 	// a valid share for the file to retrieve the encrypted blob of a specific slot.
@@ -1031,7 +1036,7 @@ func (h *FileHandler) handleBackupCascade(ctx context.Context, id string, blobBy
 	now := time.Now()
 	slotMap := make(map[string]*db.FileBackup)
 	for i := range backups {
-		slotMap[backups[i].SlotName] = &backups[i]
+		slotMap[strings.TrimSpace(backups[i].SlotName)] = &backups[i]
 	}
 
 	// Only the "1 week" base slot is maintained server-side (full copy).
@@ -1084,6 +1089,10 @@ func decodeBase64OrRaw(s string) []byte {
 func (h *FileHandler) UpdateFileBackup(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "fileID")
 	slotName := chi.URLParam(r, "slotName")
+	if unescaped, err := url.PathUnescape(slotName); err == nil {
+		slotName = unescaped
+	}
+	slotName = strings.TrimSpace(slotName)
 	if id == "" || slotName == "" {
 		http.Error(w, "Missing arguments", http.StatusBadRequest)
 		return

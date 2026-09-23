@@ -255,6 +255,10 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
     const cleanInitial = useMemo(() => getCleanDocContent(initialContent), [initialContent]);
 
     useEffect(() => {
+        userHasTypedRef.current = false;
+    }, [activeTabId, cleanInitial]);
+
+    useEffect(() => {
         if (!isShared || !activeTabId || 
             activeTabId.startsWith('chat-') || 
             activeTabId.startsWith('profile:') || 
@@ -997,34 +1001,44 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
             const customEvent = e as CustomEvent;
             const content = customEvent.detail;
             if (content) {
-                const xmlFragment = ydoc.getXmlFragment('prosemirror');
-                ydoc.transact(() => {
-                    while (xmlFragment.length > 0) {
-                        xmlFragment.delete(0, 1);
+                try {
+                    const jsonContent = typeof content === 'string' ? JSON.parse(content) : content;
+                    let cleanJson = jsonContent;
+                    if (jsonContent && jsonContent.__yjs) {
+                        const { __yjs, ...rest } = jsonContent;
+                        cleanJson = rest;
                     }
+                    if (provider && isShared) {
+                        const xmlFragment = ydoc.getXmlFragment('prosemirror');
+                        ydoc.transact(() => {
+                            while (xmlFragment.length > 0) {
+                                xmlFragment.delete(0, 1);
+                            }
+                            const doc = editor.schema.nodeFromJSON(cleanJson);
+                            const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
+                            const oldClientId = ydoc.clientID;
+                            ydoc.clientID = 1;
+                            prosemirrorToYXmlFragment(doc, xmlFragment);
+                            ydoc.clientID = oldClientId;
+                        });
+                    } else {
+                        editor.commands.setContent(cleanJson);
+                    }
+                    userHasTypedRef.current = true;
+                } catch (err) {
+                    console.error('Failed to restore via Yjs/setContent:', err);
                     try {
-                        const jsonContent = typeof content === 'string' ? JSON.parse(content) : content;
-                        let cleanJson = jsonContent;
-                        if (jsonContent && jsonContent.__yjs) {
-                            const { __yjs, ...rest } = jsonContent;
-                            cleanJson = rest;
-                        }
-                        const doc = editor.schema.nodeFromJSON(cleanJson);
-                        const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
-                        const oldClientId = ydoc.clientID;
-                        ydoc.clientID = 1;
-                        prosemirrorToYXmlFragment(doc, xmlFragment);
-                        ydoc.clientID = oldClientId;
-                    } catch (err) {
-                        console.error('Failed to restore via Yjs:', err);
                         editor.commands.setContent(content);
+                        userHasTypedRef.current = true;
+                    } catch (fallbackErr) {
+                        console.error('Fallback setContent failed:', fallbackErr);
                     }
-                });
+                }
             }
         };
         window.addEventListener('editor:restore-content', handleRestore);
         return () => window.removeEventListener('editor:restore-content', handleRestore);
-    }, [editor, ydoc]);
+    }, [editor, ydoc, provider, isShared]);
 
     useEffect(() => {
         if (!editor) return;

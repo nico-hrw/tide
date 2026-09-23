@@ -1521,7 +1521,7 @@ func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, 
 // FileBackup Methods
 
 func (s *SQLiteStore) GetFileBackups(ctx context.Context, fileID string) ([]db.FileBackup, error) {
-		query := `SELECT id, file_id, slot_name, COALESCE(secured_meta, x'') as secured_meta, COALESCE(access_keys, '{}') as access_keys, COALESCE(version, 1) as version, updated_at FROM file_backups WHERE file_id = ? ORDER BY updated_at DESC`
+	query := `SELECT id, file_id, TRIM(slot_name) as slot_name, COALESCE(secured_meta, x'') as secured_meta, COALESCE(access_keys, '{}') as access_keys, COALESCE(version, 1) as version, updated_at FROM file_backups WHERE file_id = ? ORDER BY updated_at DESC`
 	rows, err := s.DB.QueryContext(ctx, query, fileID)
 	if err != nil {
 		return nil, err
@@ -1539,8 +1539,9 @@ func (s *SQLiteStore) GetFileBackups(ctx context.Context, fileID string) ([]db.F
 }
 
 func (s *SQLiteStore) GetFileBackup(ctx context.Context, fileID, slotName string) (*db.FileBackup, error) {
-		query := `SELECT id, file_id, slot_name, encrypted_blob, COALESCE(secured_meta, x'') as secured_meta, COALESCE(access_keys, '{}') as access_keys, COALESCE(version, 1) as version, updated_at FROM file_backups WHERE file_id = ? AND slot_name = ?`
-	row := s.DB.QueryRowContext(ctx, query, fileID, slotName)
+	trimmedSlot := strings.TrimSpace(slotName)
+	query := `SELECT id, file_id, TRIM(slot_name) as slot_name, encrypted_blob, COALESCE(secured_meta, x'') as secured_meta, COALESCE(access_keys, '{}') as access_keys, COALESCE(version, 1) as version, updated_at FROM file_backups WHERE file_id = ? AND (slot_name = ? OR TRIM(slot_name) = ?)`
+	row := s.DB.QueryRowContext(ctx, query, fileID, slotName, trimmedSlot)
 	var b db.FileBackup
 	if err := row.Scan(&b.ID, &b.FileID, &b.SlotName, &b.EncryptedBlob, &b.SecuredMeta, &b.AccessKeys, &b.Version, &b.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
@@ -1552,6 +1553,7 @@ func (s *SQLiteStore) GetFileBackup(ctx context.Context, fileID, slotName string
 }
 
 func (s *SQLiteStore) UpsertFileBackup(ctx context.Context, b *db.FileBackup) error {
+	b.SlotName = strings.TrimSpace(b.SlotName)
 	ak := b.AccessKeys
 	if len(ak) == 0 {
 		ak = json.RawMessage("{}")

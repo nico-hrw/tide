@@ -61,7 +61,8 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                 if (Array.isArray(data)) {
                     const slotMap: Record<string, BackupSlot> = {};
                     for (const s of data) {
-                        slotMap[s.slot_name.trim()] = s;
+                        const trimmed = s.slot_name.trim();
+                        slotMap[trimmed] = { ...s, slot_name: trimmed };
                     }
                     setSlots(slotMap);
                 }
@@ -132,7 +133,7 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
             if (!myId) throw new Error("Benutzer-ID nicht verfügbar.");
 
             // Fetch the selected slot's encrypted backup
-            const bRes = await apiFetch(`/api/v1/files/${fileId}/backups/${slot.slot_name}`);
+            const bRes = await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent(slot.slot_name)}`);
             const backupData = await bRes.json();
 
             if (!backupData.encrypted_blob) {
@@ -149,21 +150,31 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
             try {
                 const parsed = JSON.parse(decryptedText);
                 if (Array.isArray(parsed)) {
-                    // Delta patch — need the "1 week" base to reconstruct
+                    // Delta patch — need a base to reconstruct
+                    let baseText = "";
                     const baseSlot = slots["1 week"];
-                    if (!baseSlot) {
-                        setErrorMsg("Basis-Backup (1 Woche) fehlt — Delta kann nicht rekonstruiert werden.");
+                    if (baseSlot) {
+                        try {
+                            const baseRes = await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent(baseSlot.slot_name)}`);
+                            if (baseRes.ok) {
+                                const baseData = await baseRes.json();
+                                if (baseData.encrypted_blob) {
+                                    baseText = await decryptBackupBlob(baseData, privateKey, myId);
+                                }
+                            }
+                        } catch (bErr) {
+                            console.warn("Failed to load 1 week base backup:", bErr);
+                        }
+                    }
+                    // Fallback to currentContent if "1 week" base is not yet created
+                    if (!baseText && currentContent) {
+                        baseText = typeof currentContent === 'string' ? currentContent : JSON.stringify(currentContent);
+                    }
+                    if (!baseText) {
+                        setErrorMsg("Basis-Backup (1 Woche) fehlt und aktueller Inhalt nicht geladen — Delta kann nicht rekonstruiert werden.");
                         setLoading(false);
                         return;
                     }
-                    const baseRes = await apiFetch(`/api/v1/files/${fileId}/backups/${baseSlot.slot_name}`);
-                    const baseData = await baseRes.json();
-                    if (!baseData.encrypted_blob) {
-                        setErrorMsg("Basis-Backup (1 Woche) ist leer — Delta kann nicht rekonstruiert werden.");
-                        setLoading(false);
-                        return;
-                    }
-                    const baseText = await decryptBackupBlob(baseData, privateKey, myId);
                     backupJsonStr = applyLinePatch(baseText, parsed);
                 }
                 // else: it's a full JSON copy, use as-is
