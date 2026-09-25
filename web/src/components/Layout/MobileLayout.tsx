@@ -4,10 +4,10 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Menu, Settings, ArrowLeft, Folder, FileText,
-  ChevronRight, Plus, Search, Calendar as CalendarIcon,
+  ChevronRight, ChevronLeft, Plus, Search, Calendar as CalendarIcon,
   Trash2, GraduationCap,
   DollarSign, X, PenLine, FolderPlus, GripVertical,
-  Crosshair, BookOpen, Clock, CheckCircle2,
+  BookOpen, Coffee,
 } from 'lucide-react';
 import { isSameDay, format, startOfWeek, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -380,6 +380,237 @@ const MobileNewEventSheet = ({
   );
 };
 
+const DbTimelineDay = React.memo(function DbTimelineDay({
+  day,
+  dayEvs,
+  allDayEvs,
+  isToday,
+  now,
+  theme,
+  onSelectEvent,
+  onNewEvent,
+}: {
+  day: Date;
+  dayEvs: any[];
+  allDayEvs: any[];
+  isToday: boolean;
+  now: Date;
+  theme: string;
+  onSelectEvent: (ev: any) => void;
+  onNewEvent?: (date: Date) => void;
+}) {
+  if (dayEvs.length === 0 && allDayEvs.length === 0) {
+    return (
+      <div className="py-8 flex flex-col items-center justify-center text-center">
+        <p className="text-xs font-medium mb-3" style={{ color: T.mut }}>Keine Termine an diesem Tag</p>
+        {onNewEvent && (
+          <button
+            onClick={() => onNewEvent(day)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95 transition-transform"
+            style={{ background: `${T.accent}14`, color: T.accent }}
+          >
+            <Plus size={13} /> Termin anlegen
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col py-1">
+      {/* All-day events */}
+      {allDayEvs.length > 0 && (
+        <div className="flex flex-col gap-1.5 mb-2 pl-[78px] pr-2">
+          {allDayEvs.map(ev => (
+            <button
+              key={`allday-${ev.id}`}
+              onClick={() => onSelectEvent(ev)}
+              className="w-full flex items-center justify-between text-left py-1 group active:opacity-80"
+            >
+              <span
+                className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-md text-white shadow-xs"
+                style={{ background: ev.color || T.accent }}
+              >
+                {ev.title}
+              </span>
+              <span className="text-[10px] font-medium" style={{ color: T.mut }}>
+                Ganztag
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Timed events timeline */}
+      {dayEvs.map((ev, idx) => {
+        const evStart = new Date(ev.start);
+        const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
+        const durationMins = Math.max(15, Math.round((evEnd.getTime() - evStart.getTime()) / 60_000));
+        const durStr = durationMins >= 60
+          ? `${Math.floor(durationMins / 60)}h ${durationMins % 60 > 0 ? `${durationMins % 60}m` : ''}`.trim()
+          : `${durationMins} Min.`;
+
+        const isActive = isToday && (() => {
+          try { return evStart <= now && evEnd > now; } catch { return false; }
+        })();
+
+        // Pause indicator between events
+        let pauseEl: React.ReactNode = null;
+        if (idx > 0) {
+          const prevEv = dayEvs[idx - 1];
+          const prevEnd = prevEv.end ? new Date(prevEv.end) : new Date(new Date(prevEv.start).getTime() + 3_600_000);
+          const gapMins = Math.round((evStart.getTime() - prevEnd.getTime()) / 60_000);
+          if (gapMins > 0) {
+            const gapStr = gapMins >= 60
+              ? `${Math.floor(gapMins / 60)} Std. ${gapMins % 60 > 0 ? `${gapMins % 60} Min.` : ''}`.trim()
+              : `${gapMins} Min.`;
+            pauseEl = (
+              <div
+                className="w-full flex items-center my-1.5 rounded-xl px-2 py-2 transition-colors"
+                style={{
+                  background: theme === 'dark' ? 'rgba(255, 255, 255, 0.035)' : 'rgba(0, 0, 0, 0.03)',
+                }}
+              >
+                <div className="w-[54px] shrink-0 text-right pr-2">
+                  <span className="text-[10px] font-semibold" style={{ color: T.mut }}>
+                    {gapStr}
+                  </span>
+                </div>
+                <div className="w-[24px] shrink-0 flex items-center justify-center">
+                  <div
+                    className="w-0 h-5 border-l-2 border-dashed"
+                    style={{ borderColor: theme === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.18)' }}
+                  />
+                </div>
+                <div className="flex-1 flex items-center gap-1.5 pl-1 min-w-0 pr-1">
+                  <Coffee size={12} style={{ color: T.mut, flexShrink: 0 }} />
+                  <span className="text-[11px] font-medium truncate" style={{ color: T.sec }}>
+                    {gapStr} Pause
+                  </span>
+                  <span className="text-[10px] ml-auto shrink-0" style={{ color: T.mut }}>
+                    bis {format(evStart, 'HH:mm')}
+                  </span>
+                </div>
+              </div>
+            );
+          }
+        }
+
+        // Check if next event starts right when this ends
+        const nextEv = idx < dayEvs.length - 1 ? dayEvs[idx + 1] : null;
+        const nextStart = nextEv ? new Date(nextEv.start) : null;
+        const isBackToBack = nextStart && Math.abs(nextStart.getTime() - evEnd.getTime()) < 60_000;
+        const evColor = ev.color || T.accent;
+
+        return (
+          <React.Fragment key={ev.id}>
+            {pauseEl}
+
+            <button
+              onClick={() => onSelectEvent(ev)}
+              className="w-full flex flex-col text-left group my-0.5 active:opacity-85 transition-opacity"
+            >
+              {/* Top Station (Event Start) */}
+              <div className="flex items-start">
+                <div className="w-[54px] shrink-0 text-right pr-2 pt-0.5">
+                  <span
+                    className="text-[12px] font-bold leading-none"
+                    style={{ color: isActive ? T.accent : T.pri }}
+                  >
+                    {format(evStart, 'HH:mm')}
+                  </span>
+                </div>
+
+                {/* Double circle marker */}
+                <div className="w-[24px] shrink-0 flex flex-col items-center pt-0.5 z-10">
+                  <div
+                    className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${isActive ? 'animate-pulse' : ''}`}
+                    style={{
+                      borderColor: isActive ? T.accent : evColor,
+                      background: theme === 'dark' ? '#0f172a' : '#ffffff',
+                    }}
+                  >
+                    <div
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ background: isActive ? T.accent : evColor }}
+                    />
+                  </div>
+                </div>
+
+                {/* Event Title Badge & Subtitle */}
+                <div className="flex-1 ml-2 min-w-0 pb-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span
+                      className="inline-flex items-center text-[11px] font-bold px-2 py-0.5 rounded-md text-white shadow-xs"
+                      style={{ background: evColor }}
+                    >
+                      {ev.title}
+                    </span>
+                  </div>
+                  {ev.description && (
+                    <p className="text-[11px] mt-0.5 line-clamp-1" style={{ color: T.mut }}>
+                      {ev.description}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Middle Section (Duration & Connecting line) */}
+              <div className="flex items-stretch min-h-[22px]">
+                <div className="w-[54px] shrink-0 text-right pr-2 flex items-center justify-end">
+                  <span className="text-[10px] font-medium" style={{ color: T.mut }}>
+                    {durStr}
+                  </span>
+                </div>
+
+                <div className="w-[24px] shrink-0 flex items-center justify-center">
+                  <div
+                    className="w-[2px] h-full"
+                    style={{
+                      background: isActive ? T.accent : (theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.15)'),
+                      minHeight: 18,
+                    }}
+                  />
+                </div>
+
+                <div className="flex-1 ml-2" />
+              </div>
+
+              {/* Bottom Station (Event End) */}
+              {!isBackToBack && (
+                <div className="flex items-center">
+                  <div className="w-[54px] shrink-0 text-right pr-2">
+                    <span className="text-[11px] font-semibold leading-none" style={{ color: T.sec }}>
+                      {format(evEnd, 'HH:mm')}
+                    </span>
+                  </div>
+
+                  <div className="w-[24px] shrink-0 flex items-center justify-center z-10">
+                    <div
+                      className="w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0"
+                      style={{
+                        borderColor: evColor,
+                        background: theme === 'dark' ? '#0f172a' : '#ffffff',
+                      }}
+                    >
+                      <div
+                        className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: evColor }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex-1 ml-2 border-b" style={{ borderColor: T.brd }} />
+                </div>
+              )}
+            </button>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+});
+
 export default function MobileLayout({
   events, files, folders, onNoteSelect, onNewNote, onDeleteNote,
   onNewFolder, onNewFolderIn, onNoteRename,
@@ -398,7 +629,7 @@ export default function MobileLayout({
   const [contextMenu, setContextMenu] = useState<{ type: 'note' | 'folder'; id: string; title: string; parentId?: string | null } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [calViewMode, setCalViewMode] = useState<'day' | 'week' | 'month'>('day');
+  const [calViewMode, setCalViewMode] = useState<'day' | 'agenda' | 'week' | 'month'>('day');
   const [activeTab, setActiveTab] = useState<'calendar' | 'notes'>('calendar');
   const [dayViewDays, setDayViewDays] = useState<Date[]>([]);
   const dayViewSentinelRef = useRef<HTMLDivElement>(null);
@@ -595,7 +826,7 @@ export default function MobileLayout({
 
   // Infinite scroll sentinel for day view
   useEffect(() => {
-    if (calViewMode !== 'day') return;
+    if (calViewMode !== 'agenda') return;
     const el = dayViewSentinelRef.current;
     if (!el) return;
     const obs = new IntersectionObserver(([entry]) => {
@@ -610,6 +841,27 @@ export default function MobileLayout({
     obs.observe(el);
     return () => obs.disconnect();
   }, [calViewMode]);
+
+  // ── Active Day Summary for Day View (Total scheduled duration & count) ───────
+  const activeDaySummary = useMemo(() => {
+    const sameDay = (e: { start: string; allDay?: boolean }) => {
+      try { return isSameDay(new Date(e.start), activeDate); } catch { return false; }
+    };
+    const dayEvs = expandedEvents.filter(e => !e.allDay && sameDay(e));
+    let totalMins = 0;
+    for (const ev of dayEvs) {
+      const s = new Date(ev.start);
+      const en = ev.end ? new Date(ev.end) : new Date(s.getTime() + 3_600_000);
+      totalMins += Math.max(15, Math.round((en.getTime() - s.getTime()) / 60_000));
+    }
+    const durStr = totalMins >= 60
+      ? `${Math.floor(totalMins / 60)}h ${totalMins % 60 > 0 ? `${totalMins % 60}m` : ''}`.trim()
+      : totalMins > 0 ? `${totalMins}min` : '';
+    return {
+      count: dayEvs.length,
+      durStr,
+    };
+  }, [expandedEvents, activeDate]);
 
   // ── Mobile Smart Island calculation (Next / Active event for today) ───────
   const smartIslandData = useMemo(() => {
@@ -651,13 +903,13 @@ export default function MobileLayout({
       const s = new Date(next.start);
       const diffMins = Math.max(1, Math.round((s.getTime() - now.getTime()) / 60_000));
       const timeStr = diffMins >= 60
-        ? `in ${Math.floor(diffMins / 60)} Std. ${diffMins % 60 > 0 ? `${diffMins % 60} Min.` : ''}`
-        : `in ${diffMins} Min.`;
+        ? `${Math.floor(diffMins / 60)} Std. ${diffMins % 60 > 0 ? `${diffMins % 60} Min.` : ''}`
+        : `${diffMins} Min.`;
       return {
         type: 'next' as const,
         event: next,
         title: next.title || 'Nächster Termin',
-        subtitle: `${format(s, 'HH:mm')} (${timeStr})`,
+        subtitle: `in ${timeStr}`,
         color: next.color || T.accent,
       };
     }
@@ -831,7 +1083,8 @@ export default function MobileLayout({
       const dir = swipeDx < 0 ? 'left' : 'right';
       setSnapping(dir);
       setTimeout(() => {
-        setActiveDate(d => addDays(d, dir === 'left' ? 7 : -7));
+        const delta = calViewMode === 'day' ? (dir === 'left' ? 1 : -1) : (dir === 'left' ? 7 : -7);
+        setActiveDate(d => addDays(d, delta));
         setSnapping(null);
         setSwipeDx(0);
       }, 240);
@@ -910,6 +1163,7 @@ export default function MobileLayout({
                 {[
                   { id: 'exams', icon: <GraduationCap size={18} />, label: 'Prüfungen', ext: 'exams', action: () => { setIsSidebarOpen(false); setIsExamsOpen(true); } },
                   { id: 'finance', icon: <DollarSign size={18} />, label: 'Finanzen', ext: 'finance', action: () => { setIsSidebarOpen(false); setIsFinanceOpen(true); } },
+                  { id: 'settings', icon: <Settings size={18} />, label: 'Optionen', ext: '', action: () => { setIsSidebarOpen(false); setSettingsOpen(true); } },
                 ].map(tab => {
                   const enabled = !tab.ext || enabledExtensions.includes(tab.ext);
                   return (
@@ -1190,8 +1444,8 @@ export default function MobileLayout({
         )}
       </AnimatePresence>
 
-      {/* ── Top bar with Mobile Smart Island ────────────────── */}
-      <div className="flex items-center justify-between px-4 shrink-0 z-10 gap-2" style={{ paddingTop: 'max(52px, calc(env(safe-area-inset-top) + 10px))', paddingBottom: 6 }}
+      {/* ── Clean top header — DB Navigator style ────────────────── */}
+      <div className="shrink-0 z-10" style={{ paddingTop: 'max(52px, calc(env(safe-area-inset-top) + 10px))' }}
         onTouchStart={e => { topBarTouch.current = { x0: e.touches[0].clientX, y0: e.touches[0].clientY }; }}
         onTouchEnd={e => {
           const dx = e.changedTouches[0].clientX - topBarTouch.current.x0;
@@ -1199,89 +1453,124 @@ export default function MobileLayout({
           if (dx > 40 && dy < 30) setIsSidebarOpen(true);
         }}
       >
-        <button onClick={() => setIsSidebarOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl shrink-0" style={{ background: T.card, border: `1px solid ${T.brd}` }}>
-          <Menu size={17} style={{ color: T.sec }} />
-        </button>
-
-        {/* Mobile Smart Island: Next or active event pill at top */}
-        {smartIslandData ? (
+        {/* Next/Active event hero area */}
+        {activeTab === 'calendar' && smartIslandData ? (
           <button
             onClick={() => setSelectedEvent(smartIslandData.event)}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full flex-1 max-w-[240px] truncate transition-transform active:scale-95 shadow-sm"
-            style={{
-              background: theme === 'dark' ? 'rgba(30, 41, 59, 0.88)' : 'rgba(255, 255, 255, 0.94)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              border: `1.5px solid ${smartIslandData.color}55`,
-            }}
+            className="w-full text-left px-5 pb-3 active:opacity-80 transition-opacity"
           >
-            <span
-              className={`w-2 h-2 rounded-full shrink-0 ${smartIslandData.type === 'active' ? 'animate-pulse' : ''}`}
-              style={{ background: smartIslandData.color }}
-            />
-            <div className="flex flex-col text-left min-w-0 flex-1">
-              <span className="text-[11px] font-bold truncate leading-tight" style={{ color: T.pri }}>
-                {smartIslandData.title}
+            <div className="flex items-center gap-2 mb-1">
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${smartIslandData.type === 'active' ? 'animate-pulse' : ''}`}
+                style={{ background: smartIslandData.color }}
+              />
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: T.sec }}>
+                {smartIslandData.type === 'active' ? 'Jetzt' : 'Als nächstes'}
               </span>
-              <span className="text-[9px] font-semibold leading-tight flex items-center gap-1" style={{ color: smartIslandData.color }}>
-                <Clock size={9} /> {smartIslandData.subtitle}
+              <span className="text-[10px] font-semibold ml-auto" style={{ color: smartIslandData.color }}>
+                {smartIslandData.subtitle}
               </span>
             </div>
+            <p className="text-base font-bold truncate" style={{ color: T.pri }}>
+              {smartIslandData.title}
+            </p>
           </button>
-        ) : (
-          <div className="flex-1" />
-        )}
-
-        <div className="flex gap-2 shrink-0">
-          <button onClick={() => { setSearchQuery(''); setIsSearchOpen(true); }} className="w-9 h-9 flex items-center justify-center rounded-xl" style={{ background: T.card, border: `1px solid ${T.brd}` }}>
-            <Search size={16} style={{ color: T.sec }} />
-          </button>
-          <button onClick={() => setSettingsOpen(true)} className="w-9 h-9 flex items-center justify-center rounded-xl" style={{ background: T.card, border: `1px solid ${T.brd}` }}>
-            <Settings size={16} style={{ color: T.sec }} />
-          </button>
-        </div>
-      </div>
-
-      {/* ── Calendar header ─────── */}
-      {activeTab === 'calendar' && (
-      <div className="shrink-0 mb-1">
-        <div className="px-5 flex items-center justify-between">
-          <span className="text-lg font-extrabold" style={{ color: T.pri }}>
-            {format(activeDate, 'MMMM yyyy', { locale: de }).toUpperCase()}
-          </span>
-          <div className="flex items-center gap-2">
-            <button onClick={() => {
-                setActiveDate(new Date());
-                if (calViewMode === 'day') requestAnimationFrame(() => document.getElementById(`day-${format(new Date(), 'yyyy-MM-dd')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-              }}
-              className="px-2.5 py-1.5 rounded-xl text-xs font-bold"
-              style={{ background: `${T.accent}18`, color: T.accent, border: `1px solid ${T.accent}30` }}>
-              <Crosshair size={12} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 4 }} />Heute
-            </button>
-            <button
-              onClick={() => {
-                setNewEventDefaultDate(activeDate);
-                setIsNewEventSheetOpen(true);
-              }}
-              className="w-8 h-8 flex items-center justify-center rounded-xl font-bold shadow-sm active:scale-95 transition-transform"
-              style={{ background: T.accent, color: '#fff' }}
-              title="Neuer Termin"
-            >
-              <Plus size={16} />
-            </button>
+        ) : activeTab === 'calendar' ? (
+          <div className="px-5 pb-3">
+            <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: T.sec }}>
+              Keine weiteren Termine heute
+            </p>
           </div>
-        </div>
+        ) : null}
+
+        {/* Compact date bar with controls */}
+        {activeTab === 'calendar' && (
+          <div className="flex items-center justify-between px-4 pb-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <button onClick={() => setIsSidebarOpen(true)} className="w-7 h-7 flex items-center justify-center rounded-lg shrink-0" style={{ color: T.sec }} title="Menü">
+                <Menu size={16} />
+              </button>
+              {calViewMode === 'day' ? (
+                <div className="flex items-center gap-1 min-w-0">
+                  <button
+                    onClick={() => setActiveDate(d => addDays(d, -1))}
+                    className="w-6 h-6 flex items-center justify-center rounded-md shrink-0 active:scale-90 transition-transform"
+                    style={{ color: T.sec }}
+                    title="Vorheriger Tag"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <span className="text-xs font-bold truncate" style={{ color: T.pri }}>
+                    {format(activeDate, 'EEE d. MMM', { locale: de })}
+                  </span>
+                  <button
+                    onClick={() => setActiveDate(d => addDays(d, 1))}
+                    className="w-6 h-6 flex items-center justify-center rounded-md shrink-0 active:scale-90 transition-transform"
+                    style={{ color: T.sec }}
+                    title="Nächster Tag"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                  {!isSameDay(activeDate, new Date()) && (
+                    <button
+                      onClick={() => setActiveDate(new Date())}
+                      className="px-1.5 py-0.5 rounded text-[10px] font-bold shrink-0 ml-0.5"
+                      style={{ background: `${T.accent}15`, color: T.accent }}
+                    >
+                      Heute
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <span className="text-sm font-bold truncate" style={{ color: T.pri }}>
+                  {format(activeDate, 'd. MMMM yyyy', { locale: de })}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {calViewMode === 'day' && activeDaySummary.durStr ? (
+                <span className="text-[11px] font-semibold mr-1" style={{ color: T.sec }}>
+                  Dauer: {activeDaySummary.durStr}
+                </span>
+              ) : calViewMode !== 'day' ? (
+                <button onClick={() => {
+                    setActiveDate(new Date());
+                    if (calViewMode === 'agenda') requestAnimationFrame(() => document.getElementById(`day-${format(new Date(), 'yyyy-MM-dd')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+                  }}
+                  className="px-2 py-1 rounded-lg text-[10px] font-bold"
+                  style={{ color: T.accent }}
+                >
+                  Heute
+                </button>
+              ) : null}
+              <button onClick={() => { setSearchQuery(''); setIsSearchOpen(true); }} className="w-7 h-7 flex items-center justify-center rounded-lg" style={{ color: T.sec }} title="Suchen">
+                <Search size={15} />
+              </button>
+              <button
+                onClick={() => {
+                  setNewEventDefaultDate(activeDate);
+                  setIsNewEventSheetOpen(true);
+                }}
+                className="w-7 h-7 flex items-center justify-center rounded-lg"
+                style={{ color: T.accent }}
+                title="Neuer Termin"
+              >
+                <Plus size={16} />
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="h-px" style={{ background: T.brd }} />
       </div>
-      )}
 
       {/* ── Main content area ───────────────────────────── */}
       {activeTab === 'calendar' ? (
       <div
         className="flex flex-col"
         style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(105px + env(safe-area-inset-bottom))' }}
-        onTouchStart={calViewMode === 'week' ? onSwipeStart : undefined}
-        onTouchMove={calViewMode === 'week' ? onSwipeMove : undefined}
-        onTouchEnd={calViewMode === 'week' ? onSwipeEnd : undefined}
+        onTouchStart={calViewMode === 'week' || calViewMode === 'day' ? onSwipeStart : undefined}
+        onTouchMove={calViewMode === 'week' || calViewMode === 'day' ? onSwipeMove : undefined}
+        onTouchEnd={calViewMode === 'week' || calViewMode === 'day' ? onSwipeEnd : undefined}
       >
         {calViewMode === 'week' ? (
           <div
@@ -1395,92 +1684,68 @@ export default function MobileLayout({
                 const sameDay = (e: { start: string; allDay?: boolean }) => { try { return isSameDay(new Date(e.start), activeDate); } catch { return false; } };
                 const allDayEvs = expandedEvents.filter(e => e.allDay && sameDay(e));
                 const dayEvs = expandedEvents.filter(e => !e.allDay && sameDay(e)).sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-                if (allDayEvs.length === 0 && dayEvs.length === 0) {
-                  return (
-                    <div className="py-8 flex flex-col items-center justify-center text-center">
-                      <p className="text-xs font-medium mb-3" style={{ color: T.mut }}>Keine Termine an diesem Tag</p>
-                      <button
-                        onClick={() => {
-                          setNewEventDefaultDate(activeDate);
-                          setIsNewEventSheetOpen(true);
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm active:scale-95 transition-transform"
-                        style={{ background: `${T.accent}18`, color: T.accent, border: `1px solid ${T.accent}33` }}
-                      >
-                        <Plus size={13} /> Termin anlegen
-                      </button>
-                    </div>
-                  );
-                }
                 return (
-                  <>
-                    {allDayEvs.map(ev => (
-                      <button key={`allday-${ev.id}`} onClick={() => { const found = expandedEvents.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
-                        className="w-full flex items-center gap-2 mb-2 text-left px-3 py-2 rounded-xl transition-all"
-                        style={{ background: (ev.color || T.accent) + '22', border: `1px solid ${(ev.color || T.accent)}44` }}>
-                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: ev.color || T.accent }} />
-                        <span className="text-xs font-semibold flex-1 truncate" style={{ color: T.pri }}>{ev.title}</span>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md" style={{ background: `${ev.color || T.accent}33`, color: ev.color || T.accent }}>Ganztag</span>
-                      </button>
-                    ))}
-                    {dayEvs.map(ev => {
-                      const evStart = new Date(ev.start);
-                      const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
-                      const color = ev.color || T.accent;
-                      const durationMins = Math.max(15, Math.round((evEnd.getTime() - evStart.getTime()) / 60_000));
-                      return (
-                        <button key={ev.id} onClick={() => { const found = expandedEvents.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
-                          className="w-full flex items-stretch gap-0 mb-3 text-left group">
-                          <div className="w-12 shrink-0 flex flex-col items-end justify-between pr-2 py-1">
-                            <span className="text-[11px] font-bold leading-none" style={{ color: T.sec }}>{format(evStart, 'HH:mm')}</span>
-                            <span className="text-[10px] leading-none" style={{ color: T.mut }}>{format(evEnd, 'HH:mm')}</span>
-                          </div>
-                          <div className="flex flex-col items-center w-5 shrink-0 py-1">
-                            <div className="w-px flex-1" style={{ background: color + '66', minHeight: 6 }} />
-                            <div className="w-3 h-3 rounded-full border-2 shrink-0 my-0.5 shadow-sm group-active:scale-125 transition-transform" style={{ borderColor: color, background: T.card }} />
-                            <div className="w-px flex-1" style={{ background: color + '66', minHeight: 6 }} />
-                          </div>
-                          <div className="flex-1 rounded-2xl p-3 ml-2 shadow-sm transition-all" style={{ background: `${color}14`, border: `1px solid ${color}44` }}>
-                            <p className="text-sm font-bold leading-snug" style={{ color: T.pri }}>{ev.title}</p>
-                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md"
-                                style={{ background: `${color}25`, color }}>
-                                <Clock size={10} /> {format(evStart, 'HH:mm')} – {format(evEnd, 'HH:mm')}
-                              </span>
-                              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
-                                style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)', color: T.sec }}>
-                                {durationMins >= 60 ? `${Math.floor(durationMins / 60)}h ${durationMins % 60 > 0 ? `${durationMins % 60}m` : ''}` : `${durationMins} Min.`}
-                              </span>
-                            </div>
-                            {ev.description && (
-                              <p className="text-xs line-clamp-2 mt-1.5" style={{ color: T.mut }}>{ev.description}</p>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </>
+                  <DbTimelineDay
+                    day={activeDate}
+                    dayEvs={dayEvs}
+                    allDayEvs={allDayEvs}
+                    isToday={isSameDay(activeDate, now)}
+                    now={now}
+                    theme={theme}
+                    onSelectEvent={ev => { const found = expandedEvents.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
+                    onNewEvent={date => { setNewEventDefaultDate(date); setIsNewEventSheetOpen(true); }}
+                  />
+                );
+              })()}
+            </div>
+          </div>
+        ) : calViewMode === 'day' ? (
+          /* ── Single day view (DB Navigator style) ── */
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className="flex-1 overflow-y-auto pb-4 px-4 pt-2">
+              {(() => {
+                const sameDay = (e: { start: string; allDay?: boolean }) => {
+                  try { return isSameDay(new Date(e.start), activeDate); } catch { return false; }
+                };
+                const allDayEvs = expandedEvents.filter(e => e.allDay && sameDay(e));
+                const dayEvs = expandedEvents
+                  .filter(e => !e.allDay && sameDay(e))
+                  .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+                const todayFlag = isSameDay(activeDate, now);
+
+                return (
+                  <DbTimelineDay
+                    day={activeDate}
+                    dayEvs={dayEvs}
+                    allDayEvs={allDayEvs}
+                    isToday={todayFlag}
+                    now={now}
+                    theme={theme}
+                    onSelectEvent={ev => {
+                      const found = expandedEvents.find(e => e.id === ev.id);
+                      if (found) setSelectedEvent(found);
+                    }}
+                    onNewEvent={date => {
+                      setNewEventDefaultDate(date);
+                      setIsNewEventSheetOpen(true);
+                    }}
+                  />
                 );
               })()}
             </div>
           </div>
         ) : (
-          /* ── Day / Agenda view (infinite scroll) ── */
-          <div
-            style={{
-              flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-            }}
-          >
-            <div className="flex-1 overflow-y-auto pb-4" style={{ paddingLeft: 12, paddingRight: 12 }}>
-              {groupedDayViewItems.map((item) => {
+          /* ── Fortlaufend / Agenda view (infinite scroll) ── */
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className="flex-1 overflow-y-auto pb-4 px-4 pt-2">
+              {groupedDayViewItems.map(item => {
                 if (item.kind === 'empty-range') {
                   return (
                     <div
                       key={`empty-${item.startDate.toISOString()}-${item.endDate.toISOString()}`}
-                      className="my-3 px-3.5 py-2.5 rounded-2xl flex items-center justify-between text-xs transition-all"
+                      className="my-3 px-3.5 py-2.5 rounded-lg flex items-center justify-between text-xs"
                       style={{
-                        background: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-                        border: `1px dashed ${T.brd}`,
+                        background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
                         color: T.mut,
                       }}
                     >
@@ -1509,302 +1774,36 @@ export default function MobileLayout({
 
                 const { date: day, events: dayEvs, allDayEvents: allDayEvs, isToday } = item;
                 return (
-                  <div key={day.toISOString()} id={`day-${format(day, 'yyyy-MM-dd')}`}>
+                  <div key={day.toISOString()} id={`day-${format(day, 'yyyy-MM-dd')}`} className="mb-4">
                     {/* Day header */}
-                    <div className="flex items-center gap-3 py-3">
-                      {isToday && <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg shrink-0" style={{ background: T.accent, color: '#fff' }}>Heute</span>}
-                      <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: isToday ? T.accent : T.sec }}>
-                        {format(day, 'EEEE d. MMM', { locale: de }).toUpperCase()}
+                    <div className="flex items-center gap-3 py-2.5">
+                      {isToday && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0" style={{ background: T.accent, color: '#fff' }}>
+                          Heute
+                        </span>
+                      )}
+                      <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: isToday ? T.accent : T.sec }}>
+                        {format(day, 'EEEE d. MMMM', { locale: de })}
                       </span>
                       <div className="flex-1 h-px" style={{ background: T.brd }} />
                     </div>
-                    {/* All-day events */}
-                    {allDayEvs.map(ev => (
-                      <button key={`allday-${ev.id}`} onClick={() => { const found = expandedEvents.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
-                        className="w-full flex items-center gap-2 mb-2 text-left px-2 py-1.5 rounded-xl"
-                        style={{ background: (ev.color || T.accent) + '22', border: `1px solid ${(ev.color || T.accent)}44` }}>
-                        <div className="w-2 h-2 rounded-full shrink-0" style={{ background: ev.color || T.accent }} />
-                        <span className="text-xs font-semibold flex-1 truncate" style={{ color: T.pri }}>{ev.title}</span>
-                        <span className="text-[10px] shrink-0" style={{ color: T.mut }}>Ganztag</span>
-                      </button>
-                    ))}
-                    {/* Next Event / Active Event Progress Bar on Today */}
-                    {isToday && (() => {
-                      const activeEv = dayEvs.find(e => {
-                        try {
-                          const s = new Date(e.start);
-                          const en = e.end ? new Date(e.end) : new Date(s.getTime() + 3_600_000);
-                          return s <= now && en > now;
-                        } catch { return false; }
-                      });
 
-                      const nextEv = dayEvs.find(e => {
-                        try {
-                          const s = new Date(e.start);
-                          return s > now;
-                        } catch { return false; }
-                      });
-
-                      const prevEvs = dayEvs.filter(e => {
-                        try {
-                          const en = e.end ? new Date(e.end) : new Date(new Date(e.start).getTime() + 3_600_000);
-                          return en <= now;
-                        } catch { return false; }
-                      });
-                      const prevEv = prevEvs[prevEvs.length - 1];
-
-                      if (activeEv) {
-                        const s = new Date(activeEv.start);
-                        const en = activeEv.end ? new Date(activeEv.end) : new Date(s.getTime() + 3_600_000);
-                        const totalMs = Math.max(60_000, en.getTime() - s.getTime());
-                        const elapsedMs = Math.max(0, now.getTime() - s.getTime());
-                        const pct = Math.min(100, Math.max(0, Math.round((elapsedMs / totalMs) * 100)));
-                        const remMins = Math.max(0, Math.round((en.getTime() - now.getTime()) / 60_000));
-                        const evColor = activeEv.color || T.accent;
-
-                        return (
-                          <div
-                            className="mb-4 p-3.5 rounded-2xl border transition-all shadow-sm"
-                            style={{
-                              background: theme === 'dark' ? 'rgba(30, 41, 59, 0.65)' : 'rgba(255, 255, 255, 0.85)',
-                              borderColor: `${evColor}44`,
-                              backdropFilter: 'blur(16px)',
-                            }}
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: evColor }} />
-                                <span className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: evColor }}>
-                                  Aktueller Termin
-                                </span>
-                              </div>
-                              <span className="text-xs font-semibold px-2 py-0.5 rounded-md" style={{ background: `${evColor}18`, color: evColor }}>
-                                noch {remMins} Min.
-                              </span>
-                            </div>
-                            <div className="text-sm font-bold truncate mb-2" style={{ color: T.pri }}>
-                              {activeEv.title}
-                            </div>
-                            <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}>
-                              <div
-                                className="h-full rounded-full transition-all duration-500 ease-out"
-                                style={{
-                                  width: `${pct}%`,
-                                  background: `linear-gradient(90deg, ${evColor}aa, ${evColor})`,
-                                }}
-                              />
-                            </div>
-                            <div className="flex justify-between items-center text-[10px] mt-1.5 font-medium" style={{ color: T.mut }}>
-                              <span>{format(s, 'HH:mm')} Uhr</span>
-                              <span style={{ color: T.sec }}>{pct}% vergangen</span>
-                              <span>{format(en, 'HH:mm')} Uhr</span>
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      if (nextEv) {
-                        const s = new Date(nextEv.start);
-                        const diffMins = Math.max(1, Math.round((s.getTime() - now.getTime()) / 60_000));
-                        const evColor = nextEv.color || T.accent;
-
-                        let pct = 0;
-                        if (prevEv) {
-                          const prevEnd = prevEv.end ? new Date(prevEv.end) : new Date(new Date(prevEv.start).getTime() + 3_600_000);
-                          const gapTotal = s.getTime() - prevEnd.getTime();
-                          const gapElapsed = now.getTime() - prevEnd.getTime();
-                          if (gapTotal > 0) {
-                            pct = Math.min(100, Math.max(0, Math.round((gapElapsed / gapTotal) * 100)));
-                          }
-                        } else {
-                          pct = Math.min(100, Math.max(0, Math.round(((120 - Math.min(120, diffMins)) / 120) * 100)));
-                        }
-
-                        const timeString = diffMins >= 60
-                          ? `${Math.floor(diffMins / 60)} Std. ${diffMins % 60 > 0 ? `${diffMins % 60} Min.` : ''}`
-                          : `${diffMins} Min.`;
-
-                        return (
-                          <div
-                            className="mb-4 p-3.5 rounded-2xl border transition-all shadow-sm"
-                            style={{
-                              background: theme === 'dark' ? 'rgba(30, 41, 59, 0.65)' : 'rgba(255, 255, 255, 0.85)',
-                              borderColor: `${evColor}33`,
-                              backdropFilter: 'blur(16px)',
-                            }}
-                          >
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-1.5">
-                                <Clock size={12} style={{ color: evColor }} />
-                                <span className="text-[10px] font-extrabold uppercase tracking-wider" style={{ color: evColor }}>
-                                  Bis zum nächsten Termin
-                                </span>
-                              </div>
-                              <span className="text-xs font-bold px-2 py-0.5 rounded-md" style={{ background: `${evColor}18`, color: evColor }}>
-                                in {timeString}
-                              </span>
-                            </div>
-                            <div className="text-sm font-bold truncate mb-2" style={{ color: T.pri }}>
-                              {nextEv.title}
-                            </div>
-                            <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}>
-                              <div
-                                className="h-full rounded-full transition-all duration-500 ease-out"
-                                style={{
-                                  width: `${pct}%`,
-                                  background: `linear-gradient(90deg, ${evColor}88, ${evColor})`,
-                                }}
-                              />
-                            </div>
-                            <div className="flex justify-between items-center text-[10px] mt-1.5 font-medium" style={{ color: T.mut }}>
-                              <span>Noch {timeString}</span>
-                              <span style={{ color: T.sec }}>Beginnt um {format(s, 'HH:mm')} Uhr</span>
-                            </div>
-                          </div>
-                        );
-                      }
-
-                      if (dayEvs.length > 0) {
-                        return (
-                          <div
-                            className="mb-4 p-3 rounded-2xl border flex items-center gap-2.5"
-                            style={{
-                              background: theme === 'dark' ? 'rgba(16, 185, 129, 0.08)' : 'rgba(16, 185, 129, 0.06)',
-                              borderColor: 'rgba(16, 185, 129, 0.25)',
-                            }}
-                          >
-                            <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
-                            <span className="text-xs font-semibold text-emerald-500 flex-1">
-                              Alle Termine für heute abgeschlossen
-                            </span>
-                          </div>
-                        );
-                      }
-
-                      return null;
-                    })()}
-
-                    {/* Events Timeline */}
-                    {dayEvs.length === 0 && allDayEvs.length === 0 ? (
-                      <p className="text-xs pb-3 pl-1" style={{ color: T.mut }}>Keine Ereignisse</p>
-                    ) : (
-                      <div className="relative py-1">
-                        {/* Continuous vertical timeline line: uniform border color, unbroken */}
-                        {dayEvs.length > 0 && (
-                          <div
-                            className="absolute top-2 bottom-3 w-[2px] rounded-full pointer-events-none"
-                            style={{ left: 63, background: T.brd }}
-                          />
-                        )}
-
-                        {dayEvs.map((ev, idx) => {
-                          const evStart = new Date(ev.start);
-                          const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
-                          const color = ev.color || T.accent;
-                          const durationMins = Math.max(15, Math.round((evEnd.getTime() - evStart.getTime()) / 60_000));
-
-                          let cardHeight: number | undefined = undefined;
-                          let topSpacer = 0;
-
-                          if (isToday) {
-                            // Proportional height for today: ~0.85px per minute, clamped between 52px and 220px
-                            cardHeight = Math.min(220, Math.max(52, Math.round(durationMins * 0.85)));
-
-                            // Proportional spacing between events for today
-                            if (idx > 0) {
-                              const prevEv = dayEvs[idx - 1];
-                              const prevEnd = prevEv.end ? new Date(prevEv.end) : new Date(new Date(prevEv.start).getTime() + 3_600_000);
-                              const gapMins = Math.round((evStart.getTime() - prevEnd.getTime()) / 60_000);
-                              if (gapMins > 0) {
-                                topSpacer = Math.min(150, Math.max(6, Math.round(gapMins * 0.75)));
-                              }
-                            }
-                          }
-
-                          return (
-                            <React.Fragment key={ev.id}>
-                              {/* Proportional gap spacer for today */}
-                              {isToday && topSpacer > 0 && (
-                                <div className="flex items-center" style={{ height: topSpacer }}>
-                                  {topSpacer >= 40 && (
-                                    <span className="text-[9px] font-semibold pl-[80px]" style={{ color: T.mut }}>
-                                      {Math.floor((topSpacer / 0.75) / 60) > 0
-                                        ? `${Math.floor((topSpacer / 0.75) / 60)} Std. Pause`
-                                        : `${Math.round(topSpacer / 0.75)} Min. Pause`}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-
-                              <button
-                                onClick={() => { const found = expandedEvents.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
-                                className="w-full flex items-start text-left group"
-                                style={{ marginBottom: isToday ? 8 : 10 }}
-                              >
-                                {/* Time column */}
-                                <div className="w-[52px] shrink-0 flex flex-col items-end pr-2 pt-1">
-                                  <span className="text-[11px] font-bold leading-none" style={{ color: T.sec }}>
-                                    {format(evStart, 'HH:mm')}
-                                  </span>
-                                  <span className="text-[10px] leading-none mt-1" style={{ color: T.mut }}>
-                                    {format(evEnd, 'HH:mm')}
-                                  </span>
-                                </div>
-
-                                {/* Marker column (centered on the vertical line at x=64) */}
-                                <div className="w-[24px] shrink-0 flex items-center justify-center pt-1.5 z-10">
-                                  <div
-                                    className="w-3.5 h-3.5 rounded-full border-2 shrink-0 shadow-sm transition-transform group-active:scale-125"
-                                    style={{
-                                      borderColor: color,
-                                      background: T.card,
-                                    }}
-                                  />
-                                </div>
-
-                                {/* Event Card */}
-                                <div
-                                  className="flex-1 rounded-2xl p-3 ml-2 flex flex-col justify-between transition-all shadow-sm"
-                                  style={{
-                                    background: `${color}14`,
-                                    border: `1px solid ${color}44`,
-                                    height: cardHeight ? `${cardHeight}px` : undefined,
-                                    minHeight: 52,
-                                  }}
-                                >
-                                  <div>
-                                    <p className="text-sm font-bold leading-snug" style={{ color: T.pri }}>
-                                      {ev.title}
-                                    </p>
-                                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                                      <span
-                                        className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-md"
-                                        style={{ background: `${color}25`, color }}
-                                      >
-                                        <Clock size={10} /> {format(evStart, 'HH:mm')} – {format(evEnd, 'HH:mm')}
-                                      </span>
-                                      <span
-                                        className="text-[10px] font-medium px-1.5 py-0.5 rounded-md"
-                                        style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)', color: T.sec }}
-                                      >
-                                        {durationMins >= 60
-                                          ? `${Math.floor(durationMins / 60)}h ${durationMins % 60 > 0 ? `${durationMins % 60}m` : ''}`
-                                          : `${durationMins} Min.`}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  {ev.description && (!cardHeight || cardHeight > 75) && (
-                                    <p className="text-xs line-clamp-2 mt-1.5" style={{ color: T.mut }}>
-                                      {ev.description}
-                                    </p>
-                                  )}
-                                </div>
-                              </button>
-                            </React.Fragment>
-                          );
-                        })}
-                      </div>
-                    )}
+                    <DbTimelineDay
+                      day={day}
+                      dayEvs={dayEvs}
+                      allDayEvs={allDayEvs}
+                      isToday={isToday}
+                      now={now}
+                      theme={theme}
+                      onSelectEvent={ev => {
+                        const found = expandedEvents.find(e => e.id === ev.id);
+                        if (found) setSelectedEvent(found);
+                      }}
+                      onNewEvent={date => {
+                        setNewEventDefaultDate(date);
+                        setIsNewEventSheetOpen(true);
+                      }}
+                    />
                   </div>
                 );
               })}
@@ -1892,24 +1891,24 @@ export default function MobileLayout({
           <div
             className="pointer-events-auto flex items-center p-1 rounded-2xl shadow-xl border"
             style={{
-              background: theme === 'dark' ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.94)',
+              background: 'rgba(15, 20, 30, 0.94)',
               backdropFilter: 'blur(20px)',
               WebkitBackdropFilter: 'blur(20px)',
-              borderColor: theme === 'dark' ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)',
-              minWidth: 230,
+              borderColor: 'rgba(255,255,255,0.1)',
+              minWidth: 290,
             }}
           >
-            {(['day', 'week', 'month'] as const).map(mode => {
-              const labels = { day: 'Tag', week: 'Woche', month: 'Monat' };
+            {(['day', 'agenda', 'week', 'month'] as const).map(mode => {
+              const labels: Record<string, string> = { day: 'Tag', agenda: 'Fortlaufend', week: 'Woche', month: 'Monat' };
               const isActive = calViewMode === mode;
               return (
                 <button
                   key={mode}
                   onClick={() => setCalViewMode(mode)}
-                  className="flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition-all text-center active:scale-95"
+                  className="flex-1 py-1.5 px-2 rounded-xl text-[10px] font-bold transition-all text-center active:scale-95"
                   style={{
                     background: isActive ? T.accent : 'transparent',
-                    color: isActive ? '#fff' : T.sec,
+                    color: isActive ? '#fff' : 'rgba(255,255,255,0.6)',
                     boxShadow: isActive ? '0 2px 8px rgba(59,130,246,0.35)' : 'none',
                   }}
                 >
@@ -1955,10 +1954,10 @@ export default function MobileLayout({
         style={{
           bottom: 0,
           paddingBottom: 'env(safe-area-inset-bottom)',
-          background: theme === 'dark' ? 'rgba(15,23,42,0.88)' : 'rgba(255,255,255,0.88)',
+          background: 'rgba(15, 20, 30, 0.96)',
           backdropFilter: 'blur(20px) saturate(160%)',
           WebkitBackdropFilter: 'blur(20px) saturate(160%)',
-          borderTop: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
+          borderTop: '1px solid rgba(255,255,255,0.08)',
         }}
       >
         {[
@@ -1969,7 +1968,7 @@ export default function MobileLayout({
           return (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)}
               className="flex-1 flex flex-col items-center gap-0.5 py-2"
-              style={{ color: isActive ? T.accent : T.sec }}
+              style={{ color: isActive ? '#fff' : 'rgba(255,255,255,0.5)' }}
             >
               {tab.icon}
               <span className="text-[10px] font-semibold">{tab.label}</span>
