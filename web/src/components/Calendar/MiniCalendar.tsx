@@ -1,17 +1,22 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isToday, isSameDay } from 'date-fns';
+import { de } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 
 export interface MiniCalendarProps {
     selectedDate?: Date;
     onSelect?: (date: Date) => void;
+    onMonthChange?: (date: Date) => void;
     events?: Array<{ start: string; color?: string; allDay?: boolean }>;
 }
 
-export default function MiniCalendar({ selectedDate, onSelect, events }: MiniCalendarProps) {
+export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, events }: MiniCalendarProps) {
     const [currentDateInternal, setCurrentDateInternal] = useState(new Date());
+    const touchStartX = useRef<number | null>(null);
+    const touchGridX = useRef<number | null>(null);
+    const touchGridY = useRef<number | null>(null);
 
     const visibleCalendarRange = useDataStore(s => s.visibleCalendarRange);
     const activeNoteId = useDataStore(s => s.activeNoteId);
@@ -25,8 +30,16 @@ export default function MiniCalendar({ selectedDate, onSelect, events }: MiniCal
 
     const displayDate = currentDateInternal;
 
-    const nextMonth = () => setCurrentDateInternal(addMonths(displayDate, 1));
-    const prevMonth = () => setCurrentDateInternal(subMonths(displayDate, 1));
+    const nextMonth = () => {
+        const next = addMonths(displayDate, 1);
+        setCurrentDateInternal(next);
+        onMonthChange?.(next);
+    };
+    const prevMonth = () => {
+        const prev = subMonths(displayDate, 1);
+        setCurrentDateInternal(prev);
+        onMonthChange?.(prev);
+    };
 
     const monthStart = startOfMonth(displayDate);
     const monthEnd = endOfMonth(monthStart);
@@ -44,20 +57,39 @@ export default function MiniCalendar({ selectedDate, onSelect, events }: MiniCal
             onClick={() => onSelect?.(new Date())}
             title="Zu Heute"
         >
-            <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[13px] font-semibold text-gray-800 dark:text-gray-100">
-                    {format(displayDate, "MMMM yyyy")}
+            <div
+                className="flex items-center justify-between mb-1.5 select-none"
+                onWheel={(e) => {
+                    e.stopPropagation();
+                    if (e.deltaY > 0 || e.deltaX > 0) nextMonth();
+                    else if (e.deltaY < 0 || e.deltaX < 0) prevMonth();
+                }}
+                onTouchStart={(e) => {
+                    touchStartX.current = e.touches[0].clientX;
+                }}
+                onTouchEnd={(e) => {
+                    if (touchStartX.current === null) return;
+                    const dx = e.changedTouches[0].clientX - touchStartX.current;
+                    touchStartX.current = null;
+                    if (dx < -30) nextMonth();
+                    else if (dx > 30) prevMonth();
+                }}
+            >
+                <span className="text-[13px] font-semibold text-gray-800 dark:text-gray-100 cursor-ew-resize py-0.5" title="Wischen oder Scrollen zum Wechseln">
+                    {format(displayDate, "MMMM yyyy", { locale: de })}
                 </span>
                 <div className="flex gap-1">
                     <button
                         onClick={(e) => { e.stopPropagation(); prevMonth(); }}
                         className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
+                        title="Vorheriger Monat"
                     >
                         <ChevronLeft size={12} className="text-gray-500 dark:text-slate-400" />
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); nextMonth(); }}
                         className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
+                        title="Nächster Monat"
                     >
                         <ChevronRight size={12} className="text-gray-500 dark:text-slate-400" />
                     </button>
@@ -75,7 +107,24 @@ export default function MiniCalendar({ selectedDate, onSelect, events }: MiniCal
                 ))}
             </div>
 
-            <div className="grid grid-cols-7 gap-0.5 text-center">
+            <div
+                className="grid grid-cols-7 gap-0.5 text-center"
+                onTouchStart={(e) => {
+                    touchGridX.current = e.touches[0].clientX;
+                    touchGridY.current = e.touches[0].clientY;
+                }}
+                onTouchEnd={(e) => {
+                    if (touchGridX.current === null || touchGridY.current === null) return;
+                    const dx = e.changedTouches[0].clientX - touchGridX.current;
+                    const dy = Math.abs(e.changedTouches[0].clientY - touchGridY.current);
+                    touchGridX.current = null;
+                    touchGridY.current = null;
+                    if (Math.abs(dx) > 35 && dy < 35) {
+                        if (dx < 0) nextMonth();
+                        else prevMonth();
+                    }
+                }}
+            >
                 {days.map((day) => {
                     const dayIso = format(day, "yyyy-MM-dd");
                     const isCurrentMonth = isSameMonth(day, monthStart);
