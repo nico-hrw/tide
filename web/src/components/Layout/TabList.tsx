@@ -117,10 +117,22 @@ export default function TabList({
     };
 
     return (
-        <div className="w-full flex-shrink-0 h-11 bg-gray-100/70 dark:bg-slate-950/60 border-b border-gray-200/80 dark:border-white/10 flex items-center justify-between px-2.5 gap-2 select-none z-30">
+        <div 
+            onDoubleClick={(e) => {
+                if (e.target === e.currentTarget || !(e.target as HTMLElement).closest('button, [role="button"], input, [data-is-tab]')) {
+                    onNewTab?.();
+                }
+            }}
+            className="w-full flex-shrink-0 h-11 bg-gray-100/70 dark:bg-slate-950/60 border-b border-gray-200/80 dark:border-white/10 flex items-center justify-between px-2.5 gap-2 select-none z-30"
+        >
             {/* Horizontal Tabs Scroll Container */}
             <div 
                 ref={scrollRef}
+                onDoubleClick={(e) => {
+                    if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'UL') {
+                        onNewTab?.();
+                    }
+                }}
                 className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto no-scrollbar py-1"
             >
                 <Reorder.Group

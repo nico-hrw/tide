@@ -3911,7 +3911,19 @@ export default function Dashboard() {
                 />
 
                 {/* Main Workspace Body */}
-                <div className="flex-1 min-h-0 relative overflow-hidden flex flex-col">
+                <div 
+                    className="flex-1 min-h-0 relative overflow-hidden flex flex-col"
+                    onDoubleClick={(e) => {
+                        const target = e.target as HTMLElement;
+                        if (
+                            target.isContentEditable ||
+                            target.closest('button, input, textarea, a, .ProseMirror, [role="button"], [role="dialog"], .cal-event, table, [data-prevent-dblclick]')
+                        ) {
+                            return;
+                        }
+                        handleNewNote();
+                    }}
+                >
                     {/* Unscheduled Tasks Panel — top-left corner, below calendar toolbar, only when calendar is active */}
                     {activeTabId === 'calendar' && tasks && tasks.filter(t => !t.isCompleted && !t.scheduledDate).length > 0 && (
                     <div className="absolute left-16 top-[52px] z-[55] pointer-events-none flex flex-col max-h-[calc(100%-60px)]">

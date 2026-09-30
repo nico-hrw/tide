@@ -10,6 +10,16 @@ export const getApiBase = () => {
         base = window.location.origin;
     }
 
+    // Remote client support (e.g. iPad or phone connecting to host machine via LAN IP)
+    if (typeof window !== 'undefined' && base) {
+        const clientHostname = window.location.hostname;
+        if (clientHostname && clientHostname !== 'localhost' && clientHostname !== '127.0.0.1') {
+            base = base.replace(/:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, (_, __, port) => {
+                return `://${clientHostname}${port || ''}`;
+            });
+        }
+    }
+
     if (base.endsWith('/api')) {
         base = base.slice(0, -4);
     }
@@ -92,6 +102,11 @@ export async function apiFetch(url: string, options: RequestInit & { _isSyncRepl
         }
 
         // For non-GET mutations (POST, PUT, DELETE, PATCH):
+        // Never enqueue auth mutations offline — must throw so client knows auth actually failed
+        if (cleanEndpoint.startsWith('/api/v1/auth')) {
+            throw err;
+        }
+
         // If this is a background replay from syncQueue, rethrow so caller knows it failed
         if (options._isSyncReplay) {
             throw err;

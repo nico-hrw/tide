@@ -412,8 +412,11 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
   const containerRef = useRef<HTMLDivElement>(null);
   const [wheelAnchor, setWheelAnchor] = useState<Date>(() => now);
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isUserScrolling = useRef(false);
-  const lastAutoCenter = useRef<string>('');
+  const isProgrammaticScroll = useRef(false);
+  const programmaticTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isUserTouching = useRef(false);
+  const rafId = useRef<number | null>(null);
+  const mountedRef = useRef(false);
 
   // If activeDate moves far away, re-anchor smoothly
   useEffect(() => {
@@ -427,66 +430,136 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
     return Array.from({ length: 71 }, (_, i) => addDays(wheelAnchor, i - 35));
   }, [wheelAnchor]);
 
-  // Center active day smoothly (only when not user-scrolling)
+  // Real-time magnifier function (runs on every scroll frame)
+  const updateMagnifier = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const children = container.children;
+    const radius = 130; // lens influence radius in px
+
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i] as HTMLElement;
+      if (!child.id?.startsWith('wheel-date-')) continue;
+      const cr = child.getBoundingClientRect();
+      const childCenter = cr.left + cr.width / 2;
+      const dist = Math.abs(childCenter - centerX);
+
+      if (dist < radius) {
+        // Cosine bell curve: 1 at exact center, 0 at edge
+        const curve = (Math.cos((dist / radius) * Math.PI) + 1) / 2;
+        const scale = 0.74 + curve * 0.44; // 0.74 to 1.18
+        const opacity = 0.38 + curve * 0.62; // 0.38 to 1.00
+        child.style.transform = `scale(${scale.toFixed(3)})`;
+        child.style.opacity = opacity.toFixed(3);
+      } else {
+        child.style.transform = 'scale(0.72)';
+        child.style.opacity = '0.35';
+      }
+    }
+  }, []);
+
+  // Programmatic centering on activeDate change
   useEffect(() => {
     const key = format(activeDate, 'yyyy-MM-dd');
-    if (lastAutoCenter.current === key) return;
-    lastAutoCenter.current = key;
-    requestAnimationFrame(() => {
-      const el = document.getElementById(`wheel-date-${key}`);
-      if (el && !isUserScrolling.current) {
-        el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-      }
-    });
-  }, [activeDate]);
+    const container = containerRef.current;
+    if (!container) return;
 
-  // Auto-select center date after scroll settles (350ms debounce)
+    const el = document.getElementById(`wheel-date-${key}`);
+    if (!el) return;
+
+    if (!mountedRef.current) {
+      // First mount: INSTANT centering with NO smooth scroll cascade to avoid 30s thread lockup
+      mountedRef.current = true;
+      const containerWidth = container.clientWidth;
+      container.scrollLeft = el.offsetLeft - containerWidth / 2 + el.offsetWidth / 2;
+      requestAnimationFrame(updateMagnifier);
+      return;
+    }
+
+    if (!isUserTouching.current) {
+      isProgrammaticScroll.current = true;
+      if (programmaticTimerRef.current) clearTimeout(programmaticTimerRef.current);
+      el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      programmaticTimerRef.current = setTimeout(() => {
+        isProgrammaticScroll.current = false;
+        updateMagnifier();
+      }, 450);
+    }
+  }, [activeDate, updateMagnifier]);
+
+  // Scroll handler for real-time lens + debounced snap when user scrolls manually
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const onScrollStart = () => { isUserScrolling.current = true; };
+    const onTouchStart = () => {
+      isUserTouching.current = true;
+      isProgrammaticScroll.current = false;
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    };
 
-    const onScroll = () => {
+    const triggerAutoSelect = () => {
       if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
       scrollTimerRef.current = setTimeout(() => {
-        isUserScrolling.current = false;
+        if (isProgrammaticScroll.current || isUserTouching.current) return;
         const rect = container.getBoundingClientRect();
         const centerX = rect.left + rect.width / 2;
         let closestEl: HTMLElement | null = null;
         let closestDist = Infinity;
 
         for (const child of Array.from(container.children) as HTMLElement[]) {
+          if (!child.id?.startsWith('wheel-date-')) continue;
           const cr = child.getBoundingClientRect();
           const dist = Math.abs(cr.left + cr.width / 2 - centerX);
           if (dist < closestDist) { closestDist = dist; closestEl = child; }
         }
 
         if (closestEl) {
-          // Snap the closest item to center
           closestEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-
           const dateStr = closestEl.id?.replace('wheel-date-', '');
           if (dateStr) {
             const parts = dateStr.split('-').map(Number);
             const d = new Date(parts[0], parts[1] - 1, parts[2]);
             if (!isNaN(d.getTime()) && !isSameDay(d, activeDate)) {
-              lastAutoCenter.current = dateStr;
+              isProgrammaticScroll.current = true;
               onSelectDate(d);
+              setTimeout(() => { isProgrammaticScroll.current = false; }, 450);
             }
           }
         }
-      }, 350);
+      }, 220);
     };
 
-    container.addEventListener('touchstart', onScrollStart, { passive: true });
+    const onTouchEnd = () => {
+      isUserTouching.current = false;
+      triggerAutoSelect();
+    };
+
+    const onScroll = () => {
+      // Real-time magnifier on every frame: instantaneous lens magnification
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+      rafId.current = requestAnimationFrame(updateMagnifier);
+
+      if (!isProgrammaticScroll.current) {
+        triggerAutoSelect();
+      }
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
     container.addEventListener('scroll', onScroll, { passive: true });
+
     return () => {
-      container.removeEventListener('touchstart', onScrollStart);
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchend', onTouchEnd);
       container.removeEventListener('scroll', onScroll);
       if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+      if (programmaticTimerRef.current) clearTimeout(programmaticTimerRef.current);
+      if (rafId.current) cancelAnimationFrame(rafId.current);
     };
-  }, [activeDate, onSelectDate]);
+  }, [activeDate, onSelectDate, updateMagnifier]);
 
   return (
     <div className="flex items-center gap-2 px-3 pb-1 w-full min-w-0">
@@ -508,39 +581,42 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
           const diff = Math.abs(getDayDiff(d, activeDate));
           const isSelected = diff === 0;
           const isTodayDate = isSameDay(d, now);
-          // Apple timer grading: center biggest, fade out in both directions
-          const scale = isSelected ? 1.15 : diff === 1 ? 0.88 : diff === 2 ? 0.75 : diff === 3 ? 0.65 : 0.58;
-          const opacity = isSelected ? 1 : diff === 1 ? 0.80 : diff === 2 ? 0.55 : diff === 3 ? 0.38 : 0.25;
+          const initialScale = isSelected ? 1.15 : diff === 1 ? 0.88 : diff === 2 ? 0.75 : 0.70;
+          const initialOpacity = isSelected ? 1 : diff === 1 ? 0.80 : diff === 2 ? 0.55 : 0.35;
 
           return (
             <button
               key={d.toISOString()}
               id={`wheel-date-${format(d, 'yyyy-MM-dd')}`}
-              onClick={() => onSelectDate(d)}
-              className="flex flex-col items-center justify-center shrink-0 rounded-2xl transition-all duration-200 active:scale-95"
+              onClick={() => {
+                isProgrammaticScroll.current = true;
+                onSelectDate(d);
+                const el = document.getElementById(`wheel-date-${format(d, 'yyyy-MM-dd')}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                setTimeout(() => { isProgrammaticScroll.current = false; }, 450);
+              }}
+              className="flex flex-col items-center justify-center shrink-0 rounded-2xl active:scale-95"
               style={{
                 width: 46,
                 height: 54,
                 scrollSnapAlign: 'center',
-                transform: `scale(${scale})`,
-                opacity,
+                transform: `scale(${initialScale})`,
+                opacity: initialOpacity,
                 background: isSelected
-                  ? T.accent
-                  : isTodayDate
-                  ? (theme === 'dark' ? 'rgba(59,130,246,0.12)' : 'rgba(59,130,246,0.08)')
+                  ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.14)' : 'rgba(0, 0, 0, 0.08)')
                   : 'transparent',
                 border: isSelected
-                  ? `1.5px solid ${T.accent}`
-                  : isTodayDate
-                  ? `1px solid ${T.accent}40`
+                  ? `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 0, 0, 0.14)'}`
                   : '1px solid transparent',
-                color: isSelected ? '#ffffff' : isTodayDate ? T.accent : T.pri,
+                color: isSelected ? (theme === 'dark' ? '#ffffff' : '#111827') : T.pri,
               }}
             >
               <span
                 className="text-[10px] font-bold uppercase tracking-wider"
                 style={{
-                  color: isSelected ? 'rgba(255,255,255,0.85)' : isTodayDate ? T.accent : T.mut,
+                  color: isSelected
+                    ? (theme === 'dark' ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.55)')
+                    : T.mut,
                 }}
               >
                 {format(d, 'EEE', { locale: de })}
@@ -548,8 +624,13 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
               <span className="text-base font-extrabold leading-none mt-0.5">
                 {format(d, 'd')}
               </span>
-              {isTodayDate && !isSelected && (
-                <span className="w-1 h-1 rounded-full mt-1" style={{ background: T.accent }} />
+              {isTodayDate && (
+                <span
+                  className="w-1 h-1 rounded-full mt-1"
+                  style={{
+                    background: theme === 'dark' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)',
+                  }}
+                />
               )}
             </button>
           );
@@ -559,16 +640,15 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
       {!isSameDay(activeDate, now) && (
         <button
           onClick={() => onSelectDate(now)}
-          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold shrink-0 transition-transform active:scale-95"
+          className="w-8 h-8 flex items-center justify-center rounded-xl shrink-0 transition-transform active:scale-90"
           style={{
-            background: `${T.accent}18`,
-            color: T.accent,
-            border: `1px solid ${T.accent}35`,
+            background: theme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+            color: theme === 'dark' ? '#9ca3af' : '#4b5563',
+            border: `1px solid ${T.brd}`,
           }}
           title="Zurück zu Heute"
         >
-          <RotateCcw size={11} />
-          <span>Heute</span>
+          <ArrowLeft size={16} />
         </button>
       )}
     </div>
@@ -677,11 +757,11 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
             const gapStr = gapMins >= 60
               ? `${Math.floor(gapMins / 60)} Std. ${gapMins % 60 > 0 ? `${gapMins % 60} Min.` : ''}`.trim()
               : `${gapMins} Min.`;
-            const gapHeight = Math.min(56, Math.max(20, Math.round(16 + Math.sqrt(gapMins) * 3)));
+            const gapHeight = Math.min(64, Math.max(30, Math.round(22 + Math.sqrt(gapMins) * 3.2)));
 
             pauseEl = (
-              <div className="flex items-center" style={{ height: gapHeight }}>
-                <div className="w-[54px] shrink-0 text-right pr-2">
+              <div className="w-full flex items-center my-1.5" style={{ minHeight: gapHeight }}>
+                <div className="w-[58px] shrink-0 text-right pr-2">
                   <span className="text-[10px] font-medium" style={{ color: T.mut }}>
                     {gapStr}
                   </span>
@@ -690,35 +770,51 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
                   <div
                     className="w-0 border-l-[1.5px] border-dashed"
                     style={{
-                      height: gapHeight - 8,
-                      borderColor: theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
+                      height: Math.max(16, gapHeight - 12),
+                      borderColor: theme === 'dark' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.15)',
                     }}
                   />
                 </div>
-                <div className="flex-1" />
+                <div
+                  className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl my-0.5 border"
+                  style={{
+                    background: theme === 'dark' ? 'rgba(255, 255, 255, 0.025)' : 'rgba(0, 0, 0, 0.02)',
+                    borderColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                  }}
+                >
+                  <Coffee size={13} style={{ color: T.mut, flexShrink: 0 }} />
+                  <span className="text-[11px] font-semibold truncate" style={{ color: T.sec }}>
+                    Pause · {gapStr}
+                  </span>
+                  <span className="text-[10px] ml-auto shrink-0 font-medium" style={{ color: T.mut }}>
+                    bis {format(evStart, 'HH:mm')}
+                  </span>
+                </div>
               </div>
             );
           }
         }
 
+        const isEven = idx % 2 === 0;
+
         return (
           <React.Fragment key={ev.id}>
             {pauseEl}
 
-            {/* Event row — flowing layout, proportional height, active = magnifying glass highlight */}
+            {/* Event row — flowing DB Navigator style */}
             <button
               onClick={() => onSelectEvent(ev)}
-              className="w-full flex text-left transition-all rounded-xl"
+              className="w-full flex text-left transition-all rounded-xl my-0.5"
               style={{
                 minHeight: proportionalHeight,
                 background: isActive
-                  ? (theme === 'dark' ? 'rgba(59,130,246,0.18)' : 'rgba(59,130,246,0.10)')
-                  : idx % 2 === 0
-                  ? (theme === 'dark' ? 'rgba(255,255,255,0.025)' : 'rgba(0,0,0,0.018)')
+                  ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : '#1e293b')
+                  : isEven
+                  ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.055)' : 'rgba(0, 0, 0, 0.04)')
                   : 'transparent',
                 transform: isActive ? 'scale(1.02)' : 'scale(1)',
                 border: isActive
-                  ? `1px solid ${theme === 'dark' ? 'rgba(59,130,246,0.3)' : 'rgba(59,130,246,0.2)'}`
+                  ? `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(30, 41, 59, 0.5)'}`
                   : '1px solid transparent',
               }}
             >
@@ -726,11 +822,14 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
               <div className="w-[58px] shrink-0 flex flex-col items-end pr-2 pt-3.5">
                 <span
                   className={`font-bold leading-none ${isActive ? 'text-[13px]' : 'text-[12px]'}`}
-                  style={{ color: isActive ? T.accent : T.pri }}
+                  style={{ color: isActive ? (theme === 'dark' ? '#ffffff' : '#ffffff') : T.pri }}
                 >
                   {format(evStart, 'HH:mm')}
                 </span>
-                <span className="text-[10px] font-medium mt-1" style={{ color: T.mut }}>
+                <span
+                  className="text-[10px] font-medium mt-1"
+                  style={{ color: isActive && theme !== 'dark' ? 'rgba(255,255,255,0.7)' : T.mut }}
+                >
                   {format(evEnd, 'HH:mm')}
                 </span>
               </div>
@@ -745,8 +844,8 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
                   className="w-[1.5px] flex-1 mt-1.5 mb-1.5 rounded-full"
                   style={{
                     background: isActive
-                      ? T.accent
-                      : theme === 'dark' ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)',
+                      ? (theme === 'dark' ? '#ffffff' : '#ffffff')
+                      : theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.10)',
                   }}
                 />
               </div>
@@ -756,16 +855,22 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
                 <div className="flex items-center gap-2">
                   <span
                     className={`font-bold truncate ${isActive ? 'text-sm' : 'text-[13px]'}`}
-                    style={{ color: isActive ? T.accent : T.pri }}
+                    style={{ color: isActive && theme !== 'dark' ? '#ffffff' : T.pri }}
                   >
                     {ev.title}
                   </span>
-                  <span className="text-[10px] font-medium ml-auto shrink-0" style={{ color: T.mut }}>
+                  <span
+                    className="text-[10px] font-medium ml-auto shrink-0"
+                    style={{ color: isActive && theme !== 'dark' ? 'rgba(255,255,255,0.7)' : T.mut }}
+                  >
                     {durStr}
                   </span>
                 </div>
                 {ev.description && (
-                  <p className="text-xs mt-1 line-clamp-2 leading-relaxed" style={{ color: T.sec }}>
+                  <p
+                    className="text-xs mt-1 line-clamp-2 leading-relaxed"
+                    style={{ color: isActive && theme !== 'dark' ? 'rgba(255,255,255,0.85)' : T.sec }}
+                  >
                     {ev.description}
                   </p>
                 )}
@@ -1702,7 +1807,7 @@ export default function MobileLayout({
       {activeTab === 'calendar' ? (
       <div
         className="flex flex-col"
-        style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(60px + env(safe-area-inset-bottom))' }}
+        style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}
         onTouchStart={calViewMode === 'week' || calViewMode === 'day' ? onSwipeStart : undefined}
         onTouchMove={calViewMode === 'week' || calViewMode === 'day' ? onSwipeMove : undefined}
         onTouchEnd={calViewMode === 'week' || calViewMode === 'day' ? onSwipeEnd : undefined}
@@ -1952,7 +2057,7 @@ export default function MobileLayout({
       </div>
       ) : (
       /* ── Notes tab ── */
-      <div className="flex flex-col" style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(60px + env(safe-area-inset-bottom))' }}>
+      <div className="flex flex-col" style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}>
         {/* Notes header */}
         <div className="px-5 py-3 flex items-center gap-3">
           <span className="text-lg font-extrabold flex-1" style={{ color: T.pri }}>Notizen</span>
@@ -2045,35 +2150,38 @@ export default function MobileLayout({
         )}
       </AnimatePresence>
 
-      {/* ── Clean Bottom Navigation Bar ────────────────── */}
+      {/* ── High-presence Bottom Navigation Bar ────────────────── */}
       <div
-        className="fixed left-0 right-0 flex items-center justify-between z-20 px-4 py-2"
+        className="fixed left-0 right-0 flex items-center justify-between z-20 px-5 pt-3"
         style={{
           bottom: kbOffset > 0 ? kbOffset : 0,
-          background: theme === 'dark' ? 'rgba(15, 20, 30, 0.94)' : 'rgba(255, 255, 255, 0.95)',
+          background: theme === 'dark' ? 'rgba(15, 20, 30, 0.95)' : 'rgba(255, 255, 255, 0.97)',
           backdropFilter: 'blur(24px) saturate(180%)',
           WebkitBackdropFilter: 'blur(24px) saturate(180%)',
           borderTop: `1px solid ${T.brd}`,
-          paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
+          paddingBottom: 'max(14px, env(safe-area-inset-bottom))',
         }}
       >
         {/* Tabs */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           {[
-            { id: 'calendar' as const, icon: <CalendarIcon size={18} />, label: 'Kalender' },
-            { id: 'notes' as const, icon: <BookOpen size={18} />, label: 'Notizen' },
+            { id: 'calendar' as const, icon: <CalendarIcon size={20} />, label: 'Kalender' },
+            { id: 'notes' as const, icon: <BookOpen size={20} />, label: 'Notizen' },
           ].map(tab => {
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl font-semibold text-xs transition-all active:scale-95"
+                className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all active:scale-95"
                 style={{
                   background: isActive
-                    ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)')
+                    ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)')
                     : 'transparent',
                   color: isActive ? T.pri : T.mut,
+                  border: isActive
+                    ? `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)'}`
+                    : '1px solid transparent',
                 }}
               >
                 {tab.icon}
@@ -2084,17 +2192,21 @@ export default function MobileLayout({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <button
             onClick={() => {
               setSearchQuery('');
               setIsSearchOpen(true);
             }}
-            className="w-8 h-8 flex items-center justify-center rounded-lg transition-all active:scale-90"
-            style={{ color: T.sec }}
+            className="w-10 h-10 flex items-center justify-center rounded-2xl transition-all active:scale-95"
+            style={{
+              background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+              color: T.sec,
+              border: `1px solid ${T.brd}`,
+            }}
             title="Suchen"
           >
-            <Search size={16} />
+            <Search size={18} />
           </button>
 
           <button
@@ -2107,11 +2219,11 @@ export default function MobileLayout({
                 setIsEditingNote(true);
               }
             }}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-white transition-all active:scale-90"
+            className="w-10 h-10 flex items-center justify-center rounded-2xl text-white transition-all active:scale-95 shadow-sm"
             style={{ background: T.accent }}
             title={activeTab === 'calendar' ? 'Neuer Termin' : 'Neue Notiz'}
           >
-            <Plus size={16} />
+            <Plus size={20} strokeWidth={2.4} />
           </button>
         </div>
       </div>
