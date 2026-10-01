@@ -3,9 +3,9 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Menu, Settings, ArrowLeft, ArrowRight, Folder, FileText,
-  ChevronRight, ChevronLeft, Plus, Search, Calendar as CalendarIcon,
-  Trash2, GraduationCap,
+  Settings, ArrowLeft, ArrowRight, Folder, FileText,
+  ChevronRight, ChevronLeft, ChevronDown, Plus, Search, Calendar as CalendarIcon,
+  Trash2, GraduationCap, Clock, MapPin,
   DollarSign, X, PenLine, FolderPlus, GripVertical,
   BookOpen, Coffee, RotateCcw,
 } from 'lucide-react';
@@ -636,39 +636,48 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
                 }}
               >
                 <span
-                  className="text-[10px] font-bold uppercase tracking-wider"
+                  className="text-[10px] uppercase tracking-wider"
                   style={{
-                    color: isSelected
+                    color: isTodayDate
+                      ? (theme === 'dark' ? '#d8b4fe' : '#9333ea')
+                      : isSelected
                       ? (theme === 'dark' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)')
                       : T.mut,
+                    fontWeight: isTodayDate ? 900 : 700,
+                    textShadow: isTodayDate
+                      ? (theme === 'dark' ? '0 0 8px rgba(216, 180, 254, 0.45)' : '0 0 6px rgba(147, 51, 234, 0.25)')
+                      : 'none',
                   }}
                 >
                   {format(d, 'EEE', { locale: de })}
                 </span>
                 <span
-                  className={`text-lg leading-none mt-0.5 ${isSelected ? 'font-black' : 'font-bold'}`}
+                  className="text-lg leading-none mt-0.5"
+                  style={{
+                    color: isTodayDate
+                      ? (theme === 'dark' ? '#d8b4fe' : '#9333ea')
+                      : isSelected
+                      ? (theme === 'dark' ? '#ffffff' : '#09090b')
+                      : (theme === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'),
+                    fontWeight: isTodayDate ? 900 : (isSelected ? 900 : 700),
+                    textShadow: isTodayDate
+                      ? (theme === 'dark' ? '0 0 12px rgba(216, 180, 254, 0.5)' : '0 0 8px rgba(147, 51, 234, 0.3)')
+                      : 'none',
+                  }}
                 >
                   {format(d, 'd')}
                 </span>
-                {isTodayDate && (
-                  <span
-                    className="w-1.5 h-1.5 rounded-full mt-1"
-                    style={{
-                      background: T.accent,
-                    }}
-                  />
-                )}
               </button>
             );
           })}
         </div>
 
-        {/* Small rounded indicator triangle centered directly beneath the active date (Apple timer style) */}
+        {/* Small rounded indicator triangle centered directly beneath the active date (Apple timer style, metallic purple) */}
         <div className="flex justify-center pointer-events-none -mt-0.5 pb-0.5">
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
             <path
               d="M4.15 0.85C4.55 0.25 5.45 0.25 5.85 0.85L9.15 5.2C9.6 5.8 9.15 6 8.35 6H1.65C0.85 6 0.4 5.8 0.85 5.2L4.15 0.85Z"
-              fill={T.accent}
+              fill="#a855f7"
             />
           </svg>
         </div>
@@ -692,6 +701,77 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
   );
 });
 
+const FloatingNextEventBanner = React.memo(function FloatingNextEventBanner({
+  smartIslandData,
+  onScrollToEvent,
+}: {
+  smartIslandData: {
+    type: 'active' | 'next';
+    event: any;
+    title: string;
+    subtitle: string;
+    color: string;
+  };
+  onScrollToEvent?: () => void;
+}) {
+  const isActive = smartIslandData.type === 'active';
+
+  return (
+    <div className="sticky top-0 z-20 pb-2.5 pt-1 -mx-0.5 px-0.5 pointer-events-auto">
+      <button
+        onClick={onScrollToEvent}
+        className="w-full text-left rounded-2xl p-3.5 flex items-center justify-between text-white transition-all active:scale-[0.98]"
+        style={{
+          background: 'linear-gradient(135deg, rgba(76, 29, 149, 0.95) 0%, rgba(126, 34, 206, 0.95) 50%, rgba(147, 51, 234, 0.95) 100%)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          boxShadow: '0 8px 24px -4px rgba(126, 34, 206, 0.45), inset 0 1px 1px 0 rgba(255, 255, 255, 0.35)',
+          border: '1px solid rgba(216, 180, 254, 0.35)',
+        }}
+      >
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <div
+            className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+            style={{
+              background: 'rgba(255, 255, 255, 0.16)',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+            }}
+          >
+            {isActive ? (
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+            ) : (
+              <Clock size={16} className="text-purple-200" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span
+                className="text-[10px] font-extrabold uppercase tracking-wider px-1.5 py-0.5 rounded-md"
+                style={{
+                  background: isActive ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.2)',
+                  color: isActive ? '#a7f3d0' : '#f3e8ff',
+                  border: isActive ? '1px solid rgba(52, 211, 153, 0.4)' : '1px solid rgba(255, 255, 255, 0.25)',
+                }}
+              >
+                {isActive ? 'Jetzt aktiv' : 'Nächster Termin'}
+              </span>
+              <span className="text-xs text-purple-200 truncate font-medium">
+                {smartIslandData.subtitle}
+              </span>
+            </div>
+            <p className="text-sm font-black truncate text-white mt-0.5">
+              {smartIslandData.title}
+            </p>
+          </div>
+        </div>
+        <div className="shrink-0 pl-2">
+          <ArrowRight size={16} className="text-purple-200 opacity-80" />
+        </div>
+      </button>
+    </div>
+  );
+});
+
 const DbTimelineDay = React.memo(function DbTimelineDay({
   day,
   dayEvs,
@@ -699,8 +779,8 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
   isToday,
   now,
   theme,
-  onSelectEvent,
   onNewEvent,
+  onDeleteEvent,
 }: {
   day: Date;
   dayEvs: any[];
@@ -708,9 +788,23 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
   isToday: boolean;
   now: Date;
   theme: string;
-  onSelectEvent: (ev: any) => void;
+  onSelectEvent?: (ev: any) => void;
   onNewEvent?: (date: Date) => void;
+  onDeleteEvent?: (id: string) => void;
 }) {
+  const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+
+  // Find next upcoming event for today
+  const nextUpcomingId = useMemo(() => {
+    if (!isToday) return null;
+    const upcoming = dayEvs
+      .filter(e => {
+        try { return new Date(e.start) > now; } catch { return false; }
+      })
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+    return upcoming.length > 0 ? upcoming[0].id : null;
+  }, [dayEvs, isToday, now]);
+
   // Cluster overlapping / parallel events together
   const clusters = useMemo(() => {
     const list: {
@@ -763,39 +857,100 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
 
   return (
     <div className="flex flex-col py-1">
-      {/* All-day events: Full width, spacious card */}
+      {/* All-day events: Full width, borderless card with accordion toggle */}
       {allDayEvs.length > 0 && (
         <div className="flex flex-col gap-1.5 mb-2.5 w-full">
-          {allDayEvs.map(ev => (
-            <button
-              key={`allday-${ev.id}`}
-              onClick={() => onSelectEvent(ev)}
-              className="w-full flex items-center justify-between text-left px-3.5 py-2.5 rounded-xl border transition-all active:scale-[0.99]"
-              style={{
-                background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-                borderColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-              }}
-            >
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                <div
-                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                  style={{ background: ev.color || T.accent }}
-                />
-                <span className="text-xs sm:text-sm font-bold truncate" style={{ color: T.pri }}>
-                  {ev.title}
-                </span>
-              </div>
-              <span
-                className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md shrink-0 ml-2"
+          {allDayEvs.map(ev => {
+            const isExpanded = expandedEventId === ev.id;
+            return (
+              <div
+                key={`allday-${ev.id}`}
+                className="w-full rounded-xl overflow-hidden transition-all"
                 style={{
-                  background: `${ev.color || T.accent}18`,
-                  color: ev.color || T.accent,
+                  background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#f4f4f5',
+                  border: 'none',
                 }}
               >
-                Ganztag
-              </span>
-            </button>
-          ))}
+                <button
+                  onClick={() => setExpandedEventId(prev => prev === ev.id ? null : ev.id)}
+                  className="w-full flex items-center justify-between text-left px-3.5 py-2.5 active:scale-[0.99] transition-transform cursor-pointer"
+                  style={{ border: 'none', background: 'transparent' }}
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ background: ev.color || T.accent }}
+                    />
+                    <span className="text-xs sm:text-sm font-bold truncate" style={{ color: T.pri }}>
+                      {ev.title}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                    <span
+                      className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md"
+                      style={{
+                        background: `${ev.color || T.accent}18`,
+                        color: ev.color || T.accent,
+                      }}
+                    >
+                      Ganztag
+                    </span>
+                    <ChevronDown
+                      size={14}
+                      style={{
+                        color: T.mut,
+                        transform: isExpanded ? 'rotate(180deg)' : 'none',
+                        transition: 'transform 0.2s ease',
+                      }}
+                    />
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div
+                    className="px-3.5 pb-3 pt-1 border-t"
+                    style={{ borderColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}
+                  >
+                    {ev.description && (
+                      <p className="text-xs mb-3 whitespace-pre-wrap leading-relaxed" style={{ color: T.sec }}>
+                        {ev.description}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          window.dispatchEvent(new CustomEvent('mobile_edit_event', { detail: { id: ev.id } }));
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95 transition-transform"
+                        style={{
+                          background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                          color: T.pri,
+                        }}
+                      >
+                        <PenLine size={12} /> Bearbeiten
+                      </button>
+                      {onDeleteEvent && (
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            onDeleteEvent(ev.id);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95 transition-transform"
+                          style={{
+                            background: 'rgba(239,68,68,0.12)',
+                            color: '#ef4444',
+                          }}
+                        >
+                          <Trash2 size={12} /> Löschen
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -865,105 +1020,230 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
             try { return evStart <= now && evEnd > now; } catch { return false; }
           })();
 
+          const isNextUpcoming = isToday && !isActive && ev.id === nextUpcomingId;
+
+          // Time remaining for active event
+          const remMins = Math.max(1, Math.round((evEnd.getTime() - now.getTime()) / 60_000));
+          const remStr = remMins >= 60
+            ? `${Math.floor(remMins / 60)} Std. ${remMins % 60 > 0 ? `${remMins % 60} Min.` : ''}`.trim()
+            : `${remMins} Min.`;
+
+          // Time until start for next upcoming event
+          const startMins = Math.max(1, Math.round((evStart.getTime() - now.getTime()) / 60_000));
+          const startStr = startMins >= 60
+            ? `${Math.floor(startMins / 60)} Std. ${startMins % 60 > 0 ? `${startMins % 60} Min.` : ''}`.trim()
+            : `${startMins} Min.`;
+
           const evColor = ev.color || T.accent;
           const proportionalHeight = Math.max(54, Math.min(180, 44 + durationMins * 0.6));
+          const isExpanded = expandedEventId === ev.id;
 
           return (
             <React.Fragment key={ev.id}>
               {pauseEl}
-              <button
-                onClick={() => onSelectEvent(ev)}
-                className="w-full flex text-left transition-all rounded-xl my-0.5 relative"
+              <div
+                id={`ev-${ev.id}`}
+                className="w-full rounded-xl my-1 relative transition-all overflow-hidden"
                 style={{
-                  minHeight: proportionalHeight,
+                  minHeight: isExpanded ? undefined : proportionalHeight,
                   background: isActive
                     ? (theme === 'dark' ? '#09090b' : '#18181b')
                     : isEven
                     ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f4f4f5')
                     : (theme === 'dark' ? 'rgba(255, 255, 255, 0.095)' : '#e4e4e7'),
-                  transform: isActive ? 'scale(1.035)' : 'scale(1)',
+                  transform: isActive ? 'scale(1.025)' : 'scale(1)',
                   zIndex: isActive ? 10 : 1,
-                  border: isActive
-                    ? `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(24, 24, 27, 0.6)'}`
-                    : `1px solid ${theme === 'dark' ? (isEven ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.12)') : (isEven ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.10)')}`,
+                  border: 'none',
                   boxShadow: isActive
-                    ? (theme === 'dark' ? '0 10px 28px -4px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.2)' : '0 12px 28px -6px rgba(0, 0, 0, 0.35)')
+                    ? (theme === 'dark' ? '0 10px 28px -4px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.15)' : '0 12px 28px -6px rgba(0, 0, 0, 0.35)')
                     : 'none',
                   transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                 }}
               >
-                {/* Left column: time */}
-                <div className="w-[58px] shrink-0 flex flex-col items-end pr-2 pt-3.5">
-                  <span
-                    className={`font-bold leading-none ${isActive ? 'text-[13px]' : 'text-[12px]'}`}
-                    style={{ color: isActive ? '#ffffff' : T.pri }}
-                  >
-                    {format(evStart, 'HH:mm')}
-                  </span>
-                  <span
-                    className="text-[10px] font-medium mt-1"
-                    style={{ color: isActive ? 'rgba(255,255,255,0.75)' : T.mut }}
-                  >
-                    {format(evEnd, 'HH:mm')}
-                  </span>
-                </div>
-
-                {/* Timeline dot + duration line */}
-                <div className="w-[24px] shrink-0 flex flex-col items-center pt-3.5">
-                  <div
-                    className={`w-3 h-3 rounded-full shrink-0 ${isActive ? 'animate-pulse' : ''}`}
-                    style={{ background: evColor }}
-                  />
-                  <div
-                    className="w-[1.5px] flex-1 mt-1.5 mb-1.5 rounded-full"
-                    style={{
-                      background: isActive
-                        ? '#ffffff'
-                        : theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
-                    }}
-                  />
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 py-3 pr-3 min-w-0">
-                  <div className="flex items-center gap-2">
+                {/* Main clickable row */}
+                <button
+                  onClick={() => setExpandedEventId(prev => prev === ev.id ? null : ev.id)}
+                  className="w-full flex text-left p-0 transition-all cursor-pointer"
+                  style={{ border: 'none', background: 'transparent' }}
+                >
+                  {/* Left column: time */}
+                  <div className="w-[58px] shrink-0 flex flex-col items-end pr-2 pt-3.5">
                     <span
-                      className={`font-bold truncate ${isActive ? 'text-sm' : 'text-[13px]'}`}
+                      className={`font-bold leading-none ${isActive ? 'text-[13px]' : 'text-[12px]'}`}
                       style={{ color: isActive ? '#ffffff' : T.pri }}
                     >
-                      {ev.title}
+                      {format(evStart, 'HH:mm')}
                     </span>
                     <span
-                      className="text-[10px] font-medium ml-auto shrink-0 px-1.5 py-0.5 rounded-md"
-                      style={{
-                        background: isActive
-                          ? 'rgba(255, 255, 255, 0.18)'
-                          : theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-                        color: isActive ? '#ffffff' : T.mut,
-                      }}
+                      className="text-[10px] font-medium mt-1"
+                      style={{ color: isActive ? 'rgba(255,255,255,0.75)' : T.mut }}
                     >
-                      {durStr}
+                      {format(evEnd, 'HH:mm')}
                     </span>
                   </div>
-                  {ev.description && (
-                    <p
-                      className="text-xs mt-1 line-clamp-2 leading-relaxed"
-                      style={{ color: isActive ? 'rgba(255,255,255,0.85)' : T.sec }}
-                    >
-                      {ev.description}
-                    </p>
-                  )}
-                </div>
-              </button>
+
+                  {/* Timeline dot + duration line */}
+                  <div className="w-[24px] shrink-0 flex flex-col items-center pt-3.5">
+                    <div
+                      className={`w-3 h-3 rounded-full shrink-0 ${isActive ? 'animate-pulse' : ''}`}
+                      style={{ background: evColor }}
+                    />
+                    <div
+                      className="w-[1.5px] flex-1 mt-1.5 mb-1.5 rounded-full"
+                      style={{
+                        background: isActive
+                          ? '#ffffff'
+                          : theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
+                      }}
+                    />
+                  </div>
+
+                  {/* Content summary */}
+                  <div className="flex-1 py-3 pr-3 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`font-bold truncate ${isActive ? 'text-sm' : 'text-[13px]'}`}
+                        style={{ color: isActive ? '#ffffff' : T.pri }}
+                      >
+                        {ev.title}
+                      </span>
+
+                      {/* Active remaining time badge (Requirement 4) */}
+                      {isActive && (
+                        <span
+                          className="text-[10px] font-bold ml-auto shrink-0 px-2 py-0.5 rounded-md flex items-center gap-1"
+                          style={{
+                            background: 'rgba(16, 185, 129, 0.22)',
+                            color: '#34d399',
+                          }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          Noch {remStr} · bis {format(evEnd, 'HH:mm')} Uhr
+                        </span>
+                      )}
+
+                      {/* Next upcoming start badge (Requirement 4) */}
+                      {isNextUpcoming && (
+                        <span
+                          className="text-[10px] font-bold ml-auto shrink-0 px-2 py-0.5 rounded-md flex items-center gap-1"
+                          style={{
+                            background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.18), rgba(168, 85, 247, 0.25))',
+                            color: theme === 'dark' ? '#d8b4fe' : '#7e22ce',
+                            border: '1px solid rgba(168, 85, 247, 0.3)',
+                          }}
+                        >
+                          <Clock size={11} />
+                          Startet um {format(evStart, 'HH:mm')} Uhr (in {startStr})
+                        </span>
+                      )}
+
+                      {!isActive && !isNextUpcoming && (
+                        <span
+                          className="text-[10px] font-medium ml-auto shrink-0 px-1.5 py-0.5 rounded-md"
+                          style={{
+                            background: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                            color: T.mut,
+                          }}
+                        >
+                          {durStr}
+                        </span>
+                      )}
+
+                      <ChevronDown
+                        size={14}
+                        className="shrink-0 transition-transform duration-200"
+                        style={{
+                          transform: isExpanded ? 'rotate(180deg)' : 'none',
+                          color: isActive ? '#ffffff' : T.mut,
+                        }}
+                      />
+                    </div>
+
+                    {!isExpanded && ev.description && (
+                      <p
+                        className="text-xs mt-1 line-clamp-1 leading-relaxed"
+                        style={{ color: isActive ? 'rgba(255,255,255,0.85)' : T.sec }}
+                      >
+                        {ev.description}
+                      </p>
+                    )}
+                  </div>
+                </button>
+
+                {/* Inline accordion expansion (Requirement 5) */}
+                {isExpanded && (
+                  <div
+                    className="px-4 pb-3.5 pt-2 border-t ml-[82px] mr-3"
+                    style={{
+                      borderColor: isActive
+                        ? 'rgba(255, 255, 255, 0.15)'
+                        : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+                    }}
+                  >
+                    {ev.location && (
+                      <div
+                        className="flex items-center gap-1.5 text-xs mb-2 font-medium"
+                        style={{ color: isActive ? 'rgba(255,255,255,0.9)' : T.sec }}
+                      >
+                        <MapPin size={13} className="shrink-0" />
+                        <span className="truncate">{ev.location}</span>
+                      </div>
+                    )}
+
+                    {ev.description && (
+                      <p
+                        className="text-xs mb-3 whitespace-pre-wrap leading-relaxed"
+                        style={{ color: isActive ? 'rgba(255,255,255,0.85)' : T.sec }}
+                      >
+                        {ev.description}
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          window.dispatchEvent(new CustomEvent('mobile_edit_event', { detail: { id: ev.id } }));
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95 transition-transform"
+                        style={{
+                          background: isActive
+                            ? 'rgba(255, 255, 255, 0.2)'
+                            : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                          color: isActive ? '#ffffff' : T.pri,
+                        }}
+                      >
+                        <PenLine size={12} /> Bearbeiten
+                      </button>
+
+                      {onDeleteEvent && (
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            onDeleteEvent(ev.id);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95 transition-transform"
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.14)',
+                            color: '#ef4444',
+                          }}
+                        >
+                          <Trash2 size={12} /> Löschen
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </React.Fragment>
           );
         }
 
-        // Case 2: Parallel / Overlapping events (sharing width equally)
+        // Case 2: Parallel / Overlapping events (sharing width equally, borderless)
         return (
           <React.Fragment key={`cluster-${cluster.clusterStart.toISOString()}-${cIdx}`}>
             {pauseEl}
-            <div className="w-full flex gap-2 my-1 items-stretch overflow-x-auto no-scrollbar">
+            <div className="w-full flex gap-2 my-1 items-start overflow-x-auto no-scrollbar">
               {cluster.events.map(ev => {
                 const curIdx = eventCounter++;
                 const isEven = curIdx % 2 === 0;
@@ -979,75 +1259,195 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
                   try { return evStart <= now && evEnd > now; } catch { return false; }
                 })();
 
+                const isNextUpcoming = isToday && !isActive && ev.id === nextUpcomingId;
+
+                const remMins = Math.max(1, Math.round((evEnd.getTime() - now.getTime()) / 60_000));
+                const remStr = remMins >= 60
+                  ? `${Math.floor(remMins / 60)} Std. ${remMins % 60 > 0 ? `${remMins % 60} Min.` : ''}`.trim()
+                  : `${remMins} Min.`;
+
+                const startMins = Math.max(1, Math.round((evStart.getTime() - now.getTime()) / 60_000));
+                const startStr = startMins >= 60
+                  ? `${Math.floor(startMins / 60)} Std. ${startMins % 60 > 0 ? `${startMins % 60} Min.` : ''}`.trim()
+                  : `${startMins} Min.`;
+
                 const evColor = ev.color || T.accent;
+                const isExpanded = expandedEventId === ev.id;
 
                 return (
-                  <button
+                  <div
                     key={ev.id}
-                    onClick={() => onSelectEvent(ev)}
-                    className="flex-1 min-w-[130px] flex flex-col text-left p-3 rounded-xl transition-all relative"
+                    id={`ev-${ev.id}`}
+                    className="flex-1 min-w-[130px] flex flex-col text-left rounded-xl transition-all relative overflow-hidden"
                     style={{
                       background: isActive
                         ? (theme === 'dark' ? '#09090b' : '#18181b')
                         : isEven
                         ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f4f4f5')
                         : (theme === 'dark' ? 'rgba(255, 255, 255, 0.095)' : '#e4e4e7'),
-                      transform: isActive ? 'scale(1.035)' : 'scale(1)',
+                      transform: isActive ? 'scale(1.025)' : 'scale(1)',
                       zIndex: isActive ? 10 : 1,
-                      border: isActive
-                        ? `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(24, 24, 27, 0.6)'}`
-                        : `1px solid ${theme === 'dark' ? (isEven ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.12)') : (isEven ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.10)')}`,
+                      border: 'none',
                       boxShadow: isActive
-                        ? (theme === 'dark' ? '0 10px 28px -4px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.2)' : '0 12px 28px -6px rgba(0, 0, 0, 0.35)')
+                        ? (theme === 'dark' ? '0 10px 28px -4px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.15)' : '0 12px 28px -6px rgba(0, 0, 0, 0.35)')
                         : 'none',
                       transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                     }}
                   >
-                    {/* Top: Time badge + Duration */}
-                    <div className="flex items-center justify-between gap-1 mb-1.5 w-full">
-                      <span
-                        className="text-[11px] font-bold"
-                        style={{ color: isActive ? '#ffffff' : T.pri }}
-                      >
-                        {format(evStart, 'HH:mm')} – {format(evEnd, 'HH:mm')}
-                      </span>
-                      <span
-                        className="text-[10px] font-medium shrink-0 px-1.5 py-0.5 rounded-md"
+                    <button
+                      onClick={() => setExpandedEventId(prev => prev === ev.id ? null : ev.id)}
+                      className="w-full flex flex-col text-left p-3 cursor-pointer"
+                      style={{ border: 'none', background: 'transparent' }}
+                    >
+                      {/* Top: Time badge + Duration */}
+                      <div className="flex items-center justify-between gap-1 mb-1.5 w-full">
+                        <span
+                          className="text-[11px] font-bold"
+                          style={{ color: isActive ? '#ffffff' : T.pri }}
+                        >
+                          {format(evStart, 'HH:mm')} – {format(evEnd, 'HH:mm')}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <span
+                            className="text-[10px] font-medium shrink-0 px-1.5 py-0.5 rounded-md"
+                            style={{
+                              background: isActive
+                                ? 'rgba(255, 255, 255, 0.18)'
+                                : theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                              color: isActive ? '#ffffff' : T.mut,
+                            }}
+                          >
+                            {durStr}
+                          </span>
+                          <ChevronDown
+                            size={12}
+                            style={{
+                              transform: isExpanded ? 'rotate(180deg)' : 'none',
+                              color: isActive ? '#ffffff' : T.mut,
+                              transition: 'transform 0.2s ease',
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Middle: Dot + Title */}
+                      <div className="flex items-center gap-1.5 min-w-0 w-full mb-1">
+                        <div
+                          className={`w-2.5 h-2.5 rounded-full shrink-0 ${isActive ? 'animate-pulse' : ''}`}
+                          style={{ background: evColor }}
+                        />
+                        <span
+                          className="text-xs sm:text-sm font-bold truncate flex-1"
+                          style={{ color: isActive ? '#ffffff' : T.pri }}
+                        >
+                          {ev.title}
+                        </span>
+                      </div>
+
+                      {/* Active or next timing badge (Requirement 4) */}
+                      {isActive && (
+                        <div
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded-md mt-0.5 mb-1 inline-flex items-center gap-1 self-start"
+                          style={{
+                            background: 'rgba(16, 185, 129, 0.22)',
+                            color: '#34d399',
+                          }}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          Noch {remStr} (bis {format(evEnd, 'HH:mm')})
+                        </div>
+                      )}
+
+                      {isNextUpcoming && (
+                        <div
+                          className="text-[10px] font-bold px-1.5 py-0.5 rounded-md mt-0.5 mb-1 inline-flex items-center gap-1 self-start"
+                          style={{
+                            background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.18), rgba(168, 85, 247, 0.25))',
+                            color: theme === 'dark' ? '#d8b4fe' : '#7e22ce',
+                            border: '1px solid rgba(168, 85, 247, 0.3)',
+                          }}
+                        >
+                          <Clock size={10} />
+                          Startet um {format(evStart, 'HH:mm')} ({startStr})
+                        </div>
+                      )}
+
+                      {/* Description preview if not expanded */}
+                      {!isExpanded && ev.description && (
+                        <p
+                          className="text-[11px] mt-0.5 line-clamp-1 leading-relaxed"
+                          style={{ color: isActive ? 'rgba(255,255,255,0.85)' : T.sec }}
+                        >
+                          {ev.description}
+                        </p>
+                      )}
+                    </button>
+
+                    {/* Inline accordion expansion (Requirement 5) */}
+                    {isExpanded && (
+                      <div
+                        className="px-3 pb-3 pt-1 border-t"
                         style={{
-                          background: isActive
-                            ? 'rgba(255, 255, 255, 0.18)'
-                            : theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-                          color: isActive ? '#ffffff' : T.mut,
+                          borderColor: isActive
+                            ? 'rgba(255, 255, 255, 0.15)'
+                            : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
                         }}
                       >
-                        {durStr}
-                      </span>
-                    </div>
+                        {ev.location && (
+                          <div
+                            className="flex items-center gap-1.5 text-xs mb-1.5 font-medium"
+                            style={{ color: isActive ? 'rgba(255,255,255,0.9)' : T.sec }}
+                          >
+                            <MapPin size={12} className="shrink-0" />
+                            <span className="truncate">{ev.location}</span>
+                          </div>
+                        )}
 
-                    {/* Middle: Dot + Title */}
-                    <div className="flex items-center gap-1.5 min-w-0 w-full mb-1">
-                      <div
-                        className={`w-2.5 h-2.5 rounded-full shrink-0 ${isActive ? 'animate-pulse' : ''}`}
-                        style={{ background: evColor }}
-                      />
-                      <span
-                        className="text-xs sm:text-sm font-bold truncate flex-1"
-                        style={{ color: isActive ? '#ffffff' : T.pri }}
-                      >
-                        {ev.title}
-                      </span>
-                    </div>
+                        {ev.description && (
+                          <p
+                            className="text-xs mb-2.5 whitespace-pre-wrap leading-relaxed"
+                            style={{ color: isActive ? 'rgba(255,255,255,0.85)' : T.sec }}
+                          >
+                            {ev.description}
+                          </p>
+                        )}
 
-                    {/* Description if present */}
-                    {ev.description && (
-                      <p
-                        className="text-[11px] mt-0.5 line-clamp-2 leading-relaxed"
-                        style={{ color: isActive ? 'rgba(255,255,255,0.85)' : T.sec }}
-                      >
-                        {ev.description}
-                      </p>
+                        <div className="flex items-center gap-1.5 pt-1">
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              window.dispatchEvent(new CustomEvent('mobile_edit_event', { detail: { id: ev.id } }));
+                            }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold active:scale-95 transition-transform"
+                            style={{
+                              background: isActive
+                                ? 'rgba(255, 255, 255, 0.2)'
+                                : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                              color: isActive ? '#ffffff' : T.pri,
+                            }}
+                          >
+                            <PenLine size={11} /> Bearbeiten
+                          </button>
+
+                          {onDeleteEvent && (
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                onDeleteEvent(ev.id);
+                              }}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold active:scale-95 transition-transform"
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.14)',
+                                color: '#ef4444',
+                              }}
+                            >
+                              <Trash2 size={11} /> Löschen
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -1117,6 +1517,15 @@ export default function MobileLayout({
   const enabledExtensions = useDataStore(s => s.enabledExtensions);
   const setSettingsOpen = useDataStore(s => s.setSettingsModalOpen);
   const theme = useDataStore(s => s.theme);
+
+  // Synchronize mobile status bar / safe-area theme color with the active app theme
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const bgColor = theme === 'dark' ? '#0F172A' : '#FFFFFF';
+    if (meta) {
+      meta.setAttribute('content', bgColor);
+    }
+  }, [theme]);
 
   // ── Keyboard-aware bottom bar offset ────────────────────────────────────────
   const [kbOffset, setKbOffset] = useState(0);
@@ -1322,12 +1731,15 @@ export default function MobileLayout({
     if (active) {
       const s = new Date(active.start);
       const en = active.end ? new Date(active.end) : new Date(s.getTime() + 3_600_000);
-      const remMins = Math.max(0, Math.round((en.getTime() - now.getTime()) / 60_000));
+      const remMins = Math.max(1, Math.round((en.getTime() - now.getTime()) / 60_000));
+      const remStr = remMins >= 60
+        ? `${Math.floor(remMins / 60)} Std. ${remMins % 60 > 0 ? `${remMins % 60} Min.` : ''}`.trim()
+        : `${remMins} Min.`;
       return {
         type: 'active' as const,
         event: active,
         title: active.title || 'Aktueller Termin',
-        subtitle: remMins > 0 ? `Noch ${remMins} Min.` : 'Endet gleich',
+        subtitle: `Noch ${remStr} · bis ${format(en, 'HH:mm')} Uhr`,
         color: active.color || T.accent,
       };
     }
@@ -1341,13 +1753,13 @@ export default function MobileLayout({
       const s = new Date(next.start);
       const diffMins = Math.max(1, Math.round((s.getTime() - now.getTime()) / 60_000));
       const timeStr = diffMins >= 60
-        ? `${Math.floor(diffMins / 60)} Std. ${diffMins % 60 > 0 ? `${diffMins % 60} Min.` : ''}`
+        ? `${Math.floor(diffMins / 60)} Std. ${diffMins % 60 > 0 ? `${diffMins % 60} Min.` : ''}`.trim()
         : `${diffMins} Min.`;
       return {
         type: 'next' as const,
         event: next,
         title: next.title || 'Nächster Termin',
-        subtitle: `in ${timeStr}`,
+        subtitle: `Startet um ${format(s, 'HH:mm')} Uhr (in ${timeStr})`,
         color: next.color || T.accent,
       };
     }
@@ -1887,25 +2299,14 @@ export default function MobileLayout({
           background: T.bg,
         }}
       >
-        {/* Row 1: Date & Greeting ("XX. Monat", "Guten Morgen/Mittag/Tag/Abend Name!") + Menu button on top right */}
-        <div className="flex items-start justify-between px-5 pt-1 pb-1.5">
-          <div className="min-w-0 flex-1 pr-3">
-            <p className="text-xs font-bold uppercase tracking-wider" style={{ color: T.mut }}>
-              {format(now, 'd. MMMM', { locale: de })}
-            </p>
-            <h1 className="text-2xl font-black tracking-tight truncate leading-tight mt-0.5" style={{ color: T.pri }}>
-              {getGreeting(displayName, now)}
-            </h1>
-          </div>
-
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="w-9 h-9 flex items-center justify-center shrink-0 transition-transform active:scale-95"
-            style={{ color: T.sec }}
-            title="Menü"
-          >
-            <Menu size={20} />
-          </button>
+        {/* Row 1: Date & Greeting ("XX. Monat", "Guten Morgen/Mittag/Tag/Abend Name!") */}
+        <div className="px-5 pt-1 pb-1.5">
+          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: T.mut }}>
+            {format(now, 'd. MMMM', { locale: de })}
+          </p>
+          <h1 className="text-2xl font-black tracking-tight truncate leading-tight mt-0.5" style={{ color: T.pri }}>
+            {getGreeting(displayName, now)}
+          </h1>
         </div>
 
         {/* Row 2: Apple-style Horizontal Date Wheel */}
@@ -1948,62 +2349,6 @@ export default function MobileLayout({
                 </button>
               );
             })}
-          </div>
-        )}
-
-        {/* Row 4: Metallic Purple Sheen Banner for Active / Next Event — sticky between view mode and appointments */}
-        {activeTab === 'calendar' && smartIslandData && (
-          <div className="px-4 pb-2.5 pt-0.5">
-            <button
-              onClick={() => setSelectedEvent(smartIslandData.event)}
-              className="w-full relative overflow-hidden flex items-center gap-3 px-3.5 py-2 rounded-2xl text-left active:scale-[0.99] transition-all shadow-md group"
-              style={{
-                background: 'linear-gradient(135deg, #2e0854 0%, #4c1d95 35%, #7e22ce 68%, #9333ea 85%, #581c87 100%)',
-                boxShadow: '0 4px 18px -2px rgba(126, 34, 206, 0.45), inset 0 1px 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 2px 0 rgba(0, 0, 0, 0.4)',
-                border: '1px solid rgba(216, 180, 254, 0.35)',
-              }}
-            >
-              {/* Metallic luster reflection overlay */}
-              <div
-                className="absolute inset-0 pointer-events-none opacity-25"
-                style={{
-                  background: 'linear-gradient(105deg, transparent 20%, rgba(255, 255, 255, 0.5) 45%, transparent 70%)',
-                }}
-              />
-
-              <div
-                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full shrink-0 relative z-10"
-                style={{
-                  background: 'rgba(255, 255, 255, 0.18)',
-                  backdropFilter: 'blur(4px)',
-                  border: '1px solid rgba(255, 255, 255, 0.25)',
-                }}
-              >
-                <span
-                  className={`w-2 h-2 rounded-full shrink-0 ${smartIslandData.type === 'active' ? 'animate-pulse' : ''}`}
-                  style={{
-                    background: smartIslandData.type === 'active' ? '#4ade80' : '#f5d0fe',
-                    boxShadow: smartIslandData.type === 'active' ? '0 0 8px #4ade80' : '0 0 6px #f5d0fe',
-                  }}
-                />
-                <span
-                  className="text-[10px] font-black uppercase tracking-wider text-white"
-                >
-                  {smartIslandData.type === 'active' ? 'Jetzt' : 'Nächster'}
-                </span>
-              </div>
-
-              <span className="text-xs font-bold truncate flex-1 relative z-10 text-white drop-shadow-sm">
-                {smartIslandData.title}
-              </span>
-
-              <span
-                className="text-[11px] font-medium shrink-0 relative z-10"
-                style={{ color: '#e9d5ff' }}
-              >
-                {smartIslandData.subtitle}
-              </span>
-            </button>
           </div>
         )}
 
@@ -2150,8 +2495,8 @@ export default function MobileLayout({
                     isToday={isSameDay(activeDate, now)}
                     now={now}
                     theme={theme}
-                    onSelectEvent={ev => { const found = expandedEvents.find(e => e.id === ev.id); if (found) setSelectedEvent(found); }}
                     onNewEvent={date => { setNewEventDefaultDate(date); setIsNewEventSheetOpen(true); }}
+                    onDeleteEvent={onEventDelete}
                   />
                 );
               })()}
@@ -2159,8 +2504,19 @@ export default function MobileLayout({
           </div>
         ) : calViewMode === 'day' ? (
           /* ── Single day view (DB Navigator style) ── */
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div className="flex-1 overflow-y-auto pb-4 px-4 pt-2">
+              {/* Floating next/active event banner - loose at top of list, appointments slide under (Requirement 3) */}
+              {smartIslandData && (
+                <FloatingNextEventBanner
+                  smartIslandData={smartIslandData}
+                  onScrollToEvent={() => {
+                    const el = document.getElementById(`ev-${smartIslandData.event.id}`);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }}
+                />
+              )}
+
               {(() => {
                 const sameDay = (e: { start: string; allDay?: boolean }) => {
                   try { return isSameDay(new Date(e.start), activeDate); } catch { return false; }
@@ -2179,14 +2535,11 @@ export default function MobileLayout({
                     isToday={todayFlag}
                     now={now}
                     theme={theme}
-                    onSelectEvent={ev => {
-                      const found = expandedEvents.find(e => e.id === ev.id);
-                      if (found) setSelectedEvent(found);
-                    }}
                     onNewEvent={date => {
                       setNewEventDefaultDate(date);
                       setIsNewEventSheetOpen(true);
                     }}
+                    onDeleteEvent={onEventDelete}
                   />
                 );
               })()}
@@ -2194,8 +2547,19 @@ export default function MobileLayout({
           </div>
         ) : (
           /* ── Fortlaufend / Agenda view (infinite scroll) ── */
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
             <div className="flex-1 overflow-y-auto pb-4 px-4 pt-2">
+              {/* Floating next/active event banner - loose at top of list, appointments slide under (Requirement 3) */}
+              {smartIslandData && (
+                <FloatingNextEventBanner
+                  smartIslandData={smartIslandData}
+                  onScrollToEvent={() => {
+                    const todayEl = document.getElementById(`day-${format(now, 'yyyy-MM-dd')}`);
+                    if (todayEl) todayEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                />
+              )}
+
               {groupedDayViewItems.map(item => {
                 if (item.kind === 'empty-range') {
                   return (
@@ -2224,17 +2588,37 @@ export default function MobileLayout({
                 const { date: day, events: dayEvs, allDayEvents: allDayEvs, isToday } = item;
                 return (
                   <div key={day.toISOString()} id={`day-${format(day, 'yyyy-MM-dd')}`} className="mb-4">
-                    {/* Day header */}
+                    {/* Day header: Today colored in metallic purple (Requirement 8) */}
                     <div className="flex items-center gap-3 py-2.5">
                       {isToday && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0" style={{ background: T.accent, color: '#fff' }}>
+                        <span
+                          className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shrink-0 text-white shadow-sm"
+                          style={{
+                            background: 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 50%, #9333ea 100%)',
+                            boxShadow: '0 2px 8px rgba(126, 34, 206, 0.35)',
+                          }}
+                        >
                           Heute
                         </span>
                       )}
-                      <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: isToday ? T.accent : T.sec }}>
+                      <span
+                        className="text-[11px] uppercase tracking-wider"
+                        style={{
+                          color: isToday ? (theme === 'dark' ? '#d8b4fe' : '#7e22ce') : T.sec,
+                          fontWeight: isToday ? 900 : 700,
+                          textShadow: isToday ? (theme === 'dark' ? '0 0 10px rgba(168, 85, 247, 0.4)' : 'none') : 'none',
+                        }}
+                      >
                         {format(day, 'EEEE d. MMMM', { locale: de })}
                       </span>
-                      <div className="flex-1 h-px" style={{ background: T.brd }} />
+                      <div
+                        className="flex-1 h-px"
+                        style={{
+                          background: isToday
+                            ? 'linear-gradient(90deg, rgba(168, 85, 247, 0.5), transparent)'
+                            : T.brd,
+                        }}
+                      />
                     </div>
 
                     <DbTimelineDay
@@ -2244,14 +2628,11 @@ export default function MobileLayout({
                       isToday={isToday}
                       now={now}
                       theme={theme}
-                      onSelectEvent={ev => {
-                        const found = expandedEvents.find(e => e.id === ev.id);
-                        if (found) setSelectedEvent(found);
-                      }}
                       onNewEvent={date => {
                         setNewEventDefaultDate(date);
                         setIsNewEventSheetOpen(true);
                       }}
+                      onDeleteEvent={onEventDelete}
                     />
                   </div>
                 );
@@ -2259,6 +2640,26 @@ export default function MobileLayout({
               {/* Infinite scroll sentinel */}
               <div ref={dayViewSentinelRef} style={{ height: 1 }} />
             </div>
+
+            {/* Floating button to jump back to today in Agenda view (Requirement 7) */}
+            <button
+              onClick={() => {
+                const todayEl = document.getElementById(`day-${format(now, 'yyyy-MM-dd')}`);
+                if (todayEl) {
+                  todayEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }}
+              className="absolute bottom-4 right-4 z-30 flex items-center gap-1.5 px-3.5 py-2 rounded-full shadow-lg active:scale-95 transition-all text-white"
+              style={{
+                background: 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 50%, #9333ea 100%)',
+                boxShadow: '0 4px 14px -2px rgba(126, 34, 206, 0.5), inset 0 1px 1px 0 rgba(255, 255, 255, 0.35)',
+                border: '1px solid rgba(216, 180, 254, 0.35)',
+              }}
+              title="Zum heutigen Tag springen"
+            >
+              <RotateCcw size={13} />
+              <span className="text-xs font-bold">Heute</span>
+            </button>
           </div>
         )}
       </div>
@@ -2426,8 +2827,12 @@ export default function MobileLayout({
                 setIsEditingNote(true);
               }
             }}
-            className="w-10 h-10 flex items-center justify-center rounded-2xl text-white transition-all active:scale-95 shadow-sm"
-            style={{ background: T.accent }}
+            className="w-10 h-10 flex items-center justify-center rounded-2xl text-white transition-all active:scale-95 shadow-md"
+            style={{
+              background: 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 50%, #9333ea 100%)',
+              boxShadow: '0 4px 14px -2px rgba(126, 34, 206, 0.5), inset 0 1px 1px 0 rgba(255, 255, 255, 0.35)',
+              border: '1px solid rgba(216, 180, 254, 0.35)',
+            }}
             title={activeTab === 'calendar' ? 'Neuer Termin' : 'Neue Notiz'}
           >
             <Plus size={20} strokeWidth={2.4} />

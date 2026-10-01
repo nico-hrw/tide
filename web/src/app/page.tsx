@@ -3675,7 +3675,7 @@ export default function Dashboard() {
     // Render
     // -------------------------------------------------------------------------
     return (
-        <div className="flex h-screen w-full bg-[var(--background)] text-foreground overflow-hidden">
+        <div className="flex h-[100dvh] w-full bg-[var(--background)] text-foreground overflow-hidden">
             <CloudStatusBanner />
             {/* Global drag ghost — rendered via Portal so it sits above sidebar/calendar/editor */}
             <EventDragGhost />

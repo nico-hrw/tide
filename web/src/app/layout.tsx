@@ -1,11 +1,18 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import AuthGuard from "@/components/AuthGuard";
 import { HighlightProvider } from "@/components/HighlightContext";
 import { IslandProvider } from "@/components/extensions/smart_island/useIslandStore";
 import "./globals.css";
 
-export const viewport = {
-  themeColor: "#FFFFFF",
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
+    { media: "(prefers-color-scheme: dark)", color: "#0F172A" },
+  ],
 };
 
 export const metadata: Metadata = {
@@ -14,7 +21,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "tide",
   },
   icons: {
