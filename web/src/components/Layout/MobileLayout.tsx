@@ -3,13 +3,13 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Menu, Settings, ArrowLeft, Folder, FileText,
+  Menu, Settings, ArrowLeft, ArrowRight, Folder, FileText,
   ChevronRight, ChevronLeft, Plus, Search, Calendar as CalendarIcon,
   Trash2, GraduationCap,
   DollarSign, X, PenLine, FolderPlus, GripVertical,
   BookOpen, Coffee, RotateCcw,
 } from 'lucide-react';
-import { isSameDay, format, startOfWeek, addDays } from 'date-fns';
+import { isSameDay, format, startOfWeek, addDays, isAfter } from 'date-fns';
 import { de } from 'date-fns/locale';
 import MiniCalendar from '../Calendar/MiniCalendar';
 import MobileWeekGrid from './MobileWeekGrid';
@@ -418,13 +418,16 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
   const rafId = useRef<number | null>(null);
   const mountedRef = useRef(false);
 
-  // If activeDate moves far away, re-anchor smoothly
-  useEffect(() => {
+  const [prevActive, setPrevActive] = useState<Date>(activeDate);
+
+  // If activeDate moves far away, re-anchor smoothly during render
+  if (activeDate !== prevActive) {
+    setPrevActive(activeDate);
     const diff = Math.abs(getDayDiff(activeDate, wheelAnchor));
     if (diff > 25) {
       setWheelAnchor(activeDate);
     }
-  }, [activeDate, wheelAnchor]);
+  }
 
   const days = useMemo(() => {
     return Array.from({ length: 71 }, (_, i) => addDays(wheelAnchor, i - 35));
@@ -437,7 +440,7 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
     const rect = container.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const children = container.children;
-    const radius = 130; // lens influence radius in px
+    const radius = 110; // lens influence radius in px
 
     for (let i = 0; i < children.length; i++) {
       const child = children[i] as HTMLElement;
@@ -449,8 +452,8 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
       if (dist < radius) {
         // Cosine bell curve: 1 at exact center, 0 at edge
         const curve = (Math.cos((dist / radius) * Math.PI) + 1) / 2;
-        const scale = 0.74 + curve * 0.44; // 0.74 to 1.18
-        const opacity = 0.38 + curve * 0.62; // 0.38 to 1.00
+        const scale = 0.72 + curve * 0.60; // 0.72 to 1.32 (larger zoom)
+        const opacity = 0.35 + curve * 0.65; // 0.35 to 1.00
         child.style.transform = `scale(${scale.toFixed(3)})`;
         child.style.opacity = opacity.toFixed(3);
       } else {
@@ -470,7 +473,7 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
     if (!el) return;
 
     if (!mountedRef.current) {
-      // First mount: INSTANT centering with NO smooth scroll cascade to avoid 30s thread lockup
+      // First mount: instant centering without smooth animation
       mountedRef.current = true;
       const containerWidth = container.clientWidth;
       container.scrollLeft = el.offsetLeft - containerWidth / 2 + el.offsetWidth / 2;
@@ -481,11 +484,13 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
     if (!isUserTouching.current) {
       isProgrammaticScroll.current = true;
       if (programmaticTimerRef.current) clearTimeout(programmaticTimerRef.current);
-      el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+      const containerWidth = container.clientWidth;
+      const targetScrollLeft = el.offsetLeft - containerWidth / 2 + el.offsetWidth / 2;
+      container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
       programmaticTimerRef.current = setTimeout(() => {
         isProgrammaticScroll.current = false;
         updateMagnifier();
-      }, 450);
+      }, 350);
     }
   }, [activeDate, updateMagnifier]);
 
@@ -502,6 +507,7 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
 
     const triggerAutoSelect = () => {
       if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+      // Crisp ~100ms debounce after momentum/scrolling settles
       scrollTimerRef.current = setTimeout(() => {
         if (isProgrammaticScroll.current || isUserTouching.current) return;
         const rect = container.getBoundingClientRect();
@@ -517,19 +523,28 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
         }
 
         if (closestEl) {
-          closestEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-          const dateStr = closestEl.id?.replace('wheel-date-', '');
+          const containerWidth = container.clientWidth;
+          const targetScrollLeft = closestEl.offsetLeft - containerWidth / 2 + closestEl.offsetWidth / 2;
+          if (Math.abs(container.scrollLeft - targetScrollLeft) > 1.5) {
+            isProgrammaticScroll.current = true;
+            container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+            if (programmaticTimerRef.current) clearTimeout(programmaticTimerRef.current);
+            programmaticTimerRef.current = setTimeout(() => {
+              isProgrammaticScroll.current = false;
+              updateMagnifier();
+            }, 300);
+          }
+
+          const dateStr = closestEl.id.replace('wheel-date-', '');
           if (dateStr) {
             const parts = dateStr.split('-').map(Number);
             const d = new Date(parts[0], parts[1] - 1, parts[2]);
             if (!isNaN(d.getTime()) && !isSameDay(d, activeDate)) {
-              isProgrammaticScroll.current = true;
               onSelectDate(d);
-              setTimeout(() => { isProgrammaticScroll.current = false; }, 450);
             }
           }
         }
-      }, 220);
+      }, 100);
     };
 
     const onTouchEnd = () => {
@@ -538,7 +553,6 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
     };
 
     const onScroll = () => {
-      // Real-time magnifier on every frame: instantaneous lens magnification
       if (rafId.current) cancelAnimationFrame(rafId.current);
       rafId.current = requestAnimationFrame(updateMagnifier);
 
@@ -549,11 +563,17 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
 
     container.addEventListener('touchstart', onTouchStart, { passive: true });
     container.addEventListener('touchend', onTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    container.addEventListener('pointerdown', onTouchStart, { passive: true });
+    container.addEventListener('pointerup', onTouchEnd, { passive: true });
     container.addEventListener('scroll', onScroll, { passive: true });
 
     return () => {
       container.removeEventListener('touchstart', onTouchStart);
       container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+      container.removeEventListener('pointerdown', onTouchStart);
+      container.removeEventListener('pointerup', onTouchEnd);
       container.removeEventListener('scroll', onScroll);
       if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
       if (programmaticTimerRef.current) clearTimeout(programmaticTimerRef.current);
@@ -563,78 +583,95 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
 
   return (
     <div className="flex items-center gap-2 px-3 pb-1 w-full min-w-0">
-      <div
-        ref={containerRef}
-        className="flex items-center gap-1 overflow-x-auto no-scrollbar py-2 flex-1 min-w-0 select-none"
-        style={{
-          scrollSnapType: 'x proximity',
-          WebkitOverflowScrolling: 'touch',
-        }}
-        onWheel={e => {
-          if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-          e.preventDefault();
-          if (e.deltaY > 0) onSelectDate(addDays(activeDate, 1));
-          else if (e.deltaY < 0) onSelectDate(addDays(activeDate, -1));
-        }}
-      >
-        {days.map(d => {
-          const diff = Math.abs(getDayDiff(d, activeDate));
-          const isSelected = diff === 0;
-          const isTodayDate = isSameDay(d, now);
-          const initialScale = isSelected ? 1.15 : diff === 1 ? 0.88 : diff === 2 ? 0.75 : 0.70;
-          const initialOpacity = isSelected ? 1 : diff === 1 ? 0.80 : diff === 2 ? 0.55 : 0.35;
+      <div className="flex-1 min-w-0 flex flex-col relative">
+        <div
+          ref={containerRef}
+          className="flex items-center gap-1 overflow-x-auto no-scrollbar py-1 w-full select-none"
+          style={{
+            WebkitOverflowScrolling: 'touch',
+          }}
+          onWheel={e => {
+            if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+            e.preventDefault();
+            if (e.deltaY > 0) onSelectDate(addDays(activeDate, 1));
+            else if (e.deltaY < 0) onSelectDate(addDays(activeDate, -1));
+          }}
+        >
+          {days.map(d => {
+            const diff = Math.abs(getDayDiff(d, activeDate));
+            const isSelected = diff === 0;
+            const isTodayDate = isSameDay(d, now);
+            const initialScale = isSelected ? 1.32 : diff === 1 ? 0.95 : diff === 2 ? 0.80 : 0.72;
+            const initialOpacity = isSelected ? 1 : diff === 1 ? 0.75 : diff === 2 ? 0.50 : 0.35;
 
-          return (
-            <button
-              key={d.toISOString()}
-              id={`wheel-date-${format(d, 'yyyy-MM-dd')}`}
-              onClick={() => {
-                isProgrammaticScroll.current = true;
-                onSelectDate(d);
-                const el = document.getElementById(`wheel-date-${format(d, 'yyyy-MM-dd')}`);
-                if (el) el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-                setTimeout(() => { isProgrammaticScroll.current = false; }, 450);
-              }}
-              className="flex flex-col items-center justify-center shrink-0 rounded-2xl active:scale-95"
-              style={{
-                width: 46,
-                height: 54,
-                scrollSnapAlign: 'center',
-                transform: `scale(${initialScale})`,
-                opacity: initialOpacity,
-                background: isSelected
-                  ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.14)' : 'rgba(0, 0, 0, 0.08)')
-                  : 'transparent',
-                border: isSelected
-                  ? `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 0, 0, 0.14)'}`
-                  : '1px solid transparent',
-                color: isSelected ? (theme === 'dark' ? '#ffffff' : '#111827') : T.pri,
-              }}
-            >
-              <span
-                className="text-[10px] font-bold uppercase tracking-wider"
+            return (
+              <button
+                key={d.toISOString()}
+                id={`wheel-date-${format(d, 'yyyy-MM-dd')}`}
+                onClick={() => {
+                  isProgrammaticScroll.current = true;
+                  onSelectDate(d);
+                  const el = document.getElementById(`wheel-date-${format(d, 'yyyy-MM-dd')}`);
+                  const container = containerRef.current;
+                  if (el && container) {
+                    const target = el.offsetLeft - container.clientWidth / 2 + el.offsetWidth / 2;
+                    container.scrollTo({ left: target, behavior: 'smooth' });
+                  }
+                  setTimeout(() => {
+                    isProgrammaticScroll.current = false;
+                    updateMagnifier();
+                  }, 350);
+                }}
+                className="flex flex-col items-center justify-center shrink-0 rounded-2xl active:scale-95"
                 style={{
+                  width: 44,
+                  height: 52,
+                  transform: `scale(${initialScale})`,
+                  opacity: initialOpacity,
+                  background: 'transparent',
+                  border: 'none',
                   color: isSelected
-                    ? (theme === 'dark' ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.55)')
-                    : T.mut,
+                    ? (theme === 'dark' ? '#ffffff' : '#09090b')
+                    : (theme === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'),
                 }}
               >
-                {format(d, 'EEE', { locale: de })}
-              </span>
-              <span className="text-base font-extrabold leading-none mt-0.5">
-                {format(d, 'd')}
-              </span>
-              {isTodayDate && (
                 <span
-                  className="w-1 h-1 rounded-full mt-1"
+                  className="text-[10px] font-bold uppercase tracking-wider"
                   style={{
-                    background: theme === 'dark' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.4)',
+                    color: isSelected
+                      ? (theme === 'dark' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)')
+                      : T.mut,
                   }}
-                />
-              )}
-            </button>
-          );
-        })}
+                >
+                  {format(d, 'EEE', { locale: de })}
+                </span>
+                <span
+                  className={`text-lg leading-none mt-0.5 ${isSelected ? 'font-black' : 'font-bold'}`}
+                >
+                  {format(d, 'd')}
+                </span>
+                {isTodayDate && (
+                  <span
+                    className="w-1.5 h-1.5 rounded-full mt-1"
+                    style={{
+                      background: T.accent,
+                    }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Small rounded indicator triangle centered directly beneath the active date (Apple timer style) */}
+        <div className="flex justify-center pointer-events-none -mt-0.5 pb-0.5">
+          <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
+            <path
+              d="M4.15 0.85C4.55 0.25 5.45 0.25 5.85 0.85L9.15 5.2C9.6 5.8 9.15 6 8.35 6H1.65C0.85 6 0.4 5.8 0.85 5.2L4.15 0.85Z"
+              fill={T.accent}
+            />
+          </svg>
+        </div>
       </div>
 
       {!isSameDay(activeDate, now) && (
@@ -646,9 +683,9 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
             color: theme === 'dark' ? '#9ca3af' : '#4b5563',
             border: `1px solid ${T.brd}`,
           }}
-          title="Zurück zu Heute"
+          title={isAfter(now, activeDate) ? 'Vor zu Heute' : 'Zurück zu Heute'}
         >
-          <ArrowLeft size={16} />
+          {isAfter(now, activeDate) ? <ArrowRight size={16} /> : <ArrowLeft size={16} />}
         </button>
       )}
     </div>
@@ -674,6 +711,36 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
   onSelectEvent: (ev: any) => void;
   onNewEvent?: (date: Date) => void;
 }) {
+  // Cluster overlapping / parallel events together
+  const clusters = useMemo(() => {
+    const list: {
+      events: any[];
+      clusterStart: Date;
+      clusterEnd: Date;
+    }[] = [];
+
+    for (const ev of dayEvs) {
+      const evStart = new Date(ev.start);
+      const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
+
+      if (list.length === 0) {
+        list.push({ events: [ev], clusterStart: evStart, clusterEnd: evEnd });
+      } else {
+        const last = list[list.length - 1];
+        // Overlap if starts before clusterEnd with > 1 minute margin
+        if (evStart.getTime() < last.clusterEnd.getTime() - 60_000) {
+          last.events.push(ev);
+          if (evEnd.getTime() > last.clusterEnd.getTime()) {
+            last.clusterEnd = evEnd;
+          }
+        } else {
+          list.push({ events: [ev], clusterStart: evStart, clusterEnd: evEnd });
+        }
+      }
+    }
+    return list;
+  }, [dayEvs]);
+
   if (dayEvs.length === 0 && allDayEvs.length === 0) {
     return (
       <div className="py-8 flex flex-col items-center justify-center text-center">
@@ -691,9 +758,12 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
     );
   }
 
+  // Running counter so alternating grey backgrounds persist seamlessly across events
+  let eventCounter = 0;
+
   return (
     <div className="flex flex-col py-1">
-      {/* All-day events: Full width, spacious card, subtle color (Requirement 5) */}
+      {/* All-day events: Full width, spacious card */}
       {allDayEvs.length > 0 && (
         <div className="flex flex-col gap-1.5 mb-2.5 w-full">
           {allDayEvs.map(ev => (
@@ -729,30 +799,13 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
         </div>
       )}
 
-      {/* Timed events — DB Navigator flowing style */}
-      {dayEvs.map((ev, idx) => {
-        const evStart = new Date(ev.start);
-        const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
-        const durationMins = Math.max(15, Math.round((evEnd.getTime() - evStart.getTime()) / 60_000));
-        const durStr = durationMins >= 60
-          ? `${Math.floor(durationMins / 60)}h ${durationMins % 60 > 0 ? `${durationMins % 60}m` : ''}`.trim()
-          : `${durationMins} Min.`;
-
-        const isActive = isToday && (() => {
-          try { return evStart <= now && evEnd > now; } catch { return false; }
-        })();
-
-        const evColor = ev.color || T.accent;
-
-        // Proportional height: min 52px for 15min, scales with duration
-        const proportionalHeight = Math.max(52, Math.min(180, 44 + durationMins * 0.6));
-
-        // Gap indicator between consecutive events
+      {/* Timed events clusters (single or parallel) */}
+      {clusters.map((cluster, cIdx) => {
+        // Gap indicator between consecutive event clusters
         let pauseEl: React.ReactNode = null;
-        if (idx > 0) {
-          const prevEv = dayEvs[idx - 1];
-          const prevEnd = prevEv.end ? new Date(prevEv.end) : new Date(new Date(prevEv.start).getTime() + 3_600_000);
-          const gapMins = Math.round((evStart.getTime() - prevEnd.getTime()) / 60_000);
+        if (cIdx > 0) {
+          const prevCluster = clusters[cIdx - 1];
+          const gapMins = Math.round((cluster.clusterStart.getTime() - prevCluster.clusterEnd.getTime()) / 60_000);
           if (gapMins > 0) {
             const gapStr = gapMins >= 60
               ? `${Math.floor(gapMins / 60)} Std. ${gapMins % 60 > 0 ? `${gapMins % 60} Min.` : ''}`.trim()
@@ -776,10 +829,10 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
                   />
                 </div>
                 <div
-                  className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl my-0.5 border"
+                  className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl my-0.5 border border-dashed"
                   style={{
                     background: theme === 'dark' ? 'rgba(255, 255, 255, 0.025)' : 'rgba(0, 0, 0, 0.02)',
-                    borderColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                    borderColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.08)',
                   }}
                 >
                   <Coffee size={13} style={{ color: T.mut, flexShrink: 0 }} />
@@ -787,7 +840,7 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
                     Pause · {gapStr}
                   </span>
                   <span className="text-[10px] ml-auto shrink-0 font-medium" style={{ color: T.mut }}>
-                    bis {format(evStart, 'HH:mm')}
+                    bis {format(cluster.clusterStart, 'HH:mm')}
                   </span>
                 </div>
               </div>
@@ -795,87 +848,209 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
           }
         }
 
-        const isEven = idx % 2 === 0;
+        // Case 1: Single event in cluster
+        if (cluster.events.length === 1) {
+          const ev = cluster.events[0];
+          const curIdx = eventCounter++;
+          const isEven = curIdx % 2 === 0;
 
-        return (
-          <React.Fragment key={ev.id}>
-            {pauseEl}
+          const evStart = new Date(ev.start);
+          const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
+          const durationMins = Math.max(15, Math.round((evEnd.getTime() - evStart.getTime()) / 60_000));
+          const durStr = durationMins >= 60
+            ? `${Math.floor(durationMins / 60)}h ${durationMins % 60 > 0 ? `${durationMins % 60}m` : ''}`.trim()
+            : `${durationMins} Min.`;
 
-            {/* Event row — flowing DB Navigator style */}
-            <button
-              onClick={() => onSelectEvent(ev)}
-              className="w-full flex text-left transition-all rounded-xl my-0.5"
-              style={{
-                minHeight: proportionalHeight,
-                background: isActive
-                  ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : '#1e293b')
-                  : isEven
-                  ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.055)' : 'rgba(0, 0, 0, 0.04)')
-                  : 'transparent',
-                transform: isActive ? 'scale(1.02)' : 'scale(1)',
-                border: isActive
-                  ? `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(30, 41, 59, 0.5)'}`
-                  : '1px solid transparent',
-              }}
-            >
-              {/* Left column: time */}
-              <div className="w-[58px] shrink-0 flex flex-col items-end pr-2 pt-3.5">
-                <span
-                  className={`font-bold leading-none ${isActive ? 'text-[13px]' : 'text-[12px]'}`}
-                  style={{ color: isActive ? (theme === 'dark' ? '#ffffff' : '#ffffff') : T.pri }}
-                >
-                  {format(evStart, 'HH:mm')}
-                </span>
-                <span
-                  className="text-[10px] font-medium mt-1"
-                  style={{ color: isActive && theme !== 'dark' ? 'rgba(255,255,255,0.7)' : T.mut }}
-                >
-                  {format(evEnd, 'HH:mm')}
-                </span>
-              </div>
+          const isActive = isToday && (() => {
+            try { return evStart <= now && evEnd > now; } catch { return false; }
+          })();
 
-              {/* Timeline dot + duration line */}
-              <div className="w-[24px] shrink-0 flex flex-col items-center pt-3.5">
-                <div
-                  className={`w-3 h-3 rounded-full shrink-0 ${isActive ? 'animate-pulse' : ''}`}
-                  style={{ background: evColor }}
-                />
-                <div
-                  className="w-[1.5px] flex-1 mt-1.5 mb-1.5 rounded-full"
-                  style={{
-                    background: isActive
-                      ? (theme === 'dark' ? '#ffffff' : '#ffffff')
-                      : theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.10)',
-                  }}
-                />
-              </div>
+          const evColor = ev.color || T.accent;
+          const proportionalHeight = Math.max(54, Math.min(180, 44 + durationMins * 0.6));
 
-              {/* Content */}
-              <div className="flex-1 py-3 pr-3 min-w-0">
-                <div className="flex items-center gap-2">
+          return (
+            <React.Fragment key={ev.id}>
+              {pauseEl}
+              <button
+                onClick={() => onSelectEvent(ev)}
+                className="w-full flex text-left transition-all rounded-xl my-0.5 relative"
+                style={{
+                  minHeight: proportionalHeight,
+                  background: isActive
+                    ? (theme === 'dark' ? '#09090b' : '#18181b')
+                    : isEven
+                    ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f4f4f5')
+                    : (theme === 'dark' ? 'rgba(255, 255, 255, 0.095)' : '#e4e4e7'),
+                  transform: isActive ? 'scale(1.035)' : 'scale(1)',
+                  zIndex: isActive ? 10 : 1,
+                  border: isActive
+                    ? `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(24, 24, 27, 0.6)'}`
+                    : `1px solid ${theme === 'dark' ? (isEven ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.12)') : (isEven ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.10)')}`,
+                  boxShadow: isActive
+                    ? (theme === 'dark' ? '0 10px 28px -4px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.2)' : '0 12px 28px -6px rgba(0, 0, 0, 0.35)')
+                    : 'none',
+                  transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                }}
+              >
+                {/* Left column: time */}
+                <div className="w-[58px] shrink-0 flex flex-col items-end pr-2 pt-3.5">
                   <span
-                    className={`font-bold truncate ${isActive ? 'text-sm' : 'text-[13px]'}`}
-                    style={{ color: isActive && theme !== 'dark' ? '#ffffff' : T.pri }}
+                    className={`font-bold leading-none ${isActive ? 'text-[13px]' : 'text-[12px]'}`}
+                    style={{ color: isActive ? '#ffffff' : T.pri }}
                   >
-                    {ev.title}
+                    {format(evStart, 'HH:mm')}
                   </span>
                   <span
-                    className="text-[10px] font-medium ml-auto shrink-0"
-                    style={{ color: isActive && theme !== 'dark' ? 'rgba(255,255,255,0.7)' : T.mut }}
+                    className="text-[10px] font-medium mt-1"
+                    style={{ color: isActive ? 'rgba(255,255,255,0.75)' : T.mut }}
                   >
-                    {durStr}
+                    {format(evEnd, 'HH:mm')}
                   </span>
                 </div>
-                {ev.description && (
-                  <p
-                    className="text-xs mt-1 line-clamp-2 leading-relaxed"
-                    style={{ color: isActive && theme !== 'dark' ? 'rgba(255,255,255,0.85)' : T.sec }}
+
+                {/* Timeline dot + duration line */}
+                <div className="w-[24px] shrink-0 flex flex-col items-center pt-3.5">
+                  <div
+                    className={`w-3 h-3 rounded-full shrink-0 ${isActive ? 'animate-pulse' : ''}`}
+                    style={{ background: evColor }}
+                  />
+                  <div
+                    className="w-[1.5px] flex-1 mt-1.5 mb-1.5 rounded-full"
+                    style={{
+                      background: isActive
+                        ? '#ffffff'
+                        : theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
+                    }}
+                  />
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 py-3 pr-3 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`font-bold truncate ${isActive ? 'text-sm' : 'text-[13px]'}`}
+                      style={{ color: isActive ? '#ffffff' : T.pri }}
+                    >
+                      {ev.title}
+                    </span>
+                    <span
+                      className="text-[10px] font-medium ml-auto shrink-0 px-1.5 py-0.5 rounded-md"
+                      style={{
+                        background: isActive
+                          ? 'rgba(255, 255, 255, 0.18)'
+                          : theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                        color: isActive ? '#ffffff' : T.mut,
+                      }}
+                    >
+                      {durStr}
+                    </span>
+                  </div>
+                  {ev.description && (
+                    <p
+                      className="text-xs mt-1 line-clamp-2 leading-relaxed"
+                      style={{ color: isActive ? 'rgba(255,255,255,0.85)' : T.sec }}
+                    >
+                      {ev.description}
+                    </p>
+                  )}
+                </div>
+              </button>
+            </React.Fragment>
+          );
+        }
+
+        // Case 2: Parallel / Overlapping events (sharing width equally)
+        return (
+          <React.Fragment key={`cluster-${cluster.clusterStart.toISOString()}-${cIdx}`}>
+            {pauseEl}
+            <div className="w-full flex gap-2 my-1 items-stretch overflow-x-auto no-scrollbar">
+              {cluster.events.map(ev => {
+                const curIdx = eventCounter++;
+                const isEven = curIdx % 2 === 0;
+
+                const evStart = new Date(ev.start);
+                const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
+                const durationMins = Math.max(15, Math.round((evEnd.getTime() - evStart.getTime()) / 60_000));
+                const durStr = durationMins >= 60
+                  ? `${Math.floor(durationMins / 60)}h ${durationMins % 60 > 0 ? `${durationMins % 60}m` : ''}`.trim()
+                  : `${durationMins} Min.`;
+
+                const isActive = isToday && (() => {
+                  try { return evStart <= now && evEnd > now; } catch { return false; }
+                })();
+
+                const evColor = ev.color || T.accent;
+
+                return (
+                  <button
+                    key={ev.id}
+                    onClick={() => onSelectEvent(ev)}
+                    className="flex-1 min-w-[130px] flex flex-col text-left p-3 rounded-xl transition-all relative"
+                    style={{
+                      background: isActive
+                        ? (theme === 'dark' ? '#09090b' : '#18181b')
+                        : isEven
+                        ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f4f4f5')
+                        : (theme === 'dark' ? 'rgba(255, 255, 255, 0.095)' : '#e4e4e7'),
+                      transform: isActive ? 'scale(1.035)' : 'scale(1)',
+                      zIndex: isActive ? 10 : 1,
+                      border: isActive
+                        ? `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.25)' : 'rgba(24, 24, 27, 0.6)'}`
+                        : `1px solid ${theme === 'dark' ? (isEven ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.12)') : (isEven ? 'rgba(0,0,0,0.06)' : 'rgba(0,0,0,0.10)')}`,
+                      boxShadow: isActive
+                        ? (theme === 'dark' ? '0 10px 28px -4px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.2)' : '0 12px 28px -6px rgba(0, 0, 0, 0.35)')
+                        : 'none',
+                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+                    }}
                   >
-                    {ev.description}
-                  </p>
-                )}
-              </div>
-            </button>
+                    {/* Top: Time badge + Duration */}
+                    <div className="flex items-center justify-between gap-1 mb-1.5 w-full">
+                      <span
+                        className="text-[11px] font-bold"
+                        style={{ color: isActive ? '#ffffff' : T.pri }}
+                      >
+                        {format(evStart, 'HH:mm')} – {format(evEnd, 'HH:mm')}
+                      </span>
+                      <span
+                        className="text-[10px] font-medium shrink-0 px-1.5 py-0.5 rounded-md"
+                        style={{
+                          background: isActive
+                            ? 'rgba(255, 255, 255, 0.18)'
+                            : theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                          color: isActive ? '#ffffff' : T.mut,
+                        }}
+                      >
+                        {durStr}
+                      </span>
+                    </div>
+
+                    {/* Middle: Dot + Title */}
+                    <div className="flex items-center gap-1.5 min-w-0 w-full mb-1">
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full shrink-0 ${isActive ? 'animate-pulse' : ''}`}
+                        style={{ background: evColor }}
+                      />
+                      <span
+                        className="text-xs sm:text-sm font-bold truncate flex-1"
+                        style={{ color: isActive ? '#ffffff' : T.pri }}
+                      >
+                        {ev.title}
+                      </span>
+                    </div>
+
+                    {/* Description if present */}
+                    {ev.description && (
+                      <p
+                        className="text-[11px] mt-0.5 line-clamp-2 leading-relaxed"
+                        style={{ color: isActive ? 'rgba(255,255,255,0.85)' : T.sec }}
+                      >
+                        {ev.description}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </React.Fragment>
         );
       })}
@@ -1706,11 +1881,14 @@ export default function MobileLayout({
 
       {/* ── Top Header with Greeting, Sidebar Menu, and Apple-style Date Wheel ── */}
       <div
-        className="shrink-0 z-10"
-        style={{ paddingTop: 'max(12px, calc(env(safe-area-inset-top) + 4px))' }}
+        className="shrink-0 z-20 sticky top-0"
+        style={{
+          paddingTop: 'max(12px, calc(env(safe-area-inset-top) + 4px))',
+          background: T.bg,
+        }}
       >
         {/* Row 1: Date & Greeting ("XX. Monat", "Guten Morgen/Mittag/Tag/Abend Name!") + Menu button on top right */}
-        <div className="flex items-start justify-between px-5 pt-1 pb-2">
+        <div className="flex items-start justify-between px-5 pt-1 pb-1.5">
           <div className="min-w-0 flex-1 pr-3">
             <p className="text-xs font-bold uppercase tracking-wider" style={{ color: T.mut }}>
               {format(now, 'd. MMMM', { locale: de })}
@@ -1730,35 +1908,7 @@ export default function MobileLayout({
           </button>
         </div>
 
-        {/* Optional Next / Active event banner */}
-        {activeTab === 'calendar' && smartIslandData && (
-          <div className="px-5 pb-2">
-            <button
-              onClick={() => setSelectedEvent(smartIslandData.event)}
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-left active:opacity-85 transition-opacity"
-              style={{
-                background: `${smartIslandData.color}14`,
-                border: `1px solid ${smartIslandData.color}35`,
-              }}
-            >
-              <span
-                className={`w-2 h-2 rounded-full shrink-0 ${smartIslandData.type === 'active' ? 'animate-pulse' : ''}`}
-                style={{ background: smartIslandData.color }}
-              />
-              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: smartIslandData.color }}>
-                {smartIslandData.type === 'active' ? 'Jetzt' : 'Nächster'}
-              </span>
-              <span className="text-xs font-semibold truncate flex-1" style={{ color: T.pri }}>
-                {smartIslandData.title}
-              </span>
-              <span className="text-[10px] font-medium shrink-0" style={{ color: T.sec }}>
-                {smartIslandData.subtitle}
-              </span>
-            </button>
-          </div>
-        )}
-
-        {/* Row 2: Apple-style Horizontal Date Wheel (de-cluttered top bar) */}
+        {/* Row 2: Apple-style Horizontal Date Wheel */}
         {activeTab === 'calendar' && calViewMode !== 'month' && (
           <AppleDateWheel
             activeDate={activeDate}
@@ -1774,9 +1924,10 @@ export default function MobileLayout({
             theme={theme}
           />
         )}
-        {/* View mode selector — compact pills */}
+
+        {/* Row 3: View mode selector — compact pills */}
         {activeTab === 'calendar' && (
-          <div className="flex items-center gap-1 px-4 pb-1.5 pt-0.5">
+          <div className="flex items-center gap-1 px-4 pb-2 pt-0.5">
             {(['day', 'agenda', 'week', 'month'] as const).map(mode => {
               const labels: Record<string, string> = { day: 'Tag', agenda: 'Fortlaufend', week: 'Woche', month: 'Monat' };
               const isAct = calViewMode === mode;
@@ -1797,6 +1948,62 @@ export default function MobileLayout({
                 </button>
               );
             })}
+          </div>
+        )}
+
+        {/* Row 4: Metallic Purple Sheen Banner for Active / Next Event — sticky between view mode and appointments */}
+        {activeTab === 'calendar' && smartIslandData && (
+          <div className="px-4 pb-2.5 pt-0.5">
+            <button
+              onClick={() => setSelectedEvent(smartIslandData.event)}
+              className="w-full relative overflow-hidden flex items-center gap-3 px-3.5 py-2 rounded-2xl text-left active:scale-[0.99] transition-all shadow-md group"
+              style={{
+                background: 'linear-gradient(135deg, #2e0854 0%, #4c1d95 35%, #7e22ce 68%, #9333ea 85%, #581c87 100%)',
+                boxShadow: '0 4px 18px -2px rgba(126, 34, 206, 0.45), inset 0 1px 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 2px 0 rgba(0, 0, 0, 0.4)',
+                border: '1px solid rgba(216, 180, 254, 0.35)',
+              }}
+            >
+              {/* Metallic luster reflection overlay */}
+              <div
+                className="absolute inset-0 pointer-events-none opacity-25"
+                style={{
+                  background: 'linear-gradient(105deg, transparent 20%, rgba(255, 255, 255, 0.5) 45%, transparent 70%)',
+                }}
+              />
+
+              <div
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full shrink-0 relative z-10"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.18)',
+                  backdropFilter: 'blur(4px)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                }}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full shrink-0 ${smartIslandData.type === 'active' ? 'animate-pulse' : ''}`}
+                  style={{
+                    background: smartIslandData.type === 'active' ? '#4ade80' : '#f5d0fe',
+                    boxShadow: smartIslandData.type === 'active' ? '0 0 8px #4ade80' : '0 0 6px #f5d0fe',
+                  }}
+                />
+                <span
+                  className="text-[10px] font-black uppercase tracking-wider text-white"
+                >
+                  {smartIslandData.type === 'active' ? 'Jetzt' : 'Nächster'}
+                </span>
+              </div>
+
+              <span className="text-xs font-bold truncate flex-1 relative z-10 text-white drop-shadow-sm">
+                {smartIslandData.title}
+              </span>
+
+              <span
+                className="text-[11px] font-medium shrink-0 relative z-10"
+                style={{ color: '#e9d5ff' }}
+              >
+                {smartIslandData.subtitle}
+              </span>
+            </button>
           </div>
         )}
 
