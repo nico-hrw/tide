@@ -752,7 +752,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
 
                 {isToday && (
                     <div 
-                        className="absolute left-0 right-0 z-[60] pointer-events-none flex items-center"
+                        className="absolute left-0 right-0 z-[95] pointer-events-none flex items-center"
                         style={{ top: `${currentTimeTop}px` }}
                     >
                         {/* Red indicator dot */}

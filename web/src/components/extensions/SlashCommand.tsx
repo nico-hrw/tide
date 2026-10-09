@@ -50,11 +50,11 @@ const CommandList = forwardRef((props: any, ref) => {
     }));
 
     return (
-        <div className="flex flex-col p-1 w-[220px] bg-white/90 dark:bg-black/90 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-2xl rounded-xl overflow-hidden text-sm z-50">
+        <div className="flex flex-col p-1 w-[220px] bg-white/90 dark:bg-[#1a1a1a]/90 backdrop-blur-md border border-gray-200 dark:border-white/10 shadow-lg rounded-xl overflow-hidden text-sm z-[9999]">
             {props.items.length ? (
                 props.items.map((item: any, index: number) => (
                     <button
-                        className={`flex items-center gap-2 px-2 py-1.5 text-left rounded-lg transition-colors ${index === selectedIndex ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' : 'text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'}`}
+                        className={`flex items-center gap-2 px-2 py-1.5 text-left rounded-lg transition-colors ${index === selectedIndex ? 'bg-black/5 dark:bg-white/10 text-black dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'}`}
                         key={index}
                         onClick={() => selectItem(index)}
                     >
@@ -165,7 +165,7 @@ const getSuggestionItems = ({ query }: { query: string }) => {
     return items.filter((item: any) =>
         item.title.toLowerCase().startsWith(query.toLowerCase()) ||
         (item.aliases && item.aliases.some((alias: string) => alias.startsWith(query.toLowerCase())))
-    );
+    ).slice(0, 4);
 };
 
 // Render Logic
@@ -201,6 +201,19 @@ const renderItems = () => {
                 theme: 'headless',
                 zIndex: 9999, // Ensure it's above everything
             });
+            
+            if (props.items && props.items.length > 0) {
+                const topItem = props.items[0];
+                const label = topItem.title || '';
+                const q = props.query || '';
+                if (q && label.toLowerCase().startsWith(q.toLowerCase())) {
+                    document.documentElement.style.setProperty('--suggestion-remainder', `"${label.slice(q.length)}"`);
+                } else {
+                    document.documentElement.style.setProperty('--suggestion-remainder', '""');
+                }
+            } else {
+                document.documentElement.style.setProperty('--suggestion-remainder', '""');
+            }
         },
         onUpdate: (props: any) => {
             component?.updateProps(props);
@@ -212,6 +225,19 @@ const renderItems = () => {
             popup?.[0]?.setProps({
                 getReferenceClientRect: props.clientRect,
             });
+            
+            if (props.items && props.items.length > 0) {
+                const topItem = props.items[0];
+                const label = topItem.title || '';
+                const q = props.query || '';
+                if (q && label.toLowerCase().startsWith(q.toLowerCase())) {
+                    document.documentElement.style.setProperty('--suggestion-remainder', `"${label.slice(q.length)}"`);
+                } else {
+                    document.documentElement.style.setProperty('--suggestion-remainder', '""');
+                }
+            } else {
+                document.documentElement.style.setProperty('--suggestion-remainder', '""');
+            }
         },
         onKeyDown: (props: any) => {
             if (props.event.key === 'Escape') {
@@ -226,6 +252,7 @@ const renderItems = () => {
         onExit: () => {
             popup?.[0]?.destroy();
             component?.destroy();
+            document.documentElement.style.setProperty('--suggestion-remainder', '""');
         },
     };
 };

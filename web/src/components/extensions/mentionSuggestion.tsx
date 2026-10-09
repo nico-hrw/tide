@@ -65,22 +65,21 @@ const MentionList = forwardRef((props: any, ref) => {
     }));
 
     return (
-        <div className="flex flex-col p-1 w-[250px] bg-white/90 dark:bg-black/90 backdrop-blur-xl border border-white/20 dark:border-white/10 shadow-2xl rounded-xl overflow-hidden text-sm z-[9999]">
+        <div className="flex flex-col p-1 w-[250px] bg-white/90 dark:bg-[#1a1a1a]/90 backdrop-blur-md border border-gray-200 dark:border-white/10 shadow-lg rounded-xl overflow-hidden text-sm z-[9999]">
             {props.items.length ? (
                 props.items.map((item: any, index: number) => (
                     <button
-                        className={`flex flex-col items-start px-2 py-1.5 text-left rounded-lg transition-colors ${index === selectedIndex ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400' : 'text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5'}`}
+                        className={`flex items-center gap-2 px-2 py-1.5 text-left rounded-lg transition-colors ${index === selectedIndex ? 'bg-black/5 dark:bg-white/10 text-black dark:text-white' : 'text-gray-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'}`}
                         key={index}
                         onMouseDown={(e) => {
                             e.preventDefault();
                             selectItem(index);
                         }}
                     >
-                        <div className="font-medium">{item.label || item.title}</div>
-                        {(item.type || item.start) && (
-                            <div className="flex items-center gap-2 text-[10px] opacity-50 uppercase tracking-wider">
-                                <span>{item.type}</span>
-                                {item.start && <span>• {new Date(item.start).toLocaleDateString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>}
+                        <div className="font-medium truncate flex-1">{item.label || item.title}</div>
+                        {(item.type) && (
+                            <div className="text-[10px] opacity-40 uppercase tracking-wider flex-shrink-0">
+                                {item.type}
                             </div>
                         )}
                     </button>
@@ -166,7 +165,7 @@ export default {
             })),
             { id: 'NEW', label: `Create File '${query}'`, query: query, type: 'action', isGhost: false },
             { id: 'NEW_TASK', label: `Create Task '${query}'`, query: query, type: 'action', isGhost: false }
-        ].slice(0, 15);
+        ].slice(0, 4);
     },
 
     command: ({ editor, range, props }: any) => {
@@ -256,6 +255,19 @@ export default {
                     trigger: 'manual',
                     placement: 'bottom-start',
                 });
+                
+                if (props.items && props.items.length > 0) {
+                    const topItem = props.items[0];
+                    const label = topItem.label || topItem.title || '';
+                    const q = props.query || '';
+                    if (q && label.toLowerCase().startsWith(q.toLowerCase())) {
+                        document.documentElement.style.setProperty('--suggestion-remainder', `"${label.slice(q.length)}"`);
+                    } else {
+                        document.documentElement.style.setProperty('--suggestion-remainder', '""');
+                    }
+                } else {
+                    document.documentElement.style.setProperty('--suggestion-remainder', '""');
+                }
             },
 
             onUpdate(props: any) {
@@ -268,6 +280,19 @@ export default {
                 popup?.[0]?.setProps({
                     getReferenceClientRect: props.clientRect,
                 });
+                
+                if (props.items && props.items.length > 0) {
+                    const topItem = props.items[0];
+                    const label = topItem.label || topItem.title || '';
+                    const q = props.query || '';
+                    if (q && label.toLowerCase().startsWith(q.toLowerCase())) {
+                        document.documentElement.style.setProperty('--suggestion-remainder', `"${label.slice(q.length)}"`);
+                    } else {
+                        document.documentElement.style.setProperty('--suggestion-remainder', '""');
+                    }
+                } else {
+                    document.documentElement.style.setProperty('--suggestion-remainder', '""');
+                }
             },
 
             onKeyDown(props: any) {
@@ -302,6 +327,7 @@ export default {
                 }
                 component?.destroy();
                 component = null;
+                document.documentElement.style.setProperty('--suggestion-remainder', '""');
             },
         };
     },

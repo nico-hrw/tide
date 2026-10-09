@@ -1016,6 +1016,32 @@ interface FileItemProps {
     openTabs?: Tab[];
 }
 
+const AnimatedLinkingText = ({ text }: { text: string }) => {
+    return (
+        <span className="inline-flex whitespace-pre">
+            {text.split('').map((char, i) => (
+                <motion.span
+                    key={i}
+                    animate={{
+                        scale: [1, 1.15, 1],
+                        color: ['inherit', '#A855F7', 'inherit'],
+                        textShadow: ['none', '0 0 10px rgba(168,85,247,0.6)', 'none']
+                    }}
+                    transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        delay: i * 0.04,
+                        ease: "easeInOut"
+                    }}
+                    style={{ display: char === ' ' ? 'inline' : 'inline-block' }}
+                >
+                    {char}
+                </motion.span>
+            ))}
+        </span>
+    );
+};
+
 const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onDragStart, onContextMenu, enabledExtensions, myId, index, activeTabId, openTabs }: FileItemProps) => {
     const { isHighlighted, highlight } = useHighlight();
     const startGhost = useDragGhost(s => s.startGhost);
@@ -1136,16 +1162,8 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                     ? 'bg-blue-100/90 dark:bg-blue-950/60 text-blue-900 dark:text-blue-100 font-semibold ring-1 ring-blue-400/40'
                     : isOpen
                         ? 'bg-blue-50/75 dark:bg-blue-950/30 text-blue-800 dark:text-blue-200 font-medium'
-                        : isHighlighted(file.id, 'file')
-                            ? 'bg-purple-50 dark:bg-purple-900/20'
-                            : 'hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover text-gray-700 dark:text-gray-300'
-                }
-                ${highlight.isSelectingLink ? 'bg-purple-50/30 dark:bg-purple-900/10' : ''}`}
-            style={{
-                boxShadow: highlight.isSelectingLink
-                    ? '0 0 10px rgba(168, 85, 247, 0.6)'
-                    : (isHighlighted(file.id, 'file') ? '0 0 5px rgba(168, 85, 247, 0.4)' : 'none')
-            }}
+                        : 'hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover text-gray-700 dark:text-gray-300'
+                }`}
         >
             <div className="flex items-center gap-2 truncate flex-1 flex-shrink-0">
                 {file.title.startsWith('#')
@@ -1179,7 +1197,7 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                                 ? 'text-blue-800 dark:text-blue-200 font-medium'
                                 : 'text-gray-700 dark:text-gray-300 font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100'
                     } ${file.owner_id && myId && file.owner_id !== myId ? 'purple-shimmer-text' : ''}`}>
-                        {file.title.startsWith('#') ? file.title.slice(1).trim() : file.title}
+                        {(highlight.isSelectingLink || isHighlighted(file.id, 'file')) ? <AnimatedLinkingText text={file.title.startsWith('#') ? file.title.slice(1).trim() : file.title} /> : (file.title.startsWith('#') ? file.title.slice(1).trim() : file.title)}
                     </span>
                 )}
             </div>
@@ -1465,3 +1483,5 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
         </div>
     );
 };
+
+

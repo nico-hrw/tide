@@ -378,8 +378,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 ...style, ...borderRadiusStyle,
                 borderLeft: 'none',
                 ...(shouldGlow ? {
-                    boxShadow: `0 0 0 2px ${glowColor}, 0 4px 20px ${glowColor}60`,
-                    zIndex: 90,
+                    boxShadow: `inset 0 0 0 1px ${glowColor}, inset 0 0 15px ${glowColor}30`,
+                    zIndex: 65,
                 } : {}),
             }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
@@ -409,7 +409,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     setIsLinkingMode(false);
                 }
             }}
-            className={`event-item group absolute ${isTimePoint ? 'px-1.5 py-0 overflow-visible rounded-sm' : isShortEvent ? 'px-2.5 py-0 overflow-hidden' : durationMinutes < 45 ? 'px-3 py-1.5 overflow-hidden' : 'px-3.5 py-3 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-all ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''}`}
+            className={`event-item group absolute ${isTimePoint ? 'px-1.5 py-0 overflow-visible rounded-sm' : isShortEvent ? 'px-2.5 py-0 overflow-hidden' : durationMinutes < 45 ? 'px-3 py-1.5 overflow-hidden' : 'px-3.5 py-3 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-all ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''} ${shouldGlow ? 'event-shimmer' : ''}`}
             onClick={(e) => {
                 e.stopPropagation();
 

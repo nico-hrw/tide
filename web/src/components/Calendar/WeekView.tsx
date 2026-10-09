@@ -457,7 +457,7 @@ export default function WeekView({
 
                         {/* Current Time Line */}
                         <div
-                            className="absolute left-[60px] right-0 h-[1px] bg-[#EF4444] z-[60] pointer-events-none"
+                            className="absolute left-[60px] right-0 h-[1px] bg-[#EF4444] z-[95] pointer-events-none"
                             style={{ top: `${currentTimeTop + 50}px` }}
                         >
                             <div className="w-1.5 h-1.5 rounded-full bg-[#EF4444] absolute -left-[3px] -top-[2px]"></div>
