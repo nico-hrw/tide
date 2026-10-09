@@ -49,7 +49,9 @@ const FinanceDashboard = dynamic(() => import('@/components/Finance/FinanceDashb
     loading: () => <div className="flex-1 flex items-center justify-center p-8 text-gray-400">Loading module...</div>
 });
 
-const ExamsPlanner = dynamic(() => import('@/components/Exams/ExamsPlanner'), {
+import { useJobPlannerStore } from "@/store/useJobPlannerStore";
+
+const JobPlanner = dynamic(() => import('@/components/JobPlanner/JobPlanner'), {
     loading: () => <div className="flex-1 flex items-center justify-center p-8 text-gray-400">Loading planner...</div>
 });
 import EditorGutter from "@/components/Canvas/EditorGutter";
@@ -3528,7 +3530,7 @@ export default function Dashboard() {
 
     // 5. Tab Management & Messages
     // -------------------------------------------------------------------------
-    const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'trash') => {
+    const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash') => {
         if (type === 'social') {
             setActiveTabId('social');
             return;
@@ -3877,7 +3879,7 @@ export default function Dashboard() {
                     onTabsReorder={setOpenTabs}
                     onOpenCalendar={() => handleTabSelect('calendar', 'calendar')}
                     onOpenSocial={() => setActiveTabId('social')}
-                    onOpenExams={() => setActiveTabId('exams')}
+                    onOpenExams={() => handleTabSelect('job_planner', 'job_planner')}
                     onOpenFinance={() => handleFileSelect('ext_finance', 'Finance Tracker')}
                 />
             </div>
@@ -4068,9 +4070,13 @@ export default function Dashboard() {
                     )}
                 </div>
 
-                <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'exams' ? 'block' : 'hidden'}`}>
-                    {activeTabId === 'exams' && (
-                        <ExamsPlanner />
+                <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'job_planner' || activeTabId === 'exams' ? 'block' : 'hidden'}`}>
+                    {(activeTabId === 'job_planner' || activeTabId === 'exams') && (
+                        <JobPlanner
+                            onCreateGroup={handleCreateEventGroup}
+                            onOpenCalendar={() => handleTabSelect('calendar', 'calendar')}
+                            onOpenSettings={() => setSettingsModalOpen(true)}
+                        />
                     )}
                 </div>
 
@@ -4080,7 +4086,7 @@ export default function Dashboard() {
                     )}
                 </div>
 
-                <div className={`flex-1 min-h-0 relative overflow-y-auto ${activeTabId === 'calendar' || activeTabId === 'messages' || activeTabId === 'social' || activeTabId === 'exams' || activeTabId === 'trash' || activeTabId.startsWith('chat-') || activeTabId === 'ext_finance' || activeTabId.startsWith('profile:') ? 'hidden' : 'block'}`}>
+                <div className={`flex-1 min-h-0 relative overflow-y-auto ${activeTabId === 'calendar' || activeTabId === 'messages' || activeTabId === 'social' || activeTabId === 'job_planner' || activeTabId === 'exams' || activeTabId === 'trash' || activeTabId.startsWith('chat-') || activeTabId === 'ext_finance' || activeTabId.startsWith('profile:') ? 'hidden' : 'block'}`}>
                     {isLoadingContent ? (
                         <div className="flex items-center justify-center h-full text-gray-400">Loading content...</div>
                     ) : (
@@ -4499,6 +4505,15 @@ export default function Dashboard() {
                 onShareGroup={handleShare}
                 onDeleteGroup={(e: any, id: string) => {
                     const group = files.find(f => f.id === id);
+                    const isPlannerActive = enabledExtensions.includes('job_planner');
+                    const isProtected = isPlannerActive && (
+                        useJobPlannerStore.getState().protectedGroupIds.includes(id) ||
+                        ['job', 'studium'].includes((group?.title || '').trim().toLowerCase())
+                    );
+                    if (isProtected) {
+                        alert("Diese Kategorie wird vom Job & Studienplaner verwendet und kann nicht gelöscht werden.");
+                        return;
+                    }
                     if (group && confirm(`Delete group "${group.title}"? This won't delete events in it.`)) {
                         handleDeleteNote(e, id);
                     }

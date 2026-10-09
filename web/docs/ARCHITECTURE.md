@@ -25,7 +25,7 @@ web/src/
 │   ├── Canvas/           # XYFlow infinite canvas & card components
 │   ├── Chat/             # E2EE chat messages & partner profiles
 │   ├── Editor.tsx        # TipTap rich text editor (solo & collaborative modes)
-│   ├── Exams/            # Exam planner extension
+│   ├── JobPlanner/       # Job & study planner extension
 │   ├── Finance/          # Finance tracker extension
 │   ├── Layout/           # MobileLayout, MobileWeekGrid, Sidebar, TabList, BottomSheet
 │   ├── Modals/           # ShareModal, ShareManagementPanel, SettingsModal

@@ -445,17 +445,19 @@ export default function Sidebar({
                             Social
                         </span>
                     </button>
-                    <button
-                        onClick={() => onOpenExams?.()}
-                        className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'exams' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
-                    >
-                        <div className={`shrink-0 ${activeTabId === 'exams' ? 'text-blue-500' : 'text-[var(--text-muted)] group-hover:text-blue-500 transition-colors'}`}>
-                            <GraduationCap size={16} />
-                        </div>
-                        <span className={`text-[13px] font-medium flex-1 text-left ${activeTabId === 'exams' ? 'text-[var(--text-body)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-body)] transition-colors'}`}>
-                            Prüfungen
-                        </span>
-                    </button>
+                    {(!enabledExtensions || enabledExtensions.includes('job_planner')) && (
+                        <button
+                            onClick={() => onOpenExams?.()}
+                            className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'job_planner' || activeTabId === 'exams' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
+                        >
+                            <div className={`shrink-0 ${activeTabId === 'job_planner' || activeTabId === 'exams' ? 'text-blue-500' : 'text-[var(--text-muted)] group-hover:text-blue-500 transition-colors'}`}>
+                                <GraduationCap size={16} />
+                            </div>
+                            <span className={`text-[13px] font-medium flex-1 text-left ${activeTabId === 'job_planner' || activeTabId === 'exams' ? 'text-[var(--text-body)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-body)] transition-colors'}`}>
+                                Job & Uni
+                            </span>
+                        </button>
+                    )}
 
                 </div>
             </div>{/* end sticky top section */}

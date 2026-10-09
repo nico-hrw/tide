@@ -23,7 +23,7 @@ import Avatar from '../Profile/Avatar';
 export interface Tab {
     id: string;
     title: string;
-    type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'trash';
+    type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash';
     content?: any;
     _fileKey?: CryptoKey | null;
     _saveStatus?: "saved" | "unsaved" | "saving";
@@ -32,7 +32,7 @@ export interface Tab {
 interface TabListProps {
     tabs: Tab[];
     activeTabId: string;
-    onTabSelect: (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'trash') => void;
+    onTabSelect: (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash') => void;
     onTabClose: (e: React.MouseEvent | null, id: string) => void;
     onTabsReorder?: (newTabs: Tab[]) => void;
     onNewTab?: () => void;
@@ -86,6 +86,7 @@ export default function TabList({
                 return <User size={13} />;
             case 'social':
                 return <Users size={13} />;
+            case 'job_planner':
             case 'exams':
                 return <GraduationCap size={13} />;
             case 'ext_finance':
@@ -105,7 +106,8 @@ export default function TabList({
         switch (tab.type) {
             case 'calendar': return 'Kalender';
             case 'social': return 'Social';
-            case 'exams': return 'Prüfungen';
+            case 'job_planner': return 'Job & Uni';
+            case 'exams': return 'Job & Uni';
             case 'chat': return 'Chat';
             case 'profile': return 'Profil';
             case 'ext_finance': return 'Finanzen';

@@ -97,7 +97,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     metadataCache: {},
     isSettingsModalOpen: false,
     setSettingsModalOpen: (open: boolean) => set({ isSettingsModalOpen: open }),
-    enabledExtensions: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('tide_enabled_extensions') || '["smart_island", "summary", "smart_date_detection"]') : ['smart_island', 'summary', 'smart_date_detection'],
+    enabledExtensions: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('tide_enabled_extensions') || '["smart_island", "summary", "smart_date_detection", "job_planner"]') : ['smart_island', 'summary', 'smart_date_detection', 'job_planner'],
     setEnabledExtensions: (extensions) => set(s => {
         const next = typeof extensions === 'function' ? extensions(s.enabledExtensions) : extensions;
         localStorage.setItem('tide_enabled_extensions', JSON.stringify(next));

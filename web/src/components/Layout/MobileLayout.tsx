@@ -33,7 +33,7 @@ const getGreeting = (name: string, date: Date) => {
   return name ? `${greet}, ${name}!` : `${greet}!`;
 };
 
-const ExamsPlanner = dynamic(() => import('../Exams/ExamsPlanner'), {
+const JobPlanner = dynamic(() => import('../JobPlanner/JobPlanner'), {
   loading: () => <div className="flex-1 flex items-center justify-center p-8 text-sm" style={{ color: 'var(--muted-text)' }}>Lade…</div>,
 });
 const FinanceDashboard = dynamic(() => import('../Finance/FinanceDashboard'), {
@@ -2045,7 +2045,7 @@ export default function MobileLayout({
             <div style={{ borderTop: `1px solid ${T.brd}`, flexShrink: 0 }}>
               <div className="flex overflow-x-auto gap-2 px-3 py-3 no-scrollbar">
                 {[
-                  { id: 'exams', icon: <GraduationCap size={18} />, label: 'Prüfungen', ext: 'exams', action: () => { setIsSidebarOpen(false); setIsExamsOpen(true); } },
+                  { id: 'job_planner', icon: <GraduationCap size={18} />, label: 'Job & Uni', ext: 'job_planner', action: () => { setIsSidebarOpen(false); setIsExamsOpen(true); } },
                   { id: 'finance', icon: <DollarSign size={18} />, label: 'Finanzen', ext: 'finance', action: () => { setIsSidebarOpen(false); setIsFinanceOpen(true); } },
                   { id: 'settings', icon: <Settings size={18} />, label: 'Optionen', ext: '', action: () => { setIsSidebarOpen(false); setSettingsOpen(true); } },
                 ].map(tab => {
@@ -2102,8 +2102,8 @@ export default function MobileLayout({
                   WebkitBackdropFilter: 'blur(16px)',
                   border: `1px solid ${T.brd}`,
                 }}>
-                <Search size={14} style={{ color: T.sec }} />
-                <span className="text-sm flex-1 text-left" style={{ color: T.mut }}>Suchen, Notiz oder Termin erfassen…</span>
+                  <Search size={14} style={{ color: T.sec }} />
+                  <span className="text-sm flex-1 text-left" style={{ color: T.mut }}>Suchen, Notiz oder Termin erfassen…</span>
               </button>
             )}
           </motion.div>
@@ -2111,10 +2111,10 @@ export default function MobileLayout({
 
         {/* Social removed from mobile */}
 
-        {/* Exams */}
+        {/* Job & Study Planner */}
         {isExamsOpen && (
-          <OverlayShell key="exams" title="Prüfungen" onBack={() => setIsExamsOpen(false)}>
-            <div className="flex-1 overflow-y-auto"><ExamsPlanner /></div>
+          <OverlayShell key="job_planner" title="Job & Uni" onBack={() => setIsExamsOpen(false)}>
+            <div className="flex-1 overflow-y-auto"><JobPlanner /></div>
           </OverlayShell>
         )}
 

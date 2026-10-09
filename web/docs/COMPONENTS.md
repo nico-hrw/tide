@@ -161,7 +161,7 @@
 |-----------|------|------|
 | FinanceDashboard | `web/src/components/Finance/FinanceDashboard.tsx` | Finance extension root |
 | AccountNode | `web/src/components/Finance/AccountNode.tsx` | Finance account node |
-| ExamsPlanner | `web/src/components/Exams/ExamsPlanner.tsx` | Exam planning module |
+| JobPlanner | `web/src/components/JobPlanner/JobPlanner.tsx` | Job & study planning module |
 
 ## Settings
 
@@ -179,7 +179,7 @@
 | useSocialStore | `web/src/store/useSocialStore.ts` | Contacts, messages |
 | useLinkStore | `web/src/store/useLinkStore.ts` | Graph link cache |
 | useReferenceStore | `web/src/store/useReferenceStore.ts` | Backlink reference tracking |
-| useExamsStore | `web/src/store/useExamsStore.ts` | Exams module state |
+| useJobPlannerStore | `web/src/store/useJobPlannerStore.ts` | Job & Study planner module state |
 | useIslandStore | `web/src/components/extensions/smart_island/useIslandStore.tsx` | Smart island state |
 
 ## Lib Utilities

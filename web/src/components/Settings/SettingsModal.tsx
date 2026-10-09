@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useReferenceStore } from '@/store/useReferenceStore';
-import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon, Calendar, Share, Plus } from 'lucide-react';
+import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon, Calendar, Share, Plus, Briefcase } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
+import { useJobPlannerStore } from '@/store/useJobPlannerStore';
 
 import { motion, AnimatePresence } from 'framer-motion';
 import Avatar from '@/components/Profile/Avatar';
@@ -25,7 +26,7 @@ interface SettingsModalProps {
     onCreateGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 }
 
-function GroupItem({ group, hiddenGroupIds, onToggleVisibility, onUpdate, onShare, onDelete }: any) {
+function GroupItem({ group, hiddenGroupIds, onToggleVisibility, onUpdate, onShare, onDelete, isProtected }: any) {
     const [localTitle, setLocalTitle] = useState(group.title);
 
     useEffect(() => {
@@ -65,13 +66,22 @@ function GroupItem({ group, hiddenGroupIds, onToggleVisibility, onUpdate, onShar
                     >
                         <Share size={11} />
                     </button>
-                    <button
-                        onClick={(e) => onDelete(e, group.id)}
-                        className="p-1 hover:bg-rose-50 dark:hover:bg-rose-500/20 rounded text-gray-400 dark:text-gray-300 hover:text-rose-500 transition-all font-semibold"
-                        title="Delete Group"
-                    >
-                        ✗
-                    </button>
+                    {isProtected ? (
+                        <span
+                            className="p-1 text-blue-500/80 cursor-not-allowed font-semibold"
+                            title="Vom Job Planner Plugin geschützt (nicht löschbar)"
+                        >
+                            <Lock size={12} />
+                        </span>
+                    ) : (
+                        <button
+                            onClick={(e) => onDelete(e, group.id)}
+                            className="p-1 hover:bg-rose-50 dark:hover:bg-rose-500/20 rounded text-gray-400 dark:text-gray-300 hover:text-rose-500 transition-all font-semibold"
+                            title="Delete Group"
+                        >
+                            ✗
+                        </button>
+                    )}
                 </div>
             </div>
             
@@ -572,6 +582,7 @@ export default function SettingsModal({
             </div>
 
             {[
+                { id: 'job_planner', title: 'Job & Study Planner', desc: 'Arbeitszeiten, Stundenplan, Semester und Quick-Links verwalten', version: 'v1.0.0', updated: 'Today', icon: Briefcase, color: 'text-blue-500' },
                 { id: 'finance', title: 'Finance Tracker', desc: 'Strict double-entry bookkeeping', version: 'v1.2.0', updated: 'Mar 1, 2026', icon: Blocks, color: 'text-emerald-500' },
                 { id: 'messenger', title: 'Messenger', desc: 'Under Maintenance', version: 'v0.9.5-beta', updated: 'Mar 3, 2026', icon: User, color: 'text-gray-500 dark:text-slate-400', disabled: true },
                 { id: 'summary', title: 'Daily Summary', desc: 'Duolingo-style daily recap & streaks', version: 'v2.0.1', updated: 'Feb 28, 2026', icon: Flame, color: 'text-orange-500' },
@@ -612,6 +623,27 @@ export default function SettingsModal({
                                     {enabledExtensions.includes(ext.id) && <Check className="absolute inset-0 m-auto h-3 w-3 text-blue-500" />}
                                 </span>
                             </button>
+
+                            {ext.id === 'job_planner' && enabledExtensions.includes('job_planner') && (
+                                <div className="flex flex-col items-end gap-2 mt-2 w-full">
+                                    <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 p-1 rounded-lg">
+                                        {(['job', 'study', 'both'] as const).map(m => (
+                                            <button
+                                                key={m}
+                                                type="button"
+                                                onClick={() => useJobPlannerStore.getState().setMode(m)}
+                                                className={`px-2 py-0.5 text-[10px] font-semibold rounded-md transition-all ${
+                                                    useJobPlannerStore((s) => s.mode) === m
+                                                        ? 'bg-blue-600 text-white shadow-xs'
+                                                        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
+                                                }`}
+                                            >
+                                                {m === 'job' ? 'Job' : (m === 'study' ? 'Studium' : 'Beides')}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {ext.id === 'references' && enabledExtensions.includes('references') && (
                                 <div className="flex flex-col items-end gap-2 mt-2 w-full">
@@ -913,17 +945,26 @@ export default function SettingsModal({
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[220px] overflow-y-auto pr-1">
-                        {groups.map(group => (
-                            <GroupItem
-                                key={group.id}
-                                group={group}
-                                hiddenGroupIds={hiddenGroupIds}
-                                onToggleVisibility={onToggleGroupVisibility}
-                                onUpdate={onUpdateGroup}
-                                onShare={onShareGroup}
-                                onDelete={onDeleteGroup}
-                            />
-                        ))}
+                        {groups.map(group => {
+                            const isJobPlannerActive = enabledExtensions.includes('job_planner');
+                            const plannerProtectedIds = useJobPlannerStore.getState().protectedGroupIds;
+                            const isProtected = isJobPlannerActive && (
+                                plannerProtectedIds.includes(group.id) ||
+                                ['job', 'studium'].includes((group.title || '').trim().toLowerCase())
+                            );
+                            return (
+                                <GroupItem
+                                    key={group.id}
+                                    group={group}
+                                    hiddenGroupIds={hiddenGroupIds}
+                                    onToggleVisibility={onToggleGroupVisibility}
+                                    onUpdate={onUpdateGroup}
+                                    onShare={onShareGroup}
+                                    onDelete={onDeleteGroup}
+                                    isProtected={isProtected}
+                                />
+                            );
+                        })}
                         {groups.length === 0 && (
                             <p className="text-xs text-gray-400 italic col-span-2 text-center py-4">No custom groups created yet.</p>
                         )}
