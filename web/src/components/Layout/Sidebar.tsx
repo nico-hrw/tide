@@ -1016,29 +1016,26 @@ interface FileItemProps {
     openTabs?: Tab[];
 }
 
-const AnimatedLinkingText = ({ text }: { text: string }) => {
+const AnimatedLinkingText = ({ text, index = 0 }: { text: string, index?: number }) => {
     return (
-        <span className="inline-flex whitespace-pre">
-            {text.split('').map((char, i) => (
-                <motion.span
-                    key={i}
-                    animate={{
-                        scale: [1, 1.15, 1],
-                        color: ['inherit', '#A855F7', 'inherit'],
-                        textShadow: ['none', '0 0 10px rgba(168,85,247,0.6)', 'none']
-                    }}
-                    transition={{
-                        duration: 2,
-                        repeat: Infinity,
-                        delay: i * 0.04,
-                        ease: "easeInOut"
-                    }}
-                    style={{ display: char === ' ' ? 'inline' : 'inline-block' }}
-                >
-                    {char}
-                </motion.span>
-            ))}
-        </span>
+        <motion.span
+            initial={{ color: 'inherit', textShadow: 'none', fontWeight: 500 }}
+            animate={{
+                color: ['inherit', '#a855f7', '#a855f7', 'inherit'],
+                textShadow: ['none', '0 0 12px rgba(168,85,247,0.7)', '0 0 12px rgba(168,85,247,0.7)', 'none'],
+                fontWeight: [500, 700, 700, 500]
+            }}
+            transition={{
+                duration: 2.5,
+                repeat: 3, // Don't animate continuously
+                delay: (index * 0.15), // Wave effect
+                ease: "easeInOut",
+                times: [0, 0.3, 0.7, 1]
+            }}
+            className="inline-block truncate w-full"
+        >
+            {text}
+        </motion.span>
     );
 };
 
@@ -1197,7 +1194,7 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                                 ? 'text-blue-800 dark:text-blue-200 font-medium'
                                 : 'text-gray-700 dark:text-gray-300 font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100'
                     } ${file.owner_id && myId && file.owner_id !== myId ? 'purple-shimmer-text' : ''}`}>
-                        {(highlight.isSelectingLink || isHighlighted(file.id, 'file')) ? <AnimatedLinkingText text={file.title.startsWith('#') ? file.title.slice(1).trim() : file.title} /> : (file.title.startsWith('#') ? file.title.slice(1).trim() : file.title)}
+                        {(highlight.isSelectingLink || isHighlighted(file.id, 'file')) ? <AnimatedLinkingText text={file.title.startsWith('#') ? file.title.slice(1).trim() : file.title} index={index} /> : (file.title.startsWith('#') ? file.title.slice(1).trim() : file.title)}
                     </span>
                 )}
             </div>

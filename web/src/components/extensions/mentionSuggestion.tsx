@@ -3,6 +3,7 @@ import tippy from 'tippy.js';
 import { useDataStore } from '@/store/useDataStore';
 import { useLinkStore } from '@/store/useLinkStore';
 import { forwardRef, useEffect, useImperativeHandle, useState, useRef } from 'react';
+import { FileText, Calendar as CalendarIcon, CheckSquare, Plus } from 'lucide-react';
 
 const MentionList = forwardRef((props: any, ref) => {
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -78,8 +79,11 @@ const MentionList = forwardRef((props: any, ref) => {
                     >
                         <div className="font-medium truncate flex-1">{item.label || item.title}</div>
                         {(item.type) && (
-                            <div className="text-[10px] opacity-40 uppercase tracking-wider flex-shrink-0">
-                                {item.type}
+                            <div className="flex-shrink-0 text-gray-400 dark:text-gray-500">
+                                {item.type === 'note' && <FileText size={14} />}
+                                {item.type === 'event' && <CalendarIcon size={14} />}
+                                {item.type === 'task' && <CheckSquare size={14} />}
+                                {item.type === 'action' && <Plus size={14} />}
                             </div>
                         )}
                     </button>
@@ -122,30 +126,37 @@ export default {
 
         // 3. Search Matching
         const lowQuery = query.toLowerCase();
-        const matched = filteredFiles.filter((f: any) => (f.title || f.id).toLowerCase().includes(lowQuery));
-
+        let matched = filteredFiles.filter((f: any) => (f.title || f.id).toLowerCase().includes(lowQuery));
+        
         // 4. Search Matching for Events
         const events = state.events || [];
-        const matchedEvents = events.filter((e: any) => {
+        let matchedEvents = events.filter((e: any) => {
             if (!e || !e.title) return false;
             return e.title.toLowerCase().includes(lowQuery);
         });
 
         // 4.5 Search Matching for Tasks — only show UNSCHEDULED tasks here.
-        // Tasks with a scheduledDate already appear in the calendar as events.
         const tasks = state.tasks || [];
         const matchedTasks = tasks.filter((t: any) => {
             if (!t || !t.title) return false;
             if (!t.title.toLowerCase().includes(lowQuery)) return false;
-            // If the task has been given a scheduled date it lives in the calendar as an event
             if (t.scheduledDate) return false;
             return true;
         });
 
-        // Build a set of task IDs so we don't show a task as a 'note' in the files list
         const taskIdSet = new Set(tasks.map((t: any) => t.id));
 
-        // 5. Return formatted — notes must not contain task IDs
+        // OPTIMIZATION: Sort empty queries (recent notes, upcoming events)
+        if (!lowQuery) {
+            matched = matched.sort((a: any, b: any) => (new Date(b.updated_at).getTime() || 0) - (new Date(a.updated_at).getTime() || 0)).slice(0, 3);
+            const now = Date.now();
+            matchedEvents = matchedEvents
+                .filter((e: any) => new Date(e.start).getTime() >= now - 86400000) // from today onwards
+                .sort((a: any, b: any) => new Date(a.start).getTime() - new Date(b.start).getTime())
+                .slice(0, 2);
+        }
+
+        // 5. Return formatted
         return [
             ...matched
                 .filter((f: any) => !taskIdSet.has(f.id)) // exclude tasks from note results
@@ -254,6 +265,7 @@ export default {
                     interactive: true,
                     trigger: 'manual',
                     placement: 'bottom-start',
+                    theme: 'headless',
                 });
                 
                 if (props.items && props.items.length > 0) {

@@ -713,3 +713,26 @@ span.task-mention-pill,
 .event-shimmer {
   animation: event-shimmer 4s ease-in-out infinite;
 }
+
+/* Tippy Headless Theme */
+.tippy-box[data-theme~='headless'] {
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+.tippy-box[data-theme~='headless'] > .tippy-content {
+  padding: 0 !important;
+}
+.tippy-box[data-theme~='headless'] .tippy-arrow {
+  display: none !important;
+}
+
+/* Tiptap Suggestion Ghost Text */
+.suggestion::after {
+  content: var(--suggestion-remainder, "");
+  color: #9ca3af;
+  pointer-events: none;
+}
+

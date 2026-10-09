@@ -111,11 +111,10 @@ export function HighlightProvider({ children }: { children: ReactNode }) {
                     >
                         <motion.path
                             d={`M ${connectionLine.start.x} ${connectionLine.start.y} 
-                                C ${connectionLine.start.x + (connectionLine.end.x - connectionLine.start.x)*0.3} ${connectionLine.start.y - 100}, 
-                                  ${connectionLine.start.x + (connectionLine.end.x - connectionLine.start.x)*0.7 + 100} ${connectionLine.start.y + (connectionLine.end.y - connectionLine.start.y)*0.5 - 150}, 
-                                  ${connectionLine.start.x + (connectionLine.end.x - connectionLine.start.x)*0.5} ${connectionLine.start.y + (connectionLine.end.y - connectionLine.start.y)*0.5}
-                                C ${connectionLine.start.x + (connectionLine.end.x - connectionLine.start.x)*0.3 - 100} ${connectionLine.start.y + (connectionLine.end.y - connectionLine.start.y)*0.5 + 150}, 
-                                  ${connectionLine.end.x - (connectionLine.end.x - connectionLine.start.x)*0.2} ${connectionLine.end.y + 100}, 
+                                C ${connectionLine.start.x - 250} ${connectionLine.start.y - 50}, 
+                                  ${connectionLine.start.x - 50} ${connectionLine.start.y + 200}, 
+                                  ${connectionLine.start.x + (connectionLine.end.x - connectionLine.start.x) * 0.5} ${connectionLine.start.y + (connectionLine.end.y - connectionLine.start.y) * 0.5}
+                                S ${connectionLine.end.x - 150} ${connectionLine.end.y - 150}, 
                                   ${connectionLine.end.x} ${connectionLine.end.y}`}
                             fill="none"
                             stroke="url(#purpleGlow)"
@@ -125,8 +124,8 @@ export function HighlightProvider({ children }: { children: ReactNode }) {
                             initial={{ pathLength: 0, opacity: 0 }}
                             animate={{ pathLength: 1, opacity: 1 }}
                             transition={{
-                                pathLength: { duration: 3.5, ease: "easeInOut" },
-                                opacity: { duration: 0.5 }
+                                pathLength: { duration: 1.5, ease: "easeOut" },
+                                opacity: { duration: 0.3 }
                             }}
                         />
                         <defs>
