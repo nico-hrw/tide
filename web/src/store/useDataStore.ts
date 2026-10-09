@@ -65,7 +65,8 @@ interface DataState {
     toggleFolder: (id: string, open?: boolean) => void;
 
     isSettingsModalOpen: boolean;
-    setSettingsModalOpen: (open: boolean) => void;
+    settingsModalTab: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info';
+    setSettingsModalOpen: (open: boolean, tab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info') => void;
 
     enabledExtensions: string[];
     setEnabledExtensions: (extensions: string[] | ((prev: string[]) => string[])) => void;
@@ -96,7 +97,12 @@ export const useDataStore = create<DataState>((set, get) => ({
     tasks: [],
     metadataCache: {},
     isSettingsModalOpen: false,
-    setSettingsModalOpen: (open: boolean) => set({ isSettingsModalOpen: open }),
+    settingsModalTab: 'account',
+    setSettingsModalOpen: (open: boolean, tab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info') => 
+        set(s => ({ 
+            isSettingsModalOpen: open, 
+            settingsModalTab: tab || (open ? s.settingsModalTab : 'account') 
+        })),
     enabledExtensions: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('tide_enabled_extensions') || '["smart_island", "summary", "smart_date_detection", "job_planner"]') : ['smart_island', 'summary', 'smart_date_detection', 'job_planner'],
     setEnabledExtensions: (extensions) => set(s => {
         const next = typeof extensions === 'function' ? extensions(s.enabledExtensions) : extensions;

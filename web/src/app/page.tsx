@@ -4075,7 +4075,7 @@ export default function Dashboard() {
                         <JobPlanner
                             onCreateGroup={handleCreateEventGroup}
                             onOpenCalendar={() => handleTabSelect('calendar', 'calendar')}
-                            onOpenSettings={() => setSettingsModalOpen(true)}
+                            onOpenSettings={(tab?: any) => setSettingsModalOpen(true, tab || 'extensions')}
                         />
                     )}
                 </div>
@@ -4492,6 +4492,7 @@ export default function Dashboard() {
             <SettingsModal
                 isOpen={isSettingsModalOpen}
                 onClose={() => setSettingsModalOpen(false)}
+                initialTab={useDataStore.getState().settingsModalTab}
                 enabledExtensions={enabledExtensions}
                 onToggleExtension={handleToggleExtension}
                 userProfile={userProfile || undefined}
@@ -4506,10 +4507,8 @@ export default function Dashboard() {
                 onDeleteGroup={(e: any, id: string) => {
                     const group = files.find(f => f.id === id);
                     const isPlannerActive = enabledExtensions.includes('job_planner');
-                    const isProtected = isPlannerActive && (
-                        useJobPlannerStore.getState().protectedGroupIds.includes(id) ||
-                        ['job', 'studium'].includes((group?.title || '').trim().toLowerCase())
-                    );
+                    const plannerGroupId = useJobPlannerStore.getState().pluginGroupId;
+                    const isProtected = isPlannerActive && Boolean(plannerGroupId && id === plannerGroupId);
                     if (isProtected) {
                         alert("Diese Kategorie wird vom Job & Studienplaner verwendet und kann nicht gelöscht werden.");
                         return;

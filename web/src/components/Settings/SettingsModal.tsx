@@ -11,6 +11,7 @@ import { apiFetch } from '@/lib/api';
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
+    initialTab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info';
     enabledExtensions: string[];
     onToggleExtension: (extensionId: string, enabled: boolean) => void;
     userProfile?: { id?: string; user_id?: string; username: string; email: string; bio?: string; title?: string; avatar_seed?: string; avatar_salt?: string; avatar_style?: string; is_verified?: boolean; profile_status?: number };
@@ -147,9 +148,77 @@ function GroupItem({ group, hiddenGroupIds, onToggleVisibility, onUpdate, onShar
     );
 }
 
+function JobPlannerExtensionConfig({ groups }: { groups?: { id: string; title: string; color?: string }[] }) {
+    const { mode, setMode, showWeekends, setShowWeekends, pluginGroupId } = useJobPlannerStore();
+    const activeGroup = groups?.find(g => g.id === pluginGroupId);
+
+    return (
+        <div className="w-full mt-4 pt-4 border-t border-gray-100 dark:border-white/5 space-y-4 animate-in slide-in-from-top-2">
+            <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-2">
+                    Modus
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                    {([
+                        { id: 'job', label: 'Job' },
+                        { id: 'study', label: 'Studium' },
+                        { id: 'both', label: 'Beides' }
+                    ] as const).map(item => (
+                        <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setMode(item.id)}
+                            className={`px-3 py-2 text-xs font-semibold rounded-xl border transition-all text-center ${
+                                mode === item.id
+                                    ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                                    : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10'
+                            }`}
+                        >
+                            {item.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200/60 dark:border-white/5">
+                <div>
+                    <h5 className="text-xs font-bold text-gray-900 dark:text-white">Wochenende im Stundenplan</h5>
+                    <p className="text-[11px] text-gray-500">Zeigt Samstag und Sonntag in der Kalenderansicht an</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => setShowWeekends(!showWeekends)}
+                    className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 cursor-pointer ${
+                        showWeekends ? 'bg-blue-600' : 'bg-gray-200 dark:bg-zinc-700'
+                    }`}
+                >
+                    <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
+                        showWeekends ? 'translate-x-4' : 'translate-x-0'
+                    }`} />
+                </button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h5 className="text-xs font-bold text-blue-900 dark:text-blue-300">Zugeordnete Terminart</h5>
+                        <p className="text-[11px] text-blue-700/80 dark:text-blue-400/80">
+                            Termine für diesen Planer werden in dieser Kategorie gespeichert
+                        </p>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-bold shadow-2xs">
+                        {activeGroup?.title || (mode === 'both' ? 'Job & Studium' : (mode === 'job' ? 'Job' : 'Studium'))}
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function SettingsModal({
     isOpen,
     onClose,
+    initialTab,
     enabledExtensions,
     onToggleExtension,
     userProfile,
@@ -165,7 +234,14 @@ export default function SettingsModal({
     onCreateGroup
 }: SettingsModalProps) {
 
-    const [activeTab, setActiveTab] = useState<'account' | 'calendar' | 'extensions' | 'appearance' | 'info'>('account');
+    const [activeTab, setActiveTab] = useState<'account' | 'calendar' | 'extensions' | 'appearance' | 'info'>(initialTab || 'account');
+
+    useEffect(() => {
+        if (initialTab) {
+            setActiveTab(initialTab);
+        }
+    }, [initialTab]);
+
     const [pinInputValue, setPinInputValue] = useState("");
     const autoScanEnabled = useReferenceStore((state) => state.autoScanEnabled);
     const references = useReferenceStore((state) => state.references);
@@ -624,27 +700,6 @@ export default function SettingsModal({
                                 </span>
                             </button>
 
-                            {ext.id === 'job_planner' && enabledExtensions.includes('job_planner') && (
-                                <div className="flex flex-col items-end gap-2 mt-2 w-full">
-                                    <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 p-1 rounded-lg">
-                                        {(['job', 'study', 'both'] as const).map(m => (
-                                            <button
-                                                key={m}
-                                                type="button"
-                                                onClick={() => useJobPlannerStore.getState().setMode(m)}
-                                                className={`px-2 py-0.5 text-[10px] font-semibold rounded-md transition-all ${
-                                                    useJobPlannerStore((s) => s.mode) === m
-                                                        ? 'bg-blue-600 text-white shadow-xs'
-                                                        : 'text-gray-600 dark:text-gray-300 hover:text-gray-900'
-                                                }`}
-                                            >
-                                                {m === 'job' ? 'Job' : (m === 'study' ? 'Studium' : 'Beides')}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
                             {ext.id === 'references' && enabledExtensions.includes('references') && (
                                 <div className="flex flex-col items-end gap-2 mt-2 w-full">
                                     <label className="flex items-center gap-2 cursor-pointer bg-emerald-50 dark:bg-emerald-900/20 px-2 py-1 rounded-md border border-emerald-100 dark:border-emerald-800">
@@ -666,6 +721,10 @@ export default function SettingsModal({
                             )}
                         </div>
                     </div>
+
+                    {ext.id === 'job_planner' && enabledExtensions.includes('job_planner') && (
+                        <JobPlannerExtensionConfig groups={groups} />
+                    )}
 
                     {ext.id === 'references' && showDictionary && enabledExtensions.includes('references') && (
                         <div className="w-full mt-4 pt-4 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-2">
@@ -947,11 +1006,8 @@ export default function SettingsModal({
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[220px] overflow-y-auto pr-1">
                         {groups.map(group => {
                             const isJobPlannerActive = enabledExtensions.includes('job_planner');
-                            const plannerProtectedIds = useJobPlannerStore.getState().protectedGroupIds;
-                            const isProtected = isJobPlannerActive && (
-                                plannerProtectedIds.includes(group.id) ||
-                                ['job', 'studium'].includes((group.title || '').trim().toLowerCase())
-                            );
+                            const plannerGroupId = useJobPlannerStore.getState().pluginGroupId;
+                            const isProtected = isJobPlannerActive && Boolean(plannerGroupId && group.id === plannerGroupId);
                             return (
                                 <GroupItem
                                     key={group.id}

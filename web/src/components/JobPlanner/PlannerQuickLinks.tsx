@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
     Plus, 
     BookOpen, 
@@ -144,6 +144,13 @@ export default function PlannerQuickLinks() {
         window.open(targetUrl, '_blank', 'noopener,noreferrer');
     };
 
+    const visibleQuickLinks = useMemo(() => {
+        return quickLinks.filter(l => 
+            (l.name || '').trim().toLowerCase() !== 'kalender' && 
+            (l.icon || '').toLowerCase() !== 'calendar'
+        );
+    }, [quickLinks]);
+
     const renderIconContent = (link: PlannerQuickLink) => {
         const iconValue = link.icon || '';
         
@@ -153,7 +160,7 @@ export default function PlannerQuickLinks() {
                 <img 
                     src={iconValue} 
                     alt={link.name} 
-                    className="w-5 h-5 object-contain rounded"
+                    className="w-7 h-7 object-contain rounded-md"
                     onError={(e) => {
                         // fallback if image fails
                         (e.target as HTMLElement).style.display = 'none';
@@ -164,15 +171,15 @@ export default function PlannerQuickLinks() {
 
         // Preset Lucide icon
         const IconComp = PRESET_ICONS[iconValue] || PRESET_ICONS['globe'];
-        return <IconComp size={18} className="text-gray-700 dark:text-gray-200" />;
+        return <IconComp size={24} className="text-gray-700 dark:text-gray-200" />;
     };
 
     return (
         <div className="w-full relative">
             {/* Quick Links Row matching Figma */}
-            <div className="flex items-center justify-between py-1 gap-2 flex-wrap">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                    {quickLinks.map((link) => (
+            <div className="flex items-center justify-between py-1 gap-3 flex-wrap">
+                <div className="flex items-center gap-3 flex-wrap">
+                    {visibleQuickLinks.map((link: PlannerQuickLink) => (
                         <div
                             key={link.id}
                             onClick={() => handleIconClick(link)}
@@ -186,11 +193,11 @@ export default function PlannerQuickLinks() {
                                 });
                             }}
                             title={`${link.name} (Rechtsklick zum Bearbeiten)`}
-                            className="group relative w-10 h-10 rounded-xl bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 flex items-center justify-center cursor-pointer shadow-2xs hover:shadow-sm hover:border-blue-400 dark:hover:border-blue-500 hover:scale-105 active:scale-95 transition-all"
+                            className="group relative w-13 h-13 md:w-14 md:h-14 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 flex items-center justify-center cursor-pointer shadow-xs hover:shadow-md hover:border-blue-400 dark:hover:border-blue-500 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all"
                         >
                             {renderIconContent(link)}
                             {/* Hover tooltip */}
-                            <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-[10px] font-semibold px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-30 shadow-md">
+                            <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-[11px] font-semibold px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-30 shadow-md">
                                 {link.name}
                             </div>
                         </div>
@@ -200,9 +207,9 @@ export default function PlannerQuickLinks() {
                     <button
                         onClick={openAddModal}
                         title="Neuen Quick Link hinzufügen"
-                        className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-white/10 border border-gray-200 dark:border-white/10 flex items-center justify-center cursor-pointer text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-white dark:hover:bg-white/15 hover:border-blue-300 dark:hover:border-blue-500 hover:scale-105 active:scale-95 transition-all"
+                        className="w-13 h-13 md:w-14 md:h-14 rounded-2xl bg-gray-100/80 dark:bg-white/10 border border-gray-200/80 dark:border-white/10 flex items-center justify-center cursor-pointer text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-white dark:hover:bg-white/15 hover:border-blue-300 dark:hover:border-blue-500 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all"
                     >
-                        <Plus size={18} />
+                        <Plus size={22} />
                     </button>
                 </div>
             </div>

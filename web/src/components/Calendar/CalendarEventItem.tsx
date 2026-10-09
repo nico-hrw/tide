@@ -27,7 +27,7 @@ interface CalendarEvent {
     is_public?: boolean;
 }
 
-const getEventTheme = (evt: CalendarEvent, palette: 'modern-dark' | 'soft-pastels' | 'classic-tide' = 'modern-dark') => {
+export const getEventTheme = (evt: CalendarEvent, palette: 'modern-dark' | 'soft-pastels' | 'classic-tide' = 'modern-dark') => {
     let col = evt.color?.toLowerCase() || '';
     
     const isPink = col === 'pink' || col.startsWith('#ec') || col.startsWith('#d9') || col.startsWith('#e8') || col.startsWith('#f4') || col.startsWith('#f0');
@@ -90,7 +90,7 @@ interface CalendarEventItemProps {
 
 // Returns a style object for the given theme effect.
 // Applied directly on the event div so it works inside Framer Motion compositing layers.
-const getEffectStyle = (effect: string | undefined): React.CSSProperties | undefined => {
+export const getEffectStyle = (effect: string | undefined): React.CSSProperties | undefined => {
     if (!effect || effect === 'none' || effect === 'dimmed') return undefined;
     
     if (effect === 'stripes') return {

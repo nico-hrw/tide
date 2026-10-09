@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
-import { DataItem } from '@/store/useDataStore';
+import { useDataStore, DataItem } from '@/store/useDataStore';
+import { useJobPlannerStore } from '@/store/useJobPlannerStore';
+import { getEventTheme, getEffectStyle } from '@/components/Calendar/CalendarEventItem';
 
 interface PlannerWeekCalendarProps {
     events: DataItem[];
@@ -21,23 +23,17 @@ function getISOWeekNumber(d: Date): number {
     return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
 }
 
-const EVENT_COLOR_STYLES = [
-    { bg: 'bg-[#eae6ff] dark:bg-[#5a4fcf]/25', text: 'text-[#5a4fcf] dark:text-[#c4b5fd]', border: 'border-[#5a4fcf]/20' },
-    { bg: 'bg-[#e3f2fd] dark:bg-[#0277bd]/25', text: 'text-[#0277bd] dark:text-[#7dd3fc]', border: 'border-[#0277bd]/20' },
-    { bg: 'bg-[#e8f5e9] dark:bg-[#2e7d32]/25', text: 'text-[#2e7d32] dark:text-[#86efac]', border: 'border-[#2e7d32]/20' },
-    { bg: 'bg-[#fff3e0] dark:bg-[#e65100]/25', text: 'text-[#e65100] dark:text-[#fdba74]', border: 'border-[#e65100]/20' },
-    { bg: 'bg-[#fce4ec] dark:bg-[#c2185b]/25', text: 'text-[#c2185b] dark:text-[#f472b6]', border: 'border-[#c2185b]/20' },
-];
-
 export default function PlannerWeekCalendar({
     events,
     categoryGroupIds,
     onEventClick,
     onCreateEvent,
 }: PlannerWeekCalendarProps) {
+    const { calendarColorPalette, notes } = useDataStore();
+    const showWeekends = useJobPlannerStore((s) => s.showWeekends);
+
     const [currentDate, setCurrentDate] = useState(() => new Date());
     const [currentTime, setCurrentTime] = useState(() => new Date());
-    const [showWeekends, setShowWeekends] = useState(false);
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 30000);
@@ -153,65 +149,51 @@ export default function PlannerWeekCalendar({
     const currentTimeTopPercent = ((currentHourDecimal - minHour) / totalHours) * 100;
 
     return (
-        <div className="w-full bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl shadow-sm overflow-hidden flex flex-col transition-all">
-            {/* Calendar Header matching Figma */}
-            <div className="flex flex-wrap items-center justify-between px-5 py-3.5 border-b border-gray-100 dark:border-white/5 gap-3 bg-white dark:bg-[#1a1a1a]">
+        <div className="w-full bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-xs overflow-hidden flex flex-col transition-all">
+            {/* Clean, uncluttered Calendar Header */}
+            <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/5 gap-3 bg-white dark:bg-[#1a1a1a]">
                 <div className="flex items-center gap-3">
-                    <div className="bg-gray-100 dark:bg-white/10 px-2.5 py-1 rounded-full text-[11px] font-bold text-gray-600 dark:text-gray-300">
-                        Woche {weekNumber}
-                    </div>
-                    <h2 className="text-sm md:text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        <span>Stundenplan</span>
-                        <span className="text-gray-400">·</span>
-                        <span className="font-mono text-gray-700 dark:text-gray-300">
-                            {String(minHour).padStart(2, '0')}–{String(maxHour).padStart(2, '0')} Uhr
-                        </span>
-                    </h2>
+                    <span className="bg-gray-100 dark:bg-white/10 px-2.5 py-1 rounded-lg text-[11px] font-bold text-gray-700 dark:text-gray-300 font-mono">
+                        KW {weekNumber}
+                    </span>
+
                     {/* Navigation Controls */}
-                    <div className="flex items-center gap-1 ml-2">
+                    <div className="flex items-center gap-1 bg-gray-50 dark:bg-white/5 p-0.5 rounded-xl border border-gray-100 dark:border-white/5">
                         <button
                             onClick={prevWeek}
-                            className="p-1 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                            className="p-1 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/10 transition-colors cursor-pointer"
                             title="Vorherige Woche"
                         >
                             <ChevronLeft size={16} />
                         </button>
                         <button
                             onClick={goToToday}
-                            className="px-2 py-0.5 text-xs font-semibold rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                            className="px-2.5 py-1 text-xs font-semibold rounded-lg text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-white/10 transition-colors cursor-pointer"
                         >
                             Heute
                         </button>
                         <button
                             onClick={nextWeek}
-                            className="p-1 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                            className="p-1 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/10 transition-colors cursor-pointer"
                             title="Nächste Woche"
                         >
                             <ChevronRight size={16} />
                         </button>
                     </div>
+
+                    <span className="text-xs text-gray-400 dark:text-gray-500 font-mono hidden sm:inline">
+                        {String(minHour).padStart(2, '0')}:00 – {String(maxHour).padStart(2, '0')}:00 Uhr
+                    </span>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => setShowWeekends(prev => !prev)}
-                        className={`text-[11px] font-medium px-2 py-0.5 rounded-md border transition-all ${
-                            showWeekends
-                                ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400'
-                                : 'border-gray-200 dark:border-white/10 text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5'
-                        }`}
-                    >
-                        {showWeekends ? '7 Tage' : '5 Tage (Mo–Fr)'}
-                    </button>
-                    <div className="text-xs font-semibold text-gray-400 dark:text-gray-500">
-                        {formattedDateTime}
-                    </div>
+                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 font-mono">
+                    {formattedDateTime}
                 </div>
             </div>
 
             {/* Calendar Body */}
             <div className="w-full overflow-x-auto">
-                <div className="min-w-[640px] flex flex-col">
+                <div className="min-w-[620px] flex flex-col">
                     {/* Day Column Headers */}
                     <div className="flex border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.02]">
                         <div className="w-16 shrink-0 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider">
@@ -224,14 +206,18 @@ export default function PlannerWeekCalendar({
                             return (
                                 <div
                                     key={index}
-                                    className={`flex-1 py-2.5 text-center border-l border-gray-100 dark:border-white/5 ${
-                                        isToday ? 'bg-blue-50/40 dark:bg-blue-900/10' : ''
+                                    className={`flex-1 py-2 text-center border-l border-gray-100 dark:border-white/5 ${
+                                        isToday ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''
                                     }`}
                                 >
-                                    <span className={`text-xs font-bold ${
-                                        isToday ? 'text-blue-600 dark:text-blue-400 font-extrabold' : 'text-gray-600 dark:text-gray-300'
+                                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold ${
+                                        isToday 
+                                            ? 'bg-blue-600 text-white shadow-2xs' 
+                                            : 'text-gray-700 dark:text-gray-300'
                                     }`}>
-                                        {dayName} · {dayNum}
+                                        <span>{dayName}</span>
+                                        <span className="opacity-70 font-normal">·</span>
+                                        <span>{dayNum}</span>
                                     </span>
                                 </div>
                             );
@@ -291,7 +277,7 @@ export default function PlannerWeekCalendar({
                                             }
                                         }}
                                         className={`flex-1 relative border-r border-gray-100 dark:border-white/5 hover:bg-gray-50/40 dark:hover:bg-white/[0.01] transition-colors cursor-pointer ${
-                                            isToday ? 'bg-blue-50/20 dark:bg-blue-900/5' : ''
+                                            isToday ? 'bg-blue-50/15 dark:bg-blue-900/5' : ''
                                         }`}
                                     >
                                         {/* Current time indicator line on today's column */}
@@ -300,12 +286,12 @@ export default function PlannerWeekCalendar({
                                                 className="absolute left-0 right-0 z-20 flex items-center pointer-events-none"
                                                 style={{ top: `${currentTimeTopPercent}%` }}
                                             >
-                                                <div className="w-2 h-2 rounded-full bg-rose-500 -ml-1 shadow-sm" />
+                                                <div className="w-2.5 h-2.5 rounded-full bg-rose-500 -ml-1.5 shadow-sm" />
                                                 <div className="h-[2px] w-full bg-rose-500 shadow-sm" />
                                             </div>
                                         )}
 
-                                        {/* Render day's events */}
+                                        {/* Render day's events with real Tide calendar event theme colors */}
                                         {dayEvents.map((ev, evIdx) => {
                                             const s = new Date(ev.start);
                                             const en = new Date(ev.end);
@@ -316,7 +302,18 @@ export default function PlannerWeekCalendar({
                                             const topPercent = ((sHour - minHour) / totalHours) * 100;
                                             const heightPercent = (duration / totalHours) * 100;
 
-                                            const colorStyle = EVENT_COLOR_STYLES[evIdx % EVENT_COLOR_STYLES.length];
+                                            // Resolve color and theme exactly like Tide's main calendar
+                                            const parentFolder = notes.find((n: DataItem) => n.id === ev.parent_id);
+                                            const color = ev.color || parentFolder?.color;
+                                            const effect = ev.effect || parentFolder?.effect;
+                                            const theme = getEventTheme({ 
+                                                id: ev.id,
+                                                title: ev.title,
+                                                color, 
+                                                effect 
+                                            } as Parameters<typeof getEventTheme>[0], calendarColorPalette);
+                                            const effectStyle = getEffectStyle(effect);
+
                                             const sTimeStr = `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}`;
                                             const eTimeStr = `${String(en.getHours()).padStart(2, '0')}:${String(en.getMinutes()).padStart(2, '0')}`;
 
@@ -329,9 +326,13 @@ export default function PlannerWeekCalendar({
                                                     }}
                                                     style={{
                                                         top: `${topPercent}%`,
-                                                        height: `${Math.max(4.5, heightPercent)}%`,
+                                                        height: `${Math.max(4, heightPercent)}%`,
+                                                        backgroundColor: theme.bg,
+                                                        color: theme.text,
+                                                        borderColor: theme.border,
+                                                        ...effectStyle,
                                                     }}
-                                                    className={`absolute left-1 right-1 z-10 p-1.5 md:p-2 rounded-lg border flex flex-col justify-between overflow-hidden shadow-xs cursor-pointer hover:scale-[1.01] hover:shadow-md transition-all ${colorStyle.bg} ${colorStyle.text} ${colorStyle.border}`}
+                                                    className="absolute left-1 right-1 z-10 p-2 rounded-lg border flex flex-col justify-between overflow-hidden shadow-xs cursor-pointer hover:brightness-105 hover:shadow-md transition-all"
                                                     title={`${ev.title || 'Termin'} (${sTimeStr}–${eTimeStr})`}
                                                 >
                                                     <div className="min-w-0">
@@ -339,7 +340,7 @@ export default function PlannerWeekCalendar({
                                                             {ev.title || 'Termin'}
                                                         </p>
                                                         {ev.description && (
-                                                            <p className="text-[10px] opacity-80 truncate mt-0.5">
+                                                            <p className="text-[10px] opacity-85 truncate mt-0.5 font-medium">
                                                                 {ev.description}
                                                             </p>
                                                         )}

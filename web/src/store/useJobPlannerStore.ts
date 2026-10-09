@@ -30,6 +30,8 @@ export interface PlannerSemester {
 interface JobPlannerState {
     mode: PlannerMode;
     setMode: (mode: PlannerMode) => void;
+    showWeekends: boolean;
+    setShowWeekends: (show: boolean) => void;
     quickLinks: PlannerQuickLink[];
     addQuickLink: (link: Omit<PlannerQuickLink, 'id'>) => void;
     updateQuickLink: (id: string, updates: Partial<PlannerQuickLink>) => void;
@@ -44,6 +46,8 @@ interface JobPlannerState {
     deleteExam: (semesterId: string, examId: string) => void;
     moveExam: (examId: string, sourceSemesterId: string, targetSemesterId: string, newIndex: number) => void;
     reorderSemester: (semesterId: string, newIndex: number) => void;
+    pluginGroupId: string | null;
+    setPluginGroupId: (id: string | null) => void;
     protectedGroupIds: string[];
     setProtectedGroupIds: (ids: string[]) => void;
     addProtectedGroupId: (id: string) => void;
@@ -51,10 +55,9 @@ interface JobPlannerState {
 
 const DEFAULT_QUICK_LINKS: PlannerQuickLink[] = [
     { id: '1', name: 'ILIAS / Moodle', url: 'https://moodle.org', icon: 'book-open' },
-    { id: '2', name: 'Kalender', url: '/calendar', icon: 'calendar' },
+    { id: '2', name: 'Teams / Meet', url: 'https://teams.microsoft.com', icon: 'users' },
     { id: '3', name: 'Notizen', url: '', icon: 'file-text' },
-    { id: '4', name: 'Teams / Meet', url: 'https://teams.microsoft.com', icon: 'users' },
-    { id: '5', name: 'Portal', url: '', icon: 'settings' },
+    { id: '4', name: 'Campus Portal', url: '', icon: 'settings' },
 ];
 
 export const useJobPlannerStore = create<JobPlannerState>()(
@@ -62,6 +65,10 @@ export const useJobPlannerStore = create<JobPlannerState>()(
         (set) => ({
             mode: 'both',
             setMode: (mode) => set({ mode }),
+            showWeekends: false,
+            setShowWeekends: (showWeekends) => set({ showWeekends }),
+            pluginGroupId: null,
+            setPluginGroupId: (pluginGroupId) => set({ pluginGroupId }),
             quickLinks: DEFAULT_QUICK_LINKS,
             addQuickLink: (link) => set((state) => ({
                 quickLinks: [...state.quickLinks, { ...link, id: crypto.randomUUID() }]
