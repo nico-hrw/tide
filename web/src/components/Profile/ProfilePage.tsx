@@ -254,15 +254,67 @@ export default function ProfilePage({ userId, onOpenFile, onMessage }: ProfilePa
             {/* Content Section */}
             <div className="max-w-[1400px] w-full mx-auto p-4 sm:p-12 flex flex-col gap-16 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
-                {/* Public Calendar Section (Hidden for redesign) */}
-                {/*
+                {/* Public Calendar Section */}
                 <section>
-                    <div className="flex items-center justify-between mb-6">
-                        ...
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="p-2 bg-amber-500/10 rounded-lg text-amber-500">
+                            <CalendarIcon size={20} />
+                        </div>
+                        <h2 className="text-xl font-black text-gray-900 dark:text-white">Public Calendar & Events</h2>
+                        {events.length > 0 && <span className="ml-2 text-xs py-0.5 px-2 bg-gray-100 dark:bg-white/10 rounded-full font-bold text-gray-400">{events.length}</span>}
                     </div>
-                    ...
+
+                    {(!events || events.length === 0) ? (
+                        <div className="py-16 text-center border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-[2.5rem] bg-white/30 dark:bg-white/5">
+                            <CalendarIcon className="mx-auto h-12 w-12 text-gray-200 dark:text-gray-800 mb-4" />
+                            <p className="text-sm text-gray-400 font-medium">No public events scheduled.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {events.map(ev => {
+                                const meta = ev.public_meta || {};
+                                const startStr = meta.start || ev.start;
+                                const endStr = meta.end || ev.end;
+                                const color = meta.color || ev.color || '#3b82f6';
+                                const startDate = startStr ? new Date(startStr) : null;
+                                const endDate = endStr ? new Date(endStr) : null;
+                                const formattedDate = startDate && !isNaN(startDate.getTime())
+                                    ? format(startDate, 'EEE, dd. MMM yyyy')
+                                    : 'Date TBD';
+                                const formattedTime = startDate && !isNaN(startDate.getTime())
+                                    ? `${format(startDate, 'HH:mm')}${endDate && !isNaN(endDate.getTime()) ? ` - ${format(endDate, 'HH:mm')}` : ''}`
+                                    : '';
+
+                                return (
+                                    <div
+                                        key={ev.id}
+                                        className="bg-white dark:bg-gray-900 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-800 transition-all hover:-translate-y-1 group"
+                                        style={{ borderLeftColor: color, borderLeftWidth: '4px' }}
+                                    >
+                                        <div className="flex items-start justify-between mb-3">
+                                            <span className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                                                {formattedDate}
+                                            </span>
+                                            {formattedTime && (
+                                                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+                                                    {formattedTime}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <h3 className="font-bold text-base text-gray-900 dark:text-white mb-2 group-hover:text-blue-500 transition-colors">
+                                            {ev.title || meta.title || 'Untitled Event'}
+                                        </h3>
+                                        {(meta.description || ev.description) && (
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-3 leading-relaxed">
+                                                {meta.description || ev.description}
+                                            </p>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </section>
-                */}
 
                 {/* Public Notes Section */}
                 <section>

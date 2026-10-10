@@ -882,13 +882,18 @@ func (s *SQLiteStore) AcceptShare(ctx context.Context, fileID string, userID str
 	query := `UPDATE file_shares SET status = 'accepted' WHERE file_id = ? AND user_id = ?`
 	_, err := s.DB.ExecContext(ctx, query, fileID, userID)
 
-	// Auto-accept children shares if this is a folder (like an Event Theme)
+	// Auto-accept children shares recursively if this is a folder
 	queryChildren := `
+		WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM files WHERE parent_id = ?
+			UNION ALL
+			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
+		)
 		UPDATE file_shares 
 		SET status = 'accepted' 
-		WHERE user_id = ? AND file_id IN (SELECT id FROM files WHERE parent_id = ?)
+		WHERE user_id = ? AND file_id IN (SELECT id FROM descendants)
 	`
-	s.DB.ExecContext(ctx, queryChildren, userID, fileID)
+	s.DB.ExecContext(ctx, queryChildren, fileID, userID)
 
 	return err
 }
@@ -1421,11 +1426,12 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewe
 	}
 
 	query := `
-		SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta, COALESCE(f.secured_meta, x'') as secured_meta, 
-			       COALESCE(fs.status, 'owner') as share_status,
-			       COALESCE(f.is_task, 0), COALESCE(f.is_completed, 0),
-			       COALESCE(NULLIF(f.exdates, ''), '[]') as exdates, COALESCE(NULLIF(f.completed_dates, ''), '[]') as completed_dates,
-				   COALESCE(f.version, 1) as version, COALESCE(NULLIF(f.metadata, ''), '{}') as metadata, COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
+		SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path,
+		       COALESCE(f.visibility, 'private') as visibility, f.public_meta,
+		       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
+		       COALESCE(f.version, 1) as version,
+		       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
+		       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
 		FROM files f
 		LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 		WHERE f.owner_id = ? AND (

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { MessageSquare, Search, UserPlus, X, Send, FileText, Share2, CheckCircle, XCircle, FolderOpen, ChevronRight, ChevronDown, Folder, Calendar, Trash } from "lucide-react";
+import { MessageSquare, Search, UserPlus, X, Send, FileText, Share2, CheckCircle, XCircle, FolderOpen, ChevronRight, ChevronDown, Folder, Calendar, Trash, ShieldCheck } from "lucide-react";
 import { useIslandStore } from "@/components/extensions/smart_island/useIslandStore";
 import { useDataStore } from "@/store/useDataStore";
 import { apiFetch, getApiBase } from "@/lib/api";
 import * as cryptoLib from "@/lib/crypto";
+import { encryptChatMessage, decryptChatMessage, isE2EEMessage } from "@/lib/chatCrypto";
 import Avatar from '@/components/Profile/Avatar';
 
 interface Message {
@@ -23,6 +24,7 @@ interface UserBasic {
     email: string;
     avatar_seed?: string;
     avatar_salt?: string;
+    public_key?: string;
 }
 
 interface Contact {
@@ -122,7 +124,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
     const [sharedFiles, setSharedFiles] = useState<any[]>([]);
     const [allSharedFiles, setAllSharedFiles] = useState<any[]>([]);
     const [myId, setMyId] = useState("");
-    const cryptoLib = require("@/lib/crypto");
+    const [decryptedTexts, setDecryptedTexts] = useState<Record<string, string>>({});
 
     // Close dropdown when clicking outside
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -149,7 +151,20 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
     // Sync activePartner prop to internal state
     useEffect(() => {
         if (activePartner && (!partner || activePartner.id !== partner.id)) {
-            setPartner(activePartner);
+            if (!activePartner.public_key) {
+                apiFetch(`/api/v1/profiles/${activePartner.id}`)
+                    .then(r => r.json())
+                    .then(prof => {
+                        if (prof && prof.public_key) {
+                            setPartner({ ...activePartner, public_key: prof.public_key });
+                        } else {
+                            setPartner(activePartner);
+                        }
+                    })
+                    .catch(() => setPartner(activePartner));
+            } else {
+                setPartner(activePartner);
+            }
         }
     }, [activePartner, partner]);
 
@@ -508,10 +523,22 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
         } catch (e) { alert("Error declining share"); }
     };
 
-    const startChat = (user: UserBasic) => {
-        setPartner(user);
-        fetchMessages(user.email);
-        fetchPartnerFiles(user.id);
+    const startChat = async (user: UserBasic) => {
+        let fullUser = user;
+        if (!fullUser.public_key) {
+            try {
+                const profRes = await apiFetch(`/api/v1/profiles/${user.id}`);
+                if (profRes.ok) {
+                    const prof = await profRes.json().catch(() => null);
+                    if (prof && prof.public_key) {
+                        fullUser = { ...user, public_key: prof.public_key };
+                    }
+                }
+            } catch { /* ignore */ }
+        }
+        setPartner(fullUser);
+        fetchMessages(fullUser.email, fullUser.id);
+        fetchPartnerFiles(fullUser.id);
     };
 
     const fetchPartnerFiles = async (partnerId: string) => {
@@ -583,6 +610,25 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
             fetchMessages(partner.email, partner.id);
         }
     }, [partner, myId]);
+
+    // Decrypt E2EE messages whenever messages or keys update
+    useEffect(() => {
+        let isCancelled = false;
+        const decryptAll = async () => {
+            const updates: Record<string, string> = {};
+            for (const m of messages) {
+                if (isE2EEMessage(m.content) && !decryptedTexts[m.id]) {
+                    const dec = await decryptChatMessage(m.content, myId, privateKey);
+                    updates[m.id] = dec;
+                }
+            }
+            if (!isCancelled && Object.keys(updates).length > 0) {
+                setDecryptedTexts(prev => ({ ...prev, ...updates }));
+            }
+        };
+        decryptAll();
+        return () => { isCancelled = true; };
+    }, [messages, myId, privateKey, decryptedTexts]);
 
     const partnerRef = useRef<UserBasic | null>(null);
     useEffect(() => { partnerRef.current = partner; }, [partner]);
@@ -681,9 +727,47 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
     }, [myId]);
 
     const handleSend = async () => {
-        if (!newMessage || !partner) return;
+        if (!newMessage.trim() || !partner) return;
+        const textToSend = newMessage.trim();
         try {
-            const body: any = { content: newMessage };
+            let finalContent = textToSend;
+
+            // Encrypt message with E2EE if keys are available
+            try {
+                let recipientPubKeySpki = partner.public_key;
+                if (!recipientPubKeySpki) {
+                    const profRes = await apiFetch(`/api/v1/profiles/${partner.id}`);
+                    if (profRes.ok) {
+                        const prof = await profRes.json().catch(() => null);
+                        if (prof && prof.public_key) {
+                            recipientPubKeySpki = prof.public_key;
+                            setPartner(prev => prev ? { ...prev, public_key: prof.public_key } : null);
+                        }
+                    }
+                }
+
+                const myPubKeyStr = sessionStorage.getItem("tide_user_public_key");
+                if (recipientPubKeySpki && myPubKeyStr) {
+                    const myPubKey = await window.crypto.subtle.importKey(
+                        "spki",
+                        cryptoLib.base64ToArrayBuffer(myPubKeyStr),
+                        { name: "RSA-OAEP", hash: "SHA-256" },
+                        true,
+                        ["encrypt"]
+                    );
+                    finalContent = await encryptChatMessage(
+                        textToSend,
+                        myId,
+                        myPubKey,
+                        partner.id,
+                        recipientPubKeySpki
+                    );
+                }
+            } catch (encErr) {
+                console.warn("[ChatPanel] E2EE encryption failed, falling back to secure transport:", encErr);
+            }
+
+            const body: any = { content: finalContent };
             if (partner.email === "Hidden") {
                 body.recipient_id = partner.id;
             } else {
@@ -699,6 +783,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
             });
             if (res.ok) {
                 const msg = await res.json();
+                setDecryptedTexts(prev => ({ ...prev, [msg.id]: textToSend }));
                 setMessages(prev => {
                     if (prev.some(m => m.id === msg.id)) return prev;
                     return [...prev, msg];
@@ -1169,10 +1254,17 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                         ) : (
                                                             <>
                                                                 <div className="text-[15px] leading-snug font-medium break-words whitespace-pre-wrap">
-                                                                    {m.content}
+                                                                    {isE2EEMessage(m.content) ? (decryptedTexts[m.id] ?? "...") : m.content}
                                                                 </div>
-                                                                <div className={`text-[10px] mt-1 font-medium ${isMe ? 'text-blue-100/80 text-right' : 'text-gray-400 dark:text-slate-500'}`}>
-                                                                    {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                <div className={`text-[10px] mt-1 font-medium flex items-center justify-between ${isMe ? 'text-blue-100/80' : 'text-gray-400 dark:text-slate-500'}`}>
+                                                                    {isE2EEMessage(m.content) && (
+                                                                        <span className="inline-flex items-center gap-1 opacity-75 text-[9px] uppercase tracking-wider font-bold" title="Ende-zu-Ende verschlüsselt">
+                                                                            <ShieldCheck size={11} className={isMe ? 'text-white/90' : 'text-emerald-500 dark:text-emerald-400'} /> E2EE
+                                                                        </span>
+                                                                    )}
+                                                                    <span className={isMe && !isE2EEMessage(m.content) ? 'ml-auto' : ''}>
+                                                                        {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                    </span>
                                                                 </div>
                                                             </>
                                                         )}

@@ -48,6 +48,7 @@ func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		db.Profile
 		Username   string `json:"username"`
 		IsVerified bool   `json:"is_verified"`
+		PublicKey  string `json:"public_key"`
 	}
 
 	var res EnrichedProfile
@@ -61,6 +62,7 @@ func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	res.Username = user.Username
 	res.IsVerified = user.IsVerified
+	res.PublicKey = user.PublicKey
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(res)

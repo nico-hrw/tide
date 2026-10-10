@@ -288,6 +288,18 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
             params: { user_id: userId, token: token }
         });
 
+        // Deterministic color based on userId
+        const hash = Array.from(userId).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const color = COLORS[hash % COLORS.length];
+
+        // Immediately set local user on awareness so extensions and peers have real user identity
+        wsProvider.awareness.setLocalStateField('user', {
+            name: userProfile?.username || 'User',
+            color: color,
+            id: userId,
+            seed: userProfile?.avatar_seed || userId
+        });
+
         setProvider(wsProvider);
 
         return () => {
@@ -296,7 +308,7 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
             contentInitialized.current = false;
             syncTimedOutRef.current = false;
         };
-    }, [activeTabId, myId, isShared]);
+    }, [activeTabId, myId, isShared, userProfile]);
 
     useEffect(() => {
         if (!provider) return;

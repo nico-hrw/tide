@@ -50,25 +50,55 @@ export async function performMessengerShare(
         // Wrap the DEK using the recipient's public key
         const recipientWrapped = await cryptoV2.wrapDEKData(rawDek, recipientPubKey);
 
-        // [COLLAB-FIX] Encrypt the file title with recipient's public key so they
-        // can see the title in their sidebar. Previously this sent the wrapped DEK
-        // as secured_meta, which made recipient metadata decryption fail.
+        // Prepare full metadata object for recipient
+        const isEvent = file.type === 'event' || shareModalFile.type === 'event';
+        let recipientMetaObj: any = { title: shareModalFile.title };
+
+        if (isEvent) {
+            const ev = events.find((e: any) => e.id === fileId);
+            if (ev) {
+                recipientMetaObj = {
+                    title: ev.title || shareModalFile.title,
+                    start: ev.start,
+                    end: ev.end,
+                    color: ev.color,
+                    description: ev.description,
+                    recurrence_rule: ev.recurrence_rule,
+                    recurrence_end: ev.recurrence_end,
+                    exdates: ev.exdates,
+                    completed_dates: ev.completed_dates,
+                    is_task: ev.is_task,
+                    is_completed: ev.is_completed,
+                    is_cancelled: ev.is_cancelled,
+                    allDay: ev.allDay,
+                };
+            } else if (file.secured_meta) {
+                const dec = await cryptoLib.decryptMetadata(file.secured_meta, privateKey, `share-event-${fileId}`);
+                if (!dec.isLocked) {
+                    recipientMetaObj = { ...dec, title: shareModalFile.title || dec.title };
+                }
+            }
+        } else if (file.secured_meta) {
+            const dec = await cryptoLib.decryptMetadata(file.secured_meta, privateKey, `share-meta-${fileId}`);
+            if (!dec.isLocked) {
+                recipientMetaObj = { ...dec, title: shareModalFile.title || dec.title };
+            }
+        }
+
+        // Encrypt the full metadata with recipient's public key
         const recipientSecuredMeta = await cryptoLib.encryptMetadata(
-            { title: shareModalFile.title },
+            recipientMetaObj,
             recipientPubKey
         );
         
         // Push the sharing update to the backend.
-        // secured_meta = RSA-encrypted title for the recipient (stored in file_shares).
-        // The backend ShareFile handler atomically inserts the wrapped DEK into
-        // the file's access_keys map via json_set (see files.go L343-356).
         const shareRes = await apiFetch(`/api/v1/files/${fileId}/share`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 recipient_id: recipientId,
                 email: recipientEmail,
-                secured_meta: recipientSecuredMeta,   // RSA-encrypted title for recipient
+                secured_meta: recipientSecuredMeta,   // RSA-encrypted metadata for recipient
                 wrapped_dek: recipientWrapped.ciphertext, // wrapped DEK for access_keys
                 permission,                            // 'view' | 'edit' | 'share'
             })
@@ -120,11 +150,19 @@ export async function performMessengerShare(
         }
 
         // Build a readable share-card payload for the chat. Events get start/end metadata.
-        const isEvent = file.type === 'event' || shareModalFile.type === 'event';
         const eventMeta = isEvent ? (() => {
             try {
                 const ev = events.find((e: any) => e.id === fileId);
-                if (ev) return { start: ev.start, end: ev.end };
+                if (ev) {
+                    return {
+                        start: ev.start,
+                        end: ev.end,
+                        title: ev.title || shareModalFile.title,
+                        color: ev.color,
+                        description: ev.description,
+                        allDay: ev.allDay
+                    };
+                }
             } catch { /* ignore */ }
             return null;
         })() : null;
@@ -158,8 +196,8 @@ export async function performMessengerShare(
 }
 
 /**
- * Share a folder with a recipient by re-encrypting its secured_meta (title) for them.
- * Folders have no DEK — only metadata needs to be shared.
+ * Share a folder with a recipient by re-encrypting its secured_meta (title) for them,
+ * and recursively wrapping DEKs and sharing all nested descendant items.
  */
 export async function performFolderShare(
     folderId: string,
@@ -180,7 +218,7 @@ export async function performFolderShare(
         ["encrypt"]
     );
 
-    // Re-encrypt folder metadata (title) for recipient
+    // 1. Re-encrypt folder metadata (title) for recipient
     const recipientSecuredMeta = await cryptoLib.encryptMetadata(
         { title: folderTitle },
         recipientPubKey
@@ -202,7 +240,99 @@ export async function performFolderShare(
         throw new Error(`Failed to share folder: ${shareRes.status} - ${errText}`);
     }
 
-    // Send chat notification
+    // 2. Recursively find and share all descendant files, canvases, and events
+    try {
+        const [filesRes, eventsRes] = await Promise.all([
+            apiFetch('/api/v1/files?recursive=true'),
+            apiFetch('/api/v1/files?type=event&recursive=true')
+        ]);
+
+        const allItems: any[] = [];
+        if (filesRes.ok) {
+            const list = await filesRes.json().catch(() => []);
+            if (Array.isArray(list)) allItems.push(...list);
+        }
+        if (eventsRes.ok) {
+            const evList = await eventsRes.json().catch(() => []);
+            if (Array.isArray(evList)) allItems.push(...evList);
+        }
+
+        // Trace all descendants under folderId
+        const descendantMap = new Map<string, any>();
+        const queue = [folderId];
+        while (queue.length > 0) {
+            const currentParent = queue.shift()!;
+            for (const item of allItems) {
+                if (item.parent_id === currentParent && !descendantMap.has(item.id)) {
+                    descendantMap.set(item.id, item);
+                    if (item.type === 'folder') {
+                        queue.push(item.id);
+                    }
+                }
+            }
+        }
+
+        // Share each descendant item
+        for (const child of Array.from(descendantMap.values())) {
+            try {
+                if (child.type === 'folder') {
+                    const childTitle = child.metadata?.title || child.title || "Untitled";
+                    const childSecuredMeta = await cryptoLib.encryptMetadata(
+                        { title: childTitle },
+                        recipientPubKey
+                    );
+                    await apiFetch(`/api/v1/files/${child.id}/share`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            recipient_id: recipientId,
+                            email: recipientEmail,
+                            secured_meta: childSecuredMeta,
+                            permission,
+                        })
+                    });
+                } else {
+                    // For files and events: unwrap DEK and re-wrap for recipient
+                    const childAccessKeys = typeof child.access_keys === 'string'
+                        ? JSON.parse(child.access_keys)
+                        : (child.access_keys || {});
+                    const childMyAccess = childAccessKeys[myId];
+                    if (!childMyAccess || !childMyAccess.wrapped_key) continue;
+
+                    const rawDek = await cryptoV2.unwrapDEKData(childMyAccess.wrapped_key, privateKey);
+                    const childRecipientWrapped = await cryptoV2.wrapDEKData(rawDek, recipientPubKey);
+
+                    let childMetaObj: any = { title: child.title || child.metadata?.title || "Untitled" };
+                    if (child.secured_meta) {
+                        const dec = await cryptoLib.decryptMetadata(child.secured_meta, privateKey, `folder-child-${child.id}`);
+                        if (!dec.isLocked) {
+                            childMetaObj = { ...dec, title: childMetaObj.title || dec.title };
+                        }
+                    }
+
+                    const childSecuredMeta = await cryptoLib.encryptMetadata(childMetaObj, recipientPubKey);
+
+                    await apiFetch(`/api/v1/files/${child.id}/share`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            recipient_id: recipientId,
+                            email: recipientEmail,
+                            secured_meta: childSecuredMeta,
+                            wrapped_dek: childRecipientWrapped.ciphertext,
+                            permission,
+                        })
+                    });
+                }
+            } catch (childErr) {
+                console.warn(`[FolderShare] Failed to share nested child ${child.id}:`, childErr);
+            }
+        }
+    } catch (descendantErr) {
+        console.warn("[FolderShare] Failed to scan descendants:", descendantErr);
+    }
+
+    // 3. Send chat notification
     await apiFetch("/api/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -214,7 +344,7 @@ export async function performFolderShare(
                 file_id: folderId,
                 file_name: folderTitle,
                 file_type: "folder",
-                file_preview: "Shared folder",
+                file_preview: "Shared folder and all nested contents",
                 permission,
             })
         })

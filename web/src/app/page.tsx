@@ -3781,7 +3781,17 @@ export default function Dashboard() {
                         }
 
                         const currentAf = files.find(f => f.id === activeNoteId);
-                        const isSharedNote = Boolean(currentAf && ((currentAf as any).isShared || ((currentAf as any).owner_id && (currentAf as any).owner_id !== myId)));
+                        const isSharedNote = Boolean(currentAf && (
+                            (currentAf as any).isShared ||
+                            ((currentAf as any).owner_id && (currentAf as any).owner_id !== myId) ||
+                            ((currentAf as any).share_status && (currentAf as any).share_status !== 'owner') ||
+                            (() => {
+                                try {
+                                    const keys = typeof (currentAf as any).access_keys === 'string' ? JSON.parse((currentAf as any).access_keys) : (currentAf as any).access_keys;
+                                    return keys && typeof keys === 'object' && Object.keys(keys).length > 1;
+                                } catch { return false; }
+                            })()
+                        ));
 
                         return editorContent === null ? (
                             <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
@@ -4397,7 +4407,17 @@ export default function Dashboard() {
                                             }
 
                                             const currentAfMobile = files.find(f => f.id === activeNoteId);
-                                            const isSharedNoteMobile = Boolean(currentAfMobile && ((currentAfMobile as any).isShared || ((currentAfMobile as any).owner_id && (currentAfMobile as any).owner_id !== myId)));
+                                            const isSharedNoteMobile = Boolean(currentAfMobile && (
+                                                (currentAfMobile as any).isShared ||
+                                                ((currentAfMobile as any).owner_id && (currentAfMobile as any).owner_id !== myId) ||
+                                                ((currentAfMobile as any).share_status && (currentAfMobile as any).share_status !== 'owner') ||
+                                                (() => {
+                                                    try {
+                                                        const keys = typeof (currentAfMobile as any).access_keys === 'string' ? JSON.parse((currentAfMobile as any).access_keys) : (currentAfMobile as any).access_keys;
+                                                        return keys && typeof keys === 'object' && Object.keys(keys).length > 1;
+                                                    } catch { return false; }
+                                                })()
+                                            ));
 
                                             return editorContent === null ? (
                                                 <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">

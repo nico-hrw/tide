@@ -21,12 +21,14 @@ var upgrader = websocket.Upgrader{
 // Hub maintains the set of active clients per fileID and broadcasts messages to the clients.
 type Hub struct {
 	// Registered clients by fileID
-	rooms map[string]map[*Client]bool
-	mu    sync.RWMutex
+	rooms   map[string]map[*Client]bool
+	history map[string][][]byte
+	mu      sync.RWMutex
 }
 
 var GlobalHub = &Hub{
-	rooms: make(map[string]map[*Client]bool),
+	rooms:   make(map[string]map[*Client]bool),
+	history: make(map[string][][]byte),
 }
 
 // Client is a middleman between the websocket connection and the hub.
@@ -49,9 +51,16 @@ func (h *Hub) addClient(c *Client) {
 	defer h.mu.Unlock()
 	if h.rooms[c.fileID] == nil {
 		h.rooms[c.fileID] = make(map[*Client]bool)
+		h.history[c.fileID] = make([][]byte, 0)
 	}
 	h.rooms[c.fileID][c] = true
 	log.Printf("[WebSocket] Client joined room %s (Total in room: %d)", c.fileID, len(h.rooms[c.fileID]))
+
+	if len(h.history[c.fileID]) > 0 {
+		for _, msg := range h.history[c.fileID] {
+			_ = c.writeMessage(websocket.BinaryMessage, msg)
+		}
+	}
 }
 
 func (h *Hub) removeClient(c *Client) {
@@ -61,6 +70,7 @@ func (h *Hub) removeClient(c *Client) {
 		delete(h.rooms[c.fileID], c)
 		if len(h.rooms[c.fileID]) == 0 {
 			delete(h.rooms, c.fileID)
+			delete(h.history, c.fileID)
 			log.Printf("[WebSocket] Room %s closed (empty)", c.fileID)
 		} else {
 			log.Printf("[WebSocket] Client left room %s (Remaining: %d)", c.fileID, len(h.rooms[c.fileID]))
@@ -69,8 +79,17 @@ func (h *Hub) removeClient(c *Client) {
 }
 
 func (h *Hub) broadcast(sender *Client, message []byte) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.history[sender.fileID] != nil {
+		if len(h.history[sender.fileID]) >= 100 {
+			h.history[sender.fileID] = h.history[sender.fileID][1:]
+		}
+		msgCopy := make([]byte, len(message))
+		copy(msgCopy, message)
+		h.history[sender.fileID] = append(h.history[sender.fileID], msgCopy)
+	}
 
 	room := h.rooms[sender.fileID]
 	for client := range room {
