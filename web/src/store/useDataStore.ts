@@ -65,8 +65,8 @@ interface DataState {
     toggleFolder: (id: string, open?: boolean) => void;
 
     isSettingsModalOpen: boolean;
-    settingsModalTab: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info';
-    setSettingsModalOpen: (open: boolean, tab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info') => void;
+    settingsModalTab: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access';
+    setSettingsModalOpen: (open: boolean, tab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access') => void;
 
     enabledExtensions: string[];
     setEnabledExtensions: (extensions: string[] | ((prev: string[]) => string[])) => void;
@@ -98,7 +98,7 @@ export const useDataStore = create<DataState>((set, get) => ({
     metadataCache: {},
     isSettingsModalOpen: false,
     settingsModalTab: 'account',
-    setSettingsModalOpen: (open: boolean, tab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info') => 
+    setSettingsModalOpen: (open: boolean, tab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access') => 
         set(s => ({ 
             isSettingsModalOpen: open, 
             settingsModalTab: tab || (open ? s.settingsModalTab : 'account') 

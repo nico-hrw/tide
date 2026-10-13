@@ -167,7 +167,8 @@
 
 | Component | File | Role |
 |-----------|------|------|
-| SettingsModal | `web/src/components/Settings/SettingsModal.tsx` | App settings modal. Accepts `onCalendarToggle?: (calendarId, enabled) => void` — called after successful `PATCH /calendars/{id}` so caller can update its disabled-calendar filter immediately. |
+| SettingsModal | `web/src/components/Settings/SettingsModal.tsx` | App settings modal. Accepts `onCalendarToggle?: (calendarId, enabled) => void` — called after successful `PATCH /calendars/{id}` so caller can update its disabled-calendar filter immediately. Tabs include Account, Calendar, Appearance, Extensions, Access (Zugriff), and Info. |
+| APIAccessSettings | `web/src/components/Settings/APIAccessSettings.tsx` | Personal Access Token (PAT) management UI in Settings/Zugriff. Allows creating tokens with configurable scopes (`events:read`, `events:write`, `notes:read`, `notes:write`) and expiration, viewing active tokens, one-time plaintext copy with visual feedback, and revoking tokens. |
 | BackupHistory | `web/src/components/BackupHistory.tsx` | Backup/restore UI |
 
 ## Stores (Zustand)

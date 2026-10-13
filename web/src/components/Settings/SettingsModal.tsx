@@ -7,11 +7,12 @@ import { useJobPlannerStore } from '@/store/useJobPlannerStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import Avatar from '@/components/Profile/Avatar';
 import { apiFetch } from '@/lib/api';
+import APIAccessSettings from './APIAccessSettings';
 
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
-    initialTab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info';
+    initialTab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access';
     enabledExtensions: string[];
     onToggleExtension: (extensionId: string, enabled: boolean) => void;
     userProfile?: { id?: string; user_id?: string; username: string; email: string; bio?: string; title?: string; avatar_seed?: string; avatar_salt?: string; avatar_style?: string; is_verified?: boolean; profile_status?: number };
@@ -234,7 +235,7 @@ export default function SettingsModal({
     onCreateGroup
 }: SettingsModalProps) {
 
-    const [activeTab, setActiveTab] = useState<'account' | 'calendar' | 'extensions' | 'appearance' | 'info'>(initialTab || 'account');
+    const [activeTab, setActiveTab] = useState<'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access'>(initialTab || 'account');
 
     useEffect(() => {
         if (initialTab) {
@@ -294,6 +295,7 @@ export default function SettingsModal({
         { id: 'calendar', label: 'Calendar', icon: Calendar },
         { id: 'appearance', label: 'Appearance', icon: Palette },
         { id: 'extensions', label: 'Extensions', icon: Puzzle },
+        { id: 'access', label: language === 'de' ? 'Zugriff' : 'Access', icon: KeyRound },
         { id: 'info', label: 'Info', icon: Info },
     ];
 
@@ -1099,6 +1101,7 @@ export default function SettingsModal({
                                     {activeTab === 'calendar' && renderCalendarSettings()}
                                     {activeTab === 'appearance' && renderAppearance()}
                                     {activeTab === 'extensions' && renderExtensions()}
+                                    {activeTab === 'access' && <APIAccessSettings />}
                                     {activeTab === 'info' && renderInfo()}
                                 </motion.div>
                             </AnimatePresence>

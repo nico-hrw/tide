@@ -115,6 +115,18 @@ Encrypted personal tasks list.
 - `created_at` (DATETIME, NOT NULL): Creation timestamp.
 - `updated_at` (DATETIME, NOT NULL): Last update timestamp.
 
+### `api_tokens`
+Personal access tokens for external service integration and API automation.
+- `id` (TEXT, PRIMARY KEY): Unique token identifier.
+- `user_id` (TEXT, NOT NULL, FOREIGN KEY → `users.id`): Owner user.
+- `name` (TEXT, NOT NULL): User-defined label (e.g. "Home Assistant", "Calendar Sync").
+- `token_hash` (TEXT, NOT NULL, UNIQUE): SHA-256 hash of plaintext token (`tide_pat_...`).
+- `token_prefix` (TEXT, NOT NULL): Masked prefix for user display (e.g. `tide_pat_a1b2c3d4...`).
+- `scopes` (TEXT, NOT NULL, DEFAULT `'[]'`): JSON array of permitted scopes (`events:read`, `events:write`, `notes:read`, `notes:write`).
+- `created_at` (DATETIME, NOT NULL): Creation timestamp.
+- `expires_at` (DATETIME): Expiration timestamp (NULL for no expiry).
+- `last_used_at` (DATETIME): Timestamp when token was last authenticated.
+
 ### Extension Tables: `ext_finance_*`
 - `ext_finance_accounts`: Double-entry finance accounts (`id`, `user_id`, `name`, `type`, `linked_account_id`, `created_at`).
 - `ext_finance_transactions`: Financial transactions (`id`, `user_id`, `date`, `description`, `created_at`).

@@ -31,7 +31,7 @@ web/src/
 │   ├── Modals/           # ShareModal, ShareManagementPanel, SettingsModal
 │   ├── Profile/          # User avatar & profile editor
 │   ├── Security/         # Passkey / PIN vault unlock screens
-│   ├── Settings/         # App settings & extension manager
+│   ├── Settings/         # App settings, APIAccessSettings (Personal Access Tokens) & extension manager
 │   ├── Social/           # Contacts & user discovery
 │   └── extensions/       # TipTap editor extensions + SmartIsland
 ├── hooks/                # Custom React hooks (useMediaQuery, etc.)

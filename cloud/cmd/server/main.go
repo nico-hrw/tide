@@ -82,6 +82,8 @@ func main() {
 
 	tabsHandler := api.NewTabsHandler(sqliteStore)
 	financeHandler := api.NewFinanceHandler(sqliteStore, broker)
+	apiTokenHandler := api.NewAPITokenHandler(sqliteStore)
+	externalHandler := api.NewExternalHandler(sqliteStore)
 
 	// 3. Setup Router
 	r := chi.NewRouter()
@@ -162,6 +164,8 @@ func main() {
 		r.Route("/tabs", tabsHandler.RegisterRoutes)
 		r.Route("/tasks", taskHandler.RegisterRoutes)
 		r.Route("/finance", financeHandler.RegisterRoutes)
+		r.Route("/api-tokens", apiTokenHandler.RegisterRoutes)
+		r.Route("/external", externalHandler.RegisterRoutes)
 
 		// SSE Endpoint (Wrapped with AuthMiddleware for security)
 		r.With(api.AuthMiddleware).Get("/events", broker.ServeHTTP)

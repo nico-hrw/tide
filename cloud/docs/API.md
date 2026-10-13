@@ -110,3 +110,23 @@ Protected routes require the `X-User-ID` header (containing the user ID) and a v
 | Method | Route | Description |
 |--------|-------|-------------|
 | `GET` | `/events` | Server-Sent Events (SSE) stream for instant sync notifications |
+
+### 11. Personal Access Tokens (`/api/v1/api-tokens`)
+Token management for user account access delegation. Requires user session JWT (`AuthMiddleware`).
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `GET`    | `/api-tokens` | List all created personal access tokens (metadata & prefix only) |
+| `POST`   | `/api-tokens` | Create a new token with specific scopes (`events:read`, `events:write`, `notes:read`, `notes:write`) and expiry |
+| `DELETE` | `/api-tokens/{tokenID}` | Revoke/delete an API token |
+| `GET`    | `/api-tokens/scopes` | List all available scopes and their implementation status |
+
+### 12. External Integration API (`/api/v1/external`)
+Dedicated endpoints for external tools, automation scripts, and calendar clients using Personal Access Tokens (`Authorization: Bearer tide_pat_...` or `X-API-Key: tide_pat_...`).
+
+| Method | Route | Required Scope | Description |
+|--------|-------|----------------|-------------|
+| `GET` | `/external/events` | `events:read` | List calendar events with optional date range (`start`, `end`), search (`q`), and pagination (`limit`) |
+| `GET` | `/external/events/{id}` | `events:read` | Retrieve details for a single calendar event by ID |
+| `GET` | `/external/notes` | `notes:read` | *(Planned)* List notes (returns 501 Not Implemented) |
+| `GET` | `/external/notes/{id}` | `notes:read` | *(Planned)* Retrieve note content (returns 501 Not Implemented) |

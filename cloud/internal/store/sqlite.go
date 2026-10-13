@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -194,6 +195,19 @@ func (s *SQLiteStore) migrate() error {
 		profile_status INTEGER NOT NULL DEFAULT 0,
 		FOREIGN KEY(user_id) REFERENCES users(id)
 	);
+
+	CREATE TABLE IF NOT EXISTS api_tokens (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL,
+		name TEXT NOT NULL,
+		token_hash TEXT NOT NULL UNIQUE,
+		token_prefix TEXT NOT NULL,
+		scopes TEXT NOT NULL DEFAULT '[]',
+		created_at DATETIME NOT NULL,
+		expires_at DATETIME,
+		last_used_at DATETIME,
+		FOREIGN KEY(user_id) REFERENCES users(id)
+	);
 	`
 	if _, err := s.DB.Exec(tables); err != nil {
 		return err
@@ -231,6 +245,9 @@ func (s *SQLiteStore) migrate() error {
 	
 	CREATE INDEX IF NOT EXISTS idx_links_source ON links(source_id);
 	CREATE INDEX IF NOT EXISTS idx_links_target ON links(target_id);
+
+	CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON api_tokens(user_id);
+	CREATE INDEX IF NOT EXISTS idx_api_tokens_hash ON api_tokens(token_hash);
 	`
 	if _, err := s.DB.Exec(indices); err != nil {
 		return err
@@ -1073,6 +1090,355 @@ func (s *SQLiteStore) DeleteToken(ctx context.Context, token string) error {
 	query := `DELETE FROM tokens WHERE token = ?`
 	_, err := s.DB.ExecContext(ctx, query, token)
 	return err
+}
+
+// --- Personal Access Token (API Token) Operations ---
+
+func (s *SQLiteStore) CreateAPIToken(ctx context.Context, token *db.APIToken) error {
+	scopesJSON, err := json.Marshal(token.Scopes)
+	if err != nil {
+		scopesJSON = []byte("[]")
+	}
+
+	query := `
+		INSERT INTO api_tokens (id, user_id, name, token_hash, token_prefix, scopes, created_at, expires_at, last_used_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+	_, err = s.DB.ExecContext(ctx, query,
+		token.ID,
+		token.UserID,
+		token.Name,
+		token.TokenHash,
+		token.TokenPrefix,
+		string(scopesJSON),
+		token.CreatedAt,
+		token.ExpiresAt,
+		token.LastUsedAt,
+	)
+	return err
+}
+
+func (s *SQLiteStore) GetAPITokenByHash(ctx context.Context, tokenHash string) (*db.APIToken, error) {
+	query := `
+		SELECT id, user_id, name, token_hash, token_prefix, scopes, created_at, expires_at, last_used_at
+		FROM api_tokens
+		WHERE token_hash = ?
+	`
+	row := s.DB.QueryRowContext(ctx, query, tokenHash)
+
+	var t db.APIToken
+	var scopesStr string
+	err := row.Scan(
+		&t.ID,
+		&t.UserID,
+		&t.Name,
+		&t.TokenHash,
+		&t.TokenPrefix,
+		&scopesStr,
+		&t.CreatedAt,
+		&t.ExpiresAt,
+		&t.LastUsedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	if err := json.Unmarshal([]byte(scopesStr), &t.Scopes); err != nil {
+		t.Scopes = []string{}
+	}
+	return &t, nil
+}
+
+func (s *SQLiteStore) ListAPITokensForUser(ctx context.Context, userID string) ([]*db.APIToken, error) {
+	query := `
+		SELECT id, user_id, name, token_prefix, scopes, created_at, expires_at, last_used_at
+		FROM api_tokens
+		WHERE user_id = ?
+		ORDER BY created_at DESC
+	`
+	rows, err := s.DB.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tokens []*db.APIToken
+	for rows.Next() {
+		var t db.APIToken
+		var scopesStr string
+		if err := rows.Scan(
+			&t.ID,
+			&t.UserID,
+			&t.Name,
+			&t.TokenPrefix,
+			&scopesStr,
+			&t.CreatedAt,
+			&t.ExpiresAt,
+			&t.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal([]byte(scopesStr), &t.Scopes); err != nil {
+			t.Scopes = []string{}
+		}
+		tokens = append(tokens, &t)
+	}
+	if tokens == nil {
+		tokens = []*db.APIToken{}
+	}
+	return tokens, nil
+}
+
+func (s *SQLiteStore) DeleteAPIToken(ctx context.Context, tokenID, userID string) error {
+	query := `DELETE FROM api_tokens WHERE id = ? AND user_id = ?`
+	res, err := s.DB.ExecContext(ctx, query, tokenID, userID)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *SQLiteStore) UpdateAPITokenLastUsed(ctx context.Context, tokenID string, t time.Time) error {
+	query := `UPDATE api_tokens SET last_used_at = ? WHERE id = ?`
+	_, err := s.DB.ExecContext(ctx, query, t, tokenID)
+	return err
+}
+
+// --- External API Event Operations ---
+
+type rawEventMeta struct {
+	Title       string `json:"title"`
+	Start       string `json:"start"`
+	End         string `json:"end"`
+	AllDay      bool   `json:"allDay"`
+	AllDayAlt   bool   `json:"all_day"`
+	Color       string `json:"color"`
+	Description string `json:"description"`
+	Location    string `json:"location"`
+	GCalID      string `json:"gcal_id"`
+}
+
+func parseExternalEvent(id string, parentID *string, createdAt, updatedAt time.Time, metadataStr, publicMetaStr string) *db.ExternalEvent {
+	var meta rawEventMeta
+	var pub rawEventMeta
+
+	if metadataStr != "" && metadataStr != "{}" {
+		_ = json.Unmarshal([]byte(metadataStr), &meta)
+	}
+	if publicMetaStr != "" && publicMetaStr != "{}" {
+		_ = json.Unmarshal([]byte(publicMetaStr), &pub)
+	}
+
+	title := meta.Title
+	if title == "" {
+		title = pub.Title
+	}
+	if title == "" {
+		title = "Untitled Event"
+	}
+
+	start := meta.Start
+	if start == "" {
+		start = pub.Start
+	}
+
+	end := meta.End
+	if end == "" {
+		end = pub.End
+	}
+
+	allDay := meta.AllDay || meta.AllDayAlt || pub.AllDay || pub.AllDayAlt
+
+	color := meta.Color
+	if color == "" {
+		color = pub.Color
+	}
+
+	desc := meta.Description
+	if desc == "" {
+		desc = pub.Description
+	}
+
+	loc := meta.Location
+	if loc == "" {
+		loc = pub.Location
+	}
+
+	source := "tide"
+	if pub.GCalID != "" || meta.GCalID != "" {
+		source = "gcal"
+	}
+
+	return &db.ExternalEvent{
+		ID:          id,
+		Title:       title,
+		Start:       start,
+		End:         end,
+		AllDay:      allDay,
+		Color:       color,
+		Description: desc,
+		Location:    loc,
+		ParentID:    parentID,
+		Source:      source,
+		CreatedAt:   createdAt,
+		UpdatedAt:   updatedAt,
+	}
+}
+
+func parseDateFlexible(s string) (time.Time, bool) {
+	if s == "" {
+		return time.Time{}, false
+	}
+	formats := []string{
+		time.RFC3339,
+		time.RFC3339Nano,
+		"2006-01-02T15:04:05",
+		"2006-01-02 15:04:05",
+		"2006-01-02 15:04",
+		"2006-01-02",
+	}
+	for _, f := range formats {
+		if t, err := time.Parse(f, s); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
+}
+
+func (s *SQLiteStore) ListEventsForExternalAPI(ctx context.Context, userID string, startTime, endTime *time.Time, search string, limit int) ([]*db.ExternalEvent, error) {
+	query := `
+		SELECT f.id, f.parent_id, f.created_at, f.updated_at,
+		       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
+		       COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta
+		FROM files f
+		LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
+		WHERE (f.owner_id = ? OR (fs.user_id = ? AND fs.status = 'accepted'))
+		  AND f.type = 'event'
+		  AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
+		ORDER BY f.created_at DESC
+	`
+	rows, err := s.DB.QueryContext(ctx, query, userID, userID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	searchLower := strings.ToLower(strings.TrimSpace(search))
+
+	var events []*db.ExternalEvent
+	for rows.Next() {
+		var id string
+		var parentID *string
+		var createdAt, updatedAt time.Time
+		var md, pm string
+
+		if err := rows.Scan(&id, &parentID, &createdAt, &updatedAt, &md, &pm); err != nil {
+			return nil, err
+		}
+
+		ev := parseExternalEvent(id, parentID, createdAt, updatedAt, md, pm)
+
+		// Search filter
+		if searchLower != "" {
+			matchTitle := strings.Contains(strings.ToLower(ev.Title), searchLower)
+			matchDesc := strings.Contains(strings.ToLower(ev.Description), searchLower)
+			matchLoc := strings.Contains(strings.ToLower(ev.Location), searchLower)
+			if !matchTitle && !matchDesc && !matchLoc {
+				continue
+			}
+		}
+
+		// Date filter
+		evStart, hasStart := parseDateFlexible(ev.Start)
+		evEnd, hasEnd := parseDateFlexible(ev.End)
+		if !hasEnd && hasStart {
+			evEnd = evStart
+		}
+
+		if startTime != nil && hasStart {
+			// Event must not have ended before the requested range
+			effectiveEnd := evEnd
+			if !hasEnd {
+				effectiveEnd = evStart
+			}
+			if effectiveEnd.Before(*startTime) {
+				continue
+			}
+		}
+
+		if endTime != nil && hasStart {
+			// Event must not start after the requested range
+			if evStart.After(*endTime) {
+				continue
+			}
+		}
+
+		events = append(events, ev)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if events == nil {
+		events = []*db.ExternalEvent{}
+	}
+
+	// Sort by start date ascending
+	sort.Slice(events, func(i, j int) bool {
+		tI, okI := parseDateFlexible(events[i].Start)
+		tJ, okJ := parseDateFlexible(events[j].Start)
+		if okI && okJ {
+			if !tI.Equal(tJ) {
+				return tI.Before(tJ)
+			}
+		} else if okI != okJ {
+			return okI
+		}
+		return events[i].CreatedAt.Before(events[j].CreatedAt)
+	})
+
+	if limit > 0 && len(events) > limit {
+		events = events[:limit]
+	}
+
+	return events, nil
+}
+
+func (s *SQLiteStore) GetEventForExternalAPI(ctx context.Context, userID, eventID string) (*db.ExternalEvent, error) {
+	query := `
+		SELECT f.id, f.parent_id, f.created_at, f.updated_at,
+		       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
+		       COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta
+		FROM files f
+		LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
+		WHERE f.id = ?
+		  AND (f.owner_id = ? OR (fs.user_id = ? AND fs.status = 'accepted'))
+		  AND f.type = 'event'
+		  AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
+	`
+	row := s.DB.QueryRowContext(ctx, query, userID, eventID, userID, userID)
+
+	var id string
+	var parentID *string
+	var createdAt, updatedAt time.Time
+	var md, pm string
+
+	if err := row.Scan(&id, &parentID, &createdAt, &updatedAt, &md, &pm); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return parseExternalEvent(id, parentID, createdAt, updatedAt, md, pm), nil
 }
 
 // --- Link Operations ---

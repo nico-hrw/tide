@@ -136,3 +136,33 @@ type FileBackup struct {
 	Version       int             `json:"version" db:"version"`
 	UpdatedAt     time.Time       `json:"updated_at" db:"updated_at"`
 }
+
+// APIToken represents a personal access token for external API access.
+type APIToken struct {
+	ID          string     `json:"id" db:"id"`
+	UserID      string     `json:"user_id" db:"user_id"`
+	Name        string     `json:"name" db:"name"`
+	TokenHash   string     `json:"-" db:"token_hash"`
+	TokenPrefix string     `json:"token_prefix" db:"token_prefix"`
+	Scopes      []string   `json:"scopes" db:"scopes"`
+	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
+	ExpiresAt   *time.Time `json:"expires_at" db:"expires_at"`
+	LastUsedAt  *time.Time `json:"last_used_at" db:"last_used_at"`
+}
+
+// ExternalEvent represents a calendar event returned to external API consumers.
+type ExternalEvent struct {
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Start       string    `json:"start"`
+	End         string    `json:"end"`
+	AllDay      bool      `json:"all_day"`
+	Color       string    `json:"color,omitempty"`
+	Description string    `json:"description,omitempty"`
+	Location    string    `json:"location,omitempty"`
+	ParentID    *string   `json:"parent_id,omitempty"`
+	Source      string    `json:"source"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+

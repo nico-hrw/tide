@@ -12,6 +12,7 @@
 | Object Store | Local Filesystem (`data/blobs/`) | Encrypted client files & large binary assets |
 | Realtime | SSE (Server-Sent Events) + WebSocket | Push notifications, live file sync, chat |
 | Auth & Crypto | JWT + Argon2 / SHA-256 blind indexing | Stateless session validation & zero-knowledge search |
+| External API | Scoped PATs (`tide_pat_`) + SHA-256 hashing | Secure third-party integrations & automation |
 
 ## 2. Directory Structure
 
@@ -21,8 +22,8 @@ cloud/
 │   └── server/
 │       └── main.go       # Server entry point, router setup, background GC worker
 ├── internal/
-│   ├── api/              # HTTP REST handlers (auth, files, contacts, finance, etc.)
-│   ├── db/               # Model structs & database helper queries
+│   ├── api/              # HTTP REST handlers (auth, files, api_tokens, external, contacts, etc.)
+│   ├── db/               # Model structs & database helper queries (APIToken, ExternalEvent, etc.)
 │   ├── extensions/       # Extension-specific business logic (e.g. finance)
 │   └── store/            # SQLite schema initialization (sqlite.go) & blob store (blob.go)
 ├── scripts/              # Deployment, start, dev, and verification scripts
@@ -31,7 +32,7 @@ cloud/
 │   ├── linux/            # start.sh, update.sh
 │   └── verify/           # verify_*.ps1 integration test scripts
 ├── data/                 # SQLite database file (tide.db) and blob store (gitignored)
-└── docs/                 # Backend documentation (ARCHITECTURE, DATABASE, API, SYSTEM_FLOW)
+└── docs/                 # Backend documentation (ARCHITECTURE, DATABASE, API, API_MODULE, SYSTEM_FLOW)
 ```
 
 ## 3. Server Startup & Configuration
