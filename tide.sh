@@ -4,6 +4,10 @@
 # Tide Management Script v4.0 (Cloud & PM2 Edition)
 # =================================================================
 
+# NVM laden, falls vorhanden (stellt Node >= 20.9 für Next.js sicher)
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLOUD_DIR="$ROOT_DIR/cloud"
 WEB_DIR="$ROOT_DIR/web"
@@ -29,7 +33,49 @@ load_env() {
     fi
 }
 
-# --- 2. Alte Prozesse säubern ---
+# --- 2. Backup-Funktion ---
+backup_data() {
+    local backup_root="$HOME/tide_backup"
+    local timestamp
+    timestamp="$(date +'%Y-%m-%d_%H-%M-%S')"
+    local backup_dir="$backup_root/$timestamp"
+
+    echo "📦 Starte Datensicherung der Nutzerdaten..."
+    mkdir -p "$backup_dir"
+
+    # Ermittle den aktuellen Datenordner (Root oder Cloud)
+    local active_data_dir=""
+    if [ -d "$ROOT_DIR/data" ] && [ -f "$ROOT_DIR/data/tide.db" ]; then
+        active_data_dir="$ROOT_DIR/data"
+    elif [ -d "$CLOUD_DIR/data" ] && [ -f "$CLOUD_DIR/data/tide.db" ]; then
+        active_data_dir="$CLOUD_DIR/data"
+    fi
+
+    if [ -n "$active_data_dir" ]; then
+        # WAL-Checkpoint anstoßen falls sqlite3 CLI verfügbar ist
+        if command -v sqlite3 >/dev/null 2>&1; then
+            sqlite3 "$active_data_dir/tide.db" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
+        fi
+
+        # Vollständiges Archiv im Backup-Verzeichnis erzeugen
+        tar -czf "$backup_dir/data.tar.gz" -C "$(dirname "$active_data_dir")" "$(basename "$active_data_dir")" 2>/dev/null
+        # Schnellzugriff auf die DB für direkte Inspektion/Wiederherstellung
+        cp -a "$active_data_dir/tide.db"* "$backup_dir/" 2>/dev/null || true
+
+        # Symlink auf latest aktualisieren
+        ln -sfn "$backup_dir" "$backup_root/latest"
+
+        # Behalte die letzten 30 Backups auf dem Server
+        find "$backup_root" -maxdepth 1 -mindepth 1 -type d ! -name "latest" | sort -r | tail -n +31 | xargs -r rm -rf
+
+        echo "✅ Sicherung erfolgreich gespeichert in: $backup_dir"
+        echo "📌 'latest'-Zeiger aktualisiert: $backup_root/latest"
+    else
+        echo "⚠️ Kein aktives Datenverzeichnis mit Nutzerdaten gefunden, überspringe Backup."
+    fi
+}
+
+# --- 3. Alte Prozesse säubern ---
 cleanup() {
     echo "🧹 Räume alte Prozesse auf..."
     pm2 delete tide-backend tide-frontend 2>/dev/null
@@ -39,7 +85,7 @@ cleanup() {
     sleep 2
 }
 
-# --- 3. Build-Funktionen ---
+# --- 4. Build-Funktionen ---
 build_backend() {
     echo "🏗️ Baue Go Backend..."
     cd "$CLOUD_DIR" || exit
@@ -59,7 +105,7 @@ build_frontend() {
     cd "$WEB_DIR" || exit
     rm -rf .next
     npm install
-    NEXT_DISABLE_TURBOPACK=1 NODE_ENV=production npx next build --webpack
+    NEXT_DISABLE_TURBOPACK=1 NODE_ENV=production NODE_OPTIONS="--max-old-space-size=1536" npx next build --webpack
     if [ $? -ne 0 ]; then
         echo "❌ FEHLER: Der Frontend-Build ist fehlgeschlagen!"
         exit 1
@@ -69,7 +115,7 @@ build_frontend() {
     cd "$ROOT_DIR"
 }
 
-# --- 4. Start-Logik mit PM2 ---
+# --- 5. Start-Logik mit PM2 ---
 start_system() {
     echo "🚀 Starte Tide-Gesamtsystem via PM2..."
 
@@ -95,12 +141,14 @@ load_env
 
 case "$1" in
     -a|--all)
+        backup_data
         cleanup
         build_backend
         build_frontend
         start_system
         ;;
     -b|--backend)
+        backup_data
         cleanup
         build_backend
         cd "$ROOT_DIR"
@@ -115,8 +163,12 @@ case "$1" in
         pm2 save
         ;;
     -s|--start)
+        backup_data
         cleanup
         start_system
+        ;;
+    -c|--backup)
+        backup_data
         ;;
     -k|--stop)
         cleanup
@@ -133,11 +185,12 @@ case "$1" in
         pm2 logs
         ;;
     *)
-        echo "Verwendung: ./tide.sh [-a | -b | -f | -s | -k | -o | status | logs]"
-        echo "  -a, --all      : Alles neu bauen und starten"
-        echo "  -b, --backend  : Nur Backend neu bauen und starten"
+        echo "Verwendung: ./tide.sh [-a | -b | -f | -s | -c | -k | -o | status | logs]"
+        echo "  -a, --all      : Alles sichern, neu bauen und starten"
+        echo "  -b, --backend  : Sichern, nur Backend neu bauen und starten"
         echo "  -f, --frontend : Nur Frontend neu bauen und starten"
-        echo "  -s, --start    : System starten (ohne neu zu bauen)"
+        echo "  -s, --start    : Sichern und System starten (ohne neu zu bauen)"
+        echo "  -c, --backup   : Manuelles Daten-Backup erstellen"
         echo "  -k, --stop     : System stoppen"
         echo "  -o, --otp      : OTP Code anzeigen"
         echo "  status         : PM2 Prozess-Status anzeigen"

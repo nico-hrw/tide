@@ -40,7 +40,16 @@ if /I "%~1"=="-o" goto OTP
 if /I "%~1"=="--otp" goto OTP
 if /I "%~1"=="otp" goto OTP
 
+if /I "%~1"=="-c" goto CLI_BACKUP
+if /I "%~1"=="--backup" goto CLI_BACKUP
+if /I "%~1"=="backup" goto CLI_BACKUP
+
 goto USAGE
+
+:CLI_BACKUP
+powershell -ExecutionPolicy Bypass -File "%ROOT%\pull-backup.ps1"
+exit /b %ERRORLEVEL%
+
 
 :MENU
 cls
@@ -54,9 +63,10 @@ echo  [4] Nur Frontend bauen und starten
 echo  [5] Bestehende Builds starten (Start)
 echo  [6] Prozesse auf Port 8080 ^& 3000 stoppen
 echo  [7] OTP-Code anzeigen
-echo  [8] Beenden
+echo  [8] Sicherung vom Server auf Laptop laden (Backup Pull)
+echo  [9] Beenden
 echo =======================================================
-set /p CHOICE="Waehle eine Option [1-8]: "
+set /p CHOICE="Waehle eine Option [1-9]: "
 
 if "%CHOICE%"=="1" goto DEV
 if "%CHOICE%"=="2" goto ALL
@@ -65,7 +75,8 @@ if "%CHOICE%"=="4" goto FRONTEND
 if "%CHOICE%"=="5" goto START
 if "%CHOICE%"=="6" goto STOP
 if "%CHOICE%"=="7" goto OTP
-if "%CHOICE%"=="8" exit /b 0
+if "%CHOICE%"=="8" goto BACKUP
+if "%CHOICE%"=="9" exit /b 0
 goto MENU
 
 :DEV
@@ -167,8 +178,14 @@ if exist "%OTP_FILE%" (
 )
 exit /b 0
 
+:BACKUP
+echo 📦 Starte Backup-Synchronisation vom Server...
+powershell -ExecutionPolicy Bypass -File "%ROOT%\pull-backup.ps1"
+pause
+goto MENU
+
 :USAGE
-echo Verwendung: tide.bat [-a ^| -b ^| -f ^| -s ^| -d ^| -k ^| -o]
+echo Verwendung: tide.bat [-a ^| -b ^| -f ^| -s ^| -d ^| -k ^| -o ^| -c]
 echo   -a, all      : Alles neu bauen und starten
 echo   -b, backend  : Nur Backend neu bauen und starten
 echo   -f, frontend : Nur Frontend neu bauen und starten
@@ -176,4 +193,6 @@ echo   -s, start    : System starten (ohne neu zu bauen)
 echo   -d, dev      : Development Modus starten (Backend + Frontend)
 echo   -k, stop     : Laufende Server-Prozesse beenden
 echo   -o, otp      : OTP-Code anzeigen
+echo   -c, backup   : Sicherung vom Server auf Laptop laden
 exit /b 1
+

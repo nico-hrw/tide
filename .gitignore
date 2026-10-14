@@ -91,3 +91,7 @@ cloud/data/blobs/
 # Ausführbare Dateien
 *.exe
 cloud/server.exe
+
+# Backups (Nutzerdaten niemals committen oder tracken)
+backups/
+tide_backup/
