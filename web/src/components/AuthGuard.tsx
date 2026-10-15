@@ -54,7 +54,6 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                 } else {
                     setAuthorized(false);
                     sessionStorage.clear();
-                    localStorage.removeItem("tide_session_key");
                     localStorage.removeItem("tide_session_token");
                     router.push("/auth");
                 }

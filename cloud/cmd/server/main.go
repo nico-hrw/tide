@@ -32,7 +32,6 @@ func main() {
 	envPaths := []string{
 		filepath.Join(baseDir, ".env"),
 		".env",
-		"/home/nicoh/tide/.env",
 	}
 	for _, p := range envPaths {
 		if err := godotenv.Load(p); err == nil {
@@ -69,9 +68,11 @@ func main() {
 
 	blobStore := store.NewLocalBlobStore(filepath.Join(dataDir, "blobs"))
 
-	// 2. Initialize Handlers
+	// 2. Initialize Handlers and Rate Limiters
 	broker := api.NewBroker()
 	authHandler := api.NewAuthHandler(sqliteStore, masterKey)
+	authLimiter := api.NewIPRateLimiter(0.1, 5)
+	otpVerifyLimiter := api.NewIPRateLimiter(0.166, 5)
 	fileHandler := api.NewFileHandler(sqliteStore, blobStore, broker)
 	linkHandler := api.NewLinkHandler(sqliteStore)
 	messageHandler := &api.MessageHandler{Store: sqliteStore, Broker: broker}
@@ -148,9 +149,9 @@ func main() {
 
 	r.Route("/api/v1", func(r chi.Router) {
 		// Flattened Auth routes to avoid sub-router 404 confusion
-		r.Post("/auth/register", authHandler.Register)
-		r.Post("/auth/request-otp", authHandler.RequestOTP)
-		r.Post("/auth/verify-otp", authHandler.VerifyOTP)
+		r.With(api.RateLimitMiddleware(authLimiter)).Post("/auth/register", authHandler.Register)
+		r.With(api.RateLimitMiddleware(authLimiter)).Post("/auth/request-otp", authHandler.RequestOTP)
+		r.With(api.RateLimitMiddleware(otpVerifyLimiter)).Post("/auth/verify-otp", authHandler.VerifyOTP)
 		r.With(api.AuthMiddleware).Get("/auth/me", authHandler.Me)
 		r.With(api.AuthMiddleware).Put("/auth/me", authHandler.UpdateMe)
 

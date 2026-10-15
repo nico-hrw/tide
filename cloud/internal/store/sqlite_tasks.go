@@ -25,7 +25,7 @@ func (s *SQLiteStore) CreateTask(ctx context.Context, task *db.Task) error {
 
 func (s *SQLiteStore) GetTask(ctx context.Context, id, userID string) (*db.Task, error) {
 	query := `SELECT id, user_id, encrypted_vault, created_at, updated_at FROM tasks WHERE id = ? AND user_id = ?`
-	row := s.DB.QueryRowContext(ctx, query, id, userID)
+	row := s.readDB().QueryRowContext(ctx, query, id, userID)
 
 	var task db.Task
 	err := row.Scan(
@@ -46,7 +46,7 @@ func (s *SQLiteStore) GetTask(ctx context.Context, id, userID string) (*db.Task,
 
 func (s *SQLiteStore) ListTasks(ctx context.Context, userID string) ([]*db.Task, error) {
 	query := `SELECT id, user_id, encrypted_vault, created_at, updated_at FROM tasks WHERE user_id = ?`
-	rows, err := s.DB.QueryContext(ctx, query, userID)
+	rows, err := s.readDB().QueryContext(ctx, query, userID)
 	if err != nil {
 		return nil, err
 	}

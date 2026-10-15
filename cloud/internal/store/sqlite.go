@@ -2,8 +2,8 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -21,7 +22,8 @@ import (
 
 // SQLiteStore implements the database interface using SQLite.
 type SQLiteStore struct {
-	DB *sql.DB
+	DB     *sql.DB // Writer connection pool (MaxOpenConns: 1)
+	reader *sql.DB // Multi-connection reader pool (MaxOpenConns: N)
 }
 
 // NewSQLiteStore initializes the SQLite database and runs migrations.
@@ -44,15 +46,63 @@ func NewSQLiteStore(dataDir string) (*SQLiteStore, error) {
 	conn.SetConnMaxLifetime(time.Hour)
 
 	if err := conn.Ping(); err != nil {
+		conn.Close()
 		return nil, fmt.Errorf("failed to ping db: %w", err)
 	}
 
-	s := &SQLiteStore{DB: conn}
+	numCPU := runtime.NumCPU()
+	maxReaders := numCPU * 2
+	if maxReaders < 4 {
+		maxReaders = 4
+	}
+	readerDSN := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=query_only(true)", dbPath)
+	readerConn, err := sql.Open("sqlite", readerDSN)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to open reader db: %w", err)
+	}
+	readerConn.SetMaxOpenConns(maxReaders)
+	readerConn.SetMaxIdleConns(max(2, numCPU))
+	readerConn.SetConnMaxLifetime(time.Hour)
+
+	if err := readerConn.Ping(); err != nil {
+		readerConn.Close()
+		conn.Close()
+		return nil, fmt.Errorf("failed to ping reader db: %w", err)
+	}
+
+	s := &SQLiteStore{DB: conn, reader: readerConn}
 	if err := s.migrate(); err != nil {
+		s.Close()
 		return nil, fmt.Errorf("migration failed: %w", err)
 	}
 
 	return s, nil
+}
+
+func (s *SQLiteStore) readDB() *sql.DB {
+	if s.reader != nil {
+		return s.reader
+	}
+	return s.DB
+}
+
+func (s *SQLiteStore) Close() error {
+	var errs []error
+	if s.reader != nil {
+		if err := s.reader.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if s.DB != nil {
+		if err := s.DB.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to close sqlite store: %v", errs)
+	}
+	return nil
 }
 
 func (s *SQLiteStore) migrate() error {
@@ -398,7 +448,7 @@ func (s *SQLiteStore) CreateUser(ctx context.Context, user *db.User) error {
 
 func (s *SQLiteStore) GetUser(ctx context.Context, id string) (*db.User, error) {
 		query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, COALESCE(pin_hash, '') as pin_hash, COALESCE(login_code, '') as login_code, COALESCE(username, '') as username, created_at, COALESCE(is_verified, 0) as is_verified FROM users WHERE id = ?`
-	row := s.DB.QueryRowContext(ctx, query, id)
+	row := s.readDB().QueryRowContext(ctx, query, id)
 
 	var user db.User
 	var ext string
@@ -454,7 +504,7 @@ func (s *SQLiteStore) GetUserExtensions(ctx context.Context, id string) ([]strin
 func (s *SQLiteStore) GetUserByEmailHash(ctx context.Context, emailHash string) (*db.User, error) {
 	// We query by the Blind Index
 		query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, COALESCE(pin_hash, '') as pin_hash, COALESCE(login_code, '') as login_code, COALESCE(username, '') as username, created_at, COALESCE(is_verified, 0) as is_verified FROM users WHERE email_blind_index = ?`
-	row := s.DB.QueryRowContext(ctx, query, emailHash)
+	row := s.readDB().QueryRowContext(ctx, query, emailHash)
 
 	var user db.User
 	var ext string
@@ -557,7 +607,7 @@ created_at, updated_at, blob_path, visibility, public_meta, secured_meta, versio
 
 func (s *SQLiteStore) GetFile(ctx context.Context, id string) (*db.File, error) {
 		query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, COALESCE(visibility, 'private') as visibility, public_meta, COALESCE(secured_meta, x'') as secured_meta, COALESCE(version, 1) as version, COALESCE(NULLIF(metadata, ''), '{}') as metadata, COALESCE(NULLIF(access_keys, ''), '{}') as access_keys, 'owner' as permission FROM files WHERE id = ?`
-	row := s.DB.QueryRowContext(ctx, query, id)
+	row := s.readDB().QueryRowContext(ctx, query, id)
 
 	var file db.File
 	var md, ak string
@@ -596,7 +646,7 @@ func (s *SQLiteStore) GetFile(ctx context.Context, id string) (*db.File, error) 
 func (s *SQLiteStore) UserHasFileAccess(ctx context.Context, userID, fileID string) (bool, error) {
 	// First check if they own the file directly
 	var count int
-	err := s.DB.QueryRowContext(ctx, "SELECT COUNT(1) FROM files WHERE id = ? AND owner_id = ?", fileID, userID).Scan(&count)
+	err := s.readDB().QueryRowContext(ctx, "SELECT COUNT(1) FROM files WHERE id = ? AND owner_id = ?", fileID, userID).Scan(&count)
 	if err != nil {
 		return false, err
 	}
@@ -606,7 +656,7 @@ func (s *SQLiteStore) UserHasFileAccess(ctx context.Context, userID, fileID stri
 
 	// Then check if it has been shared with them
 	// Join with users to handle legacy/draft shares vs accepted invitations
-	err = s.DB.QueryRowContext(ctx, "SELECT COUNT(1) FROM file_shares WHERE file_id = ? AND user_id = ? AND status = 'accepted'", fileID, userID).Scan(&count)
+	err = s.readDB().QueryRowContext(ctx, "SELECT COUNT(1) FROM file_shares WHERE file_id = ? AND user_id = ? AND status = 'accepted'", fileID, userID).Scan(&count)
 	if err != nil {
 		return false, err
 	}
@@ -614,7 +664,7 @@ func (s *SQLiteStore) UserHasFileAccess(ctx context.Context, userID, fileID stri
 	// If it's a public file, technically they also have access
 	if count == 0 {
 		var visibility string
-		err = s.DB.QueryRowContext(ctx, "SELECT visibility FROM files WHERE id = ?", fileID).Scan(&visibility)
+		err = s.readDB().QueryRowContext(ctx, "SELECT visibility FROM files WHERE id = ?", fileID).Scan(&visibility)
 		if err == nil && visibility == "public" {
 			return true, nil
 		}
@@ -643,7 +693,7 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 			OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL
 		)
 	`
-	row := s.DB.QueryRowContext(ctx, query, viewerID, id, viewerID, viewerID, viewerID)
+	row := s.readDB().QueryRowContext(ctx, query, viewerID, id, viewerID, viewerID, viewerID)
 
 	var f db.File
 	var md, ak string
@@ -859,7 +909,7 @@ func (s *SQLiteStore) UpdateSharePermission(ctx context.Context, fileID string, 
 // GetSharePermission returns the permission level for a given (file, user) share, or empty if no share.
 func (s *SQLiteStore) GetSharePermission(ctx context.Context, fileID string, userID string) (string, error) {
 	var permission string
-	err := s.DB.QueryRowContext(ctx, `SELECT permission FROM file_shares WHERE file_id = ? AND user_id = ?`, fileID, userID).Scan(&permission)
+	err := s.readDB().QueryRowContext(ctx, `SELECT permission FROM file_shares WHERE file_id = ? AND user_id = ?`, fileID, userID).Scan(&permission)
 	if err == sql.ErrNoRows {
 		return "", nil
 	}
@@ -868,7 +918,7 @@ func (s *SQLiteStore) GetSharePermission(ctx context.Context, fileID string, use
 
 // ListSharesForFile returns all shares for a given file (owner-only call).
 func (s *SQLiteStore) ListSharesForFile(ctx context.Context, fileID string) ([]*db.FileShare, error) {
-	rows, err := s.DB.QueryContext(ctx, `
+	rows, err := s.readDB().QueryContext(ctx, `
 		SELECT fs.file_id, fs.user_id, fs.status, fs.permission, fs.created_at, 
 		       COALESCE(u.username, '') as username,
 		       COALESCE(p.avatar_seed, '') as avatar_seed,
@@ -950,7 +1000,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 		if filterType != nil {
 			args = append(args, *filterType)
 		}
-		rows, err = s.DB.QueryContext(ctx, query, args...)
+		rows, err = s.readDB().QueryContext(ctx, query, args...)
 	} else if parentID != nil {
 		query := `
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta, 
@@ -974,7 +1024,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			args = append(args, *filterType)
 		}
 		args = append(args, viewerID, viewerID, viewerID)
-		rows, err = s.DB.QueryContext(ctx, query, args...)
+		rows, err = s.readDB().QueryContext(ctx, query, args...)
 	} else {
 		// Root (Traditional)
 		if filterType != nil && *filterType == "event" {
@@ -991,7 +1041,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE f.type = ? AND (f.owner_id = ? OR fs.user_id = ? OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			`
-			rows, err = s.DB.QueryContext(ctx, query, viewerID, *filterType, viewerID, viewerID, viewerID)
+			rows, err = s.readDB().QueryContext(ctx, query, viewerID, *filterType, viewerID, viewerID, viewerID)
 		} else {
 			// Normal folder listing
 			query := `
@@ -1009,7 +1059,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL)
 			AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			`
-			rows, err = s.DB.QueryContext(ctx, query, viewerID, viewerID, viewerID, viewerID)
+			rows, err = s.readDB().QueryContext(ctx, query, viewerID, viewerID, viewerID, viewerID)
 		}
 	}
 
@@ -1070,7 +1120,7 @@ func (s *SQLiteStore) SetToken(ctx context.Context, token string, userID string,
 
 func (s *SQLiteStore) GetToken(ctx context.Context, token string) (string, error) {
 	query := `SELECT user_id, expires_at FROM tokens WHERE token = ?`
-	row := s.DB.QueryRowContext(ctx, query, token)
+	row := s.readDB().QueryRowContext(ctx, query, token)
 	var userID string
 	var expiresAt time.Time
 	if err := row.Scan(&userID, &expiresAt); err != nil {
@@ -1124,7 +1174,7 @@ func (s *SQLiteStore) GetAPITokenByHash(ctx context.Context, tokenHash string) (
 		FROM api_tokens
 		WHERE token_hash = ?
 	`
-	row := s.DB.QueryRowContext(ctx, query, tokenHash)
+	row := s.readDB().QueryRowContext(ctx, query, tokenHash)
 
 	var t db.APIToken
 	var scopesStr string
@@ -1159,7 +1209,7 @@ func (s *SQLiteStore) ListAPITokensForUser(ctx context.Context, userID string) (
 		WHERE user_id = ?
 		ORDER BY created_at DESC
 	`
-	rows, err := s.DB.QueryContext(ctx, query, userID)
+	rows, err := s.readDB().QueryContext(ctx, query, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1324,7 +1374,7 @@ func (s *SQLiteStore) ListEventsForExternalAPI(ctx context.Context, userID strin
 		  AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 		ORDER BY f.created_at DESC
 	`
-	rows, err := s.DB.QueryContext(ctx, query, userID, userID, userID)
+	rows, err := s.readDB().QueryContext(ctx, query, userID, userID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1424,7 +1474,7 @@ func (s *SQLiteStore) GetEventForExternalAPI(ctx context.Context, userID, eventI
 		  AND f.type = 'event'
 		  AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 	`
-	row := s.DB.QueryRowContext(ctx, query, userID, eventID, userID, userID)
+	row := s.readDB().QueryRowContext(ctx, query, userID, eventID, userID, userID)
 
 	var id string
 	var parentID *string
@@ -1464,7 +1514,7 @@ func (s *SQLiteStore) DeleteLink(ctx context.Context, sourceID, targetID string)
 
 func (s *SQLiteStore) GetOutlinks(ctx context.Context, sourceID string) ([]db.Link, error) {
 	query := `SELECT source_id, target_id, type, created_at FROM links WHERE source_id = ?`
-	rows, err := s.DB.QueryContext(ctx, query, sourceID)
+	rows, err := s.readDB().QueryContext(ctx, query, sourceID)
 	if err != nil {
 		return nil, err
 	}
@@ -1483,7 +1533,7 @@ func (s *SQLiteStore) GetOutlinks(ctx context.Context, sourceID string) ([]db.Li
 
 func (s *SQLiteStore) GetBacklinks(ctx context.Context, targetID string) ([]db.Link, error) {
 	query := `SELECT source_id, target_id, type, created_at FROM links WHERE target_id = ?`
-	rows, err := s.DB.QueryContext(ctx, query, targetID)
+	rows, err := s.readDB().QueryContext(ctx, query, targetID)
 	if err != nil {
 		return nil, err
 	}
@@ -1516,7 +1566,7 @@ func (s *SQLiteStore) GetConversations(ctx context.Context, userID string) ([]*d
 		) m ON u.id = m.partner_id
 		ORDER BY m.last_activity DESC
 	`
-	rows, err := s.DB.QueryContext(ctx, query, userID, userID, userID)
+	rows, err := s.readDB().QueryContext(ctx, query, userID, userID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1560,7 +1610,7 @@ func (s *SQLiteStore) UpdateMessageStatus(ctx context.Context, id string, status
 
 func (s *SQLiteStore) GetMessage(ctx context.Context, id string) (*Message, error) {
 	query := `SELECT id, sender_id, recipient_id, content, status, created_at FROM messages WHERE id = ?`
-	row := s.DB.QueryRowContext(ctx, query, id)
+	row := s.readDB().QueryRowContext(ctx, query, id)
 	var m Message
 	if err := row.Scan(&m.ID, &m.SenderID, &m.RecipientID, &m.Content, &m.Status, &m.CreatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1580,7 +1630,7 @@ func (s *SQLiteStore) GetMessages(ctx context.Context, user1, user2 string) ([]*
 		   OR (sender_id = ? AND recipient_id = ?)
 		ORDER BY created_at ASC
 	`
-	rows, err := s.DB.QueryContext(ctx, query, user1, user2, user2, user1)
+	rows, err := s.readDB().QueryContext(ctx, query, user1, user2, user2, user1)
 	if err != nil {
 		return nil, err
 	}
@@ -1620,7 +1670,7 @@ func (s *SQLiteStore) GetContactRequests(ctx context.Context, userID string) ([]
 		LEFT JOIN users u ON c.user_id = u.id
 		WHERE c.contact_id = ? AND c.status = 'pending'
 	`
-	rows, err := s.DB.QueryContext(ctx, query, userID)
+	rows, err := s.readDB().QueryContext(ctx, query, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1642,7 +1692,7 @@ func (s *SQLiteStore) GetContactRequests(ctx context.Context, userID string) ([]
 // Used by handlers to verify ownership before accepting, declining or deleting a contact.
 func (s *SQLiteStore) GetContactByID(ctx context.Context, id string) (*Contact, error) {
 	query := `SELECT id, user_id, contact_id, status, created_at FROM contacts WHERE id = ?`
-	row := s.DB.QueryRowContext(ctx, query, id)
+	row := s.readDB().QueryRowContext(ctx, query, id)
 	var c Contact
 	if err := row.Scan(&c.ID, &c.UserID, &c.ContactID, &c.Status, &c.CreatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1683,7 +1733,7 @@ func (s *SQLiteStore) GetContacts(ctx context.Context, userID string) ([]*Contac
 		LEFT JOIN profiles p ON p.user_id = (CASE WHEN c.user_id = ? THEN c.contact_id ELSE c.user_id END)
 		WHERE (c.user_id = ? OR c.contact_id = ?) AND c.status = 'accepted'
 	`
-	rows, err := s.DB.QueryContext(ctx, query, userID, userID, userID, userID, userID)
+	rows, err := s.readDB().QueryContext(ctx, query, userID, userID, userID, userID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1703,7 +1753,7 @@ func (s *SQLiteStore) GetContacts(ctx context.Context, userID string) ([]*Contac
 
 func (s *SQLiteStore) GetContact(ctx context.Context, user1, user2 string) (*Contact, error) {
 	query := `SELECT id, user_id, contact_id, status, created_at FROM contacts WHERE (user_id = ? AND contact_id = ?) OR (user_id = ? AND contact_id = ?)`
-	row := s.DB.QueryRowContext(ctx, query, user1, user2, user2, user1)
+	row := s.readDB().QueryRowContext(ctx, query, user1, user2, user2, user1)
 	var c Contact
 	if err := row.Scan(&c.ID, &c.UserID, &c.ContactID, &c.Status, &c.CreatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1718,7 +1768,7 @@ func (s *SQLiteStore) GetContact(ctx context.Context, user1, user2 string) (*Con
 
 func (s *SQLiteStore) GetProfile(ctx context.Context, userID string) (*db.Profile, error) {
 	query := `SELECT user_id, avatar_seed, COALESCE(avatar_style, 'notionists') as avatar_style, COALESCE(avatar_salt, '') as avatar_salt, bio, title, profile_status FROM profiles WHERE user_id = ?`
-	row := s.DB.QueryRowContext(ctx, query, userID)
+	row := s.readDB().QueryRowContext(ctx, query, userID)
 	
 	var p db.Profile
 	if err := row.Scan(&p.UserID, &p.AvatarSeed, &p.AvatarStyle, &p.AvatarSalt, &p.Bio, &p.Title, &p.ProfileStatus); err != nil {
@@ -1761,7 +1811,7 @@ func (s *SQLiteStore) GetRandomProfiles(ctx context.Context, limit int, skipUser
 		ORDER BY RANDOM()
 		LIMIT ?
 	`
-	rows, err := s.DB.QueryContext(ctx, query, skipUserID, limit)
+	rows, err := s.readDB().QueryContext(ctx, query, skipUserID, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -1811,7 +1861,7 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewe
 		isContactVal = 1
 	}
 
-	rows, err := s.DB.QueryContext(ctx, query, viewerID, ownerID, isContactVal, viewerID)
+	rows, err := s.readDB().QueryContext(ctx, query, viewerID, ownerID, isContactVal, viewerID)
 	if err != nil {
 		return nil, err
 	}
@@ -1871,7 +1921,7 @@ func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, 
 		AND u.id != ?
 	`
 	
-	rows, err := s.DB.QueryContext(ctx, query, likeQuery, emailHash, likeQuery, skipUserID, likeQuery, skipUserID)
+	rows, err := s.readDB().QueryContext(ctx, query, likeQuery, emailHash, likeQuery, skipUserID, likeQuery, skipUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -1894,7 +1944,7 @@ func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, 
 
 func (s *SQLiteStore) GetFileBackups(ctx context.Context, fileID string) ([]db.FileBackup, error) {
 	query := `SELECT id, file_id, TRIM(slot_name) as slot_name, COALESCE(secured_meta, x'') as secured_meta, COALESCE(access_keys, '{}') as access_keys, COALESCE(version, 1) as version, updated_at FROM file_backups WHERE file_id = ? ORDER BY updated_at DESC`
-	rows, err := s.DB.QueryContext(ctx, query, fileID)
+	rows, err := s.readDB().QueryContext(ctx, query, fileID)
 	if err != nil {
 		return nil, err
 	}
@@ -1913,7 +1963,7 @@ func (s *SQLiteStore) GetFileBackups(ctx context.Context, fileID string) ([]db.F
 func (s *SQLiteStore) GetFileBackup(ctx context.Context, fileID, slotName string) (*db.FileBackup, error) {
 	trimmedSlot := strings.TrimSpace(slotName)
 	query := `SELECT id, file_id, TRIM(slot_name) as slot_name, encrypted_blob, COALESCE(secured_meta, x'') as secured_meta, COALESCE(access_keys, '{}') as access_keys, COALESCE(version, 1) as version, updated_at FROM file_backups WHERE file_id = ? AND (slot_name = ? OR TRIM(slot_name) = ?)`
-	row := s.DB.QueryRowContext(ctx, query, fileID, slotName, trimmedSlot)
+	row := s.readDB().QueryRowContext(ctx, query, fileID, slotName, trimmedSlot)
 	var b db.FileBackup
 	if err := row.Scan(&b.ID, &b.FileID, &b.SlotName, &b.EncryptedBlob, &b.SecuredMeta, &b.AccessKeys, &b.Version, &b.UpdatedAt); err != nil {
 		if err == sql.ErrNoRows {
@@ -1988,7 +2038,7 @@ func (s *SQLiteStore) ListTrashedFiles(ctx context.Context, viewerID string) ([]
 		WHERE owner_id = ? AND json_extract(metadata, '$.deleted_at') IS NOT NULL
 		ORDER BY json_extract(metadata, '$.deleted_at') DESC
 	`
-	rows, err := s.DB.QueryContext(ctx, query, viewerID)
+	rows, err := s.readDB().QueryContext(ctx, query, viewerID)
 	if err != nil {
 		return nil, err
 	}

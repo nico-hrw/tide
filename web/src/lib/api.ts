@@ -58,7 +58,6 @@ export async function apiFetch(url: string, options: RequestInit & { _isSyncRepl
         if (res.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth')) {
             console.warn("[apiFetch] 401 Unauthorized. Redirecting.");
             sessionStorage.clear();
-            localStorage.removeItem("tide_session_key");
             localStorage.removeItem("tide_session_token");
             window.location.href = '/auth';
         }

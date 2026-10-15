@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useReferenceStore } from '@/store/useReferenceStore';
-import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon, Calendar, Share, Plus, Briefcase } from 'lucide-react';
+import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon, Calendar, Share, Plus, Briefcase, Download, Copy, Upload, Key } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { useJobPlannerStore } from '@/store/useJobPlannerStore';
 
@@ -265,6 +265,10 @@ export default function SettingsModal({
     const [emailPinInput, setEmailPinInput] = useState('');
     const [emailStatus, setEmailStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
 
+    const [copyFeedback, setCopyFeedback] = useState(false);
+    const [backupStatus, setBackupStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     const { themePreference, setThemePreference, language, setLanguage, calendarColorPalette, setCalendarColorPalette, calendarOverlapMode, setCalendarOverlapMode, calendarHolidaysEnabled, setCalendarHolidaysEnabled, calendarHolidayPackage, setCalendarHolidayPackage } = useDataStore();
 
     const [newGroupName, setNewGroupName] = useState('');
@@ -358,6 +362,160 @@ export default function SettingsModal({
         } catch (e: any) {
             setEmailStatus({ type: 'error', msg: e.message });
         }
+    };
+
+    const handleExportMasterKey = () => {
+        try {
+            const rawKey = localStorage.getItem("tide_session_key") || sessionStorage.getItem("tide_session_key");
+            if (!rawKey) {
+                setBackupStatus({ type: 'error', msg: 'Kein aktiver Master-Schlüssel im Browser-Speicher gefunden.' });
+                return;
+            }
+
+            let privateKeyJwk: any;
+            try {
+                privateKeyJwk = typeof rawKey === 'string' ? JSON.parse(rawKey) : rawKey;
+            } catch {
+                privateKeyJwk = rawKey;
+            }
+
+            const email = localStorage.getItem("tide_user_email") || sessionStorage.getItem("tide_user_email") || userProfile?.email || "";
+            const userId = localStorage.getItem("tide_user_id") || sessionStorage.getItem("tide_user_id") || userProfile?.id || userProfile?.user_id || "";
+            const publicKeySpki = localStorage.getItem("tide_user_public_key") || sessionStorage.getItem("tide_user_public_key") || "";
+
+            const backupData = {
+                app: "tide",
+                version: 2,
+                timestamp: new Date().toISOString(),
+                email,
+                userId,
+                publicKeySpki,
+                privateKeyJwk
+            };
+
+            const dataStr = JSON.stringify(backupData, null, 2);
+            const blob = new Blob([dataStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            const safeEmail = (email || 'user').replace(/[^a-zA-Z0-9@._-]/g, '_');
+            a.href = url;
+            a.download = `tide-master-key-${safeEmail}-${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            setBackupStatus({ type: 'success', msg: 'Master-Schlüssel erfolgreich exportiert!' });
+            setTimeout(() => setBackupStatus(null), 4000);
+        } catch (err: any) {
+            console.error("Export Master Key failed:", err);
+            setBackupStatus({ type: 'error', msg: err?.message || 'Export fehlgeschlagen.' });
+        }
+    };
+
+    const handleCopyMasterKey = async () => {
+        try {
+            const rawKey = localStorage.getItem("tide_session_key") || sessionStorage.getItem("tide_session_key");
+            if (!rawKey) {
+                setBackupStatus({ type: 'error', msg: 'Kein aktiver Master-Schlüssel im Browser-Speicher gefunden.' });
+                return;
+            }
+
+            let privateKeyJwk: any;
+            try {
+                privateKeyJwk = typeof rawKey === 'string' ? JSON.parse(rawKey) : rawKey;
+            } catch {
+                privateKeyJwk = rawKey;
+            }
+
+            const email = localStorage.getItem("tide_user_email") || sessionStorage.getItem("tide_user_email") || userProfile?.email || "";
+            const userId = localStorage.getItem("tide_user_id") || sessionStorage.getItem("tide_user_id") || userProfile?.id || userProfile?.user_id || "";
+            const publicKeySpki = localStorage.getItem("tide_user_public_key") || sessionStorage.getItem("tide_user_public_key") || "";
+
+            const backupData = {
+                app: "tide",
+                version: 2,
+                timestamp: new Date().toISOString(),
+                email,
+                userId,
+                publicKeySpki,
+                privateKeyJwk
+            };
+
+            const jsonStr = JSON.stringify(backupData, null, 2);
+            await navigator.clipboard.writeText(jsonStr);
+            setCopyFeedback(true);
+            setTimeout(() => setCopyFeedback(false), 2000);
+        } catch (err: any) {
+            console.error("Copy Master Key failed:", err);
+            setBackupStatus({ type: 'error', msg: 'Kopieren fehlgeschlagen.' });
+        }
+    };
+
+    const handleImportMasterKey = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const text = event.target?.result as string;
+                if (!text) throw new Error("Datei ist leer.");
+
+                const parsed = JSON.parse(text);
+                const privateKey = parsed.privateKeyJwk || parsed;
+
+                // Validate privateKeyJwk: checks for kty === "RSA" and existence of n and d
+                if (!privateKey || privateKey.kty !== "RSA" || !privateKey.n || !privateKey.d) {
+                    throw new Error("Ungültiges RSA-Schlüsselformat: kty muss 'RSA' sein und Komponenten 'n' & 'd' müssen existieren.");
+                }
+
+                // Update localStorage and sessionStorage
+                const keyStr = JSON.stringify(privateKey);
+                localStorage.setItem("tide_session_key", keyStr);
+                sessionStorage.setItem("tide_session_key", keyStr);
+
+                if (parsed.userId) {
+                    localStorage.setItem("tide_user_id", parsed.userId);
+                    sessionStorage.setItem("tide_user_id", parsed.userId);
+                }
+                if (parsed.email) {
+                    localStorage.setItem("tide_user_email", parsed.email);
+                    sessionStorage.setItem("tide_user_email", parsed.email);
+                }
+                if (parsed.publicKeySpki) {
+                    localStorage.setItem("tide_user_public_key", parsed.publicKeySpki);
+                    sessionStorage.setItem("tide_user_public_key", parsed.publicKeySpki);
+                }
+
+                setBackupStatus({
+                    type: 'success',
+                    msg: 'Schlüssel erfolgreich importiert! Die Seite wird neu geladen...'
+                });
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1200);
+            } catch (err: any) {
+                console.error("Import Master Key failed:", err);
+                setBackupStatus({
+                    type: 'error',
+                    msg: err?.message || 'Fehler beim Lesen oder Validieren der Schlüsseldatei.'
+                });
+            } finally {
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                }
+            }
+        };
+
+        reader.onerror = () => {
+            setBackupStatus({ type: 'error', msg: 'Fehler beim Lesen der Datei.' });
+            if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+            }
+        };
+
+        reader.readAsText(file);
     };
 
     const renderAccount = () => (
@@ -526,25 +684,85 @@ export default function SettingsModal({
 
             <div>
                 <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Security</h3>
-                <div className="p-6 rounded-2xl bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 space-y-4">
-                    <div className="flex items-center gap-3 mb-2">
-                        <KeyRound className="w-5 h-5 text-gray-400" />
-                        <span className="font-semibold text-gray-900 dark:text-white">PIN Setup</span>
-                        <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 text-[10px] font-bold uppercase ml-auto">Local Encyrption</span>
+                <div className="space-y-4">
+                    {/* Master-Key Vault Backup */}
+                    <div className="p-6 rounded-2xl bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 space-y-4">
+                        <div className="flex items-center gap-3 mb-2">
+                            <Shield className="w-5 h-5 text-gray-400" />
+                            <span className="font-semibold text-gray-900 dark:text-white">Master-Key Vault Backup</span>
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 text-[10px] font-bold uppercase ml-auto">
+                                Zero Knowledge
+                            </span>
+                        </div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Sichere deinen privaten RSA-Master-Schlüssel als JSON-Datei. Bei einem Rechner- oder Browserwechsel kannst du deine Notizen damit sofort wiederherstellen.
+                        </p>
+
+                        {backupStatus && (
+                            <div className={`p-3 rounded-xl text-xs font-semibold ${backupStatus.type === 'success' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800' : 'bg-red-50 text-red-600 dark:bg-red-950/30 dark:text-red-400 border border-red-200 dark:border-red-800'}`}>
+                                {backupStatus.msg}
+                            </div>
+                        )}
+
+                        <div className="flex flex-wrap gap-2.5 pt-1">
+                            <button
+                                type="button"
+                                onClick={handleExportMasterKey}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-lg shadow-blue-500/20"
+                            >
+                                <Download className="w-4 h-4" />
+                                <span>Schlüssel herunterladen (JSON)</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleCopyMasterKey}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-white/10 rounded-xl text-xs font-bold transition-all active:scale-95"
+                            >
+                                {copyFeedback ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                                <span>{copyFeedback ? "Kopiert!" : "In Zwischenablage kopieren"}</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-white/10 rounded-xl text-xs font-bold transition-all active:scale-95"
+                            >
+                                <Upload className="w-4 h-4" />
+                                <span>Schlüssel importieren (JSON)</span>
+                            </button>
+
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".json,application/json"
+                                className="hidden"
+                                onChange={handleImportMasterKey}
+                            />
+                        </div>
                     </div>
-                    <p className="text-sm text-gray-500">Set a 5-digit PIN to secure local vault cache.</p>
-                    <div className="flex gap-2">
-                        <input
-                            type="password"
-                            maxLength={5}
-                            placeholder="•••••"
-                            className="w-32 bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2 text-center tracking-[0.5em] font-mono outline-none focus:border-blue-500 transition-colors"
-                            value={pinInputValue}
-                            onChange={(e) => setPinInputValue(e.target.value.replace(/[^0-9]/g, ''))}
-                        />
-                        <button className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-blue-500/20">
-                            Save PIN
-                        </button>
+
+                    {/* PIN Setup */}
+                    <div className="p-6 rounded-2xl bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 space-y-4">
+                        <div className="flex items-center gap-3 mb-2">
+                            <KeyRound className="w-5 h-5 text-gray-400" />
+                            <span className="font-semibold text-gray-900 dark:text-white">PIN Setup</span>
+                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 text-[10px] font-bold uppercase ml-auto">Local Encyrption</span>
+                        </div>
+                        <p className="text-sm text-gray-500">Set a 5-digit PIN to secure local vault cache.</p>
+                        <div className="flex gap-2">
+                            <input
+                                type="password"
+                                maxLength={5}
+                                placeholder="•••••"
+                                className="w-32 bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2 text-center tracking-[0.5em] font-mono outline-none focus:border-blue-500 transition-colors"
+                                value={pinInputValue}
+                                onChange={(e) => setPinInputValue(e.target.value.replace(/[^0-9]/g, ''))}
+                            />
+                            <button className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-blue-500/20">
+                                Save PIN
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

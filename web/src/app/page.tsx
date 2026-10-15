@@ -9,19 +9,18 @@ import { apiFetch, getApiBase } from "@/lib/api";
 import ChatPanel from "@/components/Chat/ChatPanel";
 import Sidebar from "@/components/Layout/Sidebar";
 import TabList, { Tab } from "@/components/Layout/TabList";
+import DashboardModals from "@/components/Layout/DashboardModals";
 import CalendarView from "@/components/Calendar/CalendarView";
 import WeekView from "@/components/Calendar/WeekView";
-import ShareModal from "@/components/ShareModal";
 import SaveStatusMenu from "@/components/Editor/SaveStatusMenu";
-import SecuritySettingsModal from "@/components/Security/SecuritySettingsModal";
 import { ItemSecuritySettings } from "@/lib/pinSecurity";
-import SettingsModal from "@/components/Settings/SettingsModal";
+import ThemeItem from "@/components/Settings/ThemeItem";
 import ProfilePage from "@/components/Profile/ProfilePage";
 import SocialHub from "@/components/Social/SocialHub";
 import dynamic from 'next/dynamic';
 import { getTranslation, useTranslation } from "@/lib/i18n";
 import { Node as ProseMirrorNode } from '@tiptap/pm/model';
-import { ScheduleModal, ScheduleEventData } from "@/components/Calendar/ScheduleModal";
+import { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 
 const Editor = dynamic(() => import('@/components/Editor'), {
     ssr: false,
@@ -34,16 +33,13 @@ const CanvasLayer = dynamic(() => import('@/components/Canvas/CanvasLayer'), {
 
 const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEditor'), { ssr: false });
 
-import DailySummary from "@/components/Calendar/DailySummary";
 import MobileLayout from "@/components/Layout/MobileLayout";
-import BackupHistory from "@/components/BackupHistory";
 import { Clock, Settings, LogOut, Users, Trash2, GraduationCap, Copy } from 'lucide-react';
 import Avatar from "@/components/Profile/Avatar";
 import SmartIsland from "@/components/SmartIsland";
 import { createLinePatch, applyLinePatch } from "@/lib/diff";
 import { tipTapToMarkdown } from "@/lib/bundleImportExport";
 import TrashPanel from "@/components/TrashPanel";
-import ConfirmModal from "@/components/Modals/ConfirmModal";
 
 const FinanceDashboard = dynamic(() => import('@/components/Finance/FinanceDashboard'), {
     loading: () => <div className="flex-1 flex items-center justify-center p-8 text-gray-400">Loading module...</div>
@@ -67,6 +63,9 @@ import { useDragGhost } from "@/store/useDragGhost";
 import EventDragGhost from "@/components/Calendar/EventDragGhost";
 import CloudStatusBanner from "@/components/CloudStatusBanner";
 import { useDateDetection, DateDetectionMode } from "@/hooks/useDateDetection";
+import { useProductivityStats } from "@/hooks/useProductivityStats";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
+import { useTextCollector } from "@/hooks/useTextCollector";
 import { motion } from 'framer-motion';
 
 interface ProseMirrorNodeLike {
@@ -142,96 +141,6 @@ interface CalendarEvent {
     is_completed?: boolean;
 }
 
-
-
-const ThemeItem = ({ group, hiddenThemeIds, onToggleVisibility, onUpdate, onShare, onDelete }: any) => {
-    const [localTitle, setLocalTitle] = useState(group.title);
-
-    useEffect(() => {
-        setLocalTitle(group.title);
-    }, [group.title]);
-
-    const handleBlur = () => {
-        if (localTitle !== group.title) {
-            onUpdate(group.id, { title: localTitle });
-        }
-    };
-
-    return (
-        <div className="group relative flex flex-col gap-2.5 p-3 rounded-xl bg-gray-50/50 hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-100 transition-all">
-            <div className="flex items-center gap-2">
-                <input
-                    type="checkbox"
-                    checked={!(hiddenThemeIds || []).includes(group.id)}
-                    onChange={() => onToggleVisibility(group.id)}
-                    className="w-4 h-4 rounded-md border-gray-300 text-indigo-600 focus:ring-indigo-500/20 bg-white cursor-pointer"
-                    title="Toggle Visibility"
-                />
-                <input
-                    type="text"
-                    value={localTitle}
-                    onChange={(e) => setLocalTitle(e.target.value)}
-                    onBlur={handleBlur}
-                    onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
-                    className="bg-transparent border-none p-0 text-[13px] font-semibold focus:ring-0 outline-none text-gray-800 flex-1 placeholder:text-gray-400"
-                    placeholder="Theme name..."
-                />
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
-                    <button
-                        onClick={(e) => onShare(e, group.id)}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-indigo-600 transition-all"
-                        title="Share Theme"
-                    >
-                        <Share size={12} />
-                    </button>
-                    <button
-                        onClick={(e) => onDelete(e, group.id, group.title)}
-                        className="p-1.5 hover:bg-rose-50 rounded-lg text-gray-400 hover:text-rose-500 transition-all font-semibold"
-                        title="Delete Theme"
-                    >
-                        ✗
-                    </button>
-                </div>
-            </div>
-            <div className="flex flex-col gap-2.5 pl-6">
-                {/* Pattern picker — themes convey texture/pattern only, not individual color */}
-                <div className="flex flex-wrap gap-1.5">
-                    {([
-                        { id: 'none',    label: 'Solid'   },
-                        { id: 'stripes', label: 'Streifen' },
-                        { id: 'waves',   label: 'Wellen'  },
-                        { id: 'dots',    label: 'Punkte'  },
-                        { id: 'chess',   label: 'Karo'    },
-                        { id: 'diamonds',label: 'Diamant' },
-                        { id: 'gradient',label: 'Verlauf' },
-                        { id: 'bars',    label: 'Balken'  },
-                        { id: 'dimmed',  label: 'Gedimmt' },
-                    ] as const).map(({ id, label }) => {
-                        const active = (group.effect || 'none') === id;
-                        const swatchColor = (group as any).color || '#6366f1';
-                        return (
-                            <button
-                                key={id}
-                                onClick={() => onUpdate(group.id, { effect: id })}
-                                title={label}
-                                className={`flex flex-col items-center gap-0.5 p-0.5 rounded-lg border-2 transition-all ${active ? 'border-indigo-500 scale-105 shadow-sm' : 'border-transparent hover:border-gray-300'}`}
-                            >
-                                <div
-                                    className={`w-8 h-5 rounded-md ${id !== 'none' ? `effect-${id}` : ''}`}
-                                    style={{
-                                        backgroundColor: swatchColor,
-                                        opacity: id === 'dimmed' ? 0.55 : 1,
-                                    }}
-                                />
-                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wide">{label}</span>
-                            </button>
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
-    );
-};
 
 export default function Dashboard() {
     // -------------------------------------------------------------------------
@@ -473,49 +382,7 @@ export default function Dashboard() {
 
     // ── Activity Tracking & Passive Productivity Stats ───────────────────────────
     const lastNoteWordCountsRef = useRef<Record<string, number>>({});
-    const wasActiveInLastMinuteRef = useRef(false);
-
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-
-        // Activity listener to update last active timestamp & set activity flag
-        const handleUserActivity = () => {
-            wasActiveInLastMinuteRef.current = true;
-            
-            const now = Date.now();
-            const lastActiveStr = localStorage.getItem('tide_last_active');
-            const lastActive = lastActiveStr ? parseInt(lastActiveStr, 10) : 0;
-            
-            // Throttle localStorage writes to once every 10 seconds
-            if (now - lastActive > 10000) {
-                localStorage.setItem('tide_last_active', now.toString());
-            }
-        };
-
-        window.addEventListener('mousemove', handleUserActivity, { passive: true });
-        window.addEventListener('keydown', handleUserActivity, { passive: true });
-        window.addEventListener('click', handleUserActivity, { passive: true });
-
-        // Interval to track active minutes (checks once a minute)
-        const activeMinutesInterval = setInterval(() => {
-            if (wasActiveInLastMinuteRef.current) {
-                try {
-                    const currentMins = parseInt(localStorage.getItem('tide_stats_active_minutes') || '0', 10);
-                    localStorage.setItem('tide_stats_active_minutes', (currentMins + 1).toString());
-                } catch (e) {
-                    console.error("Failed to update active minutes stat", e);
-                }
-                wasActiveInLastMinuteRef.current = false;
-            }
-        }, 60000);
-
-        return () => {
-            window.removeEventListener('mousemove', handleUserActivity);
-            window.removeEventListener('keydown', handleUserActivity);
-            window.removeEventListener('click', handleUserActivity);
-            clearInterval(activeMinutesInterval);
-        };
-    }, []);
+    useProductivityStats();
 
     // Always-current ref to performSave so triggerSave (stable useCallback) never
     // calls a stale closure where privateKey / publicKey / files are still null.
@@ -1708,147 +1575,13 @@ export default function Dashboard() {
         };
     }, [handleFileSelect, events]);
 
-    // SSE Effect — robust reconnect with exponential backoff
-    useEffect(() => {
-        if (!myId) return;
-        const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
-        if (!token) return;
-
-        // [FIX-4] Throttle: track when WE last saved so SSE-triggered fetchDirectory
-        // doesn't immediately overwrite our optimistic updates while the EventPopover
-        // debounce (800ms) or note autosave timer (1000ms) is still running.
-        let lastOwnSaveTime = 0;
-        const OWN_SAVE_COOLDOWN_MS = 3000;
-
-        // Expose a setter so performSave and handleEventSave can stamp the time
-        (window as any).__tideSaveTimestamp = () => { lastOwnSaveTime = Date.now(); };
-
-        // [FIX-2] Exponential backoff reconnect so a proxy timeout (common with Nginx)
-        // doesn't spam the server with rapid reconnections every 3s.
-        let retryDelay = 2000; // start at 2s
-        const MAX_RETRY = 30000; // cap at 30s
-        let eventSource: EventSource | null = null;
-        let retryTimer: ReturnType<typeof setTimeout> | null = null;
-        let isClosed = false;
-
-        const connect = () => {
-            if (isClosed) return;
-            const base = getApiBase();
-            eventSource = new EventSource(`${base}/api/v1/events?user_id=${myId}&token=${token}`);
-
-            eventSource.onopen = () => {
-                retryDelay = 2000; // reset backoff on successful connect
-            };
-
-            eventSource.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (['file_created', 'file_updated', 'file_deleted', 'file_shared'].includes(data.type)) {
-                        const msSinceOwnSave = Date.now() - lastOwnSaveTime;
-                        if (data.type === 'file_updated' && msSinceOwnSave < OWN_SAVE_COOLDOWN_MS) {
-                            console.log(`[SSE] Suppressing own file_updated refetch (${msSinceOwnSave}ms since last save)`);
-                            setTimeout(() => {
-                                // Use metadataCache (no forceRefresh) so optimistic updates survive
-                                useDataStore.setState({ loadedDirectories: new Set() });
-                                import('@/lib/searchIndex').then(({ clearSearchIndexCache }) => clearSearchIndexCache());
-                                useDataStore.getState().fetchDirectory(null);
-                            }, OWN_SAVE_COOLDOWN_MS - msSinceOwnSave);
-                            return;
-                        }
-                        // No forceRefresh: the metadataCache protects in-flight optimistic updates
-                        // from being overwritten by server data that hasn't caught up yet.
-                        useDataStore.setState({ loadedDirectories: new Set() });
-                        import('@/lib/searchIndex').then(({ clearSearchIndexCache }) => clearSearchIndexCache());
-
-                        if (data.type === 'file_deleted' && data.file_id) {
-                            useDataStore.setState(s => {
-                                const toRemove = new Set<string>([data.file_id]);
-                                let sizeBefore = 0;
-                                do {
-                                    sizeBefore = toRemove.size;
-                                    s.notes.forEach(n => {
-                                        if (n.parent_id && toRemove.has(n.parent_id)) {
-                                            toRemove.add(n.id);
-                                        }
-                                    });
-                                    s.events.forEach(e => {
-                                        if (e.parent_id && toRemove.has(e.parent_id)) {
-                                            toRemove.add(e.id);
-                                        }
-                                    });
-                                } while (toRemove.size > sizeBefore);
-
-                                return {
-                                    notes: s.notes.filter(n => !toRemove.has(n.id)),
-                                    events: s.events.filter(e => !toRemove.has(e.id))
-                                };
-                            });
-                        }
-
-                        const fetchPromise = useDataStore.getState().fetchDirectory(null) as Promise<void> | undefined;
-
-                        // If a file update arrives and we have a note open, reload its content
-                        // AFTER fetchDirectory finishes (so access_keys in store are fresh).
-                        if (data.type === 'file_updated') {
-                            const currentActiveId = useDataStore.getState().activeNoteId;
-                            const fileIdMatch = data.file_id ? data.file_id === currentActiveId : !!currentActiveId;
-                            if (fileIdMatch && currentActiveId) {
-                                const dispatch = () => {
-                                    const activeFile = [...useDataStore.getState().notes, ...useDataStore.getState().events].find((f: any) => f.id === currentActiveId) as any;
-                                    if (!activeFile) return;
-                                    // Never reload public files (unencrypted content, no DEK path)
-                                    if (activeFile.visibility === 'public') return;
-                                    // Never reload own non-shared notes — any file_updated is from our own save
-                                    const ak = activeFile.access_keys;
-                                    const akObj = ak ? (typeof ak === 'string' ? (() => { try { return JSON.parse(ak); } catch { return {}; } })() : ak) : {};
-                                    const isSharedWithOthers = Object.keys(akObj).length > 1 || activeFile.share_status === 'shared';
-                                    if (!isSharedWithOthers) return;
-                                    window.dispatchEvent(new CustomEvent('tide:sse_reload', { detail: { fileId: currentActiveId } }));
-                                };
-                                if (fetchPromise?.then) { fetchPromise.then(dispatch); } else { dispatch(); }
-                            }
-                        }
-                    }
-                } catch (e) { console.error("SSE Parse Error", e); }
-            };
-
-            eventSource.onerror = () => {
-                // Close the broken connection and schedule reconnect
-                eventSource?.close();
-                if (!isClosed) {
-                    console.warn(`[SSE] Connection lost. Reconnecting in ${retryDelay / 1000}s…`);
-                    retryTimer = setTimeout(() => {
-                        retryDelay = Math.min(retryDelay * 2, MAX_RETRY);
-                        connect();
-                    }, retryDelay);
-                }
-            };
-        };
-
-        connect();
-
-        return () => {
-            isClosed = true;
-            if (retryTimer) clearTimeout(retryTimer);
-            eventSource?.close();
-            delete (window as any).__tideSaveTimestamp;
-        };
-    }, [myId]);
-
-    // SSE content-reload: when another client updates a file we have open, silently update content
-    useEffect(() => {
-        const handler = async (e: Event) => {
-            const fileId = (e as CustomEvent).detail.fileId;
-            if (fileId !== activeNoteId) return;
-
-            // Since Collaboration handles syncing natively via Yjs and __yjs binary
-            // applying `setContent` will completely overwrite the editor, causing massive duplication.
-            // We just let the websocket or the next initial load handle it.
-            console.log('[SSE] Ignored tide:sse_reload because Collaboration natively handles it for file:', fileId);
-        };
-        window.addEventListener('tide:sse_reload', handler as EventListener);
-        return () => window.removeEventListener('tide:sse_reload', handler as EventListener);
-    }, [activeNoteId, fileName, isLoadingContent, editorContent]);
+    useRealtimeSync({
+        myId,
+        activeNoteId,
+        fileName,
+        isLoadingContent,
+        editorContent,
+    });
 
 
     // Auto-Save Effect — intentionally removed: the ref-based triggerSave system above
@@ -2020,113 +1753,11 @@ export default function Dashboard() {
         return () => clearInterval(interval);
     }, [events, enabledExtensions, islandPush]);
 
-    // ── Text Collector (Sammelbecken): catch typing outside notes ──────────
-    const collectorBufferRef = useRef('');
-    const collectorActiveRef = useRef(false); // whether the island view is already showing
-    const collectorIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const { dismiss: islandDismiss } = useIslandStore();
-
-    useEffect(() => {
-        if (!enabledExtensions.includes('smart_island')) return;
-
-        const isInputFocused = () => {
-            const el = document.activeElement;
-            if (!el) return false;
-            const tag = el.tagName.toLowerCase();
-            if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
-            if ((el as HTMLElement).isContentEditable) return true;
-            if (el.closest('.ProseMirror')) return true;
-            return false;
-        };
-
-        const clearCollector = () => {
-            collectorBufferRef.current = '';
-            collectorActiveRef.current = false;
-            if (collectorIdleTimerRef.current) clearTimeout(collectorIdleTimerRef.current);
-            islandDismiss();
-        };
-
-        const createNoteFromText = async (noteText: string) => {
-            const id = await useDataStore.getState().createNote(
-                "",
-                {
-                    type: 'doc',
-                    content: noteText.split('\n').map(line => ({
-                        type: 'paragraph',
-                        attrs: { blockId: crypto.randomUUID() },
-                        content: line ? [{ type: 'text', text: line }] : undefined
-                    }))
-                }
-            );
-            
-            setOpenTabs(prev => {
-                if (prev.find(t => t.id === id)) return prev;
-                return [...prev, { id, title: "Untitled", type: 'file' }];
-            });
-            setActiveTabId(id);
-
-            useDataStore.getState().fetchDirectory(null, true);
-            clearCollector();
-        };
-
-        const handler = (e: KeyboardEvent) => {
-            if (isInputFocused()) return;
-            if (e.ctrlKey || e.metaKey || e.altKey) return;
-            if (e.key.length !== 1 && e.key !== 'Backspace' && e.key !== ' ') return;
-
-            e.preventDefault();
-
-            if (e.key === 'Backspace') {
-                collectorBufferRef.current = collectorBufferRef.current.slice(0, -1);
-                if (collectorBufferRef.current.length === 0) {
-                    clearCollector();
-                    return;
-                }
-            } else {
-                collectorBufferRef.current += e.key;
-            }
-
-            const currentText = collectorBufferRef.current;
-
-            // Push island view on first char (if not already active)
-            if (!collectorActiveRef.current && currentText.trim().length >= 1) {
-                collectorActiveRef.current = true;
-                islandPush({
-                    type: 'text_collector',
-                    priority: 'DEFAULT',
-                    payload: {
-                        text: currentText,
-                        duration: 120_000, // 2 min idle timeout
-                        onCreateNote: createNoteFromText,
-                        onCreateEvent: (eventData: { title: string; start: Date; end: Date }) => {
-                            window.dispatchEvent(new CustomEvent('tide:collector-create-event', { detail: eventData }));
-                            clearCollector();
-                        },
-                        onDismiss: clearCollector,
-                    },
-                });
-            }
-
-            // Fire real-time update event so the view updates instantly
-            window.dispatchEvent(new CustomEvent('tide:collector-update', {
-                detail: { text: currentText }
-            }));
-
-            // Reset idle timer: if no typing for 60s, auto-dismiss
-            if (collectorIdleTimerRef.current) clearTimeout(collectorIdleTimerRef.current);
-            collectorIdleTimerRef.current = setTimeout(() => {
-                if (collectorBufferRef.current.trim().length === 0) {
-                    clearCollector();
-                }
-            }, 60_000);
-        };
-
-        window.addEventListener('keydown', handler);
-        return () => {
-            window.removeEventListener('keydown', handler);
-            if (collectorIdleTimerRef.current) clearTimeout(collectorIdleTimerRef.current);
-        };
-    }, [enabledExtensions, islandPush, islandDismiss]);
+    useTextCollector({
+        enabledExtensions,
+        setOpenTabs,
+        setActiveTabId,
+    });
 
     // Store Event Listener
     useEffect(() => {
@@ -4487,32 +4118,18 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* Share Modal */}
-            {shareModalFile && (
-                <ShareModal
-                    fileId={shareModalFile.id}
-                    fileName={shareModalFile.title}
-                    onClose={() => setShareModalFile(null)}
-                    onShare={performShare}
-                    myId={myId}
-                />
-            )}
-
-            {/* Note Security / PIN Settings Modal */}
-            {noteSecurityModalItem && (
-                <SecuritySettingsModal
-                    isOpen={!!noteSecurityModalItem}
-                    onClose={() => setNoteSecurityModalItem(null)}
-                    item={noteSecurityModalItem}
-                    userEmail={userProfile?.email}
-                    onSaveSettings={handleSaveNoteSecuritySettings}
-                />
-            )}
-
-            <SettingsModal
-                isOpen={isSettingsModalOpen}
-                onClose={() => setSettingsModalOpen(false)}
-                initialTab={useDataStore.getState().settingsModalTab}
+            {/* Dashboard Modals */}
+            <DashboardModals
+                shareModalFile={shareModalFile}
+                onCloseShareModal={() => setShareModalFile(null)}
+                onShare={performShare}
+                myId={myId}
+                noteSecurityModalItem={noteSecurityModalItem}
+                onCloseSecurityModal={() => setNoteSecurityModalItem(null)}
+                userEmail={userProfile?.email}
+                onSaveSecuritySettings={handleSaveNoteSecuritySettings}
+                isSettingsModalOpen={isSettingsModalOpen}
+                onCloseSettingsModal={() => setSettingsModalOpen(false)}
                 enabledExtensions={enabledExtensions}
                 onToggleExtension={handleToggleExtension}
                 userProfile={userProfile || undefined}
@@ -4538,71 +4155,43 @@ export default function Dashboard() {
                     }
                 }}
                 onCreateGroup={handleCreateEventGroup}
-            />
-
-            <ScheduleModal
-                isOpen={scheduleModalOpen}
-                onClose={() => setScheduleModalOpen(false)}
-                onApply={handleScheduleApply}
+                scheduleModalOpen={scheduleModalOpen}
+                onCloseScheduleModal={() => setScheduleModalOpen(false)}
+                onApplySchedule={handleScheduleApply}
                 existingThemes={files?.filter(f => f.type === 'folder' && f.isGroup).map(g => ({ id: g.id, title: g.title, effect: g.effect, color: (g as any).color })) || []}
-            />
-
-            <DailySummary
-                isOpen={isSummaryOpen}
-                onClose={() => setIsSummaryOpen(false)}
+                isSummaryOpen={isSummaryOpen}
+                onCloseSummary={() => setIsSummaryOpen(false)}
                 streak={streak}
-                eventsToday={summaryStats.events}
-                completedTasksToday={summaryStats.tasks}
-            />
-
-            {showBackups && activeNoteId && (
-                <BackupHistory
-                    fileId={activeNoteId}
-                    currentContent={editorContent}
-                    onCancel={() => setShowBackups(false)}
-                    onRestore={(content) => {
-                        window.dispatchEvent(new CustomEvent('editor:restore-content', { detail: content }));
-                        setEditorContent(content);
-                        initialContentRef.current = content;
-                        userHasTypedRef.current = true;
-                        setShowBackups(false);
-                        // Trigger a save with the restored content
-                        const currentFile = files.find(f => f.id === activeNoteId);
-                        if (currentFile) {
-                            setSaveStatus("saving");
-                            performSave(content, activeNoteId, activeFileKey, currentFile.visibility)
-                                .then(() => {
-                                    setSaveStatus("saved");
-                                    setOpenTabs(prev => prev.map(tab =>
-                                        tab.id === activeNoteId ? { ...tab, content, _saveStatus: 'saved' } : tab
-                                    ));
-                                })
-                                .catch(() => setSaveStatus("unsaved"));
-                        }
-                    }}
-                />
-            )}
-
-            <ConfirmModal
-                isOpen={!!deleteConfirm}
-                title={deleteConfirm?.isFolder ? "Ordner löschen" : "Notiz löschen"}
-                message={
-                    deleteConfirm?.isShared
-                        ? (deleteConfirm.isFolder ? "Möchtest du diesen geteilten Ordner wirklich verlassen?" : "Möchtest du diese geteilte Notiz wirklich verlassen?")
-                        : (deleteConfirm?.isFolder ? "Möchtest du diesen Ordner und alle Inhalte wirklich löschen?" : "Möchtest du diese Notiz wirklich löschen?")
-                }
-                confirmText={deleteConfirm?.isShared ? "Verlassen" : "Löschen"}
-                onConfirm={executeDeleteNote}
-                onCancel={() => setDeleteConfirm(null)}
-            />
-
-            <ConfirmModal
-                isOpen={!!deleteError}
-                title={deleteError?.title || "Fehler"}
-                message={deleteError?.message || ""}
-                confirmText={deleteError?.isCorrupt ? "Trotzdem entfernen" : "OK"}
-                cancelText={deleteError?.isCorrupt ? "Abbrechen" : undefined}
-                onConfirm={() => {
+                summaryStats={summaryStats}
+                showBackups={showBackups}
+                activeNoteId={activeNoteId}
+                editorContent={editorContent}
+                onCancelBackups={() => setShowBackups(false)}
+                onRestoreBackup={(content) => {
+                    window.dispatchEvent(new CustomEvent('editor:restore-content', { detail: content }));
+                    setEditorContent(content);
+                    initialContentRef.current = content;
+                    userHasTypedRef.current = true;
+                    setShowBackups(false);
+                    // Trigger a save with the restored content
+                    const currentFile = activeNoteId ? files.find(f => f.id === activeNoteId) : null;
+                    if (currentFile && activeNoteId) {
+                        setSaveStatus("saving");
+                        performSave(content, activeNoteId, activeFileKey, currentFile.visibility)
+                            .then(() => {
+                                setSaveStatus("saved");
+                                setOpenTabs(prev => prev.map(tab =>
+                                    tab.id === activeNoteId ? { ...tab, content, _saveStatus: 'saved' } : tab
+                                ));
+                            })
+                            .catch(() => setSaveStatus("unsaved"));
+                    }
+                }}
+                deleteConfirm={deleteConfirm}
+                onConfirmDelete={executeDeleteNote}
+                onCancelDelete={() => setDeleteConfirm(null)}
+                deleteError={deleteError}
+                onConfirmDeleteError={() => {
                     if (deleteError?.isCorrupt) {
                         useDataStore.getState().setNotes(files.filter(f => f.id !== deleteError.fileId) as any);
                         setOpenTabs(prev => {
@@ -4617,7 +4206,7 @@ export default function Dashboard() {
                     setDeleteError(null);
                     setDeleteConfirm(null);
                 }}
-                onCancel={() => {
+                onCancelDeleteError={() => {
                     setDeleteError(null);
                     setDeleteConfirm(null);
                 }}

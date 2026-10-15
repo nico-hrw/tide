@@ -382,12 +382,13 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set httpOnly cookie
+	isSecure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" || os.Getenv("ENV") == "production"
 	http.SetCookie(w, &http.Cookie{
 		Name:     "tide_session",
 		Value:    tokenString,
 		Expires:  time.Now().Add(30 * 24 * time.Hour),
 		HttpOnly: true,
-		Secure:   false, // Set true in production over HTTPS
+		Secure:   isSecure,
 		SameSite: http.SameSiteLaxMode,
 		Path:     "/",
 	})

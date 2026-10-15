@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -27,8 +28,21 @@ func NewLocalBlobStore(basePath string) *LocalBlobStore {
 	}
 }
 
+func (s *LocalBlobStore) resolvePath(id string) (string, error) {
+	cleanBase := filepath.Clean(s.BasePath)
+	target := filepath.Clean(filepath.Join(cleanBase, id))
+	rel, err := filepath.Rel(cleanBase, target)
+	if err != nil || strings.HasPrefix(rel, "..") || rel == "." {
+		return "", fmt.Errorf("invalid blob id: path traversal detected")
+	}
+	return target, nil
+}
+
 func (s *LocalBlobStore) Put(ctx context.Context, id string, r io.Reader) error {
-	path := filepath.Join(s.BasePath, id)
+	path, err := s.resolvePath(id)
+	if err != nil {
+		return err
+	}
 
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
@@ -53,7 +67,10 @@ func (s *LocalBlobStore) Put(ctx context.Context, id string, r io.Reader) error 
 }
 
 func (s *LocalBlobStore) Get(ctx context.Context, id string) (io.ReadCloser, error) {
-	path := filepath.Join(s.BasePath, id)
+	path, err := s.resolvePath(id)
+	if err != nil {
+		return nil, err
+	}
 
 	f, err := os.Open(path)
 	if err != nil {
@@ -67,7 +84,10 @@ func (s *LocalBlobStore) Get(ctx context.Context, id string) (io.ReadCloser, err
 }
 
 func (s *LocalBlobStore) Exists(ctx context.Context, id string) bool {
-	path := filepath.Join(s.BasePath, id)
-	_, err := os.Stat(path)
+	path, err := s.resolvePath(id)
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(path)
 	return err == nil
 }
