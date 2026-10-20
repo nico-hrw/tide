@@ -418,7 +418,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                             onEventCreate(newStart, newEnd, true, { title: draggedTask.title, is_task: true, linkedTaskId: draggedTask.id, description: draggedTask.description, color: draggedTask.color });
                         }
                         
-                        useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString() });
+                        useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString(), dueDate: newStart.toISOString() });
                         return;
                     }
 
@@ -627,7 +627,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                             onEventCreate(newStart, newEnd, false, { title: draggedTask.title, is_task: true, linkedTaskId: draggedTask.id, description: draggedTask.description, color: draggedTask.color });
                         }
                         
-                        useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString() });
+                        useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString(), dueDate: newStart.toISOString() });
                         return;
                     }
 

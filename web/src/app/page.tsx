@@ -147,6 +147,14 @@ interface CalendarEvent {
 }
 
 
+const isSameTime = (d1?: string, d2?: string) => {
+    if (!d1 && !d2) return true;
+    if (!d1 || !d2) return false;
+    const t1 = new Date(d1).getTime();
+    const t2 = new Date(d2).getTime();
+    return !isNaN(t1) && !isNaN(t2) && Math.abs(t1 - t2) < 60000;
+};
+
 export default function Dashboard() {
     // -------------------------------------------------------------------------
     // 0. State & Initialization
@@ -226,6 +234,7 @@ export default function Dashboard() {
     const [activeEventId, setActiveEventId] = useState<string | null>(null);
     const [pinnedEventIds, setPinnedEventIds] = useState<string[]>([]);
     const [minimizedEventIds, setMinimizedEventIds] = useState<string[]>([]);
+    const syncingTaskIdsRef = useRef<Set<string>>(new Set());
 
     // Canvas & Linking State
     const [deletedBlockIds, setDeletedBlockIds] = useState<string[]>([]);
@@ -2979,14 +2988,14 @@ export default function Dashboard() {
                 const linkedTask = currentTasks.find(t => t.id === targetLinkedTaskId);
                 if (linkedTask) {
                     const taskUpdates: Partial<TaskItem> = {};
-                    if (updates.start !== undefined && (linkedTask.dueDate !== updates.start || linkedTask.scheduledDate !== updates.start)) {
+                    if (updates.start !== undefined && !isSameTime(linkedTask.dueDate, updates.start)) {
                         taskUpdates.dueDate = updates.start;
                         taskUpdates.scheduledDate = updates.start;
                     }
                     if (updates.is_completed !== undefined && linkedTask.isCompleted !== updates.is_completed) {
                         taskUpdates.isCompleted = updates.is_completed;
                     }
-                    if (Object.keys(taskUpdates).length > 0) {
+                    if (Object.keys(taskUpdates).length > 0 && !syncingTaskIdsRef.current.has(targetLinkedTaskId)) {
                         updateTask(targetLinkedTaskId, taskUpdates);
                     }
                 }
@@ -3092,7 +3101,7 @@ export default function Dashboard() {
     }, []); // intentionally empty — ref always has the latest version
 
     // ── Dynamic synchronization between Todos and Calendar Events ─────────────
-    const syncingTaskIdsRef = useRef<Set<string>>(new Set());
+    // syncingTaskIdsRef declared at component top
     const handleEventCreateRef = useLatestRef(handleEventCreate);
 
     useEffect(() => {
@@ -3121,11 +3130,13 @@ export default function Dashboard() {
                         is_completed: t.isCompleted,
                     });
                 } finally {
-                    syncingTaskIdsRef.current.delete(t.id);
+                    setTimeout(() => {
+                        syncingTaskIdsRef.current.delete(t.id);
+                    }, 500);
                 }
             } else {
                 const isTitleDiff = existingEvent.title !== t.title;
-                const isStartDiff = existingEvent.start !== t.dueDate;
+                const isStartDiff = !isSameTime(existingEvent.start, t.dueDate);
                 const isCompletedDiff = (existingEvent.is_completed ?? false) !== (t.isCompleted ?? false);
                 const isRecurrenceDiff = (existingEvent as any).recurrence_rule !== t.recurrence_rule;
 
@@ -3135,14 +3146,21 @@ export default function Dashboard() {
                         ? new Date(Date.now() + 30 * 60 * 1000).toISOString()
                         : new Date(start.getTime() + 30 * 60 * 1000).toISOString();
 
-                    handleEventSaveRef.current(existingEvent.id, {
-                        title: t.title,
-                        start: t.dueDate,
-                        end,
-                        is_completed: t.isCompleted,
-                        recurrence_rule: t.recurrence_rule,
-                        recurrence_end: t.recurrence_end,
-                    });
+                    syncingTaskIdsRef.current.add(t.id);
+                    try {
+                        await handleEventSaveRef.current(existingEvent.id, {
+                            title: t.title,
+                            start: t.dueDate,
+                            end,
+                            is_completed: t.isCompleted,
+                            recurrence_rule: t.recurrence_rule,
+                            recurrence_end: t.recurrence_end,
+                        });
+                    } finally {
+                        setTimeout(() => {
+                            syncingTaskIdsRef.current.delete(t.id);
+                        }, 500);
+                    }
                 }
             }
         });

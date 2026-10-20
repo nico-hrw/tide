@@ -4,7 +4,6 @@ import React, { useState, useMemo } from 'react';
 import {
   CheckCircle2, Circle, Calendar, Repeat, Trash2, Edit2, Plus,
   Search, SlidersHorizontal, AlertCircle, Check, X, ListTodo,
-  ChevronDown, ChevronUp,
 } from 'lucide-react';
 import {
   format, isToday, isTomorrow, isBefore, startOfDay, endOfDay,
@@ -68,8 +67,7 @@ function getDeadlineInfo(dateStr?: string): { status: 'overdue' | 'today' | 'tom
   const d = parseDateSafe(dateStr);
   if (!d) return null;
   const today = startOfDay(new Date());
-  const itemDate = startOfDay(d);
-  if (isBefore(itemDate, today)) return { status: 'overdue', label: `Überfällig (${format(d, 'dd.MM.')})` };
+  if (isBefore(startOfDay(d), today)) return { status: 'overdue', label: `Überfällig (${format(d, 'dd.MM.')})` };
   if (isToday(d)) return { status: 'today', label: 'Heute fällig' };
   if (isTomorrow(d)) return { status: 'tomorrow', label: 'Morgen fällig' };
   return { status: 'upcoming', label: `Fällig ${format(d, 'dd.MM.yyyy')}` };
@@ -90,7 +88,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     title: '', description: '', priority: 'medium' as Priority,
     dueDate: '', recurrence: 'none' as RecurrenceType, recurrenceEnd: '',
   });
-  const [showOptions, setShowOptions] = useState(false);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -117,9 +115,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     if (!task.isCompleted && task.recurrence && task.recurrence !== 'none') {
       const currentRef = task.dueDate || task.scheduledDate;
       const baseDate = parseDateSafe(currentRef) || new Date();
-      const nextDate = task.recurrence === 'daily' ? addDays(baseDate, 1)
-        : task.recurrence === 'weekly' ? addWeeks(baseDate, 1)
-        : task.recurrence === 'monthly' ? addMonths(baseDate, 1) : addYears(baseDate, 1);
+      const nextDate = task.recurrence === 'daily' ? addDays(baseDate, 1) : task.recurrence === 'weekly' ? addWeeks(baseDate, 1) : task.recurrence === 'monthly' ? addMonths(baseDate, 1) : addYears(baseDate, 1);
       const end = parseDateSafe(task.recurrence_end);
       if (end && nextDate > endOfDay(end)) {
         updateTask(task.id, { isCompleted: true, completed_dates: [...(task.completed_dates || []), new Date().toISOString()] });
@@ -146,7 +142,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         isCompleted: false,
       });
       setDraft({ title: '', description: '', priority: 'medium', dueDate: '', recurrence: 'none', recurrenceEnd: '' });
-      setShowOptions(false);
+      setIsCreateOpen(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -199,121 +195,95 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     return 0;
   }), [filteredTasks, sortBy]);
 
-  const statItems = [
-    { label: 'Gesamt', val: totalCount, color: 'text-gray-900 dark:text-white' },
-    { label: 'Offen', val: activeCount, color: 'text-blue-600 dark:text-blue-400' },
-    { label: 'Erledigt', val: completedCount, color: 'text-emerald-600 dark:text-emerald-400' },
-    { label: 'Überfällig', val: overdueCount, color: 'text-rose-600 dark:text-rose-400' },
-  ];
-
   return (
     <div className={`flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto relative select-none ${className}`}>
-      {/* Header */}
-      <div className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 py-5 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400"><ListTodo size={22} /></div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">Todos & Aufgaben</h1>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Aufgaben verwalten, Termine setzen und Wiederholungen planen</p>
+      {/* Header & Status Indicator */}
+      <div className="sticky top-0 z-30 flex items-center justify-between gap-3 px-6 md:px-10 py-4 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400"><ListTodo size={20} /></div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">Todos</h1>
           </div>
-          <span className="ml-2 hidden sm:inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">{totalCount} gesamt</span>
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className="px-2.5 py-0.5 rounded-full font-medium bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-white/10">{totalCount} gesamt</span>
+            <span className="px-2.5 py-0.5 rounded-full font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">{activeCount} offen</span>
+            <span className="px-2.5 py-0.5 rounded-full font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">{completedCount} erledigt</span>
+            {overdueCount > 0 && (
+              <span className="px-2.5 py-0.5 rounded-full font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">{overdueCount} überfällig</span>
+            )}
+          </div>
+          {totalCount > 0 && (
+            <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-gray-200 dark:border-white/10">
+              <div className="w-20 bg-gray-200 dark:bg-white/10 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }} />
+              </div>
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">{progressPercent}%</span>
+            </div>
+          )}
         </div>
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-xs font-medium text-gray-700 dark:text-gray-300">
-          <div className="w-2 h-2 rounded-full bg-blue-500" />
-          <span>{completedCount} von {totalCount} erledigt ({progressPercent}%)</span>
-        </div>
+        <button
+          type="button" onClick={() => setIsCreateOpen((prev) => !prev)}
+          className="flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
+        >
+          <Plus size={16} /><span>Neue Aufgabe</span>
+        </button>
       </div>
 
       {/* Main Container */}
-      <div className="max-w-4xl md:max-w-5xl w-full mx-auto px-4 md:px-8 py-8 flex flex-col gap-6">
-        {/* Progress Overview Card */}
-        <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-6 shadow-2xs">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 size={18} className="text-blue-500" />
-              <h2 className="text-sm font-bold text-gray-900 dark:text-white">Fortschrittsübersicht</h2>
-            </div>
-            <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{progressPercent}% abgeschlossen</span>
-          </div>
-          <div className="w-full bg-gray-100 dark:bg-white/5 h-2.5 rounded-full overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }} />
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
-            {statItems.map((s) => (
-              <div key={s.label} className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5">
-                <span className="text-xs text-gray-500 dark:text-gray-400">{s.label}</span>
-                <p className={`text-lg font-bold mt-0.5 ${s.color}`}>{s.val}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Task Creation Form Card */}
-        <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-6 shadow-2xs">
-          <form onSubmit={handleAddTask} className="flex flex-col gap-3.5">
-            <div className="flex items-center gap-2">
-              <Plus size={16} className="text-blue-500" />
-              <h3 className="text-sm font-bold text-gray-900 dark:text-white">Neue Aufgabe erstellen</h3>
-            </div>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-              <input
-                type="text" value={draft.title} onChange={(e) => setDraft((p) => ({ ...p, title: e.target.value }))}
-                placeholder="Was möchtest du erledigen?..."
-                className="flex-1 px-4 py-2.5 text-sm bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-              />
-              <div className="flex items-center gap-2">
-                <select
-                  value={draft.priority} onChange={(e) => setDraft((p) => ({ ...p, priority: e.target.value as Priority }))}
-                  className="px-3 py-2.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer"
-                  aria-label="Priorität"
-                >
-                  {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-                <input
-                  type="date" value={draft.dueDate} onChange={(e) => setDraft((p) => ({ ...p, dueDate: e.target.value }))}
-                  className="px-3 py-2.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer"
-                  aria-label="Fälligkeitsdatum"
-                />
-                <button
-                  type="submit" disabled={!draft.title.trim() || isSubmitting}
-                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
-                >
-                  <Plus size={16} /><span>Hinzufügen</span>
+      <div className="max-w-4xl md:max-w-5xl w-full mx-auto px-4 md:px-8 py-6 flex flex-col gap-5">
+        {/* Task Creation Form Card (Collapsed by default) */}
+        {isCreateOpen && (
+          <div className="bg-white dark:bg-[#1a1a1a] border border-blue-500/30 dark:border-blue-500/30 rounded-2xl p-5 shadow-2xs transition-all">
+            <form onSubmit={handleAddTask} className="flex flex-col gap-3.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Plus size={16} className="text-blue-500" />
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">Neue Aufgabe erstellen</h3>
+                </div>
+                <button type="button" onClick={() => setIsCreateOpen(false)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg transition-colors cursor-pointer" aria-label="Schließen">
+                  <X size={16} />
                 </button>
               </div>
-            </div>
 
-            <div className="flex items-center justify-between text-xs pt-1">
-              <button
-                type="button" onClick={() => setShowOptions(!showOptions)}
-                className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors cursor-pointer"
-              >
-                {showOptions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                <span>{showOptions ? 'Optionen ausblenden' : '+ Details & Wiederholung planen'}</span>
-              </button>
-            </div>
+              <input
+                type="text" value={draft.title} onChange={(e) => setDraft((p) => ({ ...p, title: e.target.value }))}
+                placeholder="Was möchtest du erledigen?..." autoFocus
+                className="w-full px-4 py-2.5 text-sm bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+              />
 
-            {showOptions && (
-              <div className="flex flex-col gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
-                <textarea
-                  value={draft.description} onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
-                  placeholder="Optionale Notiz oder Beschreibung..." rows={2}
-                  className="w-full px-4 py-2 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
-                />
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2">
+              <textarea
+                value={draft.description} onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
+                placeholder="Optionale Notiz oder Beschreibung..." rows={2}
+                className="w-full px-4 py-2 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
+              />
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-gray-100 dark:border-white/5">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <select
+                    value={draft.priority} onChange={(e) => setDraft((p) => ({ ...p, priority: e.target.value as Priority }))}
+                    className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer"
+                    aria-label="Priorität"
+                  >
+                    {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <input
+                    type="date" value={draft.dueDate} onChange={(e) => setDraft((p) => ({ ...p, dueDate: e.target.value }))}
+                    className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer"
+                    aria-label="Fälligkeitsdatum"
+                  />
+                  <div className="flex items-center gap-1.5">
                     <Repeat size={14} className="text-purple-500" />
-                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Wiederholung:</span>
                     <select
                       value={draft.recurrence} onChange={(e) => setDraft((p) => ({ ...p, recurrence: e.target.value as RecurrenceType }))}
                       className="px-3 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
+                      aria-label="Wiederholung"
                     >
                       {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                   </div>
                   {draft.recurrence !== 'none' && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Wiederholen bis:</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Bis:</span>
                       <input
                         type="date" value={draft.recurrenceEnd} onChange={(e) => setDraft((p) => ({ ...p, recurrenceEnd: e.target.value }))}
                         className="px-3 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
@@ -322,10 +292,19 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                     </div>
                   )}
                 </div>
+
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setIsCreateOpen(false)} className="px-3 py-1.5 text-xs rounded-xl font-medium bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer">
+                    Abbrechen
+                  </button>
+                  <button type="submit" disabled={!draft.title.trim() || isSubmitting} className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-xs cursor-pointer">
+                    <Plus size={14} /><span>Aufgabe hinzufügen</span>
+                  </button>
+                </div>
               </div>
-            )}
-          </form>
-        </div>
+            </form>
+          </div>
+        )}
 
         {/* Filter & Sort Card */}
         <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col gap-3.5">
@@ -514,9 +493,17 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">
                 {filterStatus === 'completed' ? 'Keine erledigten Aufgaben' : filterStatus === 'active' ? 'Alles erledigt!' : searchQuery ? 'Keine Aufgaben gefunden' : 'Noch keine Aufgaben'}
               </h3>
-              <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm">
+              <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mb-4">
                 {searchQuery ? `Für "${searchQuery}" wurden keine passenden Aufgaben gefunden.` : tasks.length === 0 ? 'Erstelle oben deine erste Aufgabe, um Termine, Prioritäten und Wiederholungen zu planen.' : 'Keine Aufgaben für die aktuellen Filterkriterien vorhanden.'}
               </p>
+              {tasks.length === 0 && !searchQuery && (
+                <button
+                  type="button" onClick={() => setIsCreateOpen(true)}
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs cursor-pointer"
+                >
+                  <Plus size={14} /><span>Erste Aufgabe erstellen</span>
+                </button>
+              )}
             </div>
           )}
         </div>
