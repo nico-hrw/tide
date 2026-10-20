@@ -173,12 +173,44 @@ jobs:
           # Install production node modules on server if needed
           $SSH_CMD "$SSH_USER@$SSH_HOST" "cd $DEPLOY_PATH/web && npm ci --omit=dev --ignore-scripts || true"
 
-          # 3. Trigger zero-downtime PM2 reload
-          echo "🔄 Triggering PM2 reload for $TARGET_ENV..."
+          # 3. Trigger zero-downtime PM2 reload or initial start
+          echo "🔄 Triggering PM2 reload/start for $TARGET_ENV..."
           if [ "$TARGET_ENV" = "production" ]; then
-            $SSH_CMD "$SSH_USER@$SSH_HOST" "pm2 reload tide-backend; pm2 reload tide-frontend"
+            $SSH_CMD "$SSH_USER@$SSH_HOST" '
+              if pm2 describe tide-backend >/dev/null 2>&1; then
+                pm2 reload tide-backend --update-env
+              else
+                cd /root/tide && PORT=8080 DATA_DIR="/root/tide/data" pm2 start /root/tide/cloud/tide-server --name "tide-backend"
+              fi
+
+              if pm2 describe tide-frontend >/dev/null 2>&1; then
+                pm2 reload tide-frontend --update-env
+              else
+                cd /root/tide/web && PORT=3000 BACKEND_PORT=8080 pm2 start npm --name "tide-frontend" -- start
+              fi
+              pm2 save
+            '
           else
-            $SSH_CMD "$SSH_USER@$SSH_HOST" "pm2 reload tide-staging-backend; pm2 reload tide-staging-frontend"
+            $SSH_CMD "$SSH_USER@$SSH_HOST" '
+              # Ensure staging data dir and .env exist
+              mkdir -p /root/tide-staging/data
+              if [ ! -f /root/tide-staging/.env ] && [ -f /root/tide/.env ]; then
+                cp /root/tide/.env /root/tide-staging/.env
+              fi
+
+              if pm2 describe tide-staging-backend >/dev/null 2>&1; then
+                pm2 reload tide-staging-backend --update-env
+              else
+                cd /root/tide-staging && PORT=8082 DATA_DIR="/root/tide-staging/data" pm2 start /root/tide-staging/cloud/tide-server --name "tide-staging-backend"
+              fi
+
+              if pm2 describe tide-staging-frontend >/dev/null 2>&1; then
+                pm2 reload tide-staging-frontend --update-env
+              else
+                cd /root/tide-staging/web && PORT=3002 BACKEND_PORT=8082 pm2 start npm --name "tide-staging-frontend" -- start
+              fi
+              pm2 save
+            '
           fi
 
           echo "✅ Deployment to $TARGET_ENV ($DEPLOY_DOMAIN) completed successfully!"
