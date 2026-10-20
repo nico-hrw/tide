@@ -2,8 +2,10 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { X, Minus, Pin, Calendar, Folder, ChevronDown, Share2 } from "lucide-react";
+import { X, Minus, Pin, Calendar, Folder, ChevronDown, Share2, Users } from "lucide-react";
 import { useHighlight, LinkTarget } from "../HighlightContext";
+import { useDataStore } from "@/store/useDataStore";
+import { useSocialStore } from "@/store/useSocialStore";
 
 interface DecryptedFile {
     id: string;
@@ -24,6 +26,8 @@ interface CalendarEvent {
     effect?: string;
     shading?: number;
     tags?: string[];
+    owner_id?: string;
+    permission?: string;
 }
 
 interface EventPreviewProps {
@@ -63,6 +67,13 @@ export default function EventPreview({
     const [tags, setTags] = useState<string[]>(event.tags ?? ['', '', '']);
 
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
+    const myId = useDataStore(state => state.myId) || (typeof window !== 'undefined' ? (localStorage.getItem("tide_user_id") || sessionStorage.getItem("tide_user_id") || "") : "");
+    const contacts = useSocialStore(state => state.contacts);
+
+    const isShared = event.share_status === 'accepted' || (!!event.owner_id && event.owner_id !== myId);
+    const ownerPartner = event.owner_id ? contacts.find(c => c.partner?.id === event.owner_id)?.partner : undefined;
+    const ownerName = ownerPartner?.username || 'Geteilt';
+    const attributionText = ownerPartner?.username ? `Aus dem Kalender von ${ownerName}` : 'Geteilt';
 
     // Refs to hold latest values for cleanup/debounce closures (avoids stale state)
     const titleRef = useRef(title);
@@ -214,6 +225,7 @@ export default function EventPreview({
             >
                 <div className="flex items-center gap-2 truncate">
                     <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: theme.bg }} />
+                    {isShared && <Users size={12} className="text-indigo-500 shrink-0" />}
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{title}</span>
                 </div>
                 <div className="flex gap-1" onClick={e => e.stopPropagation()}>
@@ -283,6 +295,14 @@ export default function EventPreview({
             </div>
 
             <div className="p-4 flex flex-col h-full gap-4 relative z-10">
+
+                {/* Shared Attribution Badge */}
+                {isShared && (
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-medium border border-indigo-200/50 dark:border-indigo-800/40">
+                        <Users size={13} className="shrink-0" />
+                        <span className="truncate">{attributionText}</span>
+                    </div>
+                )}
 
                 {/* Time Display */}
                 <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 p-2 rounded-lg">

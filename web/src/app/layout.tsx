@@ -7,7 +7,7 @@ import "./globals.css";
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  maximumScale: 5,
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#FFFFFF" },
@@ -39,7 +39,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         {/* Global SVG filter for Liquid Glass distortion effect */}
-        <svg style={{ display: 'none' }} aria-hidden="true">
+        <svg style={{ position: 'absolute', width: 0, height: 0, pointerEvents: 'none', overflow: 'hidden' }} aria-hidden="true">
           <defs>
             <filter id="glass-distortion" x="0%" y="0%" width="100%" height="100%" filterUnits="objectBoundingBox">
               <feTurbulence type="fractalNoise" baseFrequency="0.01 0.01" numOctaves={1} seed={5} result="turbulence" />

@@ -1462,7 +1462,11 @@ export default function Dashboard() {
     };
 
     const switchTab = async (newId: string, type: string, forcedTitle?: string, fallbackData?: any, currentOverride?: any) => {
-        if (!newId) return;
+        if (!newId) {
+            newId = 'calendar';
+            type = 'calendar';
+            forcedTitle = undefined;
+        }
         const currentContentToUse = currentOverride || editorContent || canvasNoteData;
         const currentTabId = useDataStore.getState().activeNoteId || activeTabId; // Use ref-like safety
 

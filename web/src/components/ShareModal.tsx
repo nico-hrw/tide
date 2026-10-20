@@ -43,6 +43,23 @@ export default function ShareModal({
     const [selectedDepIds, setSelectedDepIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                onClose();
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+
+        return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+            document.body.style.overflow = originalOverflow;
+        };
+    }, [onClose]);
+
+    useEffect(() => {
         loadContacts();
         scanDependencies();
     }, [fileId]);
@@ -156,29 +173,30 @@ export default function ShareModal({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={onClose}>
+        <div className="fixed inset-0 bg-[#111827]/20 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={onClose}>
             <div
-                className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-150"
+                className="bg-white dark:bg-[#18181b] border border-[#e5e7eb] dark:border-zinc-800 rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] max-w-[520px] w-full overflow-hidden animate-in zoom-in-95 duration-150"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="p-5 border-b border-gray-200 dark:border-slate-800 flex items-center justify-between">
+                <div className="p-6 border-b border-[#e5e7eb] dark:border-zinc-800 flex items-center justify-between">
                     <div>
-                        <h2 className="text-base font-bold text-gray-900 dark:text-white">Datei freigeben</h2>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate max-w-[280px]">{fileName}</p>
+                        <h2 className="text-base font-bold text-[#111827] dark:text-zinc-100">Datei freigeben</h2>
+                        <p className="text-xs text-[#596170] dark:text-zinc-400 mt-0.5 truncate max-w-[340px]">{fileName}</p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                        className="h-[44px] w-[44px] rounded-[12px] bg-[#f9fafb] hover:bg-[#f3f4f6] dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-[#e5e7eb] dark:border-zinc-700 flex items-center justify-center text-[#111827] dark:text-zinc-200 transition-colors"
+                        aria-label="Schließen"
                     >
-                        <X size={16} />
+                        <X size={18} />
                     </button>
                 </div>
 
                 {/* Permission Picker */}
-                <div className="px-5 pt-4">
-                    <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Berechtigung</h3>
-                    <div className="grid grid-cols-3 gap-2">
+                <div className="px-6 pt-5">
+                    <h3 className="text-xs font-bold text-[#596170] dark:text-zinc-400 uppercase tracking-wider mb-2.5">Berechtigung</h3>
+                    <div className="grid grid-cols-3 gap-2.5">
                         {([
                             { val: 'view' as const, icon: Eye, label: 'Ansehen', desc: 'Nur lesen' },
                             { val: 'edit' as const, icon: Edit3, label: 'Bearbeiten', desc: 'Lesen + schreiben' },
@@ -190,11 +208,15 @@ export default function ShareModal({
                                 <button
                                     key={opt.val}
                                     onClick={() => setPermission(opt.val)}
-                                    className={`px-3 py-2 rounded-xl border text-left transition-all ${active ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 dark:border-purple-500/40 shadow-sm' : 'border-gray-200 dark:border-slate-800 hover:border-gray-300 dark:hover:border-slate-700'}`}
+                                    className={`p-3 rounded-[12px] border text-left transition-all ${
+                                        active
+                                            ? 'border-[#111827] bg-[#111827] text-white dark:border-white dark:bg-white dark:text-zinc-900 shadow-sm'
+                                            : 'border-[#e5e7eb] dark:border-zinc-800 bg-[#f9fafb]/50 dark:bg-zinc-800/40 hover:bg-[#f9fafb] dark:hover:bg-zinc-800 hover:border-[#d1d5db] dark:hover:border-zinc-700'
+                                    }`}
                                 >
-                                    <Icon size={14} className={active ? 'text-purple-600 dark:text-purple-400 mb-1' : 'text-gray-400 mb-1'} />
-                                    <div className={`text-xs font-bold ${active ? 'text-purple-700 dark:text-purple-300' : 'text-gray-700 dark:text-gray-300'}`}>{opt.label}</div>
-                                    <div className="text-[10px] text-gray-500 dark:text-gray-400">{opt.desc}</div>
+                                    <Icon size={16} className={active ? 'text-white dark:text-zinc-900 mb-1.5' : 'text-[#596170] dark:text-zinc-400 mb-1.5'} />
+                                    <div className={`text-xs font-bold ${active ? 'text-white dark:text-zinc-900' : 'text-[#111827] dark:text-zinc-200'}`}>{opt.label}</div>
+                                    <div className={`text-[10px] ${active ? 'text-zinc-300 dark:text-zinc-600' : 'text-[#596170] dark:text-zinc-400'}`}>{opt.desc}</div>
                                 </button>
                             );
                         })}
@@ -202,12 +224,12 @@ export default function ShareModal({
                 </div>
 
                 {/* Content */}
-                <div className="p-5 max-h-[380px] overflow-y-auto space-y-4">
+                <div className="p-6 max-h-[420px] overflow-y-auto space-y-5">
                     {/* Linked Files & Dependencies Section */}
                     {dependencies.length > 0 && (
-                        <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                            <div className="flex items-center justify-between mb-1">
-                                <h4 className="text-xs font-bold text-purple-900 dark:text-purple-300 flex items-center gap-1.5">
+                        <div className="p-3.5 rounded-[16px] bg-[#f9fafb] dark:bg-zinc-800/50 border border-[#e5e7eb] dark:border-zinc-700 text-[#596170] dark:text-zinc-300">
+                            <div className="flex items-center justify-between mb-1.5">
+                                <h4 className="text-xs font-bold text-[#111827] dark:text-zinc-200 flex items-center gap-1.5">
                                     <Link2 size={13} />
                                     <span>Verlinkte Notizen & Medien ({dependencies.length})</span>
                                 </h4>
@@ -220,17 +242,17 @@ export default function ShareModal({
                                             setSelectedDepIds(new Set(dependencies.map(d => d.id)));
                                         }
                                     }}
-                                    className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold hover:underline"
+                                    className="text-[11px] text-[#111827] dark:text-zinc-300 font-semibold hover:underline"
                                 >
                                     {selectedDepIds.size === dependencies.length ? 'Keine' : 'Alle'}
                                 </button>
                             </div>
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
+                            <p className="text-[11px] text-[#596170] dark:text-zinc-400 mb-2.5">
                                 Wähle aus, welche verlinkten Notizen der Empfänger ebenfalls einsehen darf:
                             </p>
-                            <div className="space-y-1 max-h-28 overflow-y-auto pr-1">
+                            <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
                                 {dependencies.map(dep => (
-                                    <label key={dep.id} className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-200 cursor-pointer p-1 rounded hover:bg-purple-500/10 transition-colors">
+                                    <label key={dep.id} className="flex items-center gap-2 text-xs text-[#111827] dark:text-zinc-200 cursor-pointer p-1.5 rounded-[8px] hover:bg-white dark:hover:bg-zinc-700/50 transition-colors">
                                         <input
                                             type="checkbox"
                                             checked={selectedDepIds.has(dep.id)}
@@ -240,7 +262,7 @@ export default function ShareModal({
                                                 else next.delete(dep.id);
                                                 setSelectedDepIds(next);
                                             }}
-                                            className="w-3.5 h-3.5 rounded text-purple-600 focus:ring-purple-500"
+                                            className="w-4 h-4 rounded border-[#e5e7eb] dark:border-zinc-600 text-[#111827] focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-[#111827] dark:accent-white"
                                         />
                                         <span className="truncate flex-1">{dep.title}</span>
                                     </label>
@@ -252,35 +274,35 @@ export default function ShareModal({
                     {/* Contacts List */}
                     {contacts.length > 0 && (
                         <div>
-                            <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                            <h3 className="text-xs font-bold text-[#596170] dark:text-zinc-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                                 <Users size={14} />
                                 <span>Deine Kontakte</span>
                             </h3>
-                            <div className="space-y-1.5">
+                            <div className="space-y-2">
                                 {contacts.map(contact => (
                                     <button
                                         key={contact.id}
                                         onClick={() => handleShareWithContact(contact)}
                                         disabled={sharing}
-                                        className={`w-full flex items-center justify-between p-2.5 rounded-xl border transition-all text-left ${
+                                        className={`w-full flex items-center justify-between p-3 rounded-[12px] border transition-all text-left ${
                                             sharedContactId === contact.id
                                                 ? 'border-emerald-500 bg-emerald-500/10'
-                                                : 'border-gray-200 dark:border-slate-800 hover:border-purple-500/40 hover:bg-purple-500/5'
+                                                : 'border-[#e5e7eb] dark:border-zinc-800 hover:bg-[#f9fafb] dark:hover:bg-zinc-800 hover:border-[#d1d5db] dark:hover:border-zinc-700'
                                         }`}
                                     >
-                                        <div className="flex items-center gap-2.5 truncate">
-                                            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                                        <div className="flex items-center gap-3 truncate">
+                                            <div className="w-8 h-8 rounded-full bg-[#111827] text-white dark:bg-zinc-700 dark:text-zinc-100 font-bold text-xs flex items-center justify-center shrink-0">
                                                 {contact.username[0]?.toUpperCase() || 'U'}
                                             </div>
                                             <div className="truncate">
-                                                <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{contact.username}</p>
-                                                <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{contact.email}</p>
+                                                <p className="text-xs font-semibold text-[#111827] dark:text-zinc-100 truncate">{contact.username}</p>
+                                                <p className="text-[11px] text-[#596170] dark:text-zinc-400 truncate">{contact.email}</p>
                                             </div>
                                         </div>
                                         {sharedContactId === contact.id ? (
                                             <Check size={16} className="text-emerald-500 shrink-0" />
                                         ) : (
-                                            <ArrowRight size={14} className="text-gray-400 shrink-0" />
+                                            <ArrowRight size={14} className="text-[#596170] dark:text-zinc-400 shrink-0" />
                                         )}
                                     </button>
                                 ))}
@@ -289,29 +311,29 @@ export default function ShareModal({
                     )}
 
                     {/* Custom Email Invite / Search */}
-                    <div className="pt-2 border-t border-gray-100 dark:border-slate-800">
+                    <div className="pt-2 border-t border-[#e5e7eb] dark:border-zinc-800">
                         {!showCustomInput ? (
                             <button
                                 onClick={() => setShowCustomInput(true)}
-                                className="text-xs text-purple-600 dark:text-purple-400 font-semibold hover:underline flex items-center gap-1.5"
+                                className="text-xs text-[#111827] dark:text-zinc-300 font-semibold hover:underline flex items-center gap-1.5 py-1"
                             >
                                 <Mail size={14} />
                                 <span>Per E-Mail suchen / einladen</span>
                             </button>
                         ) : (
-                            <div className="space-y-2">
+                            <div className="space-y-2.5">
                                 <div className="flex gap-2">
                                     <input
                                         type="email"
                                         value={customEmail}
                                         onChange={e => setCustomEmail(e.target.value)}
                                         placeholder="E-Mail-Adresse eingeben..."
-                                        className="flex-1 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs outline-none focus:ring-1 focus:ring-purple-500"
+                                        className="flex-1 h-[44px] px-3.5 rounded-[8px] border border-[#e5e7eb] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs text-[#111827] dark:text-zinc-100 placeholder:text-[#596170] dark:placeholder:text-zinc-500 outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
                                     />
                                     <button
                                         onClick={handleSearchEmail}
                                         disabled={loading || !customEmail.trim()}
-                                        className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold disabled:opacity-50"
+                                        className="bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] h-[44px] px-4 font-semibold text-[14px] disabled:opacity-50 transition-colors shrink-0 flex items-center justify-center"
                                     >
                                         {loading ? '...' : 'Suchen'}
                                     </button>
@@ -319,13 +341,13 @@ export default function ShareModal({
                                 {searchResult && (
                                     <button
                                         onClick={() => handleShareWithContact(searchResult)}
-                                        className="w-full p-2 rounded-lg bg-purple-500/10 border border-purple-500/30 text-left flex items-center justify-between text-xs"
+                                        className="w-full p-3 rounded-[12px] bg-[#f9fafb] dark:bg-zinc-800/60 border border-[#e5e7eb] dark:border-zinc-700 hover:border-[#111827]/40 dark:hover:border-zinc-600 text-left flex items-center justify-between transition-colors"
                                     >
                                         <div>
-                                            <p className="font-semibold text-gray-900 dark:text-gray-100">{searchResult.username}</p>
-                                            <p className="text-[11px] text-gray-500">{searchResult.email}</p>
+                                            <p className="font-semibold text-xs text-[#111827] dark:text-zinc-100">{searchResult.username}</p>
+                                            <p className="text-[11px] text-[#596170] dark:text-zinc-400">{searchResult.email}</p>
                                         </div>
-                                        <span className="text-xs text-purple-600 font-semibold">Jetzt teilen →</span>
+                                        <span className="text-xs text-[#111827] dark:text-white font-semibold flex items-center gap-1">Jetzt teilen →</span>
                                     </button>
                                 )}
                             </div>

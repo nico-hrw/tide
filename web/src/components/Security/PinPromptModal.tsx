@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
-import { Lock, Key, Eye, EyeOff, X, AlertCircle, ArrowRight, ShieldCheck, Mail, RefreshCw, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, Eye, EyeOff, X, AlertCircle, ArrowRight, Mail, RefreshCw } from 'lucide-react';
 import { ItemSecuritySettings, verifyPin, recordItemUnlock } from '@/lib/pinSecurity';
 import { apiFetch } from '@/lib/api';
 
@@ -12,7 +12,14 @@ interface PinPromptModalProps {
         id: string;
         title: string;
         type: 'file' | 'folder' | 'canvas' | 'note';
-        metadata?: any;
+        metadata?: {
+            security_settings?: ItemSecuritySettings;
+            has_custom_password?: boolean;
+            pwd_salt?: string;
+            pin_hash?: string;
+            frequency?: ItemSecuritySettings['frequency'];
+            [key: string]: unknown;
+        };
     };
     userEmail?: string;
     onUnlock: (pin: string) => void;
@@ -37,6 +44,25 @@ export default function PinPromptModal({
     const [recoveryStep, setRecoveryStep] = useState<'idle' | 'sending' | 'code_sent' | 'verifying' | 'success'>('idle');
     const [recoveryOtp, setRecoveryOtp] = useState('');
     const [recoveryMessage, setRecoveryMessage] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            document.body.style.overflow = originalOverflow;
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
@@ -75,8 +101,9 @@ export default function PinPromptModal({
             
             onUnlock(pin);
             onClose();
-        } catch (err: any) {
-            setError(err.message || 'Fehler beim Überprüfen der PIN.');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Fehler beim Überprüfen der PIN.';
+            setError(message);
         } finally {
             setIsVerifying(false);
         }
@@ -102,9 +129,10 @@ export default function PinPromptModal({
 
             setRecoveryStep('code_sent');
             setRecoveryMessage(`Wiederherstellungscode an ${targetEmail || 'deine E-Mail'} gesendet.`);
-        } catch (e: any) {
+        } catch (e: unknown) {
             setRecoveryStep('idle');
-            setError(e.message || 'E-Mail-Versand fehlgeschlagen.');
+            const message = e instanceof Error ? e.message : 'E-Mail-Versand fehlgeschlagen.';
+            setError(message);
         }
     };
 
@@ -140,16 +168,20 @@ export default function PinPromptModal({
             if (onOpenSecuritySettings) {
                 onOpenSecuritySettings();
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
             setRecoveryStep('code_sent');
-            setError(e.message || 'Ungültiger Code.');
+            const message = e instanceof Error ? e.message : 'Ungültiger Code.';
+            setError(message);
         }
     };
 
     return (
-        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div 
+            className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-[#111827]/20 animate-in fade-in duration-200"
+            onClick={onClose}
+        >
             <div 
-                className="w-full max-w-sm bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden p-6 animate-in zoom-in-95 duration-150"
+                className="w-full max-w-sm rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] border border-[#e5e7eb] dark:border-zinc-800 bg-white dark:bg-[#18181b] overflow-hidden p-6 animate-in zoom-in-95 duration-150"
                 onClick={e => e.stopPropagation()}
             >
                 <div className="flex justify-between items-start mb-4">
@@ -157,18 +189,20 @@ export default function PinPromptModal({
                         <Lock size={24} />
                     </div>
                     <button 
+                        type="button"
                         onClick={onClose}
-                        className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                        className="h-[44px] w-[44px] rounded-[12px] bg-[#f9fafb] hover:bg-[#f3f4f6] dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-[#e5e7eb] dark:border-zinc-700 flex items-center justify-center text-[#111827] dark:text-zinc-200 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
+                        aria-label="Schließen"
                     >
-                        <X size={16} />
+                        <X size={18} />
                     </button>
                 </div>
 
-                <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
+                <h3 className="text-base font-bold text-[#111827] dark:text-zinc-100">
                     {item.type === 'folder' ? 'Ordner ist geschützt' : 'Notiz ist geschützt'}
                 </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 mb-5">
-                    Bitte gib die PIN für <span className="font-semibold text-gray-700 dark:text-gray-200">„{item.title}“</span> ein.
+                <p className="text-xs text-[#596170] dark:text-zinc-400 mt-1 mb-5">
+                    Bitte gib die PIN für <span className="font-semibold text-[#111827] dark:text-zinc-200">„{item.title}“</span> ein.
                 </p>
 
                 {error && (
@@ -187,14 +221,14 @@ export default function PinPromptModal({
                                 value={pin}
                                 onChange={e => setPin(e.target.value)}
                                 placeholder="PIN / Passwort eingeben..."
-                                className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-amber-500/40 text-sm"
+                                className="w-full pl-3.5 pr-10 h-[44px] rounded-[8px] border border-[#e5e7eb] dark:border-zinc-700 bg-white dark:bg-zinc-800/80 text-[#111827] dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 text-sm transition-all"
                             />
                             <button
                                 type="button"
                                 onClick={() => setShowPin(!showPin)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#111827] dark:hover:text-zinc-200 transition-colors"
                             >
-                                {showPin ? <EyeOff size={15} /> : <Eye size={15} />}
+                                {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
                             </button>
                         </div>
 
@@ -202,7 +236,7 @@ export default function PinPromptModal({
                             <button
                                 type="button"
                                 onClick={() => setShowRecovery(true)}
-                                className="text-xs text-purple-600 dark:text-purple-400 hover:underline font-medium"
+                                className="text-xs text-[#596170] hover:text-[#111827] dark:text-zinc-400 dark:hover:text-zinc-200 hover:underline font-medium focus:outline-none"
                             >
                                 PIN vergessen?
                             </button>
@@ -210,7 +244,7 @@ export default function PinPromptModal({
                             <button
                                 type="submit"
                                 disabled={isVerifying || !pin}
-                                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow-lg shadow-amber-500/20 disabled:opacity-50 transition-all flex items-center gap-1.5"
+                                className="bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] h-[44px] px-4 font-semibold text-[14px] disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 cursor-pointer"
                             >
                                 <span>{isVerifying ? 'Prüfe...' : 'Entsperren'}</span>
                                 <ArrowRight size={14} />
@@ -220,12 +254,12 @@ export default function PinPromptModal({
                 ) : (
                     /* Recovery Flow */
                     <div className="space-y-4 pt-1">
-                        <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/20 text-xs">
-                            <div className="font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1.5 mb-1">
-                                <Mail size={13} />
+                        <div className="p-3.5 rounded-[12px] bg-zinc-50 dark:bg-zinc-800/50 border border-[#e5e7eb] dark:border-zinc-800 text-xs">
+                            <div className="font-semibold text-[#111827] dark:text-zinc-100 flex items-center gap-1.5 mb-1">
+                                <Mail size={14} />
                                 <span>Wiederherstellung per E-Mail</span>
                             </div>
-                            <p className="text-gray-500 dark:text-gray-400">
+                            <p className="text-[#596170] dark:text-zinc-400">
                                 Wir senden einen Bestätigungscode an deine hinterlegte E-Mail-Adresse.
                             </p>
                         </div>
@@ -234,14 +268,14 @@ export default function PinPromptModal({
                             <button
                                 type="button"
                                 onClick={handleRequestRecoveryEmail}
-                                className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-lg shadow-purple-500/20 transition-colors"
+                                className="w-full bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] h-[44px] px-4 font-semibold text-[14px] transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 cursor-pointer"
                             >
                                 Bestätigungscode anfordern
                             </button>
                         )}
 
                         {recoveryStep === 'sending' && (
-                            <div className="flex items-center justify-center gap-2 py-3 text-xs text-purple-600 dark:text-purple-400">
+                            <div className="flex items-center justify-center gap-2 py-3 text-xs text-[#111827] dark:text-zinc-300">
                                 <RefreshCw size={14} className="animate-spin" />
                                 <span>Sende E-Mail...</span>
                             </div>
@@ -250,7 +284,7 @@ export default function PinPromptModal({
                         {(recoveryStep === 'code_sent' || recoveryStep === 'verifying') && (
                             <div className="space-y-3">
                                 {recoveryMessage && (
-                                    <p className="text-xs text-purple-700 dark:text-purple-300">{recoveryMessage}</p>
+                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">{recoveryMessage}</p>
                                 )}
                                 <div className="flex gap-2">
                                     <input
@@ -259,13 +293,13 @@ export default function PinPromptModal({
                                         value={recoveryOtp}
                                         onChange={e => setRecoveryOtp(e.target.value)}
                                         placeholder="6-stelliger Code..."
-                                        className="flex-1 px-3 py-2 rounded-xl border border-purple-300 dark:border-purple-700/60 bg-white dark:bg-slate-900 text-xs font-mono tracking-widest text-center"
+                                        className="flex-1 px-3 h-[44px] rounded-[8px] border border-[#e5e7eb] dark:border-zinc-700 bg-white dark:bg-zinc-800/80 text-[#111827] dark:text-zinc-100 text-sm font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
                                     />
                                     <button
                                         type="button"
                                         onClick={handleVerifyRecoveryOtp}
                                         disabled={recoveryStep === 'verifying'}
-                                        className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold transition-colors"
+                                        className="bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] h-[44px] px-4 font-semibold text-[14px] transition-colors focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 cursor-pointer disabled:opacity-50 flex items-center justify-center"
                                     >
                                         {recoveryStep === 'verifying' ? '...' : 'OK'}
                                     </button>
@@ -276,7 +310,7 @@ export default function PinPromptModal({
                         <button
                             type="button"
                             onClick={() => { setShowRecovery(false); setError(null); }}
-                            className="w-full text-center text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                            className="w-full rounded-[8px] h-[44px] border border-[#e5e7eb] dark:border-zinc-700 bg-white dark:bg-zinc-800 text-[#111827] dark:text-zinc-200 hover:bg-[#f9fafb] dark:hover:bg-zinc-700/60 font-semibold text-[14px] transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 cursor-pointer"
                         >
                             ← Zurück zur PIN-Eingabe
                         </button>

@@ -48,6 +48,7 @@ type MentionSuggestionItem =
 const MentionList = forwardRef((props: any, ref) => {
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [activeGroup, setActiveGroup] = useState<EventGroupItem | null>(null);
+    const prevGroupIndexRef = useRef(0);
     const isCreatingRef = useRef(false);
     const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -56,16 +57,18 @@ const MentionList = forwardRef((props: any, ref) => {
     useEffect(() => {
         setSelectedIndex(0);
         setActiveGroup(null);
+        prevGroupIndexRef.current = 0;
     }, [props.items]);
 
     useEffect(() => {
         itemRefs.current[selectedIndex]?.scrollIntoView({ block: 'nearest' });
-    }, [selectedIndex]);
+    }, [selectedIndex, activeGroup]);
 
-    const selectItem = async (item: MentionSuggestionItem) => {
+    const selectItem = async (item: MentionSuggestionItem, index?: number) => {
         if (!item) return;
 
         if ('isGroup' in item && item.isGroup) {
+            prevGroupIndexRef.current = index !== undefined ? index : selectedIndex;
             setActiveGroup(item as EventGroupItem);
             setSelectedIndex(0);
             return;
@@ -110,7 +113,7 @@ const MentionList = forwardRef((props: any, ref) => {
         handleEscape: () => {
             if (activeGroup) {
                 setActiveGroup(null);
-                setSelectedIndex(0);
+                setSelectedIndex(prevGroupIndexRef.current);
                 return true;
             }
             return false;
@@ -126,11 +129,29 @@ const MentionList = forwardRef((props: any, ref) => {
                 setSelectedIndex((selectedIndex + 1) % currentList.length);
                 return true;
             }
-            if (event.key === 'Enter') {
+            if (event.key === 'ArrowRight') {
+                if (!activeGroup) {
+                    const item = currentList[selectedIndex];
+                    if (item && 'isGroup' in item && item.isGroup) {
+                        selectItem(item, selectedIndex);
+                        return 'prevent_close';
+                    }
+                }
+                return false;
+            }
+            if (event.key === 'ArrowLeft') {
+                if (activeGroup) {
+                    setActiveGroup(null);
+                    setSelectedIndex(prevGroupIndexRef.current);
+                    return true;
+                }
+                return false;
+            }
+            if (event.key === 'Enter' || event.key === 'Tab') {
                 const item = currentList[selectedIndex];
                 if (item) {
                     if ('isGroup' in item && item.isGroup) {
-                        selectItem(item);
+                        selectItem(item, selectedIndex);
                         return 'prevent_close';
                     }
                     selectItem(item);
@@ -153,7 +174,7 @@ const MentionList = forwardRef((props: any, ref) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 setActiveGroup(null);
-                                setSelectedIndex(0);
+                                setSelectedIndex(prevGroupIndexRef.current);
                             }}
                             className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium w-full px-1.5 py-1 rounded cursor-pointer"
                         >
@@ -211,7 +232,7 @@ const MentionList = forwardRef((props: any, ref) => {
                                 }`}
                                 onMouseDown={(e) => {
                                     e.preventDefault();
-                                    selectItem(item);
+                                    selectItem(item, index);
                                 }}
                             >
                                 {item.isGroup ? (
@@ -226,7 +247,7 @@ const MentionList = forwardRef((props: any, ref) => {
                                                 {item.count} Termine
                                             </span>
                                         </div>
-                                        <ChevronRight size={14} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                                        <ChevronRight size={15} className="text-gray-500 dark:text-gray-400 flex-shrink-0 ml-0.5" />
                                     </>
                                 ) : item.type === 'event' ? (
                                     <>
@@ -350,7 +371,14 @@ export default {
                 const t = e.start ? new Date(e.start).getTime() : 0;
                 return t >= now - 86400000;
             });
-            matchedEvents = (upcomingOrRecent.length > 0 ? upcomingOrRecent : matchedEvents).slice(0, 6);
+            if (upcomingOrRecent.length > 0) {
+                upcomingOrRecent.sort((a: any, b: any) => {
+                    const timeA = a.start ? new Date(a.start).getTime() : 0;
+                    const timeB = b.start ? new Date(b.start).getTime() : 0;
+                    return timeA - timeB;
+                });
+                matchedEvents = upcomingOrRecent;
+            }
         }
 
         // Group events by title
@@ -369,6 +397,15 @@ export default {
                 color: e.color || '#3b82f6',
                 formattedDate: formatEventDate(e.start, e.all_day || e.allDay),
                 isGhost: false,
+            });
+        }
+
+        // Sort events inside each group chronologically (earliest first)
+        for (const groupList of groupsMap.values()) {
+            groupList.sort((a, b) => {
+                const timeA = a.start ? new Date(a.start).getTime() : 0;
+                const timeB = b.start ? new Date(b.start).getTime() : 0;
+                return timeA - timeB;
             });
         }
 
@@ -573,7 +610,7 @@ export default {
                 }
 
                 const handled = (component?.ref as any)?.onKeyDown(props);
-                if (handled === true && props.event.key === 'Enter') {
+                if (handled === true && (props.event.key === 'Enter' || props.event.key === 'Tab')) {
                     if (popup) {
                         popup[0].destroy();
                         popup = null;

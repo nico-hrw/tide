@@ -2,7 +2,7 @@ import { Mark, mergeAttributes } from '@tiptap/core';
 import tippy, { Instance as TippyInstance } from 'tippy.js';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light.css';
-import { useReferenceStore } from '@/store/useReferenceStore';
+import { useReferenceStore } from '../../store/useReferenceStore';
 import { Plugin, PluginKey } from 'prosemirror-state';
 
 export interface ReferenceOptions {
@@ -32,6 +32,21 @@ export const ReferenceMark = Mark.create<ReferenceOptions>({
                     return { 'data-reference-id': attributes.referenceId };
                 },
             },
+            isSource: {
+                default: false,
+                parseHTML: el => el.getAttribute('data-is-source') === 'true',
+                renderHTML: attrs => attrs.isSource ? { 'data-is-source': 'true' } : {},
+            },
+            color: {
+                default: null,
+                parseHTML: el => el.getAttribute('data-ref-color'),
+                renderHTML: attrs => attrs.color ? { 'data-ref-color': attrs.color, style: `--ref-color: ${attrs.color};` } : {},
+            },
+            emoji: {
+                default: null,
+                parseHTML: el => el.getAttribute('data-emoji'),
+                renderHTML: attrs => attrs.emoji ? { 'data-emoji': attrs.emoji } : {},
+            },
         };
     },
 
@@ -45,7 +60,17 @@ export const ReferenceMark = Mark.create<ReferenceOptions>({
     },
 
     renderHTML({ HTMLAttributes }) {
-        return ['span', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0];
+        const mode = useReferenceStore.getState().displayMode || 'magic';
+        const color = HTMLAttributes['data-ref-color'];
+
+        return [
+            'span',
+            mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+                class: `reference-mark ref-mode-${mode}`,
+                ...(color ? { style: `--ref-color: ${color};` } : {}),
+            }),
+            0,
+        ];
     },
 
     addProseMirrorPlugins() {
@@ -165,6 +190,9 @@ export const ReferenceMark = Mark.create<ReferenceOptions>({
                                 event.preventDefault();
                                 singleton?.hide();
                                 window.dispatchEvent(new CustomEvent('tide:navigate', {
+                                    detail: { noteId: reference.sourceNoteId }
+                                }));
+                                window.dispatchEvent(new CustomEvent('tide:navigate-note', {
                                     detail: { noteId: reference.sourceNoteId }
                                 }));
                                 return true;

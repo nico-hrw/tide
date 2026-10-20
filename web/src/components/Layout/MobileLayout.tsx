@@ -3,10 +3,10 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Settings, ArrowLeft, ArrowRight, Folder, FileText,
+  Settings, ArrowLeft, ArrowRight, Folder, FolderOpen, FileText, Lock, Layout,
   ChevronRight, ChevronLeft, ChevronDown, Plus, Search, Calendar as CalendarIcon,
   Trash2, GraduationCap, Clock, MapPin,
-  DollarSign, X, PenLine, FolderPlus, GripVertical,
+  DollarSign, X, PenLine, FolderPlus,
   BookOpen, Coffee, RotateCcw,
 } from 'lucide-react';
 import { isSameDay, format, startOfWeek, addDays, isAfter } from 'date-fns';
@@ -78,45 +78,125 @@ interface MobileLayoutProps {
   } | null;
 }
 
-const NoteRow = React.memo(function NoteRow({ file, onOpen, onDragStart, onContextMenu }: {
-  file: any; onOpen: () => void;
+const NoteRow = React.memo(function NoteRow(props: {
+  file: any;
+  isActive?: boolean;
+  onOpen: () => void;
   onDragStart?: (file: any, e: React.TouchEvent) => void;
   onContextMenu?: (file: any) => void;
 }) {
+  const { file, isActive, onOpen, onContextMenu } = props;
   const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const movedRef = useRef(false);
   const [dragging, setDragging] = useState(false);
+  const theme = useDataStore(s => s.theme);
+
+  const isLocked = Boolean(
+    file.has_pin ||
+    file.is_locked ||
+    file.metadata?.has_custom_password ||
+    file.metadata?.security_settings?.has_custom_password ||
+    (typeof file.title === 'string' && file.title.startsWith('#'))
+  );
+
+  const isCanvas = file.type === 'canvas';
+  const isShared = (file as any).share_status === 'shared' || (file as any).is_shared;
+
+  const displayTitle = (typeof file.title === 'string' && file.title.startsWith('#'))
+    ? file.title.slice(1).trim()
+    : (file.title || 'Untitled');
+
   return (
     <button
       onClick={onOpen}
-      className="w-full flex items-center gap-3 px-4 py-2.5 text-left rounded-xl"
-      style={{ opacity: dragging ? 0.4 : 1 }}
-      onTouchStart={e => {
+      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-xl transition-all duration-150 ${
+        isActive
+          ? 'bg-blue-100/90 dark:bg-blue-950/60 font-semibold ring-1 ring-blue-400/40'
+          : 'hover:bg-[var(--hover-bg)] active:opacity-70'
+      }`}
+      style={{
+        opacity: dragging ? 0.4 : 1,
+        color: isActive
+          ? (theme === 'dark' ? '#93c5fd' : '#1d4ed8')
+          : T.pri,
+      }}
+      onTouchStart={() => {
         movedRef.current = false;
         holdRef.current = setTimeout(() => {
-          if (movedRef.current) {
-            setDragging(true);
-            onDragStart?.(file, e);
-          } else {
+          if (!movedRef.current) {
             onContextMenu?.(file);
           }
         }, 420);
       }}
-      onTouchMove={() => { movedRef.current = true; }}
-      onTouchEnd={() => { if (holdRef.current) clearTimeout(holdRef.current); setDragging(false); }}
+      onTouchMove={() => {
+        movedRef.current = true;
+        if (holdRef.current) {
+          clearTimeout(holdRef.current);
+          holdRef.current = null;
+        }
+      }}
+      onTouchEnd={() => {
+        if (holdRef.current) clearTimeout(holdRef.current);
+        setDragging(false);
+      }}
     >
-      <GripVertical size={12} style={{ color: T.mut, flexShrink: 0 }} />
-      <FileText size={14} style={{ color: T.sec, flexShrink: 0 }} />
-      <span className="text-sm truncate flex-1" style={{ color: T.pri, fontWeight: 500 }}>{file.title || 'Untitled'}</span>
+      <span
+        className="shrink-0 flex items-center justify-center"
+        style={{
+          color: isActive
+            ? '#3b82f6'
+            : isLocked
+            ? '#f59e0b'
+            : T.sec,
+        }}
+      >
+        {isLocked ? (
+          <Lock size={15} />
+        ) : isCanvas ? (
+          <Layout size={15} />
+        ) : (
+          <FileText size={15} />
+        )}
+      </span>
+
+      <span className="text-sm truncate flex-1 font-medium">
+        {displayTitle}
+      </span>
+
+      {isShared && (
+        <span
+          className="shrink-0 w-1.5 h-1.5 rounded-full bg-sky-400"
+          title="Geteilte Notiz"
+        />
+      )}
     </button>
   );
 });
 
-const FolderItem = React.memo(function FolderItem({ folder, allFiles, onOpen, dragOverId, onDragOver, onDragLeave, onContextMenu, onNoteContextMenu, onNoteDragStart }: {
-  folder: any; allFiles: any[]; onOpen: (id: string, t: string) => void;
-  dragOverId?: string | null; onDragOver?: (id: string) => void; onDragLeave?: () => void;
-  onContextMenu?: (folder: any) => void; onNoteContextMenu?: (file: any) => void;
+const FolderItem = React.memo(function FolderItem({
+  folder,
+  allFiles,
+  onOpen,
+  activeNoteId,
+  dragOverId,
+  onDragOver,
+  onDragLeave,
+  onContextMenu,
+  onNoteContextMenu,
+  onNoteDragStart,
+  isDragging,
+}: {
+  folder: any;
+  allFiles: any[];
+  onOpen: (id: string, t: string) => void;
+  activeNoteId?: string | null;
+  dragOverId?: string | null;
+  onDragOver?: (id: string) => void;
+  onDragLeave?: () => void;
+  onContextMenu?: (folder: any) => void;
+  onNoteContextMenu?: (file: any) => void;
   onNoteDragStart?: (file: any, e: React.TouchEvent) => void;
+  isDragging?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -124,34 +204,112 @@ const FolderItem = React.memo(function FolderItem({ folder, allFiles, onOpen, dr
   const { loadedDirectories } = useDataStore();
   const children = allFiles.filter(f => f.parent_id === folder.id);
   const isOver = dragOverId === folder.id;
+
+  const isLocked = Boolean(
+    folder.has_pin ||
+    folder.is_locked ||
+    folder.metadata?.has_custom_password ||
+    folder.metadata?.security_settings?.has_custom_password ||
+    (typeof folder.title === 'string' && folder.title.startsWith('#'))
+  );
+
+  const displayTitle = (typeof folder.title === 'string' && folder.title.startsWith('#'))
+    ? folder.title.slice(1).trim()
+    : (folder.title || 'Ordner');
+
   return (
     <div>
       <button
-        onClick={() => { setOpen(v => !v); if (!open && !loadedDirectories.has(folder.id)) useDataStore.getState().fetchDirectory(folder.id); }}
-        className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl"
-        style={{ background: isOver ? `${T.accent}20` : 'transparent', border: isOver ? `1px solid ${T.accent}` : '1px solid transparent' }}
-        onTouchStart={() => { movedRef.current = false; holdRef.current = setTimeout(() => { if (!movedRef.current) onContextMenu?.(folder); }, 420); }}
+        onClick={() => {
+          setOpen(v => !v);
+          if (!open && !loadedDirectories.has(folder.id)) {
+            useDataStore.getState().fetchDirectory(folder.id);
+          }
+        }}
+        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl transition-colors text-left"
+        style={{
+          background: isOver ? `${T.accent}20` : 'transparent',
+          border: isOver ? `1px solid ${T.accent}` : '1px solid transparent',
+        }}
+        onTouchStart={() => {
+          movedRef.current = false;
+          holdRef.current = setTimeout(() => {
+            if (!movedRef.current) {
+              onContextMenu?.(folder);
+            }
+          }, 420);
+        }}
         onTouchMove={e => {
           movedRef.current = true;
-          const touch = e.touches[0];
-          const el = document.elementFromPoint(touch.clientX, touch.clientY);
-          if (el?.closest(`[data-folder-id="${folder.id}"]`)) onDragOver?.(folder.id);
-          else onDragLeave?.();
+          if (holdRef.current) {
+            clearTimeout(holdRef.current);
+            holdRef.current = null;
+          }
+          if (isDragging) {
+            const touch = e.touches[0];
+            const el = document.elementFromPoint(touch.clientX, touch.clientY);
+            if (el?.closest(`[data-folder-id="${folder.id}"]`)) onDragOver?.(folder.id);
+            else onDragLeave?.();
+          }
         }}
-        onTouchEnd={() => { if (holdRef.current) clearTimeout(holdRef.current); }}
+        onTouchEnd={() => {
+          if (holdRef.current) clearTimeout(holdRef.current);
+        }}
         data-folder-id={folder.id}
       >
-        <Folder size={14} style={{ color: isOver ? T.accent : T.sec, flexShrink: 0 }} />
-        <span className="text-sm font-semibold flex-1 text-left truncate" style={{ color: isOver ? T.accent : T.pri }}>{folder.title || 'Ordner'}</span>
-        <motion.div animate={{ rotate: open ? 90 : 0 }} transition={{ duration: 0.15 }}>
-          <ChevronRight size={13} style={{ color: T.mut }} />
-        </motion.div>
+        <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0" style={{ color: T.mut }}>
+          <ChevronRight
+            size={13}
+            className={`transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+          />
+        </span>
+        <span className="shrink-0" style={{ color: isOver ? T.accent : T.sec }}>
+          {isLocked ? (
+            <Lock size={15} className="text-amber-500" />
+          ) : open ? (
+            <FolderOpen size={15} />
+          ) : (
+            <Folder size={15} />
+          )}
+        </span>
+        <span className="text-sm font-semibold flex-1 text-left truncate" style={{ color: isOver ? T.accent : T.pri }}>
+          {displayTitle}
+        </span>
       </button>
       <AnimatePresence>
         {open && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden pl-5">
-            {children.filter(f => f.type === 'folder').map(s => <FolderItem key={s.id} folder={s} allFiles={allFiles} onOpen={onOpen} dragOverId={dragOverId} onDragOver={onDragOver} onDragLeave={onDragLeave} onContextMenu={onContextMenu} onNoteContextMenu={onNoteContextMenu} onNoteDragStart={onNoteDragStart} />)}
-            {children.filter(f => f.type !== 'folder').map(f => <NoteRow key={f.id} file={f} onOpen={() => onOpen(f.id, f.title || 'Untitled')} onContextMenu={onNoteContextMenu} onDragStart={onNoteDragStart} />)}
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden relative ml-3 pl-2.5 border-l border-violet-200/60 dark:border-violet-800/40 space-y-0.5 mt-0.5"
+          >
+            {children.filter(f => f.type === 'folder').map(s => (
+              <FolderItem
+                key={s.id}
+                folder={s}
+                allFiles={allFiles}
+                onOpen={onOpen}
+                activeNoteId={activeNoteId}
+                dragOverId={dragOverId}
+                onDragOver={onDragOver}
+                onDragLeave={onDragLeave}
+                onContextMenu={onContextMenu}
+                onNoteContextMenu={onNoteContextMenu}
+                onNoteDragStart={onNoteDragStart}
+                isDragging={isDragging}
+              />
+            ))}
+            {children.filter(f => f.type !== 'folder').map(f => (
+              <NoteRow
+                key={f.id}
+                file={f}
+                isActive={activeNoteId === f.id}
+                onOpen={() => onOpen(f.id, f.title || 'Untitled')}
+                onContextMenu={onNoteContextMenu}
+                onDragStart={onNoteDragStart}
+              />
+            ))}
           </motion.div>
         )}
       </AnimatePresence>
@@ -1519,6 +1677,13 @@ export default function MobileLayout({
   const dayViewSentinelRef = useRef<HTMLDivElement>(null);
   const [isNewEventSheetOpen, setIsNewEventSheetOpen] = useState(false);
   const [newEventDefaultDate, setNewEventDefaultDate] = useState<Date>(new Date());
+  const [isSharedFolderOpen, setIsSharedFolderOpen] = useState(true);
+
+  useEffect(() => {
+    if (activeNoteId) {
+      setIsEditingNote(true);
+    }
+  }, [activeNoteId]);
 
   // Note drag-to-folder
   const [draggingNote, setDraggingNote] = useState<{ id: string; title: string } | null>(null);
@@ -2025,17 +2190,17 @@ export default function MobileLayout({
                   <>
                     <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Zuletzt</p>
                     {recentFiles.map(f => (
-                      <NoteRow key={f.id} file={f} onOpen={() => openNote(f.id, f.title || 'Untitled')} onDragStart={handleNoteDragStart} onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })} />
+                      <NoteRow key={f.id} file={f} isActive={activeNoteId === f.id} onOpen={() => openNote(f.id, f.title || 'Untitled')} onDragStart={handleNoteDragStart} onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })} />
                     ))}
                     <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Notizen</p>
                     {folders.filter(f => !f.parent_id).map(folder => (
-                      <FolderItem key={folder.id} folder={folder} allFiles={files} onOpen={openNote} dragOverId={dragOverFolderId} onDragOver={setDragOverFolderId} onDragLeave={() => setDragOverFolderId(null)}
+                      <FolderItem key={folder.id} folder={folder} allFiles={files} onOpen={openNote} activeNoteId={activeNoteId} dragOverId={dragOverFolderId} onDragOver={setDragOverFolderId} onDragLeave={() => setDragOverFolderId(null)}
                         onContextMenu={f => setContextMenu({ type: 'folder', id: f.id, title: f.title || 'Ordner', parentId: f.parent_id })}
                         onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
-                        onNoteDragStart={handleNoteDragStart} />
+                        onNoteDragStart={handleNoteDragStart} isDragging={!!draggingNote} />
                     ))}
                     {files.filter(f => !f.parent_id && f.type !== 'folder' && !recentIds.has(f.id)).map(f => (
-                      <NoteRow key={f.id} file={f} onOpen={() => openNote(f.id, f.title || 'Untitled')} onDragStart={handleNoteDragStart} onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })} />
+                      <NoteRow key={f.id} file={f} isActive={activeNoteId === f.id} onOpen={() => openNote(f.id, f.title || 'Untitled')} onDragStart={handleNoteDragStart} onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })} />
                     ))}
                   </>
                 );
@@ -2065,7 +2230,7 @@ export default function MobileLayout({
         )}
 
         {/* Note editor with rename header + SmartSearch at bottom */}
-        {isEditingNote && (
+        {(isEditingNote || Boolean(activeNoteId)) && editorElement && (
           <motion.div key="editor"
             initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
@@ -2073,7 +2238,15 @@ export default function MobileLayout({
             style={{ background: T.bg }}
           >
             <div className="flex items-center gap-3 px-4 shrink-0" style={{ paddingTop: 'max(52px, calc(env(safe-area-inset-top) + 10px))', paddingBottom: 10, borderBottom: `1px solid ${T.brd}` }}>
-              <button onClick={() => setIsEditingNote(false)} className="p-2 rounded-full" style={{ background: T.hov }}>
+              <button
+                onClick={() => {
+                  setIsEditingNote(false);
+                  onNoteSelect?.('', '');
+                }}
+                className="p-2 rounded-full transition-colors active:opacity-70"
+                style={{ background: T.hov }}
+                aria-label="Zurück"
+              >
                 <ArrowLeft size={18} style={{ color: T.accent }} />
               </button>
               {/* Editable title */}
@@ -2088,8 +2261,8 @@ export default function MobileLayout({
                 placeholder="Notiz…"
               />
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="rounded-2xl p-4 h-full" style={{ background: T.card }}>{editorElement}</div>
+            <div className="flex-1 overflow-y-auto w-full overscroll-contain px-3 py-2">
+              {editorElement}
             </div>
             {/* SmartSearch bar — opens the same slide-up panel as the calendar */}
             {kbOffset === 0 && (
@@ -2704,13 +2877,25 @@ export default function MobileLayout({
       /* ── Notes tab ── */
       <div className="flex flex-col" style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}>
         {/* Notes header */}
-        <div className="px-5 py-3 flex items-center gap-3">
-          <span className="text-lg font-extrabold flex-1" style={{ color: T.pri }}>Notizen</span>
-          <button onClick={() => { onNewNote(); setIsEditingNote(true); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold"
-            style={{ background: T.accent, color: '#fff' }}>
-            <Plus size={14} /> Neu
-          </button>
+        <div className="px-5 py-3 flex items-center justify-between">
+          <span className="text-lg font-extrabold" style={{ color: T.pri }}>Notizen</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onNewFolder?.()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold active:opacity-70 transition-opacity"
+              style={{ background: T.hov, border: `1px solid ${T.brd}`, color: T.sec }}
+              title="Neuer Ordner"
+            >
+              <FolderPlus size={14} /> Ordner
+            </button>
+            <button
+              onClick={() => { onNewNote(); setIsEditingNote(true); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm active:opacity-80 transition-opacity"
+              style={{ background: T.accent }}
+            >
+              <Plus size={14} /> Neu
+            </button>
+          </div>
         </div>
         {/* Notes search */}
         <div className="mx-4 mb-3 flex items-center gap-2 px-3 py-2 rounded-xl"
@@ -2734,33 +2919,177 @@ export default function MobileLayout({
               : null;
 
             if (filteredFiles) {
-              return filteredFiles.length > 0 ? filteredFiles.map(f => (
-                <NoteRow key={f.id} file={f} onOpen={() => openNote(f.id, f.title || 'Untitled')} onDragStart={handleNoteDragStart} onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })} />
-              )) : (
-                <p className="text-sm py-4 text-center" style={{ color: T.mut }}>Keine Ergebnisse</p>
+              return filteredFiles.length > 0 ? (
+                <div className="space-y-0.5">
+                  {filteredFiles.map(f => (
+                    <NoteRow
+                      key={f.id}
+                      file={f}
+                      isActive={activeNoteId === f.id}
+                      onOpen={() => openNote(f.id, f.title || 'Untitled')}
+                      onDragStart={handleNoteDragStart}
+                      onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm py-8 text-center" style={{ color: T.mut }}>Keine Ergebnisse gefunden</p>
               );
             }
 
-            const recentFiles = files.filter(f => f.type !== 'folder').slice(0, 3);
+            const sharedNotes = files.filter(f => {
+              const status = (f as any).share_status;
+              return status === 'pending' || status === 'accepted' || (f as any).is_shared;
+            });
+            const sharedIds = new Set(sharedNotes.map(f => f.id));
+
+            const nonSharedFiles = files.filter(f => !sharedIds.has(f.id));
+            const recentFiles = nonSharedFiles.filter(f => f.type !== 'folder').slice(0, 3);
             const recentIds = new Set(recentFiles.map(f => f.id));
+            const rootFolders = folders.filter(f => !f.parent_id && !sharedIds.has(f.id));
+            const rootNotes = nonSharedFiles.filter(f => !f.parent_id && f.type !== 'folder' && !recentIds.has(f.id));
+
+            const isEmpty = sharedNotes.length === 0 && recentFiles.length === 0 && rootFolders.length === 0 && rootNotes.length === 0;
+
+            if (isEmpty) {
+              return (
+                <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                  <FileText size={32} style={{ color: T.mut }} className="mb-2 opacity-50" />
+                  <p className="text-sm font-medium" style={{ color: T.sec }}>Keine Notizen vorhanden</p>
+                  <button
+                    onClick={() => { onNewNote(); setIsEditingNote(true); }}
+                    className="mt-3 text-xs font-semibold px-3 py-1.5 rounded-lg"
+                    style={{ background: `${T.accent}15`, color: T.accent }}
+                  >
+                    Erste Notiz erstellen
+                  </button>
+                </div>
+              );
+            }
+
             return (
-              <>
-                <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Zuletzt</p>
-                {recentFiles.map(f => (
-                  <NoteRow key={f.id} file={f} onOpen={() => openNote(f.id, f.title || 'Untitled')} onDragStart={handleNoteDragStart} onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })} />
-                ))}
-                <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Ordner</p>
-                {folders.filter(f => !f.parent_id).map(folder => (
-                  <FolderItem key={folder.id} folder={folder} allFiles={files} onOpen={openNote} dragOverId={dragOverFolderId} onDragOver={setDragOverFolderId} onDragLeave={() => setDragOverFolderId(null)}
-                    onContextMenu={f => setContextMenu({ type: 'folder', id: f.id, title: f.title || 'Ordner', parentId: f.parent_id })}
-                    onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
-                    onNoteDragStart={handleNoteDragStart} />
-                ))}
-                <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Alle Notizen</p>
-                {files.filter(f => !f.parent_id && f.type !== 'folder' && !recentIds.has(f.id)).map(f => (
-                  <NoteRow key={f.id} file={f} onOpen={() => openNote(f.id, f.title || 'Untitled')} onDragStart={handleNoteDragStart} onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })} />
-                ))}
-              </>
+              <div className="space-y-1">
+                {/* Geteilt mit mir Section */}
+                {sharedNotes.length > 0 && (
+                  <div className="mb-2">
+                    <button
+                      onClick={() => setIsSharedFolderOpen(o => !o)}
+                      className="flex items-center gap-2 w-full px-3 py-2 rounded-xl text-left transition-colors"
+                      style={{ background: isSharedFolderOpen ? 'rgba(168, 85, 247, 0.08)' : 'transparent' }}
+                    >
+                      <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0" style={{ color: T.sec }}>
+                        <ChevronRight
+                          size={13}
+                          className={`transition-transform duration-150 ${isSharedFolderOpen ? 'rotate-90' : ''}`}
+                        />
+                      </span>
+                      {isSharedFolderOpen ? (
+                        <FolderOpen size={16} className="text-violet-400 shrink-0" />
+                      ) : (
+                        <Folder size={16} className="text-violet-400 shrink-0" />
+                      )}
+                      <span className="text-sm font-semibold flex-1 truncate" style={{ color: T.pri }}>Geteilt mit mir</span>
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
+                        {sharedNotes.length}
+                      </span>
+                    </button>
+                    {isSharedFolderOpen && (
+                      <div className="relative mt-1 ml-3 pl-2.5 border-l border-violet-200/60 dark:border-violet-800/40 space-y-0.5">
+                        {sharedNotes.map(f => (
+                          f.type === 'folder' ? (
+                            <FolderItem
+                              key={f.id}
+                              folder={f}
+                              allFiles={files}
+                              onOpen={openNote}
+                              activeNoteId={activeNoteId}
+                              dragOverId={dragOverFolderId}
+                              onDragOver={setDragOverFolderId}
+                              onDragLeave={() => setDragOverFolderId(null)}
+                              onContextMenu={f => setContextMenu({ type: 'folder', id: f.id, title: f.title || 'Ordner', parentId: f.parent_id })}
+                              onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                              onNoteDragStart={handleNoteDragStart}
+                              isDragging={!!draggingNote}
+                            />
+                          ) : (
+                            <NoteRow
+                              key={f.id}
+                              file={f}
+                              isActive={activeNoteId === f.id}
+                              onOpen={() => openNote(f.id, f.title || 'Untitled')}
+                              onDragStart={handleNoteDragStart}
+                              onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                            />
+                          )
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Zuletzt */}
+                {recentFiles.length > 0 && (
+                  <div>
+                    <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Zuletzt</p>
+                    <div className="space-y-0.5">
+                      {recentFiles.map(f => (
+                        <NoteRow
+                          key={f.id}
+                          file={f}
+                          isActive={activeNoteId === f.id}
+                          onOpen={() => openNote(f.id, f.title || 'Untitled')}
+                          onDragStart={handleNoteDragStart}
+                          onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Ordner */}
+                {rootFolders.length > 0 && (
+                  <div>
+                    <p className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Ordner</p>
+                    <div className="space-y-0.5">
+                      {rootFolders.map(folder => (
+                        <FolderItem
+                          key={folder.id}
+                          folder={folder}
+                          allFiles={files}
+                          onOpen={openNote}
+                          activeNoteId={activeNoteId}
+                          dragOverId={dragOverFolderId}
+                          onDragOver={setDragOverFolderId}
+                          onDragLeave={() => setDragOverFolderId(null)}
+                          onContextMenu={f => setContextMenu({ type: 'folder', id: f.id, title: f.title || 'Ordner', parentId: f.parent_id })}
+                          onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                          onNoteDragStart={handleNoteDragStart}
+                          isDragging={!!draggingNote}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Alle Notizen */}
+                {rootNotes.length > 0 && (
+                  <div>
+                    <p className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Alle Notizen</p>
+                    <div className="space-y-0.5">
+                      {rootNotes.map(f => (
+                        <NoteRow
+                          key={f.id}
+                          file={f}
+                          isActive={activeNoteId === f.id}
+                          onOpen={() => openNote(f.id, f.title || 'Untitled')}
+                          onDragStart={handleNoteDragStart}
+                          onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             );
           })()}
         </div>
@@ -2777,21 +3106,6 @@ export default function MobileLayout({
             }}
             onDismiss={() => setIsNewEventSheetOpen(false)}
           />
-        )}
-      </AnimatePresence>
-
-      {/* Note Editor Overlay */}
-      <AnimatePresence>
-        {(activeNoteId || isEditingNote) && editorElement && (
-          <OverlayShell 
-            title={activeNoteTitle || 'Notiz'} 
-            onBack={() => { 
-              onNoteSelect('', ''); 
-              setIsEditingNote(false); 
-            }}
-          >
-            {editorElement}
-          </OverlayShell>
         )}
       </AnimatePresence>
 

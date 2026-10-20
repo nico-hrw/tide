@@ -4,7 +4,8 @@ import { format, getHours, getMinutes, isSameDay } from 'date-fns';
 import { useHighlight } from '@/components/HighlightContext';
 import { useLinkStore } from '@/store/useLinkStore';
 import { useDataStore } from '@/store/useDataStore';
-import { Layers, Globe, Lock } from 'lucide-react';
+import { Layers, Globe, Lock, Users } from 'lucide-react';
+import { useSocialStore } from '@/store/useSocialStore';
 import { getEventGroupIds } from '../../lib/calendarUtils';
 
 // Assuming types and getEventTheme are available here, either imported or defined
@@ -28,6 +29,9 @@ interface CalendarEvent {
     is_public?: boolean;
     parent_id?: string | null;
     groupIds?: string[];
+    owner_id?: string;
+    share_status?: string;
+    permission?: string;
 }
 
 export const getEventTheme = (evt: CalendarEvent, palette: 'modern-dark' | 'soft-pastels' | 'classic-tide' = 'modern-dark') => {
@@ -158,6 +162,13 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const activeParentId = useDataStore(state => state.activeParentId);
     const setActiveParentId = useDataStore(state => state.setActiveParentId);
     const notes = useDataStore(state => state.notes);
+    const myId = useDataStore(state => state.myId) || (typeof window !== 'undefined' ? (localStorage.getItem("tide_user_id") || sessionStorage.getItem("tide_user_id") || "") : "");
+    const contacts = useSocialStore(state => state.contacts);
+
+    const isShared = event.share_status === 'accepted' || (!!event.owner_id && event.owner_id !== myId);
+    const ownerPartner = event.owner_id ? contacts.find(c => c.partner?.id === event.owner_id)?.partner : undefined;
+    const ownerName = ownerPartner?.username || 'Geteilt';
+    const attributionText = ownerPartner?.username ? `Aus dem Kalender von ${ownerName}` : 'Geteilt';
 
     // Secondary group badges & event tags
     const displayBadges = React.useMemo(() => {
@@ -616,6 +627,11 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             <Globe size={10} />
                         </div>
                     )}
+                    {isShared && (
+                        <div className="opacity-75 flex-shrink-0" title={attributionText}>
+                            <Users size={10} />
+                        </div>
+                    )}
                     <span className={`text-[11px] font-bold leading-none truncate shrink min-w-0 pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}
                     </span>
@@ -652,6 +668,11 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             <Globe size={11} />
                         </div>
                     )}
+                    {isShared && (
+                        <div className="mt-[2px] opacity-75 flex-shrink-0" title={attributionText}>
+                            <Users size={11} />
+                        </div>
+                    )}
                     <div className={`text-[11px] font-bold leading-tight break-words pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}
                     </div>
@@ -659,6 +680,19 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                         <span className="text-[10px] opacity-30 font-bold ml-auto select-none pointer-events-none group-hover:opacity-75 transition-opacity">···</span>
                     )}
                 </div>
+
+                {/* Shared Attribution Pill */}
+                {isShared && durationMinutes >= 35 && (
+                    <div className="mt-1 mb-0.5 flex items-center relative z-[90]">
+                        <span 
+                            className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-black/10 dark:bg-white/15 border border-black/10 dark:border-white/20 text-current opacity-90 truncate max-w-full"
+                            title={attributionText}
+                        >
+                            <Users size={9} className="shrink-0 opacity-80" />
+                            <span className="truncate">{attributionText}</span>
+                        </span>
+                    </div>
+                )}
 
                 {/* Sub-titles (Tags) - Feature Requirement */}
                 {displayBadges.length > 0 && durationMinutes > 40 && (

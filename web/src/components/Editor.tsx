@@ -277,6 +277,17 @@ function getCleanDocContent(content: any) {
 
 const COLORS = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7', '#ec4899', '#ffffff', '#000000'];
 
+const REFERENCE_COLORS = [
+    { value: '#3b82f6', label: 'Blue' },
+    { value: '#10b981', label: 'Green' },
+    { value: '#f59e0b', label: 'Amber' },
+    { value: '#ef4444', label: 'Red' },
+    { value: '#8b5cf6', label: 'Purple' },
+    { value: '#ec4899', label: 'Pink' },
+];
+
+const REFERENCE_QUICK_EMOJIS = ['🔖', '💡', '📌', '⭐', '🏷️', '📖'];
+
 const PLACELHODER_QUOTES = [
     "Das Geheimnis des Könnens liegt im Wollen.",
     "Jeder Tag ist eine neue Chance.",
@@ -458,7 +469,6 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
     const referencePreviewTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     const enabledExtensions = useDataStore((s) => s.enabledExtensions);
-    const autoScanEnabled = useReferenceStore((s) => s.autoScanEnabled);
 
     const extensions = useMemo(() => {
         const baseExtensions = [
@@ -576,6 +586,7 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
         ResizableImage,
         Table.configure({
             resizable: true,
+            renderWrapper: true,
         }),
         TableRow,
         TableHeader,
@@ -604,15 +615,12 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
         // Add optional Reference modes
         if (enabledExtensions.includes('references')) {
             baseExtensions.push(ReferenceScannerMode);
-
-            if (autoScanEnabled) {
-                baseExtensions.push(ReferenceAutopilotMode);
-            }
+            baseExtensions.push(ReferenceAutopilotMode);
         }
 
         return baseExtensions;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabledExtensions, autoScanEnabled, provider, ydoc, isShared]); // Only re-create extensions if the enabled set changes
+    }, [enabledExtensions, provider, ydoc, isShared]); // Only re-create extensions if the enabled set changes
 
     const editor = useEditor({
         extensions: extensions,
@@ -699,6 +707,30 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
                         }
                     });
 
+                    // Sync any color or emoji attributes from marks in the document
+                    editor.state.doc.nodesBetween(0, editor.state.doc.content.size, (node) => {
+                        if (node.isText && node.marks) {
+                            for (const m of node.marks) {
+                                if (m.type.name === 'reference' && m.attrs.referenceId) {
+                                    const refIndex = newRefs.findIndex((item) => item.id === m.attrs.referenceId);
+                                    if (refIndex !== -1) {
+                                        const current = newRefs[refIndex];
+                                        const markColor = m.attrs.color || undefined;
+                                        const markEmoji = m.attrs.emoji || undefined;
+                                        if ((markColor && markColor !== current.color) || (markEmoji && markEmoji !== current.emoji)) {
+                                            newRefs[refIndex] = {
+                                                ...current,
+                                                ...(markColor ? { color: markColor } : {}),
+                                                ...(markEmoji ? { emoji: markEmoji } : {}),
+                                            };
+                                            changed = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    });
+
                     if (changed) {
                         console.log("[References] Auto-updated previews for", myRefs.length, "references based on document updates.");
                         store.setReferences(newRefs);
@@ -735,10 +767,34 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
                 return false;
             },
             attributes: {
-                class: 'prose max-w-none w-full focus:outline-none min-h-[500px] pb-32 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mt-1 [&_ul[data-type="taskList"]]:list-none [&_ul[data-type="taskList"]]:pl-0 [&_li[data-type="taskItem"]]:flex [&_li[data-type="taskItem"]]:items-start [&_li[data-type="taskItem"]>label]:mr-2 [&_li[data-type="taskItem"]>label]:mt-1 [&_li[data-type="taskItem"]>div]:mt-[2px] [&_table]:border-collapse [&_table]:table-fixed [&_table]:w-full [&_table]:my-4 [&_td]:border [&_td]:border-gray-300 dark:[&_td]:border-slate-600 [&_td]:p-2 [&_td]:relative [&_td]:min-w-[100px] [&_th]:border [&_th]:border-gray-300 dark:[&_th]:border-slate-600 [&_th]:p-2 [&_th]:bg-gray-50 dark:[&_th]:bg-slate-800/50 [&_th]:relative [&_th]:min-w-[100px] [&_th]:font-semibold [&_.column-resize-handle]:absolute [&_.column-resize-handle]:-right-1.5 [&_.column-resize-handle]:top-0 [&_.column-resize-handle]:bottom-[calc(-1px)] [&_.column-resize-handle]:w-3 [&_.column-resize-handle]:bg-blue-500/20 [&_.column-resize-handle]:cursor-col-resize hover:[&_.column-resize-handle]:bg-blue-500',
+                class: 'prose max-w-none w-full max-w-full focus:outline-none min-h-[500px] pb-32 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mt-1 [&_ul[data-type="taskList"]]:list-none [&_ul[data-type="taskList"]]:pl-0 [&_li[data-type="taskItem"]]:flex [&_li[data-type="taskItem"]]:items-start [&_li[data-type="taskItem"]>label]:mr-2 [&_li[data-type="taskItem"]>label]:mt-1 [&_li[data-type="taskItem"]>div]:mt-[2px] [&_.tableWrapper]:overflow-x-auto [&_.tableWrapper]:max-w-full [&_.tableWrapper]:w-full [&_.tableWrapper]:my-4 [&_.tableWrapper]:overscroll-x-contain [&_table]:border-collapse [&_table]:table-fixed [&_table]:w-full [&_table]:my-4 [&_.tableWrapper_table]:my-0 [&_td]:border [&_td]:border-gray-300 dark:[&_td]:border-slate-600 [&_td]:p-2 [&_td]:relative [&_td]:min-w-[100px] [&_td]:break-words [&_th]:border [&_th]:border-gray-300 dark:[&_th]:border-slate-600 [&_th]:p-2 [&_th]:bg-gray-50 dark:[&_th]:bg-slate-800/50 [&_th]:relative [&_th]:min-w-[100px] [&_th]:font-semibold [&_th]:break-words [&_.column-resize-handle]:absolute [&_.column-resize-handle]:-right-1.5 [&_.column-resize-handle]:top-0 [&_.column-resize-handle]:bottom-[calc(-1px)] [&_.column-resize-handle]:w-3 [&_.column-resize-handle]:bg-blue-500/20 [&_.column-resize-handle]:cursor-col-resize hover:[&_.column-resize-handle]:bg-blue-500',
             },
             handleClick: (view, pos, event) => {
                 const target = event.target as HTMLElement;
+
+                // Reference Mark click navigation
+                const refMark = target.closest('[data-reference-id]');
+                if (refMark) {
+                    const refId = refMark.getAttribute('data-reference-id');
+                    if (refId) {
+                        const reference = useReferenceStore.getState().references.find((r) => r.id === refId);
+                        if (reference?.sourceNoteId) {
+                            event.preventDefault();
+                            if (onLinkClickRef.current) {
+                                onLinkClickRef.current({ id: reference.sourceNoteId, type: 'file', title: reference.term });
+                            }
+                            useDataStore.getState().setActiveNoteId(reference.sourceNoteId);
+                            window.dispatchEvent(new CustomEvent('tide:navigate', {
+                                detail: { noteId: reference.sourceNoteId }
+                            }));
+                            window.dispatchEvent(new CustomEvent('tide:navigate-note', {
+                                detail: { noteId: reference.sourceNoteId }
+                            }));
+                            return true;
+                        }
+                    }
+                }
+
                 const mentionNode = target.closest('.mention') || target.closest('[data-type="mention"]');
                 if (mentionNode) {
                     event.preventDefault(); // Prevent default URL navigation
@@ -1233,7 +1289,71 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
     }, [editor, onBlockHover]);
 
     const [showColorPicker, setShowColorPicker] = useState<'text' | 'highlight' | null>(null);
+    const [showReferencePicker, setShowReferencePicker] = useState(false);
+    const [selectedRefColor, setSelectedRefColor] = useState<string>('#3b82f6');
+    const [selectedRefEmoji, setSelectedRefEmoji] = useState<string>('🔖');
+    const [pendingRefRange, setPendingRefRange] = useState<{ from: number; to: number } | null>(null);
     const [fontSizeInput, setFontSizeInput] = useState<string>("");
+
+    const handleCreateReference = (color?: string | null, emoji?: string | null) => {
+        if (!editor) return;
+        let from = editor.state.selection.from;
+        let to = editor.state.selection.to;
+        if (editor.state.selection.empty && pendingRefRange) {
+            from = pendingRefRange.from;
+            to = pendingRefRange.to;
+        }
+        if (from >= to) return;
+
+        const term = editor.state.doc.textBetween(from, to, ' ').trim();
+        if (!term) return;
+
+        const activeNoteId = activeTabIdRef.current || useDataStore.getState().activeNoteId;
+        const refId = crypto.randomUUID();
+
+        // Calculate immediate preview layout: find the next block
+        let previewText = term;
+        const blocks: string[] = [];
+        editor.state.doc.forEach((node) => {
+            if (node.textContent.trim()) blocks.push(node.textContent.trim());
+        });
+        for (let i = 0; i < blocks.length; i++) {
+            if (blocks[i].includes(term)) {
+                for (let j = i + 1; j < blocks.length; j++) {
+                    if (blocks[j]) {
+                        previewText = blocks[j];
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+
+        console.log("[References] Creating reference mark:", term, { color, emoji });
+        editor
+            .chain()
+            .focus()
+            .setTextSelection({ from, to })
+            .setMark('reference', {
+                referenceId: refId,
+                isSource: true,
+                color: color || undefined,
+                emoji: emoji || undefined,
+            })
+            .run();
+
+        useReferenceStore.getState().addReference({
+            id: refId,
+            term,
+            previewText: previewText,
+            sourceNoteId: activeNoteId || 'unknown',
+            color: color || undefined,
+            emoji: emoji || undefined,
+        });
+
+        setShowReferencePicker(false);
+        setPendingRefRange(null);
+    };
 
     // Update the font size input field when selection changes
     useEffect(() => {
@@ -1293,7 +1413,7 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
     }
 
     return (
-        <div className="editor-container w-full relative">
+        <div className="editor-container w-full max-w-full overflow-x-hidden relative">
             {editor && (
                 <BubbleMenu
                     editor={editor}
@@ -1368,7 +1488,10 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
                     {/* Text Color */}
                     <div className="relative">
                         <button
-                            onClick={() => setShowColorPicker(showColorPicker === 'text' ? null : 'text')}
+                            onClick={() => {
+                                setShowColorPicker(showColorPicker === 'text' ? null : 'text');
+                                setShowReferencePicker(false);
+                            }}
                             className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-center text-gray-700 dark:text-gray-300"
                             title="Text Color"
                         >
@@ -1396,7 +1519,10 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
                     {/* Highlight Color */}
                     <div className="relative">
                         <button
-                            onClick={() => setShowColorPicker(showColorPicker === 'highlight' ? null : 'highlight')}
+                            onClick={() => {
+                                setShowColorPicker(showColorPicker === 'highlight' ? null : 'highlight');
+                                setShowReferencePicker(false);
+                            }}
                             className={`p-1.5 rounded-lg transition-colors flex items-center justify-center ${editor.isActive('highlight') ? 'bg-yellow-100 text-yellow-600' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
                             title="Highlight"
                         >
@@ -1431,65 +1557,139 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
                         <Sigma size={16} />
                     </button>
 
-                    {onPopOut && (
+                    {/* Reference Creation Popover */}
+                    {enabledExtensions.includes('references') && (
                         <>
                             <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1" />
-                            {/* Save as Reference Button */}
-                            {enabledExtensions.includes('references') && (
-                            <>
+                            <div className="relative">
                                 <button
                                     title="Als Referenz speichern"
                                     onMouseDown={(e) => e.preventDefault()}
-                                    onClick={(e) => {
+                                    onClick={() => {
                                         const { from, to, empty } = editor.state.selection;
-                                        if (empty) return;
-                                        const term = editor.state.doc.textBetween(from, to, ' ').trim();
-                                        if (!term) return;
-
-                                        const activeNoteId = useDataStore.getState().activeNoteId;
-                                        const refId = crypto.randomUUID();
-                                        
-                                        // Calculate immediate preview layout: find the next block
-                                        let previewText = term;
-                                        const blocks: string[] = [];
-                                        editor.state.doc.forEach((node) => {
-                                            if (node.textContent.trim()) blocks.push(node.textContent.trim());
-                                        });
-                                        for (let i = 0; i < blocks.length; i++) {
-                                            if (blocks[i].includes(term)) {
-                                                for (let j = i + 1; j < blocks.length; j++) {
-                                                    if (blocks[j]) {
-                                                        previewText = blocks[j];
-                                                        break;
-                                                    }
-                                                }
-                                                break;
-                                            }
+                                        if (!empty) {
+                                            setPendingRefRange({ from, to });
                                         }
-
-                                        console.log("[References] Saving new reference term:", term);
-                                        useReferenceStore.getState().addReference({
-                                            id: refId,
-                                            term,
-                                            previewText: previewText,
-                                            sourceNoteId: activeNoteId || 'unknown',
-                                        });
-
-                                        // Give instant visual feedback on the button itself
-                                        const btn = e.currentTarget;
-                                        const originalClass = btn.className;
-                                        btn.className = "p-1.5 rounded-lg transition-colors bg-emerald-500 text-white";
-                                        setTimeout(() => {
-                                            if (btn) btn.className = originalClass;
-                                        }, 800);
+                                        setShowReferencePicker((prev) => !prev);
+                                        setShowColorPicker(null);
                                     }}
-                                    className="p-1.5 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-gray-700 dark:text-gray-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                                    className={`p-1.5 rounded-lg transition-colors flex items-center justify-center ${
+                                        showReferencePicker
+                                            ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400'
+                                            : 'hover:bg-blue-50 dark:hover:bg-blue-900/30 text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400'
+                                    }`}
                                 >
-                                    <Bookmark size={14} />
+                                    <Bookmark size={15} style={selectedRefColor ? { color: selectedRefColor } : undefined} />
                                 </button>
-                                <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1" />
-                            </>
-                            )}
+
+                                {showReferencePicker && (
+                                    <div
+                                        className="absolute top-full mt-2 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 shadow-xl border border-gray-200 dark:border-gray-700 rounded-xl p-3 z-50 flex flex-col gap-2.5 min-w-[210px]"
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                                Referenz erstellen
+                                            </span>
+                                            <div className="flex items-center gap-1 text-xs">
+                                                <span>{selectedRefEmoji || '🔖'}</span>
+                                                <span
+                                                    className="w-2.5 h-2.5 rounded-full inline-block border border-black/10 dark:border-white/20"
+                                                    style={{ backgroundColor: selectedRefColor }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Colors */}
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 dark:text-gray-400 block mb-1">Farbe</span>
+                                            <div className="flex items-center gap-1.5">
+                                                {REFERENCE_COLORS.map(c => (
+                                                    <button
+                                                        key={c.value}
+                                                        type="button"
+                                                        title={c.label}
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={() => setSelectedRefColor(c.value)}
+                                                        className={`w-5 h-5 rounded-full border transition-all ${
+                                                            selectedRefColor === c.value
+                                                                ? 'scale-125 ring-2 ring-offset-1 ring-blue-500 border-white dark:ring-offset-gray-800'
+                                                                : 'border-black/10 dark:border-white/10 hover:scale-110'
+                                                        }`}
+                                                        style={{ backgroundColor: c.value }}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Emoji / Icon */}
+                                        <div>
+                                            <span className="text-[10px] text-gray-400 dark:text-gray-400 block mb-1">Icon / Emoji</span>
+                                            <div className="flex items-center gap-1">
+                                                {REFERENCE_QUICK_EMOJIS.map(emoji => (
+                                                    <button
+                                                        key={emoji}
+                                                        type="button"
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={() => setSelectedRefEmoji(emoji)}
+                                                        className={`w-6 h-6 text-sm flex items-center justify-center rounded-md transition-colors ${
+                                                            selectedRefEmoji === emoji
+                                                                ? 'bg-blue-100 dark:bg-blue-900/40 ring-1 ring-blue-500'
+                                                                : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                                                        }`}
+                                                    >
+                                                        {emoji}
+                                                    </button>
+                                                ))}
+                                                <input
+                                                    type="text"
+                                                    value={selectedRefEmoji}
+                                                    onChange={(e) => setSelectedRefEmoji(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            e.preventDefault();
+                                                            handleCreateReference(selectedRefColor, selectedRefEmoji);
+                                                        }
+                                                    }}
+                                                    placeholder="✨"
+                                                    maxLength={4}
+                                                    className="w-7 h-6 text-xs text-center border border-gray-200 dark:border-gray-700 rounded bg-transparent text-gray-700 dark:text-gray-200 focus:outline-none focus:border-blue-500"
+                                                    title="Eigenes Emoji eingeben"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Footer Actions */}
+                                        <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-gray-100 dark:border-gray-700">
+                                            <button
+                                                type="button"
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                onClick={() => {
+                                                    setShowReferencePicker(false);
+                                                    setPendingRefRange(null);
+                                                }}
+                                                className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                                            >
+                                                Abbrechen
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                onClick={() => handleCreateReference(selectedRefColor, selectedRefEmoji)}
+                                                className="px-2.5 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors flex items-center gap-1"
+                                            >
+                                                <Bookmark size={12} />
+                                                <span>Erstellen</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+
+                    {onPopOut && (
+                        <>
 
                             {/* Smart Island (Quick Capture) Button */}
                             {enabledExtensions.includes('smart_island') && (
@@ -1626,7 +1826,7 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
             )}
 
             <div
-                className="min-h-[500px]"
+                className="min-h-[500px] w-full max-w-full overflow-x-hidden"
                 onContextMenu={(e) => {
                     if (editor?.isActive('table')) {
                         e.preventDefault();
@@ -1660,13 +1860,16 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
                     }
                 }}
             >
-                <EditorContent editor={editor} />
+                <EditorContent editor={editor} className="w-full max-w-full" />
             </div>
 
             {tableMenuData && (
                 <div
                     className="fixed z-[9999] bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden p-1 flex flex-col min-w-[160px]"
-                    style={{ top: tableMenuData.y, left: tableMenuData.x }}
+                    style={{
+                        top: Math.max(8, Math.min(tableMenuData.y, typeof window !== 'undefined' ? window.innerHeight - 300 : tableMenuData.y)),
+                        left: Math.max(8, Math.min(tableMenuData.x, typeof window !== 'undefined' ? window.innerWidth - 180 : tableMenuData.x)),
+                    }}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <TableActionItem

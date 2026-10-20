@@ -143,8 +143,11 @@
 
 | Component | File | Role |
 |-----------|------|------|
-| SocialHub | `web/src/components/Social/SocialHub.tsx` | Social feed / contact management |
-| ProfilePage | `web/src/components/Profile/ProfilePage.tsx` | User profile view |
+| SocialHub | `web/src/components/Social/SocialHub.tsx` | Social hub / contacts, discover & requests management |
+| SocialContactCard | `web/src/components/Social/SocialContactCard.tsx` | Contact card with status, actions, and menu |
+| SocialSplitChat | `web/src/components/Social/SocialSplitChat.tsx` | Split chat container with contact list and chat panel |
+| ProfilePage | `web/src/components/Profile/ProfilePage.tsx` | User profile view with public calendar integration, public document cards, and direct copy-to-vault actions |
+| ProfileWeekCalendar | `web/src/components/Profile/ProfileWeekCalendar.tsx` | Interactive 7-day public calendar view with event adoption support |
 | Avatar | `web/src/components/Profile/Avatar.tsx` | User avatar display |
 
 ## Sharing

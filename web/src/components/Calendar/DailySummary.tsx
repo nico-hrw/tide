@@ -36,8 +36,28 @@ export default function DailySummary({
     const [quote, setQuote] = useState("");
 
     useEffect(() => {
+        if (!isOpen) return;
         setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
     }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            document.body.style.overflow = originalOverflow;
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
@@ -49,7 +69,7 @@ export default function DailySummary({
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     onClick={onClose}
-                    className="absolute inset-0 bg-black/60 backdrop-blur-md pointer-events-auto"
+                    className="absolute inset-0 bg-[#111827]/20 pointer-events-auto"
                 />
 
                 <motion.div
@@ -57,12 +77,13 @@ export default function DailySummary({
                     animate={{ scale: 1, opacity: 1, y: 0 }}
                     exit={{ scale: 0.8, opacity: 0, y: 50 }}
                     transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                    className="relative w-full max-w-sm bg-white dark:bg-[#1C1C1E] rounded-[40px] shadow-2xl overflow-hidden border border-white/20 dark:border-white/10 p-8 flex flex-col items-center pointer-events-auto"
+                    className="relative w-full max-w-sm bg-white dark:bg-[#18181b] rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] overflow-hidden border border-[#e5e7eb] dark:border-zinc-800 p-8 flex flex-col items-center pointer-events-auto"
                 >
                     {/* Close Button */}
                     <button
                         onClick={onClose}
-                        className="absolute top-6 right-6 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 text-gray-500 transition-colors"
+                        aria-label="Close"
+                        className="absolute top-6 right-6 h-[44px] w-[44px] rounded-[12px] bg-[#f9fafb] hover:bg-[#f3f4f6] dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-[#e5e7eb] dark:border-zinc-700 flex items-center justify-center text-[#111827] dark:text-zinc-200 cursor-pointer transition-colors"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -129,7 +150,7 @@ export default function DailySummary({
                     {/* Continue Button */}
                     <button
                         onClick={onClose}
-                        className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-2xl font-black text-lg shadow-lg shadow-blue-500/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                        className="w-full h-[44px] bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] font-semibold text-[14px] transition-colors flex items-center justify-center cursor-pointer"
                     >
                         AWESOME!
                     </button>

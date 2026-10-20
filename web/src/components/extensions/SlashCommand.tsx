@@ -138,7 +138,7 @@ const getSuggestionItems = ({ query }: { query: string }) => {
     if (useDataStore.getState().enabledExtensions.includes('references')) {
         items.push({
             title: 'Scan References',
-            aliases: ['ref'],
+            aliases: ['ref', 'scan', 'referenzen', 'scanner'],
             icon: <Bookmark size={16} />,
             command: ({ editor, range }: any) => {
                 editor.chain().focus().deleteRange(range).run();

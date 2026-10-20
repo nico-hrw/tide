@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { MessageSquare, Search, UserPlus, X, Send, FileText, Share2, CheckCircle, XCircle, FolderOpen, ChevronRight, ChevronDown, Folder, Calendar, Trash, ShieldCheck } from "lucide-react";
+import { MessageSquare, Search, UserPlus, X, Send, FileText, Share2, CheckCircle, XCircle, FolderOpen, ChevronRight, ChevronDown, Folder, Calendar, Trash, ShieldCheck, CalendarPlus, Download, Clock } from "lucide-react";
 import { useIslandStore } from "@/components/extensions/smart_island/useIslandStore";
 import { useDataStore } from "@/store/useDataStore";
 import { apiFetch, getApiBase } from "@/lib/api";
@@ -1139,138 +1139,282 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                         return (
                                             <div key={m.id || idx} className="w-full">
                                                 {isNewDay && (
-                                                    <div className="flex items-center gap-4 my-8">
-                                                        <div className="flex-1 h-[1px] bg-gray-100 dark:bg-gray-800"></div>
-                                                        <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                                                    <div className="flex items-center gap-3 my-6">
+                                                        <div className="flex-1 h-[1px] bg-gray-200/60 dark:bg-white/10"></div>
+                                                        <span className="px-3 py-0.5 rounded-full text-[10px] font-semibold tracking-wider text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-white/5 border border-gray-200/50 dark:border-white/10 whitespace-nowrap">
                                                             {getDateLabel(mDate)}
                                                         </span>
-                                                        <div className="flex-1 h-[1px] bg-gray-100 dark:bg-gray-800"></div>
+                                                        <div className="flex-1 h-[1px] bg-gray-200/60 dark:bg-white/10"></div>
                                                     </div>
                                                 )}
-                                                <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} w-full`}>
-                                                    <div
-                                                        className={`
-                                                            ${isShareRequest
-                                                                ? 'w-[260px] overflow-hidden rounded-2xl'
-                                                                : `max-w-[72%] px-4 py-2.5 rounded-2xl ${isMe ? 'rounded-br-sm' : 'rounded-bl-sm'}`
-                                                            }
-                                                            ${isMe
-                                                                ? 'bg-blue-500 text-white'
-                                                                : 'bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white'
-                                                            }
-                                                        `}
-                                                    >
-                                                        {isShareRequest && shareData ? (
-                                                            <>
-                                                                {/* Card body */}
-                                                                <div className={`m-2 rounded-xl p-3 flex flex-col gap-2.5 ${isMe ? 'bg-black/15' : 'bg-white dark:bg-black/30'}`}>
-                                                                    <div className="flex items-center gap-3">
-                                                                        <div className={`p-2 rounded-xl shrink-0 ${shareData.file_type === 'event' ? 'bg-amber-100 dark:bg-amber-900/40' : 'bg-indigo-100 dark:bg-indigo-900/40'}`}>
-                                                                            {shareData.file_type === 'event'
-                                                                                ? <Calendar size={20} className="text-amber-600 dark:text-amber-400" />
-                                                                                : <FileText size={20} className="text-indigo-600 dark:text-indigo-400" />
-                                                                            }
-                                                                        </div>
-                                                                        <div className="flex-1 min-w-0">
-                                                                            <div className={`font-bold text-sm truncate ${isMe ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
-                                                                                {shareData.file_name}
-                                                                            </div>
-                                                                            <div className="flex items-center gap-1.5 mt-0.5">
-                                                                                <span className={`text-[9px] uppercase tracking-wider font-extrabold ${isMe ? 'text-white/60' : 'text-gray-400 dark:text-slate-500'}`}>
-                                                                                    {shareData.file_type === 'event' ? 'Termin' : (shareData.file_type || 'Notiz').toUpperCase()}
-                                                                                </span>
-                                                                                {shareData.permission && (
-                                                                                    <span className={`text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-md ${
-                                                                                        shareData.permission === 'view' ? 'bg-gray-200/70 text-gray-600 dark:bg-white/10 dark:text-gray-300'
-                                                                                        : 'bg-blue-200/70 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200'
-                                                                                    }`}>
-                                                                                        {shareData.permission === 'view' ? 'Ansehen' : 'Bearbeiten'}
-                                                                                    </span>
-                                                                                )}
-                                                                            </div>
-                                                                        </div>
+                                                <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} w-full mb-1.5`}>
+                                                    {isShareRequest && shareData ? (
+                                                        <div className={`w-full max-w-[340px] rounded-2xl border border-gray-200/80 dark:border-white/10 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-md shadow-md overflow-hidden text-gray-900 dark:text-white transition-all ${isMe ? 'rounded-br-md' : 'rounded-bl-md'}`}>
+                                                            {/* Distinctive Header */}
+                                                            <div className="flex items-center justify-between px-3.5 pt-3 pb-2.5 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.02]">
+                                                                {shareData.file_type === 'event' ? (
+                                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-200/60 dark:border-blue-500/20">
+                                                                        <Calendar size={13} className="text-blue-500" />
+                                                                        <span className="text-[10px] uppercase font-bold tracking-wider text-blue-600 dark:text-blue-400">Termin</span>
                                                                     </div>
-
-                                                                    {shareData.file_preview && (() => {
-                                                                        const previewText = shareData.file_type === 'event' && shareData.file_preview.start
-                                                                            ? new Date(shareData.file_preview.start).toLocaleString('de-DE', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
-                                                                            : (typeof shareData.file_preview === 'string' ? shareData.file_preview : (shareData.file_preview.description || null));
-                                                                        if (!previewText) return null;
-                                                                        return (
-                                                                            <p className={`text-[11px] italic line-clamp-2 leading-relaxed ${isMe ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
-                                                                                "{previewText}"
-                                                                            </p>
-                                                                        );
-                                                                    })()}
-                                                                    <div className={`text-[10px] font-medium mt-1 ${isMe ? 'text-white/50 text-right' : 'text-gray-400 dark:text-slate-500'}`}>
+                                                                ) : (
+                                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20">
+                                                                        <FileText size={13} className="text-amber-500" />
+                                                                        <span className="text-[10px] uppercase font-bold tracking-wider text-amber-600 dark:text-amber-400">Notiz</span>
+                                                                    </div>
+                                                                )}
+                                                                {shareData.permission ? (
+                                                                    <span className={`text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full border ${
+                                                                        shareData.permission === 'view'
+                                                                            ? 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200/70 dark:border-white/10'
+                                                                            : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20'
+                                                                    }`}>
+                                                                        {shareData.permission === 'view' ? 'Nur Lesen' : 'Bearbeiten'}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">
                                                                         {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                                    </div>
-                                                                </div>
+                                                                    </span>
+                                                                )}
+                                                            </div>
 
-                                                                {/* Actions */}
-                                                                <div className="px-3 pb-3">
-                                                                    {isMe ? (
-                                                                        <p className="text-[10px] text-center uppercase tracking-widest font-bold text-white/40">
-                                                                            Gesendet
-                                                                        </p>
-                                                                    ) : (() => {
-                                                                        const currentStatus = m.status || processedRequests[shareData.file_id];
-                                                                        if (currentStatus === 'accepted') return (
-                                                                            <div className="flex items-center justify-center gap-1.5 py-1.5 text-green-600 dark:text-green-400 text-xs font-bold">
-                                                                                <CheckCircle size={13} /> Gespeichert
+                                                            {/* Content Body */}
+                                                            {(() => {
+                                                                const isEvent = shareData.file_type === 'event';
+                                                                let dateFormatted: string | null = null;
+                                                                let timeFormatted: string | null = null;
+                                                                let previewSnippet: string | null = null;
+
+                                                                if (shareData.file_preview) {
+                                                                    let fp = shareData.file_preview;
+                                                                    if (typeof fp === 'string') {
+                                                                        try {
+                                                                            fp = JSON.parse(fp);
+                                                                        } catch {
+                                                                            previewSnippet = fp;
+                                                                        }
+                                                                    }
+                                                                    if (typeof fp === 'object' && fp !== null) {
+                                                                        if (fp.start) {
+                                                                            const s = new Date(fp.start);
+                                                                            if (!isNaN(s.getTime())) {
+                                                                                dateFormatted = s.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+                                                                                timeFormatted = s.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                                                                            }
+                                                                        }
+                                                                        if (fp.end) {
+                                                                            const e = new Date(fp.end);
+                                                                            if (!isNaN(e.getTime()) && timeFormatted) {
+                                                                                timeFormatted += ` – ${e.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`;
+                                                                            }
+                                                                        }
+                                                                        if (fp.description && typeof fp.description === 'string') {
+                                                                            previewSnippet = fp.description;
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                return (
+                                                                    <div className="p-3.5 space-y-2.5">
+                                                                        <div className="flex items-start gap-2.5">
+                                                                            <div className={`p-2 rounded-xl shrink-0 ${isEvent ? 'bg-blue-100/80 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-amber-100/80 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'}`}>
+                                                                                {isEvent ? <Calendar size={18} /> : <FileText size={18} />}
                                                                             </div>
-                                                                        );
-                                                                        if (currentStatus === 'declined') return (
-                                                                            <div className="flex items-center justify-center gap-1.5 py-1.5 text-red-500 dark:text-red-400 text-xs font-bold">
-                                                                                <XCircle size={13} /> Abgelehnt
+                                                                            <div className="flex-1 min-w-0 pt-0.5">
+                                                                                <h4 className="font-bold text-sm text-gray-900 dark:text-white truncate" title={shareData.file_name}>
+                                                                                    {shareData.file_name}
+                                                                                </h4>
+                                                                                <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                                                                                    <span>{isEvent ? 'Kalender-Termin' : 'Tresor-Notiz'}</span>
+                                                                                </div>
                                                                             </div>
-                                                                        );
+                                                                        </div>
+
+                                                                        {/* Event Date / Time preview box */}
+                                                                        {isEvent && (dateFormatted || timeFormatted) && (
+                                                                            <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-blue-50/70 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 text-xs text-blue-900 dark:text-blue-100">
+                                                                                <Clock size={15} className="shrink-0 text-blue-500 dark:text-blue-400" />
+                                                                                <div className="min-w-0">
+                                                                                    {dateFormatted && <div className="font-semibold text-[12px]">{dateFormatted}</div>}
+                                                                                    {timeFormatted && <div className="text-[11px] opacity-80">{timeFormatted} Uhr</div>}
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+
+                                                                        {/* Note preview snippet or pill */}
+                                                                        {previewSnippet ? (
+                                                                            <p className="text-xs text-gray-600 dark:text-gray-300 italic line-clamp-2 leading-relaxed bg-gray-50/80 dark:bg-white/[0.03] p-2.5 rounded-xl border border-gray-100 dark:border-white/5">
+                                                                                &ldquo;{previewSnippet}&rdquo;
+                                                                            </p>
+                                                                        ) : (!isEvent ? (
+                                                                            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 dark:bg-white/5 border border-gray-200/50 dark:border-white/5 text-[11px]">
+                                                                                    Notizdokument
+                                                                                </span>
+                                                                            </div>
+                                                                        ) : null)}
+                                                                    </div>
+                                                                );
+                                                            })()}
+
+                                                            {/* Actions / Status Footer */}
+                                                            <div className="px-3.5 pb-3.5 pt-2 border-t border-gray-100 dark:border-white/5 bg-gray-50/30 dark:bg-white/[0.01]">
+                                                                {isMe ? (
+                                                                    /* SENDER VIEW */
+                                                                    <div className="space-y-2">
+                                                                        {m.status === 'accepted' ? (
+                                                                            <div className="flex items-center justify-between text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-3 py-2 rounded-xl border border-emerald-200/60 dark:border-emerald-800/30">
+                                                                                <span className="flex items-center gap-1.5">
+                                                                                    <CheckCircle size={14} />
+                                                                                    Vom Kontakt übernommen
+                                                                                </span>
+                                                                                <span className="text-[10px] font-mono opacity-75">
+                                                                                    {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                                </span>
+                                                                            </div>
+                                                                        ) : m.status === 'declined' ? (
+                                                                            <div className="flex items-center justify-between text-xs font-medium text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-950/30 px-3 py-2 rounded-xl border border-red-200/60 dark:border-red-800/30">
+                                                                                <span className="flex items-center gap-1.5">
+                                                                                    <XCircle size={14} />
+                                                                                    Vom Kontakt abgelehnt
+                                                                                </span>
+                                                                                <span className="text-[10px] font-mono opacity-75">
+                                                                                    {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                                </span>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="flex items-center justify-between text-[11px] text-gray-600 dark:text-gray-300 bg-gray-100/70 dark:bg-white/5 px-3 py-2 rounded-xl border border-gray-200/40 dark:border-white/5">
+                                                                                <span className="truncate">
+                                                                                    Gesendet an <strong className="font-semibold text-gray-800 dark:text-white">{partner?.username || "Kontakt"}</strong>
+                                                                                </span>
+                                                                                <span className="shrink-0 text-[10px] uppercase font-bold tracking-wider text-amber-500 dark:text-amber-400 ml-2">
+                                                                                    Warte auf Annahme
+                                                                                </span>
+                                                                            </div>
+                                                                        )}
+                                                                        <div className="flex items-center justify-between pt-0.5">
+                                                                            <button
+                                                                                onClick={() => onOpenFile(shareData.file_id, shareData.file_name)}
+                                                                                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5 transition-colors"
+                                                                            >
+                                                                                <FolderOpen size={13} />
+                                                                                Datei anzeigen
+                                                                            </button>
+                                                                            <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">
+                                                                                {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (() => {
+                                                                    /* RECIPIENT VIEW */
+                                                                    const currentStatus = m.status || processedRequests[shareData.file_id];
+                                                                    if (currentStatus === 'accepted') {
                                                                         return (
-                                                                            <div className="flex gap-1.5">
+                                                                            <div className="flex items-center justify-between gap-2">
+                                                                                <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400 text-xs font-semibold flex-1">
+                                                                                    <CheckCircle size={14} className="shrink-0 text-emerald-500" />
+                                                                                    <span className="truncate">
+                                                                                        {shareData.file_type === 'event'
+                                                                                            ? '✓ In deinem Kalender gespeichert'
+                                                                                            : '✓ In deinem Tresor gespeichert'}
+                                                                                    </span>
+                                                                                </div>
                                                                                 <button
                                                                                     onClick={() => shareData && handleAccept(shareData.file_id, m.id, shareData.file_type, shareData.file_name)}
-                                                                                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white dark:bg-white/10 text-gray-900 dark:text-white text-xs font-bold hover:bg-gray-50 dark:hover:bg-white/15 transition-colors"
+                                                                                    className="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 text-xs font-semibold transition-colors shrink-0"
+                                                                                    title="Öffnen"
                                                                                 >
-                                                                                    {shareData.file_type === 'event' ? <Calendar size={12} /> : <FileText size={12} />}
+                                                                                    Öffnen
+                                                                                </button>
+                                                                            </div>
+                                                                        );
+                                                                    }
+                                                                    if (currentStatus === 'declined') {
+                                                                        return (
+                                                                            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/30 border border-red-200/80 dark:border-red-800/40 text-red-600 dark:text-red-400 text-xs font-medium">
+                                                                                <div className="flex items-center gap-1.5">
+                                                                                    <XCircle size={14} />
+                                                                                    <span>Anfrage abgelehnt</span>
+                                                                                </div>
+                                                                                <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">
+                                                                                    {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                                </span>
+                                                                            </div>
+                                                                        );
+                                                                    }
+                                                                    return (
+                                                                        <div className="space-y-2">
+                                                                            {/* Primary Button */}
+                                                                            <button
+                                                                                onClick={() => shareData && handleClone(shareData.file_id, m.id, shareData.file_name)}
+                                                                                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold shadow-sm transition-all"
+                                                                            >
+                                                                                {shareData.file_type === 'event' ? <CalendarPlus size={14} /> : <Download size={14} />}
+                                                                                <span>
+                                                                                    {shareData.file_type === 'event'
+                                                                                        ? 'In meinen Kalender übernehmen'
+                                                                                        : 'In meine Notizen übernehmen'}
+                                                                                </span>
+                                                                            </button>
+                                                                            {/* Secondary & Decline */}
+                                                                            <div className="flex items-center gap-2">
+                                                                                <button
+                                                                                    onClick={() => shareData && handleAccept(shareData.file_id, m.id, shareData.file_type, shareData.file_name)}
+                                                                                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 text-xs font-medium transition-colors"
+                                                                                >
+                                                                                    <FolderOpen size={13} />
                                                                                     Öffnen
                                                                                 </button>
                                                                                 <button
-                                                                                    onClick={() => shareData && handleClone(shareData.file_id, m.id, shareData.file_name)}
-                                                                                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white/60 dark:bg-white/5 text-gray-700 dark:text-gray-300 text-xs font-bold hover:bg-white dark:hover:bg-white/10 transition-colors"
-                                                                                >
-                                                                                    Klonen
-                                                                                </button>
-                                                                                <button
                                                                                     onClick={() => shareData && handleDecline(shareData.file_id, m.id)}
-                                                                                    className="px-3 py-2 rounded-xl bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 text-xs font-bold hover:bg-rose-200 transition-colors"
+                                                                                    className="py-1.5 px-3 rounded-xl text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-medium transition-colors"
                                                                                 >
-                                                                                    <X size={12} />
+                                                                                    Ablehnen
                                                                                 </button>
                                                                             </div>
-                                                                        );
-                                                                    })()}
-                                                                </div>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <div className="text-[15px] leading-snug font-medium break-words whitespace-pre-wrap">
-                                                                    {isE2EEMessage(m.content) ? (decryptedTexts[m.id] ?? "...") : m.content}
-                                                                </div>
-                                                                <div className={`text-[10px] mt-1 font-medium flex items-center justify-between ${isMe ? 'text-blue-100/80' : 'text-gray-400 dark:text-slate-500'}`}>
-                                                                    {isE2EEMessage(m.content) && (
-                                                                        <span className="inline-flex items-center gap-1 opacity-75 text-[9px] uppercase tracking-wider font-bold" title="Ende-zu-Ende verschlüsselt">
-                                                                            <ShieldCheck size={11} className={isMe ? 'text-white/90' : 'text-emerald-500 dark:text-emerald-400'} /> E2EE
-                                                                        </span>
-                                                                    )}
-                                                                    <span className={isMe && !isE2EEMessage(m.content) ? 'ml-auto' : ''}>
-                                                                        {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                            <div className="flex justify-end pt-0.5">
+                                                                                <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">
+                                                                                    {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        /* REGULAR MESSAGE BUBBLE */
+                                                        <div
+                                                            className={`max-w-[75%] px-4 py-2.5 rounded-2xl shadow-sm transition-all ${
+                                                                isMe
+                                                                    ? 'bg-blue-600 text-white rounded-br-[4px]'
+                                                                    : 'bg-gray-100/90 dark:bg-white/[0.08] text-gray-900 dark:text-gray-100 border border-gray-200/50 dark:border-white/5 rounded-bl-[4px]'
+                                                            }`}
+                                                        >
+                                                            <div className="text-[14.5px] leading-relaxed font-normal break-words whitespace-pre-wrap selection:bg-blue-300 selection:text-blue-900">
+                                                                {isE2EEMessage(m.content) ? (decryptedTexts[m.id] ?? "...") : m.content}
+                                                            </div>
+                                                            <div className={`text-[10px] mt-1.5 flex items-center justify-between gap-3 select-none ${isMe ? 'text-blue-100/80' : 'text-gray-400 dark:text-slate-500'}`}>
+                                                                {isE2EEMessage(m.content) ? (
+                                                                    <span
+                                                                        className={`inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md ${
+                                                                            isMe
+                                                                                ? 'bg-white/15 text-white'
+                                                                                : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/30'
+                                                                        }`}
+                                                                        title="Ende-zu-Ende verschlüsselt"
+                                                                    >
+                                                                        <ShieldCheck size={11} className={isMe ? 'text-white' : 'text-emerald-500 dark:text-emerald-400'} /> E2EE
                                                                     </span>
-                                                                </div>
-                                                            </>
-                                                        )}
-
-
-                                                    </div>
+                                                                ) : (
+                                                                    <span />
+                                                                )}
+                                                                <span className="font-mono text-[10px] ml-auto">
+                                                                    {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         );

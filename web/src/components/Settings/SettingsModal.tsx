@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useReferenceStore } from '@/store/useReferenceStore';
+import { useReferenceStore, ReferenceDisplayMode, ReferenceItem } from '@/store/useReferenceStore';
 import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon, Calendar, Share, Plus, Briefcase, Download, Copy, Upload, Key, Wrench } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { useJobPlannerStore } from '@/store/useJobPlannerStore';
@@ -49,7 +49,7 @@ function GroupItem({ group, hiddenGroupIds, onToggleVisibility, onUpdate, onShar
                     type="checkbox"
                     checked={!(hiddenGroupIds || []).includes(group.id)}
                     onChange={() => onToggleVisibility(group.id)}
-                    className="w-4 h-4 rounded-md border-gray-300 dark:border-zinc-700 text-blue-600 focus:ring-blue-500/20 bg-white dark:bg-zinc-800 cursor-pointer"
+                    className="w-4 h-4 rounded border-gray-300 dark:border-zinc-700 text-[#111827] focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 bg-white dark:bg-zinc-800 cursor-pointer"
                     title="Toggle Visibility"
                 />
                 <input
@@ -108,7 +108,7 @@ function GroupItem({ group, hiddenGroupIds, onToggleVisibility, onUpdate, onShar
                                 key={id}
                                 onClick={() => onUpdate(group.id, { effect: id })}
                                 title={label}
-                                className={`flex flex-col items-center gap-0.5 p-0.5 rounded border transition-all ${active ? 'border-blue-500 scale-105 shadow-sm' : 'border-transparent hover:border-gray-300 dark:hover:border-zinc-700'}`}
+                                className={`flex flex-col items-center gap-0.5 p-0.5 rounded border transition-all ${active ? 'border-[#111827] dark:border-white scale-105 shadow-sm' : 'border-transparent hover:border-gray-300 dark:hover:border-zinc-700'}`}
                             >
                                 <div
                                     className={`w-6 h-3 rounded-sm ${id !== 'none' ? `effect-${id}` : ''}`}
@@ -170,9 +170,9 @@ function JobPlannerExtensionConfig({ groups }: { groups?: { id: string; title: s
                             key={item.id}
                             type="button"
                             onClick={() => setMode(item.id)}
-                            className={`px-3 py-2 text-xs font-semibold rounded-xl border transition-all text-center ${
+                            className={`px-3 py-2 text-xs font-semibold rounded-[8px] border transition-all text-center ${
                                 mode === item.id
-                                    ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                                    ? 'bg-[#111827] border-[#111827] text-white dark:bg-white dark:text-zinc-900 shadow-sm'
                                     : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10'
                             }`}
                         >
@@ -191,24 +191,24 @@ function JobPlannerExtensionConfig({ groups }: { groups?: { id: string; title: s
                     type="button"
                     onClick={() => setShowWeekends(!showWeekends)}
                     className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 cursor-pointer ${
-                        showWeekends ? 'bg-blue-600' : 'bg-gray-200 dark:bg-zinc-700'
+                        showWeekends ? 'bg-[#111827] dark:bg-white' : 'bg-gray-200 dark:bg-zinc-700'
                     }`}
                 >
-                    <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-200 ${
+                    <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full ${showWeekends ? 'bg-white dark:bg-zinc-900' : 'bg-white'} shadow transition duration-200 ${
                         showWeekends ? 'translate-x-4' : 'translate-x-0'
                     }`} />
                 </button>
             </div>
 
-            <div className="p-3 rounded-xl bg-blue-50/60 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/20">
+            <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h5 className="text-xs font-bold text-blue-900 dark:text-blue-300">Zugeordnete Terminart</h5>
-                        <p className="text-[11px] text-blue-700/80 dark:text-blue-400/80">
+                        <h5 className="text-xs font-bold text-gray-900 dark:text-white">Zugeordnete Terminart</h5>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400">
                             Termine für diesen Planer werden in dieser Kategorie gespeichert
                         </p>
                     </div>
-                    <span className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-bold shadow-2xs">
+                    <span className="px-2.5 py-1 rounded-[8px] bg-[#111827] text-white dark:bg-white dark:text-zinc-900 text-xs font-semibold shadow-xs">
                         {activeGroup?.title || (mode === 'both' ? 'Job & Studium' : (mode === 'job' ? 'Job' : 'Studium'))}
                     </span>
                 </div>
@@ -216,6 +216,17 @@ function JobPlannerExtensionConfig({ groups }: { groups?: { id: string; title: s
         </div>
     );
 }
+
+const REFERENCE_PALETTE = [
+    { label: 'Blue', value: '#3b82f6' },
+    { label: 'Green', value: '#10b981' },
+    { label: 'Amber', value: '#f59e0b' },
+    { label: 'Red', value: '#ef4444' },
+    { label: 'Purple', value: '#8b5cf6' },
+    { label: 'Pink', value: '#ec4899' },
+] as const;
+
+const QUICK_EMOJIS = ['🔖', '💡', '📌', '⭐', '🏷️', '📖'] as const;
 
 export default function SettingsModal({
     isOpen,
@@ -248,10 +259,68 @@ export default function SettingsModal({
     const autoScanEnabled = useReferenceStore((state) => state.autoScanEnabled);
     const references = useReferenceStore((state) => state.references);
     const removeReference = useReferenceStore((state) => state.removeReference);
+    const displayMode = useReferenceStore((state) => state.displayMode);
+    const setDisplayMode = useReferenceStore((state) => state.setDisplayMode);
+    const updateReference = useReferenceStore((state) => state.updateReference);
+    const addReference = useReferenceStore((state) => state.addReference);
 
     const [showDictionary, setShowDictionary] = useState(false);
     const [editRefId, setEditRefId] = useState<string | null>(null);
     const [editRefTerm, setEditRefTerm] = useState("");
+    const [editRefColor, setEditRefColor] = useState<string | undefined>(undefined);
+    const [editRefEmoji, setEditRefEmoji] = useState("");
+    const [isAddingRef, setIsAddingRef] = useState(false);
+    const [newRefTerm, setNewRefTerm] = useState("");
+    const [newRefPreview, setNewRefPreview] = useState("");
+    const [newRefColor, setNewRefColor] = useState<string | undefined>(undefined);
+    const [newRefEmoji, setNewRefEmoji] = useState("");
+
+    const handleStartEditRef = (r: ReferenceItem) => {
+        setEditRefId(r.id);
+        setEditRefTerm(r.term);
+        setEditRefColor(r.color);
+        setEditRefEmoji(r.emoji || "");
+    };
+
+    const handleSaveEditRef = () => {
+        if (!editRefId) return;
+        const trimmed = editRefTerm.trim();
+        if (trimmed) {
+            updateReference(editRefId, {
+                term: trimmed,
+                color: editRefColor,
+                emoji: editRefEmoji.trim() || undefined,
+            });
+        }
+        setEditRefId(null);
+        setEditRefTerm("");
+        setEditRefColor(undefined);
+        setEditRefEmoji("");
+    };
+
+    const handleCancelEditRef = () => {
+        setEditRefId(null);
+        setEditRefTerm("");
+        setEditRefColor(undefined);
+        setEditRefEmoji("");
+    };
+
+    const handleCreateRef = () => {
+        const trimmed = newRefTerm.trim();
+        if (!trimmed) return;
+        addReference({
+            term: trimmed,
+            previewText: newRefPreview.trim() || `Definition für "${trimmed}"`,
+            sourceNoteId: '',
+            color: newRefColor,
+            emoji: newRefEmoji.trim() || undefined,
+        });
+        setNewRefTerm("");
+        setNewRefPreview("");
+        setNewRefColor(undefined);
+        setNewRefEmoji("");
+        setIsAddingRef(false);
+    };
 
     const [nameInput, setNameInput] = useState(userProfile?.username || 'User');
     const [bioInput, setBioInput] = useState(userProfile?.bio || '');
@@ -291,6 +360,18 @@ export default function SettingsModal({
             setSaveError('');
         }
     }, [isOpen, userProfile]);
+
+    // Handle Escape key to close modal
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
@@ -541,7 +622,7 @@ export default function SettingsModal({
                                 type="text"
                                 value={nameInput}
                                 onChange={e => setNameInput(e.target.value)}
-                                className="w-full bg-transparent text-xl font-black text-gray-900 dark:text-white outline-none border-b border-gray-200 dark:border-white/10 focus:border-blue-500 transition-colors pb-1"
+                                className="w-full bg-transparent text-xl font-black text-gray-900 dark:text-white outline-none border-b border-gray-200 dark:border-white/10 focus:border-[#111827] dark:focus:border-white transition-colors pb-1"
                             />
                             <div className="pt-2">
                                 <label className="text-xs font-semibold text-gray-500">Contact Email</label>
@@ -550,7 +631,7 @@ export default function SettingsModal({
                                         type="email"
                                         value={emailInput}
                                         onChange={e => setEmailInput(e.target.value)}
-                                        className="w-full bg-transparent text-sm text-gray-900 dark:text-white outline-none border-b border-gray-200 dark:border-white/10 focus:border-blue-500 transition-colors pb-1"
+                                        className="w-full bg-transparent text-sm text-gray-900 dark:text-white outline-none border-b border-gray-200 dark:border-white/10 focus:border-[#111827] dark:focus:border-white transition-colors pb-1"
                                         placeholder="your@email.com"
                                     />
                                     <div className="flex items-center gap-2 mt-1">
@@ -560,11 +641,11 @@ export default function SettingsModal({
                                             placeholder="PIN"
                                             value={emailPinInput}
                                             onChange={e => setEmailPinInput(e.target.value.replace(/\D/g, ''))}
-                                            className="w-20 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs text-center font-mono outline-none focus:border-blue-500"
+                                            className="w-20 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-[8px] px-2 py-1 text-xs text-center font-mono outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
                                         />
                                         <button
                                             onClick={handleUpdateEmail}
-                                            className="px-3 py-1 bg-gray-900 dark:bg-white dark:text-black text-white text-[10px] font-bold rounded-lg hover:opacity-90 transition-opacity"
+                                            className="px-3 py-1 bg-[#111827] hover:bg-[#2c2c2c] dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 text-white text-[11px] font-semibold rounded-[8px] transition-all"
                                         >
                                             Change Email
                                         </button>
@@ -592,7 +673,7 @@ export default function SettingsModal({
                                         key={style.id}
                                         onClick={() => setAvatarStyleInput(style.id as any)}
                                         className={`flex flex-col items-center p-3 rounded-xl border-2 transition-all ${avatarStyleInput === style.id
-                                            ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-500/10'
+                                            ? 'border-[#111827] dark:border-white bg-[#111827]/5 dark:bg-white/10'
                                             : 'border-transparent bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10'}`}
                                     >
                                         <span className="text-sm font-bold text-gray-900 dark:text-white">{style.label}</span>
@@ -615,7 +696,7 @@ export default function SettingsModal({
                                     value={avatarSaltInput}
                                     onChange={e => setAvatarSaltInput(e.target.value)}
                                     placeholder="e.g. my-style-2026"
-                                    className="flex-1 bg-white dark:bg-black/40 text-sm text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:border-blue-500 transition-colors rounded-lg px-3 py-2"
+                                    className="flex-1 bg-white dark:bg-black/40 text-sm text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 transition-colors rounded-lg px-3 py-2"
                                 />
                                 <button
                                     onClick={() => setAvatarSaltInput(Math.random().toString(36).slice(2, 10))}
@@ -636,7 +717,7 @@ export default function SettingsModal({
                                 value={titleInput}
                                 onChange={e => setTitleInput(e.target.value)}
                                 placeholder="e.g. also there"
-                                className="w-full mt-1 bg-white dark:bg-black/40 text-sm text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:border-blue-500 transition-colors rounded-lg px-3 py-2"
+                                className="w-full mt-1 bg-white dark:bg-black/40 text-sm text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 transition-colors rounded-lg px-3 py-2"
                             />
                         </div>
                         <div>
@@ -646,7 +727,7 @@ export default function SettingsModal({
                                 onChange={e => setBioInput(e.target.value)}
                                 placeholder="Write a short bio about yourself..."
                                 rows={2}
-                                className="w-full mt-1 bg-white dark:bg-black/40 text-sm text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:border-blue-500 transition-colors rounded-lg px-3 py-2 resize-none"
+                                className="w-full mt-1 bg-white dark:bg-black/40 text-sm text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 transition-colors rounded-lg px-3 py-2 resize-none"
                             />
                         </div>
 
@@ -661,9 +742,9 @@ export default function SettingsModal({
                             <button
                                 type="button"
                                 onClick={() => setProfilePublic(!profilePublic)}
-                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${profilePublic ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'}`}
+                                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${profilePublic ? 'bg-[#111827] dark:bg-white' : 'bg-gray-200 dark:bg-gray-700'}`}
                             >
-                                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${profilePublic ? 'translate-x-5' : 'translate-x-0'}`} />
+                                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full ${profilePublic ? 'bg-white dark:bg-zinc-900' : 'bg-white'} shadow transition duration-200 ${profilePublic ? 'translate-x-5' : 'translate-x-0'}`} />
                             </button>
                         </div>
                     </div>
@@ -676,7 +757,7 @@ export default function SettingsModal({
                         <button
                             onClick={handleSaveProfile}
                             disabled={isSavingProfile}
-                            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50"
+                            className="bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] h-[44px] px-6 font-semibold text-[14px] transition-all disabled:opacity-50"
                         >
                             {isSavingProfile ? 'Saving...' : 'Save Profile'}
                         </button>
@@ -710,7 +791,7 @@ export default function SettingsModal({
                             <button
                                 type="button"
                                 onClick={handleExportMasterKey}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all active:scale-95 shadow-lg shadow-blue-500/20"
+                                className="inline-flex items-center gap-2 bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] h-[44px] px-4 font-semibold text-[14px] transition-all active:scale-95"
                             >
                                 <Download className="w-4 h-4" />
                                 <span>Schlüssel herunterladen (JSON)</span>
@@ -719,7 +800,7 @@ export default function SettingsModal({
                             <button
                                 type="button"
                                 onClick={handleCopyMasterKey}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-white/10 rounded-xl text-xs font-bold transition-all active:scale-95"
+                                className="inline-flex items-center gap-2 px-4 h-[44px] bg-white dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 border border-[#e5e7eb] dark:border-zinc-700 rounded-[8px] text-[14px] font-semibold transition-all active:scale-95"
                             >
                                 {copyFeedback ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
                                 <span>{copyFeedback ? "Kopiert!" : "In Zwischenablage kopieren"}</span>
@@ -728,7 +809,7 @@ export default function SettingsModal({
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-white/10 rounded-xl text-xs font-bold transition-all active:scale-95"
+                                className="inline-flex items-center gap-2 px-4 h-[44px] bg-white dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 border border-[#e5e7eb] dark:border-zinc-700 rounded-[8px] text-[14px] font-semibold transition-all active:scale-95"
                             >
                                 <Upload className="w-4 h-4" />
                                 <span>Schlüssel importieren (JSON)</span>
@@ -749,7 +830,7 @@ export default function SettingsModal({
                         <div className="flex items-center gap-3 mb-2">
                             <KeyRound className="w-5 h-5 text-gray-400" />
                             <span className="font-semibold text-gray-900 dark:text-white">PIN Setup</span>
-                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 text-[10px] font-bold uppercase ml-auto">Local Encyrption</span>
+                            <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-300 text-[10px] font-bold uppercase ml-auto">Local Encryption</span>
                         </div>
                         <p className="text-sm text-gray-500">Set a 5-digit PIN to secure local vault cache.</p>
                         <div className="flex gap-2">
@@ -757,11 +838,11 @@ export default function SettingsModal({
                                 type="password"
                                 maxLength={5}
                                 placeholder="•••••"
-                                className="w-32 bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2 text-center tracking-[0.5em] font-mono outline-none focus:border-blue-500 transition-colors"
+                                className="w-32 bg-white dark:bg-black/40 border border-[#e5e7eb] dark:border-zinc-700 rounded-[8px] px-4 py-2 text-center tracking-[0.5em] font-mono outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 transition-colors"
                                 value={pinInputValue}
                                 onChange={(e) => setPinInputValue(e.target.value.replace(/[^0-9]/g, ''))}
                             />
-                            <button className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-blue-500/20">
+                            <button className="bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] h-[44px] px-4 font-semibold text-[14px] transition-all active:scale-95">
                                 Save PIN
                             </button>
                         </div>
@@ -793,9 +874,9 @@ export default function SettingsModal({
                 <div className="grid grid-cols-3 gap-3">
                     <button
                         onClick={() => setThemePreference('light')}
-                        className={`flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-bold transition-all ${themePreference === 'light'
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
-                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20'
+                        className={`flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-[8px] border text-[11px] font-semibold transition-all ${themePreference === 'light'
+                            ? 'bg-[#111827] border-[#111827] text-white dark:bg-white dark:text-zinc-900 shadow-sm'
+                            : 'bg-white dark:bg-white/5 border-[#e5e7eb] dark:border-zinc-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-zinc-700'
                             }`}
                     >
                         <Sun className="w-4 h-4" />
@@ -803,9 +884,9 @@ export default function SettingsModal({
                     </button>
                     <button
                         onClick={() => setThemePreference('system')}
-                        className={`flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-bold transition-all ${themePreference === 'system'
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
-                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20'
+                        className={`flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-[8px] border text-[11px] font-semibold transition-all ${themePreference === 'system'
+                            ? 'bg-[#111827] border-[#111827] text-white dark:bg-white dark:text-zinc-900 shadow-sm'
+                            : 'bg-white dark:bg-white/5 border-[#e5e7eb] dark:border-zinc-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-zinc-700'
                             }`}
                     >
                         <Settings className="w-4 h-4" />
@@ -813,9 +894,9 @@ export default function SettingsModal({
                     </button>
                     <button
                         onClick={() => setThemePreference('dark')}
-                        className={`flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-bold transition-all ${themePreference === 'dark'
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
-                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20'
+                        className={`flex flex-col items-center justify-center gap-2 px-4 py-3 rounded-[8px] border text-[11px] font-semibold transition-all ${themePreference === 'dark'
+                            ? 'bg-[#111827] border-[#111827] text-white dark:bg-white dark:text-zinc-900 shadow-sm'
+                            : 'bg-white dark:bg-white/5 border-[#e5e7eb] dark:border-zinc-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-zinc-700'
                             }`}
                     >
                         <Moon className="w-4 h-4" />
@@ -834,9 +915,9 @@ export default function SettingsModal({
                         <button
                             key={l}
                             onClick={() => onSetNoteLayout?.(l)}
-                            className={`px-4 py-3 rounded-xl border text-xs font-bold capitalize transition-all ${noteLayout === l
-                                ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
-                                : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20'
+                            className={`px-4 py-3 rounded-[8px] border text-xs font-semibold capitalize transition-all ${noteLayout === l
+                                ? 'bg-[#111827] border-[#111827] text-white dark:bg-white dark:text-zinc-900 shadow-sm'
+                                : 'bg-white dark:bg-white/5 border-[#e5e7eb] dark:border-zinc-800 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-zinc-700'
                                 }`}
                         >
                             {l.replace('-', ' ')}
@@ -874,9 +955,9 @@ export default function SettingsModal({
 
     const renderExtensions = () => (
         <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="p-4 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-100 dark:border-blue-500/20 mb-6">
-                <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1">Store / Plugins</p>
-                <p className="text-sm text-blue-800 dark:text-blue-300">Enable specialized modules to customize your workflow.</p>
+            <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-[#e5e7eb] dark:border-zinc-800 mb-6">
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">Store / Plugins</p>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Enable specialized modules to customize your workflow.</p>
             </div>
 
             {[
@@ -888,7 +969,7 @@ export default function SettingsModal({
                 { id: 'smart_date_detection', title: 'Smart Date Detection', desc: 'Erkennt Datum + Uhrzeit beim Tippen und schlägt Termine vor', version: 'v1.0.0', updated: 'Today', icon: Sparkles, color: 'text-blue-500' },
                 { id: 'references', title: 'References', desc: 'Auto-link definitions across notes', version: 'v1.0.0', updated: 'Today', icon: Bookmark, color: 'text-emerald-500' },
             ].map((ext) => (
-                <div key={ext.id} className="p-4 flex flex-col bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-xl hover:border-blue-200 dark:hover:border-blue-500/30 transition-colors">
+                <div key={ext.id} className="p-4 flex flex-col bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-xl hover:border-gray-200 dark:hover:border-zinc-700 transition-colors">
                     <div className="flex items-start justify-between w-full">
                         <div className="flex gap-4">
                             <div className={`p-3 rounded-xl bg-gray-50 dark:bg-white/5 ${ext.color} shrink-0`}>
@@ -915,10 +996,10 @@ export default function SettingsModal({
                             <button
                                 onClick={() => !(ext as any).disabled && onToggleExtension(ext.id, !enabledExtensions.includes(ext.id))}
                                 disabled={(ext as any).disabled}
-                                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${enabledExtensions.includes(ext.id) ? 'bg-blue-500' : 'bg-gray-200 dark:bg-gray-700'} ${(ext as any).disabled ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer'}`}
+                                className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${enabledExtensions.includes(ext.id) ? 'bg-[#111827] dark:bg-white' : 'bg-gray-200 dark:bg-gray-700'} ${(ext as any).disabled ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer'}`}
                             >
-                                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${enabledExtensions.includes(ext.id) ? 'translate-x-5' : 'translate-x-0'}`}>
-                                    {enabledExtensions.includes(ext.id) && <Check className="absolute inset-0 m-auto h-3 w-3 text-blue-500" />}
+                                <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full ${enabledExtensions.includes(ext.id) ? 'bg-white dark:bg-zinc-900' : 'bg-white'} shadow transition duration-200 ${enabledExtensions.includes(ext.id) ? 'translate-x-5' : 'translate-x-0'}`}>
+                                    {enabledExtensions.includes(ext.id) && <Check className="absolute inset-0 m-auto h-3 w-3 text-[#111827] dark:text-white" />}
                                 </span>
                             </button>
 
@@ -930,12 +1011,26 @@ export default function SettingsModal({
                                             type="checkbox"
                                             checked={autoScanEnabled}
                                             onChange={(e) => useReferenceStore.getState().setAutoScanEnabled(e.target.checked)}
-                                            className="rounded border-gray-300 text-emerald-500 focus:ring-emerald-500 w-3 h-3 cursor-pointer"
+                                            className="rounded border-gray-300 text-[#111827] focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 w-3 h-3 cursor-pointer"
                                         />
                                     </label>
+                                    <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-white/5 px-2 py-1 rounded-md border border-gray-200 dark:border-white/10">
+                                        <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Stil</span>
+                                        <select
+                                            value={displayMode}
+                                            onChange={(e) => setDisplayMode(e.target.value as ReferenceDisplayMode)}
+                                            className="text-[10px] font-semibold bg-transparent text-gray-800 dark:text-gray-200 outline-none cursor-pointer"
+                                        >
+                                            <option value="magic" className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-white">Magisch (Verlauf)</option>
+                                            <option value="underline-black" className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-white">Unterstrichen (Schwarz)</option>
+                                            <option value="underline-color" className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-white">Unterstrichen (Farbig)</option>
+                                            <option value="icon" className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-white">Lesezeichen-Icon</option>
+                                            <option value="emoji" className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-white">Emoji</option>
+                                        </select>
+                                    </div>
                                     <button
                                         onClick={() => setShowDictionary(!showDictionary)}
-                                        className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide px-2 py-1 rounded-md border border-blue-100 dark:border-blue-900/30 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                        className="text-[10px] font-semibold text-[#111827] dark:text-white uppercase tracking-wide px-2 py-1 rounded-[8px] border border-[#e5e7eb] dark:border-zinc-700 hover:bg-[#f5f5f5] dark:hover:bg-zinc-800 transition-colors"
                                     >
                                         {showDictionary ? 'Hide Dictionary' : 'Manage Dictionary'}
                                     </button>
@@ -948,41 +1043,311 @@ export default function SettingsModal({
                         <JobPlannerExtensionConfig groups={groups} />
                     )}
 
+                    {ext.id === 'references' && enabledExtensions.includes('references') && (
+                        <div className="w-full mt-4 pt-3 border-t border-gray-100 dark:border-white/5 space-y-3">
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                        Darstellungsstil in Notizen
+                                    </label>
+                                    <span className="text-[11px] text-gray-400">
+                                        {displayMode === 'magic' && 'Magisch (Verlauf)'}
+                                        {displayMode === 'underline-black' && 'Unterstrichen (Schwarz)'}
+                                        {displayMode === 'underline-color' && 'Unterstrichen (Farbig)'}
+                                        {displayMode === 'icon' && 'Lesezeichen-Icon'}
+                                        {displayMode === 'emoji' && 'Emoji'}
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                                    {[
+                                        { id: 'magic' as const, label: 'Magisch (Verlauf)', preview: <span className="font-semibold bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500 bg-clip-text text-transparent">Beispiel</span> },
+                                        { id: 'underline-black' as const, label: 'Unterstrichen (Schwarz)', preview: <span className="font-medium underline decoration-black dark:decoration-white decoration-2 underline-offset-2 text-gray-900 dark:text-white">Beispiel</span> },
+                                        { id: 'underline-color' as const, label: 'Unterstrichen (Farbig)', preview: <span className="font-medium underline decoration-blue-500 decoration-2 underline-offset-2 text-blue-600 dark:text-blue-400">Beispiel</span> },
+                                        { id: 'icon' as const, label: 'Lesezeichen-Icon', preview: <span className="inline-flex items-center gap-1 font-medium text-gray-900 dark:text-white"><Bookmark className="w-3 h-3 text-blue-500 inline fill-blue-500/20" />Beispiel</span> },
+                                        { id: 'emoji' as const, label: 'Emoji', preview: <span className="inline-flex items-center gap-1 font-medium text-gray-900 dark:text-white"><span>🔖</span>Beispiel</span> },
+                                    ].map((opt) => (
+                                        <button
+                                            key={opt.id}
+                                            type="button"
+                                            onClick={() => setDisplayMode(opt.id)}
+                                            className={`p-2.5 rounded-[8px] border text-left flex flex-col justify-between transition-all ${
+                                                displayMode === opt.id
+                                                    ? 'bg-[#111827] border-[#111827] text-white dark:bg-white dark:text-zinc-900 shadow-sm'
+                                                    : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-white/20'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="text-xs font-bold truncate">{opt.label}</span>
+                                                {displayMode === opt.id && <Check className="w-3.5 h-3.5 text-white dark:text-zinc-900 shrink-0" />}
+                                            </div>
+                                            <div className="text-[11px] py-1 px-1.5 rounded bg-white dark:bg-black/30 border border-gray-100 dark:border-white/5 truncate flex items-center justify-center">
+                                                {opt.preview}
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {ext.id === 'references' && showDictionary && enabledExtensions.includes('references') && (
                         <div className="w-full mt-4 pt-4 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-2">
-                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Reference Dictionary ({references.length})</h4>
-                            <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2">
+                            <div className="flex items-center justify-between mb-3">
+                                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Reference Dictionary ({references.length})</h4>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsAddingRef(!isAddingRef)}
+                                    className="inline-flex items-center gap-1 text-xs font-semibold text-[#111827] dark:text-white hover:underline cursor-pointer"
+                                >
+                                    <Plus className="w-3.5 h-3.5" />
+                                    {isAddingRef ? 'Abbrechen' : 'Begriff hinzufügen'}
+                                </button>
+                            </div>
+
+                            {isAddingRef && (
+                                <div className="p-3 mb-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-[#e5e7eb] dark:border-zinc-700 space-y-3">
+                                    <div className="text-xs font-bold text-[#111827] dark:text-white">Neuen Begriff hinzufügen</div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Begriff (z.B. API, Docker...)"
+                                            value={newRefTerm}
+                                            onChange={(e) => setNewRefTerm(e.target.value)}
+                                            className="bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Beschreibung / Vorschau (optional)"
+                                            value={newRefPreview}
+                                            onChange={(e) => setNewRefPreview(e.target.value)}
+                                            className="bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
+                                        />
+                                    </div>
+
+                                    {/* Color & Emoji selection */}
+                                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[11px] font-medium text-gray-500">Farbe:</span>
+                                            <div className="flex items-center gap-1.5">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setNewRefColor(undefined)}
+                                                    className={`w-5 h-5 rounded-full border text-[9px] flex items-center justify-center transition-all ${
+                                                        !newRefColor ? 'border-gray-900 dark:border-white ring-2 ring-gray-900/30' : 'border-gray-300 dark:border-zinc-600'
+                                                    }`}
+                                                    title="Keine Farbe"
+                                                >
+                                                    ✕
+                                                </button>
+                                                {REFERENCE_PALETTE.map((c) => (
+                                                    <button
+                                                        key={c.value}
+                                                        type="button"
+                                                        onClick={() => setNewRefColor(c.value)}
+                                                        className={`w-5 h-5 rounded-full transition-transform ${
+                                                            newRefColor === c.value ? 'ring-2 ring-offset-2 ring-gray-900 dark:ring-white scale-110' : 'hover:scale-105'
+                                                        }`}
+                                                        style={{ backgroundColor: c.value }}
+                                                        title={c.label}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[11px] font-medium text-gray-500">Emoji:</span>
+                                            <div className="flex items-center gap-1">
+                                                {QUICK_EMOJIS.map((em) => (
+                                                    <button
+                                                        key={em}
+                                                        type="button"
+                                                        onClick={() => setNewRefEmoji(newRefEmoji === em ? '' : em)}
+                                                        className={`w-6 h-6 rounded-md text-xs flex items-center justify-center transition-all ${
+                                                            newRefEmoji === em
+                                                                ? 'bg-gray-200 dark:bg-white/20 border border-gray-400'
+                                                                : 'hover:bg-gray-100 dark:hover:bg-white/10'
+                                                        }`}
+                                                    >
+                                                        {em}
+                                                    </button>
+                                                ))}
+                                                <input
+                                                    type="text"
+                                                    maxLength={4}
+                                                    placeholder="Emoji"
+                                                    value={newRefEmoji}
+                                                    onChange={(e) => setNewRefEmoji(e.target.value)}
+                                                    className="w-12 bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 rounded-md px-1.5 py-0.5 text-xs text-center text-gray-900 dark:text-white outline-none"
+                                                    title="Eigenes Emoji eingeben"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end gap-2 pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setIsAddingRef(false);
+                                                setNewRefTerm('');
+                                                setNewRefPreview('');
+                                                setNewRefColor(undefined);
+                                                setNewRefEmoji('');
+                                            }}
+                                            className="px-2.5 py-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                                        >
+                                            Abbrechen
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleCreateRef}
+                                            disabled={!newRefTerm.trim()}
+                                            className="px-3 py-1 bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            Hinzufügen
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="max-h-[220px] overflow-y-auto space-y-2 pr-2">
                                 {references.length === 0 ? (
                                     <p className="text-xs text-gray-400 italic">No references saved yet.</p>
                                 ) : references.map(r => (
                                     <div key={r.id} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5">
                                         {editRefId === r.id ? (
-                                            <input
-                                                autoFocus
-                                                value={editRefTerm}
-                                                onChange={(e) => setEditRefTerm(e.target.value)}
-                                                onBlur={() => {
-                                                    useReferenceStore.getState().setReferences(references.map(x => x.id === r.id ? { ...x, term: editRefTerm } : x));
-                                                    setEditRefId(null);
-                                                }}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        useReferenceStore.getState().setReferences(references.map(x => x.id === r.id ? { ...x, term: editRefTerm } : x));
-                                                        setEditRefId(null);
-                                                    }
-                                                }}
-                                                className="bg-white dark:bg-black/40 border border-blue-500 rounded px-2 py-1 text-sm font-bold outline-none w-full mr-2"
-                                            />
-                                        ) : (
-                                            <div className="flex-1 min-w-0 mr-2 cursor-text" onClick={() => { setEditRefId(r.id); setEditRefTerm(r.term); }}>
-                                                <div className="text-sm font-bold text-gray-900 dark:text-white truncate">{r.term}</div>
-                                                <div className="text-xs text-gray-500 truncate">{r.previewText || 'No custom preview generated'}</div>
+                                            <div className="p-2 rounded-lg bg-gray-50 dark:bg-white/5 border border-[#e5e7eb] dark:border-zinc-700 space-y-2 w-full">
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        autoFocus
+                                                        value={editRefTerm}
+                                                        onChange={(e) => setEditRefTerm(e.target.value)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') handleSaveEditRef();
+                                                            if (e.key === 'Escape') {
+                                                                e.stopPropagation();
+                                                                handleCancelEditRef();
+                                                            }
+                                                        }}
+                                                        className="bg-white dark:bg-black/40 border border-[#e5e7eb] dark:border-zinc-700 focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 rounded px-2 py-1 text-sm font-bold text-gray-900 dark:text-white outline-none flex-1"
+                                                        placeholder="Begriff..."
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleSaveEditRef}
+                                                        className="px-2.5 py-1 bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] text-xs font-semibold transition-all"
+                                                    >
+                                                        Speichern
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleCancelEditRef}
+                                                        className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                                                    >
+                                                        Abbrechen
+                                                    </button>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-blue-200/60 dark:border-blue-800/60">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[10px] font-semibold text-gray-600 dark:text-gray-400">Farbe:</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setEditRefColor(undefined)}
+                                                            className={`w-4 h-4 rounded-full border text-[8px] flex items-center justify-center transition-all ${
+                                                                !editRefColor ? 'border-blue-500 ring-2 ring-blue-500/30 font-bold' : 'border-gray-300 dark:border-zinc-600'
+                                                            }`}
+                                                            title="Keine Farbe"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                        {REFERENCE_PALETTE.map((c) => (
+                                                            <button
+                                                                key={c.value}
+                                                                type="button"
+                                                                onClick={() => setEditRefColor(c.value)}
+                                                                className={`w-4 h-4 rounded-full transition-transform ${
+                                                                    editRefColor === c.value ? 'ring-2 ring-offset-1 ring-blue-500 scale-110' : 'hover:scale-105'
+                                                                }`}
+                                                                style={{ backgroundColor: c.value }}
+                                                                title={c.label}
+                                                            />
+                                                        ))}
+                                                    </div>
+
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[10px] font-semibold text-gray-600 dark:text-gray-400">Emoji:</span>
+                                                        {QUICK_EMOJIS.map((em) => (
+                                                            <button
+                                                                key={em}
+                                                                type="button"
+                                                                onClick={() => setEditRefEmoji(editRefEmoji === em ? '' : em)}
+                                                                className={`w-5 h-5 rounded text-xs flex items-center justify-center transition-all ${
+                                                                    editRefEmoji === em
+                                                                        ? 'bg-blue-200 dark:bg-blue-800 border border-blue-500'
+                                                                        : 'hover:bg-gray-100 dark:hover:bg-white/10'
+                                                                }`}
+                                                            >
+                                                                {em}
+                                                            </button>
+                                                        ))}
+                                                        <input
+                                                            type="text"
+                                                            maxLength={4}
+                                                            placeholder="Emoji"
+                                                            value={editRefEmoji}
+                                                            onChange={(e) => setEditRefEmoji(e.target.value)}
+                                                            className="w-10 bg-white dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 rounded px-1 py-0.5 text-xs text-center text-gray-900 dark:text-white outline-none"
+                                                            title="Eigenes Emoji"
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
-                                        )}
-                                        {editRefId !== r.id && (
-                                            <button onClick={() => removeReference(r.id)} className="p-1.5 shrink-0 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-md transition-colors">
-                                                <X className="w-4 h-4" />
-                                            </button>
+                                        ) : (
+                                            <>
+                                                <div
+                                                    className="flex-1 min-w-0 mr-2 cursor-pointer group"
+                                                    onClick={() => handleStartEditRef(r)}
+                                                    title="Klicken zum Bearbeiten"
+                                                >
+                                                    <div className="flex items-center gap-1.5">
+                                                        {r.color && (
+                                                            <span
+                                                                className="w-2.5 h-2.5 rounded-full inline-block shrink-0 ring-1 ring-black/10 dark:ring-white/20"
+                                                                style={{ backgroundColor: r.color }}
+                                                                title={`Farbe: ${r.color}`}
+                                                            />
+                                                        )}
+                                                        {r.emoji && (
+                                                            <span className="text-sm leading-none shrink-0" title={`Emoji: ${r.emoji}`}>
+                                                                {r.emoji}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-sm font-bold text-gray-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                                            {r.term}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-xs text-gray-500 truncate mt-0.5">{r.previewText || 'No custom preview generated'}</div>
+                                                </div>
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleStartEditRef(r)}
+                                                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/20 rounded-md transition-colors"
+                                                        title="Bearbeiten"
+                                                    >
+                                                        <Bookmark className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeReference(r.id)}
+                                                        className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20 rounded-md transition-colors"
+                                                        title="Löschen"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </>
                                         )}
                                     </div>
                                 ))}
@@ -998,7 +1363,7 @@ export default function SettingsModal({
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="flex items-center justify-center p-8">
                 <div className="text-center">
-                    <div className="w-16 h-16 bg-blue-600 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-xl shadow-blue-500/20 transform rotate-3">
+                    <div className="w-16 h-16 bg-[#111827] dark:bg-zinc-800 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-lg transform rotate-3">
                         <Globe className="text-white w-8 h-8" />
                     </div>
                     <h2 className="text-2xl font-black text-gray-900 dark:text-white">inside tide</h2>
@@ -1090,16 +1455,16 @@ export default function SettingsModal({
                                     <button
                                         key={p.id}
                                         onClick={() => setCalendarColorPalette(p.id as any)}
-                                        className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${palette === p.id
-                                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
-                                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-200 dark:hover:border-white/10'
+                                        className={`flex items-center justify-between p-3 rounded-[8px] border text-left transition-all ${palette === p.id
+                                            ? 'bg-[#111827] border-[#111827] text-white dark:bg-white dark:text-zinc-900 shadow-sm'
+                                            : 'bg-white dark:bg-white/5 border-[#e5e7eb] dark:border-zinc-800 text-gray-600 dark:text-gray-400 hover:border-gray-200 dark:hover:border-zinc-700'
                                         }`}
                                     >
                                         <div>
-                                            <div className={`text-sm font-bold ${palette === p.id ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{p.label}</div>
+                                            <div className={`text-sm font-semibold ${palette === p.id ? 'text-white dark:text-zinc-900' : 'text-gray-900 dark:text-white'}`}>{p.label}</div>
                                             <div className="text-[10px] opacity-80 mt-0.5">{p.desc}</div>
                                         </div>
-                                        {palette === p.id && <Check className="w-4 h-4 shrink-0" />}
+                                        {palette === p.id && <Check className="w-4 h-4 shrink-0 text-white dark:text-zinc-900" />}
                                     </button>
                                 ))}
                             </div>
@@ -1116,12 +1481,12 @@ export default function SettingsModal({
                                     <button
                                         key={o.id}
                                         onClick={() => setCalendarOverlapMode(o.id as any)}
-                                        className={`flex flex-col p-3 rounded-xl border text-left transition-all ${overlap === o.id
-                                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
-                                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-200 dark:hover:border-white/10'
+                                        className={`flex flex-col p-3 rounded-[8px] border text-left transition-all ${overlap === o.id
+                                            ? 'bg-[#111827] border-[#111827] text-white dark:bg-white dark:text-zinc-900 shadow-sm'
+                                            : 'bg-white dark:bg-white/5 border-[#e5e7eb] dark:border-zinc-800 text-gray-600 dark:text-gray-400 hover:border-gray-200 dark:hover:border-zinc-700'
                                         }`}
                                     >
-                                        <div className={`text-sm font-bold ${overlap === o.id ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{o.label}</div>
+                                        <div className={`text-sm font-semibold ${overlap === o.id ? 'text-white dark:text-zinc-900' : 'text-gray-900 dark:text-white'}`}>{o.label}</div>
                                         <div className="text-[10px] opacity-80 mt-1">{o.desc}</div>
                                     </button>
                                 ))}
@@ -1141,12 +1506,12 @@ export default function SettingsModal({
                                         key={item.id}
                                         type="button"
                                         onClick={() => setEventMentionStyle(item.id as 'blue' | 'calendar')}
-                                        className={`flex flex-col p-3 rounded-xl border text-left transition-all ${eventMentionStyle === item.id
-                                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
-                                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-200 dark:hover:border-white/10'
+                                        className={`flex flex-col p-3 rounded-[8px] border text-left transition-all ${eventMentionStyle === item.id
+                                            ? 'bg-[#111827] border-[#111827] text-white dark:bg-white dark:text-zinc-900 shadow-sm'
+                                            : 'bg-white dark:bg-white/5 border-[#e5e7eb] dark:border-zinc-800 text-gray-600 dark:text-gray-400 hover:border-gray-200 dark:hover:border-zinc-700'
                                         }`}
                                     >
-                                        <div className={`text-sm font-bold ${eventMentionStyle === item.id ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{item.label}</div>
+                                        <div className={`text-sm font-semibold ${eventMentionStyle === item.id ? 'text-white dark:text-zinc-900' : 'text-gray-900 dark:text-white'}`}>{item.label}</div>
                                         <div className="text-[10px] opacity-80 mt-1">{item.desc}</div>
                                     </button>
                                 ))}
@@ -1167,12 +1532,12 @@ export default function SettingsModal({
                                         key={item.id}
                                         type="button"
                                         onClick={() => setEventMentionPreview(item.id as 'always' | 'hover' | 'off')}
-                                        className={`flex flex-col p-3 rounded-xl border text-left transition-all ${eventMentionPreview === item.id
-                                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
-                                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-200 dark:hover:border-white/10'
+                                        className={`flex flex-col p-3 rounded-[8px] border text-left transition-all ${eventMentionPreview === item.id
+                                            ? 'bg-[#111827] border-[#111827] text-white dark:bg-white dark:text-zinc-900 shadow-sm'
+                                            : 'bg-white dark:bg-white/5 border-[#e5e7eb] dark:border-zinc-800 text-gray-600 dark:text-gray-400 hover:border-gray-200 dark:hover:border-zinc-700'
                                         }`}
                                     >
-                                        <div className={`text-sm font-bold ${eventMentionPreview === item.id ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{item.label}</div>
+                                        <div className={`text-sm font-semibold ${eventMentionPreview === item.id ? 'text-white dark:text-zinc-900' : 'text-gray-900 dark:text-white'}`}>{item.label}</div>
                                         <div className="text-[10px] opacity-80 mt-1">{item.desc}</div>
                                     </button>
                                 ))}
@@ -1188,9 +1553,9 @@ export default function SettingsModal({
                                 </div>
                                 <button
                                     onClick={() => setCalendarHolidaysEnabled(!calendarHolidaysEnabled)}
-                                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${calendarHolidaysEnabled ? 'bg-blue-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+                                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${calendarHolidaysEnabled ? 'bg-[#111827] dark:bg-white' : 'bg-gray-200 dark:bg-gray-700'}`}
                                 >
-                                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 ${calendarHolidaysEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full ${calendarHolidaysEnabled ? 'bg-white dark:bg-zinc-900' : 'bg-white'} shadow transition duration-200 ${calendarHolidaysEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
                                 </button>
                             </div>
 
@@ -1263,12 +1628,12 @@ export default function SettingsModal({
                                 value={newGroupName}
                                 onChange={e => setNewGroupName(e.target.value)}
                                 placeholder="New group name..."
-                                className="bg-white dark:bg-black/40 text-xs text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:border-blue-500 transition-colors rounded-lg px-3 py-1.5 w-40"
+                                className="bg-white dark:bg-black/40 text-xs text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 transition-colors rounded-[8px] px-3 py-1.5 w-40"
                                 onKeyDown={e => e.key === 'Enter' && handleCreateGroupLocal()}
                             />
                             <button
                                 onClick={handleCreateGroupLocal}
-                                className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                                className="p-1.5 bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] transition-colors"
                                 title="Create Group"
                             >
                                 <Plus size={14} />
@@ -1312,7 +1677,7 @@ export default function SettingsModal({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={onClose}
-                className="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto"
+                className="absolute inset-0 bg-[#111827]/20 pointer-events-auto"
             />
 
             <motion.div
@@ -1320,22 +1685,23 @@ export default function SettingsModal({
                 initial={{ scale: 0.95, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="relative bg-white dark:bg-[#1C1C1E] rounded-[32px] shadow-2xl overflow-hidden border border-white/20 dark:border-white/10 flex flex-col pointer-events-auto w-full max-w-[900px] h-[85vh] sm:h-[650px]"
+                className="relative bg-white dark:bg-[#18181b] rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] overflow-hidden border border-[#e5e7eb] dark:border-zinc-800 flex flex-col pointer-events-auto w-full max-w-[900px] h-[85vh] sm:h-[650px]"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Close Button */}
                 <button
                     onClick={onClose}
-                    className="absolute top-6 right-6 p-2 rounded-full bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-500 dark:text-gray-300 z-10 transition-colors"
+                    className="absolute top-6 right-6 h-[44px] w-[44px] rounded-[12px] bg-[#f9fafb] hover:bg-[#f3f4f6] dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-[#e5e7eb] dark:border-zinc-700 flex items-center justify-center text-[#111827] dark:text-zinc-200 cursor-pointer z-10 transition-colors"
+                    aria-label="Close settings"
                 >
                     <X className="w-5 h-5" />
                 </button>
 
                 <div className="flex flex-col sm:flex-row h-full">
                     {/* Permanent Sidebar Tab List */}
-                    <div className="w-full sm:w-64 border-b sm:border-b-0 sm:border-r border-gray-100 dark:border-white/5 p-6 flex flex-col gap-2 bg-gray-50/50 dark:bg-white/[0.02]">
+                    <div className="w-full sm:w-64 border-b sm:border-b-0 sm:border-r border-[#e5e7eb] dark:border-zinc-800 p-6 flex flex-col gap-2 bg-[#f9fafb] dark:bg-[#18181b]/50">
                         <div className="mb-8 px-2 hidden sm:block">
-                            <h2 className="text-2xl font-black bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Settings</h2>
+                            <h2 className="text-2xl font-semibold text-[#111827] dark:text-white">Settings</h2>
                         </div>
 
                         <div className="flex flex-row sm:flex-col overflow-x-auto sm:overflow-visible gap-2 pb-2 sm:pb-0 custom-scrollbar">
@@ -1343,10 +1709,10 @@ export default function SettingsModal({
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all whitespace-nowrap sm:whitespace-normal shrink-0 ${activeTab === tab.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5 font-medium'}`}
+                                    className={`flex items-center gap-3 px-4 py-3 rounded-[8px] transition-all whitespace-nowrap sm:whitespace-normal shrink-0 ${activeTab === tab.id ? 'bg-[#111827] text-white dark:bg-white dark:text-zinc-900 font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-[#f5f5f5] dark:hover:bg-zinc-800 font-medium'}`}
                                 >
                                     <tab.icon className="w-5 h-5 shrink-0" />
-                                    <span className={`font-bold text-sm ${activeTab === tab.id ? '' : ''}`}>{tab.label}</span>
+                                    <span className="font-medium text-sm">{tab.label}</span>
                                 </button>
                             ))}
                         </div>
@@ -1354,7 +1720,7 @@ export default function SettingsModal({
 
                     {/* Content Area */}
                     <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-transparent">
-                        <div className="p-8 pb-4 border-b border-gray-100 dark:border-white/5 hidden sm:block">
+                        <div className="p-8 pb-4 border-b border-[#e5e7eb] dark:border-zinc-800 hidden sm:block">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white">{tabs.find(t => t.id === activeTab)?.label}</h2>
                         </div>
 

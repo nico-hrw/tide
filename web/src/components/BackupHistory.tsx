@@ -3,7 +3,7 @@ import { apiFetch } from '../lib/api';
 import { useDataStore } from '../store/useDataStore';
 import { decryptMetadata, decryptFile } from '../lib/crypto';
 import { unwrapDEKData, importDEK } from '../lib/cryptoV2';
-import { Clock, RotateCcw, Calendar, Check, AlertCircle } from 'lucide-react';
+import { Clock, RotateCcw, Calendar, AlertCircle, X } from 'lucide-react';
 import { diffWords, applyLinePatch, getPlainTextFromJSON } from '../lib/diff';
 
 interface BackupSlot {
@@ -11,7 +11,7 @@ interface BackupSlot {
     file_id: string;
     slot_name: string;
     secured_meta?: string;
-    access_keys?: any;
+    access_keys?: Record<string, { wrapped_key?: string }> | string;
     version?: number;
     updated_at: string;
     encrypted_blob?: string;
@@ -19,8 +19,8 @@ interface BackupSlot {
 
 interface BackupHistoryProps {
     fileId: string;
-    currentContent: any;
-    onRestore: (content: any) => void;
+    currentContent: unknown;
+    onRestore: (content: unknown) => void;
     onCancel: () => void;
 }
 
@@ -30,7 +30,7 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
     const [diffChanges, setDiffChanges] = useState<{ type: 'added' | 'removed' | 'equal', text: string }[] | null>(null);
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
-    const [restoredJson, setRestoredJson] = useState<any>(null);
+    const [restoredJson, setRestoredJson] = useState<Record<string, unknown> | null>(null);
 
     const orderedSlots = [
         "10 minutes",
@@ -53,6 +53,26 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
             default: return n;
         }
     };
+
+    // Lock body scroll while modal is open
+    useEffect(() => {
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = originalOverflow;
+        };
+    }, []);
+
+    // Close on Escape key press
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                onCancel();
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onCancel]);
 
     useEffect(() => {
         apiFetch(`/api/v1/files/${fileId}/backups`)
@@ -84,7 +104,7 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
         if (isV2) {
             if (!myId) throw new Error("Benutzer-ID nicht verfügbar");
             const accessKeys = typeof backupData.access_keys === 'string'
-                ? JSON.parse(backupData.access_keys)
+                ? JSON.parse(backupData.access_keys) as Record<string, { wrapped_key?: string }>
                 : (backupData.access_keys || {});
             const myAccess = accessKeys?.[myId];
             if (!myAccess?.wrapped_key) throw new Error("Kein Zugriffsschlüssel für dieses Backup.");
@@ -178,7 +198,7 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                     backupJsonStr = applyLinePatch(baseText, parsed);
                 }
                 // else: it's a full JSON copy, use as-is
-            } catch (_) {
+            } catch {
                 // Not valid JSON — use raw text as fallback
             }
 
@@ -225,19 +245,26 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
     };
 
     return (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-w-5xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-gray-200 dark:border-slate-800">
+        <div 
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-[#111827]/20 animate-fade-in p-4"
+            onClick={onCancel}
+        >
+            <div 
+                className="bg-white dark:bg-[#18181b] rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] border border-[#e5e7eb] dark:border-zinc-800 max-w-5xl w-full max-h-[85vh] flex flex-col overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
                 
                 {/* Header */}
-                <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100 dark:border-slate-800 bg-gray-50/50 dark:bg-slate-900/50">
-                    <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                        <Clock className="text-violet-500" size={20} /> Versionsverlauf & Backups
+                <div className="flex justify-between items-center px-6 py-4 border-b border-[#e5e7eb] dark:border-zinc-800 bg-[#f9fafb]/50 dark:bg-zinc-900/50">
+                    <h2 className="text-lg font-bold text-[#111827] dark:text-[#f4f4f5] flex items-center gap-2">
+                        <Clock className="text-[#111827] dark:text-[#f4f4f5]" size={20} /> Versionsverlauf & Backups
                     </h2>
                     <button 
                         onClick={onCancel} 
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg p-1.5 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                        aria-label="Schließen"
+                        className="h-[44px] w-[44px] rounded-[12px] bg-[#f9fafb] hover:bg-[#f3f4f6] dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-[#e5e7eb] dark:border-zinc-700 flex items-center justify-center text-[#111827] dark:text-zinc-200 transition-colors"
                     >
-                        ✕
+                        <X size={20} />
                     </button>
                 </div>
 
@@ -245,8 +272,8 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                 <div className="flex flex-1 overflow-hidden">
                     
                     {/* Left Pane: Timeline of Slots */}
-                    <div className="w-1/3 border-r border-gray-100 dark:border-slate-800 overflow-y-auto p-4 bg-gray-50/20 dark:bg-slate-900/10">
-                        <h3 className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider mb-4 px-1">
+                    <div className="w-1/3 border-r border-[#e5e7eb] dark:border-zinc-800 overflow-y-auto p-4 bg-[#f9fafb]/20 dark:bg-zinc-900/10">
+                        <h3 className="text-xs font-semibold text-[#596170] dark:text-zinc-400 uppercase tracking-wider mb-4 px-1">
                             Speicherpunkte
                         </h3>
                         <div className="space-y-2">
@@ -261,25 +288,29 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                                         onClick={() => handleSelect(slotName)}
                                         className={`w-full text-left p-3.5 rounded-xl border transition-all flex flex-col gap-1 ${
                                             !slot 
-                                                ? 'bg-gray-50/50 dark:bg-slate-900/20 border-gray-100 dark:border-slate-800/40 opacity-40 cursor-not-allowed'
+                                                ? 'bg-[#f9fafb]/50 dark:bg-zinc-900/20 border-[#e5e7eb] dark:border-zinc-800/40 opacity-40 cursor-not-allowed'
                                                 : isActive
-                                                    ? 'bg-violet-50/70 border-violet-300 dark:bg-violet-950/20 dark:border-violet-800 shadow-sm ring-1 ring-violet-200 dark:ring-violet-900/50'
-                                                    : 'bg-white dark:bg-slate-900 border-gray-200 hover:border-gray-300 dark:border-slate-800 dark:hover:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800/40 cursor-pointer'
+                                                    ? 'bg-[#f9fafb] dark:bg-zinc-800/60 border-[#111827] dark:border-white ring-1 ring-[#111827]/20 dark:ring-white/20 text-[#111827] dark:text-white shadow-sm'
+                                                    : 'bg-white dark:bg-zinc-900 border-[#e5e7eb] hover:border-[#d1d5db] dark:border-zinc-800 dark:hover:border-zinc-700 hover:bg-[#f9fafb] dark:hover:bg-zinc-800/40 cursor-pointer'
                                         }`}
                                     >
                                         <div className="flex justify-between items-center w-full">
-                                            <span className={`font-semibold text-sm ${isActive ? 'text-violet-600 dark:text-violet-400' : 'text-gray-900 dark:text-gray-100'}`}>
+                                            <span className={`font-semibold text-sm ${isActive ? 'text-[#111827] dark:text-white' : 'text-[#111827] dark:text-zinc-100'}`}>
                                                 {getFriendlySlotName(slotName)}
                                             </span>
-                                            {slot && <span className="text-[10px] bg-gray-100 dark:bg-slate-800 text-gray-400 dark:text-slate-500 px-1.5 py-0.5 rounded font-mono uppercase">{slotName.trim() === '1 week' ? 'Full' : 'Delta'}</span>}
+                                            {slot && (
+                                                <span className="text-[10px] bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 px-1.5 py-0.5 rounded font-mono uppercase">
+                                                    {slotName.trim() === '1 week' ? 'Full' : 'Delta'}
+                                                </span>
+                                            )}
                                         </div>
                                         {slot ? (
-                                            <span className="text-xs text-gray-400 dark:text-slate-500 flex items-center gap-1.5 mt-0.5">
+                                            <span className="text-xs text-[#596170] dark:text-zinc-400 flex items-center gap-1.5 mt-0.5">
                                                 <Calendar size={12} />
                                                 {new Date(slot.updated_at).toLocaleString()}
                                             </span>
                                         ) : (
-                                            <span className="text-xs text-gray-400 dark:text-slate-500 italic mt-0.5">Keine Version</span>
+                                            <span className="text-xs text-[#596170] dark:text-zinc-500 italic mt-0.5">Keine Version</span>
                                         )}
                                     </button>
                                 );
@@ -288,23 +319,23 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                     </div>
 
                     {/* Right Pane: Diff View */}
-                    <div className="w-2/3 overflow-hidden flex flex-col p-6 bg-white dark:bg-slate-900">
+                    <div className="w-2/3 overflow-hidden flex flex-col p-6 bg-white dark:bg-[#18181b]">
                         <div className="flex justify-between items-center mb-3">
-                            <h3 className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wider">
+                            <h3 className="text-xs font-semibold text-[#596170] dark:text-zinc-400 uppercase tracking-wider">
                                 Versionsvergleich (Abweichungen)
                             </h3>
                             {diffChanges && (
-                                <div className="flex gap-3 text-[11px] font-medium">
+                                <div className="flex gap-3 text-[11px] font-medium text-zinc-600 dark:text-zinc-400">
                                     <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Ergänzungen</span>
                                     <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500" /> Löschungen</span>
                                 </div>
                             )}
                         </div>
 
-                        <div className="flex-1 overflow-auto bg-gray-50 dark:bg-slate-900/50 rounded-xl border border-gray-100 dark:border-slate-850 p-4 font-normal text-sm leading-relaxed text-gray-700 dark:text-slate-300">
+                        <div className="flex-1 overflow-auto bg-[#f9fafb] dark:bg-zinc-900/50 rounded-xl border border-[#e5e7eb] dark:border-zinc-800 p-4 font-normal text-sm leading-relaxed text-[#111827] dark:text-zinc-200">
                             {loading ? (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                                    <div className="w-6 h-6 border-2 border-violet-500 border-t-transparent rounded-full animate-spin mb-3" />
+                                <div className="flex flex-col items-center justify-center h-full text-zinc-400">
+                                    <div className="w-6 h-6 border-2 border-[#111827] dark:border-white border-t-transparent rounded-full animate-spin mb-3" />
                                     <span>Speicherstand wird geladen und entschlüsselt...</span>
                                 </div>
                             ) : errorMsg ? (
@@ -332,7 +363,7 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                                     })}
                                 </div>
                             ) : (
-                                <div className="flex flex-col items-center justify-center h-full text-gray-400 italic">
+                                <div className="flex flex-col items-center justify-center h-full text-zinc-400 dark:text-zinc-500 italic">
                                     Wähle einen Speicherpunkt auf der linken Seite aus, um die Änderungen zur aktuellen Notiz anzuzeigen.
                                 </div>
                             )}
@@ -342,7 +373,7 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                         {!loading && restoredJson && (
                             <button
                                 onClick={doRestore}
-                                className="mt-4 w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl flex justify-center items-center gap-2 transition-transform active:scale-[0.98] shadow-lg shadow-violet-500/10 active:shadow-sm"
+                                className="mt-4 w-full bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 h-[44px] px-5 rounded-[8px] font-semibold text-[14px] flex justify-center items-center gap-2 transition-all active:scale-[0.98]"
                             >
                                 <RotateCcw size={18} /> Diesen Stand wiederherstellen
                             </button>
