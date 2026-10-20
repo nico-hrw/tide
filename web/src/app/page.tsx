@@ -36,7 +36,7 @@ const CanvasLayer = dynamic(() => import('@/components/Canvas/CanvasLayer'), {
 const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEditor'), { ssr: false });
 
 import MobileLayout from "@/components/Layout/MobileLayout";
-import { Clock, Settings, LogOut, Users, Trash2, GraduationCap, Copy } from 'lucide-react';
+import { Clock, Settings, LogOut, Users, Trash2, GraduationCap, Copy, ListTodo, GripVertical } from 'lucide-react';
 import Avatar from "@/components/Profile/Avatar";
 import SmartIsland from "@/components/SmartIsland";
 import { createLinePatch, applyLinePatch } from "@/lib/diff";
@@ -60,7 +60,7 @@ import { useHighlight } from "@/components/HighlightContext";
 import { CheckCircle2, Loader2, Plus, ChevronDown, Share, Download, Check } from 'lucide-react';
 import { useIslandStore } from '@/components/extensions/smart_island/useIslandStore';
 import { isSameDay } from 'date-fns';
-import { useDataStore, DataItem } from "@/store/useDataStore";
+import { useDataStore, DataItem, TaskItem } from "@/store/useDataStore";
 import { useDragGhost } from "@/store/useDragGhost";
 import EventDragGhost from "@/components/Calendar/EventDragGhost";
 import CloudStatusBanner from "@/components/CloudStatusBanner";
@@ -141,6 +141,9 @@ interface CalendarEvent {
     allDay?: boolean;
     is_task?: boolean;
     is_completed?: boolean;
+    linkedTaskId?: string;
+    recurrence_rule?: string;
+    recurrence_end?: string;
 }
 
 
@@ -182,6 +185,7 @@ export default function Dashboard() {
         isSettingsModalOpen, setSettingsModalOpen
     } = useDataStore();
     const deleteTask = useDataStore(s => s.deleteTask);
+    const updateTask = useDataStore(s => s.updateTask);
 
     const files = storeFiles as unknown as DecryptedFile[];
     const events = storeEvents as unknown as CalendarEvent[];
@@ -2794,7 +2798,7 @@ export default function Dashboard() {
             if (res.ok) {
                 const newFile = await res.json().catch(() => null);
                 if (newFile && newFile.id) {
-                    useDataStore.getState().setEvents([...useDataStore.getState().events, { id: newFile.id, title, start: meta.start, end: meta.end, allDay: isAllDay, is_task: extraMeta.is_task, linkedTaskId: extraMeta.linkedTaskId }] as any);
+                    useDataStore.getState().setEvents([...useDataStore.getState().events, { id: newFile.id, title, start: meta.start, end: meta.end, allDay: isAllDay, is_task: extraMeta.is_task, linkedTaskId: extraMeta.linkedTaskId, ...extraMeta }] as any);
                     setActiveEventId(newFile.id);
                     return newFile.id;
                 }
@@ -2936,7 +2940,7 @@ export default function Dashboard() {
                 completed_dates: updates.completed_dates !== undefined ? updates.completed_dates : (event as any).completed_dates,
                 is_task: updates.is_task !== undefined ? updates.is_task : event.is_task,
                 shading: updates.shading !== undefined ? updates.shading : (event as any).shading,
-                linkedTaskId: (event as any).linkedTaskId,
+                linkedTaskId: updates.linkedTaskId !== undefined ? updates.linkedTaskId : (event as any).linkedTaskId,
                 tags: updates.tags !== undefined ? updates.tags : (event as any).tags,
                 is_important: updates.is_important !== undefined ? updates.is_important : (event as any).is_important,
                 groupIds: updates.groupIds !== undefined ? updates.groupIds : (event as any).groupIds
@@ -2967,6 +2971,26 @@ export default function Dashboard() {
 
             // Also update the metadata cache
             useDataStore.getState().updateSpecificMetadataCache(baseId, meta);
+
+            // Sync with linked task if start date or completion changed
+            const targetLinkedTaskId = meta.linkedTaskId;
+            if (targetLinkedTaskId) {
+                const currentTasks = useDataStore.getState().tasks;
+                const linkedTask = currentTasks.find(t => t.id === targetLinkedTaskId);
+                if (linkedTask) {
+                    const taskUpdates: Partial<TaskItem> = {};
+                    if (updates.start !== undefined && (linkedTask.dueDate !== updates.start || linkedTask.scheduledDate !== updates.start)) {
+                        taskUpdates.dueDate = updates.start;
+                        taskUpdates.scheduledDate = updates.start;
+                    }
+                    if (updates.is_completed !== undefined && linkedTask.isCompleted !== updates.is_completed) {
+                        taskUpdates.isCompleted = updates.is_completed;
+                    }
+                    if (Object.keys(taskUpdates).length > 0) {
+                        updateTask(targetLinkedTaskId, taskUpdates);
+                    }
+                }
+            }
 
             // If theme changed
             if (updates.groupIds !== undefined) {
@@ -3066,6 +3090,63 @@ export default function Dashboard() {
         return () => window.removeEventListener('event-task:toggle', handleEventTaskToggle);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // intentionally empty — ref always has the latest version
+
+    // ── Dynamic synchronization between Todos and Calendar Events ─────────────
+    const syncingTaskIdsRef = useRef<Set<string>>(new Set());
+    const handleEventCreateRef = useLatestRef(handleEventCreate);
+
+    useEffect(() => {
+        if (!privateKey || !publicKey || !tasks || tasks.length === 0) return;
+
+        const tasksWithDueDate = tasks.filter(t => t.dueDate);
+
+        tasksWithDueDate.forEach(async (t) => {
+            if (syncingTaskIdsRef.current.has(t.id)) return;
+
+            const existingEvent = events.find(e => (e as any).linkedTaskId === t.id);
+
+            if (!existingEvent) {
+                syncingTaskIdsRef.current.add(t.id);
+                try {
+                    const start = new Date(t.dueDate);
+                    if (isNaN(start.getTime())) return;
+                    const end = new Date(start.getTime() + 30 * 60 * 1000);
+                    await handleEventCreateRef.current(start, end, false, {
+                        title: t.title,
+                        is_task: true,
+                        linkedTaskId: t.id,
+                        color: t.color,
+                        recurrence_rule: t.recurrence_rule,
+                        recurrence_end: t.recurrence_end,
+                        is_completed: t.isCompleted,
+                    });
+                } finally {
+                    syncingTaskIdsRef.current.delete(t.id);
+                }
+            } else {
+                const isTitleDiff = existingEvent.title !== t.title;
+                const isStartDiff = existingEvent.start !== t.dueDate;
+                const isCompletedDiff = (existingEvent.is_completed ?? false) !== (t.isCompleted ?? false);
+                const isRecurrenceDiff = (existingEvent as any).recurrence_rule !== t.recurrence_rule;
+
+                if (isTitleDiff || isStartDiff || isCompletedDiff || isRecurrenceDiff) {
+                    const start = new Date(t.dueDate);
+                    const end = isNaN(start.getTime())
+                        ? new Date(Date.now() + 30 * 60 * 1000).toISOString()
+                        : new Date(start.getTime() + 30 * 60 * 1000).toISOString();
+
+                    handleEventSaveRef.current(existingEvent.id, {
+                        title: t.title,
+                        start: t.dueDate,
+                        end,
+                        is_completed: t.isCompleted,
+                        recurrence_rule: t.recurrence_rule,
+                        recurrence_end: t.recurrence_end,
+                    });
+                }
+            }
+        });
+    }, [tasks, events, privateKey, publicKey]);
 
     const switchTabRef = useLatestRef(switchTab);
 
@@ -3200,6 +3281,11 @@ export default function Dashboard() {
 
         if (!confirm("Are you sure you want to delete this event?")) return;
         try {
+            const currentEvents = useDataStore.getState().events;
+            const targetEvt = currentEvents.find(e => e.id === id) as any;
+            if (targetEvt?.linkedTaskId) {
+                updateTask(targetEvt.linkedTaskId, { dueDate: undefined, scheduledDate: undefined });
+            }
             const res = await apiFetch(`/api/v1/files/${id}`, {
                 method: "DELETE"
             });
@@ -3625,36 +3711,56 @@ export default function Dashboard() {
                         handleNewNote();
                     }}
                 >
-                    {/* Unscheduled Tasks Panel — top-left corner, below calendar toolbar, only when calendar is active */}
-                    {activeTabId === 'calendar' && tasks && tasks.filter(t => !t.isCompleted && !t.scheduledDate).length > 0 && (
-                    <div className="absolute left-16 top-[52px] z-[55] pointer-events-none flex flex-col max-h-[calc(100%-60px)]">
-                        <div className="flex flex-col gap-1.5 p-2 overflow-y-auto pointer-events-none max-h-full">
-                            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 px-1 pointer-events-none">Tasks</h3>
-                            {tasks.filter(t => !t.isCompleted && !t.scheduledDate).map(t => (
-                                <div
-                                    key={t.id}
-                                    draggable
-                                    className="bg-white/90 dark:bg-[#1c1c1c]/95 backdrop-blur-sm border border-gray-200/80 dark:border-white/10 px-2.5 py-1.5 rounded-xl shadow-sm cursor-grab active:cursor-grabbing flex gap-1.5 items-center transition-all hover:shadow-md hover:-translate-y-0.5 pointer-events-auto w-48 group"
-                                    onDragStart={(e) => {
-                                        e.dataTransfer.setData('text/plain', t.id);
-                                        e.dataTransfer.setData('application/json', JSON.stringify({ type: 'task', id: t.id }));
-                                    }}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" className="shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="5" r="1" /><circle cx="9" cy="12" r="1" /><circle cx="9" cy="19" r="1" /><circle cx="15" cy="5" r="1" /><circle cx="15" cy="12" r="1" /><circle cx="15" cy="19" r="1" /></svg>
-                                    <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight truncate flex-1">{t.title}</span>
-                                    <button
-                                        title="Delete task"
-                                        className="opacity-0 group-hover:opacity-100 ml-auto shrink-0 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition-all"
-                                        onMouseDown={(e) => e.stopPropagation()}
-                                        onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}
-                                    >
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                                    </button>
+                    {/* Unscheduled Tasks Panel — bottom-right corner floating card, only when calendar is active */}
+                    {activeTabId === 'calendar' && (!enabledExtensions || enabledExtensions.includes('todos')) && (() => {
+                        const unscheduledTodos = (tasks || []).filter(t => !t.isCompleted && !t.dueDate && !t.scheduledDate);
+                        if (unscheduledTodos.length === 0) return null;
+                        return (
+                            <div className="absolute right-6 bottom-6 z-[55] pointer-events-auto bg-white/90 dark:bg-[#1c1c1c]/95 backdrop-blur-md border border-gray-200/80 dark:border-white/10 rounded-2xl p-3 shadow-xl max-w-xs flex flex-col gap-2 max-h-[40vh] overflow-hidden">
+                                <div className="flex items-center justify-between px-1">
+                                    <div className="flex items-center gap-2">
+                                        <ListTodo className="w-4 h-4 text-blue-500" />
+                                        <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">Todos</span>
+                                    </div>
+                                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300">
+                                        {unscheduledTodos.length}
+                                    </span>
                                 </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                                <div className="flex flex-col gap-1.5 overflow-y-auto pr-1">
+                                    {unscheduledTodos.map(t => {
+                                        const priorityColor = t.priority === 'high' ? 'bg-red-500' : t.priority === 'medium' ? 'bg-amber-500' : t.priority === 'low' ? 'bg-blue-400' : 'bg-gray-400';
+                                        return (
+                                            <div
+                                                key={t.id}
+                                                draggable
+                                                onDragStart={(e) => {
+                                                    e.dataTransfer.setData('text/plain', t.id);
+                                                    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'task', id: t.id }));
+                                                }}
+                                                className="rounded-xl px-3 py-2 bg-gray-50/80 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200/60 dark:border-white/10 flex items-center gap-2 cursor-grab active:cursor-grabbing transition-all hover:scale-[1.02] hover:shadow-xs group"
+                                            >
+                                                <GripVertical className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                                <span
+                                                    className={`w-2 h-2 rounded-full shrink-0 ${t.color ? '' : priorityColor}`}
+                                                    style={t.color ? { backgroundColor: t.color } : undefined}
+                                                />
+                                                <span className="text-xs text-gray-700 dark:text-gray-300 truncate flex-1 font-medium">{t.title}</span>
+                                                <button
+                                                    type="button"
+                                                    title="Delete task"
+                                                    className="opacity-0 group-hover:opacity-100 ml-auto shrink-0 p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition-all"
+                                                    onMouseDown={(e) => e.stopPropagation()}
+                                                    onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })()}
                 <div
                     className={`absolute inset-0 z-10 bg-[var(--background)] transition-opacity duration-200 ${activeTabId === 'calendar' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
                     onDragOver={(e) => {
@@ -3780,7 +3886,7 @@ export default function Dashboard() {
                 </div>
 
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'todos' ? 'block' : 'hidden'}`}>
-                    {activeTabId === 'todos' && <TodoList />}
+                    {activeTabId === 'todos' && (!enabledExtensions || enabledExtensions.includes('todos')) && <TodoList />}
                 </div>
 
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'trash' ? 'block' : 'hidden'}`}>

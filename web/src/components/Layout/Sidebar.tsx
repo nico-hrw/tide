@@ -435,10 +435,10 @@ export default function Sidebar({
             {/* Sticky top section: Navigation & Recent */}
             <div className="flex-shrink-0 p-2 pt-3 pb-0">
                 {/* Navigation Section */}
-                <div className="mb-4 px-1 flex gap-1">
+                <div className="mb-4 px-1 grid grid-cols-2 gap-1">
                     <button
                         onClick={() => onOpenSocial?.()}
-                        className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'social' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'social' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
                     >
                         <div className={`shrink-0 ${activeTabId === 'social' ? 'text-blue-500' : 'text-[var(--text-muted)] group-hover:text-blue-500 transition-colors'}`}>
                             <Users size={16} />
@@ -447,10 +447,23 @@ export default function Sidebar({
                             Social
                         </span>
                     </button>
+                    {(!enabledExtensions || enabledExtensions.includes('todos')) && (
+                        <button
+                            onClick={() => onOpenTodos?.()}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'todos' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
+                        >
+                            <div className={`shrink-0 ${activeTabId === 'todos' ? 'text-blue-500' : 'text-[var(--text-muted)] group-hover:text-blue-500 transition-colors'}`}>
+                                <ListTodo size={16} />
+                            </div>
+                            <span className={`text-[13px] font-medium flex-1 text-left ${activeTabId === 'todos' ? 'text-[var(--text-body)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-body)] transition-colors'}`}>
+                                Todos
+                            </span>
+                        </button>
+                    )}
                     {(!enabledExtensions || enabledExtensions.includes('job_planner')) && (
                         <button
                             onClick={() => onOpenExams?.()}
-                            className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'job_planner' || activeTabId === 'exams' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'job_planner' || activeTabId === 'exams' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
                         >
                             <div className={`shrink-0 ${activeTabId === 'job_planner' || activeTabId === 'exams' ? 'text-blue-500' : 'text-[var(--text-muted)] group-hover:text-blue-500 transition-colors'}`}>
                                 <GraduationCap size={16} />
@@ -754,19 +767,7 @@ export default function Sidebar({
 
             {/* Smart Island — absolutely positioned, extends beyond sidebar */}
             <div className="absolute bottom-4 left-4 right-4 z-[100] flex flex-col gap-2">
-                <div className="flex items-center justify-start px-1">
-                    <button
-                        onClick={() => onOpenTodos?.()}
-                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                            activeTabId === 'todos'
-                                ? 'bg-blue-600 text-white shadow-md'
-                                : 'border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 shadow-sm'
-                        }`}
-                        title="Todos"
-                    >
-                        <ListTodo size={18} />
-                    </button>
-                </div>
+
                 {enabledExtensions?.includes('smart_island') ? (
                     <SmartIsland
                         selectedDate={selectedDate || new Date()}

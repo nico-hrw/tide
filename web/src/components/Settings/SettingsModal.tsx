@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useReferenceStore, ReferenceDisplayMode, ReferenceItem } from '@/store/useReferenceStore';
-import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon, Calendar, Share, Plus, Briefcase, Download, Copy, Upload, Key, Wrench } from 'lucide-react';
+import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon, Calendar, Share, Plus, Briefcase, Download, Copy, Upload, Key, Wrench, ListTodo } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { useJobPlannerStore } from '@/store/useJobPlannerStore';
 
@@ -961,6 +961,7 @@ export default function SettingsModal({
             </div>
 
             {[
+                { id: 'todos', title: 'Todos & Tasks', desc: 'Aufgabenverwaltung mit Fälligkeiten, Wiederholungen und Kalender-Synchronisation', version: 'v1.0.0', updated: 'Today', icon: ListTodo, color: 'text-indigo-500' },
                 { id: 'job_planner', title: 'Job & Study Planner', desc: 'Arbeitszeiten, Stundenplan, Semester und Quick-Links verwalten', version: 'v1.0.0', updated: 'Today', icon: Briefcase, color: 'text-blue-500' },
                 { id: 'finance', title: 'Finance Tracker', desc: 'Strict double-entry bookkeeping', version: 'v1.2.0', updated: 'Mar 1, 2026', icon: Blocks, color: 'text-emerald-500' },
                 { id: 'messenger', title: 'Messenger', desc: 'Under Maintenance', version: 'v0.9.5-beta', updated: 'Mar 3, 2026', icon: User, color: 'text-gray-500 dark:text-slate-400', disabled: true },

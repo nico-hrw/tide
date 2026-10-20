@@ -43,6 +43,7 @@ type MentionSuggestionItem =
           start?: string;
           color?: string;
           formattedDate?: string;
+          isCompleted?: boolean;
       };
 
 const MentionList = forwardRef((props: any, ref) => {
@@ -96,7 +97,8 @@ const MentionList = forwardRef((props: any, ref) => {
             isCreatingRef.current = true;
             try {
                 const itemQuery = 'query' in item ? item.query : undefined;
-                const cleanTitle = (props.query || itemQuery || item.label || 'New Task').replace(/^!+/, '').trim() || 'New Task';
+                const rawTitle = props.query || itemQuery || (item.label && !item.label.startsWith('Create ') ? item.label : '') || 'New Todo';
+                const cleanTitle = rawTitle.replace(/^!+/, '').trim() || 'New Todo';
                 const newId = await useDataStore.getState().addTask({ title: cleanTitle, isCompleted: false });
                 props.command({ ...item, id: newId, label: cleanTitle, type: 'task', isGhost: false });
             } finally {
@@ -265,13 +267,33 @@ const MentionList = forwardRef((props: any, ref) => {
                                         </div>
                                         <CalendarIcon size={14} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                     </>
+                                ) : item.type === 'task' ? (
+                                    <>
+                                        <CheckSquare size={14} className="text-blue-500 dark:text-blue-400 flex-shrink-0" />
+                                        <div className="flex items-center justify-between min-w-0 flex-1 gap-1.5">
+                                            <span className={`font-medium truncate ${item.isCompleted ? 'line-through text-gray-400 dark:text-gray-500' : ''}`}>
+                                                <span className="text-xs text-gray-400 dark:text-gray-500 font-normal mr-1.5 no-underline">Todo:</span>
+                                                {item.label || item.title}
+                                            </span>
+                                            {item.isCompleted && (
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-green-500/10 text-green-600 dark:text-green-400 font-medium flex-shrink-0">
+                                                    Erledigt
+                                                </span>
+                                            )}
+                                        </div>
+                                    </>
+                                ) : item.id === 'NEW_TASK' ? (
+                                    <>
+                                        <CheckSquare size={14} className="text-blue-500 dark:text-blue-400 flex-shrink-0" />
+                                        <div className="font-medium truncate flex-1">{item.label || item.title}</div>
+                                        <Plus size={14} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                                    </>
                                 ) : (
                                     <>
                                         <div className="font-medium truncate flex-1">{item.label || item.title}</div>
                                         {item.type && (
                                             <div className="flex-shrink-0 text-gray-400 dark:text-gray-500">
                                                 {item.type === 'note' && <FileText size={14} />}
-                                                {item.type === 'task' && <CheckSquare size={14} />}
                                                 {item.type === 'action' && <Plus size={14} />}
                                             </div>
                                         )}
@@ -438,7 +460,8 @@ export default {
             id: t.id,
             label: t.title || t.id,
             type: 'task',
-            isGhost: false
+            isGhost: false,
+            isCompleted: !!t.isCompleted,
         }));
 
         // 5. Return formatted
@@ -447,7 +470,7 @@ export default {
             ...eventItems,
             ...taskItems,
             { id: 'NEW', label: `Create File '${query}'`, query: query, type: 'action', isGhost: false },
-            { id: 'NEW_TASK', label: `Create Task '${query}'`, query: query, type: 'action', isGhost: false }
+            { id: 'NEW_TASK', label: `Create Todo '${query}'`, query: query, type: 'action', isGhost: false }
         ].slice(0, 10);
     },
 
@@ -475,7 +498,7 @@ export default {
         } else if (props.type === 'task' || props.id === 'NEW_TASK') {
             editor.chain().focus().deleteRange(range).insertContent({
                 type: 'taskMention',
-                attrs: { id: props.id, label: props.label || props.query || 'New Task' }
+                attrs: { id: props.id, label: props.label || props.query || 'New Todo' }
             }).run();
         } else if (props.type === 'event') {
             editor.chain().focus().deleteRange(range).insertContent({

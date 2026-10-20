@@ -18,6 +18,10 @@ export interface TaskItem {
     scheduledDate?: string;
     priority?: 'low' | 'medium' | 'high';
     dueDate?: string;
+    recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+    recurrence_rule?: string;
+    recurrence_end?: string;
+    completed_dates?: string[];
 }
 
 interface DataState {
@@ -122,7 +126,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         if (typeof window !== 'undefined') localStorage.setItem('tide_event_mention_preview', preview);
         set({ eventMentionPreview: preview });
     },
-    enabledExtensions: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('tide_enabled_extensions') || '["smart_island", "summary", "smart_date_detection", "job_planner", "debug"]') : ['smart_island', 'summary', 'smart_date_detection', 'job_planner', 'debug'],
+    enabledExtensions: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('tide_enabled_extensions') || '["smart_island", "summary", "smart_date_detection", "job_planner", "todos", "debug"]') : ['smart_island', 'summary', 'smart_date_detection', 'job_planner', 'todos', 'debug'],
     setEnabledExtensions: (extensions) => set(s => {
         const next = typeof extensions === 'function' ? extensions(s.enabledExtensions) : extensions;
         localStorage.setItem('tide_enabled_extensions', JSON.stringify(next));
@@ -267,6 +271,10 @@ export const useDataStore = create<DataState>((set, get) => ({
                 scheduledDate: newTask.scheduledDate,
                 priority: newTask.priority,
                 dueDate: newTask.dueDate,
+                recurrence: newTask.recurrence,
+                recurrence_rule: newTask.recurrence_rule,
+                recurrence_end: newTask.recurrence_end,
+                completed_dates: newTask.completed_dates,
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, state.publicKey);
             
@@ -338,6 +346,10 @@ export const useDataStore = create<DataState>((set, get) => ({
                 scheduledDate: mergedTask.scheduledDate,
                 priority: mergedTask.priority,
                 dueDate: mergedTask.dueDate,
+                recurrence: mergedTask.recurrence,
+                recurrence_rule: mergedTask.recurrence_rule,
+                recurrence_end: mergedTask.recurrence_end,
+                completed_dates: mergedTask.completed_dates,
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, publicKey);
 
@@ -705,7 +717,14 @@ export const useDataStore = create<DataState>((set, get) => ({
                         try {
                             const meta = await cryptoLib.decryptMetadata(t.encrypted_vault, state.privateKey!, `task-${t.id}`);
                             if (!meta.isLocked) {
-                                loadedTasks.push({ id: t.id, ...meta } as TaskItem);
+                                loadedTasks.push({
+                                    id: t.id,
+                                    ...meta,
+                                    recurrence: meta.recurrence as TaskItem['recurrence'],
+                                    recurrence_rule: meta.recurrence_rule as string | undefined,
+                                    recurrence_end: meta.recurrence_end as string | undefined,
+                                    completed_dates: meta.completed_dates as string[] | undefined,
+                                } as TaskItem);
                             } else {
                                 // Fallback for tasks
                                 loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, isLocked: true } as any);
@@ -722,6 +741,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                         const local = localMap.get(bt.id);
                         // If the local task has a scheduledDate that the backend doesn't know yet, keep it
                         if (local && local.scheduledDate && !bt.scheduledDate) return { ...bt, scheduledDate: local.scheduledDate };
+                        if (local && local.completed_dates && (!bt.completed_dates || local.completed_dates.length > bt.completed_dates.length)) {
+                            return { ...bt, completed_dates: local.completed_dates };
+                        }
                         if (local && local.isCompleted !== bt.isCompleted) return local; // prefer local toggle
                         return bt;
                     });
@@ -1156,7 +1178,18 @@ export const useDataStore = create<DataState>((set, get) => ({
                 if (t.encrypted_vault) {
                     try {
                         const meta = await cryptoLib.decryptMetadata(t.encrypted_vault, state.privateKey!, `task-${t.id}`);
-                        loadedTasks.push({ id: t.id, ...meta } as TaskItem);
+                        if (!meta.isLocked) {
+                            loadedTasks.push({
+                                id: t.id,
+                                ...meta,
+                                recurrence: meta.recurrence as TaskItem['recurrence'],
+                                recurrence_rule: meta.recurrence_rule as string | undefined,
+                                recurrence_end: meta.recurrence_end as string | undefined,
+                                completed_dates: meta.completed_dates as string[] | undefined,
+                            } as TaskItem);
+                        } else {
+                            loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, isLocked: true } as any);
+                        }
                     } catch (e) {
                         loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, isLocked: true } as any);
                     }
@@ -1169,6 +1202,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                 const merged = loadedTasks.map(bt => {
                     const local = localMap.get(bt.id);
                     if (local && local.scheduledDate && !bt.scheduledDate) return { ...bt, scheduledDate: local.scheduledDate };
+                    if (local && local.completed_dates && (!bt.completed_dates || local.completed_dates.length > bt.completed_dates.length)) {
+                        return { ...bt, completed_dates: local.completed_dates };
+                    }
                     if (local && local.isCompleted !== bt.isCompleted) return local;
                     return bt;
                 });

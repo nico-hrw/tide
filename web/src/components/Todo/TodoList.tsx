@@ -2,87 +2,59 @@
 
 import React, { useState, useMemo } from 'react';
 import {
-  CheckCircle2,
-  Circle,
-  Calendar,
-  AlertCircle,
-  Trash2,
-  Plus,
-  ArrowUpDown,
-  Edit2,
-  Check,
-  X,
-  ListTodo,
-  ChevronDown,
-  ChevronUp,
+  CheckCircle2, Circle, Calendar, Repeat, Trash2, Edit2, Plus,
+  Search, SlidersHorizontal, AlertCircle, Check, X, ListTodo,
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
-import { format, isToday, isTomorrow, isBefore, startOfDay, parseISO } from 'date-fns';
+import {
+  format, isToday, isTomorrow, isBefore, startOfDay, endOfDay,
+  parseISO, addDays, addWeeks, addMonths, addYears,
+} from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
-import { DT } from '@/lib/designTokens';
 
 export type Priority = 'low' | 'medium' | 'high';
 export type FilterStatus = 'all' | 'active' | 'completed';
 export type SortOption = 'created' | 'deadline' | 'priority';
+export type RecurrenceType = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 interface TodoListProps {
   className?: string;
   onSelectTask?: (task: TaskItem) => void;
 }
 
-const PRIORITY_CONFIG: Record<
-  Priority,
-  { label: string; bg: string; text: string; border: string; dot: string }
-> = {
-  high: {
-    label: 'High',
-    bg: 'bg-rose-500/10 dark:bg-rose-500/20',
-    text: 'text-rose-600 dark:text-rose-400',
-    border: 'border-rose-500/30',
-    dot: 'bg-rose-500',
-  },
-  medium: {
-    label: 'Medium',
-    bg: 'bg-amber-500/10 dark:bg-amber-500/20',
-    text: 'text-amber-600 dark:text-amber-400',
-    border: 'border-amber-500/30',
-    dot: 'bg-amber-500',
-  },
-  low: {
-    label: 'Low',
-    bg: 'bg-emerald-500/10 dark:bg-emerald-500/20',
-    text: 'text-emerald-600 dark:text-emerald-400',
-    border: 'border-emerald-500/30',
-    dot: 'bg-emerald-500',
-  },
+const PRIORITY_CONFIG: Record<Priority, { label: string; bg: string; text: string; border: string; dot: string }> = {
+  high: { label: 'Hoch', bg: 'bg-rose-500/10 dark:bg-rose-500/20', text: 'text-rose-600 dark:text-rose-400', border: 'border-rose-500/30', dot: 'bg-rose-500' },
+  medium: { label: 'Mittel', bg: 'bg-amber-500/10 dark:bg-amber-500/20', text: 'text-amber-600 dark:text-amber-400', border: 'border-amber-500/30', dot: 'bg-amber-500' },
+  low: { label: 'Niedrig', bg: 'bg-emerald-500/10 dark:bg-emerald-500/20', text: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-500/30', dot: 'bg-emerald-500' },
 };
 
-const PRIORITY_WEIGHT: Record<Priority, number> = {
-  high: 3,
-  medium: 2,
-  low: 1,
-};
+const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
+  { value: 'low', label: '🟢 Niedrig' }, { value: 'medium', label: '🟡 Mittel' }, { value: 'high', label: '🔴 Hoch' },
+];
+
+const RECURRENCE_OPTIONS: { value: RecurrenceType; label: string }[] = [
+  { value: 'none', label: 'Keine' }, { value: 'daily', label: 'Täglich' },
+  { value: 'weekly', label: 'Wöchentlich' }, { value: 'monthly', label: 'Monatlich' }, { value: 'yearly', label: 'Jährlich' },
+];
+
+const PRIORITY_WEIGHT: Record<Priority, number> = { high: 3, medium: 2, low: 1 };
 
 function getTaskPriority(task: TaskItem): Priority {
+  if (task.priority) return task.priority;
   if (task.color === 'high' || task.color === 'rose' || task.color === 'red') return 'high';
   if (task.color === 'low' || task.color === 'emerald' || task.color === 'green') return 'low';
   return 'medium';
 }
 
-type DeadlineStatus = 'overdue' | 'today' | 'tomorrow' | 'upcoming';
-
-interface DeadlineInfo {
-  status: DeadlineStatus;
-  label: string;
+function buildRecurrenceRule(recurrence: RecurrenceType): string | undefined {
+  return recurrence === 'none' ? undefined : `FREQ=${recurrence.toUpperCase()};INTERVAL=1`;
 }
 
 function parseDateSafe(dateStr?: string): Date | null {
   if (!dateStr) return null;
   try {
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      const parts = dateStr.split('-');
-      const y = Number(parts[0]);
-      const m = Number(parts[1]);
-      const d = Number(parts[2]);
+      const [y, m, d] = dateStr.split('-').map(Number);
       return new Date(y, m - 1, d);
     }
     const parsed = parseISO(dateStr);
@@ -92,91 +64,89 @@ function parseDateSafe(dateStr?: string): Date | null {
   }
 }
 
-function getDeadlineInfo(dateStr?: string): DeadlineInfo | null {
+function getDeadlineInfo(dateStr?: string): { status: 'overdue' | 'today' | 'tomorrow' | 'upcoming'; label: string } | null {
   const d = parseDateSafe(dateStr);
   if (!d) return null;
-
   const today = startOfDay(new Date());
   const itemDate = startOfDay(d);
-
-  if (isBefore(itemDate, today)) {
-    return { status: 'overdue', label: `Overdue (${format(d, 'MMM d')})` };
-  }
-  if (isToday(d)) {
-    return { status: 'today', label: 'Due today' };
-  }
-  if (isTomorrow(d)) {
-    return { status: 'tomorrow', label: 'Due tomorrow' };
-  }
-  return { status: 'upcoming', label: format(d, 'MMM d, yyyy') };
+  if (isBefore(itemDate, today)) return { status: 'overdue', label: `Überfällig (${format(d, 'dd.MM.')})` };
+  if (isToday(d)) return { status: 'today', label: 'Heute fällig' };
+  if (isTomorrow(d)) return { status: 'tomorrow', label: 'Morgen fällig' };
+  return { status: 'upcoming', label: `Fällig ${format(d, 'dd.MM.yyyy')}` };
 }
 
-function getDeadlineChipClasses(status: DeadlineStatus, isCompleted: boolean): string {
-  if (isCompleted) {
-    return 'bg-gray-100 dark:bg-zinc-800 text-gray-400 dark:text-zinc-500 border-gray-200 dark:border-zinc-700';
-  }
-  switch (status) {
-    case 'overdue':
-      return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30';
-    case 'today':
-      return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30';
-    case 'tomorrow':
-    case 'upcoming':
-      return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30';
-  }
+function getDeadlineChipClasses(status: string, isCompleted: boolean): string {
+  if (isCompleted) return 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-white/5';
+  if (status === 'overdue') return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30';
+  if (status === 'today') return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30';
+  if (status === 'tomorrow') return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30';
+  return 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10';
 }
 
 export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask }) => {
-  const theme = useDataStore((state) => state.theme);
-  const tasks = useDataStore((state) => state.tasks);
-  const addTask = useDataStore((state) => state.addTask);
-  const updateTask = useDataStore((state) => state.updateTask);
-  const toggleTask = useDataStore((state) => state.toggleTask);
-  const deleteTask = useDataStore((state) => state.deleteTask);
+  const { tasks, addTask, updateTask, toggleTask, deleteTask } = useDataStore();
 
-  const isDark = theme === 'dark';
-
-  // Quick Add State
-  const [newTitle, setNewTitle] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [newPriority, setNewPriority] = useState<Priority>('medium');
-  const [newDueDate, setNewDueDate] = useState('');
-  const [showDescription, setShowDescription] = useState(false);
+  const [draft, setDraft] = useState({
+    title: '', description: '', priority: 'medium' as Priority,
+    dueDate: '', recurrence: 'none' as RecurrenceType, recurrenceEnd: '',
+  });
+  const [showOptions, setShowOptions] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Filter & Sort State
+  const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('deadline');
 
-  // Edit State
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [editPriority, setEditPriority] = useState<Priority>('medium');
-  const [editDueDate, setEditDueDate] = useState('');
+  const [editDraft, setEditDraft] = useState({
+    title: '', description: '', priority: 'medium' as Priority,
+    dueDate: '', recurrence: 'none' as RecurrenceType, recurrenceEnd: '',
+  });
 
+  const totalCount = tasks.length;
   const completedCount = useMemo(() => tasks.filter((t) => t.isCompleted).length, [tasks]);
-  const progressPercent = tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0;
+  const activeCount = totalCount - completedCount;
+  const overdueCount = useMemo(() => {
+    const today = startOfDay(new Date());
+    return tasks.filter((t) => !t.isCompleted && parseDateSafe(t.dueDate || t.scheduledDate) && isBefore(startOfDay(parseDateSafe(t.dueDate || t.scheduledDate)!), today)).length;
+  }, [tasks]);
+  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  const handleQuickAdd = async (e: React.FormEvent) => {
+  const handleToggleTask = (task: TaskItem) => {
+    if (!task.isCompleted && task.recurrence && task.recurrence !== 'none') {
+      const currentRef = task.dueDate || task.scheduledDate;
+      const baseDate = parseDateSafe(currentRef) || new Date();
+      const nextDate = task.recurrence === 'daily' ? addDays(baseDate, 1)
+        : task.recurrence === 'weekly' ? addWeeks(baseDate, 1)
+        : task.recurrence === 'monthly' ? addMonths(baseDate, 1) : addYears(baseDate, 1);
+      const end = parseDateSafe(task.recurrence_end);
+      if (end && nextDate > endOfDay(end)) {
+        updateTask(task.id, { isCompleted: true, completed_dates: [...(task.completed_dates || []), new Date().toISOString()] });
+      } else {
+        const nextDateStr = currentRef && currentRef.includes('T') ? format(nextDate, "yyyy-MM-dd'T'HH:mm:ss") : format(nextDate, 'yyyy-MM-dd');
+        updateTask(task.id, { dueDate: nextDateStr, scheduledDate: nextDateStr, isCompleted: false, completed_dates: [...(task.completed_dates || []), new Date().toISOString()] });
+      }
+    } else {
+      toggleTask(task.id);
+    }
+  };
+
+  const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedTitle = newTitle.trim();
-    if (!trimmedTitle || isSubmitting) return;
-
+    if (!draft.title.trim() || isSubmitting) return;
     try {
       setIsSubmitting(true);
       await addTask({
-        title: trimmedTitle,
-        description: newDescription.trim() || undefined,
-        color: newPriority,
-        scheduledDate: newDueDate || undefined,
+        title: draft.title.trim(), description: draft.description.trim() || undefined,
+        priority: draft.priority, color: draft.priority,
+        scheduledDate: draft.dueDate || undefined, dueDate: draft.dueDate || undefined,
+        recurrence: draft.recurrence, recurrence_rule: buildRecurrenceRule(draft.recurrence),
+        recurrence_end: draft.recurrence !== 'none' && draft.recurrenceEnd ? draft.recurrenceEnd : undefined,
         isCompleted: false,
       });
-      setNewTitle('');
-      setNewDescription('');
-      setNewDueDate('');
-      setShowDescription(false);
+      setDraft({ title: '', description: '', priority: 'medium', dueDate: '', recurrence: 'none', recurrenceEnd: '' });
+      setShowOptions(false);
     } finally {
       setIsSubmitting(false);
     }
@@ -184,443 +154,372 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
   const startEditing = (task: TaskItem) => {
     setEditingTaskId(task.id);
-    setEditTitle(task.title);
-    setEditDescription(task.description || '');
-    setEditPriority(getTaskPriority(task));
-    setEditDueDate(task.scheduledDate || '');
-  };
-
-  const cancelEditing = () => {
-    setEditingTaskId(null);
+    setEditDraft({
+      title: task.title, description: task.description || '', priority: getTaskPriority(task),
+      dueDate: task.dueDate || task.scheduledDate || '', recurrence: task.recurrence || 'none', recurrenceEnd: task.recurrence_end || '',
+    });
   };
 
   const saveEditing = (id: string) => {
-    if (!editTitle.trim()) return;
+    if (!editDraft.title.trim()) return;
     updateTask(id, {
-      title: editTitle.trim(),
-      description: editDescription.trim() || undefined,
-      color: editPriority,
-      scheduledDate: editDueDate || undefined,
+      title: editDraft.title.trim(), description: editDraft.description.trim() || undefined,
+      priority: editDraft.priority, color: editDraft.priority,
+      scheduledDate: editDraft.dueDate || undefined, dueDate: editDraft.dueDate || undefined,
+      recurrence: editDraft.recurrence, recurrence_rule: buildRecurrenceRule(editDraft.recurrence),
+      recurrence_end: editDraft.recurrence !== 'none' && editDraft.recurrenceEnd ? editDraft.recurrenceEnd : undefined,
     });
     setEditingTaskId(null);
   };
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
-      // Status filter
-      if (filterStatus === 'active' && task.isCompleted) return false;
-      if (filterStatus === 'completed' && !task.isCompleted) return false;
-
-      // Priority filter
-      if (filterPriority !== 'all' && getTaskPriority(task) !== filterPriority) {
-        return false;
-      }
-
+    const q = searchQuery.trim().toLowerCase();
+    return tasks.filter((t) => {
+      if (filterStatus === 'active' && t.isCompleted) return false;
+      if (filterStatus === 'completed' && !t.isCompleted) return false;
+      if (filterPriority !== 'all' && getTaskPriority(t) !== filterPriority) return false;
+      if (q && !t.title.toLowerCase().includes(q) && !(t.description || '').toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [tasks, filterStatus, filterPriority]);
+  }, [tasks, filterStatus, filterPriority, searchQuery]);
 
-  const sortedTasks = useMemo(() => {
-    return [...filteredTasks].sort((a, b) => {
-      // Sunk completed items
-      if (a.isCompleted !== b.isCompleted) {
-        return a.isCompleted ? 1 : -1;
-      }
+  const sortedTasks = useMemo(() => [...filteredTasks].sort((a, b) => {
+    if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
+    if (sortBy === 'priority') {
+      const diff = PRIORITY_WEIGHT[getTaskPriority(b)] - PRIORITY_WEIGHT[getTaskPriority(a)];
+      if (diff !== 0) return diff;
+    }
+    if (sortBy === 'deadline') {
+      const dA = parseDateSafe(a.dueDate || a.scheduledDate);
+      const dB = parseDateSafe(b.dueDate || b.scheduledDate);
+      if (dA && dB) return dA.getTime() - dB.getTime();
+      if (dA && !dB) return -1;
+      if (!dA && dB) return 1;
+    }
+    return 0;
+  }), [filteredTasks, sortBy]);
 
-      if (sortBy === 'priority') {
-        const pA = PRIORITY_WEIGHT[getTaskPriority(a)];
-        const pB = PRIORITY_WEIGHT[getTaskPriority(b)];
-        if (pA !== pB) return pB - pA;
-      }
-
-      if (sortBy === 'deadline') {
-        const dateA = parseDateSafe(a.scheduledDate);
-        const dateB = parseDateSafe(b.scheduledDate);
-        if (dateA && dateB) return dateA.getTime() - dateB.getTime();
-        if (dateA && !dateB) return -1;
-        if (!dateA && dateB) return 1;
-      }
-
-      return 0;
-    });
-  }, [filteredTasks, sortBy]);
+  const statItems = [
+    { label: 'Gesamt', val: totalCount, color: 'text-gray-900 dark:text-white' },
+    { label: 'Offen', val: activeCount, color: 'text-blue-600 dark:text-blue-400' },
+    { label: 'Erledigt', val: completedCount, color: 'text-emerald-600 dark:text-emerald-400' },
+    { label: 'Überfällig', val: overdueCount, color: 'text-rose-600 dark:text-rose-400' },
+  ];
 
   return (
-    <div
-      className={`flex flex-col w-full border border-gray-200 dark:border-zinc-800 p-4 sm:p-6 transition-colors shadow-sm ${className}`}
-      style={{
-        borderRadius: DT.radius,
-        backgroundColor: DT.cardBg(isDark),
-      }}
-    >
-      {/* Header & Progress */}
-      <div className="flex flex-col gap-2 pb-4 border-b border-gray-100 dark:border-zinc-800/80">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ListTodo className="w-5 h-5 text-blue-500" />
-            <h2 className="text-lg font-bold tracking-tight" style={{ color: DT.primaryText(isDark) }}>
-              Tasks
-            </h2>
-            <span
-              className="text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400"
-            >
-              {tasks.length}
-            </span>
+    <div className={`flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto relative select-none ${className}`}>
+      {/* Header */}
+      <div className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 py-5 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400"><ListTodo size={22} /></div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">Todos & Aufgaben</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Aufgaben verwalten, Termine setzen und Wiederholungen planen</p>
           </div>
-          <span className="text-xs font-medium" style={{ color: DT.mutedText(isDark) }}>
-            {completedCount} of {tasks.length} completed
-          </span>
+          <span className="ml-2 hidden sm:inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">{totalCount} gesamt</span>
         </div>
-
-        {tasks.length > 0 && (
-          <div className="w-full bg-gray-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
-            <div
-              className="bg-blue-500 h-full transition-all duration-300"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-        )}
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-xs font-medium text-gray-700 dark:text-gray-300">
+          <div className="w-2 h-2 rounded-full bg-blue-500" />
+          <span>{completedCount} von {totalCount} erledigt ({progressPercent}%)</span>
+        </div>
       </div>
 
-      {/* Quick Add Bar */}
-      <form onSubmit={handleQuickAdd} className="mt-4 flex flex-col gap-2.5">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            placeholder="Add a new task..."
-            className="flex-1 px-3.5 py-2 text-sm bg-gray-50 dark:bg-zinc-850 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-colors"
-            style={{ color: DT.primaryText(isDark) }}
-          />
-
-          {/* Priority Selector */}
-          <select
-            value={newPriority}
-            onChange={(e) => setNewPriority(e.target.value as Priority)}
-            className="px-2.5 py-2 text-xs font-medium bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-colors cursor-pointer"
-            style={{ color: DT.primaryText(isDark) }}
-            aria-label="Task Priority"
-          >
-            <option value="low">🟢 Low</option>
-            <option value="medium">🟡 Medium</option>
-            <option value="high">🔴 High</option>
-          </select>
-
-          {/* Date Picker */}
-          <input
-            type="date"
-            value={newDueDate}
-            onChange={(e) => setNewDueDate(e.target.value)}
-            className="px-2.5 py-2 text-xs bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-colors cursor-pointer"
-            style={{ color: DT.primaryText(isDark) }}
-            aria-label="Due Date"
-          />
-
-          <button
-            type="submit"
-            disabled={!newTitle.trim() || isSubmitting}
-            className="flex items-center gap-1 px-3.5 py-2 text-sm font-medium text-white rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-95 shadow-sm"
-            style={{ backgroundColor: DT.accent }}
-          >
-            <Plus size={16} />
-            <span className="hidden sm:inline">Add</span>
-          </button>
+      {/* Main Container */}
+      <div className="max-w-4xl md:max-w-5xl w-full mx-auto px-4 md:px-8 py-8 flex flex-col gap-6">
+        {/* Progress Overview Card */}
+        <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-6 shadow-2xs">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={18} className="text-blue-500" />
+              <h2 className="text-sm font-bold text-gray-900 dark:text-white">Fortschrittsübersicht</h2>
+            </div>
+            <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{progressPercent}% abgeschlossen</span>
+          </div>
+          <div className="w-full bg-gray-100 dark:bg-white/5 h-2.5 rounded-full overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+            {statItems.map((s) => (
+              <div key={s.label} className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5">
+                <span className="text-xs text-gray-500 dark:text-gray-400">{s.label}</span>
+                <p className={`text-lg font-bold mt-0.5 ${s.color}`}>{s.val}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Optional Expandable Description */}
-        <div className="flex items-center justify-between text-xs px-1">
-          <button
-            type="button"
-            onClick={() => setShowDescription(!showDescription)}
-            className="flex items-center gap-1 hover:underline transition-colors"
-            style={{ color: DT.mutedText(isDark) }}
-          >
-            {showDescription ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-            <span>{showDescription ? 'Hide note' : '+ Add note / description'}</span>
-          </button>
-        </div>
+        {/* Task Creation Form Card */}
+        <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-6 shadow-2xs">
+          <form onSubmit={handleAddTask} className="flex flex-col gap-3.5">
+            <div className="flex items-center gap-2">
+              <Plus size={16} className="text-blue-500" />
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white">Neue Aufgabe erstellen</h3>
+            </div>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+              <input
+                type="text" value={draft.title} onChange={(e) => setDraft((p) => ({ ...p, title: e.target.value }))}
+                placeholder="Was möchtest du erledigen?..."
+                className="flex-1 px-4 py-2.5 text-sm bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+              />
+              <div className="flex items-center gap-2">
+                <select
+                  value={draft.priority} onChange={(e) => setDraft((p) => ({ ...p, priority: e.target.value as Priority }))}
+                  className="px-3 py-2.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer"
+                  aria-label="Priorität"
+                >
+                  {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <input
+                  type="date" value={draft.dueDate} onChange={(e) => setDraft((p) => ({ ...p, dueDate: e.target.value }))}
+                  className="px-3 py-2.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer"
+                  aria-label="Fälligkeitsdatum"
+                />
+                <button
+                  type="submit" disabled={!draft.title.trim() || isSubmitting}
+                  className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
+                >
+                  <Plus size={16} /><span>Hinzufügen</span>
+                </button>
+              </div>
+            </div>
 
-        {showDescription && (
-          <textarea
-            value={newDescription}
-            onChange={(e) => setNewDescription(e.target.value)}
-            placeholder="Additional details or notes..."
-            rows={2}
-            className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700/80 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-colors resize-none"
-            style={{ color: DT.primaryText(isDark) }}
-          />
-        )}
-      </form>
-
-      {/* Filter and Sort Toolbar */}
-      <div className="mt-4 pt-3 flex flex-wrap items-center justify-between gap-2.5 border-t border-gray-100 dark:border-zinc-800/80">
-        {/* Status Filters */}
-        <div className="flex items-center gap-1 text-xs">
-          {(['all', 'active', 'completed'] as FilterStatus[]).map((status) => {
-            const isActive = filterStatus === status;
-            return (
+            <div className="flex items-center justify-between text-xs pt-1">
               <button
-                key={status}
-                type="button"
-                onClick={() => setFilterStatus(status)}
-                className={`px-2.5 py-1 rounded-md capitalize font-medium transition-colors ${DT.chip(
-                  isActive,
-                  isDark
-                )}`}
+                type="button" onClick={() => setShowOptions(!showOptions)}
+                className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors cursor-pointer"
               >
-                {status}
+                {showOptions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                <span>{showOptions ? 'Optionen ausblenden' : '+ Details & Wiederholung planen'}</span>
               </button>
-            );
-          })}
+            </div>
+
+            {showOptions && (
+              <div className="flex flex-col gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
+                <textarea
+                  value={draft.description} onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
+                  placeholder="Optionale Notiz oder Beschreibung..." rows={2}
+                  className="w-full px-4 py-2 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
+                />
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Repeat size={14} className="text-purple-500" />
+                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Wiederholung:</span>
+                    <select
+                      value={draft.recurrence} onChange={(e) => setDraft((p) => ({ ...p, recurrence: e.target.value as RecurrenceType }))}
+                      className="px-3 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
+                    >
+                      {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                  {draft.recurrence !== 'none' && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Wiederholen bis:</span>
+                      <input
+                        type="date" value={draft.recurrenceEnd} onChange={(e) => setDraft((p) => ({ ...p, recurrenceEnd: e.target.value }))}
+                        className="px-3 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
+                        aria-label="Wiederholen bis"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </form>
         </div>
 
-        {/* Priority & Sorting */}
-        <div className="flex items-center gap-2">
-          {/* Priority filter */}
-          <select
-            value={filterPriority}
-            onChange={(e) => setFilterPriority(e.target.value as Priority | 'all')}
-            className="px-2 py-1 text-xs rounded-md bg-gray-100 dark:bg-zinc-800/70 border-0 focus:outline-none cursor-pointer"
-            style={{ color: DT.primaryText(isDark) }}
-            aria-label="Filter by priority"
-          >
-            <option value="all">All Priorities</option>
-            <option value="high">High Priority</option>
-            <option value="medium">Medium Priority</option>
-            <option value="low">Low Priority</option>
-          </select>
+        {/* Filter & Sort Card */}
+        <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col gap-3.5">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Aufgaben durchsuchen..."
+                className="w-full pl-9 pr-8 py-2 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+              />
+              {searchQuery && (
+                <button type="button" onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 self-start sm:self-auto">
+              {(['all', 'active', 'completed'] as FilterStatus[]).map((status) => {
+                const isActive = filterStatus === status;
+                const label = status === 'all' ? 'Alle' : status === 'active' ? 'Offen' : 'Erledigt';
+                return (
+                  <button
+                    key={status} type="button" onClick={() => setFilterStatus(status)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                      isActive ? 'bg-blue-600 text-white shadow-xs' : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-          {/* Sort selector */}
-          <div className="flex items-center gap-1 text-xs" style={{ color: DT.mutedText(isDark) }}>
-            <ArrowUpDown size={13} />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="px-2 py-1 text-xs rounded-md bg-gray-100 dark:bg-zinc-800/70 border-0 focus:outline-none cursor-pointer"
-              style={{ color: DT.primaryText(isDark) }}
-              aria-label="Sort tasks"
-            >
-              <option value="deadline">Due Date</option>
-              <option value="priority">Priority</option>
-              <option value="created">Created</option>
-            </select>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100 dark:border-white/5 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500 dark:text-gray-400 font-medium">Priorität:</span>
+              <select
+                value={filterPriority} onChange={(e) => setFilterPriority(e.target.value as Priority | 'all')}
+                className="px-2.5 py-1.5 bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer"
+              >
+                <option value="all">Alle Prioritäten</option>
+                {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label.replace(/^[^\s]+\s/, '')}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal size={14} className="text-gray-400" />
+              <span className="text-gray-500 dark:text-gray-400 font-medium">Sortieren:</span>
+              <select
+                value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="px-2.5 py-1.5 bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer"
+              >
+                <option value="deadline">Fälligkeit</option>
+                <option value="priority">Priorität</option>
+                <option value="created">Erstellt</option>
+              </select>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Task List */}
-      <div className="mt-4 flex flex-col gap-2">
-        {sortedTasks.map((task) => {
-          const isEditing = editingTaskId === task.id;
-          const priority = getTaskPriority(task);
-          const priorityCfg = PRIORITY_CONFIG[priority];
-          const deadline = getDeadlineInfo(task.scheduledDate);
+        {/* Task Cards List */}
+        <div className="flex flex-col gap-3">
+          {sortedTasks.map((task) => {
+            const isEditing = editingTaskId === task.id;
+            const priority = getTaskPriority(task);
+            const priorityCfg = PRIORITY_CONFIG[priority];
+            const deadline = getDeadlineInfo(task.dueDate || task.scheduledDate);
+            const isRecurring = task.recurrence && task.recurrence !== 'none';
 
-          if (isEditing) {
+            if (isEditing) {
+              return (
+                <div key={task.id} className="flex flex-col gap-3 p-5 rounded-2xl border border-blue-400 dark:border-blue-500/40 bg-white dark:bg-[#1a1a1a] shadow-md">
+                  <input
+                    type="text" value={editDraft.title} onChange={(e) => setEditDraft((p) => ({ ...p, title: e.target.value }))}
+                    className="px-3 py-2 text-sm font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    placeholder="Titel der Aufgabe"
+                  />
+                  <textarea
+                    value={editDraft.description} onChange={(e) => setEditDraft((p) => ({ ...p, description: e.target.value }))}
+                    placeholder="Beschreibung (optional)" rows={2}
+                    className="px-3 py-2 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none resize-none"
+                  />
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value={editDraft.priority} onChange={(e) => setEditDraft((p) => ({ ...p, priority: e.target.value as Priority }))}
+                        className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
+                      >
+                        {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                      <input
+                        type="date" value={editDraft.dueDate} onChange={(e) => setEditDraft((p) => ({ ...p, dueDate: e.target.value }))}
+                        className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
+                        aria-label="Fälligkeitsdatum"
+                      />
+                      <select
+                        value={editDraft.recurrence} onChange={(e) => setEditDraft((p) => ({ ...p, recurrence: e.target.value as RecurrenceType }))}
+                        className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
+                      >
+                        {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                      {editDraft.recurrence !== 'none' && (
+                        <input
+                          type="date" value={editDraft.recurrenceEnd} onChange={(e) => setEditDraft((p) => ({ ...p, recurrenceEnd: e.target.value }))}
+                          className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
+                          aria-label="Wiederholen bis"
+                        />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => setEditingTaskId(null)} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-xl font-medium bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer"><X size={13} /> Abbrechen</button>
+                      <button type="button" onClick={() => saveEditing(task.id)} disabled={!editDraft.title.trim()} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-xl font-medium text-white bg-blue-600 hover:bg-blue-700 transition-opacity disabled:opacity-50 cursor-pointer"><Check size={13} /> Speichern</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div
                 key={task.id}
-                className="flex flex-col gap-2.5 p-3 rounded-lg border border-blue-400 dark:border-blue-500/40 bg-blue-50/20 dark:bg-blue-950/20"
+                onClick={() => onSelectTask?.(task)}
+                className={`group flex items-start justify-between gap-4 p-5 rounded-2xl border transition-all duration-150 ${
+                  task.isCompleted
+                    ? 'border-gray-100 dark:border-white/5 bg-gray-50/60 dark:bg-[#161616] opacity-75'
+                    : 'bg-white dark:bg-[#1a1a1a] border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 shadow-2xs hover:shadow-xs'
+                }`}
               >
-                <input
-                  type="text"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  className="px-2.5 py-1.5 text-sm font-medium bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-                  style={{ color: DT.primaryText(isDark) }}
-                  placeholder="Task title"
-                />
+                <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                  <button
+                    type="button" onClick={(e) => { e.stopPropagation(); handleToggleTask(task); }}
+                    className="mt-0.5 text-gray-400 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400 transition-colors shrink-0 cursor-pointer"
+                    aria-label={task.isCompleted ? 'Als unvollständig markieren' : 'Als erledigt markieren'}
+                  >
+                    {task.isCompleted ? <CheckCircle2 className="w-5 h-5 text-emerald-500 fill-emerald-500/20" /> : <Circle className="w-5 h-5 hover:text-blue-500 transition-colors" />}
+                  </button>
 
-                <textarea
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
-                  placeholder="Task description (optional)"
-                  rows={2}
-                  className="px-2.5 py-1.5 text-xs bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
-                  style={{ color: DT.primaryText(isDark) }}
-                />
-
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={editPriority}
-                      onChange={(e) => setEditPriority(e.target.value as Priority)}
-                      className="px-2 py-1 text-xs rounded-md bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 focus:outline-none"
-                      style={{ color: DT.primaryText(isDark) }}
-                    >
-                      <option value="low">🟢 Low</option>
-                      <option value="medium">🟡 Medium</option>
-                      <option value="high">🔴 High</option>
-                    </select>
-
-                    <input
-                      type="date"
-                      value={editDueDate}
-                      onChange={(e) => setEditDueDate(e.target.value)}
-                      className="px-2 py-1 text-xs rounded-md bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 focus:outline-none"
-                      style={{ color: DT.primaryText(isDark) }}
-                    />
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`text-sm font-semibold break-words ${task.isCompleted ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
+                        {task.title}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${priorityCfg.bg} ${priorityCfg.text} ${priorityCfg.border}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${priorityCfg.dot}`} />
+                        {priorityCfg.label}
+                      </span>
+                      {deadline && (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium border ${getDeadlineChipClasses(deadline.status, task.isCompleted)}`}>
+                          {deadline.status === 'overdue' && !task.isCompleted ? <AlertCircle size={12} /> : <Calendar size={12} />}
+                          {deadline.label}
+                        </span>
+                      )}
+                      {isRecurring && task.recurrence && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-medium border bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30">
+                          <Repeat size={12} />
+                          <span>{RECURRENCE_OPTIONS.find((o) => o.value === task.recurrence)?.label || task.recurrence}</span>
+                          {task.recurrence_end && (
+                            <span className="opacity-80">
+                              bis {format(parseDateSafe(task.recurrence_end) || new Date(), 'dd.MM.yy')}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                    {task.description && (
+                      <p className={`text-xs mt-1.5 line-clamp-2 ${task.isCompleted ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-600 dark:text-gray-400'}`}>
+                        {task.description}
+                      </p>
+                    )}
                   </div>
+                </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={cancelEditing}
-                      className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md font-medium text-gray-600 dark:text-zinc-400 hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors"
-                    >
-                      <X size={13} />
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => saveEditing(task.id)}
-                      disabled={!editTitle.trim()}
-                      className="flex items-center gap-1 px-2.5 py-1 text-xs rounded-md font-medium text-white transition-opacity disabled:opacity-50"
-                      style={{ backgroundColor: DT.accent }}
-                    >
-                      <Check size={13} />
-                      Save
-                    </button>
-                  </div>
+                <div className="flex items-center gap-1 opacity-80 sm:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  <button type="button" onClick={(e) => { e.stopPropagation(); startEditing(task); }} className="p-2 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer" title="Aufgabe bearbeiten" aria-label="Aufgabe bearbeiten"><Edit2 size={15} /></button>
+                  <button type="button" onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }} className="p-2 text-gray-400 hover:text-rose-600 dark:text-gray-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer" title="Aufgabe löschen" aria-label="Aufgabe löschen"><Trash2 size={15} /></button>
                 </div>
               </div>
             );
-          }
+          })}
 
-          return (
-            <div
-              key={task.id}
-              onClick={() => onSelectTask?.(task)}
-              className={`group flex items-start justify-between gap-3 p-3 rounded-lg border transition-all duration-150 ${
-                task.isCompleted
-                  ? 'border-gray-100 dark:border-zinc-800/60 bg-gray-50/50 dark:bg-zinc-900/30 opacity-75'
-                  : 'border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-700 hover:shadow-xs'
-              }`}
-            >
-              {/* Checkbox & Details */}
-              <div className="flex items-start gap-3 min-w-0 flex-1">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleTask(task.id);
-                  }}
-                  className="mt-0.5 text-gray-400 hover:text-blue-500 dark:text-zinc-500 dark:hover:text-blue-400 transition-colors shrink-0"
-                  aria-label={task.isCompleted ? 'Mark task incomplete' : 'Mark task complete'}
-                >
-                  {task.isCompleted ? (
-                    <CheckCircle2 className="w-5 h-5 text-blue-500 fill-blue-500/20" />
-                  ) : (
-                    <Circle className="w-5 h-5 hover:text-blue-500 transition-colors" />
-                  )}
-                </button>
-
-                <div className="flex flex-col min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`text-sm font-medium break-words ${
-                        task.isCompleted ? 'line-through text-gray-400 dark:text-zinc-500' : ''
-                      }`}
-                      style={{
-                        color: task.isCompleted ? undefined : DT.primaryText(isDark),
-                      }}
-                    >
-                      {task.title}
-                    </span>
-
-                    {/* Priority badge */}
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${priorityCfg.bg} ${priorityCfg.text} ${priorityCfg.border}`}
-                    >
-                      <span className={`w-1.5 h-1.5 rounded-full ${priorityCfg.dot}`} />
-                      {priorityCfg.label}
-                    </span>
-
-                    {/* Deadline Chip */}
-                    {deadline && (
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium border ${getDeadlineChipClasses(
-                          deadline.status,
-                          task.isCompleted
-                        )}`}
-                      >
-                        {deadline.status === 'overdue' && !task.isCompleted ? (
-                          <AlertCircle size={11} />
-                        ) : (
-                          <Calendar size={11} />
-                        )}
-                        {deadline.label}
-                      </span>
-                    )}
-                  </div>
-
-                  {task.description && (
-                    <p
-                      className={`text-xs mt-1 line-clamp-2 ${
-                        task.isCompleted ? 'text-gray-400 dark:text-zinc-500 line-through' : ''
-                      }`}
-                      style={{
-                        color: task.isCompleted ? undefined : DT.mutedText(isDark),
-                      }}
-                    >
-                      {task.description}
-                    </p>
-                  )}
-                </div>
+          {sortedTasks.length === 0 && (
+            <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-12 text-center flex flex-col items-center justify-center shadow-2xs">
+              <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-3">
+                {filterStatus === 'completed' ? <CheckCircle2 size={24} /> : <ListTodo size={24} />}
               </div>
-
-              {/* Actions */}
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startEditing(task);
-                  }}
-                  className="p-1.5 text-gray-400 hover:text-gray-700 dark:text-zinc-500 dark:hover:text-zinc-300 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-md transition-colors"
-                  title="Edit task"
-                  aria-label="Edit task"
-                >
-                  <Edit2 size={14} />
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteTask(task.id);
-                  }}
-                  className="p-1.5 text-gray-400 hover:text-rose-600 dark:text-zinc-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-md transition-colors"
-                  title="Delete task"
-                  aria-label="Delete task"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
+              <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">
+                {filterStatus === 'completed' ? 'Keine erledigten Aufgaben' : filterStatus === 'active' ? 'Alles erledigt!' : searchQuery ? 'Keine Aufgaben gefunden' : 'Noch keine Aufgaben'}
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm">
+                {searchQuery ? `Für "${searchQuery}" wurden keine passenden Aufgaben gefunden.` : tasks.length === 0 ? 'Erstelle oben deine erste Aufgabe, um Termine, Prioritäten und Wiederholungen zu planen.' : 'Keine Aufgaben für die aktuellen Filterkriterien vorhanden.'}
+              </p>
             </div>
-          );
-        })}
-
-        {/* Empty State */}
-        {sortedTasks.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-            <div className="w-10 h-10 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center mb-2.5">
-              {filterStatus === 'completed' ? <CheckCircle2 size={20} /> : <ListTodo size={20} />}
-            </div>
-            <h3 className="text-sm font-semibold mb-1" style={{ color: DT.primaryText(isDark) }}>
-              {filterStatus === 'completed'
-                ? 'No completed tasks yet'
-                : filterStatus === 'active'
-                ? 'All caught up!'
-                : 'No tasks found'}
-            </h3>
-            <p className="text-xs max-w-xs" style={{ color: DT.mutedText(isDark) }}>
-              {tasks.length === 0
-                ? 'Add your first task above to start tracking your deadlines and priorities.'
-                : 'No tasks match the active filters. Try changing or resetting filters.'}
-            </p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
