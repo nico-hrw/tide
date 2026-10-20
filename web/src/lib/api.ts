@@ -1,6 +1,13 @@
 // Basic API wrapper
 
 export const getApiBase = () => {
+    if (typeof window !== 'undefined') {
+        const clientHostname = window.location.hostname;
+        if (clientHostname === 'go-tide.app' || clientHostname.endsWith('.go-tide.app')) {
+            return window.location.origin;
+        }
+    }
+
     let base = '';
     if (process.env.NEXT_PUBLIC_API_URL) {
         base = process.env.NEXT_PUBLIC_API_URL.endsWith('/') 
@@ -17,6 +24,9 @@ export const getApiBase = () => {
             base = base.replace(/:\/\/(localhost|127\.0\.0\.1)(:\d+)?/, (_, __, port) => {
                 return `://${clientHostname}${port || ''}`;
             });
+            if (window.location.protocol === 'https:' && base.startsWith('http:')) {
+                base = base.replace(/^http:/, 'https:');
+            }
         }
     }
 

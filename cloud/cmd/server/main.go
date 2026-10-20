@@ -101,12 +101,18 @@ func main() {
 			trustedOrigins := []string{
 				"http://localhost:3000",
 				"https://go-tide.app",
+				"https://www.go-tide.app",
 			}
 
 			isTrusted := false
 			if origin != "" {
 				for _, tr := range trustedOrigins {
-					if origin == tr || strings.HasPrefix(origin, "http://localhost") {
+					if origin == tr ||
+						strings.HasPrefix(origin, "http://localhost") ||
+						strings.HasSuffix(origin, ".go-tide.app") ||
+						strings.HasPrefix(origin, "http://192.168.") ||
+						strings.HasPrefix(origin, "http://10.") ||
+						strings.HasPrefix(origin, "http://127.0.0.1") {
 						isTrusted = true
 						break
 					}
