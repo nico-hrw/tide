@@ -40,6 +40,13 @@ export function useTextCollector({
             islandDismiss();
         };
 
+        const onClearEvent = () => {
+            collectorBufferRef.current = '';
+            collectorActiveRef.current = false;
+            if (collectorIdleTimerRef.current) clearTimeout(collectorIdleTimerRef.current);
+        };
+        window.addEventListener('tide:collector-clear', onClearEvent);
+
         const createNoteFromText = async (noteText: string) => {
             const id = await useDataStore.getState().createNote(
                 "",
@@ -66,7 +73,8 @@ export function useTextCollector({
         const handler = (e: KeyboardEvent) => {
             if (isInputFocused()) return;
             if (e.ctrlKey || e.metaKey || e.altKey) return;
-            if (e.key.length !== 1 && e.key !== 'Backspace' && e.key !== ' ') return;
+            const isShiftEnter = e.key === 'Enter' && e.shiftKey;
+            if (e.key.length !== 1 && e.key !== 'Backspace' && e.key !== ' ' && !isShiftEnter) return;
 
             e.preventDefault();
 
@@ -74,6 +82,12 @@ export function useTextCollector({
                 collectorBufferRef.current = collectorBufferRef.current.slice(0, -1);
                 if (collectorBufferRef.current.length === 0) {
                     clearCollector();
+                    return;
+                }
+            } else if (isShiftEnter) {
+                if (collectorActiveRef.current) {
+                    collectorBufferRef.current += '\n';
+                } else {
                     return;
                 }
             } else {
@@ -118,6 +132,7 @@ export function useTextCollector({
         window.addEventListener('keydown', handler);
         return () => {
             window.removeEventListener('keydown', handler);
+            window.removeEventListener('tide:collector-clear', onClearEvent);
             if (collectorIdleTimerRef.current) clearTimeout(collectorIdleTimerRef.current);
         };
     }, [enabledExtensions, islandPush, islandDismiss]);

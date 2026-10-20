@@ -155,6 +155,8 @@ func (s *SQLiteStore) migrate() error {
 		user_id TEXT NOT NULL,
 		secured_meta BLOB,
 		status TEXT DEFAULT 'pending',
+		permission TEXT NOT NULL DEFAULT 'view',
+		can_reshare INTEGER NOT NULL DEFAULT 0,
 		created_at DATETIME NOT NULL,
 		PRIMARY KEY (file_id, user_id),
 		FOREIGN KEY(file_id) REFERENCES files(id),
@@ -274,6 +276,7 @@ func (s *SQLiteStore) migrate() error {
 	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN secured_meta BLOB")
 	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN status TEXT DEFAULT 'pending'")
 	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN permission TEXT NOT NULL DEFAULT 'view'")
+	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN can_reshare INTEGER NOT NULL DEFAULT 0")
 	_, _ = s.DB.Exec("ALTER TABLE messages ADD COLUMN status TEXT DEFAULT 'pending'")
 	_, _ = s.DB.Exec("ALTER TABLE ext_finance_accounts ADD COLUMN linked_account_id TEXT")
 	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN version INTEGER DEFAULT 1")
@@ -447,7 +450,7 @@ func (s *SQLiteStore) CreateUser(ctx context.Context, user *db.User) error {
 }
 
 func (s *SQLiteStore) GetUser(ctx context.Context, id string) (*db.User, error) {
-		query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, COALESCE(pin_hash, '') as pin_hash, COALESCE(login_code, '') as login_code, COALESCE(username, '') as username, created_at, COALESCE(is_verified, 0) as is_verified FROM users WHERE id = ?`
+	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, COALESCE(pin_hash, '') as pin_hash, COALESCE(login_code, '') as login_code, COALESCE(username, '') as username, created_at, COALESCE(is_verified, 0) as is_verified FROM users WHERE id = ?`
 	row := s.readDB().QueryRowContext(ctx, query, id)
 
 	var user db.User
@@ -503,7 +506,7 @@ func (s *SQLiteStore) GetUserExtensions(ctx context.Context, id string) ([]strin
 
 func (s *SQLiteStore) GetUserByEmailHash(ctx context.Context, emailHash string) (*db.User, error) {
 	// We query by the Blind Index
-		query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, COALESCE(pin_hash, '') as pin_hash, COALESCE(login_code, '') as login_code, COALESCE(username, '') as username, created_at, COALESCE(is_verified, 0) as is_verified FROM users WHERE email_blind_index = ?`
+	query := `SELECT id, email_blind_index, username_blind_index, phone_blind_index, encrypted_vault, encrypted_pepper, public_key, COALESCE(enabled_extensions, '[]') as enabled_extensions, COALESCE(pin_hash, '') as pin_hash, COALESCE(login_code, '') as login_code, COALESCE(username, '') as username, created_at, COALESCE(is_verified, 0) as is_verified FROM users WHERE email_blind_index = ?`
 	row := s.readDB().QueryRowContext(ctx, query, emailHash)
 
 	var user db.User
@@ -606,7 +609,7 @@ created_at, updated_at, blob_path, visibility, public_meta, secured_meta, versio
 }
 
 func (s *SQLiteStore) GetFile(ctx context.Context, id string) (*db.File, error) {
-		query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, COALESCE(visibility, 'private') as visibility, public_meta, COALESCE(secured_meta, x'') as secured_meta, COALESCE(version, 1) as version, COALESCE(NULLIF(metadata, ''), '{}') as metadata, COALESCE(NULLIF(access_keys, ''), '{}') as access_keys, 'owner' as permission FROM files WHERE id = ?`
+	query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, COALESCE(visibility, 'private') as visibility, public_meta, COALESCE(secured_meta, x'') as secured_meta, COALESCE(version, 1) as version, COALESCE(NULLIF(metadata, ''), '{}') as metadata, COALESCE(NULLIF(access_keys, ''), '{}') as access_keys, 'owner' as permission FROM files WHERE id = ?`
 	row := s.readDB().QueryRowContext(ctx, query, id)
 
 	var file db.File
@@ -681,6 +684,7 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 			   COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			   COALESCE(fs.status, 'owner') as share_status,
 			   COALESCE(fs.permission, 'owner') as permission,
+			   COALESCE(fs.can_reshare, 0) as can_reshare,
 			   COALESCE(f.version, 1) as version,
 			   COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			   COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -712,6 +716,7 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 		&f.SecuredMeta,
 		&f.ShareStatus,
 		&f.Permission,
+		&f.CanReshare,
 		&f.Version,
 		&md,
 		&ak,
@@ -719,6 +724,9 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 	if err == nil {
 		f.Metadata = json.RawMessage(md)
 		f.AccessKeys = json.RawMessage(ak)
+		if f.OwnerID == viewerID {
+			f.CanReshare = true
+		}
 	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -880,12 +888,16 @@ func (s *SQLiteStore) ShareFile(ctx context.Context, fileID string, userID strin
 }
 
 // ShareFileWithPermission shares with an explicit permission level (view|edit|share).
-func (s *SQLiteStore) ShareFileWithPermission(ctx context.Context, fileID string, userID string, securedMeta []byte, permission string) error {
+func (s *SQLiteStore) ShareFileWithPermission(ctx context.Context, fileID string, userID string, securedMeta []byte, permission string, canReshare bool) error {
 	if permission != "view" && permission != "edit" && permission != "share" {
 		permission = "view"
 	}
-	query := `INSERT OR REPLACE INTO file_shares (file_id, user_id, secured_meta, status, permission, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := s.DB.ExecContext(ctx, query, fileID, userID, securedMeta, "accepted", permission, time.Now())
+	canReshareInt := 0
+	if canReshare {
+		canReshareInt = 1
+	}
+	query := `INSERT OR REPLACE INTO file_shares (file_id, user_id, secured_meta, status, permission, can_reshare, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`
+	_, err := s.DB.ExecContext(ctx, query, fileID, userID, securedMeta, "accepted", permission, canReshareInt, time.Now())
 	return err
 }
 
@@ -916,10 +928,34 @@ func (s *SQLiteStore) GetSharePermission(ctx context.Context, fileID string, use
 	return permission, err
 }
 
+// GetShare returns a specific file share by fileID and userID.
+func (s *SQLiteStore) GetShare(ctx context.Context, fileID string, userID string) (*db.FileShare, error) {
+	row := s.readDB().QueryRowContext(ctx, `
+		SELECT fs.file_id, fs.user_id, fs.status, fs.permission, COALESCE(fs.can_reshare, 0) as can_reshare, fs.created_at, 
+		       COALESCE(u.username, '') as username,
+		       COALESCE(p.avatar_seed, '') as avatar_seed,
+		       COALESCE(p.avatar_salt, '') as avatar_salt,
+		       COALESCE(p.avatar_style, '') as avatar_style
+		FROM file_shares fs
+		LEFT JOIN users u ON u.id = fs.user_id
+		LEFT JOIN profiles p ON p.user_id = fs.user_id
+		WHERE fs.file_id = ? AND fs.user_id = ?
+	`, fileID, userID)
+
+	var sh db.FileShare
+	if err := row.Scan(&sh.FileID, &sh.UserID, &sh.Status, &sh.Permission, &sh.CanReshare, &sh.CreatedAt, &sh.Username, &sh.AvatarSeed, &sh.AvatarSalt, &sh.AvatarStyle); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &sh, nil
+}
+
 // ListSharesForFile returns all shares for a given file (owner-only call).
 func (s *SQLiteStore) ListSharesForFile(ctx context.Context, fileID string) ([]*db.FileShare, error) {
 	rows, err := s.readDB().QueryContext(ctx, `
-		SELECT fs.file_id, fs.user_id, fs.status, fs.permission, fs.created_at, 
+		SELECT fs.file_id, fs.user_id, fs.status, fs.permission, COALESCE(fs.can_reshare, 0) as can_reshare, fs.created_at, 
 		       COALESCE(u.username, '') as username,
 		       COALESCE(p.avatar_seed, '') as avatar_seed,
 		       COALESCE(p.avatar_salt, '') as avatar_salt,
@@ -937,7 +973,7 @@ func (s *SQLiteStore) ListSharesForFile(ctx context.Context, fileID string) ([]*
 	var out []*db.FileShare
 	for rows.Next() {
 		var sh db.FileShare
-		if err := rows.Scan(&sh.FileID, &sh.UserID, &sh.Status, &sh.Permission, &sh.CreatedAt, &sh.Username, &sh.AvatarSeed, &sh.AvatarSalt, &sh.AvatarStyle); err != nil {
+		if err := rows.Scan(&sh.FileID, &sh.UserID, &sh.Status, &sh.Permission, &sh.CanReshare, &sh.CreatedAt, &sh.Username, &sh.AvatarSeed, &sh.AvatarSalt, &sh.AvatarStyle); err != nil {
 			return nil, err
 		}
 		out = append(out, &sh)
@@ -984,6 +1020,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(fs.permission, 'edit') as permission,
+			       COALESCE(fs.can_reshare, 0) as can_reshare,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -995,7 +1032,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 				OR COALESCE(f.visibility, 'private') = 'public'
 				OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL
 			) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL ` + typeFilter
- 
+
 		args = append(args, viewerID, viewerID, viewerID)
 		if filterType != nil {
 			args = append(args, *filterType)
@@ -1007,6 +1044,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(fs.permission, 'edit') as permission,
+			       COALESCE(fs.can_reshare, 0) as can_reshare,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -1034,6 +1072,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(fs.permission, 'edit') as permission,
+			       COALESCE(fs.can_reshare, 0) as can_reshare,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -1049,6 +1088,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(fs.permission, 'edit') as permission,
+			       COALESCE(fs.can_reshare, 0) as can_reshare,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
@@ -1087,6 +1127,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			&f.SecuredMeta,
 			&f.ShareStatus,
 			&f.Permission,
+			&f.CanReshare,
 			&f.Version,
 			&md,
 			&ak,
@@ -1095,6 +1136,9 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 		}
 		f.Metadata = json.RawMessage(md)
 		f.AccessKeys = json.RawMessage(ak)
+		if f.OwnerID == viewerID {
+			f.CanReshare = true
+		}
 		results = append(results, &f)
 	}
 	return results, nil
@@ -1769,7 +1813,7 @@ func (s *SQLiteStore) GetContact(ctx context.Context, user1, user2 string) (*Con
 func (s *SQLiteStore) GetProfile(ctx context.Context, userID string) (*db.Profile, error) {
 	query := `SELECT user_id, avatar_seed, COALESCE(avatar_style, 'notionists') as avatar_style, COALESCE(avatar_salt, '') as avatar_salt, bio, title, profile_status FROM profiles WHERE user_id = ?`
 	row := s.readDB().QueryRowContext(ctx, query, userID)
-	
+
 	var p db.Profile
 	if err := row.Scan(&p.UserID, &p.AvatarSeed, &p.AvatarStyle, &p.AvatarSalt, &p.Bio, &p.Title, &p.ProfileStatus); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -1796,7 +1840,7 @@ func (s *SQLiteStore) UpsertProfile(ctx context.Context, profile *db.Profile) er
 			title = excluded.title,
 			profile_status = excluded.profile_status
 	`
-	_, err := s.DB.ExecContext(ctx, query, 
+	_, err := s.DB.ExecContext(ctx, query,
 		profile.UserID, profile.AvatarSeed, profile.AvatarStyle, profile.AvatarSalt, profile.Bio, profile.Title, profile.ProfileStatus,
 	)
 	return err
@@ -1899,7 +1943,7 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewe
 
 func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, skipUserID string) ([]*db.SearchResult, error) {
 	likeQuery := "%" + searchQuery + "%"
-	
+
 	// Create blind index hash for exact email search
 	h := sha256.Sum256([]byte(searchQuery))
 	emailHash := hex.EncodeToString(h[:])
@@ -1920,7 +1964,7 @@ func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, 
 		AND json_extract(f.metadata, '$.title') LIKE ?
 		AND u.id != ?
 	`
-	
+
 	rows, err := s.readDB().QueryContext(ctx, query, likeQuery, emailHash, likeQuery, skipUserID, likeQuery, skipUserID)
 	if err != nil {
 		return nil, err
@@ -2106,7 +2150,3 @@ func (s *SQLiteStore) PurgeOldTrashedFiles(ctx context.Context) error {
 	}
 	return nil
 }
-
-
-
-

@@ -211,8 +211,8 @@ export default function CalendarView({
 
     // --- DnD State ---
     const [draggingId, setDraggingId] = useState<string | null>(null);
-    const [dragState, setDragState] = useState<{ startY: number, startX: number, originalTop: number, currentTop: number, currentLeft: number, originalDayIndex: number, initialX: number, initialWidth: number, initialScrollTop: number } | null>(null);
-    const pendingDragRef = useRef<{ id: string, startX: number, startY: number, startMinutes: number, initialX: number, initialWidth: number, initialScrollTop: number } | null>(null);
+    const [dragState, setDragState] = useState<{ startY: number, startX: number, originalTop: number, currentTop: number, currentLeft: number, originalDayIndex: number, initialX: number, initialWidth: number, initialScrollTop: number, grabOffsetY?: number, grabOffsetX?: number } | null>(null);
+    const pendingDragRef = useRef<{ id: string, startX: number, startY: number, startMinutes: number, initialX: number, initialWidth: number, initialScrollTop: number, grabOffsetY?: number, grabOffsetX?: number } | null>(null);
 
     const [creationDrag, setCreationDrag] = useState<{ startDay: Date, startY: number, currentY: number, startX: number, currentX: number } | null>(null);
     const [resizingId, setResizingId] = useState<string | null>(null);
@@ -722,7 +722,9 @@ export default function CalendarView({
                         originalDayIndex: 0,
                         initialX: pendingDragRef.current.initialX,
                         initialWidth: pendingDragRef.current.initialWidth,
-                        initialScrollTop: pendingDragRef.current.initialScrollTop
+                        initialScrollTop: pendingDragRef.current.initialScrollTop,
+                        grabOffsetY: pendingDragRef.current.grabOffsetY,
+                        grabOffsetX: pendingDragRef.current.grabOffsetX
                     });
                     pendingDragRef.current = null;
                     isDraggingRef.current = true;
@@ -1053,7 +1055,7 @@ export default function CalendarView({
 
         const startMinutes = getHours(start) * 60 + getMinutes(start);
 
-        const el = e.currentTarget as HTMLElement;
+        const el = (e.currentTarget as HTMLElement).closest('[data-event-id]') || (e.currentTarget as HTMLElement);
         const scrollContainer = scrollContainerRef.current;
         if (!scrollContainer || scrollContainer.children.length < 2) return;
 
@@ -1062,6 +1064,8 @@ export default function CalendarView({
 
         const initialX = elRect.left - containerRect.left;
         const initialWidth = elRect.width;
+        const grabOffsetY = e.clientY - elRect.top;
+        const grabOffsetX = e.clientX - elRect.left;
 
         // Start a PENDING drag using REF to avoid render lag
         pendingDragRef.current = {
@@ -1071,7 +1075,9 @@ export default function CalendarView({
             startMinutes,
             initialX,
             initialWidth,
-            initialScrollTop: scrollContainer.scrollTop
+            initialScrollTop: scrollContainer.scrollTop,
+            grabOffsetY,
+            grabOffsetX,
         };
     };
 
@@ -1462,6 +1468,7 @@ export default function CalendarView({
                                 events={events}
                                 cursorX={cursorX}
                                 cursorY={cursorY}
+                                grabOffsetY={dragState.grabOffsetY}
                             />
                         )}
 

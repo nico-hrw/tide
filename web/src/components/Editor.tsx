@@ -383,9 +383,17 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
             seed: userProfile?.avatar_seed || userId
         });
 
+        (window as any).__tideWsConnected = wsProvider.wsconnected;
+        const handleWsStatus = (event: { status: string }) => {
+            (window as any).__tideWsConnected = event.status === 'connected';
+        };
+        wsProvider.on('status', handleWsStatus);
+
         setProvider(wsProvider);
 
         return () => {
+            wsProvider.off('status', handleWsStatus);
+            (window as any).__tideWsConnected = false;
             wsProvider.destroy();
             doc.destroy();
             contentInitialized.current = false;
@@ -624,7 +632,7 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
 
     const editor = useEditor({
         extensions: extensions,
-        content: (!isShared && cleanInitial && !isDocEmpty(cleanInitial)) ? cleanInitial : undefined,
+        content: (cleanInitial && !isDocEmpty(cleanInitial)) ? cleanInitial : undefined,
         editable: editable,
         immediatelyRender: false,
         onUpdate: ({ editor, transaction }) => {
@@ -927,7 +935,27 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
     useEffect(() => { initialContentRef.current = initialContent; }, [initialContent]);
 
     useEffect(() => {
-        if (!editor || contentInitialized.current) return;
+        if (!editor) return;
+
+        if (contentInitialized.current) {
+            if (isShared && provider && ydoc) {
+                const activeFragment = ydoc.getXmlFragment('prosemirror');
+                let isYjsEmpty = activeFragment.length === 0;
+                if (!isYjsEmpty && activeFragment.length === 1) {
+                    const firstChild = activeFragment.get(0);
+                    const childStr = firstChild?.toString() || '';
+                    isYjsEmpty = childStr.startsWith('<paragraph') && childStr.endsWith('></paragraph>');
+                }
+                const contentToSeed = cleanInitial || initialContentRef.current;
+                if (isYjsEmpty && contentToSeed && !isDocEmpty(contentToSeed)) {
+                    console.log('[Collaboration] contentInitialized was true but ydoc is empty; re-seeding with cleanInitial.');
+                } else {
+                    return;
+                }
+            } else {
+                return;
+            }
+        }
 
         /**
          * Helper: Inserts initialContent into the Yjs document so the
@@ -1093,7 +1121,7 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
             // Instantly try to load the database content into Yjs without waiting for sync.
             // If the local Yjs document is empty, this seeds it with the database content.
             // When WebRTC/WebSocket connects later, it will merge any external updates over this state.
-            const latestContent = initialContentRef.current;
+            const latestContent = cleanInitial || initialContentRef.current;
             if (latestContent && tryInitialize(latestContent)) {
                 console.log('[Collaboration] Instantly initialized with database content.');
             }

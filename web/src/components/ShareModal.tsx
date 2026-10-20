@@ -18,8 +18,9 @@ interface ShareModalProps {
     fileId: string;
     fileName: string;
     onClose: () => void;
-    onShare: (recipientId: string, recipientEmail: string, recipientPubKey: string, permission: SharePermission, dependencyFileIds?: string[]) => Promise<void>;
+    onShare: (recipientId: string, recipientEmail: string, recipientPubKey: string, permission: SharePermission, dependencyFileIds?: string[], canReshare?: boolean) => Promise<void>;
     myId: string;
+    callerPermission?: 'owner' | 'view' | 'edit' | 'share';
 }
 
 export default function ShareModal({
@@ -27,7 +28,8 @@ export default function ShareModal({
     fileName,
     onClose,
     onShare,
-    myId
+    myId,
+    callerPermission = 'owner'
 }: ShareModalProps) {
     const [contacts, setContacts] = useState<Contact[]>([]);
     const [customEmail, setCustomEmail] = useState("");
@@ -36,7 +38,16 @@ export default function ShareModal({
     const [sharing, setSharing] = useState(false);
     const [showCustomInput, setShowCustomInput] = useState(false);
     const [sharedContactId, setSharedContactId] = useState<string | null>(null);
-    const [permission, setPermission] = useState<SharePermission>('view');
+    const [permission, setPermission] = useState<SharePermission>(callerPermission === 'view' ? 'view' : 'view');
+    const [canReshare, setCanReshare] = useState(false);
+
+    useEffect(() => {
+        if (callerPermission === 'view') {
+            setPermission('view');
+        } else if (callerPermission === 'edit' && permission === 'share') {
+            setPermission('edit');
+        }
+    }, [callerPermission, permission]);
 
     // Linked files / dependencies state
     const [dependencies, setDependencies] = useState<{ id: string; title: string; type: string }[]>([]);
@@ -156,11 +167,21 @@ export default function ShareModal({
         }
     };
 
+    const isOptDisabled = (val: SharePermission) => {
+        if (callerPermission === 'view') {
+            return val !== 'view';
+        }
+        if (callerPermission === 'edit') {
+            return val === 'share';
+        }
+        return false;
+    };
+
     const handleShareWithContact = async (contact: Contact) => {
         setSharing(true);
         try {
             setSharedContactId(contact.id);
-            await onShare(contact.id, contact.email, contact.public_key, permission, Array.from(selectedDepIds));
+            await onShare(contact.id, contact.email, contact.public_key, permission, Array.from(selectedDepIds), canReshare);
             setTimeout(() => {
                 onClose();
             }, 600);
@@ -203,15 +224,22 @@ export default function ShareModal({
                             { val: 'share' as const, icon: Share2, label: 'Teilen', desc: 'Weiter teilen' },
                         ]).map(opt => {
                             const Icon = opt.icon;
-                            const active = permission === opt.val;
+                            const disabled = isOptDisabled(opt.val);
+                            const active = permission === opt.val && !disabled;
                             return (
                                 <button
                                     key={opt.val}
-                                    onClick={() => setPermission(opt.val)}
+                                    type="button"
+                                    disabled={disabled}
+                                    onClick={() => {
+                                        if (!disabled) setPermission(opt.val);
+                                    }}
                                     className={`p-3 rounded-[12px] border text-left transition-all ${
-                                        active
-                                            ? 'border-[#111827] bg-[#111827] text-white dark:border-white dark:bg-white dark:text-zinc-900 shadow-sm'
-                                            : 'border-[#e5e7eb] dark:border-zinc-800 bg-[#f9fafb]/50 dark:bg-zinc-800/40 hover:bg-[#f9fafb] dark:hover:bg-zinc-800 hover:border-[#d1d5db] dark:hover:border-zinc-700'
+                                        disabled
+                                            ? 'border-[#e5e7eb] dark:border-zinc-800 bg-[#f9fafb]/30 dark:bg-zinc-800/20 opacity-40 cursor-not-allowed'
+                                            : active
+                                                ? 'border-[#111827] bg-[#111827] text-white dark:border-white dark:bg-white dark:text-zinc-900 shadow-sm'
+                                                : 'border-[#e5e7eb] dark:border-zinc-800 bg-[#f9fafb]/50 dark:bg-zinc-800/40 hover:bg-[#f9fafb] dark:hover:bg-zinc-800 hover:border-[#d1d5db] dark:hover:border-zinc-700'
                                     }`}
                                 >
                                     <Icon size={16} className={active ? 'text-white dark:text-zinc-900 mb-1.5' : 'text-[#596170] dark:text-zinc-400 mb-1.5'} />
@@ -221,6 +249,31 @@ export default function ShareModal({
                             );
                         })}
                     </div>
+
+                    {/* Info banner for view-only */}
+                    {callerPermission === 'view' && (
+                        <div className="mt-3 p-3 rounded-[12px] bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 text-xs text-blue-700 dark:text-blue-300">
+                            Du hast Lesezugriff und kannst diese Notiz nur mit Lesezugriff weiterleiten.
+                        </div>
+                    )}
+
+                    {/* Re-sharing checkbox for owners only */}
+                    {callerPermission === 'owner' && (
+                        <div className="mt-3 p-3 rounded-[12px] bg-[#f9fafb] dark:bg-zinc-800/40 border border-[#e5e7eb] dark:border-zinc-800">
+                            <label className="flex items-start gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={canReshare}
+                                    onChange={(e) => setCanReshare(e.target.checked)}
+                                    className="mt-0.5 w-4 h-4 rounded border-[#e5e7eb] dark:border-zinc-600 text-[#111827] focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-[#111827] dark:accent-white"
+                                />
+                                <div className="flex-1">
+                                    <div className="text-xs font-bold text-[#111827] dark:text-zinc-200">Weiterleiten erlauben</div>
+                                    <div className="text-[11px] text-[#596170] dark:text-zinc-400 mt-0.5">Empfänger darf diese Notiz mit gleichen oder geringeren Rechten weiterleiten</div>
+                                </div>
+                            </label>
+                        </div>
+                    )}
                 </div>
 
                 {/* Content */}

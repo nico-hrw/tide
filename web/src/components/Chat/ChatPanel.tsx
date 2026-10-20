@@ -7,6 +7,7 @@ import { useDataStore } from "@/store/useDataStore";
 import { apiFetch, getApiBase } from "@/lib/api";
 import * as cryptoLib from "@/lib/crypto";
 import { encryptChatMessage, decryptChatMessage, isE2EEMessage } from "@/lib/chatCrypto";
+import { handledIslandMessageIds } from "@/hooks/useRealtimeSync";
 import Avatar from '@/components/Profile/Avatar';
 
 interface Message {
@@ -662,6 +663,13 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
 
                     // Push island notification if the message is incoming
                     if (msg.sender_id !== myId) {
+                        if (msg.id && (handledIslandMessageIds.has(msg.id) || pushedMessageIdsRef.current.has(msg.id))) {
+                            return;
+                        }
+                        if (msg.id) {
+                            handledIslandMessageIds.add(msg.id);
+                            pushedMessageIdsRef.current.add(msg.id);
+                        }
                         const senderContact = contactsRef.current.find(c => c.partner.id === msg.sender_id);
                         const senderName = senderContact?.partner?.username || senderContact?.partner?.email || 'New message';
 

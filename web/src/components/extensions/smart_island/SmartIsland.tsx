@@ -12,6 +12,7 @@ import { de } from 'date-fns/locale';
 import WeekStrip from './WeekStrip';
 import DailySummaryView from './DailySummaryView';
 import { searchHolidays } from '@/lib/holidays';
+import { useIslandSettingsStore } from '@/store/useIslandSettingsStore';
 
 // ─── Boot Sequence Views ──────────────────────────────────────────────────────
 
@@ -244,19 +245,27 @@ const UploadProgressView = ({ payload }: { payload: any }) => (
 
 const InteractiveCardView = ({ payload }: { payload: any }) => {
     const isEvent = payload?.fileType === 'event';
+    const isNote = payload?.fileType === 'note' || !!payload?.noteSharedText;
+    const showNoteSharedText = useIslandSettingsStore(s => s.showNoteSharedText);
+    const headerTitle = payload?.headerTitle || (isEvent ? 'Event Received' : isNote ? (payload?.senderName ? `${payload.senderName} hat eine Notiz geteilt` : 'Geteilte Notiz') : 'File Received');
     return (
         <div className="flex flex-col gap-3 px-3 py-2 w-full">
             <div className="flex items-center gap-2 mb-1">
-                <div className={`w-2.5 h-2.5 rounded-full ${isEvent ? 'bg-amber-500 animate-pulse' : 'bg-blue-500 animate-pulse'}`} />
+                <div className={`w-2.5 h-2.5 rounded-full ${isEvent ? 'bg-amber-500 animate-pulse' : isNote ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500 animate-pulse'}`} />
                 <div className="text-[12px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                    {isEvent ? 'Event Received' : 'File Received'}
+                    {headerTitle}
                 </div>
             </div>
 
-            <div className={`p-4 rounded-2xl border ${isEvent ? 'bg-amber-500 border-amber-400 text-white shadow-md shadow-amber-200' : 'bg-indigo-500 border-indigo-400 text-white shadow-md shadow-indigo-200'}`}>
+            <div className={`p-4 rounded-2xl border ${isEvent ? 'bg-amber-500 border-amber-400 text-white shadow-md shadow-amber-200' : isNote ? 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-200' : 'bg-indigo-500 border-indigo-400 text-white shadow-md shadow-indigo-200'}`}>
                 <div className="text-[18px] font-black leading-tight mb-2 text-white">
-                    {payload?.fileName || 'Untitled'}
+                    {payload?.fileName || payload?.title || (isNote ? 'Notiz' : 'Untitled')}
                 </div>
+                {payload?.noteSharedText && showNoteSharedText && (
+                    <div className="text-[13px] text-white/95 mb-2 line-clamp-4 whitespace-pre-wrap font-medium bg-black/15 p-2.5 rounded-xl border border-white/10">
+                        {payload.noteSharedText}
+                    </div>
+                )}
                 <div className="flex flex-col gap-1">
                     <div className={`text-[13px] font-semibold flex items-center gap-1.5 ${isEvent ? 'text-amber-100' : 'text-indigo-100'}`}>
                         {isEvent ? <CalendarIcon size={14} /> : <FileText size={14} />}
@@ -457,6 +466,29 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
     const onCreateEvent = payload?.onCreateEvent;
     const onDismiss = payload?.onDismiss;
 
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const handleDismiss = () => {
+        window.dispatchEvent(new CustomEvent('tide:collector-clear'));
+        if (onDismiss) onDismiss();
+    };
+
+    // Auto-expand textarea height
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+        }
+    }, [liveText]);
+
+    // Position cursor at end on mount
+    useEffect(() => {
+        if (textareaRef.current) {
+            const len = textareaRef.current.value.length;
+            textareaRef.current.setSelectionRange(len, len);
+        }
+    }, []);
+
     const storeNotes = useDataStore(s => s.notes) || [];
     const storeEvents = useDataStore(s => s.events) || [];
 
@@ -595,17 +627,17 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
 
     const handleSelectDate = (date: Date) => {
         window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { start: date.toISOString() } }));
-        if (onDismiss) onDismiss();
+        handleDismiss();
     };
 
     const handleSelectNote = (note: any) => {
         window.dispatchEvent(new CustomEvent('tide:select-note', { detail: { id: note.id, title: note.title } }));
-        if (onDismiss) onDismiss();
+        handleDismiss();
     };
 
     const handleSelectEvent = (event: any) => {
         window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id: event.id, start: event.start } }));
-        if (onDismiss) onDismiss();
+        handleDismiss();
     };
 
     const handleSelectItem = (item: any) => {
@@ -618,43 +650,81 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
         }
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (searchItems.length === 0) return;
-        if (e.key === 'ArrowDown') {
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === 'Escape') {
             e.preventDefault();
-            setSelectedIndex(prev => (prev + 1) % searchItems.length);
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            setSelectedIndex(prev => (prev - 1 + searchItems.length) % searchItems.length);
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            if (searchItems[selectedIndex]) {
-                handleSelectItem(searchItems[selectedIndex]);
+            handleDismiss();
+            return;
+        }
+
+        if (e.key === 'Enter') {
+            if (e.shiftKey) {
+                // Allow Shift+Enter to create a newline
+                return;
             }
+            e.preventDefault();
+            if (searchItems.length > 0 && searchItems[selectedIndex]) {
+                handleSelectItem(searchItems[selectedIndex]);
+            } else if (onCreateNote && liveText.trim()) {
+                onCreateNote(liveText);
+                handleDismiss();
+            }
+            return;
+        }
+
+        if (e.key === 'Backspace') {
+            if (liveText.length <= 1) {
+                e.preventDefault();
+                setLiveText('');
+                handleDismiss();
+                return;
+            }
+        }
+
+        if (searchItems.length > 0) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setSelectedIndex(prev => (prev + 1) % searchItems.length);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setSelectedIndex(prev => (prev - 1 + searchItems.length) % searchItems.length);
+            }
+        }
+    };
+
+    const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const val = e.target.value;
+        setLiveText(val);
+        setEventDismissed(false);
+        window.dispatchEvent(new CustomEvent('tide:collector-update', { detail: { text: val } }));
+        if (val.trim() === '') {
+            handleDismiss();
         }
     };
 
     return (
         <div className="flex flex-col gap-3 px-3 py-3 w-full select-none text-zinc-100">
             {/* Search Input Box */}
-            <div className="flex items-center gap-2 p-2 rounded-xl bg-white/5 border border-white/10 shadow-inner">
-                <Search size={14} className="text-zinc-400 ml-1 flex-shrink-0" />
-                <input
-                    type="text"
+            <div className="flex items-start gap-2 p-2 rounded-xl bg-white/5 border border-white/10 shadow-inner">
+                <Search size={14} className="text-zinc-400 ml-1 mt-1 flex-shrink-0" />
+                <textarea
+                    ref={textareaRef}
+                    rows={1}
                     value={liveText}
-                    onChange={(e) => {
-                        setLiveText(e.target.value);
-                        setEventDismissed(false);
-                        window.dispatchEvent(new CustomEvent('tide:collector-update', { detail: { text: e.target.value } }));
-                    }}
+                    onChange={handleTextChange}
                     onKeyDown={handleKeyDown}
                     placeholder="Suchen oder tippen..."
-                    className="flex-1 bg-transparent text-xs font-bold outline-none text-zinc-100 placeholder:text-zinc-500"
+                    className="flex-1 bg-transparent text-xs font-bold outline-none text-zinc-100 placeholder:text-zinc-500 resize-none overflow-y-auto leading-relaxed py-0.5"
                     autoFocus
                 />
                 <button
-                    onClick={() => onCreateNote && onCreateNote(liveText)}
-                    className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-all active:scale-95 flex-shrink-0"
+                    onClick={() => {
+                        if (onCreateNote && liveText.trim()) {
+                            onCreateNote(liveText);
+                            handleDismiss();
+                        }
+                    }}
+                    className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-all active:scale-95 flex-shrink-0 mt-0.5"
                     title="Notiz erstellen"
                 >
                     <FileEdit size={13} />
@@ -832,6 +902,7 @@ const registeredPlugins: Record<string, React.FC<{ payload: any }>> = {
 export default function SmartIsland({ selectedDate, onSelect, userName }: SmartIslandProps) {
     const { state, setDailySummaryMode } = useIslandStore();
     const storeEvents = useDataStore(s => s.events);
+    const expandOnNotification = useIslandSettingsStore(s => s.expandOnNotification);
 
     // Build today's events for InMeetingBar (exclude all-day events)
     const todayEvents = useMemo(() => {
@@ -848,17 +919,17 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
         : state.current?.type === 'timeline'
             ? 'p-4 rounded-xl w-full'
             : state.current?.type === 'interactive_card'
-                ? 'p-4 rounded-xl w-full'
+                ? (expandOnNotification ? 'p-4 rounded-xl w-full sm:w-[26rem] md:w-[28rem] shadow-2xl' : 'p-4 rounded-xl w-full')
                 : state.current?.type === 'event_suggestion'
                     ? 'rounded-xl w-full'
                     : state.current?.type === 'reminder'
                         ? 'rounded-xl w-full'
                         : state.current?.type === 'text_collector'
-                            ? 'rounded-xl w-full sm:w-[24rem]'
+                            ? 'rounded-xl w-full sm:w-[26rem] shadow-2xl'
                             : state.current?.type === 'welcome' || state.current?.type === 'morning' || state.current?.type === 'event_preview'
                                 ? 'p-4 rounded-xl w-full'
                                 : state.current?.type === 'message'
-                                    ? 'p-3 rounded-xl w-full'
+                                    ? (expandOnNotification ? 'p-3 rounded-xl w-full sm:w-[26rem] md:w-[28rem] shadow-2xl' : 'p-3 rounded-xl w-full')
                                     : 'p-2 rounded-xl w-full';
 
     const positionClass = 'relative';

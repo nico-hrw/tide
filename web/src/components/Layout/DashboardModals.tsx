@@ -14,16 +14,18 @@ export type { ScheduleEventData };
 
 export interface DashboardModalsProps {
     // Share Modal
-    shareModalFile: { id: string; title: string; type?: string } | null;
+    shareModalFile: { id: string; title: string; type?: string; callerPermission?: 'owner' | 'view' | 'edit' | 'share' } | null;
     onCloseShareModal: () => void;
     onShare: (
         recipientId: string,
         recipientEmail: string,
         recipientPubKey: string,
         permission: 'view' | 'edit' | 'share',
-        dependencyFileIds?: string[]
+        dependencyFileIds?: string[],
+        canReshare?: boolean
     ) => Promise<void>;
     myId: string;
+    callerPermission?: 'owner' | 'view' | 'edit' | 'share';
 
     // Security Settings Modal
     noteSecurityModalItem: {
@@ -106,6 +108,7 @@ export function DashboardModals({
     onCloseShareModal,
     onShare,
     myId,
+    callerPermission,
 
     // Security Modal
     noteSecurityModalItem,
@@ -170,6 +173,7 @@ export function DashboardModals({
                     onClose={onCloseShareModal}
                     onShare={onShare}
                     myId={myId}
+                    callerPermission={callerPermission ?? shareModalFile.callerPermission ?? 'owner'}
                 />
             )}
 

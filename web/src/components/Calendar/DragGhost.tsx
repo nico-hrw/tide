@@ -32,7 +32,8 @@ const getEventTheme = (evt: CalendarEvent) => {
 
 interface DragGhostProps {
     draggingId: string | null;
-    dragState: { initialWidth?: number } | null;
+    dragState: { initialWidth?: number; grabOffsetY?: number; grabOffsetX?: number } | null;
+    grabOffsetY?: number;
     events: CalendarEvent[];
     cursorX: MotionValue<number>;
     cursorY: MotionValue<number>;
@@ -44,13 +45,15 @@ export const DragGhost: React.FC<DragGhostProps> = ({
     events,
     cursorX,
     cursorY,
+    grabOffsetY,
 }) => {
     // Handle recurrence instances like 'eventId_1234567890'
     const event = events.find(e => e.id === draggingId || (draggingId && draggingId.startsWith(e.id + '_')));
     const durationMinutes = event ? (new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000 : 60;
 
     const ghostX = useTransform(cursorX, v => v - (dragState?.initialWidth ? dragState.initialWidth / 2 : 100));
-    const ghostY = useTransform(cursorY, v => v - (durationMinutes / 2));
+    const effectiveGrabOffsetY = grabOffsetY !== undefined ? grabOffsetY : dragState?.grabOffsetY;
+    const ghostY = useTransform(cursorY, v => v - (effectiveGrabOffsetY !== undefined ? effectiveGrabOffsetY : (durationMinutes / 2)));
 
     if (!draggingId || !dragState || !event) {
         return null;

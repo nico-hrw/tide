@@ -61,11 +61,12 @@ type File struct {
 	Visibility  string          `json:"visibility" db:"visibility"`     // 'private' or 'public'
 	PublicMeta  json.RawMessage `json:"public_meta" db:"public_meta"`   // JSONB
 	SecuredMeta []byte          `json:"secured_meta" db:"secured_meta"` // BYTEA
-	ShareStatus    string          `json:"share_status,omitempty" db:"share_status"`
-	Permission     string          `json:"permission,omitempty" db:"permission"`
-	Version        int             `json:"version" db:"version"`
-	Metadata       json.RawMessage `json:"metadata" db:"metadata"`
-	AccessKeys     json.RawMessage `json:"access_keys" db:"access_keys"`
+	ShareStatus string          `json:"share_status,omitempty" db:"share_status"`
+	Permission  string          `json:"permission,omitempty" db:"permission"`
+	CanReshare  bool            `json:"can_reshare,omitempty" db:"can_reshare"`
+	Version     int             `json:"version" db:"version"`
+	Metadata    json.RawMessage `json:"metadata" db:"metadata"`
+	AccessKeys  json.RawMessage `json:"access_keys" db:"access_keys"`
 }
 
 // Task represents the tasks table for E2EE tasks
@@ -76,7 +77,6 @@ type Task struct {
 	CreatedAt      time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
 }
-
 
 // DB defines the interface for database operations.
 type DB interface {
@@ -110,13 +110,13 @@ type SearchResult struct {
 	AvatarStyle     string `json:"avatar_style,omitempty"`
 }
 
-
 // FileShare represents a row in file_shares: who has access to a file with what permission.
 type FileShare struct {
-	FileID     string    `json:"file_id" db:"file_id"`
-	UserID     string    `json:"user_id" db:"user_id"`
-	Status     string    `json:"status" db:"status"`         // 'pending' | 'accepted'
-	Permission string    `json:"permission" db:"permission"` // 'view' | 'edit' | 'share'
+	FileID      string    `json:"file_id" db:"file_id"`
+	UserID      string    `json:"user_id" db:"user_id"`
+	Status      string    `json:"status" db:"status"`         // 'pending' | 'accepted'
+	Permission  string    `json:"permission" db:"permission"` // 'view' | 'edit' | 'share'
+	CanReshare  bool      `json:"can_reshare" db:"can_reshare"`
 	CreatedAt   time.Time `json:"created_at" db:"created_at"`
 	Username    string    `json:"username,omitempty"`
 	AvatarSeed  string    `json:"avatar_seed,omitempty"`
@@ -125,16 +125,16 @@ type FileShare struct {
 }
 
 type FileBackup struct {
-	ID            string          `json:"id" db:"id"`
-	FileID        string          `json:"file_id" db:"file_id"`
-	SlotName      string          `json:"slot_name" db:"slot_name"`
-	EncryptedBlob []byte          `json:"encrypted_blob" db:"encrypted_blob"`
-	SecuredMeta   []byte          `json:"secured_meta" db:"secured_meta"`
+	ID            string `json:"id" db:"id"`
+	FileID        string `json:"file_id" db:"file_id"`
+	SlotName      string `json:"slot_name" db:"slot_name"`
+	EncryptedBlob []byte `json:"encrypted_blob" db:"encrypted_blob"`
+	SecuredMeta   []byte `json:"secured_meta" db:"secured_meta"`
 	// [FIX MITTEL-6] V2 fields — required for envelope-encrypted backups to be restorable.
 	// Without access_keys the recipient cannot unwrap the DEK and the backup is useless.
-	AccessKeys    json.RawMessage `json:"access_keys" db:"access_keys"`
-	Version       int             `json:"version" db:"version"`
-	UpdatedAt     time.Time       `json:"updated_at" db:"updated_at"`
+	AccessKeys json.RawMessage `json:"access_keys" db:"access_keys"`
+	Version    int             `json:"version" db:"version"`
+	UpdatedAt  time.Time       `json:"updated_at" db:"updated_at"`
 }
 
 // APIToken represents a personal access token for external API access.
@@ -165,4 +165,3 @@ type ExternalEvent struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
-

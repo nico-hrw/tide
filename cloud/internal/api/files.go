@@ -284,6 +284,7 @@ type ShareRequest struct {
 	SecuredMeta    string `json:"secured_meta"` // RSA-encrypted title for file_shares
 	WrappedDEK     string `json:"wrapped_dek"`  // Wrapped DEK for access_keys (V2)
 	Permission     string `json:"permission"`   // 'view' | 'edit' | 'share' (defaults to 'view')
+	CanReshare     bool   `json:"can_reshare"`
 }
 
 func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
@@ -310,9 +311,31 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to retrieve file", http.StatusInternalServerError)
 		return
 	}
-	if file.OwnerID != userID {
-		http.Error(w, "Forbidden: only the file owner can share this file", http.StatusForbidden)
-		return
+	var canReshare bool
+	if file.OwnerID == userID {
+		canReshare = req.CanReshare
+	} else {
+		callerShare, err := h.Store.GetShare(r.Context(), fileID, userID)
+		if err != nil || callerShare == nil || callerShare.Status != "accepted" || !callerShare.CanReshare {
+			http.Error(w, "Forbidden: re-sharing is not permitted for this note", http.StatusForbidden)
+			return
+		}
+
+		reqPerm := req.Permission
+		if reqPerm != "view" && reqPerm != "edit" && reqPerm != "share" {
+			reqPerm = "view"
+		}
+
+		if callerShare.Permission == "view" && reqPerm != "view" {
+			http.Error(w, "Forbidden: cannot grant higher permission than view", http.StatusForbidden)
+			return
+		}
+		if callerShare.Permission == "edit" && reqPerm == "share" {
+			http.Error(w, "Forbidden: cannot grant higher permission than edit", http.StatusForbidden)
+			return
+		}
+
+		canReshare = false
 	}
 
 	// 1. Resolve Recipient ID
@@ -337,7 +360,7 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 	if permission != "view" && permission != "edit" && permission != "share" {
 		permission = "view"
 	}
-	if err := h.Store.ShareFileWithPermission(r.Context(), fileID, recipient.ID, decodeBase64OrRaw(req.SecuredMeta), permission); err != nil {
+	if err := h.Store.ShareFileWithPermission(r.Context(), fileID, recipient.ID, decodeBase64OrRaw(req.SecuredMeta), permission, canReshare); err != nil {
 		http.Error(w, "Failed to share file", http.StatusInternalServerError)
 		return
 	}
@@ -594,7 +617,6 @@ func (h *FileHandler) CopyFile(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(newFile)
 }
-
 
 type CreateFileRequest struct {
 	ID          *string         `json:"id,omitempty"`

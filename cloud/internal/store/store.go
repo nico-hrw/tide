@@ -56,7 +56,8 @@ type Store interface {
 
 	// Sharing
 	ShareFile(ctx context.Context, fileID, userID string, securedMeta []byte) error
-	ShareFileWithPermission(ctx context.Context, fileID, userID string, securedMeta []byte, permission string) error
+	ShareFileWithPermission(ctx context.Context, fileID, userID string, securedMeta []byte, permission string, canReshare bool) error
+	GetShare(ctx context.Context, fileID, userID string) (*db.FileShare, error)
 	UpdateSharePermission(ctx context.Context, fileID, userID, permission string) error
 	GetSharePermission(ctx context.Context, fileID, userID string) (string, error)
 	ListSharesForFile(ctx context.Context, fileID string) ([]*db.FileShare, error)

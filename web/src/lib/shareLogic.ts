@@ -12,7 +12,8 @@ export async function performMessengerShare(
     recipientEmail: string,
     recipientPubKeySpki: string,
     permission: 'view' | 'edit' | 'share' = 'view',
-    dependencyFileIds: string[] = []
+    dependencyFileIds: string[] = [],
+    canReshare: boolean = false
 ) {
     if (!shareModalFile || !privateKey || !publicKey) {
         throw new Error("Invalid state");
@@ -101,6 +102,7 @@ export async function performMessengerShare(
                 secured_meta: recipientSecuredMeta,   // RSA-encrypted metadata for recipient
                 wrapped_dek: recipientWrapped.ciphertext, // wrapped DEK for access_keys
                 permission,                            // 'view' | 'edit' | 'share'
+                can_reshare: canReshare ?? false,
             })
         });
 
@@ -180,6 +182,7 @@ export async function performMessengerShare(
                     file_type: file.type,
                     file_preview: isEvent ? "" : "Shared document",
                     permission,
+                    can_reshare: canReshare ?? false,
                     event_meta: eventMeta,
                 })
             })

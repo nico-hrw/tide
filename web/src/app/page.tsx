@@ -255,7 +255,7 @@ export default function Dashboard() {
     const [draggedText, setDraggedText] = useState<string | null>(null);
 
     // Share Modal State
-    const [shareModalFile, setShareModalFile] = useState<{ id: string, title: string, type?: string } | null>(null);
+    const [shareModalFile, setShareModalFile] = useState<{ id: string, title: string, type?: string, callerPermission?: 'owner' | 'view' | 'edit' | 'share' } | null>(null);
 
     const handleToggleExtension = async (extensionId: string, enabled: boolean) => {
         setEnabledExtensions(prev => {
@@ -682,6 +682,11 @@ export default function Dashboard() {
 
     const performSave = async (content: any, fileId: string, fileKey: CryptoKey | null, visibility: string) => {
         if (!fileId || !content) return;
+
+        if (isDocEmpty(content) && initialContentRef.current && !isDocEmpty(initialContentRef.current)) {
+            console.warn('[Save] Aborted saving empty content over non-empty document');
+            return;
+        }
 
         try {
             const contentString = typeof content === 'string' ? content : JSON.stringify(content);
@@ -1598,12 +1603,23 @@ export default function Dashboard() {
             }
         };
 
+        const handleReloadNote = (e: Event) => {
+            const { fileId } = (e as CustomEvent).detail || {};
+            if (fileId && fileId === activeNoteIdRef.current) {
+                const liveFile = useDataStore.getState().notes.find(f => f.id === fileId);
+                const title = liveFile?.title || fileNameRef.current || "Untitled";
+                loadNoteContent(fileId, title);
+            }
+        };
+
         window.addEventListener('tide:select-note', handleSelectNote);
         window.addEventListener('tide:select-event', handleSelectEvent);
+        window.addEventListener('tide:reload_note', handleReloadNote);
 
         return () => {
             window.removeEventListener('tide:select-note', handleSelectNote);
             window.removeEventListener('tide:select-event', handleSelectEvent);
+            window.removeEventListener('tide:reload_note', handleReloadNote);
         };
     }, [handleFileSelect, events]);
 
@@ -1613,6 +1629,7 @@ export default function Dashboard() {
         fileName,
         isLoadingContent,
         editorContent,
+        privateKey,
     });
 
 
@@ -2662,7 +2679,30 @@ export default function Dashboard() {
             return;
         }
 
-        setShareModalFile({ id: baseId, title: file.title, type: (file as any).type });
+        const currentMyId = myId || liveStore.myId;
+        const isOwner = !file.owner_id || file.owner_id === currentMyId || file.share_status === 'owner';
+        const canReshare = Boolean(file.can_reshare);
+
+        if (!isOwner && !canReshare) {
+            alert("Du hast keine Berechtigung, diese Notiz weiterzuleiten.");
+            return;
+        }
+
+        let callerPermission: 'owner' | 'view' | 'edit' | 'share' = 'owner';
+        if (!isOwner) {
+            const rawPerm = file.share_permission || file.permission;
+            if (rawPerm === 'view') {
+                callerPermission = 'view';
+            } else if (rawPerm === 'edit') {
+                callerPermission = 'edit';
+            } else if (rawPerm === 'share') {
+                callerPermission = 'share';
+            } else {
+                callerPermission = 'view';
+            }
+        }
+
+        setShareModalFile({ id: baseId, title: file.title, type: (file as any).type, callerPermission });
     };
 
     const performShare = async (
@@ -2670,7 +2710,8 @@ export default function Dashboard() {
         recipientEmail: string, 
         recipientPubKeySpki: string, 
         permission: 'view' | 'edit' | 'share' = 'view',
-        dependencyFileIds: string[] = []
+        dependencyFileIds: string[] = [],
+        canReshare: boolean = false
     ) => {
         if (!shareModalFile || !privateKey || !publicKey) return;
 
@@ -2702,7 +2743,8 @@ export default function Dashboard() {
                 recipientEmail,
                 recipientPubKeySpki,
                 permission,
-                dependencyFileIds
+                dependencyFileIds,
+                canReshare
             );
         }
 
@@ -4107,13 +4149,21 @@ export default function Dashboard() {
                                                         className="text-4xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-700 pb-1 leading-normal overflow-visible flex-1"
                                                     />
                                                     <div className="flex items-center gap-1 shrink-0 self-end mb-2">
-                                                        <button
-                                                            onClick={() => setShowBackups(true)}
-                                                            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 hover:text-indigo-600 transition-colors"
-                                                            title="Versionsverlauf / Backups"
-                                                        >
-                                                            <Clock size={16} />
-                                                        </button>
+                                                        {(() => {
+                                                            const activeFile = files.find(f => f.id === activeNoteId) as any;
+                                                            const isRecipient = activeFile?.share_status === 'shared' || activeFile?.share_status === 'accepted' || activeFile?.share_status === 'pending';
+                                                            const isOwner = !isRecipient && (!activeFile?.owner_id || activeFile?.owner_id === myId || activeFile?.share_status === 'owner');
+                                                            if (!isOwner) return null;
+                                                            return (
+                                                                <button
+                                                                    onClick={() => setShowBackups(true)}
+                                                                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 hover:text-indigo-600 transition-colors"
+                                                                    title="Versionsverlauf / Backups"
+                                                                >
+                                                                    <Clock size={16} />
+                                                                </button>
+                                                            );
+                                                        })()}
                                                         {/* Save status indicator with interactive popover menu */}
                                                         <div className="relative flex items-center justify-center">
                                                             {(() => {

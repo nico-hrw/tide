@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Layout, X, GraduationCap, ShieldCheck, ListTodo } from "lucide-react";
+import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Layout, X, GraduationCap, ShieldCheck, ListTodo, Copy } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, Reorder, AnimatePresence, LayoutGroup } from "framer-motion";
 import { Tab } from '@/components/Layout/TabList';
@@ -29,6 +29,7 @@ interface DecryptedFile {
     isGroup?: boolean;
     share_status?: string;
     permission?: string;
+    can_reshare?: boolean;
     metadata?: any;
 }
 
@@ -132,6 +133,7 @@ export default function Sidebar({
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, id: string, type: 'file' | 'folder' } | null>(null);
     const [sidebarContextMenu, setSidebarContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [dropIndicator, setDropIndicator] = useState<{ id: string, zone: 'top' | 'middle' | 'bottom' } | null>(null);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     // Security & PIN Protection State
     const [securityModalItem, setSecurityModalItem] = useState<{ id: string; title: string; type: 'file' | 'folder' | 'note' | 'canvas'; metadata?: any } | null>(null);
@@ -420,6 +422,55 @@ export default function Sidebar({
         } catch (err: any) {
             console.error("Export error:", err);
             alert("Export fehlgeschlagen: " + (err?.message || "Fehler"));
+        }
+    };
+
+    const handleCopyToMyNotes = async (file: DecryptedFile) => {
+        try {
+            setContextMenu(null);
+            let content: any = null;
+            const backupKey = `tide_backup_${file.id}`;
+            const localBackup = typeof window !== 'undefined' ? localStorage.getItem(backupKey) : null;
+            if (localBackup) {
+                try {
+                    content = JSON.parse(localBackup);
+                } catch (e) {
+                    console.warn("Failed to parse local backup for copy", e);
+                }
+            }
+
+            if (!content) {
+                try {
+                    const bundle = await exportTideBundle([file.id], false);
+                    const item = bundle.items.find(i => i.id === file.id);
+                    if (item?.content) {
+                        content = item.content;
+                    }
+                } catch (bundleErr) {
+                    console.warn("Failed to get content via bundle export", bundleErr);
+                }
+            }
+
+            if (!content) {
+                content = {
+                    type: 'doc',
+                    content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() }, content: [] }]
+                };
+            }
+
+            const newTitle = `${file.title} (Kopie)`;
+            const newId = await useDataStore.getState().createNote(newTitle, content, null);
+            setToastMessage("Notiz in eigene Notizen kopiert! Du hast nun volle Rechte über diese Kopie.");
+            setTimeout(() => {
+                setToastMessage(null);
+            }, 4000);
+
+            if (newId) {
+                onFileSelect(newId, newTitle);
+            }
+        } catch (err: any) {
+            console.error("Failed to copy note to my notes:", err);
+            alert("Kopieren fehlgeschlagen: " + (err?.message || "Unbekannter Fehler"));
         }
     };
 
@@ -754,7 +805,7 @@ export default function Sidebar({
             <div className="flex-shrink-0 h-[340px]" />
 
             {/* Smart Island — absolutely positioned, extends beyond sidebar */}
-            <div className="absolute bottom-4 left-4 right-4 z-[100] flex flex-col gap-2">
+            <div className="absolute bottom-4 left-4 z-[100] flex flex-col gap-2 w-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] pointer-events-none [&>*]:pointer-events-auto">
                 {(!enabledExtensions || enabledExtensions.includes('todos')) && (
                     <div className="flex items-center justify-start px-1">
                         <button
@@ -835,7 +886,31 @@ export default function Sidebar({
                         {/* 3. Trennlinie */}
                         <div className="h-px bg-gray-100 dark:bg-slate-800 my-1" />
 
-                        {/* 4. Share (inkl. Sichtbarkeit) */}
+                        {/* In meine Notizen kopieren (für geteilte Notizen) */}
+                        {(() => {
+                            const targetFile = files.find(f => f.id === contextMenu.id);
+                            const currentMyId = myId || useDataStore.getState().myId;
+                            const isSharedNote = targetFile && targetFile.type !== 'folder' && targetFile.owner_id && currentMyId && targetFile.owner_id !== currentMyId;
+                            if (!isSharedNote) return null;
+                            return (
+                                <button
+                                    onClick={() => handleCopyToMyNotes(targetFile)}
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                                >
+                                    <Copy size={15} className="text-gray-400 group-hover:text-blue-500" />
+                                    <span className="font-medium">In meine Notizen kopieren</span>
+                                </button>
+                            );
+                        })()}
+
+                        {/* 4. Share (nur wenn isOwner || file.can_reshare) */}
+                        {(() => {
+                            const targetFile = files.find(f => f.id === contextMenu.id);
+                            const currentMyId = myId || useDataStore.getState().myId;
+                            const isOwner = !targetFile?.owner_id || targetFile?.owner_id === currentMyId || targetFile?.share_status === 'owner';
+                            const canShare = isOwner || Boolean(targetFile?.can_reshare);
+                            if (!canShare) return null;
+                            return (
                         <button
                             onClick={(e) => { setContextMenu(null); onShare(e, contextMenu.id); }}
                             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
@@ -843,6 +918,9 @@ export default function Sidebar({
                             <Share2 size={15} className="text-gray-400 group-hover:text-blue-500" />
                             <span className="font-medium">Teilen</span>
                         </button>
+
+                            );
+                        })()}
 
                         {/* 5. Secure (PIN) */}
                         {(() => {
@@ -1008,6 +1086,13 @@ export default function Sidebar({
                         setSecurityModalItem(itemToConfigure);
                     }}
                 />
+            )}
+
+            {toastMessage && (
+                <div className="fixed bottom-6 right-6 z-[300] bg-[#111827] dark:bg-zinc-800 text-white dark:text-zinc-100 px-4 py-3 rounded-xl shadow-2xl border border-zinc-700 text-xs sm:text-sm flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
+                    <Check size={16} className="text-emerald-400 shrink-0" />
+                    <span className="font-medium">{toastMessage}</span>
+                </div>
             )}
 
             <style jsx>{`

@@ -583,6 +583,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     if (onGridMouseDown) onGridMouseDown(e, day);
                 }}
                 onDragOver={(e) => {
+                    gearedMouseRef.current = { x: e.clientX, y: e.clientY };
                     if (readOnly) return;
                     e.preventDefault();
                     e.stopPropagation();
@@ -607,8 +608,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         } catch(err) {}
                     }
 
-                    const mouseX = gearedMouseRef.current.x;
-                    const mouseY = gearedMouseRef.current.y;
+                    const mouseX = e.clientX;
+                    const mouseY = e.clientY;
                     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                     const relativeY = mouseY - rect.top;
                     
@@ -617,6 +618,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     
                     let newStartMinutes = Math.floor(relativeY / minuteHeight);
                     newStartMinutes = Math.floor(newStartMinutes / snapIntervalMinutes) * snapIntervalMinutes;
+                    newStartMinutes = Math.max(0, Math.min(newStartMinutes, 1440 - 60));
 
                     if (isTaskDrop && draggedTask) {
                         const baseDate = new Date(day);

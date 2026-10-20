@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useDataStore } from '@/store/useDataStore';
 import { getApiBase } from '@/lib/api';
+import { useIslandStore } from '@/store/useIslandStore';
+import { useIslandSettingsStore } from '@/store/useIslandSettingsStore';
+import { useSocialStore } from '@/store/useSocialStore';
+import { decryptChatMessage, isE2EEMessage } from '@/lib/chatCrypto';
+
+export const handledIslandMessageIds = new Set<string>();
 
 interface UseRealtimeSyncOptions {
     myId: string | null;
@@ -10,6 +16,7 @@ interface UseRealtimeSyncOptions {
     fileName?: string;
     isLoadingContent?: boolean;
     editorContent?: any;
+    privateKey?: CryptoKey | null;
 }
 
 export function useRealtimeSync({
@@ -18,7 +25,12 @@ export function useRealtimeSync({
     fileName,
     isLoadingContent,
     editorContent,
+    privateKey,
 }: UseRealtimeSyncOptions) {
+    const { push: islandPush } = useIslandStore();
+    const privateKeyRef = useRef(privateKey);
+    privateKeyRef.current = privateKey;
+
     // SSE Effect — robust reconnect with exponential backoff
     useEffect(() => {
         if (!myId) return;
@@ -51,9 +63,108 @@ export function useRealtimeSync({
                 retryDelay = 2000; // reset backoff on successful connect
             };
 
-            eventSource.onmessage = (event) => {
+            eventSource.onmessage = async (event) => {
                 try {
                     const data = JSON.parse(event.data);
+
+                    // Global notification dispatch and decryption for incoming chat messages & shares
+                    if (data.type === 'new_message' && data.message) {
+                        const msg = data.message;
+                        if (msg.sender_id && msg.sender_id !== myId) {
+                            if (!msg.id || !handledIslandMessageIds.has(msg.id)) {
+                                if (msg.id) {
+                                    handledIslandMessageIds.add(msg.id);
+                                }
+
+                                let content = msg.content || '';
+                                if (isE2EEMessage(content)) {
+                                    const effectiveKey = privateKeyRef.current || (useDataStore.getState() as any).privateKey || null;
+                                    content = await decryptChatMessage(content, myId, effectiveKey);
+                                }
+
+                                let shareData: any = null;
+                                let isSystemMessage = false;
+                                try {
+                                    const parsed = JSON.parse(content);
+                                    if (parsed && (parsed.type === 'file_share_request' || parsed.type === 'event_share')) {
+                                        shareData = parsed;
+                                    } else if (parsed?.type) {
+                                        isSystemMessage = true;
+                                    }
+                                } catch {
+                                    // Plain text chat message
+                                }
+
+                                if (!isSystemMessage) {
+                                    const {
+                                        messagePreviewMode,
+                                        fileShareDisplay,
+                                        showNoteSharedText,
+                                        notificationDurationSeconds
+                                    } = useIslandSettingsStore.getState();
+
+                                    const contacts = useSocialStore.getState().contacts;
+                                    const senderContact = contacts.find(c => c.partner.id === msg.sender_id);
+                                    const senderName = msg.sender_name || senderContact?.partner?.username || senderContact?.partner?.email || 'Jemand';
+                                    const durationMs = (notificationDurationSeconds || 6) * 1000;
+
+                                    if (shareData) {
+                                        const shareFileName = shareData.file_name || 'Neue Freigabe';
+                                        const fileType = shareData.file_type || (shareData.type === 'event_share' ? 'event' : 'file');
+
+                                        if (fileShareDisplay === 'card') {
+                                            islandPush({
+                                                type: 'interactive_card',
+                                                payload: {
+                                                    fileName: shareFileName,
+                                                    fileType,
+                                                    senderName,
+                                                    noteSharedText: showNoteSharedText ? `${senderName || 'Jemand'} hat eine Notiz geteilt` : undefined,
+                                                    duration: durationMs,
+                                                    onAction: () => {
+                                                        if (fileType === 'event' || shareData.type === 'event_share') {
+                                                            window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id: shareData.file_id } }));
+                                                        } else {
+                                                            window.dispatchEvent(new CustomEvent('tide:select-note', { detail: { id: shareData.file_id, title: shareFileName } }));
+                                                        }
+                                                    }
+                                                }
+                                            });
+                                        } else {
+                                            islandPush({
+                                                type: 'message',
+                                                payload: {
+                                                    senderName,
+                                                    text: showNoteSharedText ? `${senderName || 'Jemand'} hat eine Notiz geteilt: ${shareFileName}` : `Datei geteilt: ${shareFileName}`,
+                                                    duration: durationMs,
+                                                }
+                                            });
+                                        }
+                                    } else {
+                                        let text = '';
+                                        if (messagePreviewMode === 'full') {
+                                            text = content;
+                                        } else if (messagePreviewMode === 'preview') {
+                                            text = content.length > 80 ? `${content.slice(0, 80)}...` : content;
+                                        } else {
+                                            // 'sender_only'
+                                            text = 'Neue Nachricht empfangen';
+                                        }
+
+                                        islandPush({
+                                            type: 'message',
+                                            payload: {
+                                                senderName,
+                                                text,
+                                                duration: durationMs,
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     if (['file_created', 'file_updated', 'file_deleted', 'file_shared'].includes(data.type)) {
                         const msSinceOwnSave = Date.now() - lastOwnSaveTime;
                         if (data.type === 'file_updated' && msSinceOwnSave < OWN_SAVE_COOLDOWN_MS) {
@@ -152,10 +263,18 @@ export function useRealtimeSync({
             const fileId = (e as CustomEvent).detail.fileId;
             if (fileId !== activeNoteId) return;
 
-            // Since Collaboration handles syncing natively via Yjs and __yjs binary
-            // applying `setContent` will completely overwrite the editor, causing massive duplication.
-            // We just let the websocket or the next initial load handle it.
-            console.log('[SSE] Ignored tide:sse_reload because Collaboration natively handles it for file:', fileId);
+            const wsConnected = typeof window !== 'undefined' && (window as any).__tideWsConnected === true;
+            if (wsConnected) {
+                // Since Collaboration handles syncing natively via Yjs and __yjs binary
+                // applying `setContent` will completely overwrite the editor, causing massive duplication.
+                // We just let the websocket handle it.
+                console.log('[SSE] Ignored tide:sse_reload because Collaboration natively handles it for file:', fileId);
+                return;
+            }
+
+            // Fallback: If Collaboration is not connected via WebSocket, trigger note reload
+            console.log('[SSE] WebSocket not connected or Collaboration inactive; triggering fallback reload for file:', fileId);
+            window.dispatchEvent(new CustomEvent('tide:reload_note', { detail: { fileId } }));
         };
         window.addEventListener('tide:sse_reload', handler as EventListener);
         return () => window.removeEventListener('tide:sse_reload', handler as EventListener);
