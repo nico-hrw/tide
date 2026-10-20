@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useReferenceStore } from '@/store/useReferenceStore';
-import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon, Calendar, Share, Plus, Briefcase, Download, Copy, Upload, Key } from 'lucide-react';
+import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon, Calendar, Share, Plus, Briefcase, Download, Copy, Upload, Key, Wrench } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { useJobPlannerStore } from '@/store/useJobPlannerStore';
 
@@ -8,11 +8,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Avatar from '@/components/Profile/Avatar';
 import { apiFetch } from '@/lib/api';
 import APIAccessSettings from './APIAccessSettings';
+import DebugPluginSettings from './DebugPluginSettings';
 
 interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
-    initialTab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access';
+    initialTab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access' | 'debug';
     enabledExtensions: string[];
     onToggleExtension: (extensionId: string, enabled: boolean) => void;
     userProfile?: { id?: string; user_id?: string; username: string; email: string; bio?: string; title?: string; avatar_seed?: string; avatar_salt?: string; avatar_style?: string; is_verified?: boolean; profile_status?: number };
@@ -235,7 +236,7 @@ export default function SettingsModal({
     onCreateGroup
 }: SettingsModalProps) {
 
-    const [activeTab, setActiveTab] = useState<'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access'>(initialTab || 'account');
+    const [activeTab, setActiveTab] = useState<'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access' | 'debug'>(initialTab || 'account');
 
     useEffect(() => {
         if (initialTab) {
@@ -269,7 +270,7 @@ export default function SettingsModal({
     const [backupStatus, setBackupStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const { themePreference, setThemePreference, language, setLanguage, calendarColorPalette, setCalendarColorPalette, calendarOverlapMode, setCalendarOverlapMode, calendarHolidaysEnabled, setCalendarHolidaysEnabled, calendarHolidayPackage, setCalendarHolidayPackage } = useDataStore();
+    const { themePreference, setThemePreference, language, setLanguage, calendarColorPalette, setCalendarColorPalette, calendarOverlapMode, setCalendarOverlapMode, calendarHolidaysEnabled, setCalendarHolidaysEnabled, calendarHolidayPackage, setCalendarHolidayPackage, eventMentionStyle, setEventMentionStyle, eventMentionPreview, setEventMentionPreview } = useDataStore();
 
     const [newGroupName, setNewGroupName] = useState('');
 
@@ -301,6 +302,7 @@ export default function SettingsModal({
         { id: 'extensions', label: 'Extensions', icon: Puzzle },
         { id: 'access', label: language === 'de' ? 'Zugriff' : 'Access', icon: KeyRound },
         { id: 'info', label: 'Info', icon: Info },
+        { id: 'debug', label: 'Debug & Diagnose', icon: Wrench },
     ];
 
     const handleSaveProfile = async () => {
@@ -1126,6 +1128,57 @@ export default function SettingsModal({
                             </div>
                         </div>
 
+                        {/* Darstellung von Terminen in Notizen */}
+                        <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
+                            <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">Darstellung von Terminen in Notizen</h4>
+                            <p className="text-xs text-gray-500 mb-3">Wähle, ob Termine in Notizen im einheitlichen Blau oder in der jeweiligen Kalenderfarbe hervorgehoben werden.</p>
+                            <div className="grid grid-cols-2 gap-3">
+                                {[
+                                    { id: 'blue', label: 'Blau', desc: 'Einheitlicher blauer Stil' },
+                                    { id: 'calendar', label: 'Kalenderfarbe', desc: 'Farbe der jeweiligen Kategorie' }
+                                ].map((item) => (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => setEventMentionStyle(item.id as 'blue' | 'calendar')}
+                                        className={`flex flex-col p-3 rounded-xl border text-left transition-all ${eventMentionStyle === item.id
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
+                                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-200 dark:hover:border-white/10'
+                                        }`}
+                                    >
+                                        <div className={`text-sm font-bold ${eventMentionStyle === item.id ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{item.label}</div>
+                                        <div className="text-[10px] opacity-80 mt-1">{item.desc}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Vorschau anzeigen */}
+                        <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
+                            <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">Vorschau anzeigen</h4>
+                            <p className="text-xs text-gray-500 mb-3">Steuert die Terminvorschau: &apos;Immer&apos; bettet einen Terminkasten ein, &apos;Hovern&apos; zeigt einen Tooltip beim Überfahren, &apos;Aus&apos; zeigt nur den Textlink.</p>
+                            <div className="grid grid-cols-3 gap-2">
+                                {[
+                                    { id: 'always', label: 'Immer', desc: 'Terminkasten' },
+                                    { id: 'hover', label: 'Hovern', desc: 'Tooltip beim Überfahren' },
+                                    { id: 'off', label: 'Aus', desc: 'Nur Textlink' }
+                                ].map((item) => (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => setEventMentionPreview(item.id as 'always' | 'hover' | 'off')}
+                                        className={`flex flex-col p-3 rounded-xl border text-left transition-all ${eventMentionPreview === item.id
+                                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-500/20'
+                                            : 'bg-white dark:bg-white/5 border-gray-100 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-200 dark:hover:border-white/10'
+                                        }`}
+                                    >
+                                        <div className={`text-sm font-bold ${eventMentionPreview === item.id ? 'text-white' : 'text-gray-900 dark:text-white'}`}>{item.label}</div>
+                                        <div className="text-[10px] opacity-80 mt-1">{item.desc}</div>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         {/* Public Holidays Section */}
                         <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
                             <div className="flex items-center justify-between mb-3">
@@ -1321,6 +1374,7 @@ export default function SettingsModal({
                                     {activeTab === 'extensions' && renderExtensions()}
                                     {activeTab === 'access' && <APIAccessSettings />}
                                     {activeTab === 'info' && renderInfo()}
+                                    {activeTab === 'debug' && <DebugPluginSettings />}
                                 </motion.div>
                             </AnimatePresence>
                         </div>

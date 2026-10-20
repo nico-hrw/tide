@@ -5,6 +5,7 @@ import { useHighlight } from '@/components/HighlightContext';
 import { useLinkStore } from '@/store/useLinkStore';
 import { useDataStore } from '@/store/useDataStore';
 import { Layers, Globe, Lock } from 'lucide-react';
+import { getEventGroupIds } from '../../lib/calendarUtils';
 
 // Assuming types and getEventTheme are available here, either imported or defined
 interface CalendarEvent {
@@ -25,6 +26,8 @@ interface CalendarEvent {
     linkedTaskId?: string;
     tags?: string[];
     is_public?: boolean;
+    parent_id?: string | null;
+    groupIds?: string[];
 }
 
 export const getEventTheme = (evt: CalendarEvent, palette: 'modern-dark' | 'soft-pastels' | 'classic-tide' = 'modern-dark') => {
@@ -86,6 +89,7 @@ interface CalendarEventItemProps {
     onEventRename?: (id: string, title: string) => Promise<void>;
     cursorX: MotionValue<number>;
     cursorY: MotionValue<number>;
+    themes?: { id: string; title: string; effect?: string; color?: string }[];
 }
 
 // Returns a style object for the given theme effect.
@@ -148,10 +152,54 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     onEventRename,
     cursorX,
     cursorY,
+    themes,
 }) => {
     const { highlight, isHighlighted } = useHighlight();
     const activeParentId = useDataStore(state => state.activeParentId);
     const setActiveParentId = useDataStore(state => state.setActiveParentId);
+    const notes = useDataStore(state => state.notes);
+
+    // Secondary group badges & event tags
+    const displayBadges = React.useMemo(() => {
+        const badges: { id: string; label: string; color?: string }[] = [];
+        const seenLabels = new Set<string>();
+
+        // 1. Secondary group tags (classification badges from additional groups)
+        const secondaryGroupIds = getEventGroupIds(event).slice(1);
+        for (const gid of secondaryGroupIds) {
+            const matchedTheme = themes?.find(t => t.id === gid);
+            const matchedNote = !matchedTheme ? notes?.find(n => n.id === gid) : undefined;
+            const matchedEvent = (!matchedTheme && !matchedNote && allEvents) ? allEvents.find(e => e.id === gid) : undefined;
+            const label = matchedTheme?.title || matchedNote?.title || matchedEvent?.title || gid;
+            const groupColor = matchedTheme?.color || (typeof matchedNote?.color === 'string' ? matchedNote.color : undefined) || matchedEvent?.color;
+
+            if (label && label.trim() !== '' && !seenLabels.has(label.trim().toLowerCase())) {
+                seenLabels.add(label.trim().toLowerCase());
+                badges.push({
+                    id: `group-${gid}`,
+                    label: label.trim(),
+                    color: groupColor || event.color,
+                });
+            }
+        }
+
+        // 2. Regular tags from event.tags
+        if (event.tags && event.tags.length > 0) {
+            for (const tag of event.tags) {
+                const trimmed = tag ? tag.trim() : '';
+                if (trimmed && !seenLabels.has(trimmed.toLowerCase())) {
+                    seenLabels.add(trimmed.toLowerCase());
+                    badges.push({
+                        id: `tag-${trimmed}`,
+                        label: trimmed,
+                        color: event.color,
+                    });
+                }
+            }
+        }
+
+        return badges;
+    }, [event, themes, notes, allEvents]);
 
     // If the event has a linkedTaskId, read completion state from the task store (source of truth)
     // so all taskMention nodes in notes update instantly via the same Zustand selector.
@@ -613,20 +661,20 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 </div>
 
                 {/* Sub-titles (Tags) - Feature Requirement */}
-                {event.tags && event.tags.length > 0 && durationMinutes > 40 && (
+                {displayBadges.length > 0 && durationMinutes > 40 && (
                     <div className="flex flex-wrap gap-1 mt-1 mb-1 relative z-[90]">
-                        {event.tags.filter(t => t.trim() !== '').map((tag, idx) => (
+                        {displayBadges.map((badge, idx) => (
                             <div 
-                                key={idx} 
+                                key={badge.id || idx} 
                                 className="px-2 py-0.5 rounded-full text-[9px] font-black text-white shadow-md border"
                                 style={{ 
-                                    backgroundColor: event.color || theme.text,
+                                    backgroundColor: badge.color || theme.text,
                                     borderColor: 'rgba(255,255,255,0.1)',
                                     backgroundImage: 'linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.15))',
                                     textShadow: '0 1px 2px rgba(0,0,0,0.2)'
                                 }}
                             >
-                                {tag}
+                                {badge.label}
                             </div>
                         ))}
                     </div>

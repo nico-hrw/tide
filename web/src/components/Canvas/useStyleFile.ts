@@ -23,20 +23,33 @@ interface UseStyleFileProps {
 // The sidecar is a regular 'note' file in the DB with a dot-prefix title.
 // Its title pattern is ".{noteId}_style" stored in public_meta.title.
 // We look up its real UUID once, then cache it for subsequent uploads.
-const SIDECAR_ID_CACHE = new Map<string, string>(); // noteId → DB file UUID
+export const sidecarCache = new Map<string, string | null>(); // noteId → DB file UUID or null
+
+export function clearSidecarCache(noteId?: string): void {
+    if (noteId) {
+        sidecarCache.delete(noteId);
+    } else {
+        sidecarCache.clear();
+    }
+}
 
 async function findSidecarFileId(noteId: string, userId: string): Promise<string | null> {
-    if (SIDECAR_ID_CACHE.has(noteId)) return SIDECAR_ID_CACHE.get(noteId)!;
+    if (sidecarCache.has(noteId)) return sidecarCache.get(noteId) ?? null;
+    let foundId: string | null = null;
     try {
         const res = await apiFetch(`/api/v1/files?user_id=${userId}&recursive=true`);
-        if (!res.ok) return null;
-        const results = await res.json().catch(() => []);
-        const files = (Array.isArray(results) ? results : []) as Array<{ id: string; public_meta?: { title?: string } }>;
-        const sidecarTitle = `.${noteId}_style`;
-        const found = files.find(f => f.public_meta?.title === sidecarTitle);
-        if (found) { SIDECAR_ID_CACHE.set(noteId, found.id); return found.id; }
+        if (res.ok) {
+            const results = await res.json().catch(() => []);
+            const files = (Array.isArray(results) ? results : []) as Array<{ id: string; public_meta?: { title?: string } }>;
+            const sidecarTitle = `.${noteId}_style`;
+            const found = files.find(f => f.public_meta?.title === sidecarTitle);
+            if (found) {
+                foundId = found.id;
+            }
+        }
     } catch { /* ignore */ }
-    return null;
+    sidecarCache.set(noteId, foundId);
+    return foundId;
 }
 
 async function createSidecarFileRecord(noteId: string, userId: string, size: number): Promise<string | null> {
@@ -55,7 +68,7 @@ async function createSidecarFileRecord(noteId: string, userId: string, size: num
         if (!res.ok) return null;
         const file = await res.json().catch(() => null) as { id: string } | null;
         if (!file || !file.id) return null;
-        SIDECAR_ID_CACHE.set(noteId, file.id);
+        sidecarCache.set(noteId, file.id);
         return file.id;
     } catch { return null; }
 }

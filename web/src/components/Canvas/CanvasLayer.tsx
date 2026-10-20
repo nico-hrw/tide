@@ -77,13 +77,21 @@ function computeRelativeOffset(
         const fallbackLeft = shell ? shell.getBoundingClientRect().width + 24 : 700;
         return { offsetX: fallbackLeft, offsetY: 0 };
     }
-    const anchorEl = document.querySelector<HTMLElement>(`[data-block-id="${anchorBlockId}"], [data-element-id="${anchorBlockId}"]`);
+    const anchorEl = document.querySelector<HTMLElement>(`[data-block-id="${anchorBlockId}"], [data-element-id="${anchorBlockId}"], [data-anchor-id="${anchorBlockId}"]`);
     const sr = shell.getBoundingClientRect();
+    if (!anchorEl) {
+        return {
+            offsetX: Math.round(elementRect.left - sr.left),
+            offsetY: 0,
+        };
+    }
+    const ar = anchorEl.getBoundingClientRect();
+    const isAnchor = anchorEl.hasAttribute('data-anchor-id');
     return {
-        offsetX: Math.round(elementRect.left - sr.left),   // shell-relative column
-        offsetY: anchorEl
-            ? Math.round(elementRect.top - anchorEl.getBoundingClientRect().top)
-            : 0,
+        offsetX: isAnchor
+            ? Math.round(elementRect.left - ar.left)
+            : Math.round(elementRect.left - sr.left),   // shell-relative column
+        offsetY: Math.round(elementRect.top - ar.top),
     };
 }
 
@@ -180,12 +188,58 @@ export default function CanvasLayer({
         const removedSet = new Set(deletedBlockIds);
         const hasOrphans = elements.some(el => el.anchorBlockId && removedSet.has(el.anchorBlockId));
         if (!hasOrphans) return;
-        const surviving = getAllDomBlockIds();
-        const fallback = surviving[0] ?? null;
-        const repaired = elements.map(el =>
-            el.anchorBlockId && removedSet.has(el.anchorBlockId)
-                ? { ...el, anchorBlockId: fallback, offsetY: 0 } : el
-        );
+
+        const survivingNodes = Array.from(document.querySelectorAll<HTMLElement>('[data-block-id]'));
+        const shell = shellRef.current;
+        const sr = shell?.getBoundingClientRect();
+
+        const repaired = elements.map(el => {
+            if (!el.anchorBlockId || !removedSet.has(el.anchorBlockId)) {
+                return el;
+            }
+
+            const elNode = document.querySelector<HTMLElement>(`[data-element-id="${el.id}"]`);
+            const elRect = elNode?.getBoundingClientRect();
+
+            if (survivingNodes.length > 0) {
+                let closestBlock = survivingNodes[0];
+                let minDistance = Infinity;
+
+                if (elRect) {
+                    for (const node of survivingNodes) {
+                        const nr = node.getBoundingClientRect();
+                        const dist = Math.abs(nr.top - elRect.top);
+                        if (dist < minDistance) {
+                            minDistance = dist;
+                            closestBlock = node;
+                        }
+                    }
+                }
+
+                const newAnchorId = closestBlock.getAttribute('data-block-id') || survivingNodes[0].getAttribute('data-block-id')!;
+                const br = closestBlock.getBoundingClientRect();
+                const newOffsetY = elRect ? Math.round(elRect.top - br.top) : el.offsetY;
+                const newOffsetX = elRect && sr ? Math.round(elRect.left - sr.left) : el.offsetX;
+
+                return {
+                    ...el,
+                    anchorBlockId: newAnchorId,
+                    offsetX: newOffsetX,
+                    offsetY: newOffsetY,
+                };
+            }
+
+            // Fallback if no blocks survive: preserve visual position relative to shell
+            const fallbackOffsetY = elRect && sr ? Math.round(elRect.top - sr.top) : el.offsetY;
+            const fallbackOffsetX = elRect && sr ? Math.round(elRect.left - sr.left) : el.offsetX;
+            return {
+                ...el,
+                anchorBlockId: '',
+                offsetX: fallbackOffsetX,
+                offsetY: fallbackOffsetY,
+            };
+        });
+
         onSaveAll(repaired);
     }, [deletedBlockIds]); // eslint-disable-line react-hooks/exhaustive-deps
 

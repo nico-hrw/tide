@@ -14,7 +14,8 @@ import {
     Plus, 
     Lock, 
     Settings, 
-    LogOut 
+    LogOut,
+    ListTodo 
 } from 'lucide-react';
 import { useHighlight } from '../HighlightContext';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
@@ -23,7 +24,7 @@ import Avatar from '../Profile/Avatar';
 export interface Tab {
     id: string;
     title: string;
-    type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash';
+    type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash';
     content?: any;
     _fileKey?: CryptoKey | null;
     _saveStatus?: "saved" | "unsaved" | "saving";
@@ -32,7 +33,7 @@ export interface Tab {
 interface TabListProps {
     tabs: Tab[];
     activeTabId: string;
-    onTabSelect: (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash') => void;
+    onTabSelect: (id: string, type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash') => void;
     onTabClose: (e: React.MouseEvent | null, id: string) => void;
     onTabsReorder?: (newTabs: Tab[]) => void;
     onNewTab?: () => void;
@@ -79,6 +80,8 @@ export default function TabList({
         switch (type) {
             case 'calendar':
                 return <Calendar size={13} />;
+            case 'todos':
+                return <ListTodo size={13} />;
             case 'chat':
             case 'messages':
                 return <MessageSquare size={13} />;
@@ -105,6 +108,7 @@ export default function TabList({
         }
         switch (tab.type) {
             case 'calendar': return 'Kalender';
+            case 'todos': return 'Todos';
             case 'social': return 'Social';
             case 'job_planner': return 'Job & Uni';
             case 'exams': return 'Job & Uni';

@@ -19,6 +19,17 @@ export interface CalendarEvent {
     recurrence?: string;
     parent_id?: string;
     parent_event_id?: string;
+    groupIds?: string[];
+}
+
+export function getEventGroupIds(event: { groupIds?: string[]; parent_id?: string | null; [key: string]: any }): string[] {
+    if (Array.isArray(event.groupIds) && event.groupIds.length > 0) {
+        return event.groupIds;
+    }
+    if (event.parent_id && typeof event.parent_id === 'string') {
+        return [event.parent_id];
+    }
+    return [];
 }
 
 export function getEventsForDate(targetDate: string | Date, allEvents: CalendarEvent[]): CalendarEvent[] {

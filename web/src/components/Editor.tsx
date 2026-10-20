@@ -13,7 +13,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import { Highlight } from './extensions/Highlight';
 import { useEffect, useState, useRef } from 'react';
-import { Highlighter, Type, Sigma, Eraser, Bold, Italic, Underline as UnderlineIcon, PinIcon, Link2, Table as TableIcon, ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, Trash2, Bookmark, Clock } from 'lucide-react';
+import { Highlighter, Type, Sigma, Eraser, Bold, Italic, Underline as UnderlineIcon, PinIcon, Link2, Table as TableIcon, ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, Trash2, Bookmark, Clock, Calendar } from 'lucide-react';
 import { FontSize } from './extensions/FontSize';
 import { MathBlock, InlineMath } from './extensions/MathBlock';
 import { ResizableImage } from './extensions/ResizableImage';
@@ -63,6 +63,29 @@ const TableActionItem = ({ icon, label, onClick, isDanger = false }: { icon: Rea
     </button>
 );
 
+function formatEventTime(startStr?: string): string {
+    if (!startStr) return '';
+    try {
+        const d = new Date(startStr);
+        if (isNaN(d.getTime())) return startStr;
+        const hasTime = startStr.includes('T') || startStr.includes(':');
+        if (hasTime) {
+            return d.toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        return d.toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric'
+        });
+    } catch {
+        return startStr;
+    }
+}
+
 const MentionNodeView = ({ node }: any) => {
     const id = node.attrs.id || '';
     const label = node.attrs.label || 'Unknown';
@@ -75,14 +98,23 @@ const MentionNodeView = ({ node }: any) => {
     const start = node.attrs.start;
     const isCompleted = liveFile?.is_completed || false;
 
+    const isEvent = type === 'event' || !!useDataStore.getState().events?.find(e => e.id === id);
+    const ev = useDataStore.getState().events?.find(e => e.id === id);
+    const eventMentionStyle = useDataStore((s) => s.eventMentionStyle) || useDataStore.getState().eventMentionStyle || 'blue';
+    const eventMentionPreview = useDataStore((s) => s.eventMentionPreview) || useDataStore.getState().eventMentionPreview || 'hover';
+
+    const isAlwaysBox = isEvent && eventMentionPreview === 'always';
+    const eventDateStr = isEvent ? formatEventTime(ev?.start || start) : '';
+
     // Moderate rounding (not full-pill), inherit font size, tight horizontal padding
-    const baseClass = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium cursor-pointer transition-colors leading-snug align-middle border';
+    const baseClass = isAlwaysBox
+        ? 'inline-flex items-center gap-1.5 px-2.5 py-1 my-0.5 rounded-md font-normal cursor-pointer transition-all leading-snug align-middle border shadow-2xs'
+        : 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium cursor-pointer transition-colors leading-snug align-middle border';
 
     let colorClass = '';
     let styleObj: any = {
         cursor: 'pointer',
         fontSize: 'inherit',
-        border: 'none',
         display: 'inline-flex',
         alignItems: 'center',
         verticalAlign: 'middle',
@@ -90,50 +122,90 @@ const MentionNodeView = ({ node }: any) => {
 
     if (isGhost) {
         colorClass = 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600 border-gray-200 dark:border-slate-600';
-    } else if (type === 'event') {
-        if (liveFile?.color) {
+    } else if (isEvent) {
+        if (eventMentionStyle === 'calendar' && (ev?.color || liveFile?.color)) {
+            const eventColor = ev?.color || liveFile?.color;
             styleObj = {
                 ...styleObj,
-                backgroundColor: "rgba(98, 54, 255, 0.14)",
-                color: "#7C3AED"
+                backgroundColor: `${eventColor}15`,
+                borderColor: `${eventColor}40`,
+                color: eventColor,
             };
         } else {
-            colorClass = 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800 dark:hover:bg-blue-900/40';
+            colorClass = 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700/50';
         }
     } else {
         colorClass = 'bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/40';
     }
 
+    if (isAlwaysBox) {
+        styleObj = {
+            ...styleObj,
+            borderLeftWidth: '3px',
+            borderLeftColor: (eventMentionStyle === 'calendar' && (ev?.color || liveFile?.color))
+                ? (ev?.color || liveFile?.color)
+                : '#3b82f6',
+        };
+    }
+
     return (
         <NodeViewWrapper
             as="span"
-            className={`${baseClass} ${colorClass}`}
+            className={`${baseClass} ${colorClass} group relative`}
             data-type="mention"
             data-id={id}
             data-label={label}
             data-is-ghost={isGhost ? 'true' : 'false'}
+            data-type-link={isEvent ? 'event' : type}
+            data-start={ev?.start || start || ''}
             onClick={(e: React.MouseEvent) => {
                 e.stopPropagation();
                 e.preventDefault();
-                window.dispatchEvent(new CustomEvent('editor:mention-click', { detail: { id, title, type, start } }));
+                if (isEvent) {
+                    window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id, start: ev?.start || start } }));
+                    window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id, start: ev?.start || start } }));
+                }
+                window.dispatchEvent(new CustomEvent('editor:mention-click', { detail: { id, title, type: isEvent ? 'event' : type, start: ev?.start || start } }));
             }}
             style={styleObj}
+            title={isEvent && eventMentionPreview === 'hover' && eventDateStr ? `${title} (${eventDateStr})` : undefined}
         >
-            {type === 'event' && liveFile?.is_task && (
-                <input
-                    type="checkbox"
-                    checked={isCompleted}
-                    onChange={(e) => {
-                        e.stopPropagation();
-                        window.dispatchEvent(new CustomEvent('event-task:toggle', { detail: { id, is_completed: !isCompleted } }));
-                    }}
-                    className="w-3.5 h-3.5 rounded-sm cursor-pointer border-blue-300 dark:border-blue-600 focus:ring-0 m-0"
-                    style={liveFile?.color ? { accentColor: liveFile.color, marginTop: '-1px' } : { marginTop: '-1px' }}
-                />
+            {isAlwaysBox ? (
+                <>
+                    <Calendar className="w-3.5 h-3.5 opacity-70 shrink-0" style={{ color: (eventMentionStyle === 'calendar' && (ev?.color || liveFile?.color)) ? (ev?.color || liveFile?.color) : undefined }} />
+                    <span className="font-semibold text-xs truncate max-w-[160px]">{title}</span>
+                    {eventDateStr && (
+                        <span className="text-[11px] opacity-75 truncate border-l pl-1.5 border-current/20">
+                            {eventDateStr}
+                        </span>
+                    )}
+                </>
+            ) : (
+                <>
+                    {isEvent && liveFile?.is_task && (
+                        <input
+                            type="checkbox"
+                            checked={isCompleted}
+                            onChange={(e) => {
+                                e.stopPropagation();
+                                window.dispatchEvent(new CustomEvent('event-task:toggle', { detail: { id, is_completed: !isCompleted } }));
+                            }}
+                            className="w-3.5 h-3.5 rounded-sm cursor-pointer border-blue-300 dark:border-blue-600 focus:ring-0 m-0"
+                            style={(ev?.color || liveFile?.color) ? { accentColor: ev?.color || liveFile?.color, marginTop: '-1px' } : { marginTop: '-1px' }}
+                        />
+                    )}
+                    <span className={isEvent && liveFile?.is_task && isCompleted ? 'line-through opacity-60' : ''}>
+                        @{title}
+                    </span>
+                    {isEvent && eventMentionPreview === 'hover' && (
+                        <span className="pointer-events-none invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 px-2.5 py-1 rounded-md bg-gray-900/90 dark:bg-gray-800/95 text-white text-xs shadow-lg whitespace-nowrap flex items-center gap-1.5 font-normal backdrop-blur-sm">
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ev?.color || liveFile?.color || '#3b82f6' }} />
+                            <span className="font-medium">{title}</span>
+                            {eventDateStr && <span className="opacity-75 text-[11px]">({eventDateStr})</span>}
+                        </span>
+                    )}
+                </>
             )}
-            <span className={type === 'event' && liveFile?.is_task && isCompleted ? 'line-through opacity-60' : ''}>
-                @{title}
-            </span>
         </NodeViewWrapper>
     );
 };
@@ -667,7 +739,7 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
             },
             handleClick: (view, pos, event) => {
                 const target = event.target as HTMLElement;
-                const mentionNode = target.closest('.mention');
+                const mentionNode = target.closest('.mention') || target.closest('[data-type="mention"]');
                 if (mentionNode) {
                     event.preventDefault(); // Prevent default URL navigation
                     const targetId = mentionNode.getAttribute('data-id');
@@ -675,13 +747,20 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
                     const start = mentionNode.getAttribute('data-start');
 
                     if (targetId) {
-                        if (type === 'event') {
+                        const isEvent = type === 'event' || !!useDataStore.getState().events?.find((e: any) => e.id === targetId);
+                        const ev = useDataStore.getState().events?.find((e: any) => e.id === targetId);
+                        const eventStart = ev?.start || start;
+
+                        if (isEvent) {
                             if (onEventClick) {
                                 onEventClick(targetId);
                             }
-                            // Custom event for calendar scrolling
+                            // Custom event for calendar scrolling & selection
                             window.dispatchEvent(new CustomEvent('calendar:scroll-to', {
-                                detail: { id: targetId, start }
+                                detail: { id: targetId, start: eventStart }
+                            }));
+                            window.dispatchEvent(new CustomEvent('tide:select-event', {
+                                detail: { id: targetId, start: eventStart }
                             }));
                             return true;
                         }
@@ -1067,11 +1146,14 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
 
         const handleMentionClick = (e: CustomEvent) => {
             const { id, title, type, start } = e.detail;
+            const isEvent = type === 'event' || !!useDataStore.getState().events?.find(item => item.id === id);
+            const ev = useDataStore.getState().events?.find(item => item.id === id);
+            const eventStart = ev?.start || start;
 
-            if (type === 'event') {
+            if (isEvent) {
                 if (onEventClickRef.current) onEventClickRef.current(id);
-                if (onLinkClickRef.current) onLinkClickRef.current({ id, type: 'event', title });
-                window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id, start } }));
+                window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id, start: eventStart } }));
+                window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id, start: eventStart } }));
                 return;
             }
 
@@ -1085,8 +1167,11 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
         // [FEATURE] Calendar Event pill click → open event popover
         const handleCalEventMentionClick = (e: CustomEvent) => {
             const { eventId, title, start } = e.detail;
+            const ev = useDataStore.getState().events?.find(item => item.id === eventId);
+            const eventStart = ev?.start || start;
             if (onEventClickRef.current) onEventClickRef.current(eventId);
-            window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id: eventId, start } }));
+            window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id: eventId, start: eventStart } }));
+            window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id: eventId, start: eventStart } }));
         };
         window.addEventListener('calendarEventMention:click', handleCalEventMentionClick as EventListener);
 
@@ -1451,7 +1536,31 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
                                             anchorBlockId = node.attrs.blockId as string;
                                         }
                                     });
-                                    if (selectedText && anchorBlockId) {
+                                    if (!anchorBlockId) {
+                                        anchorBlockId = currentBlockIdRef.current;
+                                    }
+                                    if (!anchorBlockId) {
+                                        const { $to } = editor.state.selection;
+                                        for (let d = $to.depth; d >= 0; d--) {
+                                            const node = $to.node(d);
+                                            if (node.isBlock) {
+                                                const newId = crypto.randomUUID();
+                                                const pos = $to.before(d);
+                                                const tr = editor.state.tr.setNodeMarkup(pos, undefined, {
+                                                    ...node.attrs,
+                                                    blockId: newId
+                                                });
+                                                editor.view.dispatch(tr);
+                                                anchorBlockId = newId;
+                                                currentBlockIdRef.current = newId;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (!anchorBlockId) {
+                                        anchorBlockId = crypto.randomUUID();
+                                    }
+                                    if (selectedText) {
                                         const anchorId = crypto.randomUUID();
                                         editor.chain()
                                             .focus()
@@ -1479,8 +1588,33 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
                                 onMouseDown={(e) => e.preventDefault()}
                                 onClick={() => {
                                     // Use the pre-tracked block ID at $head (cursor position, not selection start)
-                                    const blockId = currentBlockIdRef.current;
-                                    if (blockId) onConnectImage(blockId);
+                                    let blockId = currentBlockIdRef.current;
+                                    if (!blockId) {
+                                        const { $to } = editor.state.selection;
+                                        for (let d = $to.depth; d >= 0; d--) {
+                                            const node = $to.node(d);
+                                            if (node.isBlock) {
+                                                if (node.attrs?.blockId) {
+                                                    blockId = node.attrs.blockId as string;
+                                                } else {
+                                                    const newId = crypto.randomUUID();
+                                                    const pos = $to.before(d);
+                                                    const tr = editor.state.tr.setNodeMarkup(pos, undefined, {
+                                                        ...node.attrs,
+                                                        blockId: newId
+                                                    });
+                                                    editor.view.dispatch(tr);
+                                                    blockId = newId;
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (!blockId) {
+                                        blockId = crypto.randomUUID();
+                                    }
+                                    currentBlockIdRef.current = blockId;
+                                    onConnectImage(blockId);
                                 }}
                                 className="p-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 text-gray-700 dark:text-gray-300 hover:text-[#000080] transition-colors"
                             >

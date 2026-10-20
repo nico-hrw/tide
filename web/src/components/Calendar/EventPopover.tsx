@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import { format } from "date-fns";
 import { Star, Ban, Trash2, X, ChevronDown, Check, Clock } from "lucide-react";
+import { getEventGroupIds } from "../../lib/calendarUtils";
 
 interface CustomDropdownOption {
     value: string;
@@ -95,6 +96,7 @@ export interface EventPopoverEvent {
     end: string;
     description?: string;
     parent_id?: string | null;
+    groupIds?: string[];
     color?: string;
     effect?: string;
     allDay?: boolean;
@@ -140,6 +142,7 @@ export default function EventPopover({
     const [tags, setTags] = useState<string[]>([
         event.tags?.[0] ?? '', event.tags?.[1] ?? '', event.tags?.[2] ?? ''
     ]);
+    const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(getEventGroupIds(event));
     const [isExpanded, setIsExpanded] = useState(false);
     const [showHints, setShowHints] = useState(false);
 
@@ -175,6 +178,7 @@ export default function EventPopover({
         setColor(event.color || '#6366f1');
         setIsCancelled(isThisOccCancelledOrig);
         setTags([event.tags?.[0] ?? '', event.tags?.[1] ?? '', event.tags?.[2] ?? '']);
+        setSelectedGroupIds(getEventGroupIds(event));
         const parts = getRRuleParts(event);
         setFreq(parts.freq);
         setIntervalVal(parts.interval);
@@ -206,8 +210,19 @@ export default function EventPopover({
         const currentRecurrenceRule = event.recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`;
         if (newRecurrenceRule !== currentRecurrenceRule && (updates as any).recurrence_rule === undefined) (updates as any).recurrence_rule = newRecurrenceRule;
         if (recurrenceEnd !== (event.recurrence_end || '') && updates.recurrence_end === undefined) updates.recurrence_end = recurrenceEnd;
+
+        const currentGroupIds = getEventGroupIds(event);
+        if (JSON.stringify(selectedGroupIds) !== JSON.stringify(currentGroupIds) && updates.groupIds === undefined) {
+            updates.groupIds = selectedGroupIds;
+            if (updates.parent_id === undefined) {
+                updates.parent_id = selectedGroupIds[0] || null;
+            }
+        } else if (updates.groupIds !== undefined && updates.parent_id === undefined) {
+            updates.parent_id = updates.groupIds[0] || null;
+        }
+
         if (Object.keys(updates).length > 0) onEventSave(event.id, updates);
-    }, [event, title, description, isImportant, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, onEventSave]);
+    }, [event, title, description, isImportant, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, selectedGroupIds, onEventSave]);
 
     // Keep ref current so the unmount cleanup always calls the latest version
     useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
@@ -215,7 +230,7 @@ export default function EventPopover({
     useEffect(() => {
         const timer = setTimeout(() => handleSave(), 300);
         return () => clearTimeout(timer);
-    }, [title, description, isImportant, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, handleSave]);
+    }, [title, description, isImportant, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, selectedGroupIds, handleSave]);
 
     // Save on unmount only when the popup was dismissed without the explicit close button
     // (scroll-away, click-outside). handleClose sets savedOnCloseRef to avoid a double-save.
@@ -238,13 +253,18 @@ export default function EventPopover({
         if (top < 60) top = 60;
 
         setPos({ top, left });
-    }, [rect, isExpanded, showColorPicker, showHints]);
+    }, [rect, isExpanded, showColorPicker, showHints, selectedGroupIds]);
 
     const handleClose = () => { savedOnCloseRef.current = true; handleSave(); onClose(); };
     const handleTaskToggle = (v: boolean) => { setIsTask(v); if (!v) setIsCompleted(false); };
     const updateRecurrence = (newFreq: string, newInterval: number) => { setFreq(newFreq); setIntervalVal(newInterval); };
+    const updateGroupIds = (next: string[]) => {
+        setSelectedGroupIds(next);
+        handleSave({ groupIds: next, parent_id: next[0] || null });
+    };
 
     const existingTags = tags.filter(t => t.trim() !== '');
+    const availableThemes = themes.filter(t => !selectedGroupIds.includes(t.id));
 
     return (
         <div
@@ -362,23 +382,97 @@ export default function EventPopover({
                 </div>
             </div>
 
-            {/* Theme + Repeat */}
-            <div className="grid grid-cols-2 gap-2">
-                <div className="flex flex-col gap-1">
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest px-1">Theme</span>
-                    <ModernDropdown
-                        value={event.parent_id || 'general-theme'}
-                        options={[
-                            { value: 'general-theme', label: 'Kein Theme' },
-                            ...themes.map(t => ({ value: t.id, label: t.title, color: t.color }))
-                        ]}
-                        onChange={(val) => {
-                            const nextParent = val === 'general-theme' ? null : val;
-                            onEventSave(event.id, { parent_id: nextParent });
-                        }}
-                        placeholder="Kein Theme"
-                    />
+            {/* Groups / Tags & Repeat */}
+            <div className="flex flex-col gap-2.5">
+                {/* Groups / Tags */}
+                <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between px-1">
+                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Gruppen / Tags</span>
+                        {selectedGroupIds.length > 1 && (
+                            <span className="text-[9px] text-gray-400 dark:text-gray-500 font-medium">1. Tag = Stil</span>
+                        )}
+                    </div>
+
+                    {/* Chips */}
+                    {selectedGroupIds.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5 p-1.5 bg-gray-50/70 dark:bg-white/5 rounded-xl border border-gray-100/60 dark:border-white/5">
+                            {selectedGroupIds.map((id, index) => {
+                                const theme = themes.find(t => t.id === id);
+                                const isPrimary = index === 0;
+                                return (
+                                    <div
+                                        key={id}
+                                        className={`flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg text-xs font-semibold border transition-all ${
+                                            isPrimary
+                                                ? 'bg-violet-50 dark:bg-violet-500/15 border-violet-200 dark:border-violet-500/30 text-violet-700 dark:text-violet-300'
+                                                : 'bg-white dark:bg-white/10 border-gray-200/60 dark:border-white/10 text-gray-700 dark:text-gray-300'
+                                        }`}
+                                    >
+                                        <span
+                                            className="w-2 h-2 rounded-full shrink-0"
+                                            style={{ backgroundColor: theme?.color || '#6366f1' }}
+                                        />
+                                        <span className="truncate max-w-[100px]" title={theme?.title || id}>
+                                            {theme?.title || id}
+                                        </span>
+                                        {isPrimary ? (
+                                            <span
+                                                className="text-[8px] font-bold uppercase tracking-wider bg-violet-200/60 dark:bg-violet-500/30 text-violet-800 dark:text-violet-200 px-1 py-0.5 rounded"
+                                                title="Stil / Hauptgruppe"
+                                            >
+                                                Stil / Hauptgruppe
+                                            </span>
+                                        ) : (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const next = [id, ...selectedGroupIds.filter(gId => gId !== id)];
+                                                    updateGroupIds(next);
+                                                }}
+                                                className="text-[9px] text-gray-400 hover:text-violet-600 dark:hover:text-violet-300 hover:bg-gray-100 dark:hover:bg-white/10 px-1 py-0.5 rounded font-medium transition-colors"
+                                                title="Als Stil / Hauptgruppe festlegen"
+                                            >
+                                                ↑ Stil
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const next = selectedGroupIds.filter(gId => gId !== id);
+                                                updateGroupIds(next);
+                                            }}
+                                            className="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20 p-0.5 rounded transition-colors"
+                                            title="Gruppe entfernen"
+                                        >
+                                            <X size={11} />
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="text-[11px] text-gray-400 dark:text-gray-500 italic px-1">
+                            Keine Gruppen zugeordnet
+                        </div>
+                    )}
+
+                    {/* Add Group dropdown */}
+                    {availableThemes.length > 0 && (
+                        <ModernDropdown
+                            value=""
+                            options={availableThemes.map(t => ({ value: t.id, label: t.title, color: t.color }))}
+                            onChange={(val) => {
+                                if (val) {
+                                    const next = [...selectedGroupIds, val];
+                                    updateGroupIds(next);
+                                }
+                            }}
+                            placeholder="+ Gruppe hinzufügen"
+                        />
+                    )}
                 </div>
+
+                {/* Wiederholen */}
                 <div className="flex flex-col gap-1">
                     <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest px-1">Wiederholen</span>
                     <ModernDropdown

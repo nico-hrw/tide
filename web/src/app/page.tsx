@@ -21,6 +21,8 @@ import dynamic from 'next/dynamic';
 import { getTranslation, useTranslation } from "@/lib/i18n";
 import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
+import { TodoList } from '../components/Todo/TodoList';
+import { getEventGroupIds } from '../lib/calendarUtils';
 
 const Editor = dynamic(() => import('@/components/Editor'), {
     ssr: false,
@@ -264,7 +266,7 @@ export default function Dashboard() {
 
     // Derived State
     const activeTabIdStr = typeof activeTabId === 'string' ? activeTabId : String(activeTabId || 'calendar');
-    const activeNoteId = (activeTabIdStr !== 'calendar' && activeTabIdStr !== 'messages' && !activeTabIdStr.startsWith('chat-'))
+    const activeNoteId = (activeTabIdStr !== 'calendar' && activeTabIdStr !== 'todos' && activeTabIdStr !== 'messages' && !activeTabIdStr.startsWith('chat-'))
         ? activeTabIdStr
         : null;
 
@@ -1049,6 +1051,7 @@ export default function Dashboard() {
                 const res = await apiFetch(`/api/v1/files/${fileId}`);
                 if (res.status === 404) {
                     // File no longer exists on the server — remove from store + close tab
+                    apiFetch('/api/v1/files/' + fileId, { method: 'DELETE' }).catch(() => {});
                     useDataStore.getState().setNotes(useDataStore.getState().notes.filter((n: any) => n.id !== fileId));
                     setOpenTabs(prev => prev.filter(t => t.id !== fileId));
                     const fallbackTab = openTabs.find(t => t.id !== fileId);
@@ -1066,8 +1069,11 @@ export default function Dashboard() {
             if (target.visibility === 'public') {
                 const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
                 if (resBlob.status === 404) {
+                    apiFetch('/api/v1/files/' + fileId, { method: 'DELETE' }).catch(() => {});
                     setOpenTabs(prev => prev.filter(t => t.id !== fileId));
                     useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
+                    const fallbackTab = openTabs.find(t => t.id !== fileId);
+                    if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
                     throw new Error("File not found on server (404)");
                 }
                 if (resBlob.ok) contentText = await resBlob.text();
@@ -1146,6 +1152,7 @@ export default function Dashboard() {
                 } else {
                     const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
                     if (resBlob.status === 404) {
+                        apiFetch('/api/v1/files/' + fileId, { method: 'DELETE' }).catch(() => {});
                         setOpenTabs(prev => prev.filter(t => t.id !== fileId));
                         useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
                         const fallbackTab = openTabs.find(t => t.id !== fileId);
@@ -1208,6 +1215,7 @@ export default function Dashboard() {
                 } else {
                     const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
                     if (resBlob.status === 404) {
+                        apiFetch('/api/v1/files/' + fileId, { method: 'DELETE' }).catch(() => {});
                         setOpenTabs(prev => prev.filter(t => t.id !== fileId));
                         useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
                         const fallbackTab = openTabs.find(t => t.id !== fileId);
@@ -1250,7 +1258,8 @@ export default function Dashboard() {
             }
 
             // AUTO-RESTORE FROM BACKUP: If the content is empty but we have a backup history, restore it
-            if (isContentEmpty && !recoveredBackup) {
+            const isCorruptOrMissing = (parsedContent === null || parsedContent === undefined);
+            if (isCorruptOrMissing && !recoveredBackup) {
                 console.warn(`[RECOVERY] Note ${fileId} loaded empty. Attempting auto-restore from backup history...`);
                 try {
                     const bListRes = await apiFetch(`/api/v1/files/${fileId}/backups`);
@@ -1430,8 +1439,14 @@ export default function Dashboard() {
                 initialContentRef.current = emptyDoc;
                 userHasTypedRef.current = false;
             }
-        } catch (err) {
-            if (lastLoadIdRef.current === loadId) {
+        } catch (err: any) {
+            if (err?.message?.includes('404')) {
+                apiFetch('/api/v1/files/' + fileId, { method: 'DELETE' }).catch(() => {});
+                useDataStore.getState().setNotes(useDataStore.getState().notes.filter((n: any) => n.id !== fileId));
+                setOpenTabs(prev => prev.filter(t => t.id !== fileId));
+                const fallbackTab = openTabs.find(t => t.id !== fileId);
+                if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
+            } else if (lastLoadIdRef.current === loadId) {
                 console.error("Failed to load note:", err);
                 const fallbackDoc = {
                     type: 'doc',
@@ -1451,7 +1466,7 @@ export default function Dashboard() {
         const currentContentToUse = currentOverride || editorContent || canvasNoteData;
         const currentTabId = useDataStore.getState().activeNoteId || activeTabId; // Use ref-like safety
 
-        const isOldAFile = currentTabId !== 'calendar' && currentTabId !== 'messages' && !currentTabId.startsWith('chat-');
+        const isOldAFile = currentTabId !== 'calendar' && currentTabId !== 'todos' && currentTabId !== 'messages' && !currentTabId.startsWith('chat-');
 
         if (isOldAFile && (saveStatus === 'unsaved' || currentOverride) && currentContentToUse) {
             console.log(`[Lifecycle] Tab switch: Forcing final save of ${currentTabId}`);
@@ -1477,7 +1492,7 @@ export default function Dashboard() {
             } else {
                 const newTab: Tab = {
                     id: newId,
-                    title: forcedTitle || (type === 'calendar' ? 'Calendar' : defaultNoteTitle),
+                    title: forcedTitle || (type === 'calendar' ? 'Calendar' : type === 'todos' ? 'Todos' : defaultNoteTitle),
                     type: type as any
                 };
                 return [...nextTabs, newTab];
@@ -2919,7 +2934,8 @@ export default function Dashboard() {
                 shading: updates.shading !== undefined ? updates.shading : (event as any).shading,
                 linkedTaskId: (event as any).linkedTaskId,
                 tags: updates.tags !== undefined ? updates.tags : (event as any).tags,
-                is_important: updates.is_important !== undefined ? updates.is_important : (event as any).is_important
+                is_important: updates.is_important !== undefined ? updates.is_important : (event as any).is_important,
+                groupIds: updates.groupIds !== undefined ? updates.groupIds : (event as any).groupIds
             };
             if (updates.recurrence_rule !== undefined) meta.recurrence_rule = updates.recurrence_rule;
             else if ((event as any).recurrence_rule) meta.recurrence_rule = (event as any).recurrence_rule;
@@ -2933,7 +2949,13 @@ export default function Dashboard() {
                     const evt = { ...e, ...meta } as any;
                     if (updates.is_task !== undefined) evt.is_task = updates.is_task;
                     if (updates.is_completed !== undefined) evt.is_completed = updates.is_completed;
-                    if (updates.parent_id !== undefined) evt.parent_id = updates.parent_id;
+                    if (updates.groupIds !== undefined) {
+                        (evt as any).groupIds = updates.groupIds;
+                        const primaryId = updates.groupIds.length > 0 ? updates.groupIds[0] : null;
+                        evt.parent_id = primaryId;
+                    } else if (updates.parent_id !== undefined) {
+                        evt.parent_id = updates.parent_id;
+                    }
                     return evt;
                 }
                 return e;
@@ -2943,6 +2965,11 @@ export default function Dashboard() {
             useDataStore.getState().updateSpecificMetadataCache(baseId, meta);
 
             // If theme changed
+            if (updates.groupIds !== undefined) {
+                const primaryId = updates.groupIds.length > 0 ? updates.groupIds[0] : null;
+                const currentFiles = useDataStore.getState().notes;
+                useDataStore.getState().setNotes(currentFiles.map((n: any) => n.id === baseId ? { ...n, parent_id: primaryId } : n));
+            } else
             if (updates.parent_id !== undefined) {
                 const currentFiles = useDataStore.getState().notes;
                 useDataStore.getState().setNotes(currentFiles.map((n: any) => n.id === baseId ? { ...n, parent_id: updates.parent_id } : n));
@@ -2982,6 +3009,13 @@ export default function Dashboard() {
             }
 
             // 5. Handle Theme Change
+            if (updates.groupIds !== undefined) {
+                (event as any).groupIds = updates.groupIds;
+                const primaryId = updates.groupIds.length > 0 ? updates.groupIds[0] : null;
+                event.parent_id = primaryId;
+                body.parent_id = primaryId === null ? '__none__' : primaryId;
+                meta.groupIds = updates.groupIds;
+            } else
             if (updates.parent_id !== undefined) {
                 // Go backend can't distinguish absent vs null for *string fields,
                 // so we send "__none__" as a sentinel to mean "set to NULL".
@@ -3127,6 +3161,19 @@ export default function Dashboard() {
         return () => window.removeEventListener('click', handleClick, true);
     }, [editorInstance]);
 
+    // Clear deletedBlockIds on active note change so stale deletions don't poison newly loaded notes
+    useEffect(() => {
+        setDeletedBlockIds([]);
+    }, [activeNoteId]);
+
+    const handleBlocksDeleted = useCallback((ids: string[]) => {
+        setDeletedBlockIds(ids);
+        // Clear after CanvasLayer processes orphan recovery so future blocks are not poisoned
+        setTimeout(() => {
+            setDeletedBlockIds([]);
+        }, 1000);
+    }, []);
+
     // Canvas rebind: when right-clicking an image and selecting "Change anchor",
     // CanvasLayer dispatches canvas:requestRebind. We enter binding mode so the
     // user can then click a text block to pick the new anchor.
@@ -3161,7 +3208,11 @@ export default function Dashboard() {
 
     // 5. Tab Management & Messages
     // -------------------------------------------------------------------------
-    const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash') => {
+    const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash') => {
+        if (id === 'todos' || type === 'todos') {
+            switchTab('todos', 'todos', 'Todos');
+            return;
+        }
         if (type === 'social') {
             setActiveTabId('social');
             return;
@@ -3193,6 +3244,12 @@ export default function Dashboard() {
     };
 
     const handleMagicLinkClick = async (target: any) => {
+        const targetIsEvent = target.type === 'event' || useDataStore.getState().events?.some((e: any) => e.id === target.id);
+        if (targetIsEvent) {
+            window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id: target.id } }));
+            return;
+        }
+
         if (target.id && target.id.startsWith('ghost-')) {
             const ghostId = target.id;
             const title = target.title || target.id.replace('ghost-', '');
@@ -3230,12 +3287,8 @@ export default function Dashboard() {
             useDataStore.getState().setActiveNoteId(newId);
 
         } else if (target.type === 'event') {
-            switchTab('calendar', 'calendar');
-            const targetEvent = events.find(e => e.id === target.id);
-            if (targetEvent) {
-                setCalendarDate(new Date(targetEvent.start));
-                setActiveEventId(target.id);
-            }
+            window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id: target.id } }));
+            return;
 
         } else if (target.type === 'task') {
             // Find the calendar event that was created from this task (via linkedTaskId)
@@ -3458,7 +3511,7 @@ export default function Dashboard() {
                                 }}
                                 userProfile={userProfile}
                                 myId={myId}
-                                onBlocksDeleted={(ids) => setDeletedBlockIds(ids)}
+                                onBlocksDeleted={handleBlocksDeleted}
                                 onPopOut={(text, anchorBlockId) => {
                                     const widget: TextWidgetElement = {
                                         id: crypto.randomUUID(),
@@ -3522,6 +3575,7 @@ export default function Dashboard() {
                     onOpenSocial={() => setActiveTabId('social')}
                     onOpenExams={() => handleTabSelect('job_planner', 'job_planner')}
                     onOpenFinance={() => handleFileSelect('ext_finance', 'Finance Tracker')}
+                    onOpenTodos={() => handleTabSelect('todos', 'todos')}
                 />
             </div>
 
@@ -3660,9 +3714,9 @@ export default function Dashboard() {
                             const parent = files?.find(f => f.id === e.parent_id);
                             return { ...e, effect: parent?.effect || 'none' };
                         }).filter(e => {
-                            const parentId = e.parent_id || 'general-theme';
-                            if (!e.parent_id) return !hiddenThemeIds.includes('general-theme');
-                            return !hiddenThemeIds.includes(parentId);
+                            const gIds = getEventGroupIds(e);
+                            if (gIds.length === 0) return !hiddenThemeIds.includes('general-theme');
+                            return gIds.some(gid => !hiddenThemeIds.includes(gid));
                         })}
                         onEventCreate={handleEventCreate}
                         onEventUpdate={handleEventUpdate}
@@ -3721,13 +3775,17 @@ export default function Dashboard() {
                     )}
                 </div>
 
+                <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'todos' ? 'block' : 'hidden'}`}>
+                    {activeTabId === 'todos' && <TodoList />}
+                </div>
+
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'trash' ? 'block' : 'hidden'}`}>
                     {activeTabId === 'trash' && (
                         <TrashPanel />
                     )}
                 </div>
 
-                <div className={`flex-1 min-h-0 relative overflow-y-auto ${activeTabId === 'calendar' || activeTabId === 'messages' || activeTabId === 'social' || activeTabId === 'job_planner' || activeTabId === 'exams' || activeTabId === 'trash' || activeTabId.startsWith('chat-') || activeTabId === 'ext_finance' || activeTabId.startsWith('profile:') ? 'hidden' : 'block'}`}>
+                <div className={`flex-1 min-h-0 relative overflow-y-auto ${activeTabId === 'calendar' || activeTabId === 'todos' || activeTabId === 'messages' || activeTabId === 'social' || activeTabId === 'job_planner' || activeTabId === 'exams' || activeTabId === 'trash' || activeTabId.startsWith('chat-') || activeTabId === 'ext_finance' || activeTabId.startsWith('profile:') ? 'hidden' : 'block'}`}>
                     {isLoadingContent ? (
                         <div className="flex items-center justify-center h-full text-gray-400">Loading content...</div>
                     ) : (
@@ -4077,7 +4135,7 @@ export default function Dashboard() {
                                                             }
                                                         }
                                                     }}
-                                                    onBlocksDeleted={(ids) => setDeletedBlockIds(ids)}
+                                                    onBlocksDeleted={handleBlocksDeleted}
                                                     onPopOut={(text, anchorBlockId) => {
                                                         const widget: TextWidgetElement = {
                                                             id: crypto.randomUUID(),

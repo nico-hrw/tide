@@ -16,6 +16,8 @@ export interface TaskItem {
     isCompleted: boolean;
     linkedNoteId?: string;
     scheduledDate?: string;
+    priority?: 'low' | 'medium' | 'high';
+    dueDate?: string;
 }
 
 interface DataState {
@@ -65,8 +67,14 @@ interface DataState {
     toggleFolder: (id: string, open?: boolean) => void;
 
     isSettingsModalOpen: boolean;
-    settingsModalTab: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access';
-    setSettingsModalOpen: (open: boolean, tab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access') => void;
+    settingsModalTab: 'account' | 'calendar' | 'appearance' | 'extensions' | 'access' | 'info' | 'debug';
+    setSettingsModalTab: (tab: 'account' | 'calendar' | 'appearance' | 'extensions' | 'access' | 'info' | 'debug') => void;
+
+    eventMentionStyle: 'blue' | 'calendar';
+    setEventMentionStyle: (style: 'blue' | 'calendar') => void;
+    eventMentionPreview: 'always' | 'hover' | 'off';
+    setEventMentionPreview: (preview: 'always' | 'hover' | 'off') => void;
+    setSettingsModalOpen: (open: boolean, tab?: 'account' | 'calendar' | 'appearance' | 'extensions' | 'access' | 'info' | 'debug') => void;
 
     enabledExtensions: string[];
     setEnabledExtensions: (extensions: string[] | ((prev: string[]) => string[])) => void;
@@ -98,12 +106,23 @@ export const useDataStore = create<DataState>((set, get) => ({
     metadataCache: {},
     isSettingsModalOpen: false,
     settingsModalTab: 'account',
-    setSettingsModalOpen: (open: boolean, tab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access') => 
+    setSettingsModalOpen: (open: boolean, tab?: 'account' | 'calendar' | 'appearance' | 'extensions' | 'access' | 'info' | 'debug') => 
         set(s => ({ 
             isSettingsModalOpen: open, 
             settingsModalTab: tab || (open ? s.settingsModalTab : 'account') 
         })),
-    enabledExtensions: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('tide_enabled_extensions') || '["smart_island", "summary", "smart_date_detection", "job_planner"]') : ['smart_island', 'summary', 'smart_date_detection', 'job_planner'],
+    setSettingsModalTab: (tab) => set({ settingsModalTab: tab }),
+    eventMentionStyle: (typeof window !== 'undefined' && (localStorage.getItem('tide_event_mention_style') as 'blue' | 'calendar')) || 'blue',
+    setEventMentionStyle: (style) => {
+        if (typeof window !== 'undefined') localStorage.setItem('tide_event_mention_style', style);
+        set({ eventMentionStyle: style });
+    },
+    eventMentionPreview: (typeof window !== 'undefined' && (localStorage.getItem('tide_event_mention_preview') as 'always' | 'hover' | 'off')) || 'hover',
+    setEventMentionPreview: (preview) => {
+        if (typeof window !== 'undefined') localStorage.setItem('tide_event_mention_preview', preview);
+        set({ eventMentionPreview: preview });
+    },
+    enabledExtensions: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('tide_enabled_extensions') || '["smart_island", "summary", "smart_date_detection", "job_planner", "debug"]') : ['smart_island', 'summary', 'smart_date_detection', 'job_planner', 'debug'],
     setEnabledExtensions: (extensions) => set(s => {
         const next = typeof extensions === 'function' ? extensions(s.enabledExtensions) : extensions;
         localStorage.setItem('tide_enabled_extensions', JSON.stringify(next));
@@ -246,6 +265,8 @@ export const useDataStore = create<DataState>((set, get) => ({
                 color: newTask.color,
                 linkedNoteId: newTask.linkedNoteId,
                 scheduledDate: newTask.scheduledDate,
+                priority: newTask.priority,
+                dueDate: newTask.dueDate,
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, state.publicKey);
             
@@ -315,6 +336,8 @@ export const useDataStore = create<DataState>((set, get) => ({
                 color: mergedTask.color,
                 linkedNoteId: mergedTask.linkedNoteId,
                 scheduledDate: mergedTask.scheduledDate,
+                priority: mergedTask.priority,
+                dueDate: mergedTask.dueDate,
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, publicKey);
 

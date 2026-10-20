@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Layout, X, GraduationCap, ShieldCheck } from "lucide-react";
+import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Layout, X, GraduationCap, ShieldCheck, ListTodo } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, Reorder, AnimatePresence, LayoutGroup } from "framer-motion";
 import { Tab } from '@/components/Layout/TabList';
@@ -66,6 +66,7 @@ interface SidebarProps {
     onOpenFinance?: () => void;
     onOpenExams?: () => void;
     onNewCanvasNote?: () => void;
+    onOpenTodos?: () => void;
 }
 
 interface ChatUser {
@@ -109,6 +110,7 @@ export default function Sidebar({
     onOpenFinance,
     onOpenExams,
     onNewCanvasNote,
+    onOpenTodos,
 }: SidebarProps) {
     const { highlight } = useHighlight();
     const { orderedNoteIds, setOrderedNoteIds, setSettingsModalOpen } = useDataStore();
@@ -748,10 +750,23 @@ export default function Sidebar({
 
             {/* Bottom spacer — reserves height for the absolutely-positioned Smart Island.
                 Needs to be >= island height (≈250px) + bottom-6 margin (24px). */}
-            <div className="flex-shrink-0 h-[300px]" />
+            <div className="flex-shrink-0 h-[340px]" />
 
             {/* Smart Island — absolutely positioned, extends beyond sidebar */}
-            <div className="absolute bottom-4 left-4 right-4 z-[100]">
+            <div className="absolute bottom-4 left-4 right-4 z-[100] flex flex-col gap-2">
+                <div className="flex items-center justify-start px-1">
+                    <button
+                        onClick={() => onOpenTodos?.()}
+                        className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                            activeTabId === 'todos'
+                                ? 'bg-blue-600 text-white shadow-md'
+                                : 'border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 shadow-sm'
+                        }`}
+                        title="Todos"
+                    >
+                        <ListTodo size={18} />
+                    </button>
+                </div>
                 {enabledExtensions?.includes('smart_island') ? (
                     <SmartIsland
                         selectedDate={selectedDate || new Date()}

@@ -11,7 +11,7 @@ import { ScheduleModal, ScheduleEventData } from './ScheduleModal';
 import { useMotionValue, motion, useTransform } from 'framer-motion';
 import { DragGhost } from './DragGhost';
 import { MagnifiedEventView } from './MagnifiedEventView';
-import { getEventsForDate } from "@/lib/calendarUtils";
+import { getEventsForDate, getEventGroupIds } from "../../lib/calendarUtils";
 import EventPopover from "./EventPopover";
 import { useDataStore } from "@/store/useDataStore";
 
@@ -22,6 +22,7 @@ interface CalendarEvent {
     end: string;
     description?: string;
     parent_id?: string | null;
+    groupIds?: string[];
     color?: string;
     effect?: string;
     allDay?: boolean;
@@ -1143,7 +1144,7 @@ export default function CalendarView({
         const maxDate = startOfDay(addDays(loadedWeeks[loadedWeeks.length - 1], 7));
 
         const filteredEvents = selectedGroupId
-            ? events.filter(e => e.parent_id === selectedGroupId)
+            ? events.filter(e => getEventGroupIds(e).includes(selectedGroupId))
             : events;
 
         const processEvent = (e: CalendarEvent, occurrenceStart: Date) => {
@@ -1174,9 +1175,10 @@ export default function CalendarView({
             const isCancelled = (Array.isArray(e.exdates) && e.exdates.includes(occDateKey)) || !!e.is_cancelled;
 
             // Inherit effect from theme if present
+            const primaryGroupId = getEventGroupIds(e)[0];
             let inheritedEffect = e.effect;
-            if (e.parent_id) {
-                const themeNode = themes.find(t => t.id === e.parent_id);
+            if (primaryGroupId && themes) {
+                const themeNode = themes.find(t => t.id === primaryGroupId);
                 if (themeNode && themeNode.effect) {
                     inheritedEffect = themeNode.effect;
                 }
