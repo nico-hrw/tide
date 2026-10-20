@@ -1,0 +1,184 @@
+# ==============================================================================
+# TIDE Automated CI/CD Deployment Workflow
+# ==============================================================================
+#
+# Environments:
+#   - Staging:    test.go-tide.app  (Trigger: Push to `staging` branch or manual dispatch)
+#                 Destination: /root/tide-staging
+#                 PM2 reload:  pm2 reload tide-staging-backend; pm2 reload tide-staging-frontend
+#
+#   - Production: go-tide.app       (Trigger: Push to `main` branch or manual dispatch)
+#                 Destination: /root/tide
+#                 PM2 reload:  pm2 reload tide-backend; pm2 reload tide-frontend
+#
+# ------------------------------------------------------------------------------
+# How to Configure GitHub Repository Secrets:
+# ------------------------------------------------------------------------------
+# 1. Open your repository on GitHub.
+# 2. Go to "Settings" -> "Secrets and variables" -> "Actions".
+# 3. Click "New repository secret" and define the following three secrets:
+#
+#    - `SSH_PRIVATE_KEY`:
+#      The OpenSSH private key used to authenticate with the target server.
+#      Make sure to paste the complete key including the headers, e.g.:
+#        -----BEGIN OPENSSH PRIVATE KEY-----
+#        ...
+#        -----END OPENSSH PRIVATE KEY-----
+#      (Ensure the public key is added to ~/.ssh/authorized_keys on the server).
+#
+#    - `SSH_HOST`:
+#      The IP address or domain of the deployment server (e.g., `go-tide.app` or server IP).
+#
+#    - `SSH_USER`:
+#      The username for SSH connection on the server (e.g., `root`).
+# ==============================================================================
+
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      # ------------------------------------------------------------------------
+      # 1. Checkout repository source code
+      # ------------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------------------
+      # 2. Determine target environment configuration
+      # ------------------------------------------------------------------------
+      - name: Determine environment configuration
+        id: set-env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET_ENV="${{ github.event.inputs.environment }}"
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            TARGET_ENV="production"
+          else
+            TARGET_ENV="staging"
+          fi
+
+          echo "Deploying to environment: $TARGET_ENV"
+          echo "TARGET_ENV=$TARGET_ENV" >> $GITHUB_ENV
+
+          if [ "$TARGET_ENV" = "production" ]; then
+            echo "DEPLOY_PATH=/root/tide" >> $GITHUB_ENV
+            echo "DEPLOY_DOMAIN=go-tide.app" >> $GITHUB_ENV
+            echo "PM2_BACKEND=tide-backend" >> $GITHUB_ENV
+            echo "PM2_FRONTEND=tide-frontend" >> $GITHUB_ENV
+          else
+            echo "DEPLOY_PATH=/root/tide-staging" >> $GITHUB_ENV
+            echo "DEPLOY_DOMAIN=test.go-tide.app" >> $GITHUB_ENV
+            echo "PM2_BACKEND=tide-staging-backend" >> $GITHUB_ENV
+            echo "PM2_FRONTEND=tide-staging-frontend" >> $GITHUB_ENV
+          fi
+
+      # ------------------------------------------------------------------------
+      # 3. Setup Go & Build Backend
+      # ------------------------------------------------------------------------
+      - name: Setup Go 1.24
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+          cache-dependency-path: cloud/go.sum
+
+      - name: Build Go backend
+        run: |
+          cd cloud
+          go build -o tide-server ./cmd/server/main.go
+
+      # ------------------------------------------------------------------------
+      # 4. Setup Node.js & Build Next.js Frontend
+      # ------------------------------------------------------------------------
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies & build Next.js frontend
+        run: |
+          cd web
+          npm ci
+          npm run build
+
+      # ------------------------------------------------------------------------
+      # 5. Deploy via SSH & rsync, then reload PM2
+      # ------------------------------------------------------------------------
+      - name: Deploy step using SSH / rsync
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          # Configure SSH authentication
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          SSH_CMD="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
+
+          echo "🚀 Syncing files to $TARGET_ENV ($SSH_HOST:$DEPLOY_PATH)..."
+
+          # Ensure destination directories exist on remote host
+          $SSH_CMD "$SSH_USER@$SSH_HOST" "mkdir -p $DEPLOY_PATH/cloud $DEPLOY_PATH/web"
+
+          # 1. Sync compiled Go backend binary
+          rsync -avz -e "$SSH_CMD" \
+            cloud/tide-server "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/cloud/tide-server"
+
+          # Maintain root tide-server executable / symlink if referenced by root scripts
+          $SSH_CMD "$SSH_USER@$SSH_HOST" "chmod +x $DEPLOY_PATH/cloud/tide-server && ln -sf $DEPLOY_PATH/cloud/tide-server $DEPLOY_PATH/tide-server"
+
+          # 2. Sync compiled Next.js artifacts & static files
+          rsync -avz --delete -e "$SSH_CMD" \
+            web/.next "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/web/"
+
+          rsync -avz --delete -e "$SSH_CMD" \
+            web/public "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/web/"
+
+          rsync -avz -e "$SSH_CMD" \
+            web/package.json web/package-lock.json "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/web/"
+
+          if [ -f web/next.config.ts ]; then
+            rsync -avz -e "$SSH_CMD" web/next.config.ts "$SSH_USER@$SSH_HOST:$DEPLOY_PATH/web/"
+          fi
+
+          # Install production node modules on server if needed
+          $SSH_CMD "$SSH_USER@$SSH_HOST" "cd $DEPLOY_PATH/web && npm ci --omit=dev --ignore-scripts || true"
+
+          # 3. Trigger zero-downtime PM2 reload
+          echo "🔄 Triggering PM2 reload for $TARGET_ENV..."
+          if [ "$TARGET_ENV" = "production" ]; then
+            $SSH_CMD "$SSH_USER@$SSH_HOST" "pm2 reload tide-backend; pm2 reload tide-frontend"
+          else
+            $SSH_CMD "$SSH_USER@$SSH_HOST" "pm2 reload tide-staging-backend; pm2 reload tide-staging-frontend"
+          fi
+
+          echo "✅ Deployment to $TARGET_ENV ($DEPLOY_DOMAIN) completed successfully!"

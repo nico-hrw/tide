@@ -60,7 +60,10 @@ func main() {
 	api.ValidateJWTSecret()
 
 	// 1. Initialize Stores
-	dataDir := filepath.Join(baseDir, "data")
+	dataDir := os.Getenv("DATA_DIR")
+	if dataDir == "" {
+		dataDir = filepath.Join(baseDir, "data")
+	}
 	sqliteStore, err := store.NewSQLiteStore(dataDir)
 	if err != nil {
 		log.Fatalf("Failed to init db: %v", err)

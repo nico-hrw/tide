@@ -58,10 +58,11 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
+    const backendPort = process.env.BACKEND_PORT || process.env.PORT_BACKEND || '8080';
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8080/api/:path*',
+        destination: `http://localhost:${backendPort}/api/:path*`,
       },
       {
         source: '/track',

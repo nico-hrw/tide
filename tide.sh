@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # =================================================================
-# Tide Management Script v4.0 (Cloud & PM2 Edition)
+# Tide Management Script v5.0 (Zero-Downtime & Staging Edition)
 # =================================================================
 
-# NVM laden, falls vorhanden (stellt Node >= 20.9 für Next.js sicher)
+# NVM laden, falls vorhanden (stellt Node >= 20.9 fuer Next.js sicher)
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
@@ -13,11 +13,14 @@ CLOUD_DIR="$ROOT_DIR/cloud"
 WEB_DIR="$ROOT_DIR/web"
 OTP_FILE="$CLOUD_DIR/data/otp.txt"
 
+# Standard-Ports & Pfade
+PROD_BACKEND_PORT=8080
+PROD_FRONTEND_PORT=3000
+STAGING_BACKEND_PORT=8082
+STAGING_FRONTEND_PORT=3002
+
 # 1. Stelle sicher, dass der Datenordner existiert
 mkdir -p "$CLOUD_DIR/data"
-
-echo "🔄 Prüfe auf Code-Updates..."
-git pull origin main
 
 # --- 1. Umgebungsvariablen laden ---
 load_env() {
@@ -43,9 +46,11 @@ backup_data() {
     echo "📦 Starte Datensicherung der Nutzerdaten..."
     mkdir -p "$backup_dir"
 
-    # Ermittle den aktuellen Datenordner (Root oder Cloud)
+    # Ermittle den aktuellen Datenordner
     local active_data_dir=""
-    if [ -d "$ROOT_DIR/data" ] && [ -f "$ROOT_DIR/data/tide.db" ]; then
+    if [ -n "$DATA_DIR" ] && [ -d "$DATA_DIR" ]; then
+        active_data_dir="$DATA_DIR"
+    elif [ -d "$ROOT_DIR/data" ] && [ -f "$ROOT_DIR/data/tide.db" ]; then
         active_data_dir="$ROOT_DIR/data"
     elif [ -d "$CLOUD_DIR/data" ] && [ -f "$CLOUD_DIR/data/tide.db" ]; then
         active_data_dir="$CLOUD_DIR/data"
@@ -53,126 +58,193 @@ backup_data() {
 
     if [ -n "$active_data_dir" ]; then
         # WAL-Checkpoint anstoßen falls sqlite3 CLI verfügbar ist
-        if command -v sqlite3 >/dev/null 2>&1; then
+        if command -v sqlite3 >/dev/null 2>&1 && [ -f "$active_data_dir/tide.db" ]; then
             sqlite3 "$active_data_dir/tide.db" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
         fi
 
-        # Vollständiges Archiv im Backup-Verzeichnis erzeugen
+        # Archiv erzeugen
         tar -czf "$backup_dir/data.tar.gz" -C "$(dirname "$active_data_dir")" "$(basename "$active_data_dir")" 2>/dev/null
-        # Schnellzugriff auf die DB für direkte Inspektion/Wiederherstellung
         cp -a "$active_data_dir/tide.db"* "$backup_dir/" 2>/dev/null || true
 
-        # Symlink auf latest aktualisieren
         ln -sfn "$backup_dir" "$backup_root/latest"
-
-        # Behalte die letzten 30 Backups auf dem Server
         find "$backup_root" -maxdepth 1 -mindepth 1 -type d ! -name "latest" | sort -r | tail -n +31 | xargs -r rm -rf
 
-        echo "✅ Sicherung erfolgreich gespeichert in: $backup_dir"
-        echo "📌 'latest'-Zeiger aktualisiert: $backup_root/latest"
+        echo "✅ Sicherung erfolgreich: $backup_dir"
     else
-        echo "⚠️ Kein aktives Datenverzeichnis mit Nutzerdaten gefunden, überspringe Backup."
+        echo "⚠️ Kein aktives Datenverzeichnis gefunden, ueberspringe Backup."
     fi
 }
 
-# --- 3. Alte Prozesse säubern ---
-cleanup() {
-    echo "🧹 Räume alte Prozesse auf..."
-    pm2 delete tide-backend tide-frontend 2>/dev/null
-
-    fuser -k 8080/tcp 2>/dev/null
-    fuser -k 3000/tcp 2>/dev/null
-    sleep 2
-}
-
-# --- 4. Build-Funktionen ---
+# --- 3. Build-Funktionen (Zero-Downtime Safe) ---
 build_backend() {
     echo "🏗️ Baue Go Backend..."
-    cd "$CLOUD_DIR" || exit
+    cd "$CLOUD_DIR" || exit 1
     go mod tidy
-    go build -o "$ROOT_DIR/tide-server" ./cmd/server/main.go
+    # In temporäre Datei kompilieren, damit laufende Binary nicht blockiert wird
+    go build -o "$ROOT_DIR/tide-server.tmp" ./cmd/server/main.go
     if [ $? -ne 0 ]; then
-        echo "❌ FEHLER: Der Backend-Build ist fehlgeschlagen!"
+        echo "❌ FEHLER: Der Backend-Build ist fehlgeschlagen! Laufender Server bleibt unberuehrt."
         exit 1
     fi
-    echo "💾 Synchronisiere Dateisystem..."
-    sync
-    cd "$ROOT_DIR"
+    mv -f "$ROOT_DIR/tide-server.tmp" "$ROOT_DIR/tide-server"
+    chmod +x "$ROOT_DIR/tide-server"
+    echo "💾 Backend erfolgreich gebaut!"
+    cd "$ROOT_DIR" || exit 1
 }
 
 build_frontend() {
-    echo "🏗️ Baue Next.js Frontend (1GB RAM Safe Mode)..."
-    cd "$WEB_DIR" || exit
-    rm -rf .next
+    echo "🏗️ Baue Next.js Frontend..."
+    cd "$WEB_DIR" || exit 1
+    
+    # Automatische Aktualisierung der Browser-Kompatibilitaetsdatenbank
+    echo "🌐 Aktualisiere Browserslist..."
+    npx update-browserslist-db@latest --yes 2>/dev/null || true
+
     npm install
     NEXT_DISABLE_TURBOPACK=1 NODE_ENV=production NODE_OPTIONS="--max-old-space-size=1536" npx next build --webpack
     if [ $? -ne 0 ]; then
-        echo "❌ FEHLER: Der Frontend-Build ist fehlgeschlagen!"
+        echo "❌ FEHLER: Der Frontend-Build ist fehlgeschlagen! Laufender Server bleibt unberuehrt."
         exit 1
     fi
-    echo "💾 Synchronisiere Dateisystem..."
-    sync
-    cd "$ROOT_DIR"
+    echo "💾 Frontend erfolgreich gebaut!"
+    cd "$ROOT_DIR" || exit 1
 }
 
-# --- 5. Start-Logik mit PM2 ---
-start_system() {
-    echo "🚀 Starte Tide-Gesamtsystem via PM2..."
+# --- 4. Zero-Downtime Reload / Start fuer Production ---
+reload_or_start_prod() {
+    echo "🚀 Uebertrage neue Version in Produktion (Zero Downtime)..."
+    cd "$ROOT_DIR" || exit 1
 
-    cd "$ROOT_DIR"
-    pm2 start "$ROOT_DIR/tide-server" --name "tide-backend"
-    echo "✅ Backend gestartet (Port 8080)"
+    # Backend
+    if pm2 describe tide-backend >/dev/null 2>&1; then
+        echo "🔄 Reloade tide-backend..."
+        pm2 reload tide-backend
+    else
+        echo "▶️ Starte tide-backend neu auf Port $PROD_BACKEND_PORT..."
+        PORT=$PROD_BACKEND_PORT pm2 start "$ROOT_DIR/tide-server" --name "tide-backend"
+    fi
 
-    cd "$WEB_DIR"
-    pm2 start npm --name "tide-frontend" -- start
-    echo "✅ Frontend gestartet (Port 3000)"
+    # Frontend
+    cd "$WEB_DIR" || exit 1
+    if pm2 describe tide-frontend >/dev/null 2>&1; then
+        echo "🔄 Reloade tide-frontend..."
+        pm2 reload tide-frontend
+    else
+        echo "▶️ Starte tide-frontend neu auf Port $PROD_FRONTEND_PORT..."
+        PORT=$PROD_FRONTEND_PORT BACKEND_PORT=$PROD_BACKEND_PORT pm2 start npm --name "tide-frontend" -- start
+    fi
 
     pm2 save
-
     echo "------------------------------------------------------"
-    echo "🎉 Tide ist online und läuft im Hintergrund!"
-    echo "👉 Logs ansehen:   pm2 logs"
-    echo "👉 Status ansehen: pm2 status"
+    echo "🎉 Produktion aktualisiert ohne Downtime!"
+    echo "👉 Status: pm2 status"
     echo "------------------------------------------------------"
 }
 
-# --- Main Ausführung ---
+# --- 5. Staging / Test Environment ---
+start_staging() {
+    echo "🧪 Starte / Aktualisiere Staging-Testumgebung..."
+    local staging_data_dir="$ROOT_DIR/data_staging"
+    mkdir -p "$staging_data_dir"
+
+    # Falls keine Staging-DB existiert, kopiere die Produktions-DB als Startbasis
+    if [ ! -f "$staging_data_dir/tide.db" ] && [ -f "$ROOT_DIR/data/tide.db" ]; then
+        echo "📋 Initialisiere Staging-DB mit Kopie der aktuellen Daten..."
+        cp "$ROOT_DIR/data/tide.db"* "$staging_data_dir/" 2>/dev/null || true
+    fi
+
+    cd "$ROOT_DIR" || exit 1
+    if pm2 describe tide-staging-backend >/dev/null 2>&1; then
+        echo "🔄 Reloade tide-staging-backend..."
+        PORT=$STAGING_BACKEND_PORT DATA_DIR="$staging_data_dir" pm2 reload tide-staging-backend --update-env
+    else
+        echo "▶️ Starte tide-staging-backend auf Port $STAGING_BACKEND_PORT..."
+        PORT=$STAGING_BACKEND_PORT DATA_DIR="$staging_data_dir" pm2 start "$ROOT_DIR/tide-server" --name "tide-staging-backend"
+    fi
+
+    cd "$WEB_DIR" || exit 1
+    if pm2 describe tide-staging-frontend >/dev/null 2>&1; then
+        echo "🔄 Reloade tide-staging-frontend..."
+        PORT=$STAGING_FRONTEND_PORT BACKEND_PORT=$STAGING_BACKEND_PORT pm2 reload tide-staging-frontend --update-env
+    else
+        echo "▶️ Starte tide-staging-frontend auf Port $STAGING_FRONTEND_PORT..."
+        PORT=$STAGING_FRONTEND_PORT BACKEND_PORT=$STAGING_BACKEND_PORT pm2 start npm --name "tide-staging-frontend" -- start
+    fi
+
+    pm2 save
+    echo "------------------------------------------------------"
+    echo "🧪 Staging-Umgebung ist online!"
+    echo "👉 Frontend Port: $STAGING_FRONTEND_PORT"
+    echo "👉 Backend Port:  $STAGING_BACKEND_PORT"
+    echo "👉 Datenordner:   $staging_data_dir"
+    echo "------------------------------------------------------"
+}
+
+stop_staging() {
+    echo "🛑 Stoppe Staging-Umgebung..."
+    pm2 delete tide-staging-backend tide-staging-frontend 2>/dev/null || true
+    fuser -k ${STAGING_BACKEND_PORT}/tcp 2>/dev/null || true
+    fuser -k ${STAGING_FRONTEND_PORT}/tcp 2>/dev/null || true
+    pm2 save
+    echo "✅ Staging gestoppt."
+}
+
+cleanup_prod() {
+    echo "🧹 Stoppe und raeume Produktions-Prozesse auf..."
+    pm2 delete tide-backend tide-frontend 2>/dev/null || true
+    fuser -k ${PROD_BACKEND_PORT}/tcp 2>/dev/null || true
+    fuser -k ${PROD_FRONTEND_PORT}/tcp 2>/dev/null || true
+    sleep 1
+    pm2 save
+}
+
+# --- Main Ausfuehrung ---
 load_env
 
 case "$1" in
     -a|--all)
+        echo "🔄 Pruefe auf Code-Updates..."
+        git pull origin main 2>/dev/null || true
         backup_data
-        cleanup
         build_backend
         build_frontend
-        start_system
+        reload_or_start_prod
         ;;
     -b|--backend)
         backup_data
-        cleanup
         build_backend
-        cd "$ROOT_DIR"
-        pm2 start "$ROOT_DIR/tide-server" --name "tide-backend"
+        cd "$ROOT_DIR" || exit 1
+        PORT=$PROD_BACKEND_PORT pm2 restart tide-backend 2>/dev/null || PORT=$PROD_BACKEND_PORT pm2 start "$ROOT_DIR/tide-server" --name "tide-backend"
         pm2 save
         ;;
     -f|--frontend)
-        cleanup
         build_frontend
-        cd "$WEB_DIR"
-        pm2 start npm --name "tide-frontend" -- start
+        cd "$WEB_DIR" || exit 1
+        PORT=$PROD_FRONTEND_PORT BACKEND_PORT=$PROD_BACKEND_PORT pm2 restart tide-frontend 2>/dev/null || PORT=$PROD_FRONTEND_PORT BACKEND_PORT=$PROD_BACKEND_PORT pm2 start npm --name "tide-frontend" -- start
         pm2 save
+        ;;
+    -t|--test|--staging)
+        backup_data
+        build_backend
+        build_frontend
+        start_staging
+        ;;
+    --stop-staging)
+        stop_staging
+        ;;
+    -r|--reload)
+        reload_or_start_prod
         ;;
     -s|--start)
         backup_data
-        cleanup
-        start_system
+        reload_or_start_prod
         ;;
     -c|--backup)
         backup_data
         ;;
     -k|--stop)
-        cleanup
-        echo "🛑 Tide gestoppt."
+        cleanup_prod
+        echo "🛑 Tide Produktion gestoppt."
         ;;
     -o|--otp)
         echo "🔑 OTP: $(cat $OTP_FILE 2>/dev/null || cat "$ROOT_DIR/data/otp.txt" 2>/dev/null || echo 'Kein Code gefunden')"
@@ -185,16 +257,19 @@ case "$1" in
         pm2 logs
         ;;
     *)
-        echo "Verwendung: ./tide.sh [-a | -b | -f | -s | -c | -k | -o | status | logs]"
-        echo "  -a, --all      : Alles sichern, neu bauen und starten"
-        echo "  -b, --backend  : Sichern, nur Backend neu bauen und starten"
-        echo "  -f, --frontend : Nur Frontend neu bauen und starten"
-        echo "  -s, --start    : Sichern und System starten (ohne neu zu bauen)"
-        echo "  -c, --backup   : Manuelles Daten-Backup erstellen"
-        echo "  -k, --stop     : System stoppen"
-        echo "  -o, --otp      : OTP Code anzeigen"
-        echo "  status         : PM2 Prozess-Status anzeigen"
-        echo "  logs           : Live-Logs anzeigen"
+        echo "Verwendung: ./tide.sh [Option]"
+        echo "  -a, --all           : Sichern, neu bauen und Produktion ZERO-DOWNTIME aktualisieren"
+        echo "  -b, --backend       : Sichern, nur Backend bauen und aktualisieren"
+        echo "  -f, --frontend      : Nur Frontend bauen und aktualisieren"
+        echo "  -t, --test          : Sichern, bauen und STAGING/TEST-Umgebung starten (Ports 3002/8082)"
+        echo "  --stop-staging      : Staging-Umgebung stoppen"
+        echo "  -r, --reload        : Laufende PM2 Produktion ohne Rebuild sofort neu laden"
+        echo "  -s, --start         : System starten"
+        echo "  -c, --backup        : Manuelles Daten-Backup erstellen"
+        echo "  -k, --stop          : Produktion stoppen"
+        echo "  -o, --otp           : OTP Code anzeigen"
+        echo "  status              : PM2 Prozess-Status anzeigen"
+        echo "  logs                : Live-Logs anzeigen"
         exit 1
         ;;
 esac
