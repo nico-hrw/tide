@@ -480,14 +480,14 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         : false;
 
     const isImportant = (event as any).is_important;
-    const shouldGlow = isLive || isImportant;
+    const shouldGlow = !isCancelled && (isLive || isImportant);
 
     const glowColor = theme.border !== 'transparent' ? theme.border : '#6366f1';
 
     return (
         <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
+            animate={{ opacity: isCancelled ? 0.4 : 1, y: 0, scale: 1 }}
             style={{
                 ...style, ...borderRadiusStyle,
                 borderLeft: 'none',
@@ -555,7 +555,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                  work inside Framer Motion compositing layers. */}
 
             {/* Shading Overlay Layer */}
-            {!isActiveParent && typeof event.shading === 'number' && event.shading > 0 ? (
+            {!isActiveParent && !isCancelled && typeof event.shading === 'number' && event.shading > 0 ? (
                 <div 
                     className="absolute inset-0 pointer-events-none" 
                     style={{ 
@@ -650,7 +650,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 <div className="absolute inset-0 flex items-center overflow-visible pointer-events-none" style={{ zIndex: 10 }}>
                     <span
                         className={`text-[10px] font-black leading-none whitespace-nowrap pl-1 ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}
-                        style={{ color: theme.text }}
+                        style={{ color: isCancelled ? '#475569' : theme.text }}
                     >
                         {format(start, "HH:mm")} {event.title || 'Untitled'}
                     </span>
@@ -755,7 +755,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                         {displayBadges.map((badge, idx) => (
                             <div 
                                 key={badge.id || idx} 
-                                className="px-2 py-0.5 rounded-full text-[9px] font-black text-white shadow-md border"
+                                className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white shadow-md border ${isCancelled ? 'line-through opacity-60' : ''}`}
                                 style={{ 
                                     backgroundColor: badge.color || theme.text,
                                     borderColor: 'rgba(255,255,255,0.1)',
@@ -771,7 +771,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
 
                 {/* Description - shown if there's space and text exists */}
                 {event.description && durationMinutes > 60 && (
-                    <div className="text-[10px] opacity-80 leading-tight mt-0.5 overflow-hidden line-clamp-2 pointer-events-none font-medium">
+                    <div className={`text-[10px] opacity-80 leading-tight mt-0.5 overflow-hidden line-clamp-2 pointer-events-none font-medium ${isCancelled ? 'line-through opacity-60' : ''}`}>
                         {event.description?.split(';').map((part, index, array) => (
                             <React.Fragment key={index}>
                                 {part}
@@ -793,7 +793,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             )} {/* end isTimePoint conditional */}
 
             {/* Resize Handle */}
-            {!isDragging && durationMinutes >= 15 && (
+            {!isDragging && !isCancelled && durationMinutes >= 15 && (
                 <div
                     className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize z-[70] hover:bg-white/20 resize-handle"
                     onMouseDown={(e) => {

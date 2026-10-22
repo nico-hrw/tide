@@ -163,11 +163,21 @@ export default function EventPopover({
     const [interval, setIntervalVal] = useState(initialRRule.interval);
     const [recurrenceEnd, setRecurrenceEnd] = useState(event.recurrence_end || '');
 
-    const occurrenceDateKey = format(new Date(event.start), "yyyy-MM-dd");
-    const isThisOccCancelledOrig = event.exdates?.includes(occurrenceDateKey) || !!event.is_cancelled;
+    const isOccurrence = event.id.includes('_');
+    const occurrenceDateKey = (() => {
+        try {
+            return format(new Date(event.start), "yyyy-MM-dd");
+        } catch {
+            return "";
+        }
+    })();
+    const isThisOccCancelledOrig = (occurrenceDateKey ? event.exdates?.includes(occurrenceDateKey) : false) || !!event.is_cancelled;
     const [isCancelled, setIsCancelled] = useState(isThisOccCancelledOrig);
     const isThisOccCancelledRef = useRef(isThisOccCancelledOrig);
-    useEffect(() => { isThisOccCancelledRef.current = isThisOccCancelledOrig; }, [isThisOccCancelledOrig]);
+    useEffect(() => {
+        isThisOccCancelledRef.current = isThisOccCancelledOrig;
+        setIsCancelled(isThisOccCancelledOrig);
+    }, [isThisOccCancelledOrig]);
 
     useEffect(() => {
         setTitle(event.title || '');
@@ -186,7 +196,7 @@ export default function EventPopover({
         setIsExpanded(false);
         setShowHints(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [event.id]);
+    }, [event.id, event.start]);
 
     // Always holds the latest handleSave so the unmount cleanup doesn't use a stale closure
     const handleSaveRef = useRef<(overrides?: Partial<EventPopoverEvent>) => void>(() => {});
@@ -219,6 +229,16 @@ export default function EventPopover({
             }
         } else if (updates.groupIds !== undefined && updates.parent_id === undefined) {
             updates.parent_id = updates.groupIds[0] || null;
+        }
+
+        if (updates.is_cancelled !== undefined) {
+            isThisOccCancelledRef.current = updates.is_cancelled;
+        }
+
+        // Guard: on recurring instances (occurrences), start/end should not overwrite the base series start/end
+        if (event.id.includes('_')) {
+            delete updates.start;
+            delete updates.end;
         }
 
         if (Object.keys(updates).length > 0) onEventSave(event.id, updates);
@@ -257,6 +277,12 @@ export default function EventPopover({
 
     const handleClose = () => { savedOnCloseRef.current = true; handleSave(); onClose(); };
     const handleTaskToggle = (v: boolean) => { setIsTask(v); if (!v) setIsCompleted(false); };
+    const handleToggleCancel = () => {
+        const next = !isCancelled;
+        setIsCancelled(next);
+        isThisOccCancelledRef.current = next;
+        handleSave({ is_cancelled: next });
+    };
     const updateRecurrence = (newFreq: string, newInterval: number) => { setFreq(newFreq); setIntervalVal(newInterval); };
     const updateGroupIds = (next: string[]) => {
         setSelectedGroupIds(next);
@@ -306,15 +332,15 @@ export default function EventPopover({
                 {/* Cancel icon - clearly visually highlighted when active */}
                 <button
                     type="button"
-                    onClick={() => setIsCancelled(!isCancelled)}
+                    onClick={handleToggleCancel}
                     className={`p-1.5 rounded-full transition-all ${
                         isCancelled
                             ? 'text-red-600 bg-red-100 dark:bg-red-500/25 ring-1 ring-red-400/50 shadow-xs font-bold'
                             : 'text-gray-300 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-white/10'
                     }`}
-                    title={isCancelled ? 'Absage rückgängig' : 'Termin absagen'}
+                    title={isCancelled ? (isOccurrence ? 'Absage für diesen Tag aufheben' : 'Absage rückgängig') : (isOccurrence ? 'Diesen Termin absagen' : 'Termin absagen')}
                 >
-                    <Ban size={14} />
+                    <Ban size={14} className={isCancelled ? 'stroke-[2.5]' : ''} />
                 </button>
                 {/* Delete icon */}
                 <button
@@ -362,9 +388,22 @@ export default function EventPopover({
 
             {/* Time & Date */}
             <div className="flex items-center justify-between bg-gray-50/70 dark:bg-white/5 rounded-xl px-3 py-2 border border-gray-100/50 dark:border-white/5">
-                <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    {format(new Date(event.start), "d. MMM yyyy")}
-                </span>
+                <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                        {(() => {
+                            try {
+                                return event.start ? format(new Date(event.start), "d. MMM yyyy") : "";
+                            } catch {
+                                return "";
+                            }
+                        })()}
+                    </span>
+                    {isCancelled && (
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400 bg-red-100/80 dark:bg-red-500/20 px-1.5 py-0.5 rounded">
+                            Abgesagt
+                        </span>
+                    )}
+                </div>
                 <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                     {event.allDay ? (
                         <span className="font-bold uppercase tracking-wider text-[10px] bg-gray-200/80 dark:bg-white/10 px-2 py-0.5 rounded-full">Ganztägig</span>

@@ -563,7 +563,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                     ${event.is_cancelled ? 'opacity-40 line-through grayscale font-normal' : ''}
                                 `}
                                     style={{ 
-                                        backgroundColor: theme.bg, 
+                                        backgroundColor: event.is_cancelled ? '#94a3b8' : theme.bg, 
                                         color: theme.text, 
                                         border: `1px solid ${theme.border}` 
                                     }}
@@ -650,9 +650,14 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     newStartMinutes = Math.max(0, Math.min(newStartMinutes, 1440 - 60));
 
                     if (isTaskDrop && draggedTask) {
+                        const TASK_DURATION_MINUTES = 30;
+                        const targetMinutes = (relativeY / minuteHeight) - (TASK_DURATION_MINUTES / 2);
+                        newStartMinutes = Math.round(targetMinutes / snapIntervalMinutes) * snapIntervalMinutes;
+                        newStartMinutes = Math.max(0, Math.min(newStartMinutes, 1440 - TASK_DURATION_MINUTES));
+
                         const baseDate = new Date(day);
                         const newStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), Math.floor(newStartMinutes / 60), newStartMinutes % 60);
-                        const newEnd = new Date(newStart.getTime() + 60 * 60000); // 1 hour default
+                        const newEnd = new Date(newStart.getTime() + TASK_DURATION_MINUTES * 60000);
                         
                         if (onEventCreate) {
                             await onEventCreate(newStart, newEnd, false, {
