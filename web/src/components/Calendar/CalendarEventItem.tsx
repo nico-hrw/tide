@@ -34,8 +34,61 @@ interface CalendarEvent {
     permission?: string;
 }
 
+const PRIORITY_COLOR_MAP: Record<string, string> = {
+    high: '#ef4444',
+    medium: '#f59e0b',
+    low: '#3b82f6',
+    urgent: '#ef4444',
+};
+
+const NAMED_COLORS = new Set([
+    'transparent', 'currentcolor', 'inherit',
+    'black', 'silver', 'gray', 'grey', 'white', 'maroon', 'red', 'purple', 'fuchsia', 'green', 'lime', 'olive', 'yellow', 'navy', 'blue', 'teal', 'aqua',
+    'orange', 'aliceblue', 'antiquewhite', 'aquamarine', 'azure', 'beige', 'bisque', 'blanchedalmond', 'blueviolet', 'brown', 'burlywood', 'cadetblue',
+    'chartreuse', 'chocolate', 'coral', 'cornflowerblue', 'cornsilk', 'crimson', 'cyan', 'darkblue', 'darkcyan', 'darkgoldenrod', 'darkgray', 'darkgreen',
+    'darkgrey', 'darkkhaki', 'darkmagenta', 'darkolivegreen', 'darkorange', 'darkorchid', 'darkred', 'darksalmon', 'darkseagreen', 'darkslateblue',
+    'darkslategray', 'darkslategrey', 'darkturquoise', 'darkviolet', 'deeppink', 'deepskyblue', 'dimgray', 'dimgrey', 'dodgerblue', 'firebrick',
+    'floralwhite', 'forestgreen', 'gainsboro', 'ghostwhite', 'gold', 'goldenrod', 'greenyellow', 'honeydew', 'hotpink', 'indianred', 'indigo', 'ivory',
+    'khaki', 'lavender', 'lavenderblush', 'lawngreen', 'lemonchiffon', 'lightblue', 'lightcoral', 'lightcyan', 'lightgoldenrodyellow', 'lightgray',
+    'lightgreen', 'lightgrey', 'lightpink', 'lightsalmon', 'lightseagreen', 'lightskyblue', 'lightslategray', 'lightslategrey', 'lightsteelblue',
+    'lightyellow', 'limegreen', 'linen', 'magenta', 'mediumaquamarine', 'mediumblue', 'mediumorchid', 'mediumpurple', 'mediumseagreen', 'mediumslateblue',
+    'mediumspringgreen', 'mediumturquoise', 'mediumvioletred', 'midnightblue', 'mintcream', 'mistyrose', 'moccasin', 'navajowhite', 'oldlace',
+    'olivedrab', 'orangered', 'orchid', 'palegoldenrod', 'palegreen', 'paleturquoise', 'palevioletred', 'papayawhip', 'peachpuff', 'peru', 'pink',
+    'plum', 'powderblue', 'rosybrown', 'royalblue', 'saddlebrown', 'salmon', 'sandybrown', 'seagreen', 'seashell', 'sienna', 'skyblue', 'slateblue',
+    'slategray', 'slategrey', 'snow', 'springgreen', 'steelblue', 'tan', 'thistle', 'tomato', 'turquoise', 'violet', 'wheat', 'whitesmoke', 'yellowgreen'
+]);
+
+export const isValidCssColor = (color: string): boolean => {
+    if (!color) return false;
+    const trimmed = color.trim().toLowerCase();
+    if (/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(trimmed)) return true;
+    if (/^(rgb|rgba|hsl|hsla|var|color)\(.*\)$/i.test(trimmed)) return true;
+    if (NAMED_COLORS.has(trimmed)) return true;
+    if (typeof window !== 'undefined' && typeof CSS !== 'undefined' && typeof CSS.supports === 'function') {
+        try {
+            return CSS.supports('color', trimmed);
+        } catch {
+            return false;
+        }
+    }
+    return false;
+};
+
+export const resolveEventColor = (rawColor?: string): string | undefined => {
+    if (!rawColor) return undefined;
+    const trimmed = rawColor.trim().toLowerCase();
+    if (PRIORITY_COLOR_MAP[trimmed]) {
+        return PRIORITY_COLOR_MAP[trimmed];
+    }
+    if (isValidCssColor(trimmed)) {
+        return rawColor.trim();
+    }
+    return undefined;
+};
+
 export const getEventTheme = (evt: CalendarEvent, palette: 'modern-dark' | 'soft-pastels' | 'classic-tide' = 'modern-dark') => {
-    let col = evt.color?.toLowerCase() || '';
+    const resolvedColor = resolveEventColor(evt.color);
+    let col = resolvedColor?.toLowerCase() || '';
     
     const isPink = col === 'pink' || col.startsWith('#ec') || col.startsWith('#d9') || col.startsWith('#e8') || col.startsWith('#f4') || col.startsWith('#f0');
     const isRed = col === 'red' || col.startsWith('#ef') || col.startsWith('#f8') || col.startsWith('#ea') || col.startsWith('#eb');
@@ -169,6 +222,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const ownerPartner = event.owner_id ? contacts.find(c => c.partner?.id === event.owner_id)?.partner : undefined;
     const ownerName = ownerPartner?.username || 'Geteilt';
     const attributionText = ownerPartner?.username ? `Aus dem Kalender von ${ownerName}` : 'Geteilt';
+    const effectiveColor = resolveEventColor(event.color);
 
     // Secondary group badges & event tags
     const displayBadges = React.useMemo(() => {
@@ -182,14 +236,15 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             const matchedNote = !matchedTheme ? notes?.find(n => n.id === gid) : undefined;
             const matchedEvent = (!matchedTheme && !matchedNote && allEvents) ? allEvents.find(e => e.id === gid) : undefined;
             const label = matchedTheme?.title || matchedNote?.title || matchedEvent?.title || gid;
-            const groupColor = matchedTheme?.color || (typeof matchedNote?.color === 'string' ? matchedNote.color : undefined) || matchedEvent?.color;
+            const rawGroupColor = matchedTheme?.color || (typeof matchedNote?.color === 'string' ? matchedNote.color : undefined) || matchedEvent?.color;
+            const groupColor = resolveEventColor(rawGroupColor);
 
             if (label && label.trim() !== '' && !seenLabels.has(label.trim().toLowerCase())) {
                 seenLabels.add(label.trim().toLowerCase());
                 badges.push({
                     id: `group-${gid}`,
                     label: label.trim(),
-                    color: groupColor || event.color,
+                    color: groupColor || effectiveColor,
                 });
             }
         }
@@ -203,14 +258,14 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     badges.push({
                         id: `tag-${trimmed}`,
                         label: trimmed,
-                        color: event.color,
+                        color: effectiveColor,
                     });
                 }
             }
         }
 
         return badges;
-    }, [event, themes, notes, allEvents]);
+    }, [event, themes, notes, allEvents, effectiveColor]);
 
     // If the event has a linkedTaskId, read completion state from the task store (source of truth)
     // so all taskMention nodes in notes update instantly via the same Zustand selector.
@@ -340,7 +395,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             pointerEvents: 'none',
         };
     } else {
-        const baseColor = isActiveParent ? 'transparent' : (event.color || theme.bg);
+        const baseColor = isActiveParent ? 'transparent' : (effectiveColor || theme.bg);
         style = {
             top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes} + 2px)`,
             height: isTimePoint ? '6px' : `calc(var(--hour-height, 60px) / 60 * ${minRenderedMinutes} - 4px)`,
@@ -562,7 +617,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             title: event.title,
                             start: event.start,
                             end: event.end,
-                            color: event.color || null,
+                            color: effectiveColor || null,
                             description: event.description || '',
                         }));
                         // Drag image: a small pill preview
@@ -570,7 +625,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                         ghost.style.cssText = `
                             position: fixed; top: -200px; left: 0;
                             padding: 4px 10px; border-radius: 6px;
-                            background: ${event.color || '#6366f1'};
+                            background: ${effectiveColor || theme.bg || '#6366f1'};
                             color: white; font-size: 12px; font-weight: 600;
                             max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
                             box-shadow: 0 4px 12px rgba(0,0,0,0.3);

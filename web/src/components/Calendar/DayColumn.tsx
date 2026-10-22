@@ -59,6 +59,29 @@ interface DayColumnProps {
     hourHeight?: number;
 }
 
+const TASK_PRIORITY_COLORS: Record<string, string> = {
+    high: '#ef4444',
+    medium: '#f59e0b',
+    low: '#3b82f6',
+};
+
+const resolveTaskColor = (task: { color?: string; priority?: string }): string | undefined => {
+    const rawColor = task.color?.trim();
+    if (rawColor && TASK_PRIORITY_COLORS[rawColor.toLowerCase()]) {
+        return TASK_PRIORITY_COLORS[rawColor.toLowerCase()];
+    }
+    if (rawColor && (rawColor.startsWith('#') || rawColor.startsWith('rgb') || rawColor.startsWith('hsl'))) {
+        return rawColor;
+    }
+    if (task.priority && TASK_PRIORITY_COLORS[task.priority.toLowerCase()]) {
+        return TASK_PRIORITY_COLORS[task.priority.toLowerCase()];
+    }
+    if (rawColor && !['low', 'medium', 'high'].includes(rawColor.toLowerCase())) {
+        return rawColor;
+    }
+    return undefined;
+};
+
 // Layout helper for overlapping events within a single day
 // "Background" events (group parents with children, or multi-day midpoints) are excluded
 // from collision detection so they render full-width behind all other events.
@@ -388,7 +411,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     useDataStore.getState().setActiveParentId(null);
                     if (onHeaderClick) onHeaderClick(day);
                 }}
-                onDrop={(e) => {
+                onDrop={async (e) => {
                     if (readOnly) return;
                     e.preventDefault();
                     e.stopPropagation();
@@ -415,7 +438,13 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         
                         // use onEventCreate passed from parent
                         if (onEventCreate) {
-                            onEventCreate(newStart, newEnd, true, { title: draggedTask.title, is_task: true, linkedTaskId: draggedTask.id, description: draggedTask.description, color: draggedTask.color });
+                            await onEventCreate(newStart, newEnd, true, {
+                                title: draggedTask.title,
+                                is_task: true,
+                                linkedTaskId: draggedTask.id,
+                                description: draggedTask.description,
+                                color: resolveTaskColor(draggedTask)
+                            });
                         }
                         
                         useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString(), dueDate: newStart.toISOString() });
@@ -588,7 +617,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     e.preventDefault();
                     e.stopPropagation();
                 }}
-                onDrop={(e) => {
+                onDrop={async (e) => {
                     if (readOnly) return;
                     e.preventDefault();
                     e.stopPropagation();
@@ -626,7 +655,13 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         const newEnd = new Date(newStart.getTime() + 60 * 60000); // 1 hour default
                         
                         if (onEventCreate) {
-                            onEventCreate(newStart, newEnd, false, { title: draggedTask.title, is_task: true, linkedTaskId: draggedTask.id, description: draggedTask.description, color: draggedTask.color });
+                            await onEventCreate(newStart, newEnd, false, {
+                                title: draggedTask.title,
+                                is_task: true,
+                                linkedTaskId: draggedTask.id,
+                                description: draggedTask.description,
+                                color: resolveTaskColor(draggedTask)
+                            });
                         }
                         
                         useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString(), dueDate: newStart.toISOString() });

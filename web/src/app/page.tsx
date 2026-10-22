@@ -2808,6 +2808,10 @@ export default function Dashboard() {
     // -------------------------------------------------------------------------
     const handleEventCreate = async (start: Date, end: Date, isAllDay: boolean = false, extraMeta: any = {}): Promise<string | null> => {
         if (!privateKey || !publicKey) return null;
+        const linkedTaskId = extraMeta?.linkedTaskId;
+        if (linkedTaskId) {
+            syncingTaskIdsRef.current.add(linkedTaskId);
+        }
         const title = extraMeta.title || "New Event";
         try {
             const meta = { title, start: start.toISOString(), end: end.toISOString(), allDay: isAllDay, ...extraMeta };
@@ -2854,7 +2858,15 @@ export default function Dashboard() {
                     return newFile.id;
                 }
             }
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+        } finally {
+            if (linkedTaskId) {
+                setTimeout(() => {
+                    syncingTaskIdsRef.current.delete(linkedTaskId);
+                }, 500);
+            }
+        }
         return null;
     };
 

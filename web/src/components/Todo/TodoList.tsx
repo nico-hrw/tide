@@ -21,6 +21,12 @@ interface TodoListProps {
   onSelectTask?: (task: TaskItem) => void;
 }
 
+export const PRIORITY_COLORS: Record<Priority, string> = {
+  high: '#ef4444',
+  medium: '#f59e0b',
+  low: '#3b82f6',
+};
+
 const PRIORITY_CONFIG: Record<Priority, { label: string; bg: string; text: string; border: string; dot: string }> = {
   high: { label: 'Hoch', bg: 'bg-rose-500/10 dark:bg-rose-500/20', text: 'text-rose-600 dark:text-rose-400', border: 'border-rose-500/30', dot: 'bg-rose-500' },
   medium: { label: 'Mittel', bg: 'bg-amber-500/10 dark:bg-amber-500/20', text: 'text-amber-600 dark:text-amber-400', border: 'border-amber-500/30', dot: 'bg-amber-500' },
@@ -40,9 +46,16 @@ const PRIORITY_WEIGHT: Record<Priority, number> = { high: 3, medium: 2, low: 1 }
 
 function getTaskPriority(task: TaskItem): Priority {
   if (task.priority) return task.priority;
-  if (task.color === 'high' || task.color === 'rose' || task.color === 'red') return 'high';
-  if (task.color === 'low' || task.color === 'emerald' || task.color === 'green') return 'low';
+  if (task.color === 'high' || task.color === 'rose' || task.color === 'red' || task.color === '#ef4444') return 'high';
+  if (task.color === 'low' || task.color === 'emerald' || task.color === 'green' || task.color === '#3b82f6') return 'low';
   return 'medium';
+}
+
+function getPriorityColor(priority: Priority, explicitColor?: string): string {
+  if (explicitColor && explicitColor !== 'low' && explicitColor !== 'medium' && explicitColor !== 'high') {
+    return explicitColor;
+  }
+  return PRIORITY_COLORS[priority] || '#f59e0b';
 }
 
 function buildRecurrenceRule(recurrence: RecurrenceType): string | undefined {
@@ -135,7 +148,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       setIsSubmitting(true);
       await addTask({
         title: draft.title.trim(), description: draft.description.trim() || undefined,
-        priority: draft.priority, color: draft.priority,
+        priority: draft.priority, color: getPriorityColor(draft.priority, (draft as { color?: string }).color),
         scheduledDate: draft.dueDate || undefined, dueDate: draft.dueDate || undefined,
         recurrence: draft.recurrence, recurrence_rule: buildRecurrenceRule(draft.recurrence),
         recurrence_end: draft.recurrence !== 'none' && draft.recurrenceEnd ? draft.recurrenceEnd : undefined,
@@ -160,7 +173,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     if (!editDraft.title.trim()) return;
     updateTask(id, {
       title: editDraft.title.trim(), description: editDraft.description.trim() || undefined,
-      priority: editDraft.priority, color: editDraft.priority,
+      priority: editDraft.priority, color: getPriorityColor(editDraft.priority, (editDraft as { color?: string }).color),
       scheduledDate: editDraft.dueDate || undefined, dueDate: editDraft.dueDate || undefined,
       recurrence: editDraft.recurrence, recurrence_rule: buildRecurrenceRule(editDraft.recurrence),
       recurrence_end: editDraft.recurrence !== 'none' && editDraft.recurrenceEnd ? editDraft.recurrenceEnd : undefined,
