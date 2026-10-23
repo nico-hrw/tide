@@ -652,6 +652,8 @@ export const useDataStore = create<DataState>((set, get) => ({
             return { fetchingDirectories: next };
         });
 
+        let finalMergedTasks: TaskItem[] | undefined;
+
         try {
             console.log(`[STATE-AUDIT] fetchDirectory START | ParentID: ${dirKey}`);
             let allFiles: any[] = [];
@@ -735,19 +737,16 @@ export const useDataStore = create<DataState>((set, get) => ({
                     }
                 }
                 // MERGE: keep any locally-updated tasks (optimistic) that are newer than the backend state
-                set(s => {
-                    const localMap = new Map(s.tasks.map(t => [t.id, t]));
-                    const merged = loadedTasks.map(bt => {
-                        const local = localMap.get(bt.id);
-                        // If the local task has a scheduledDate that the backend doesn't know yet, keep it
-                        if (local && local.scheduledDate && !bt.scheduledDate) return { ...bt, scheduledDate: local.scheduledDate };
-                        if (local && local.completed_dates && (!bt.completed_dates || local.completed_dates.length > bt.completed_dates.length)) {
-                            return { ...bt, completed_dates: local.completed_dates };
-                        }
-                        if (local && local.isCompleted !== bt.isCompleted) return local; // prefer local toggle
-                        return bt;
-                    });
-                    return { tasks: merged };
+                const localMap = new Map(get().tasks.map(t => [t.id, t]));
+                finalMergedTasks = loadedTasks.map(bt => {
+                    const local = localMap.get(bt.id);
+                    // If the local task has a scheduledDate that the backend doesn't know yet, keep it
+                    if (local && local.scheduledDate && !bt.scheduledDate) return { ...bt, scheduledDate: local.scheduledDate };
+                    if (local && local.completed_dates && (!bt.completed_dates || local.completed_dates.length > bt.completed_dates.length)) {
+                        return { ...bt, completed_dates: local.completed_dates };
+                    }
+                    if (local && local.isCompleted !== bt.isCompleted) return local; // prefer local toggle
+                    return bt;
                 });
             } else {
                 const res = await apiFetch(`/api/v1/files?parent_id=${parentId}`);
@@ -981,6 +980,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                 return {
                     notes: mergedNotes,
                     events: mergedEvents,
+                    ...(finalMergedTasks !== undefined ? { tasks: finalMergedTasks } : {}),
                     metadataCache: mergedCache,
                     loadedDirectories: new Set([...s.loadedDirectories, dirKey]),
                     fetchingDirectories: new Set([...s.fetchingDirectories].filter(d => d !== dirKey))
@@ -993,7 +993,10 @@ export const useDataStore = create<DataState>((set, get) => ({
             set(s => {
                 const next = new Set(s.fetchingDirectories);
                 next.delete(dirKey);
-                return { fetchingDirectories: next };
+                return {
+                    fetchingDirectories: next,
+                    ...(finalMergedTasks !== undefined ? { tasks: finalMergedTasks } : {})
+                };
             });
         }
     },

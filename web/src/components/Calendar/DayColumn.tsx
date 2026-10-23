@@ -21,6 +21,7 @@ interface CalendarEvent {
     is_cancelled?: boolean; // NEW
     shading?: number;
     parent_id?: string | null;
+    linkedTaskId?: string;
 }
 
 interface DayColumnProps {
@@ -52,6 +53,7 @@ interface DayColumnProps {
     isMagnified?: boolean;
     onEventDrop: (eventId: string, startInitial: Date, endInitial: Date) => void;
     onEventCreate?: (start: Date, end: Date, isAllDay?: boolean, extraMeta?: any) => Promise<string | null>;
+    onEventUpdate?: (id: string, start: Date, end: Date) => Promise<void> | void;
     cursorX: MotionValue<number>;
     cursorY: MotionValue<number>;
     allEvents?: CalendarEvent[];
@@ -258,6 +260,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     snapInterval = 10,
     isMagnified = false,
     onEventDrop,
+    onEventUpdate,
     onEventCreate,
     cursorX,
     cursorY,
@@ -435,6 +438,17 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         const baseDate = new Date(day);
                         const newStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), 0, 0);
                         const newEnd = new Date(newStart.getTime() + 24 * 60 * 60000 - 1);
+
+                        const existingLinkedEvent = allEvents.find(e => e.linkedTaskId === draggedTask.id);
+                        if (existingLinkedEvent) {
+                            if (onEventUpdate) {
+                                await onEventUpdate(existingLinkedEvent.id, newStart, newEnd);
+                            } else if (onEventDrop) {
+                                onEventDrop(existingLinkedEvent.id, newStart, newEnd);
+                            }
+                            useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString(), dueDate: newStart.toISOString() });
+                            return;
+                        }
                         
                         // use onEventCreate passed from parent
                         if (onEventCreate) {
@@ -658,6 +672,17 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         const baseDate = new Date(day);
                         const newStart = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), Math.floor(newStartMinutes / 60), newStartMinutes % 60);
                         const newEnd = new Date(newStart.getTime() + TASK_DURATION_MINUTES * 60000);
+
+                        const existingLinkedEvent = allEvents.find(e => e.linkedTaskId === draggedTask.id);
+                        if (existingLinkedEvent) {
+                            if (onEventUpdate) {
+                                await onEventUpdate(existingLinkedEvent.id, newStart, newEnd);
+                            } else if (onEventDrop) {
+                                onEventDrop(existingLinkedEvent.id, newStart, newEnd);
+                            }
+                            useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString(), dueDate: newStart.toISOString() });
+                            return;
+                        }
                         
                         if (onEventCreate) {
                             await onEventCreate(newStart, newEnd, false, {

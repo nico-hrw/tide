@@ -3159,7 +3159,7 @@ export default function Dashboard() {
     const handleEventCreateRef = useLatestRef(handleEventCreate);
 
     useEffect(() => {
-        if (!privateKey || !publicKey || !tasks || tasks.length === 0) return;
+        if (!privateKey || !publicKey || !loadedDirectories.has('root') || !tasks || tasks.length === 0) return;
 
         const tasksWithDueDate = tasks.filter(t => t.dueDate);
 
@@ -3218,7 +3218,7 @@ export default function Dashboard() {
                 }
             }
         });
-    }, [tasks, events, privateKey, publicKey]);
+    }, [tasks, events, privateKey, publicKey, loadedDirectories]);
 
     const switchTabRef = useLatestRef(switchTab);
 
@@ -3356,7 +3356,10 @@ export default function Dashboard() {
             const currentEvents = useDataStore.getState().events;
             const targetEvt = currentEvents.find(e => e.id === id) as any;
             if (targetEvt?.linkedTaskId) {
-                updateTask(targetEvt.linkedTaskId, { dueDate: undefined, scheduledDate: undefined });
+                const remainingLinkedEvents = currentEvents.filter(e => e.id !== id && e.linkedTaskId === targetEvt.linkedTaskId);
+                if (remainingLinkedEvents.length === 0) {
+                    updateTask(targetEvt.linkedTaskId, { dueDate: undefined, scheduledDate: undefined });
+                }
             }
             const res = await apiFetch(`/api/v1/files/${id}`, {
                 method: "DELETE"
