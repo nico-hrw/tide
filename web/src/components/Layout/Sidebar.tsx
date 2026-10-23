@@ -1175,6 +1175,7 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
     // Active state and Open tabs state
     const isActive = activeTabId === file.id || activeNoteId === file.id;
     const isOpen = !!openTabs?.some(t => t.id === file.id);
+    const isLocked = Boolean(file.metadata?.has_custom_password || file.metadata?.security_settings?.has_custom_password || (typeof file.title === 'string' && file.title.startsWith('#')));
 
     // Touch long-press handling
     const touchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -1355,16 +1356,18 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                 }`}
         >
             <div className="flex items-center gap-2 truncate flex-1 flex-shrink-0">
-                {file.title.startsWith('#')
-                    ? <Lock size={15} className={`shrink-0 ${isActive || isOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
-                    : file.type === 'canvas'
-                        ? <Layout size={15} className={`shrink-0 ${isActive || isOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
-                        : <FileText size={15} className={`shrink-0 ${isActive || isOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />}
-                {(file.metadata?.has_custom_password || file.metadata?.security_settings?.has_custom_password) && (
-                    <span title="PIN-geschützt" className="shrink-0 inline-flex items-center">
-                        <Lock size={13} className="text-amber-500" />
-                    </span>
-                )}
+                <div className="relative shrink-0 flex items-center justify-center">
+                    {file.type === 'canvas' ? (
+                        <Layout size={15} className={`shrink-0 ${isActive || isOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
+                    ) : (
+                        <FileText size={15} className={`shrink-0 ${isActive || isOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
+                    )}
+                    {isLocked && (
+                        <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[1px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
+                            <Lock size={8} className="text-amber-500" strokeWidth={2.5} />
+                        </span>
+                    )}
+                </div>
                 {(file as any).share_status === 'shared' && (
                     <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-sky-400" title="Geteilte Notiz" />
                 )}
@@ -1430,6 +1433,7 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
     const { highlight } = useHighlight();
     const { fetchDirectory, loadedDirectories, openFolderIds, toggleFolder } = useDataStore();
     const isOpen = openFolderIds.has(folder.id);
+    const isLocked = Boolean(folder.metadata?.has_custom_password || folder.metadata?.security_settings?.has_custom_password || (typeof folder.title === 'string' && folder.title.startsWith('#')));
 
     // Touch long-press handling
     const touchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -1552,18 +1556,20 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                             <ChevronRight size={12} className="shrink-0 transition-transform duration-150" />
                         )}
                     </span>
-                    {isLoading ? (
-                        <Loader2 size={15} className="text-gray-400 animate-spin shrink-0" />
-                    ) : isOpen ? (
-                        <FolderOpen size={15} className="text-gray-400 dark:text-slate-500 shrink-0" />
-                    ) : (
-                        <Folder size={15} className="text-gray-400 dark:text-slate-500 shrink-0" />
-                    )}
-                    {(folder.metadata?.has_custom_password || folder.metadata?.security_settings?.has_custom_password) && (
-                        <span title="PIN-geschützt" className="shrink-0 inline-flex items-center">
-                            <Lock size={13} className="text-amber-500" />
-                        </span>
-                    )}
+                    <div className="relative shrink-0 flex items-center justify-center">
+                        {isLoading ? (
+                            <Loader2 size={15} className="text-gray-400 animate-spin shrink-0" />
+                        ) : isOpen ? (
+                            <FolderOpen size={15} className="text-gray-400 dark:text-slate-500 shrink-0" />
+                        ) : (
+                            <Folder size={15} className="text-gray-400 dark:text-slate-500 shrink-0" />
+                        )}
+                        {isLocked && (
+                            <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[1px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
+                                <Lock size={8} className="text-amber-500" strokeWidth={2.5} />
+                            </span>
+                        )}
+                    </div>
                     {(folder as any).share_status === 'shared' && (
                         <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-sky-400" title="Geteilter Ordner" />
                     )}

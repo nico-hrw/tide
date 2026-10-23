@@ -22,6 +22,7 @@ export interface TaskItem {
     recurrence_rule?: string;
     recurrence_end?: string;
     completed_dates?: string[];
+    folder?: string;
 }
 
 interface DataState {
@@ -275,6 +276,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                 recurrence_rule: newTask.recurrence_rule,
                 recurrence_end: newTask.recurrence_end,
                 completed_dates: newTask.completed_dates,
+                folder: newTask.folder,
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, state.publicKey);
             
@@ -350,6 +352,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                 recurrence_rule: mergedTask.recurrence_rule,
                 recurrence_end: mergedTask.recurrence_end,
                 completed_dates: mergedTask.completed_dates,
+                folder: mergedTask.folder,
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, publicKey);
 
@@ -726,6 +729,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                                     recurrence_rule: meta.recurrence_rule as string | undefined,
                                     recurrence_end: meta.recurrence_end as string | undefined,
                                     completed_dates: meta.completed_dates as string[] | undefined,
+                                    folder: meta.folder as string | undefined,
                                 } as TaskItem);
                             } else {
                                 // Fallback for tasks
@@ -744,6 +748,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                     if (local && local.scheduledDate && !bt.scheduledDate) return { ...bt, scheduledDate: local.scheduledDate };
                     if (local && local.completed_dates && (!bt.completed_dates || local.completed_dates.length > bt.completed_dates.length)) {
                         return { ...bt, completed_dates: local.completed_dates };
+                    }
+                    if (local && local.folder !== undefined && bt.folder === undefined) {
+                        return { ...bt, folder: local.folder };
                     }
                     if (local && local.isCompleted !== bt.isCompleted) return local; // prefer local toggle
                     return bt;
@@ -1189,6 +1196,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                                 recurrence_rule: meta.recurrence_rule as string | undefined,
                                 recurrence_end: meta.recurrence_end as string | undefined,
                                 completed_dates: meta.completed_dates as string[] | undefined,
+                                folder: meta.folder as string | undefined,
                             } as TaskItem);
                         } else {
                             loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, isLocked: true } as any);
@@ -1207,6 +1215,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                     if (local && local.scheduledDate && !bt.scheduledDate) return { ...bt, scheduledDate: local.scheduledDate };
                     if (local && local.completed_dates && (!bt.completed_dates || local.completed_dates.length > bt.completed_dates.length)) {
                         return { ...bt, completed_dates: local.completed_dates };
+                    }
+                    if (local && local.folder !== undefined && bt.folder === undefined) {
+                        return { ...bt, folder: local.folder };
                     }
                     if (local && local.isCompleted !== bt.isCompleted) return local;
                     return bt;

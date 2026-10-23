@@ -131,24 +131,25 @@ const NoteRow = React.memo(function NoteRow(props: {
         setDragging(false);
       }}
     >
-      <span
-        className="shrink-0 flex items-center justify-center"
+      <div
+        className="relative shrink-0 flex items-center justify-center"
         style={{
           color: isActive
             ? '#3b82f6'
-            : isLocked
-            ? '#f59e0b'
             : T.sec,
         }}
       >
-        {isLocked ? (
-          <Lock size={15} />
-        ) : isCanvas ? (
+        {isCanvas ? (
           <Layout size={15} />
         ) : (
           <FileText size={15} />
         )}
-      </span>
+        {isLocked && (
+          <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[1px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
+            <Lock size={8} className="text-amber-500" strokeWidth={2.5} />
+          </span>
+        )}
+      </div>
 
       <span className="text-sm truncate flex-1 font-medium">
         {displayTitle}
@@ -254,15 +255,18 @@ const FolderItem = React.memo(function FolderItem({
             className={`transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
           />
         </span>
-        <span className="shrink-0" style={{ color: isOver ? T.accent : T.sec }}>
-          {isLocked ? (
-            <Lock size={15} className="text-amber-500" />
-          ) : open ? (
+        <div className="relative shrink-0 flex items-center justify-center" style={{ color: isOver ? T.accent : T.sec }}>
+          {open ? (
             <FolderOpen size={15} />
           ) : (
             <Folder size={15} />
           )}
-        </span>
+          {isLocked && (
+            <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[1px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
+              <Lock size={8} className="text-amber-500" strokeWidth={2.5} />
+            </span>
+          )}
+        </div>
         <span className="text-sm font-semibold flex-1 text-left truncate" style={{ color: isOver ? T.accent : T.pri }}>
           {displayTitle}
         </span>
