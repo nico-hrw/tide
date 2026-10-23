@@ -884,10 +884,10 @@ const FloatingNextEventBanner = React.memo(function FloatingNextEventBanner({
   const isActive = smartIslandData.type === 'active';
 
   return (
-    <div className="sticky top-0 z-20 pb-3 pt-1 -mx-0.5 px-0.5 pointer-events-auto">
+    <div className="sticky top-0 z-20 pb-2 pt-0.5 -mx-0.5 px-0.5 pointer-events-auto">
       <button
         onClick={onScrollToEvent}
-        className="w-full text-left rounded-2xl p-4 flex flex-col gap-2.5 text-white transition-all active:scale-[0.98] shadow-lg"
+        className="w-full text-left rounded-[14px] px-3.5 py-2.5 flex flex-col gap-1.5 text-white transition-all active:scale-[0.98] shadow-lg"
         style={{
           background: 'linear-gradient(135deg, rgba(76, 29, 149, 0.96) 0%, rgba(126, 34, 206, 0.96) 50%, rgba(147, 51, 234, 0.96) 100%)',
           backdropFilter: 'blur(20px)',
@@ -899,7 +899,7 @@ const FloatingNextEventBanner = React.memo(function FloatingNextEventBanner({
         {/* Top: Status pill + Link indicator */}
         <div className="flex items-center justify-between gap-2 w-full">
           <span
-            className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full inline-flex items-center gap-1.5"
+            className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-flex items-center gap-1.5"
             style={{
               background: isActive ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.20)',
               color: isActive ? '#a7f3d0' : '#f3e8ff',
@@ -921,21 +921,21 @@ const FloatingNextEventBanner = React.memo(function FloatingNextEventBanner({
 
         {/* Middle: Prominent Event Title (on top, large and legible) */}
         <div className="w-full">
-          <h3 className="text-base sm:text-lg font-black text-white tracking-tight leading-snug line-clamp-2">
+          <h3 className="text-sm sm:text-base font-bold text-white tracking-tight leading-snug line-clamp-2">
             {smartIslandData.title}
           </h3>
         </div>
 
         {/* Bottom: Clear timing info with high contrast */}
         <div
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl w-fit text-xs font-semibold"
+          className="flex items-center gap-1.5 px-2 py-0.5 rounded-xl w-fit text-[11px] font-semibold"
           style={{
             background: 'rgba(0, 0, 0, 0.20)',
             border: '1px solid rgba(255, 255, 255, 0.15)',
             color: '#f3e8ff',
           }}
         >
-          <Clock size={13} className="text-purple-300 shrink-0" />
+          <Clock size={11} className="text-purple-300 shrink-0" />
           <span>{smartIslandData.subtitle}</span>
         </div>
       </button>
@@ -1468,13 +1468,18 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
 
                 const evColor = ev.color || T.accent;
                 const isExpanded = expandedEventId === ev.id;
+                const startOffsetMins = Math.max(0, Math.round((evStart.getTime() - cluster.clusterStart.getTime()) / 60_000));
+                const marginTopPx = Math.round(startOffsetMins * 0.6);
+                const proportionalHeight = Math.max(54, Math.min(220, 44 + durationMins * 0.6));
 
                 return (
                   <div
                     key={ev.id}
                     id={`ev-${ev.id}`}
-                    className="flex-1 min-w-[130px] flex flex-col text-left rounded-xl transition-all relative overflow-hidden"
+                    className="flex-1 min-w-[130px] flex flex-col text-left rounded-[14px] transition-all relative overflow-hidden"
                     style={{
+                      marginTop: marginTopPx,
+                      minHeight: proportionalHeight,
                       background: isActive
                         ? (theme === 'dark' ? '#09090b' : '#18181b')
                         : isEven

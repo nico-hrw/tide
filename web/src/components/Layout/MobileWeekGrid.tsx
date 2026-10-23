@@ -67,6 +67,89 @@ interface EventDrag {
   previewEnd: Date;
 }
 
+// Layout helper for overlapping events in a column
+function arrangeEvents(events: CalEvent[], drag?: EventDrag | null): Map<string, { left: number; width: number }> {
+  const getTimes = (evt: CalEvent) => {
+    const isBeingDragged = drag?.eventId === evt.id;
+    const start = isBeingDragged ? drag!.previewStart.getTime() : new Date(evt.start).getTime();
+    const end = isBeingDragged
+      ? drag!.previewEnd.getTime()
+      : (evt.end ? new Date(evt.end).getTime() : start + 3_600_000);
+    return {
+      start,
+      end: end > start ? end : start + 3_600_000,
+    };
+  };
+
+  const sorted = [...events].sort((a, b) => {
+    const ta = getTimes(a);
+    const tb = getTimes(b);
+    if (ta.start === tb.start) {
+      return tb.end - ta.end;
+    }
+    return ta.start - tb.start;
+  });
+
+  const clusters: CalEvent[][] = [];
+  let currentCluster: CalEvent[] = [];
+  let clusterEnd = 0;
+
+  sorted.forEach(evt => {
+    const { start, end } = getTimes(evt);
+
+    if (currentCluster.length === 0) {
+      currentCluster.push(evt);
+      clusterEnd = end;
+    } else {
+      if (start < clusterEnd) {
+        currentCluster.push(evt);
+        clusterEnd = Math.max(clusterEnd, end);
+      } else {
+        clusters.push(currentCluster);
+        currentCluster = [evt];
+        clusterEnd = end;
+      }
+    }
+  });
+  if (currentCluster.length > 0) clusters.push(currentCluster);
+
+  const layout = new Map<string, { left: number; width: number }>();
+
+  clusters.forEach(cluster => {
+    const lanes: number[] = [];
+    const eventLanes = new Map<string, number>();
+
+    cluster.forEach(evt => {
+      const { start, end } = getTimes(evt);
+
+      let placed = false;
+      for (let i = 0; i < lanes.length; i++) {
+        if (lanes[i] <= start) {
+          lanes[i] = end;
+          eventLanes.set(evt.id, i);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        lanes.push(end);
+        eventLanes.set(evt.id, lanes.length - 1);
+      }
+    });
+
+    const widthPercent = 100 / (lanes.length || 1);
+    cluster.forEach(evt => {
+      const lane = eventLanes.get(evt.id) || 0;
+      layout.set(evt.id, {
+        left: lane * widthPercent,
+        width: widthPercent,
+      });
+    });
+  });
+
+  return layout;
+}
+
 export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNewEvent, onEventUpdate, onWeekShift, onEventDragChange, hideTimeStrip, onScrollY, onHourHeightChange }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const columnsRef = useRef<HTMLDivElement>(null);
@@ -516,6 +599,7 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
             // Ghost shown in the ORIGINAL column when cross-day dragging
             const ghostEv = (draggedEv && evDrag!.originalColIdx === colIdx && evDrag!.colIdx !== colIdx)
               ? draggedEv : null;
+            const layout = arrangeEvents(colEvents, evDrag);
 
             return (
               <div key={day.toISOString()} data-col-idx={colIdx}
@@ -585,6 +669,8 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
                   const top    = (evStart.getHours() + evStart.getMinutes() / 60) * hourH;
                   const height = Math.max(minsToPx(SNAP_MINS, hourH), ((evEnd.getTime() - evStart.getTime()) / 3_600_000) * hourH);
 
+                  const pos = layout.get(ev.id) || { left: 0, width: 100 };
+
                   const isSelected = selectedId === ev.id;
                   const color = ev.color || '#3B82F6';
                   const borderRadiusVal = `${isContinuation ? 0 : 7}px ${isContinuation ? 0 : 7}px ${isContinued ? 0 : 7}px ${isContinued ? 0 : 7}px`;
@@ -597,7 +683,7 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
                   const isHovered = evHoverPillId === ev.id;
                   return (
                     <div key={`${ev.id}-${isContinuation ? 'cont' : 'orig'}`}
-                      style={{ position: 'absolute', top, height, left: 2, right: 2, zIndex: isBeingDragged ? 10 : 4,
+                      style={{ position: 'absolute', top, height, left: `calc(${pos.left}% + 1px)`, width: `calc(${pos.width}% - 2px)`, zIndex: isBeingDragged ? 10 : 4,
                         background: color + (isBeingDragged ? 'EE' : isSelected ? 'DD' : 'CC'),
                         borderRadius: borderRadiusVal, overflow: 'hidden',
                         borderTop:    isContinuation ? '2px dashed rgba(255,255,255,0.4)' : ((isSelected || isBeingDragged) ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.2)'),
