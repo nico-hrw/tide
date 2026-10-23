@@ -33,6 +33,15 @@ interface DecryptedFile {
     metadata?: any;
 }
 
+type ContextMenuEvent = React.MouseEvent | {
+    clientX: number;
+    clientY: number;
+    preventDefault?: () => void;
+    stopPropagation?: () => void;
+};
+
+const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0));
+
 interface SidebarProps {
     files: DecryptedFile[];
     onFileSelect: (fileId: string, title: string) => void;
@@ -309,19 +318,24 @@ export default function Sidebar({
     }, []);
 
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+            const target = event.target as HTMLElement | null;
+            if (profileMenuRef.current && target && !profileMenuRef.current.contains(target)) {
                 setIsProfileMenuOpen(false);
             }
-            if (contextMenu && !(event.target as HTMLElement).closest('.context-menu')) {
+            if (contextMenu && target && !target.closest?.('.context-menu')) {
                 setContextMenu(null);
             }
-            if (sidebarContextMenu && !(event.target as HTMLElement).closest('.context-menu')) {
+            if (sidebarContextMenu && target && !target.closest?.('.context-menu')) {
                 setSidebarContextMenu(null);
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
+        document.addEventListener("touchstart", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("touchstart", handleClickOutside);
+        };
     }, [isProfileMenuOpen, contextMenu, sidebarContextMenu]);
 
     useEffect(() => {
@@ -341,9 +355,9 @@ export default function Sidebar({
         window.location.reload();
     };
 
-    const handleContextMenu = (e: React.MouseEvent, id: string, type: 'file' | 'folder') => {
-        e.preventDefault();
-        e.stopPropagation();
+    const handleContextMenu = (e: ContextMenuEvent, id: string, type: 'file' | 'folder') => {
+        e.preventDefault?.();
+        e.stopPropagation?.();
         setContextMenu({ x: e.clientX, y: e.clientY, id, type });
     };
 
@@ -476,7 +490,7 @@ export default function Sidebar({
 
     return (
         <div
-            className="w-64 h-full flex flex-col shrink-0 relative z-[100] transition-all duration-300 overflow-visible"
+            className="w-56 md:w-60 lg:w-64 h-full flex flex-col shrink-0 relative z-[100] transition-all duration-300 overflow-visible"
             onContextMenu={(e) => {
                 if (e.defaultPrevented) return;
                 e.preventDefault();
@@ -486,7 +500,7 @@ export default function Sidebar({
             {/* Sticky top section: Navigation & Recent */}
             <div className="flex-shrink-0 p-2 pt-3 pb-0">
                 {/* Navigation Section */}
-                <div className="mb-4 px-1 flex gap-1">
+                <div className="mb-2 px-1 flex gap-1">
                     <button
                         onClick={() => onOpenSocial?.()}
                         className={`flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'social' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
@@ -517,7 +531,7 @@ export default function Sidebar({
             </div>{/* end sticky top section */}
 
             {/* Notes label with quick actions */}
-            <div className="flex-shrink-0 px-3 pt-2 pb-1 flex items-center justify-between">
+            <div className="flex-shrink-0 px-2 pt-1 pb-1 flex items-center justify-between">
                 <p className="text-[11px] font-semibold uppercase tracking-[1.2px] text-gray-700 dark:text-slate-300">
                     Notes
                 </p>
@@ -549,8 +563,15 @@ export default function Sidebar({
             {/* Scrollable notes section — flex-based height so RECENT expansion doesn't push content under Smart Island */}
             <div
                 ref={scrollContainerRef}
-                className="overflow-y-auto overflow-x-visible px-2 no-scrollbar"
-                style={{ flex: '1 1 0', minHeight: 0, paddingBottom: '32px' }}
+                className="overflow-y-auto overflow-x-visible px-2 no-scrollbar overscroll-contain"
+                style={{
+                    flex: '1 1 0',
+                    minHeight: 0,
+                    paddingBottom: '32px',
+                    touchAction: 'pan-y',
+                    overscrollBehavior: 'contain',
+                    WebkitOverflowScrolling: 'touch',
+                }}
                 onDragOver={(e) => {
                     e.preventDefault();
                     const container = scrollContainerRef.current;
@@ -802,7 +823,7 @@ export default function Sidebar({
 
             {/* Bottom spacer — reserves height for the absolutely-positioned Smart Island.
                 Needs to be >= island height (≈250px) + bottom-6 margin (24px). */}
-            <div className="flex-shrink-0 h-[340px]" />
+            <div className="flex-shrink-0 h-[220px]" />
 
             {/* Smart Island — absolutely positioned, extends beyond sidebar */}
             <div className="absolute bottom-4 left-4 z-[100] flex flex-col gap-2 w-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] pointer-events-none [&>*]:pointer-events-auto">
@@ -1114,7 +1135,7 @@ interface FileItemProps {
     editingId?: string | null;
     onRenameSubmit?: (id: string, newTitle: string) => void;
     onDragStart: (e: React.DragEvent, id: string) => void;
-    onContextMenu: (e: React.MouseEvent, id: string, type: 'file' | 'folder') => void;
+    onContextMenu: (e: ContextMenuEvent, id: string, type: 'file' | 'folder') => void;
     enabledExtensions?: string[];
     myId?: string;
     index?: number;
@@ -1154,6 +1175,17 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
     // Active state and Open tabs state
     const isActive = activeTabId === file.id || activeNoteId === file.id;
     const isOpen = !!openTabs?.some(t => t.id === file.id);
+
+    // Touch long-press handling
+    const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+    const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isLongPressTriggeredRef = useRef(false);
+
+    useEffect(() => {
+        return () => {
+            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+        };
+    }, []);
 
     // Custom-drag detection: the calendar's main drag uses mousedown/mousemove,
     // not HTML5 DnD, so onDragOver never fires. We listen for the global custom
@@ -1211,7 +1243,56 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
             initial={{ opacity: 0, x: -8 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ type: 'spring', stiffness: 350, damping: 40, mass: 0.8, delay: (index || 0) * 0.03 }}
-            draggable
+            draggable={!isTouchDevice}
+            style={{
+                WebkitTouchCallout: 'none',
+                userSelect: 'none',
+            }}
+            onTouchStart={(e) => {
+                if (e.touches.length !== 1) return;
+                const touch = e.touches[0];
+                touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+                isLongPressTriggeredRef.current = false;
+                if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                longPressTimerRef.current = setTimeout(() => {
+                    isLongPressTriggeredRef.current = true;
+                    onContextMenu({
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
+                        preventDefault: () => {},
+                        stopPropagation: () => {},
+                    }, file.id, 'file');
+                }, 450);
+            }}
+            onTouchMove={(e) => {
+                if (!touchStartRef.current || !longPressTimerRef.current) return;
+                const touch = e.touches[0];
+                const dx = touch.clientX - touchStartRef.current.x;
+                const dy = touch.clientY - touchStartRef.current.y;
+                if (Math.hypot(dx, dy) > 10) {
+                    clearTimeout(longPressTimerRef.current);
+                    longPressTimerRef.current = null;
+                }
+            }}
+            onTouchEnd={(e) => {
+                if (longPressTimerRef.current) {
+                    clearTimeout(longPressTimerRef.current);
+                    longPressTimerRef.current = null;
+                }
+                if (isLongPressTriggeredRef.current) {
+                    e.preventDefault();
+                    setTimeout(() => {
+                        isLongPressTriggeredRef.current = false;
+                    }, 150);
+                }
+            }}
+            onTouchCancel={() => {
+                if (longPressTimerRef.current) {
+                    clearTimeout(longPressTimerRef.current);
+                    longPressTimerRef.current = null;
+                }
+                isLongPressTriggeredRef.current = false;
+            }}
             onDragStart={(e: any) => onDragStart(e, file.id)}
             onContextMenu={(e: any) => onContextMenu(e, file.id, 'file')}
             onDragOver={(e) => {
@@ -1252,6 +1333,11 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                 }
             }}
             onClick={(e) => {
+                if (isLongPressTriggeredRef.current) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
                 if (highlight.isSelectingLink && highlight.onLinkSelect) {
                     e.stopPropagation();
                     highlight.onLinkSelect({ id: file.id, title: file.title, type: 'file', rect: e.currentTarget.getBoundingClientRect() });
@@ -1259,7 +1345,7 @@ const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onS
                     onSelect(file.id, file.title);
                 }
             }}
-            className={`group flex items-center justify-between w-full px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-150
+            className={`group flex items-center justify-between w-full px-2 py-1 min-h-[28px] rounded-lg cursor-pointer transition-all duration-150
                 ${isCalendarDropTarget ? 'ring-2 ring-violet-400 bg-violet-50 dark:bg-violet-900/20' : ''}
                 ${isActive
                     ? 'bg-blue-100/90 dark:bg-blue-950/60 text-blue-900 dark:text-blue-100 font-semibold ring-1 ring-blue-400/40'
@@ -1322,7 +1408,7 @@ interface FolderItemProps {
     onCreateFolder?: (parentId: string | null, color?: string) => void;
     onMoveItem?: (id: string, newParentId: string | null) => void;
     onDragStart: (e: React.DragEvent, id: string) => void;
-    onContextMenu: (e: React.MouseEvent, id: string, type: 'file' | 'folder') => void;
+    onContextMenu: (e: ContextMenuEvent, id: string, type: 'file' | 'folder') => void;
     hiddenThemeIds?: string[];
     onToggleThemeVisibility?: (id: string) => void;
     viewMode?: 'files' | 'calendar';
@@ -1345,7 +1431,23 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
     const { fetchDirectory, loadedDirectories, openFolderIds, toggleFolder } = useDataStore();
     const isOpen = openFolderIds.has(folder.id);
 
+    // Touch long-press handling
+    const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+    const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isLongPressTriggeredRef = useRef(false);
+
+    useEffect(() => {
+        return () => {
+            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+        };
+    }, []);
+
     const handleToggle = async (e: React.MouseEvent) => {
+        if (isLongPressTriggeredRef.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
         e.stopPropagation();
 
         const isFolderProtected = !!(folder.metadata?.has_custom_password || folder.metadata?.security_settings?.has_custom_password);
@@ -1380,7 +1482,56 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ type: 'spring', stiffness: 350, damping: 40, mass: 0.8, delay: (index || 0) * 0.03 }}
-                draggable
+                draggable={!isTouchDevice}
+                style={{
+                    WebkitTouchCallout: 'none',
+                    userSelect: 'none',
+                }}
+                onTouchStart={(e) => {
+                    if (e.touches.length !== 1) return;
+                    const touch = e.touches[0];
+                    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+                    isLongPressTriggeredRef.current = false;
+                    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+                    longPressTimerRef.current = setTimeout(() => {
+                        isLongPressTriggeredRef.current = true;
+                        onContextMenu({
+                            clientX: touch.clientX,
+                            clientY: touch.clientY,
+                            preventDefault: () => {},
+                            stopPropagation: () => {},
+                        }, folder.id, 'folder');
+                    }, 450);
+                }}
+                onTouchMove={(e) => {
+                    if (!touchStartRef.current || !longPressTimerRef.current) return;
+                    const touch = e.touches[0];
+                    const dx = touch.clientX - touchStartRef.current.x;
+                    const dy = touch.clientY - touchStartRef.current.y;
+                    if (Math.hypot(dx, dy) > 10) {
+                        clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = null;
+                    }
+                }}
+                onTouchEnd={(e) => {
+                    if (longPressTimerRef.current) {
+                        clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = null;
+                    }
+                    if (isLongPressTriggeredRef.current) {
+                        e.preventDefault();
+                        setTimeout(() => {
+                            isLongPressTriggeredRef.current = false;
+                        }, 150);
+                    }
+                }}
+                onTouchCancel={() => {
+                    if (longPressTimerRef.current) {
+                        clearTimeout(longPressTimerRef.current);
+                        longPressTimerRef.current = null;
+                    }
+                    isLongPressTriggeredRef.current = false;
+                }}
                 onDragStart={(e: any) => onDragStart(e, folder.id)}
                 onContextMenu={(e: any) => onContextMenu(e, folder.id, 'folder')}
                 onDragOver={level > 0 ? (e: any) => e.preventDefault() : undefined}
@@ -1391,7 +1542,7 @@ const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onV
                     if (id && id !== folder.id) onMoveItem?.(id, folder.id);
                 } : undefined}
                 onClick={handleToggle}
-                className={`group flex items-center justify-between w-full px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-150 hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover`}
+                className={`group flex items-center justify-between w-full px-2 py-1 min-h-[28px] rounded-lg cursor-pointer transition-all duration-150 hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover`}
             >
                 <div className="flex items-center gap-1.5 truncate flex-1">
                     <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300 transition-colors">

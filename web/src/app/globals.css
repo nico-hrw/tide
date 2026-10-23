@@ -216,6 +216,10 @@
   }
 }
 
+html, body {
+  overscroll-behavior-y: contain;
+}
+
 html {
   background-color: var(--background);
 }
@@ -227,6 +231,12 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   overscroll-behavior-x: none;
+}
+
+[data-note-tile], [data-folder-tile], .interactive-touch {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* Base Utility Classes */

@@ -16,21 +16,12 @@ import MobileWeekGrid from './MobileWeekGrid';
 import { useDataStore } from '@/store/useDataStore';
 import dynamic from 'next/dynamic';
 import { parseGermanDate } from '@/lib/dateParser';
+import { pickGreetingTemplate, formatGreeting, NextEventCountdown } from './MobileHeaderWidgets';
 
 const getDayDiff = (d1: Date, d2: Date) => {
   const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
   const utc2 = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
   return Math.round((utc1 - utc2) / 86_400_000);
-};
-
-const getGreeting = (name: string, date: Date) => {
-  const h = date.getHours();
-  let greet = 'Guten Tag';
-  if (h >= 5 && h < 11) greet = 'Guten Morgen';
-  else if (h >= 11 && h < 14) greet = 'Guten Mittag';
-  else if (h >= 14 && h < 18) greet = 'Guten Tag';
-  else greet = 'Guten Abend';
-  return name ? `${greet}, ${name}!` : `${greet}!`;
 };
 
 const JobPlanner = dynamic(() => import('../JobPlanner/JobPlanner'), {
@@ -868,80 +859,58 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
   );
 });
 
-const FloatingNextEventBanner = React.memo(function FloatingNextEventBanner({
-  smartIslandData,
-  onScrollToEvent,
-}: {
-  smartIslandData: {
-    type: 'active' | 'next';
-    event: any;
-    title: string;
-    subtitle: string;
-    color: string;
-  };
-  onScrollToEvent?: () => void;
-}) {
-  const isActive = smartIslandData.type === 'active';
+const PX_PER_MIN = 1.1;
+const MIN_EVENT_HEIGHT = 56;
 
-  return (
-    <div className="sticky top-0 z-20 pb-2 pt-0.5 -mx-0.5 px-0.5 pointer-events-auto">
-      <button
-        onClick={onScrollToEvent}
-        className="w-full text-left rounded-[14px] px-3.5 py-2.5 flex flex-col gap-1.5 text-white transition-all active:scale-[0.98] shadow-lg"
-        style={{
-          background: 'linear-gradient(135deg, rgba(76, 29, 149, 0.96) 0%, rgba(126, 34, 206, 0.96) 50%, rgba(147, 51, 234, 0.96) 100%)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          boxShadow: '0 8px 24px -4px rgba(126, 34, 206, 0.45), inset 0 1px 1px 0 rgba(255, 255, 255, 0.35)',
-          border: '1px solid rgba(216, 180, 254, 0.35)',
-        }}
-      >
-        {/* Top: Status pill + Link indicator */}
-        <div className="flex items-center justify-between gap-2 w-full">
-          <span
-            className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full inline-flex items-center gap-1.5"
-            style={{
-              background: isActive ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.20)',
-              color: isActive ? '#a7f3d0' : '#f3e8ff',
-              border: isActive ? '1px solid rgba(52, 211, 153, 0.45)' : '1px solid rgba(255, 255, 255, 0.28)',
-            }}
-          >
-            {isActive ? (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            ) : (
-              <Clock size={11} className="text-purple-200" />
-            )}
-            {isActive ? 'Jetzt aktiv' : 'Nächster Termin'}
-          </span>
+interface LaneItem<T> {
+  event: T;
+  desiredTop: number;
+  height: number;
+}
 
-          <span className="text-[11px] font-bold text-purple-200 inline-flex items-center gap-1 opacity-90">
-            Zum Termin <ArrowRight size={12} />
-          </span>
-        </div>
+function packLanes<T extends { id: string; start: string; end?: string }>(
+  events: T[],
+  clusterStart: Date
+): LaneItem<T>[][] {
+  // Sort by start time ascending, then longer duration first
+  const sorted = [...events].sort((a, b) => {
+    const aStart = new Date(a.start).getTime();
+    const bStart = new Date(b.start).getTime();
+    if (aStart !== bStart) return aStart - bStart;
+    const aEnd = a.end ? new Date(a.end).getTime() : aStart + 3_600_000;
+    const bEnd = b.end ? new Date(b.end).getTime() : bStart + 3_600_000;
+    return (bEnd - bStart) - (aEnd - aStart);
+  });
 
-        {/* Middle: Prominent Event Title (on top, large and legible) */}
-        <div className="w-full">
-          <h3 className="text-sm sm:text-base font-bold text-white tracking-tight leading-snug line-clamp-2">
-            {smartIslandData.title}
-          </h3>
-        </div>
+  const lanes: { items: LaneItem<T>[]; bottomPx: number }[] = [];
+  for (const ev of sorted) {
+    const evStart = new Date(ev.start);
+    const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
+    const startOffsetMins = Math.max(0, (evStart.getTime() - clusterStart.getTime()) / 60_000);
+    const durationMins = Math.max(15, (evEnd.getTime() - evStart.getTime()) / 60_000);
 
-        {/* Bottom: Clear timing info with high contrast */}
-        <div
-          className="flex items-center gap-1.5 px-2 py-0.5 rounded-xl w-fit text-[11px] font-semibold"
-          style={{
-            background: 'rgba(0, 0, 0, 0.20)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            color: '#f3e8ff',
-          }}
-        >
-          <Clock size={11} className="text-purple-300 shrink-0" />
-          <span>{smartIslandData.subtitle}</span>
-        </div>
-      </button>
-    </div>
-  );
-});
+    const desiredTop = Math.round(startOffsetMins * PX_PER_MIN);
+    const height = Math.max(MIN_EVENT_HEIGHT, Math.round(durationMins * PX_PER_MIN));
+
+    // Find first lane where this item fits (bottomPx + gap <= desiredTop)
+    let placed = false;
+    for (const lane of lanes) {
+      if (lane.bottomPx + 6 <= desiredTop) {
+        lane.items.push({ event: ev, desiredTop, height });
+        lane.bottomPx = desiredTop + height;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      lanes.push({
+        items: [{ event: ev, desiredTop, height }],
+        bottomPx: desiredTop + height,
+      });
+    }
+  }
+  return lanes.map(l => l.items);
+}
 
 const DbTimelineDay = React.memo(function DbTimelineDay({
   day,
@@ -1434,219 +1403,230 @@ const DbTimelineDay = React.memo(function DbTimelineDay({
           );
         }
 
-        // Case 2: Parallel / Overlapping events (sharing width equally, borderless)
+        // Case 2: Parallel / Overlapping events (packed into side-by-side lanes at correct timeline heights)
+        const lanes = packLanes(cluster.events, cluster.clusterStart);
         return (
           <React.Fragment key={`cluster-${cluster.clusterStart.toISOString()}-${cIdx}`}>
             {pauseEl}
             <div className="w-full flex gap-2 my-1 items-start overflow-x-auto no-scrollbar">
-              {cluster.events.map(ev => {
-                const curIdx = eventCounter++;
-                const isEven = curIdx % 2 === 0;
-
-                const evStart = new Date(ev.start);
-                const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
-                const durationMins = Math.max(15, Math.round((evEnd.getTime() - evStart.getTime()) / 60_000));
-                const durStr = durationMins >= 60
-                  ? `${Math.floor(durationMins / 60)}h ${durationMins % 60 > 0 ? `${durationMins % 60}m` : ''}`.trim()
-                  : `${durationMins} Min.`;
-
-                const isActive = isToday && (() => {
-                  try { return evStart <= now && evEnd > now; } catch { return false; }
-                })();
-
-                const isNextUpcoming = isToday && !isActive && ev.id === nextUpcomingId;
-
-                const remMins = Math.max(1, Math.round((evEnd.getTime() - now.getTime()) / 60_000));
-                const remStr = remMins >= 60
-                  ? `${Math.floor(remMins / 60)} Std. ${remMins % 60 > 0 ? `${remMins % 60} Min.` : ''}`.trim()
-                  : `${remMins} Min.`;
-
-                const startMins = Math.max(1, Math.round((evStart.getTime() - now.getTime()) / 60_000));
-                const startStr = startMins >= 60
-                  ? `${Math.floor(startMins / 60)} Std. ${startMins % 60 > 0 ? `${startMins % 60} Min.` : ''}`.trim()
-                  : `${startMins} Min.`;
-
-                const evColor = ev.color || T.accent;
-                const isExpanded = expandedEventId === ev.id;
-                const startOffsetMins = Math.max(0, Math.round((evStart.getTime() - cluster.clusterStart.getTime()) / 60_000));
-                const marginTopPx = Math.round(startOffsetMins * 0.6);
-                const proportionalHeight = Math.max(54, Math.min(220, 44 + durationMins * 0.6));
-
+              {lanes.map((laneItems, laneIdx) => {
+                let laneCursor = 0;
                 return (
                   <div
-                    key={ev.id}
-                    id={`ev-${ev.id}`}
-                    className="flex-1 min-w-[130px] flex flex-col text-left rounded-[14px] transition-all relative overflow-hidden"
-                    style={{
-                      marginTop: marginTopPx,
-                      minHeight: proportionalHeight,
-                      background: isActive
-                        ? (theme === 'dark' ? '#09090b' : '#18181b')
-                        : isEven
-                        ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f4f4f5')
-                        : (theme === 'dark' ? 'rgba(255, 255, 255, 0.095)' : '#e4e4e7'),
-                      transform: isActive ? 'scale(1.025)' : 'scale(1)',
-                      zIndex: isActive ? 10 : 1,
-                      border: 'none',
-                      boxShadow: isActive
-                        ? (theme === 'dark' ? '0 10px 28px -4px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.15)' : '0 12px 28px -6px rgba(0, 0, 0, 0.35)')
-                        : 'none',
-                      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-                    }}
+                    key={laneIdx}
+                    className={`flex-1 ${lanes.length > 2 ? 'min-w-[140px]' : 'min-w-0'} flex flex-col`}
                   >
-                    <button
-                      onClick={() => setExpandedEventId(prev => prev === ev.id ? null : ev.id)}
-                      className="w-full flex flex-col text-left p-3 cursor-pointer"
-                      style={{ border: 'none', background: 'transparent' }}
-                    >
-                      {/* Top: Time badge + Duration */}
-                      <div className="flex items-center justify-between gap-1 mb-1.5 w-full">
-                        <span
-                          className="text-[11px] font-bold"
-                          style={{ color: isActive ? '#ffffff' : T.pri }}
-                        >
-                          {format(evStart, 'HH:mm')} – {format(evEnd, 'HH:mm')}
-                        </span>
-                        <div className="flex items-center gap-1">
-                          <span
-                            className="text-[10px] font-medium shrink-0 px-1.5 py-0.5 rounded-md"
-                            style={{
-                              background: isActive
-                                ? 'rgba(255, 255, 255, 0.18)'
-                                : theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
-                              color: isActive ? '#ffffff' : T.mut,
-                            }}
-                          >
-                            {durStr}
-                          </span>
-                          <ChevronDown
-                            size={12}
-                            style={{
-                              transform: isExpanded ? 'rotate(180deg)' : 'none',
-                              color: isActive ? '#ffffff' : T.mut,
-                              transition: 'transform 0.2s ease',
-                            }}
-                          />
-                        </div>
-                      </div>
+                    {laneItems.map(({ event: ev, desiredTop, height }) => {
+                      const marginTop = Math.max(0, desiredTop - laneCursor);
+                      laneCursor = desiredTop + height + 6;
 
-                      {/* Middle: Dot + Title */}
-                      <div className="flex items-center gap-1.5 min-w-0 w-full mb-1">
-                        <div
-                          className={`w-2.5 h-2.5 rounded-full shrink-0 ${isActive ? 'animate-pulse' : ''}`}
-                          style={{ background: evColor }}
-                        />
-                        <span
-                          className="text-xs sm:text-sm font-bold truncate flex-1"
-                          style={{ color: isActive ? '#ffffff' : T.pri }}
-                        >
-                          {ev.title}
-                        </span>
-                      </div>
+                      const curIdx = eventCounter++;
+                      const isEven = curIdx % 2 === 0;
 
-                      {/* Active or next timing badge (Requirement 4) */}
-                      {isActive && (
+                      const evStart = new Date(ev.start);
+                      const evEnd = ev.end ? new Date(ev.end) : new Date(evStart.getTime() + 3_600_000);
+                      const durationMins = Math.max(15, Math.round((evEnd.getTime() - evStart.getTime()) / 60_000));
+                      const durStr = durationMins >= 60
+                        ? `${Math.floor(durationMins / 60)}h ${durationMins % 60 > 0 ? `${durationMins % 60}m` : ''}`.trim()
+                        : `${durationMins} Min.`;
+
+                      const isActive = isToday && (() => {
+                        try { return evStart <= now && evEnd > now; } catch { return false; }
+                      })();
+
+                      const isNextUpcoming = isToday && !isActive && ev.id === nextUpcomingId;
+
+                      const remMins = Math.max(1, Math.round((evEnd.getTime() - now.getTime()) / 60_000));
+                      const remStr = remMins >= 60
+                        ? `${Math.floor(remMins / 60)} Std. ${remMins % 60 > 0 ? `${remMins % 60} Min.` : ''}`.trim()
+                        : `${remMins} Min.`;
+
+                      const startMins = Math.max(1, Math.round((evStart.getTime() - now.getTime()) / 60_000));
+                      const startStr = startMins >= 60
+                        ? `${Math.floor(startMins / 60)} Std. ${startMins % 60 > 0 ? `${startMins % 60} Min.` : ''}`.trim()
+                        : `${startMins} Min.`;
+
+                      const evColor = ev.color || T.accent;
+                      const isExpanded = expandedEventId === ev.id;
+
+                      return (
                         <div
-                          className="text-[10px] font-bold px-1.5 py-0.5 rounded-md mt-0.5 mb-1 inline-flex items-center gap-1 self-start"
+                          key={ev.id}
+                          id={`ev-${ev.id}`}
+                          className="w-full flex flex-col text-left rounded-[14px] transition-all relative overflow-hidden"
                           style={{
-                            background: 'rgba(16, 185, 129, 0.22)',
-                            color: '#34d399',
+                            marginTop,
+                            minHeight: height,
+                            background: isActive
+                              ? (theme === 'dark' ? '#09090b' : '#18181b')
+                              : isEven
+                              ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.05)' : '#f4f4f5')
+                              : (theme === 'dark' ? 'rgba(255, 255, 255, 0.095)' : '#e4e4e7'),
+                            transform: isActive ? 'scale(1.025)' : 'scale(1)',
+                            zIndex: isActive ? 10 : 1,
+                            border: 'none',
+                            boxShadow: isActive
+                              ? (theme === 'dark' ? '0 10px 28px -4px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.15)' : '0 12px 28px -6px rgba(0, 0, 0, 0.35)')
+                              : 'none',
+                            transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                           }}
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          Noch {remStr} (bis {format(evEnd, 'HH:mm')})
-                        </div>
-                      )}
-
-                      {isNextUpcoming && (
-                        <div
-                          className="text-[10px] font-bold px-1.5 py-0.5 rounded-md mt-0.5 mb-1 inline-flex items-center gap-1 self-start"
-                          style={{
-                            background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.18), rgba(168, 85, 247, 0.25))',
-                            color: theme === 'dark' ? '#d8b4fe' : '#7e22ce',
-                            border: '1px solid rgba(168, 85, 247, 0.3)',
-                          }}
-                        >
-                          <Clock size={10} />
-                          Startet um {format(evStart, 'HH:mm')} ({startStr})
-                        </div>
-                      )}
-
-                      {/* Description preview if not expanded */}
-                      {!isExpanded && ev.description && (
-                        <p
-                          className="text-[11px] mt-0.5 line-clamp-1 leading-relaxed"
-                          style={{ color: isActive ? 'rgba(255,255,255,0.85)' : T.sec }}
-                        >
-                          {ev.description}
-                        </p>
-                      )}
-                    </button>
-
-                    {/* Inline accordion expansion (Requirement 5) */}
-                    {isExpanded && (
-                      <div
-                        className="px-3 pb-3 pt-1 border-t"
-                        style={{
-                          borderColor: isActive
-                            ? 'rgba(255, 255, 255, 0.15)'
-                            : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
-                        }}
-                      >
-                        {ev.location && (
-                          <div
-                            className="flex items-center gap-1.5 text-xs mb-1.5 font-medium"
-                            style={{ color: isActive ? 'rgba(255,255,255,0.9)' : T.sec }}
-                          >
-                            <MapPin size={12} className="shrink-0" />
-                            <span className="truncate">{ev.location}</span>
-                          </div>
-                        )}
-
-                        {ev.description && (
-                          <p
-                            className="text-xs mb-2.5 whitespace-pre-wrap leading-relaxed"
-                            style={{ color: isActive ? 'rgba(255,255,255,0.85)' : T.sec }}
-                          >
-                            {ev.description}
-                          </p>
-                        )}
-
-                        <div className="flex items-center gap-1.5 pt-1">
                           <button
-                            onClick={e => {
-                              e.stopPropagation();
-                              window.dispatchEvent(new CustomEvent('mobile_edit_event', { detail: { id: ev.id } }));
-                            }}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold active:scale-95 transition-transform"
-                            style={{
-                              background: isActive
-                                ? 'rgba(255, 255, 255, 0.2)'
-                                : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
-                              color: isActive ? '#ffffff' : T.pri,
-                            }}
+                            onClick={() => setExpandedEventId(prev => prev === ev.id ? null : ev.id)}
+                            className="w-full flex flex-col text-left p-3 cursor-pointer"
+                            style={{ border: 'none', background: 'transparent' }}
                           >
-                            <PenLine size={11} /> Bearbeiten
+                            {/* Top: Time badge + Duration */}
+                            <div className="flex items-center justify-between gap-1 mb-1.5 w-full">
+                              <span
+                                className="text-[11px] font-bold"
+                                style={{ color: isActive ? '#ffffff' : T.pri }}
+                              >
+                                {format(evStart, 'HH:mm')} – {format(evEnd, 'HH:mm')}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <span
+                                  className="text-[10px] font-medium shrink-0 px-1.5 py-0.5 rounded-md"
+                                  style={{
+                                    background: isActive
+                                      ? 'rgba(255, 255, 255, 0.18)'
+                                      : theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+                                    color: isActive ? '#ffffff' : T.mut,
+                                  }}
+                                >
+                                  {durStr}
+                                </span>
+                                <ChevronDown
+                                  size={12}
+                                  style={{
+                                    transform: isExpanded ? 'rotate(180deg)' : 'none',
+                                    color: isActive ? '#ffffff' : T.mut,
+                                    transition: 'transform 0.2s ease',
+                                  }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Middle: Dot + Title (line-clamp-2 for narrower columns) */}
+                            <div className="flex items-start gap-1.5 min-w-0 w-full mb-1">
+                              <div
+                                className={`w-2.5 h-2.5 rounded-full shrink-0 mt-0.5 ${isActive ? 'animate-pulse' : ''}`}
+                                style={{ background: evColor }}
+                              />
+                              <span
+                                className="text-xs sm:text-sm font-bold line-clamp-2 flex-1 leading-snug"
+                                style={{ color: isActive ? '#ffffff' : T.pri }}
+                              >
+                                {ev.title}
+                              </span>
+                            </div>
+
+                            {/* Active or next timing badge */}
+                            {isActive && (
+                              <div
+                                className="text-[10px] font-bold px-1.5 py-0.5 rounded-md mt-0.5 mb-1 inline-flex items-center gap-1 self-start"
+                                style={{
+                                  background: 'rgba(16, 185, 129, 0.22)',
+                                  color: '#34d399',
+                                }}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                Noch {remStr} (bis {format(evEnd, 'HH:mm')})
+                              </div>
+                            )}
+
+                            {isNextUpcoming && (
+                              <div
+                                className="text-[10px] font-bold px-1.5 py-0.5 rounded-md mt-0.5 mb-1 inline-flex items-center gap-1 self-start"
+                                style={{
+                                  background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.18), rgba(168, 85, 247, 0.25))',
+                                  color: theme === 'dark' ? '#d8b4fe' : '#7e22ce',
+                                  border: '1px solid rgba(168, 85, 247, 0.3)',
+                                }}
+                              >
+                                <Clock size={10} />
+                                Startet um {format(evStart, 'HH:mm')} ({startStr})
+                              </div>
+                            )}
+
+                            {/* Description preview if not expanded */}
+                            {!isExpanded && ev.description && (
+                              <p
+                                className="text-[11px] mt-0.5 line-clamp-1 leading-relaxed"
+                                style={{ color: isActive ? 'rgba(255,255,255,0.85)' : T.sec }}
+                              >
+                                {ev.description}
+                              </p>
+                            )}
                           </button>
 
-                          {onDeleteEvent && (
-                            <button
-                              onClick={e => {
-                                e.stopPropagation();
-                                onDeleteEvent(ev.id);
-                              }}
-                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold active:scale-95 transition-transform"
+                          {/* Inline accordion expansion */}
+                          {isExpanded && (
+                            <div
+                              className="px-3 pb-3 pt-1 border-t"
                               style={{
-                                background: 'rgba(239, 68, 68, 0.14)',
-                                color: '#ef4444',
+                                borderColor: isActive
+                                  ? 'rgba(255, 255, 255, 0.15)'
+                                  : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
                               }}
                             >
-                              <Trash2 size={11} /> Löschen
-                            </button>
+                              {ev.location && (
+                                <div
+                                  className="flex items-center gap-1.5 text-xs mb-1.5 font-medium"
+                                  style={{ color: isActive ? 'rgba(255,255,255,0.9)' : T.sec }}
+                                >
+                                  <MapPin size={12} className="shrink-0" />
+                                  <span className="truncate">{ev.location}</span>
+                                </div>
+                              )}
+
+                              {ev.description && (
+                                <p
+                                  className="text-xs mb-2.5 whitespace-pre-wrap leading-relaxed"
+                                  style={{ color: isActive ? 'rgba(255,255,255,0.85)' : T.sec }}
+                                >
+                                  {ev.description}
+                                </p>
+                              )}
+
+                              <div className="flex items-center gap-1.5 pt-1">
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    window.dispatchEvent(new CustomEvent('mobile_edit_event', { detail: { id: ev.id } }));
+                                  }}
+                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold active:scale-95 transition-transform"
+                                  style={{
+                                    background: isActive
+                                      ? 'rgba(255, 255, 255, 0.2)'
+                                      : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                                    color: isActive ? '#ffffff' : T.pri,
+                                  }}
+                                >
+                                  <PenLine size={11} /> Bearbeiten
+                                </button>
+
+                                {onDeleteEvent && (
+                                  <button
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      onDeleteEvent(ev.id);
+                                    }}
+                                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold active:scale-95 transition-transform"
+                                    style={{
+                                      background: 'rgba(239, 68, 68, 0.14)',
+                                      color: '#ef4444',
+                                    }}
+                                  >
+                                    <Trash2 size={11} /> Löschen
+                                  </button>
+                                )}
+                              </div>
+                            </div>
                           )}
                         </div>
-                      </div>
-                    )}
+                      );
+                    })}
                   </div>
                 );
               })}
@@ -1709,6 +1689,18 @@ export default function MobileLayout({
 
   const [now, setNow] = useState(() => new Date());
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 60_000); return () => clearInterval(id); }, []);
+
+  const [greetingTemplate] = useState(() => pickGreetingTemplate(new Date()));
+
+  const handleCountdownTap = useCallback((eventId: string) => {
+    setActiveTab('calendar');
+    setCalViewMode('day');
+    setActiveDate(new Date());
+    setTimeout(() => {
+      const el = document.getElementById('ev-' + eventId);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+  }, [setActiveTab, setCalViewMode, setActiveDate]);
 
   const displayName = userProfile?.username || (typeof window !== 'undefined' ? sessionStorage.getItem('tide_user_name') : null) || (userProfile?.email || '').split('@')[0] || '';
   const viewModesRef = useRef<HTMLDivElement>(null);
@@ -1916,63 +1908,6 @@ export default function MobileLayout({
     return () => obs.disconnect();
   }, [calViewMode]);
 
-
-  // ── Mobile Smart Island calculation (Next / Active event for today) ───────
-  const smartIslandData = useMemo(() => {
-    const todayEvs = expandedEvents
-      .filter(e => {
-        if (e.allDay) return false;
-        try { return isSameDay(new Date(e.start), now); } catch { return false; }
-      })
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-
-    // 1. Active event happening right now
-    const active = todayEvs.find(e => {
-      try {
-        const s = new Date(e.start);
-        const en = e.end ? new Date(e.end) : new Date(s.getTime() + 3_600_000);
-        return s <= now && en > now;
-      } catch { return false; }
-    });
-
-    if (active) {
-      const s = new Date(active.start);
-      const en = active.end ? new Date(active.end) : new Date(s.getTime() + 3_600_000);
-      const remMins = Math.max(1, Math.round((en.getTime() - now.getTime()) / 60_000));
-      const remStr = remMins >= 60
-        ? `${Math.floor(remMins / 60)} Std. ${remMins % 60 > 0 ? `${remMins % 60} Min.` : ''}`.trim()
-        : `${remMins} Min.`;
-      return {
-        type: 'active' as const,
-        event: active,
-        title: active.title || 'Aktueller Termin',
-        subtitle: `Noch ${remStr} · bis ${format(en, 'HH:mm')} Uhr`,
-        color: active.color || T.accent,
-      };
-    }
-
-    // 2. Next upcoming event today
-    const next = todayEvs.find(e => {
-      try { return new Date(e.start) > now; } catch { return false; }
-    });
-
-    if (next) {
-      const s = new Date(next.start);
-      const diffMins = Math.max(1, Math.round((s.getTime() - now.getTime()) / 60_000));
-      const timeStr = diffMins >= 60
-        ? `${Math.floor(diffMins / 60)} Std. ${diffMins % 60 > 0 ? `${diffMins % 60} Min.` : ''}`.trim()
-        : `${diffMins} Min.`;
-      return {
-        type: 'next' as const,
-        event: next,
-        title: next.title || 'Nächster Termin',
-        subtitle: `Startet um ${format(s, 'HH:mm')} Uhr (in ${timeStr})`,
-        color: next.color || T.accent,
-      };
-    }
-
-    return null;
-  }, [expandedEvents, now]);
 
   // ── Grouped day-view days (groups consecutive empty days into clean hints) ───────
   const groupedDayViewItems = useMemo(() => {
@@ -2515,13 +2450,16 @@ export default function MobileLayout({
         }}
       >
         {/* Row 1: Date & Greeting ("XX. Monat", "Guten Morgen/Mittag/Tag/Abend Name!") */}
-        <div className="px-5 pt-1 pb-1.5">
-          <p className="text-xs font-bold uppercase tracking-wider" style={{ color: T.mut }}>
-            {format(now, 'd. MMMM', { locale: de })}
-          </p>
-          <h1 className="text-2xl font-black tracking-tight truncate leading-tight mt-0.5" style={{ color: T.pri }}>
-            {getGreeting(displayName, now)}
-          </h1>
+        <div className="px-5 pt-1 pb-1.5 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-bold uppercase tracking-wider" style={{ color: T.mut }}>
+              {format(now, 'd. MMMM', { locale: de })}
+            </p>
+            <h1 className="text-[1.7rem] font-black tracking-tight line-clamp-2 leading-tight mt-0.5" style={{ color: T.pri }}>
+              {formatGreeting(greetingTemplate, displayName)}
+            </h1>
+          </div>
+          <NextEventCountdown events={expandedEvents} onTap={handleCountdownTap} />
         </div>
 
         {/* Row 2: Apple-style Horizontal Date Wheel */}
@@ -2721,17 +2659,6 @@ export default function MobileLayout({
           /* ── Single day view (DB Navigator style) ── */
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div className="flex-1 overflow-y-auto pb-4 px-4 pt-2">
-              {/* Floating next/active event banner - loose at top of list, appointments slide under (Requirement 3) */}
-              {smartIslandData && (
-                <FloatingNextEventBanner
-                  smartIslandData={smartIslandData}
-                  onScrollToEvent={() => {
-                    const el = document.getElementById(`ev-${smartIslandData.event.id}`);
-                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }}
-                />
-              )}
-
               {(() => {
                 const sameDay = (e: { start: string; allDay?: boolean }) => {
                   try { return isSameDay(new Date(e.start), activeDate); } catch { return false; }
@@ -2764,17 +2691,6 @@ export default function MobileLayout({
           /* ── Fortlaufend / Agenda view (infinite scroll) ── */
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
             <div className="flex-1 overflow-y-auto pb-4 px-4 pt-2">
-              {/* Floating next/active event banner - loose at top of list, appointments slide under (Requirement 3) */}
-              {smartIslandData && (
-                <FloatingNextEventBanner
-                  smartIslandData={smartIslandData}
-                  onScrollToEvent={() => {
-                    const todayEl = document.getElementById(`day-${format(now, 'yyyy-MM-dd')}`);
-                    if (todayEl) todayEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }}
-                />
-              )}
-
               {groupedDayViewItems.map(item => {
                 if (item.kind === 'empty-range') {
                   return (

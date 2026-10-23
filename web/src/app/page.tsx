@@ -68,6 +68,7 @@ import { useDateDetection, DateDetectionMode } from "@/hooks/useDateDetection";
 import { useProductivityStats } from "@/hooks/useProductivityStats";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { useTextCollector } from "@/hooks/useTextCollector";
+import { useTouchContextMenu } from "@/hooks/useTouchContextMenu";
 import { motion } from 'framer-motion';
 
 interface ProseMirrorNodeLike {
@@ -159,6 +160,7 @@ export default function Dashboard() {
     // -------------------------------------------------------------------------
     // 0. State & Initialization
     // -------------------------------------------------------------------------
+    useTouchContextMenu();
 
     // Auth & User State
     const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
@@ -3706,7 +3708,7 @@ export default function Dashboard() {
             />
 
             {/* Left Sidebar Panel */}
-            <div className={`hidden md:flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] shrink-0 z-[100] transition-all duration-300 w-64`}>
+            <div className={`hidden md:flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] shrink-0 z-[100] transition-all duration-300 w-56 md:w-60 lg:w-64`}>
                 <Sidebar
                     userProfile={userProfile || undefined}
                     files={sidebarFiles}

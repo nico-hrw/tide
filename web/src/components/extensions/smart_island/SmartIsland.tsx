@@ -868,7 +868,7 @@ function InMeetingBar({ events }: { events: Array<{ title: string; start: string
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 4 }}
-            className="mt-1.5 px-3 pb-1"
+            className="mt-1 px-2 pb-0.5"
         >
             <div className="w-full h-[2px] rounded-full bg-gray-200/60 dark:bg-white/5 overflow-hidden">
                 <motion.div
@@ -930,7 +930,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                                 ? 'p-4 rounded-xl w-full'
                                 : state.current?.type === 'message'
                                     ? (expandOnNotification ? 'p-3 rounded-xl w-full sm:w-[26rem] md:w-[28rem] shadow-2xl' : 'p-3 rounded-xl w-full')
-                                    : 'p-2 rounded-xl w-full';
+                                    : 'py-1.5 px-2 rounded-xl w-full';
 
     const positionClass = 'relative';
 
@@ -986,6 +986,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                                 default: { type: "spring", stiffness: 300, damping: 30 }
                             }}
                             layout="position"
+                            className="[&>div:first-child]:!p-2 [&>div:first-child]:!py-1 [&>div:first-child>div:nth-child(1)]:!mb-1 [&>div:first-child>div:nth-child(2)]:!mb-1 [&>div:first-child>div:nth-child(3)]:!mb-0.5 [&_.w-7]:!w-6 [&_.w-7]:!h-6"
                         >
                             <MiniCalendar
                                 selectedDate={selectedDate}

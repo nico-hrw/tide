@@ -622,6 +622,139 @@ export default function CalendarView({
         return () => container.removeEventListener('wheel', handleWheel);
     }, []);
 
+    // Touch Pan / Swipe Navigation for Touchscreens (e.g. iPad)
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+
+        let isSwiping = false;
+        let lastTouchX = 0;
+        let lastTouchY = 0;
+        let lastTouchTime = 0;
+        let velocityX = 0;
+        let velocityY = 0;
+        let animFrameId: number | null = null;
+
+        const stopMomentum = () => {
+            if (animFrameId !== null) {
+                cancelAnimationFrame(animFrameId);
+                animFrameId = null;
+            }
+        };
+
+        const handleTouchStart = (e: TouchEvent) => {
+            stopMomentum();
+
+            if (e.touches.length !== 1) {
+                isSwiping = false;
+                return;
+            }
+
+            const target = e.target as Element | null;
+            if (
+                target?.closest(
+                    '.event-item, button, input, textarea, [role="button"], [role="dialog"], #active-event-popover, .popover, .modal'
+                )
+            ) {
+                isSwiping = false;
+                return;
+            }
+
+            isSwiping = true;
+            const touch = e.touches[0];
+            lastTouchX = touch.clientX;
+            lastTouchY = touch.clientY;
+            lastTouchTime = performance.now();
+            velocityX = 0;
+            velocityY = 0;
+        };
+
+        const handleTouchMove = (e: TouchEvent) => {
+            if (!isSwiping || e.touches.length !== 1) return;
+
+            const touch = e.touches[0];
+            const now = performance.now();
+            const dt = now - lastTouchTime;
+            const dx = lastTouchX - touch.clientX;
+            const dy = lastTouchY - touch.clientY;
+
+            // Prevent default browser gesture (overscroll / history swipe)
+            e.preventDefault();
+
+            container.scrollLeft += dx;
+            container.scrollTop += dy;
+
+            if (dt > 0) {
+                const instVx = dx / dt;
+                const instVy = dy / dt;
+                velocityX = 0.8 * instVx + 0.2 * velocityX;
+                velocityY = 0.8 * instVy + 0.2 * velocityY;
+            }
+
+            lastTouchX = touch.clientX;
+            lastTouchY = touch.clientY;
+            lastTouchTime = now;
+        };
+
+        const handleTouchEnd = () => {
+            if (!isSwiping) return;
+            isSwiping = false;
+
+            const timeSinceLastMove = performance.now() - lastTouchTime;
+            if (timeSinceLastMove > 100) {
+                velocityX = 0;
+                velocityY = 0;
+            }
+
+            const speed = Math.hypot(velocityX, velocityY);
+            if (speed > 0.1) {
+                let currentVx = velocityX;
+                let currentVy = velocityY;
+                let lastTime = performance.now();
+
+                const step = (now: number) => {
+                    const elapsed = Math.min(now - lastTime, 32);
+                    lastTime = now;
+
+                    const friction = Math.pow(0.95, elapsed / 16.67);
+                    currentVx *= friction;
+                    currentVy *= friction;
+
+                    container.scrollLeft += currentVx * elapsed;
+                    container.scrollTop += currentVy * elapsed;
+
+                    if (Math.hypot(currentVx, currentVy) > 0.05) {
+                        animFrameId = requestAnimationFrame(step);
+                    } else {
+                        animFrameId = null;
+                    }
+                };
+
+                animFrameId = requestAnimationFrame(step);
+            }
+        };
+
+        const handleTouchCancel = () => {
+            isSwiping = false;
+            velocityX = 0;
+            velocityY = 0;
+            stopMomentum();
+        };
+
+        container.addEventListener('touchstart', handleTouchStart, { passive: true });
+        container.addEventListener('touchmove', handleTouchMove, { passive: false });
+        container.addEventListener('touchend', handleTouchEnd, { passive: true });
+        container.addEventListener('touchcancel', handleTouchCancel, { passive: true });
+
+        return () => {
+            stopMomentum();
+            container.removeEventListener('touchstart', handleTouchStart);
+            container.removeEventListener('touchmove', handleTouchMove);
+            container.removeEventListener('touchend', handleTouchEnd);
+            container.removeEventListener('touchcancel', handleTouchCancel);
+        };
+    }, []);
+
     // Adjust Scroll Position for Prepending
     useLayoutEffect(() => {
         const container = scrollContainerRef.current;

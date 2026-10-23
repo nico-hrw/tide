@@ -68,7 +68,7 @@ interface EventDrag {
 }
 
 // Layout helper for overlapping events in a column
-function arrangeEvents(events: CalEvent[], drag?: EventDrag | null): Map<string, { left: number; width: number }> {
+function arrangeEvents(events: CalEvent[], drag?: EventDrag | null): Map<string, { left: number; width: number; lane: number }> {
   const getTimes = (evt: CalEvent) => {
     const isBeingDragged = drag?.eventId === evt.id;
     const start = isBeingDragged ? drag!.previewStart.getTime() : new Date(evt.start).getTime();
@@ -113,7 +113,7 @@ function arrangeEvents(events: CalEvent[], drag?: EventDrag | null): Map<string,
   });
   if (currentCluster.length > 0) clusters.push(currentCluster);
 
-  const layout = new Map<string, { left: number; width: number }>();
+  const layout = new Map<string, { left: number; width: number; lane: number }>();
 
   clusters.forEach(cluster => {
     const lanes: number[] = [];
@@ -137,12 +137,15 @@ function arrangeEvents(events: CalEvent[], drag?: EventDrag | null): Map<string,
       }
     });
 
-    const widthPercent = 100 / (lanes.length || 1);
+    // Cascade layout (Google Calendar style): each lane is offset to the right and overlaps lower lanes
+    const laneCount = lanes.length || 1;
+    const step = laneCount > 1 ? Math.min(30, 55 / (laneCount - 1)) : 0;
     cluster.forEach(evt => {
       const lane = eventLanes.get(evt.id) || 0;
       layout.set(evt.id, {
-        left: lane * widthPercent,
-        width: widthPercent,
+        left: lane * step,
+        width: 100 - lane * step,
+        lane,
       });
     });
   });
@@ -641,10 +644,12 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
                   return <div key={`ghost-${ghostEv.id}`} style={{ position: 'absolute', top, height, left: 2, right: 2, zIndex: 3, background: (ghostEv.color || '#3B82F6') + '33', borderRadius: 7, border: `1.5px dashed ${ghostEv.color || '#3B82F6'}66`, pointerEvents: 'none' }} />;
                 })()}
 
-                {/* Events — sorted longest-first so shorter events render last (on top) */}
+                {/* Events — lower cascade lanes first, then longest-first; dragged event always last (on top) */}
                 {[...colEvents].sort((a, b) => {
                   if (evDrag?.eventId === a.id) return 1;
                   if (evDrag?.eventId === b.id) return -1;
+                  const laneDiff = (layout.get(a.id)?.lane ?? 0) - (layout.get(b.id)?.lane ?? 0);
+                  if (laneDiff !== 0) return laneDiff;
                   const durA = (a.end ? new Date(a.end).getTime() : new Date(a.start).getTime() + 3_600_000) - new Date(a.start).getTime();
                   const durB = (b.end ? new Date(b.end).getTime() : new Date(b.start).getTime() + 3_600_000) - new Date(b.start).getTime();
                   return durB - durA;
@@ -669,7 +674,7 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
                   const top    = (evStart.getHours() + evStart.getMinutes() / 60) * hourH;
                   const height = Math.max(minsToPx(SNAP_MINS, hourH), ((evEnd.getTime() - evStart.getTime()) / 3_600_000) * hourH);
 
-                  const pos = layout.get(ev.id) || { left: 0, width: 100 };
+                  const pos = layout.get(ev.id) || { left: 0, width: 100, lane: 0 };
 
                   const isSelected = selectedId === ev.id;
                   const color = ev.color || '#3B82F6';
@@ -681,16 +686,22 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
                   const bodyBot = 0;
 
                   const isHovered = evHoverPillId === ev.id;
+                  const isCascaded = pos.lane > 0;
+                  const baseShadow = isBeingDragged ? `0 8px 28px ${color}55` : isHovered ? `0 10px 28px ${color}88` : isSelected ? `0 2px 8px ${color}44` : 'none';
+                  // Cascaded pills get a thin outline in the background color to separate them from the pill underneath
+                  const pillShadow = isCascaded
+                    ? (baseShadow === 'none' ? '0 0 0 1.5px var(--background)' : `0 0 0 1.5px var(--background), ${baseShadow}`)
+                    : baseShadow;
                   return (
                     <div key={`${ev.id}-${isContinuation ? 'cont' : 'orig'}`}
-                      style={{ position: 'absolute', top, height, left: `calc(${pos.left}% + 1px)`, width: `calc(${pos.width}% - 2px)`, zIndex: isBeingDragged ? 10 : 4,
-                        background: color + (isBeingDragged ? 'EE' : isSelected ? 'DD' : 'CC'),
+                      style={{ position: 'absolute', top, height, left: `calc(${pos.left}% + 1px)`, width: `calc(${pos.width}% - 2px)`, zIndex: isBeingDragged ? 20 : 4 + pos.lane,
+                        background: color + (isBeingDragged ? 'EE' : isSelected ? 'DD' : isCascaded ? 'F0' : 'CC'),
                         borderRadius: borderRadiusVal, overflow: 'hidden',
                         borderTop:    isContinuation ? '2px dashed rgba(255,255,255,0.4)' : ((isSelected || isBeingDragged) ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.2)'),
                         borderRight:  (isSelected || isBeingDragged) ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.2)',
                         borderBottom: isContinued   ? '2px dashed rgba(255,255,255,0.4)' : ((isSelected || isBeingDragged) ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.2)'),
                         borderLeft:   (isSelected || isBeingDragged) ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.2)',
-                        boxShadow: isBeingDragged ? `0 8px 28px ${color}55` : isHovered ? `0 10px 28px ${color}88` : isSelected ? `0 2px 8px ${color}44` : 'none',
+                        boxShadow: pillShadow,
                         transform: isHovered ? 'scale(1.04)' : 'none',
                         transition: isBeingDragged ? 'none' : 'transform 0.15s ease, box-shadow 0.15s ease',
                         cursor: isBeingDragged ? 'grabbing' : 'grab',
