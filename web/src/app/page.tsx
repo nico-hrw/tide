@@ -69,6 +69,7 @@ import { useProductivityStats } from "@/hooks/useProductivityStats";
 import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 import { useTextCollector } from "@/hooks/useTextCollector";
 import { useTouchContextMenu } from "@/hooks/useTouchContextMenu";
+import { useMobileConnectionSync } from "@/hooks/useMobileConnectionSync";
 import { motion } from 'framer-motion';
 
 interface ProseMirrorNodeLike {
@@ -1803,6 +1804,8 @@ export default function Dashboard() {
         const interval = setInterval(check, 60_000); // every minute
         return () => clearInterval(interval);
     }, [events, enabledExtensions, islandPush]);
+
+    useMobileConnectionSync(events);
 
     useTextCollector({
         enabledExtensions,

@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useReferenceStore, ReferenceDisplayMode, ReferenceItem } from '@/store/useReferenceStore';
-import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon, Calendar, Share, Plus, Briefcase, Download, Copy, Upload, Key, Wrench, ListTodo, Tablet, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Blocks, Check, User, Puzzle, Palette, Shield, ChevronRight, LogOut, Bell, Flame, Snowflake, Settings, Lock, Users, Globe, Sparkles, Info, KeyRound, Bookmark, Sun, Moon, Calendar, Share, Plus, Briefcase, Download, Copy, Upload, Key, Wrench, ListTodo, Tablet, ChevronDown, ChevronUp, Smartphone } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { useJobPlannerStore } from '@/store/useJobPlannerStore';
 import { useIslandSettingsStore } from '@/store/useIslandSettingsStore';
+import { useMobileConnectionStore } from '@/store/useMobileConnectionStore';
 
 import { motion, AnimatePresence } from 'framer-motion';
 import Avatar from '@/components/Profile/Avatar';
 import { apiFetch } from '@/lib/api';
 import APIAccessSettings from './APIAccessSettings';
 import DebugPluginSettings from './DebugPluginSettings';
+import MobileConnectionSettings from './MobileConnectionSettings';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -1164,7 +1166,18 @@ export default function SettingsModal({
                 { id: 'smart_island', title: 'Smart Island', desc: 'Context-aware sidebar assistant', version: 'v1.0.0', updated: 'Feb 26, 2026', icon: Sparkles, color: 'text-violet-500' },
                 { id: 'smart_date_detection', title: 'Smart Date Detection', desc: 'Erkennt Datum + Uhrzeit beim Tippen und schlägt Termine vor', version: 'v1.0.0', updated: 'Today', icon: Sparkles, color: 'text-blue-500' },
                 { id: 'references', title: 'References', desc: 'Auto-link definitions across notes', version: 'v1.0.0', updated: 'Today', icon: Bookmark, color: 'text-emerald-500' },
-            ].map((ext) => (
+                {
+                    id: 'mobile_connection',
+                    title: 'Mobile Connection',
+                    desc: 'Verbindet Tide mit Whisper Hub für Push-Benachrichtigungen und Glance-Widgets auf deinem Smartphone.',
+                    version: 'v1.0.0',
+                    updated: 'Today',
+                    icon: Smartphone,
+                    color: 'text-sky-500',
+                },
+            ].map((ext) => {
+                const isEnabled = enabledExtensions.includes(ext.id);
+                return (
                 <div key={ext.id} className="p-4 flex flex-col bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-xl hover:border-gray-200 dark:hover:border-zinc-700 transition-colors">
                     <div className="flex items-start justify-between w-full">
                         <div className="flex gap-4">
@@ -1190,7 +1203,14 @@ export default function SettingsModal({
 
                         <div className="flex flex-col items-end gap-2 mt-1 shrink-0 ml-4">
                             <button
-                                onClick={() => !(ext as any).disabled && onToggleExtension(ext.id, !enabledExtensions.includes(ext.id))}
+                                onClick={() => {
+                                    if ((ext as any).disabled) return;
+                                    const willBeEnabled = !isEnabled;
+                                    if (ext.id === 'mobile_connection') {
+                                        useMobileConnectionStore.getState().setEnabled(willBeEnabled);
+                                    }
+                                    onToggleExtension(ext.id, willBeEnabled);
+                                }}
                                 disabled={(ext as any).disabled}
                                 className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${enabledExtensions.includes(ext.id) ? 'bg-[#111827] dark:bg-white' : 'bg-gray-200 dark:bg-gray-700'} ${(ext as any).disabled ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer'}`}
                             >
@@ -1241,6 +1261,12 @@ export default function SettingsModal({
 
                     {ext.id === 'job_planner' && enabledExtensions.includes('job_planner') && (
                         <JobPlannerExtensionConfig groups={groups} />
+                    )}
+
+                    {ext.id === 'mobile_connection' && isEnabled && (
+                        <div className="mt-3 pt-3 border-t border-black/5 dark:border-white/10">
+                            <MobileConnectionSettings />
+                        </div>
                     )}
 
                     {ext.id === 'references' && enabledExtensions.includes('references') && (
@@ -1555,7 +1581,8 @@ export default function SettingsModal({
                         </div>
                     )}
                 </div>
-            ))}
+                );
+            })}
         </div>
     );
 

@@ -44,4 +44,5 @@ export const DT = {
     danger: '#b42318',
 };
 
+export const tokens = DT;
 export default DT;
