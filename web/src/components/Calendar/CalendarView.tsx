@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useLayoutEffect, useMe
 import DayColumn from "@/components/Calendar/DayColumn";
 import "@/app/calendar/calendar.css";
 import { format, addDays, subDays, startOfWeek, addWeeks, subWeeks, isSameDay, getMinutes, getHours, startOfDay } from "date-fns";
-import { ChevronLeft, ChevronRight, ListPlus, Palette, ArrowRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Palette, ArrowRight } from "lucide-react";
 import { loadSearchIndex, SearchIndexEntry } from "@/lib/searchIndex";
 import Fuse from "fuse.js";
 import { Search } from "lucide-react";
@@ -628,12 +628,18 @@ export default function CalendarView({
         if (!container) return;
 
         let isSwiping = false;
+        let startTouchX = 0;
+        let startTouchY = 0;
         let lastTouchX = 0;
         let lastTouchY = 0;
+        let touchStartTime = 0;
         let lastTouchTime = 0;
         let velocityX = 0;
         let velocityY = 0;
         let animFrameId: number | null = null;
+        let didMove = false;
+        let longPressTimer: NodeJS.Timeout | null = null;
+        let touchedEventEl: HTMLElement | null = null;
 
         const stopMomentum = () => {
             if (animFrameId !== null) {
@@ -647,38 +653,90 @@ export default function CalendarView({
 
             if (e.touches.length !== 1) {
                 isSwiping = false;
+                touchedEventEl = null;
                 return;
             }
 
             const target = e.target as Element | null;
+            // .event-item is deliberately excluded here so swiping works across events.
+            // Buttons, inputs, and popovers/modals remain excluded.
             if (
                 target?.closest(
-                    '.event-item, button, input, textarea, [role="button"], [role="dialog"], #active-event-popover, .popover, .modal'
+                    'button, input, textarea, [role="button"], [role="dialog"], #active-event-popover, .popover, .modal'
                 )
             ) {
                 isSwiping = false;
+                touchedEventEl = null;
                 return;
             }
 
-            isSwiping = true;
             const touch = e.touches[0];
+            startTouchX = touch.clientX;
+            startTouchY = touch.clientY;
             lastTouchX = touch.clientX;
             lastTouchY = touch.clientY;
-            lastTouchTime = performance.now();
+            touchStartTime = performance.now();
+            lastTouchTime = touchStartTime;
             velocityX = 0;
             velocityY = 0;
+            didMove = false;
+
+            const eventEl = target?.closest('.event-item') as HTMLElement | null;
+            touchedEventEl = eventEl;
+
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+
+            if (eventEl) {
+                // If touch started on an event, wait for swipe threshold or long-press hold
+                isSwiping = false;
+                longPressTimer = setTimeout(() => {
+                    // Touch held still (> 500ms) without moving -> considered press-and-hold
+                    if (!didMove && touchedEventEl) {
+                        try {
+                            navigator.vibrate?.(40);
+                        } catch {
+                            // ignore if vibration not supported
+                        }
+                    }
+                }, 500);
+            } else {
+                isSwiping = true;
+            }
         };
 
         const handleTouchMove = (e: TouchEvent) => {
-            if (!isSwiping || e.touches.length !== 1) return;
+            if (e.touches.length !== 1) return;
 
             const touch = e.touches[0];
             const now = performance.now();
+
+            if (!isSwiping) {
+                const totalDist = Math.hypot(touch.clientX - startTouchX, touch.clientY - startTouchY);
+                if (totalDist > 8) {
+                    isSwiping = true;
+                    didMove = true;
+                    if (longPressTimer) {
+                        clearTimeout(longPressTimer);
+                        longPressTimer = null;
+                    }
+                } else {
+                    return;
+                }
+            } else {
+                const totalDist = Math.hypot(touch.clientX - startTouchX, touch.clientY - startTouchY);
+                if (totalDist > 8) {
+                    didMove = true;
+                }
+            }
+
             const dt = now - lastTouchTime;
             const dx = lastTouchX - touch.clientX;
             const dy = lastTouchY - touch.clientY;
 
-            // Prevent default browser gesture (overscroll / history swipe)
+            // Prevent default browser gesture (overscroll / history swipe / synthetic click)
             e.preventDefault();
 
             container.scrollLeft += dx;
@@ -697,8 +755,28 @@ export default function CalendarView({
         };
 
         const handleTouchEnd = () => {
-            if (!isSwiping) return;
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
+
+            if (didMove) {
+                // Suppress synthetic click after a swiping/scroll gesture across events
+                const suppressClick = (clickEvent: MouseEvent) => {
+                    clickEvent.stopPropagation();
+                    clickEvent.preventDefault();
+                };
+                window.addEventListener('click', suppressClick, { capture: true, once: true });
+                setTimeout(() => {
+                    window.removeEventListener('click', suppressClick, { capture: true });
+                }, 300);
+            }
+
+            const wasSwiping = isSwiping;
             isSwiping = false;
+            touchedEventEl = null;
+
+            if (!wasSwiping) return;
 
             const timeSinceLastMove = performance.now() - lastTouchTime;
             if (timeSinceLastMove > 100) {
@@ -735,7 +813,12 @@ export default function CalendarView({
         };
 
         const handleTouchCancel = () => {
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+                longPressTimer = null;
+            }
             isSwiping = false;
+            touchedEventEl = null;
             velocityX = 0;
             velocityY = 0;
             stopMomentum();
@@ -747,6 +830,9 @@ export default function CalendarView({
         container.addEventListener('touchcancel', handleTouchCancel, { passive: true });
 
         return () => {
+            if (longPressTimer) {
+                clearTimeout(longPressTimer);
+            }
             stopMomentum();
             container.removeEventListener('touchstart', handleTouchStart);
             container.removeEventListener('touchmove', handleTouchMove);
@@ -1460,17 +1546,7 @@ export default function CalendarView({
                             ))}
                         </div>
                     </div>
-                    <div className="flex items-center gap-2 mr-14">
-                        <button
-                            onClick={() => setIsScheduleModalOpen(true)}
-                            className="hidden md:flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-200 rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-white/15 transition-colors"
-                            title="Bulk Schedule Events"
-                        >
-                            <ListPlus size={16} />
-                            <span></span>
-                        </button>
-                    </div>
-                </div >
+                </div>
 
                 {/* Main Scroll Area */}
                 <div

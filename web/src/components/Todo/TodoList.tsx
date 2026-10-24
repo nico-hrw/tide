@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   CheckCircle2, Circle, Calendar, Repeat, Trash2, Edit2, Plus,
   Search, SlidersHorizontal, AlertCircle, Check, X, ListTodo,
-  Folder, Inbox, ArrowLeft, Tag,
+  Folder, Inbox, ArrowLeft, Tag, FolderPlus,
 } from 'lucide-react';
 import {
   format, isToday, isTomorrow, isBefore, startOfDay, endOfDay,
@@ -239,6 +239,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('deadline');
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [newFolderNameInput, setNewFolderNameInput] = useState('');
 
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({
@@ -254,6 +256,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     const today = startOfDay(new Date());
     return tasks.filter((t) => !t.isCompleted && parseDateSafe(t.dueDate || t.scheduledDate) && isBefore(startOfDay(parseDateSafe(t.dueDate || t.scheduledDate)!), today)).length;
   }, [tasks]);
+  const openNonOverdueCount = Math.max(0, activeCount - overdueCount);
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   const handleToggleTask = (task: TaskItem) => {
@@ -379,13 +382,60 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   return (
     <div className={`flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto relative select-none ${className}`}>
       {/* Header & Status Indicator */}
-      <div className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 px-3 sm:px-6 md:px-8 py-3 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md">
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 sm:p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0"><ListTodo size={18} className="sm:w-5 sm:h-5" /></div>
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white leading-tight">Todos</h1>
-          </div>
+      <div className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 md:px-8 py-3 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md">
+        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white leading-tight">Todos</h1>
 
+          {/* Thick Segmented Progress Bar */}
+          <div className="flex flex-col gap-1 min-w-[180px] sm:min-w-[240px] max-w-xs">
+            <div className="h-3.5 sm:h-4 w-full bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden flex items-stretch">
+              {totalCount > 0 ? (
+                <>
+                  {completedCount > 0 && (
+                    <div
+                      className="bg-emerald-500 dark:bg-emerald-400 transition-all duration-300"
+                      style={{ width: `${(completedCount / totalCount) * 100}%` }}
+                      title={`Erledigt: ${completedCount}`}
+                    />
+                  )}
+                  {openNonOverdueCount > 0 && (
+                    <div
+                      className="bg-blue-500 dark:bg-blue-400 transition-all duration-300"
+                      style={{ width: `${(openNonOverdueCount / totalCount) * 100}%` }}
+                      title={`Offen: ${openNonOverdueCount}`}
+                    />
+                  )}
+                  {overdueCount > 0 && (
+                    <div
+                      className="bg-rose-500 dark:bg-rose-400 transition-all duration-300"
+                      style={{ width: `${(overdueCount / totalCount) * 100}%` }}
+                      title={`Überfällig: ${overdueCount}`}
+                    />
+                  )}
+                </>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2.5 text-xs font-bold px-0.5">
+              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400" title="Erledigt">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                {completedCount}
+              </span>
+              <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400" title="Offen">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                {openNonOverdueCount}
+              </span>
+              {overdueCount > 0 && (
+                <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400" title="Überfällig">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                  {overdueCount}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Actions & View Switch */}
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
           {/* Segmented View Toggle: Aufgaben vs Ordner */}
           <div className="flex items-center bg-gray-100 dark:bg-white/5 p-1 rounded-xl border border-gray-200 dark:border-white/10">
             <button
@@ -419,34 +469,29 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             </button>
           </div>
 
-          <div className="flex items-center gap-1 sm:gap-1.5 text-xs overflow-x-auto no-scrollbar py-0.5">
-            <span className="px-2 sm:px-2.5 py-0.5 rounded-full font-medium whitespace-nowrap bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-white/10">{totalCount} gesamt</span>
-            <span className="px-2 sm:px-2.5 py-0.5 rounded-full font-medium whitespace-nowrap bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">{activeCount} offen</span>
-            <span className="px-2 sm:px-2.5 py-0.5 rounded-full font-medium whitespace-nowrap bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">{completedCount} erledigt</span>
-            {overdueCount > 0 && (
-              <span className="px-2 sm:px-2.5 py-0.5 rounded-full font-medium whitespace-nowrap bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">{overdueCount} überfällig</span>
-            )}
-          </div>
-          {totalCount > 0 && (
-            <div className="hidden sm:flex items-center gap-2 pl-2 border-l border-gray-200 dark:border-white/10">
-              <div className="w-20 bg-gray-200 dark:bg-white/10 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all duration-300" style={{ width: `${progressPercent}%` }} />
-              </div>
-              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">{progressPercent}%</span>
-            </div>
-          )}
+          {/* + Neuer Ordner */}
+          <button
+            type="button"
+            onClick={() => setIsFolderModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-[#242424] hover:bg-gray-50 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 active:scale-95 rounded-xl transition-all shadow-2xs shrink-0 cursor-pointer min-h-[36px]"
+          >
+            <FolderPlus size={16} />
+            <span>Neuer Ordner</span>
+          </button>
+
+          {/* + Neue Aufgabe */}
+          <button
+            type="button"
+            onClick={() => {
+              if (viewMode === 'folders') setViewMode('tasks');
+              setDraft((p) => ({ ...p, folder: selectedFolder || '' }));
+              setIsCreateOpen((prev) => !prev);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl transition-all shadow-xs shrink-0 cursor-pointer min-h-[36px]"
+          >
+            <Plus size={16} /><span>Neue Aufgabe</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            if (viewMode === 'folders') setViewMode('tasks');
-            setDraft((p) => ({ ...p, folder: selectedFolder || '' }));
-            setIsCreateOpen((prev) => !prev);
-          }}
-          className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl transition-all shadow-xs shrink-0 cursor-pointer min-h-[36px]"
-        >
-          <Plus size={16} /><span>Neue Aufgabe</span>
-        </button>
       </div>
 
       {viewMode === 'folders' ? (
@@ -712,29 +757,44 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
           )}
 
           {/* Filter & Sort Card */}
-          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-3.5 sm:p-5 shadow-2xs flex flex-col gap-3 sm:gap-3.5">
+          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-3.5 sm:p-4 shadow-2xs flex flex-col gap-3">
+            {/* Search & Status Toggle */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
               <div className="relative flex-1">
-                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
-                  type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Aufgaben durchsuchen..."
-                  className="w-full pl-9 pr-8 py-2 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 min-h-[36px]"
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Aufgaben durchsuchen..."
+                  className="w-full pl-9 pr-8 py-2 text-xs bg-gray-50/80 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 min-h-[36px] transition-all"
                 />
                 {searchQuery && (
-                  <button type="button" onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                    title="Suche leeren"
+                  >
                     <X size={14} />
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 shrink-0">
+
+              {/* Status Pills */}
+              <div className="flex items-center bg-gray-100 dark:bg-white/5 p-1 rounded-xl border border-gray-200 dark:border-white/10 shrink-0 self-start sm:self-auto">
                 {(['all', 'active', 'completed'] as FilterStatus[]).map((status) => {
                   const isActive = filterStatus === status;
                   const label = status === 'all' ? 'Alle' : status === 'active' ? 'Offen' : 'Erledigt';
                   return (
                     <button
-                      key={status} type="button" onClick={() => setFilterStatus(status)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap min-h-[36px] flex items-center justify-center ${
-                        isActive ? 'bg-blue-600 text-white shadow-xs' : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                      key={status}
+                      type="button"
+                      onClick={() => setFilterStatus(status)}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap min-h-[28px] flex items-center justify-center ${
+                        isActive
+                          ? 'bg-white dark:bg-[#242424] text-blue-600 dark:text-blue-400 shadow-xs'
+                          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                       }`}
                     >
                       {label}
@@ -746,14 +806,14 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
             {/* Quick folder pills / shortcuts */}
             {(allFolders.length > 0 || unfiledCount.total > 0) && (
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 pt-1 text-xs">
-                <span className="text-gray-400 dark:text-gray-500 shrink-0 font-medium flex items-center gap-1">
-                  <Folder size={12} /> Ordner:
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
+                <span className="text-gray-400 dark:text-gray-500 shrink-0 font-medium flex items-center gap-1 mr-1">
+                  <Folder size={13} /> Ordner:
                 </span>
                 <button
                   type="button"
                   onClick={() => setSelectedFolder(null)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[32px] flex items-center transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[30px] flex items-center transition-all cursor-pointer ${
                     selectedFolder === null
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
@@ -765,7 +825,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                   <button
                     type="button"
                     onClick={() => setSelectedFolder(selectedFolder === '' ? null : '')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[32px] flex items-center gap-1 transition-colors cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[30px] flex items-center gap-1.5 transition-all cursor-pointer ${
                       selectedFolder === ''
                         ? 'bg-amber-600 text-white shadow-xs'
                         : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
@@ -784,14 +844,14 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                       key={folder}
                       type="button"
                       onClick={() => setSelectedFolder(isSelected ? null : folder)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[32px] flex items-center gap-1.5 transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[30px] flex items-center gap-1.5 transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-blue-600 text-white shadow-xs'
                           : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
                       }`}
                     >
                       <span>{folder}</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300'}`}>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300'}`}>
                         {count}
                       </span>
                       {isSelected && <X size={12} className="ml-0.5" />}
@@ -803,14 +863,14 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
             {/* Quick tag pills / shortcuts */}
             {allTags.length > 0 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 pt-1 text-xs">
-                <span className="text-gray-400 dark:text-gray-500 shrink-0 font-medium flex items-center gap-1">
-                  <Tag size={12} /> Tags:
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
+                <span className="text-gray-400 dark:text-gray-500 shrink-0 font-medium flex items-center gap-1 mr-1">
+                  <Tag size={13} /> Tags:
                 </span>
                 <button
                   type="button"
                   onClick={() => setSelectedTag(null)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[32px] flex items-center transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[30px] flex items-center transition-all cursor-pointer ${
                     selectedTag === null
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
@@ -826,14 +886,14 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                       key={tag}
                       type="button"
                       onClick={() => setSelectedTag(isSelected ? null : tag)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[32px] flex items-center gap-1.5 transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[30px] flex items-center gap-1.5 transition-all cursor-pointer ${
                         isSelected
                           ? 'bg-indigo-600 text-white shadow-xs'
                           : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
                       }`}
                     >
                       <span>#{tag}</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300'}`}>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300'}`}>
                         {count}
                       </span>
                       {isSelected && <X size={12} className="ml-0.5" />}
@@ -843,23 +903,30 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               </div>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 pt-3 border-t border-gray-100 dark:border-white/5 text-xs">
+            {/* Bottom Row: Priority & Sort dropdowns */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 pt-2.5 border-t border-gray-100 dark:border-white/5 text-xs">
               <div className="flex items-center gap-2">
                 <span className="text-gray-500 dark:text-gray-400 font-medium">Priorität:</span>
                 <select
-                  value={filterPriority} onChange={(e) => setFilterPriority(e.target.value as Priority | 'all')}
-                  className="px-2.5 py-1.5 bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer min-h-[36px]"
+                  value={filterPriority}
+                  onChange={(e) => setFilterPriority(e.target.value as Priority | 'all')}
+                  className="px-2.5 py-1.5 bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 cursor-pointer min-h-[34px] font-medium transition-all"
                 >
                   <option value="all">Alle Prioritäten</option>
-                  {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label.replace(/^[^\s]+\s/, '')}</option>)}
+                  {PRIORITY_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label.replace(/^[^\s]+\s/, '')}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="flex items-center gap-2">
-                <SlidersHorizontal size={14} className="text-gray-400" />
+                <SlidersHorizontal size={13} className="text-gray-400 shrink-0" />
                 <span className="text-gray-500 dark:text-gray-400 font-medium">Sortieren:</span>
                 <select
-                  value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}
-                  className="px-2.5 py-1.5 bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer min-h-[36px]"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortOption)}
+                  className="px-2.5 py-1.5 bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 cursor-pointer min-h-[34px] font-medium transition-all"
                 >
                   <option value="deadline">Fälligkeit</option>
                   <option value="priority">Priorität</option>
@@ -1204,6 +1271,51 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                 ) : null}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Folder Creation Modal */}
+      {isFolderModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+          <div className="bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-white/10 rounded-2xl p-5 w-full max-w-sm shadow-xl">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+              <FolderPlus size={18} className="text-blue-500" /> Neuer Ordner
+            </h3>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const trimmed = newFolderNameInput.trim();
+              if (trimmed) {
+                handleCreateFolder(trimmed);
+                setNewFolderNameInput('');
+                setIsFolderModalOpen(false);
+              }
+            }}>
+              <input
+                type="text"
+                autoFocus
+                placeholder="Ordnername eingeben..."
+                value={newFolderNameInput}
+                onChange={(e) => setNewFolderNameInput(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 mb-4"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setIsFolderModalOpen(false); setNewFolderNameInput(''); }}
+                  className="px-3.5 py-1.5 text-xs rounded-xl font-medium bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer min-h-[32px]"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="submit"
+                  disabled={!newFolderNameInput.trim()}
+                  className="px-3.5 py-1.5 text-xs rounded-xl font-medium bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition-colors cursor-pointer shadow-xs min-h-[32px]"
+                >
+                  Erstellen
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

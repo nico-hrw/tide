@@ -134,7 +134,7 @@ export default function TabList({
                     onNewTab?.();
                 }
             }}
-            className="w-full flex-shrink-0 h-11 bg-gray-100/70 dark:bg-slate-950/60 border-b border-gray-200/80 dark:border-white/10 flex items-center justify-between px-2.5 gap-2 select-none z-30 pt-[env(safe-area-inset-top,0px)]"
+            className="w-full flex-shrink-0 min-h-[calc(4.25rem+env(safe-area-inset-top,0px))] bg-gray-100/70 dark:bg-slate-950/60 border-b border-gray-200/80 dark:border-white/10 flex items-center justify-between px-2.5 gap-2 select-none z-30 pt-[env(safe-area-inset-top,0px)]"
         >
             {/* Horizontal Tabs Scroll Container */}
             {onToggleSidebar && (
@@ -253,17 +253,17 @@ export default function TabList({
                 <div ref={avatarMenuRef} className="relative shrink-0 flex items-center">
                     <button
                         onClick={() => setIsAvatarMenuOpen(o => !o)}
-                        className="w-7 h-7 rounded-full overflow-hidden hover:ring-2 hover:ring-blue-400/80 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                        className="w-14 h-14 rounded-full overflow-hidden hover:ring-2 hover:ring-blue-400/80 transition-all hover:scale-105 active:scale-95 cursor-pointer"
                         title="Profil"
                     >
                         <Avatar
                             seed={(userProfile?.avatar_seed || userProfile?.user_id || userProfile?.id || myId || 'default') + (userProfile?.avatar_salt || '')}
-                            size={28}
+                            size={56}
                         />
                     </button>
 
                     {isAvatarMenuOpen && (
-                        <div className="absolute right-0 top-9 w-48 bg-white dark:bg-slate-900 border border-gray-200/90 dark:border-slate-700 rounded-xl shadow-2xl py-1 z-[150] animate-in fade-in zoom-in-95 duration-100">
+                        <div className="absolute right-0 top-16 w-48 bg-white dark:bg-slate-900 border border-gray-200/90 dark:border-slate-700 rounded-xl shadow-2xl py-1 z-[150] animate-in fade-in zoom-in-95 duration-100">
                             <div className="px-3 py-2 border-b border-gray-100 dark:border-slate-800">
                                 <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate">{userProfile?.username || 'User'}</p>
                                 <p className="text-xs text-gray-400 truncate">{userProfile?.email || ''}</p>

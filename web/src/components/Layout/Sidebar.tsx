@@ -498,7 +498,7 @@ export default function Sidebar({
             }}
         >
             {/* Sticky top section: Navigation & Recent */}
-            <div className="flex-shrink-0 p-2 pt-3 pb-0">
+            <div className="flex-shrink-0 p-2 pt-[max(1rem,calc(env(safe-area-inset-top)+8px))] pb-0">
                 {/* Navigation Section */}
                 <div className="mb-2 px-1 flex gap-1">
                     <button
