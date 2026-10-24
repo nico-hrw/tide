@@ -176,6 +176,12 @@ export default function Dashboard() {
     const [activeTabId, setActiveTabId] = useState<string>('calendar');
     const [isSharingDisabled, setIsSharingDisabled] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+            setIsSidebarOpen(false);
+        }
+    }, []);
     const [userProfile, setUserProfile] = useState<{ username: string; email: string; avatar_seed?: string; avatar_salt?: string; avatar_style?: string; bio?: string; title?: string; is_verified?: boolean; profile_status?: number; id?: string; user_id?: string } | null>(null);
     const [streak, setStreak] = useState(0);
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
@@ -3711,7 +3717,12 @@ export default function Dashboard() {
             />
 
             {/* Left Sidebar Panel */}
-            <div className={`hidden md:flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] shrink-0 z-[100] transition-all duration-300 w-56 md:w-60 lg:w-64`}>
+            <div className={`hidden md:flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] shrink-0 z-[100] transition-all duration-300 ease-in-out overflow-hidden ${
+                isSidebarOpen
+                    ? 'w-56 md:w-60 lg:w-64 opacity-100'
+                    : 'w-0 opacity-0 border-r-0 pointer-events-none'
+            }`}>
+                <div className="w-56 md:w-60 lg:w-64 h-full flex flex-col shrink-0">
                 <Sidebar
                     userProfile={userProfile || undefined}
                     files={sidebarFiles}
@@ -3747,12 +3758,15 @@ export default function Dashboard() {
                     onOpenFinance={() => handleFileSelect('ext_finance', 'Finance Tracker')}
                     onOpenTodos={() => handleTabSelect('todos', 'todos')}
                 />
+                </div>
             </div>
 
             {/* Right: Workspace */}
             <div className={`hidden md:flex flex-1 flex-col min-w-0 bg-[var(--background)] relative overflow-hidden`}>
                 {/* Horizontal Browser Tab Bar */}
                 <TabList
+                    isSidebarOpen={isSidebarOpen}
+                    onToggleSidebar={() => setIsSidebarOpen(prev => !prev)}
                     tabs={openTabs}
                     activeTabId={activeTabId}
                     onTabSelect={handleTabSelect}
