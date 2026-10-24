@@ -30,7 +30,7 @@ export default function Avatar({ seed, style = 'notionists', size = 64, classNam
   }, [seed, style]);
 
   return (
-    <div className={`relative inline-block ${className}`} style={{ width: size, height: size }}>
+    <div className={`relative inline-block shrink-0 aspect-square ${className}`} style={{ width: size, height: size, minWidth: size, minHeight: size }}>
       <img
         src={dataUri}
         alt="Avatar"

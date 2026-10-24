@@ -3384,6 +3384,37 @@ export default function Dashboard() {
 
     // 5. Tab Management & Messages
     // -------------------------------------------------------------------------
+    const lastActiveTabRef = useRef<{ id: string; type: Tab['type']; title?: string }>({ id: 'calendar', type: 'calendar', title: 'Calendar' });
+
+    useEffect(() => {
+        if (activeTabId && activeTabId !== 'todos') {
+            const currentTab = openTabs.find(t => t.id === activeTabId);
+            lastActiveTabRef.current = {
+                id: activeTabId,
+                type: (currentTab?.type || (activeTabId === 'calendar' ? 'calendar' : 'file')) as Tab['type'],
+                title: currentTab?.title
+            };
+        }
+    }, [activeTabId, openTabs]);
+
+    const handleToggleTodos = () => {
+        if (activeTabId === 'todos') {
+            const prevTab = openTabs.find(t => t.id === lastActiveTabRef.current.id);
+            if (prevTab) {
+                switchTab(prevTab.id, prevTab.type, prevTab.title);
+            } else {
+                const fallbackTab = openTabs.find(t => t.id !== 'todos');
+                if (fallbackTab) {
+                    switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
+                } else {
+                    switchTab('calendar', 'calendar', 'Calendar');
+                }
+            }
+        } else {
+            switchTab('todos', 'todos', 'Todos');
+        }
+    };
+
     const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash') => {
         if (id === 'todos' || type === 'todos') {
             switchTab('todos', 'todos', 'Todos');
@@ -3756,7 +3787,9 @@ export default function Dashboard() {
                     onOpenSocial={() => setActiveTabId('social')}
                     onOpenExams={() => handleTabSelect('job_planner', 'job_planner')}
                     onOpenFinance={() => handleFileSelect('ext_finance', 'Finance Tracker')}
-                    onOpenTodos={() => handleTabSelect('todos', 'todos')}
+                    onOpenTodos={handleToggleTodos}
+                    isTodosActive={activeTabId === 'todos'}
+                    onToggleTodos={handleToggleTodos}
                 />
                 </div>
             </div>
@@ -3794,7 +3827,7 @@ export default function Dashboard() {
                 {/* Main Workspace Body */}
                 <div 
                     className="flex-1 min-h-0 relative overflow-hidden flex flex-col"
-                    onDoubleClick={(e) => {
+                    /* onDoubleClick={(e) => {
                         const target = e.target as HTMLElement;
                         if (
                             target.isContentEditable ||
@@ -3803,7 +3836,7 @@ export default function Dashboard() {
                             return;
                         }
                         handleNewNote();
-                    }}
+                    }} */
                 >
                     {/* Unscheduled Tasks Panel — bottom-right corner floating card, only when calendar is active */}
                     {activeTabId === 'calendar' && (!enabledExtensions || enabledExtensions.includes('todos')) && (() => {

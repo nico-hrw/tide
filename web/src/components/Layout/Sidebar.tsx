@@ -2,6 +2,7 @@
 
 import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Layout, X, GraduationCap, ShieldCheck, ListTodo, Copy } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { motion, Reorder, AnimatePresence, LayoutGroup } from "framer-motion";
 import { Tab } from '@/components/Layout/TabList';
 import SmartIsland from "../extensions/smart_island/SmartIsland";
@@ -9,6 +10,7 @@ import MiniCalendar from "../Calendar/MiniCalendar";
 import { useHighlight } from "@/components/HighlightContext";
 import { useDataStore } from "@/store/useDataStore";
 import { useDragGhost } from "@/store/useDragGhost";
+import { useSocialStore } from "@/store/useSocialStore";
 import { apiFetch, getApiBase } from "@/lib/api";
 import Avatar from "@/components/Profile/Avatar";
 import SecuritySettingsModal from "@/components/Security/SecuritySettingsModal";
@@ -77,6 +79,8 @@ interface SidebarProps {
     onOpenExams?: () => void;
     onNewCanvasNote?: () => void;
     onOpenTodos?: () => void;
+    isTodosActive?: boolean;
+    onToggleTodos?: () => void;
 }
 
 interface ChatUser {
@@ -121,9 +125,21 @@ export default function Sidebar({
     onOpenExams,
     onNewCanvasNote,
     onOpenTodos,
+    isTodosActive,
+    onToggleTodos,
 }: SidebarProps) {
     const { highlight } = useHighlight();
     const { orderedNoteIds, setOrderedNoteIds, setSettingsModalOpen } = useDataStore();
+    const pendingRequests = useSocialStore(s => s.pendingRequests);
+    const fetchPendingRequests = useSocialStore(s => s.fetchPendingRequests);
+
+    useEffect(() => {
+        fetchPendingRequests();
+        const interval = setInterval(() => {
+            fetchPendingRequests();
+        }, 30000);
+        return () => clearInterval(interval);
+    }, [fetchPendingRequests]);
     const [chats, setChats] = useState<ChatUser[]>([]);
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -140,6 +156,7 @@ export default function Sidebar({
     const [myId, setMyId] = useState<string>("");
     const [sidebarUserProfile, setSidebarUserProfile] = useState<{ id?: string, user_id?: string, username: string, email: string, avatar_seed?: string, avatar_salt?: string } | null>(null);
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, id: string, type: 'file' | 'folder' } | null>(null);
+    const lastContextMenuOpenTimeRef = useRef(0);
     const [sidebarContextMenu, setSidebarContextMenu] = useState<{ x: number; y: number } | null>(null);
     const [dropIndicator, setDropIndicator] = useState<{ id: string, zone: 'top' | 'middle' | 'bottom' } | null>(null);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -319,6 +336,7 @@ export default function Sidebar({
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+            if (Date.now() - lastContextMenuOpenTimeRef.current < 450) return;
             const target = event.target as HTMLElement | null;
             if (profileMenuRef.current && target && !profileMenuRef.current.contains(target)) {
                 setIsProfileMenuOpen(false);
@@ -358,6 +376,7 @@ export default function Sidebar({
     const handleContextMenu = (e: ContextMenuEvent, id: string, type: 'file' | 'folder') => {
         e.preventDefault?.();
         e.stopPropagation?.();
+        lastContextMenuOpenTimeRef.current = Date.now();
         setContextMenu({ x: e.clientX, y: e.clientY, id, type });
     };
 
@@ -494,6 +513,7 @@ export default function Sidebar({
             onContextMenu={(e) => {
                 if (e.defaultPrevented) return;
                 e.preventDefault();
+                lastContextMenuOpenTimeRef.current = Date.now();
                 setSidebarContextMenu({ x: e.clientX, y: e.clientY });
             }}
         >
@@ -503,14 +523,22 @@ export default function Sidebar({
                 <div className="mb-2 px-1 flex gap-1">
                     <button
                         onClick={() => onOpenSocial?.()}
-                        className={`flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'social' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
+                        className={`flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group relative ${activeTabId === 'social' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
                     >
-                        <div className={`shrink-0 ${activeTabId === 'social' ? 'text-blue-500' : 'text-[var(--text-muted)] group-hover:text-blue-500 transition-colors'}`}>
+                        <div className={`relative shrink-0 ${activeTabId === 'social' ? 'text-blue-500' : 'text-[var(--text-muted)] group-hover:text-blue-500 transition-colors'}`}>
                             <Users size={16} />
+                            {pendingRequests.length > 0 && (
+                                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[var(--bg-panel)]" />
+                            )}
                         </div>
                         <span className={`text-[13px] font-medium flex-1 text-left ${activeTabId === 'social' ? 'text-[var(--text-body)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-body)] transition-colors'}`}>
                             Social
                         </span>
+                        {pendingRequests.length > 0 && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-500 text-white shrink-0 leading-none">
+                                {pendingRequests.length}
+                            </span>
+                        )}
                     </button>
 
                     {(!enabledExtensions || enabledExtensions.includes('job_planner')) && (
@@ -830,9 +858,9 @@ export default function Sidebar({
                 {(!enabledExtensions || enabledExtensions.includes('todos')) && (
                     <div className="flex items-center justify-start px-1">
                         <button
-                            onClick={() => onOpenTodos?.()}
+                            onClick={() => onToggleTodos ? onToggleTodos() : onOpenTodos?.()}
                             className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                                activeTabId === 'todos'
+                                isTodosActive || activeTabId === 'todos'
                                     ? 'bg-blue-600 text-white shadow-md'
                                     : 'border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 shadow-sm'
                             }`}
@@ -857,12 +885,15 @@ export default function Sidebar({
             </div>
 
 
-            {contextMenu && (
-                <div
-                    className="context-menu fixed z-[200] w-56 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
-                    style={{ left: contextMenu.x, top: contextMenu.y }}
-                >
-                    <div className="px-2 py-1.5 flex flex-col gap-0.5">
+            {contextMenu && typeof document !== 'undefined' && (() => {
+                const clampedX = typeof window !== 'undefined' ? Math.max(8, Math.min(contextMenu.x, window.innerWidth - 240)) : contextMenu.x;
+                const clampedY = typeof window !== 'undefined' ? Math.max(8, Math.min(contextMenu.y, window.innerHeight - 340)) : contextMenu.y;
+                return createPortal(
+                    <div
+                        className="context-menu fixed z-[9999] w-56 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
+                        style={{ left: clampedX, top: clampedY }}
+                    >
+                        <div className="px-2 py-1.5 flex flex-col gap-0.5">
                         {/* 1. Rename */}
                         <button
                             onClick={(e) => { setContextMenu(null); onRenameNote(e, contextMenu.id, ""); }}
@@ -1036,8 +1067,10 @@ export default function Sidebar({
                             );
                         })()}
                     </div>
-                </div>
-            )}
+                </div>,
+                document.body
+            );
+        })()}
 
             {sidebarContextMenu && (
                 <div

@@ -486,11 +486,17 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
 
     return (
         <motion.div
+            id={`event-${event.id}`}
+            data-event-id={event.id}
+            data-event-start={event.start}
             initial={{ opacity: 0, y: 10, scale: 0.98 }}
             animate={{ opacity: isCancelled ? 0.4 : 1, y: 0, scale: 1 }}
             style={{
                 ...style, ...borderRadiusStyle,
                 borderLeft: 'none',
+                WebkitTouchCallout: 'none',
+                WebkitUserSelect: 'none',
+                userSelect: 'none',
                 ...(shouldGlow ? {
                     boxShadow: `inset 0 0 0 1px ${glowColor}, inset 0 0 15px ${glowColor}30`,
                     zIndex: 65,

@@ -210,6 +210,28 @@ export default function CalendarView({
     const [hoveredHour, setHoveredHour] = useState<number | null>(null);
 
     // --- DnD State ---
+    const eventsRef = useRef(events);
+    eventsRef.current = events;
+    const onEventUpdateRef = useRef(onEventUpdate);
+    onEventUpdateRef.current = onEventUpdate;
+    const lastPopoverOpenTimeRef = useRef(0);
+    const touchDragStateRef = useRef<{
+        id: string;
+        state: {
+            startY: number;
+            startX: number;
+            originalTop: number;
+            currentTop: number;
+            currentLeft: number;
+            originalDayIndex: number;
+            initialX: number;
+            initialWidth: number;
+            initialScrollTop: number;
+            grabOffsetY?: number;
+            grabOffsetX?: number;
+        };
+    } | null>(null);
+
     const [draggingId, setDraggingId] = useState<string | null>(null);
     const [dragState, setDragState] = useState<{ startY: number, startX: number, originalTop: number, currentTop: number, currentLeft: number, originalDayIndex: number, initialX: number, initialWidth: number, initialScrollTop: number, grabOffsetY?: number, grabOffsetX?: number } | null>(null);
     const pendingDragRef = useRef<{ id: string, startX: number, startY: number, startMinutes: number, initialX: number, initialWidth: number, initialScrollTop: number, grabOffsetY?: number, grabOffsetX?: number } | null>(null);
@@ -351,6 +373,12 @@ export default function CalendarView({
 
     // --- Popover State ---
     const [activePopover, setActivePopover] = useState<{ id: string, rect: DOMRect } | null>(null);
+
+    useEffect(() => {
+        if (activePopover) {
+            lastPopoverOpenTimeRef.current = Date.now();
+        }
+    }, [activePopover]);
 
     // Initialize with current, prev, and next week
     useEffect(() => {
@@ -531,6 +559,9 @@ export default function CalendarView({
         const scrollHandler = () => {
             onScroll();
             if (activePopover) {
+                if (Date.now() - lastPopoverOpenTimeRef.current < 450) {
+                    return;
+                }
                 setActivePopover(null);
             }
         };
@@ -540,6 +571,9 @@ export default function CalendarView({
         // Also capture window-level or document-level scrolling just in case trackpad causes body scroll
         const globalScrollHandler = (e: Event) => {
             if (activePopover) {
+                if (Date.now() - lastPopoverOpenTimeRef.current < 450) {
+                    return;
+                }
                 // Ignore scroll events originating from within the popover itself (e.g. long title inputs scrolling horizontally)
                 const popoverEl = document.getElementById('active-event-popover');
                 if (popoverEl && popoverEl.contains(e.target as Node)) {
@@ -551,6 +585,20 @@ export default function CalendarView({
 
         const globalMouseMoveHandler = (e: MouseEvent) => {
             if (activePopover) {
+                if (Date.now() - lastPopoverOpenTimeRef.current < 450) {
+                    return;
+                }
+
+                // If event originates from a touch device (coarse pointer) or has touch-like characteristics, do not dismiss on mousemove hover
+                if (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches) {
+                    return;
+                }
+
+                // Also ignore tiny movement / jitter from synthetic touch moves
+                if (Math.abs(e.movementX) < 2 && Math.abs(e.movementY) < 2 && (e as any).sourceCapabilities?.firesTouchEvents) {
+                    return;
+                }
+
                 const popoverEl = document.getElementById('active-event-popover');
                 if (popoverEl) {
                     const rect = popoverEl.getBoundingClientRect();
@@ -573,6 +621,22 @@ export default function CalendarView({
 
         const globalClickHandler = (e: MouseEvent) => {
             if (activePopover) {
+                if (Date.now() - lastPopoverOpenTimeRef.current < 450) {
+                    return;
+                }
+                const popoverEl = document.getElementById('active-event-popover');
+                if (popoverEl && popoverEl.contains(e.target as Node)) {
+                    return;
+                }
+                setActivePopover(null);
+            }
+        };
+
+        const globalTouchHandler = (e: TouchEvent) => {
+            if (activePopover) {
+                if (Date.now() - lastPopoverOpenTimeRef.current < 450) {
+                    return;
+                }
                 const popoverEl = document.getElementById('active-event-popover');
                 if (popoverEl && popoverEl.contains(e.target as Node)) {
                     return;
@@ -584,12 +648,14 @@ export default function CalendarView({
         window.addEventListener('scroll', globalScrollHandler, true);
         window.addEventListener('mousemove', globalMouseMoveHandler, true);
         window.addEventListener('mousedown', globalClickHandler);
+        window.addEventListener('touchend', globalTouchHandler);
 
         return () => {
             container.removeEventListener('scroll', scrollHandler);
             window.removeEventListener('scroll', globalScrollHandler, true);
             window.removeEventListener('mousemove', globalMouseMoveHandler, true);
             window.removeEventListener('mousedown', globalClickHandler);
+            window.removeEventListener('touchend', globalTouchHandler);
         };
     }, [onScroll, activePopover]);
 
@@ -622,12 +688,63 @@ export default function CalendarView({
         return () => container.removeEventListener('wheel', handleWheel);
     }, []);
 
+    const commitEventDrop = useCallback(async (
+        dId: string,
+        dState: { originalTop: number, startY: number, startX: number, initialScrollTop: number },
+        clientX: number,
+        clientY: number
+    ) => {
+        const updateFn = onEventUpdateRef.current;
+        if (!updateFn) return;
+
+        const event = eventsRef.current.find(e => e.id === dId || (dId && dId.startsWith(e.id + '_')));
+        if (event) {
+            const snapInterval = isPreciseModeRef.current ? 1 : 10;
+            const scrollDelta = (scrollContainerRef.current?.scrollTop || 0) - dState.initialScrollTop;
+            const deltaY = clientY - dState.startY + scrollDelta;
+
+            const durationMins = (new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000;
+            const minDuration = Math.max(10, durationMins);
+
+            let newStartMins = dState.originalTop + deltaY;
+            newStartMins = Math.round(newStartMins / snapInterval) * snapInterval;
+            // MIDNIGHT SWAP FIX: clamp so start can never exceed end boundary
+            newStartMins = Math.max(0, Math.min(newStartMins, 1440 - minDuration));
+
+            // Determine target day from mouse / touch X
+            let targetBaseDate: Date | null = null;
+            const dayCols = document.querySelectorAll('[data-day-col]');
+            dayCols.forEach((col) => {
+                const rect = col.getBoundingClientRect();
+                if (clientX >= rect.left && clientX <= rect.right) {
+                    const dayStr = col.getAttribute('data-day-col');
+                    if (dayStr) targetBaseDate = new Date(dayStr);
+                }
+            });
+
+            const originalStart = new Date(event.start);
+            const base = targetBaseDate || startOfDay(originalStart);
+
+            const newStart = new Date(base.getFullYear(), base.getMonth(), base.getDate(),
+                Math.floor(newStartMins / 60), newStartMins % 60, 0, 0);
+            const newEnd = new Date(newStart.getTime() + durationMins * 60000);
+
+            // Final midnight clamp
+            const maxEnd = startOfDay(newEnd).getTime() + 24 * 60 * 60 * 1000;
+            const safeEnd = newEnd.getTime() > maxEnd ? new Date(maxEnd) : newEnd;
+            const safeStart = new Date(safeEnd.getTime() - durationMins * 60000);
+
+            await updateFn(dId, safeStart, safeEnd);
+        }
+    }, []);
+
     // Touch Pan / Swipe Navigation for Touchscreens (e.g. iPad)
     useEffect(() => {
         const container = scrollContainerRef.current;
         if (!container) return;
 
         let isSwiping = false;
+        let isTouchDragging = false;
         let startTouchX = 0;
         let startTouchY = 0;
         let lastTouchX = 0;
@@ -653,6 +770,7 @@ export default function CalendarView({
 
             if (e.touches.length !== 1) {
                 isSwiping = false;
+                isTouchDragging = false;
                 touchedEventEl = null;
                 return;
             }
@@ -666,6 +784,7 @@ export default function CalendarView({
                 )
             ) {
                 isSwiping = false;
+                isTouchDragging = false;
                 touchedEventEl = null;
                 return;
             }
@@ -680,6 +799,7 @@ export default function CalendarView({
             velocityX = 0;
             velocityY = 0;
             didMove = false;
+            isTouchDragging = false;
 
             const eventEl = target?.closest('.event-item') as HTMLElement | null;
             touchedEventEl = eventEl;
@@ -693,13 +813,75 @@ export default function CalendarView({
                 // If touch started on an event, wait for swipe threshold or long-press hold
                 isSwiping = false;
                 longPressTimer = setTimeout(() => {
-                    // Touch held still (> 500ms) without moving -> considered press-and-hold
+                    // Touch held still (> 500ms) without moving -> initiate event drag!
                     if (!didMove && touchedEventEl) {
                         try {
                             navigator.vibrate?.(40);
                         } catch {
                             // ignore if vibration not supported
                         }
+
+                        const eventId = touchedEventEl.getAttribute('data-event-id') || touchedEventEl.id.replace(/^event-/, '');
+                        if (!eventId) return;
+
+                        const event = eventsRef.current.find(ev => ev.id === eventId || (eventId && eventId.startsWith(ev.id + '_')));
+
+                        let startMinutes = 0;
+                        const startAttr = touchedEventEl.getAttribute('data-event-start');
+                        if (startAttr) {
+                            const sDate = new Date(startAttr);
+                            if (!isNaN(sDate.getTime())) {
+                                startMinutes = sDate.getHours() * 60 + sDate.getMinutes();
+                            }
+                        } else if (event) {
+                            let sDate = new Date(event.start);
+                            if (eventId.includes('_')) {
+                                const lastUnderscore = eventId.lastIndexOf('_');
+                                const ts = parseInt(eventId.substring(lastUnderscore + 1), 10);
+                                if (!isNaN(ts)) sDate = new Date(ts);
+                            }
+                            startMinutes = sDate.getHours() * 60 + sDate.getMinutes();
+                        }
+
+                        const containerRect = container.children.length > 1
+                            ? container.children[1].getBoundingClientRect()
+                            : container.getBoundingClientRect();
+                        const elRect = touchedEventEl.getBoundingClientRect();
+
+                        const initialX = elRect.left - containerRect.left;
+                        const initialWidth = elRect.width;
+                        const grabOffsetY = lastTouchY - elRect.top;
+                        const grabOffsetX = lastTouchX - elRect.left;
+
+                        const newDragState = {
+                            startY: lastTouchY,
+                            startX: lastTouchX,
+                            originalTop: startMinutes,
+                            currentTop: startMinutes,
+                            currentLeft: 0,
+                            originalDayIndex: 0,
+                            initialX,
+                            initialWidth,
+                            initialScrollTop: container.scrollTop,
+                            grabOffsetY,
+                            grabOffsetX,
+                        };
+
+                        isTouchDragging = true;
+                        isDraggingRef.current = true;
+                        touchDragStateRef.current = {
+                            id: eventId,
+                            state: newDragState,
+                        };
+                        setDraggingId(eventId);
+                        setDragState(newDragState);
+
+                        dragCurrentTopRef.current = startMinutes;
+                        dragOverlayY.set(startMinutes);
+                        dragOverlayX.set(initialX);
+                        cursorX.set(lastTouchX);
+                        cursorY.set(lastTouchY);
+                        gearedMouseRef.current = { x: lastTouchX, y: lastTouchY };
                     }
                 }, 500);
             } else {
@@ -712,6 +894,59 @@ export default function CalendarView({
 
             const touch = e.touches[0];
             const now = performance.now();
+
+            if (isTouchDragging && touchDragStateRef.current) {
+                e.preventDefault();
+                didMove = true;
+                const { id: dId, state: dState } = touchDragStateRef.current;
+
+                cursorX.set(touch.clientX);
+                cursorY.set(touch.clientY);
+                gearedMouseRef.current = { x: touch.clientX, y: touch.clientY };
+
+                const deltaY = touch.clientY - dState.startY;
+                const deltaX = touch.clientX - dState.startX;
+                const scrollDelta = (container.scrollTop || 0) - dState.initialScrollTop;
+
+                const draggingEvent = eventsRef.current.find(ev => ev.id === dId || (dId && dId.startsWith(ev.id + "_")));
+                const durationMins = draggingEvent ? (new Date(draggingEvent.end).getTime() - new Date(draggingEvent.start).getTime()) / 60000 : 15;
+
+                let newTop = dState.originalTop + deltaY + scrollDelta;
+                if (newTop < 0) newTop = 0;
+                if (newTop > 1440 - durationMins) newTop = 1440 - durationMins;
+
+                const snapInterval = isPreciseModeRef.current ? 1 : 10;
+                const snappedTop = Math.round(newTop / snapInterval) * snapInterval;
+
+                activeEventEdgeRef.current = snappedTop;
+                dragCurrentTopRef.current = snappedTop;
+                setDragState(prev => prev ? { ...prev, currentTop: snappedTop } : prev);
+
+                dragOverlayY.set(newTop);
+                dragOverlayX.set(dState.initialX + deltaX);
+
+                window.dispatchEvent(new CustomEvent('tide:event-drag-move', {
+                    detail: { x: touch.clientX, y: touch.clientY, eventId: dId },
+                }));
+
+                // Auto-scroll near container edges
+                const cRect = container.getBoundingClientRect();
+                if (touch.clientY < cRect.top + 60) {
+                    container.scrollTop -= 8;
+                } else if (touch.clientY > cRect.bottom - 60) {
+                    container.scrollTop += 8;
+                }
+                if (touch.clientX < cRect.left + 80) {
+                    container.scrollLeft -= 8;
+                } else if (touch.clientX > cRect.right - 80) {
+                    container.scrollLeft += 8;
+                }
+
+                lastTouchX = touch.clientX;
+                lastTouchY = touch.clientY;
+                lastTouchTime = now;
+                return;
+            }
 
             if (!isSwiping) {
                 const totalDist = Math.hypot(touch.clientX - startTouchX, touch.clientY - startTouchY);
@@ -754,10 +989,50 @@ export default function CalendarView({
             lastTouchTime = now;
         };
 
-        const handleTouchEnd = () => {
+        const handleTouchEnd = async () => {
             if (longPressTimer) {
                 clearTimeout(longPressTimer);
                 longPressTimer = null;
+            }
+
+            if (isTouchDragging && touchDragStateRef.current) {
+                const { id: dId, state: dState } = touchDragStateRef.current;
+                isTouchDragging = false;
+                touchDragStateRef.current = null;
+                setDraggingId(null);
+                setDragState(null);
+
+                const suppressClick = (clickEvent: MouseEvent) => {
+                    clickEvent.stopPropagation();
+                    clickEvent.preventDefault();
+                };
+                window.addEventListener('click', suppressClick, { capture: true, once: true });
+                setTimeout(() => {
+                    window.removeEventListener('click', suppressClick, { capture: true });
+                    isDraggingRef.current = false;
+                }, 300);
+
+                // Sidebar drop check
+                let droppedOnNote = false;
+                const draggingEvent = eventsRef.current.find(ev => ev.id === dId || (dId && dId.startsWith(ev.id + '_')));
+                const detail: any = {
+                    x: lastTouchX,
+                    y: lastTouchY,
+                    eventId: dId,
+                    title: draggingEvent?.title,
+                    start: draggingEvent?.start,
+                    end: draggingEvent?.end,
+                    color: (draggingEvent as any)?.color,
+                    consumed: false,
+                };
+                window.dispatchEvent(new CustomEvent('tide:event-drag-drop', { detail }));
+                droppedOnNote = !!detail.consumed;
+
+                if (!droppedOnNote) {
+                    await commitEventDrop(dId, dState, lastTouchX, lastTouchY);
+                }
+                touchedEventEl = null;
+                return;
             }
 
             if (didMove) {
@@ -817,6 +1092,13 @@ export default function CalendarView({
                 clearTimeout(longPressTimer);
                 longPressTimer = null;
             }
+            if (isTouchDragging) {
+                isTouchDragging = false;
+                touchDragStateRef.current = null;
+                setDraggingId(null);
+                setDragState(null);
+                isDraggingRef.current = false;
+            }
             isSwiping = false;
             touchedEventEl = null;
             velocityX = 0;
@@ -839,7 +1121,7 @@ export default function CalendarView({
             container.removeEventListener('touchend', handleTouchEnd);
             container.removeEventListener('touchcancel', handleTouchCancel);
         };
-    }, []);
+    }, [commitEventDrop]);
 
     // Adjust Scroll Position for Prepending
     useLayoutEffect(() => {
@@ -1192,57 +1474,17 @@ export default function CalendarView({
 
             await onEventCreate(new Date(finalStartMs), new Date(finalEndMs), false);
 
-        } else if (draggingId && dragState && onEventUpdate) {
-            // ✅ THIS WAS MISSING — handle the mouse-drag move completion
+        } else if (draggingId && dragState) {
             const dId = draggingId;
             const dState = dragState;
             setDraggingId(null);
             setDragState(null);
             isDraggingRef.current = false; // Reset drag threshold for next drag
 
-            const event = events.find(e => e.id === dId || (dId && dId.startsWith(e.id + '_')));
-            if (event) {
-                const snapInterval = isPreciseModeRef.current ? 1 : 10;
-                const scrollDelta = (scrollContainerRef.current?.scrollTop || 0) - dState.initialScrollTop;
-                const { x: gX, y: gY } = gearedMouseRef.current;
-                const deltaY = gY - dState.startY + scrollDelta;
-                const deltaX = gX - dState.startX;
+            const { x: gX, y: gY } = gearedMouseRef.current;
+            await commitEventDrop(dId, dState, gX, gY);
 
-                const durationMins = (new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000;
-                const minDuration = Math.max(10, durationMins);
-
-                let newStartMins = dState.originalTop + deltaY;
-                newStartMins = Math.round(newStartMins / snapInterval) * snapInterval;
-                // MIDNIGHT SWAP FIX: clamp so start can never exceed end boundary
-                newStartMins = Math.max(0, Math.min(newStartMins, 1440 - minDuration));
-
-                // Determine target day from mouse X
-                let targetBaseDate: Date | null = null;
-                const dayCols = document.querySelectorAll('[data-day-col]');
-                dayCols.forEach((col) => {
-                    const rect = col.getBoundingClientRect();
-                    if (gX >= rect.left && gX <= rect.right) {
-                        const dayStr = col.getAttribute('data-day-col');
-                        if (dayStr) targetBaseDate = new Date(dayStr);
-                    }
-                });
-
-                const originalStart = new Date(event.start);
-                const base = targetBaseDate || startOfDay(originalStart);
-
-                const newStart = new Date(base.getFullYear(), base.getMonth(), base.getDate(),
-                    Math.floor(newStartMins / 60), newStartMins % 60, 0, 0);
-                const newEnd = new Date(newStart.getTime() + durationMins * 60000);
-
-                // Final midnight clamp
-                const maxEnd = startOfDay(newEnd).getTime() + 24 * 60 * 60 * 1000;
-                const safeEnd = newEnd.getTime() > maxEnd ? new Date(maxEnd) : newEnd;
-                const safeStart = new Date(safeEnd.getTime() - durationMins * 60000);
-
-                await onEventUpdate(dId, safeStart, safeEnd);
-            }
-
-        } else if (resizingId && resizeDragState && onEventUpdate) {
+        } else if (resizingId && resizeDragState) {
             const rId = resizingId;
             const rState = resizeDragState;
 
@@ -1611,12 +1853,14 @@ export default function CalendarView({
 
                                                     if (e?.allDay) {
                                                         if (rect) {
+                                                            lastPopoverOpenTimeRef.current = Date.now();
                                                             setActivePopover(prev => prev?.id === id ? null : { id, rect });
                                                         } else if (onEventClick) {
                                                             onEventClick(id);
                                                         }
                                                     } else {
                                                         if (rect) {
+                                                            lastPopoverOpenTimeRef.current = Date.now();
                                                             setActivePopover(prev => prev?.id === id ? null : { id, rect });
                                                         } else if (onEventClick) {
                                                             onEventClick(id);

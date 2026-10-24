@@ -21,6 +21,7 @@ import {
 import { useHighlight } from '../HighlightContext';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
 import Avatar from '../Profile/Avatar';
+import { useSocialStore } from '@/store/useSocialStore';
 
 export interface Tab {
     id: string;
@@ -79,6 +80,7 @@ export default function TabList({
     onLogout
 }: TabListProps) {
     const { highlight } = useHighlight();
+    const pendingRequests = useSocialStore(s => s.pendingRequests);
     const scrollRef = useRef<HTMLDivElement>(null);
 
     const getTabIcon = (type: string) => {
@@ -129,11 +131,11 @@ export default function TabList({
 
     return (
         <div 
-            onDoubleClick={(e) => {
+            /* onDoubleClick={(e) => {
                 if (e.target === e.currentTarget || !(e.target as HTMLElement).closest('button, [role="button"], input, [data-is-tab]')) {
                     onNewTab?.();
                 }
-            }}
+            }} */
             className="w-full flex-shrink-0 min-h-[calc(4.25rem+env(safe-area-inset-top,0px))] bg-gray-100/70 dark:bg-slate-950/60 border-b border-gray-200/80 dark:border-white/10 flex items-center justify-between px-2.5 gap-2 select-none z-30 pt-[env(safe-area-inset-top,0px)]"
         >
             {/* Horizontal Tabs Scroll Container */}
@@ -150,11 +152,11 @@ export default function TabList({
             )}
             <div 
                 ref={scrollRef}
-                onDoubleClick={(e) => {
+                /* onDoubleClick={(e) => {
                     if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'UL') {
                         onNewTab?.();
                     }
-                }}
+                }} */
                 className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto no-scrollbar py-1"
             >
                 <Reorder.Group
@@ -253,13 +255,18 @@ export default function TabList({
                 <div ref={avatarMenuRef} className="relative shrink-0 flex items-center">
                     <button
                         onClick={() => setIsAvatarMenuOpen(o => !o)}
-                        className="w-14 h-14 rounded-full overflow-hidden hover:ring-2 hover:ring-blue-400/80 transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                        className="relative w-14 h-14 rounded-full hover:ring-2 hover:ring-blue-400/80 transition-all hover:scale-105 active:scale-95 cursor-pointer"
                         title="Profil"
                     >
-                        <Avatar
-                            seed={(userProfile?.avatar_seed || userProfile?.user_id || userProfile?.id || myId || 'default') + (userProfile?.avatar_salt || '')}
-                            size={56}
-                        />
+                        <div className="w-full h-full rounded-full overflow-hidden">
+                            <Avatar
+                                seed={(userProfile?.avatar_seed || userProfile?.user_id || userProfile?.id || myId || 'default') + (userProfile?.avatar_salt || '')}
+                                size={56}
+                            />
+                        </div>
+                        {pendingRequests.length > 0 && (
+                            <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 border-2 border-white dark:border-slate-900 rounded-full z-10" />
+                        )}
                     </button>
 
                     {isAvatarMenuOpen && (
@@ -272,10 +279,22 @@ export default function TabList({
                                 {onOpenSocial && (
                                     <button
                                         onClick={() => { setIsAvatarMenuOpen(false); onOpenSocial(); }}
-                                        className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                                        className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                                     >
-                                        <Users size={14} className="text-gray-400 dark:text-slate-500" />
-                                        <span>Social</span>
+                                        <div className="flex items-center gap-3">
+                                            <div className="relative">
+                                                <Users size={14} className="text-gray-400 dark:text-slate-500" />
+                                                {pendingRequests.length > 0 && (
+                                                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+                                                )}
+                                            </div>
+                                            <span>Social</span>
+                                        </div>
+                                        {pendingRequests.length > 0 && (
+                                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-500 text-white shrink-0 leading-none">
+                                                {pendingRequests.length}
+                                            </span>
+                                        )}
                                     </button>
                                 )}
                                 {onOpenSettings && (

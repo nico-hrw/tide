@@ -88,6 +88,7 @@ export async function apiFetch(url: string, options: RequestInit & { _isSyncRepl
 
         return res;
     } catch (err: any) {
+        if (err?.name === 'AbortError') throw err;
         console.warn("[apiFetch] Network/Cloud unreachable:", err);
         
         // Dispatch custom event for UI to pick up

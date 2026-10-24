@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Search, MessageSquare, ArrowLeft } from 'lucide-react';
 import Avatar from '@/components/Profile/Avatar';
 import ChatPanel from '@/components/Chat/ChatPanel';
-import PartnerProfileHeader from '@/components/Chat/PartnerProfileHeader';
 import { SocialContact } from '@/store/useSocialStore';
 import { ChatPartner } from './SocialHub';
 
@@ -24,6 +23,7 @@ interface SocialSplitChatProps {
     onOpenFile: (fileId: string, title: string, parentId: string | null) => void;
     onOpenCalendar: () => void;
     privateKey: CryptoKey | null;
+    myId?: string;
 }
 
 export default function SocialSplitChat({
@@ -38,16 +38,15 @@ export default function SocialSplitChat({
     onOpenFile,
     onOpenCalendar,
     privateKey,
+    myId,
 }: SocialSplitChatProps) {
-    const [profileExpanded, setProfileExpanded] = useState(true);
-
     const filteredContacts = chatFilter.trim()
         ? contacts.filter((c) => c.partner.username.toLowerCase().includes(chatFilter.toLowerCase()))
         : contacts;
 
     return (
-        <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 h-[calc(100vh-140px)] min-h-[500px]">
+            <div className="flex items-center justify-between shrink-0">
                 <button
                     onClick={onBack}
                     className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors shadow-xs group"
@@ -57,7 +56,6 @@ export default function SocialSplitChat({
                 </button>
                 {activePartner && (
                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400 hidden sm:inline">Aktiver Chat mit</span>
                         <span className="text-xs font-bold text-gray-900 dark:text-white bg-gray-100 dark:bg-white/10 px-2.5 py-1 rounded-lg">
                             {activePartner.username}
                         </span>
@@ -66,7 +64,7 @@ export default function SocialSplitChat({
             </div>
 
             {/* Split Container */}
-            <div className="w-full bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-sm flex flex-col md:flex-row h-[750px] max-h-[calc(100vh-180px)] overflow-hidden">
+            <div className="w-full flex-1 min-h-0 bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-sm flex flex-col md:flex-row overflow-hidden">
                 {/* Contacts Column */}
                 <div className={`w-full md:w-80 shrink-0 border-r border-gray-200/80 dark:border-white/10 flex flex-col bg-gray-50/50 dark:bg-[#161616] ${activePartner ? 'hidden md:flex' : 'flex'}`}>
                     <div className="p-3 border-b border-gray-200/80 dark:border-white/10">
@@ -117,21 +115,19 @@ export default function SocialSplitChat({
                 {/* Chat Column */}
                 <div className={`flex-1 flex flex-col min-w-0 bg-white dark:bg-[#1a1a1a] ${!activePartner ? 'hidden md:flex' : 'flex'}`}>
                     {activePartner ? (
-                        <>
-                            <PartnerProfileHeader partner={activePartner} expanded={profileExpanded} onOpenProfile={onViewProfile} onToggle={() => setProfileExpanded((p) => !p)} />
-                            <div className="flex-1 min-h-0 overflow-hidden">
-                                <ChatPanel
-                                    privateKey={privateKey}
-                                    onOpenFile={onOpenFile}
-                                    onOpenCalendar={onOpenCalendar}
-                                    onOpenProfile={onViewProfile}
-                                    onFileCreated={() => {}}
-                                    activePartner={activePartner}
-                                    onChatSelect={() => {}}
-                                    hideHeader={true}
-                                />
-                            </div>
-                        </>
+                        <div className="flex-1 min-h-0 overflow-hidden">
+                            <ChatPanel
+                                privateKey={privateKey}
+                                onOpenFile={onOpenFile}
+                                onOpenCalendar={onOpenCalendar}
+                                onOpenProfile={onViewProfile}
+                                onFileCreated={() => {}}
+                                activePartner={activePartner}
+                                onChatSelect={() => {}}
+                                hideHeader={false}
+                                myId={myId}
+                            />
+                        </div>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
                             <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/20 text-blue-500 flex items-center justify-center mb-4"><MessageSquare size={32} /></div>

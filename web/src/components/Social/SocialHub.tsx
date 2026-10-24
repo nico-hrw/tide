@@ -435,14 +435,14 @@ export default function SocialHub({
                                         <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mt-1">Sobald dir andere Nutzer eine Kontaktanfrage schicken, kannst du sie hier direkt bestätigen oder ablehnen.</p>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                         {pendingRequests.map((req) => (
                                             <div key={req.id} className="bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 p-5 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                                <div className="flex items-center gap-3 min-w-0">
-                                                    <Avatar seed={(req.avatar_seed || req.user_id) + (req.avatar_salt || '')} style={req.avatar_style === 'openPeeps' ? 'openPeeps' : 'notionists'} size={48} />
+                                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                    <Avatar seed={(req.avatar_seed || req.user_id) + (req.avatar_salt || '')} style={req.avatar_style === 'openPeeps' ? 'openPeeps' : 'notionists'} size={48} className="shrink-0" />
                                                     <div className="min-w-0">
                                                         <h3 className="font-bold text-gray-900 dark:text-white text-sm truncate">{req.username || 'Neuer Tide-Nutzer'}</h3>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400">Möchte sich mit dir vernetzen</p>
+                                                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate sm:whitespace-normal">Möchte sich mit dir vernetzen</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2 shrink-0">

@@ -44,6 +44,7 @@ interface ChatPanelProps {
     onOpenProfile?: (userId: string, username: string) => void;
     onScroll?: (scrollTop: number, direction: 'up' | 'down') => void;
     hideHeader?: boolean;
+    myId?: string;
 }
 
 interface ProfileTreeProps {
@@ -102,7 +103,7 @@ function ProfileTree({ items, parentId, onSelect, level = 0 }: ProfileTreeProps)
     );
 }
 
-export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOpenProfile, onFileCreated, activePartner, onChatSelect, onAccept, onScroll, hideHeader }: ChatPanelProps) {
+export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOpenProfile, onFileCreated, activePartner, onChatSelect, onAccept, onScroll, hideHeader, myId: propMyId }: ChatPanelProps) {
     const [view, setView] = useState<'contacts' | 'search' | 'shared'>('contacts');
     const [showActionsMenu, setShowActionsMenu] = useState(false);
 
@@ -124,8 +125,18 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
     const [publicFiles, setPublicFiles] = useState<any[]>([]);
     const [sharedFiles, setSharedFiles] = useState<any[]>([]);
     const [allSharedFiles, setAllSharedFiles] = useState<any[]>([]);
-    const [myId, setMyId] = useState("");
+    const [myId, setMyId] = useState<string>(() => {
+        if (propMyId) return propMyId;
+        if (typeof window !== "undefined") {
+            return sessionStorage.getItem("tide_user_id") || localStorage.getItem("tide_user_id") || "";
+        }
+        return "";
+    });
     const [decryptedTexts, setDecryptedTexts] = useState<Record<string, string>>({});
+    const decryptedTextsRef = useRef<Record<string, string>>({});
+    useEffect(() => {
+        decryptedTextsRef.current = decryptedTexts;
+    }, [decryptedTexts]);
 
     // Close dropdown when clicking outside
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -145,9 +156,13 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
     }, [showActionsMenu]);
 
     useEffect(() => {
-        const storedId = sessionStorage.getItem("tide_user_id");
+        if (propMyId) {
+            setMyId(propMyId);
+            return;
+        }
+        const storedId = sessionStorage.getItem("tide_user_id") || localStorage.getItem("tide_user_id");
         if (storedId) setMyId(storedId);
-    }, []);
+    }, [propMyId]);
 
     // Sync activePartner prop to internal state
     useEffect(() => {
@@ -600,7 +615,30 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                 
             const res = await apiFetch(`/api/v1/messages?${query}`);
             if (res.ok) {
-                setMessages(await res.json() || []);
+                const fetched: Message[] = (await res.json()) || [];
+                setMessages(fetched);
+
+                // Decrypt in parallel using Promise.all for instant display
+                const currentMyId = myId || (typeof window !== "undefined" ? (sessionStorage.getItem("tide_user_id") || localStorage.getItem("tide_user_id") || "") : "");
+                if (privateKey && currentMyId) {
+                    const toDecrypt = fetched.filter(m => isE2EEMessage(m.content) && !decryptedTextsRef.current[m.id]);
+                    if (toDecrypt.length > 0) {
+                        const results = await Promise.all(
+                            toDecrypt.map(async (m) => {
+                                try {
+                                    const dec = await decryptChatMessage(m.content, currentMyId, privateKey);
+                                    return [m.id, dec] as const;
+                                } catch {
+                                    return [m.id, m.content] as const;
+                                }
+                            })
+                        );
+                        setDecryptedTexts(prev => ({
+                            ...prev,
+                            ...Object.fromEntries(results)
+                        }));
+                    }
+                }
             }
         } catch (e) { console.error(e); }
     };
@@ -616,20 +654,35 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
     useEffect(() => {
         let isCancelled = false;
         const decryptAll = async () => {
-            const updates: Record<string, string> = {};
-            for (const m of messages) {
-                if (isE2EEMessage(m.content) && !decryptedTexts[m.id]) {
-                    const dec = await decryptChatMessage(m.content, myId, privateKey);
-                    updates[m.id] = dec;
-                }
-            }
-            if (!isCancelled && Object.keys(updates).length > 0) {
-                setDecryptedTexts(prev => ({ ...prev, ...updates }));
+            const toDecrypt = messages.filter(m => isE2EEMessage(m.content) && !decryptedTexts[m.id]);
+            if (toDecrypt.length === 0) return;
+            const results = await Promise.all(
+                toDecrypt.map(async (m) => {
+                    try {
+                        const dec = await decryptChatMessage(m.content, myId, privateKey);
+                        return [m.id, dec] as const;
+                    } catch {
+                        return [m.id, m.content] as const;
+                    }
+                })
+            );
+            if (!isCancelled && results.length > 0) {
+                setDecryptedTexts(prev => ({ ...prev, ...Object.fromEntries(results) }));
             }
         };
         decryptAll();
         return () => { isCancelled = true; };
     }, [messages, myId, privateKey, decryptedTexts]);
+
+    // 4s fallback polling interval when chat is open if SSE hasn't pushed messages yet
+    useEffect(() => {
+        if (!partner) return;
+        const interval = setInterval(() => {
+            fetchMessages(partner.email, partner.id);
+        }, 4000);
+        return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [partner, myId, privateKey]);
 
     const partnerRef = useRef<UserBasic | null>(null);
     useEffect(() => { partnerRef.current = partner; }, [partner]);
@@ -1433,7 +1486,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                         </div>
 
                         {/* Input Area */}
-                        <div className="p-4 bg-transparent pb-32">
+                        <div className="p-4 bg-transparent pb-3 sm:pb-4">
                             <div className="flex gap-2">
                                 <input
                                     className="flex-1 px-5 py-3 glass-input rounded-3xl text-sm outline-none"

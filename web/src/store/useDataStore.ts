@@ -105,6 +105,8 @@ interface DataState {
     setNoteCaretPosition: (noteId: string, pos: { from: number; to: number }) => void;
 }
 
+const deletedTaskIds = new Set<string>();
+
 export const useDataStore = create<DataState>((set, get) => ({
     notes: [],
     events: [],
@@ -303,6 +305,10 @@ export const useDataStore = create<DataState>((set, get) => ({
         return fallbackId;
     },
     updateTask: async (id, updates) => {
+        if (deletedTaskIds.has(id)) {
+            return;
+        }
+
         // 1. Optimistic local update immediately
         set(s => ({ 
             tasks: s.tasks.map(t => t.id === id ? { ...t, ...updates } : t) 
@@ -368,6 +374,9 @@ export const useDataStore = create<DataState>((set, get) => ({
             });
             if (!res.ok) {
                 if (res.status === 404) {
+                    if (deletedTaskIds.has(id)) {
+                        return;
+                    }
                     // Task doesn't exist in backend yet (optimistic ID was never persisted).
                     // Create it via POST and reconcile the ID.
                     console.warn('[updateTask] Task not found in backend (404) — creating via POST');
@@ -418,6 +427,7 @@ export const useDataStore = create<DataState>((set, get) => ({
         }
     },
     deleteTask: async (id) => {
+        deletedTaskIds.add(id);
         // Optimistic removal
         set(s => ({ tasks: s.tasks.filter(t => t.id !== id) }));
         try {
