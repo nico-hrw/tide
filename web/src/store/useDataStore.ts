@@ -23,6 +23,7 @@ export interface TaskItem {
     recurrence_end?: string;
     completed_dates?: string[];
     folder?: string;
+    tags?: string[];
 }
 
 interface DataState {
@@ -277,6 +278,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                 recurrence_end: newTask.recurrence_end,
                 completed_dates: newTask.completed_dates,
                 folder: newTask.folder,
+                tags: newTask.tags || [],
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, state.publicKey);
             
@@ -353,6 +355,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                 recurrence_end: mergedTask.recurrence_end,
                 completed_dates: mergedTask.completed_dates,
                 folder: mergedTask.folder,
+                tags: mergedTask.tags !== undefined ? mergedTask.tags : [],
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, publicKey);
 
@@ -730,6 +733,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                                     recurrence_end: meta.recurrence_end as string | undefined,
                                     completed_dates: meta.completed_dates as string[] | undefined,
                                     folder: meta.folder as string | undefined,
+                                    tags: Array.isArray(meta.tags) ? meta.tags : [],
                                 } as TaskItem);
                             } else {
                                 // Fallback for tasks
@@ -751,6 +755,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                     }
                     if (local && local.folder !== undefined && bt.folder === undefined) {
                         return { ...bt, folder: local.folder };
+                    }
+                    if (local && local.tags !== undefined && bt.tags === undefined) {
+                        return { ...bt, tags: local.tags };
                     }
                     if (local && local.isCompleted !== bt.isCompleted) return local; // prefer local toggle
                     return bt;
@@ -1197,6 +1204,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                                 recurrence_end: meta.recurrence_end as string | undefined,
                                 completed_dates: meta.completed_dates as string[] | undefined,
                                 folder: meta.folder as string | undefined,
+                                tags: Array.isArray(meta.tags) ? meta.tags : [],
                             } as TaskItem);
                         } else {
                             loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, isLocked: true } as any);
@@ -1218,6 +1226,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                     }
                     if (local && local.folder !== undefined && bt.folder === undefined) {
                         return { ...bt, folder: local.folder };
+                    }
+                    if (local && local.tags !== undefined && bt.tags === undefined) {
+                        return { ...bt, tags: local.tags };
                     }
                     if (local && local.isCompleted !== bt.isCompleted) return local;
                     return bt;

@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   CheckCircle2, Circle, Calendar, Repeat, Trash2, Edit2, Plus,
   Search, SlidersHorizontal, AlertCircle, Check, X, ListTodo,
-  Folder, Inbox, ArrowLeft,
+  Folder, Inbox, ArrowLeft, Tag,
 } from 'lucide-react';
 import {
   format, isToday, isTomorrow, isBefore, startOfDay, endOfDay,
@@ -15,7 +15,7 @@ import TodoFolderOverview, { FolderStat } from './TodoFolderOverview';
 
 export type Priority = 'low' | 'medium' | 'high';
 export type FilterStatus = 'all' | 'active' | 'completed';
-export type SortOption = 'created' | 'deadline' | 'priority';
+export type SortOption = 'created' | 'deadline' | 'priority' | 'tag' | 'title';
 export type RecurrenceType = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 interface TodoListProps {
@@ -168,13 +168,72 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     return tasks.filter((t) => (selectedFolder === '' ? !t.folder : t.folder === selectedFolder) && !t.isCompleted).length;
   }, [tasks, selectedFolder]);
 
+  const [customTags, setCustomTags] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('tide_todo_custom_tags');
+        return saved ? JSON.parse(saved) : ['Vorbereiten', 'Lernen'];
+      } catch {
+        return ['Vorbereiten', 'Lernen'];
+      }
+    }
+    return ['Vorbereiten', 'Lernen'];
+  });
+
+  const handleAddCustomTag = (tagName: string) => {
+    const trimmed = tagName.trim().replace(/^#/, '');
+    if (!trimmed) return;
+    setCustomTags((prev) => {
+      if (prev.includes(trimmed)) return prev;
+      const next = [...prev, trimmed];
+      try {
+        localStorage.setItem('tide_todo_custom_tags', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleRemoveCustomTag = (tagName: string) => {
+    setCustomTags((prev) => {
+      const next = prev.filter((t) => t !== tagName);
+      try {
+        localStorage.setItem('tide_todo_custom_tags', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const allTags = useMemo(() => {
+    return Array.from(new Set([...customTags, ...tasks.flatMap((t) => t.tags || [])])).sort();
+  }, [customTags, tasks]);
+
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [newTagInput, setNewTagInput] = useState('');
+  const [editNewTagInput, setEditNewTagInput] = useState('');
+
   const [draft, setDraft] = useState({
     title: '', description: '', priority: 'medium' as Priority,
     dueDate: '', recurrence: 'none' as RecurrenceType, recurrenceEnd: '',
-    folder: '',
+    folder: '', tags: [] as string[],
   });
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const handleNewTodoEvent = () => {
+      setViewMode('tasks');
+      setIsCreateOpen(true);
+      setTimeout(() => {
+        titleInputRef.current?.focus();
+      }, 50);
+    };
+
+    window.addEventListener('tide:new-todo', handleNewTodoEvent);
+    return () => {
+      window.removeEventListener('tide:new-todo', handleNewTodoEvent);
+    };
+  }, []);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
@@ -185,7 +244,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const [editDraft, setEditDraft] = useState({
     title: '', description: '', priority: 'medium' as Priority,
     dueDate: '', recurrence: 'none' as RecurrenceType, recurrenceEnd: '',
-    folder: '',
+    folder: '', tags: [] as string[],
   });
 
   const totalCount = tasks.length;
@@ -227,12 +286,14 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         recurrence: draft.recurrence, recurrence_rule: buildRecurrenceRule(draft.recurrence),
         recurrence_end: draft.recurrence !== 'none' && draft.recurrenceEnd ? draft.recurrenceEnd : undefined,
         folder: folderVal,
+        tags: draft.tags.length > 0 ? draft.tags : undefined,
         isCompleted: false,
       });
       if (folderVal && !createdFolders.includes(folderVal)) {
         handleCreateFolder(folderVal);
       }
-      setDraft({ title: '', description: '', priority: 'medium', dueDate: '', recurrence: 'none', recurrenceEnd: '', folder: selectedFolder || '' });
+      setDraft({ title: '', description: '', priority: 'medium', dueDate: '', recurrence: 'none', recurrenceEnd: '', folder: selectedFolder || '', tags: [] });
+      setNewTagInput('');
       setIsCreateOpen(false);
     } finally {
       setIsSubmitting(false);
@@ -244,8 +305,9 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     setEditDraft({
       title: task.title, description: task.description || '', priority: getTaskPriority(task),
       dueDate: task.dueDate || task.scheduledDate || '', recurrence: task.recurrence || 'none', recurrenceEnd: task.recurrence_end || '',
-      folder: task.folder || '',
+      folder: task.folder || '', tags: task.tags ? [...task.tags] : [],
     });
+    setEditNewTagInput('');
   };
 
   const saveEditing = (id: string) => {
@@ -258,6 +320,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       recurrence: editDraft.recurrence, recurrence_rule: buildRecurrenceRule(editDraft.recurrence),
       recurrence_end: editDraft.recurrence !== 'none' && editDraft.recurrenceEnd ? editDraft.recurrenceEnd : undefined,
       folder: folderVal,
+      tags: editDraft.tags,
     });
     if (folderVal && !createdFolders.includes(folderVal)) {
       handleCreateFolder(folderVal);
@@ -275,13 +338,17 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
           if (t.folder !== selectedFolder) return false;
         }
       }
+      if (selectedTag !== null) {
+        if (!t.tags || !t.tags.includes(selectedTag)) return false;
+      }
       if (filterStatus === 'active' && t.isCompleted) return false;
       if (filterStatus === 'completed' && !t.isCompleted) return false;
       if (filterPriority !== 'all' && getTaskPriority(t) !== filterPriority) return false;
-      if (q && !t.title.toLowerCase().includes(q) && !(t.description || '').toLowerCase().includes(q)) return false;
+      const matchesTag = t.tags && t.tags.some((tag) => tag.toLowerCase().includes(q));
+      if (q && !t.title.toLowerCase().includes(q) && !(t.description || '').toLowerCase().includes(q) && !matchesTag) return false;
       return true;
     });
-  }, [tasks, selectedFolder, filterStatus, filterPriority, searchQuery]);
+  }, [tasks, selectedFolder, selectedTag, filterStatus, filterPriority, searchQuery]);
 
   const sortedTasks = useMemo(() => [...filteredTasks].sort((a, b) => {
     if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
@@ -296,17 +363,27 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       if (dA && !dB) return -1;
       if (!dA && dB) return 1;
     }
+    if (sortBy === 'tag') {
+      const tagA = (a.tags && a.tags.length > 0) ? a.tags[0] : '(Kein Tag)';
+      const tagB = (b.tags && b.tags.length > 0) ? b.tags[0] : '(Kein Tag)';
+      const diff = tagA.localeCompare(tagB);
+      if (diff !== 0) return diff;
+    }
+    if (sortBy === 'title') {
+      const diff = a.title.localeCompare(b.title);
+      if (diff !== 0) return diff;
+    }
     return 0;
   }), [filteredTasks, sortBy]);
 
   return (
     <div className={`flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto relative select-none ${className}`}>
       {/* Header & Status Indicator */}
-      <div className="sticky top-0 z-30 flex items-center justify-between gap-3 px-6 md:px-10 py-4 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400"><ListTodo size={20} /></div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">Todos</h1>
+      <div className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 px-3 sm:px-6 md:px-8 py-3 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0"><ListTodo size={18} className="sm:w-5 sm:h-5" /></div>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white leading-tight">Todos</h1>
           </div>
 
           {/* Segmented View Toggle: Aufgaben vs Ordner */}
@@ -314,7 +391,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             <button
               type="button"
               onClick={() => setViewMode('tasks')}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer min-h-[32px] ${
                 viewMode === 'tasks'
                   ? 'bg-white dark:bg-[#242424] text-blue-600 dark:text-blue-400 shadow-xs'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -326,7 +403,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             <button
               type="button"
               onClick={() => setViewMode('folders')}
-              className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer min-h-[32px] ${
                 viewMode === 'folders'
                   ? 'bg-white dark:bg-[#242424] text-blue-600 dark:text-blue-400 shadow-xs'
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -342,12 +419,12 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 text-xs">
-            <span className="px-2.5 py-0.5 rounded-full font-medium bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-white/10">{totalCount} gesamt</span>
-            <span className="px-2.5 py-0.5 rounded-full font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">{activeCount} offen</span>
-            <span className="px-2.5 py-0.5 rounded-full font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">{completedCount} erledigt</span>
+          <div className="flex items-center gap-1 sm:gap-1.5 text-xs overflow-x-auto no-scrollbar py-0.5">
+            <span className="px-2 sm:px-2.5 py-0.5 rounded-full font-medium whitespace-nowrap bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-white/10">{totalCount} gesamt</span>
+            <span className="px-2 sm:px-2.5 py-0.5 rounded-full font-medium whitespace-nowrap bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">{activeCount} offen</span>
+            <span className="px-2 sm:px-2.5 py-0.5 rounded-full font-medium whitespace-nowrap bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">{completedCount} erledigt</span>
             {overdueCount > 0 && (
-              <span className="px-2.5 py-0.5 rounded-full font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">{overdueCount} überfällig</span>
+              <span className="px-2 sm:px-2.5 py-0.5 rounded-full font-medium whitespace-nowrap bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">{overdueCount} überfällig</span>
             )}
           </div>
           {totalCount > 0 && (
@@ -366,7 +443,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             setDraft((p) => ({ ...p, folder: selectedFolder || '' }));
             setIsCreateOpen((prev) => !prev);
           }}
-          className="flex items-center gap-1.5 px-3.5 py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl transition-all shadow-xs shrink-0 cursor-pointer"
+          className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl transition-all shadow-xs shrink-0 cursor-pointer min-h-[36px]"
         >
           <Plus size={16} /><span>Neue Aufgabe</span>
         </button>
@@ -387,7 +464,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         />
       ) : (
         /* Main Container */
-        <div className="max-w-4xl md:max-w-5xl w-full mx-auto px-4 md:px-8 py-6 flex flex-col gap-5">
+        <div className="max-w-4xl md:max-w-5xl w-full mx-auto px-3 sm:px-6 md:px-8 py-4 sm:py-6 flex flex-col gap-4 sm:gap-5 pb-28 sm:pb-8">
           {/* Folder Header Banner (View b) */}
           {selectedFolder !== null && (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/5 to-transparent border border-blue-500/20 dark:border-blue-500/30">
@@ -395,7 +472,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                 <button
                   type="button"
                   onClick={() => setSelectedFolder(null)}
-                  className="p-1.5 rounded-xl bg-white dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-white shadow-2xs hover:scale-105 transition-all cursor-pointer shrink-0"
+                  className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-xl bg-white dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-white shadow-2xs hover:scale-105 transition-all cursor-pointer shrink-0"
                   title="Alle Aufgaben anzeigen"
                 >
                   <ArrowLeft size={16} />
@@ -425,14 +502,14 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                 <button
                   type="button"
                   onClick={() => setViewMode('folders')}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-white dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 rounded-xl transition-colors cursor-pointer"
+                  className="px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-white dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 rounded-xl transition-colors cursor-pointer min-h-[36px] flex items-center"
                 >
                   Ordner-Übersicht
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedFolder(null)}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-colors cursor-pointer"
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-colors cursor-pointer min-h-[36px]"
                 >
                   <X size={14} />
                   <span>Filter zurücksetzen</span>
@@ -443,22 +520,23 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
           {/* Task Creation Form Card (Collapsed by default) */}
           {isCreateOpen && (
-            <div className="bg-white dark:bg-[#1a1a1a] border border-blue-500/30 dark:border-blue-500/30 rounded-2xl p-5 shadow-2xs transition-all">
-              <form onSubmit={handleAddTask} className="flex flex-col gap-3.5">
+            <div className="bg-white dark:bg-[#1a1a1a] border border-blue-500/30 dark:border-blue-500/30 rounded-2xl p-4 sm:p-5 shadow-2xs transition-all">
+              <form onSubmit={handleAddTask} className="flex flex-col gap-3 sm:gap-3.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Plus size={16} className="text-blue-500" />
                     <h3 className="text-sm font-bold text-gray-900 dark:text-white">Neue Aufgabe erstellen</h3>
                   </div>
-                  <button type="button" onClick={() => setIsCreateOpen(false)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg transition-colors cursor-pointer" aria-label="Schließen">
+                  <button type="button" onClick={() => setIsCreateOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg transition-colors cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center" aria-label="Schließen">
                     <X size={16} />
                   </button>
                 </div>
 
                 <input
+                  ref={titleInputRef}
                   type="text" value={draft.title} onChange={(e) => setDraft((p) => ({ ...p, title: e.target.value }))}
                   placeholder="Was möchtest du erledigen?..." autoFocus
-                  className="w-full px-4 py-2.5 text-sm bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  className="w-full px-4 py-2.5 text-sm bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 min-h-[40px]"
                 />
 
                 <textarea
@@ -467,17 +545,106 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                   className="w-full px-4 py-2 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
                 />
 
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-gray-100 dark:border-white/5">
-                  <div className="flex flex-wrap items-center gap-2.5">
+                {/* Tag selector chips in Create Form */}
+                <div className="flex flex-col gap-1.5 pt-0.5">
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 font-medium">
+                    <Tag size={13} className="text-blue-500" />
+                    <span>Tags:</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {allTags.map((tag) => {
+                      const isSelected = draft.tags.includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => {
+                            setDraft((p) => ({
+                              ...p,
+                              tags: isSelected ? p.tags.filter((t) => t !== tag) : [...p.tags, tag],
+                            }));
+                          }}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/40 shadow-2xs'
+                              : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'
+                          }`}
+                        >
+                          <span>#{tag}</span>
+                          {isSelected ? (
+                            <Check size={11} className="text-blue-500" />
+                          ) : customTags.includes(tag) ? (
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveCustomTag(tag);
+                              }}
+                              className="text-gray-400 hover:text-rose-500 ml-0.5 p-0.5 transition-colors"
+                              title={`Tag "${tag}" löschen`}
+                            >
+                              <X size={10} />
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+
+                    <div className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-lg px-2 py-0.5">
+                      <span className="text-xs text-gray-400">#</span>
+                      <input
+                        type="text"
+                        value={newTagInput}
+                        onChange={(e) => setNewTagInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const trimmed = newTagInput.trim().replace(/^#/, '');
+                            if (trimmed) {
+                              handleAddCustomTag(trimmed);
+                              if (!draft.tags.includes(trimmed)) {
+                                setDraft((p) => ({ ...p, tags: [...p.tags, trimmed] }));
+                              }
+                              setNewTagInput('');
+                            }
+                          }
+                        }}
+                        placeholder="Neuer Tag..."
+                        className="w-20 sm:w-24 text-xs bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none py-0.5"
+                      />
+                      {newTagInput.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const trimmed = newTagInput.trim().replace(/^#/, '');
+                            if (trimmed) {
+                              handleAddCustomTag(trimmed);
+                              if (!draft.tags.includes(trimmed)) {
+                                setDraft((p) => ({ ...p, tags: [...p.tags, trimmed] }));
+                              }
+                              setNewTagInput('');
+                            }
+                          }}
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 p-0.5 cursor-pointer"
+                          title="Tag hinzufügen"
+                        >
+                          <Plus size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-1 border-t border-gray-100 dark:border-white/5">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
                     <select
                       value={draft.priority} onChange={(e) => setDraft((p) => ({ ...p, priority: e.target.value as Priority }))}
-                      className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer"
+                      className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer min-h-[36px]"
                       aria-label="Priorität"
                     >
                       {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1.5 flex-1 sm:flex-none min-w-[130px]">
                       <Folder size={14} className="text-blue-500 shrink-0" />
                       <input
                         list="todo-folder-options"
@@ -485,7 +652,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                         value={draft.folder}
                         onChange={(e) => setDraft((p) => ({ ...p, folder: e.target.value }))}
                         placeholder="Ordner (optional)"
-                        className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 w-36 sm:w-44"
+                        className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 w-full sm:w-44 min-h-[36px]"
                       />
                       <datalist id="todo-folder-options">
                         {allFolders.map((f) => (
@@ -496,7 +663,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                         <button
                           type="button"
                           onClick={() => setDraft((p) => ({ ...p, folder: '' }))}
-                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-0.5"
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 min-w-[28px] min-h-[28px] flex items-center justify-center"
                           title="Ordner entfernen"
                         >
                           <X size={12} />
@@ -506,14 +673,14 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
                     <input
                       type="date" value={draft.dueDate} onChange={(e) => setDraft((p) => ({ ...p, dueDate: e.target.value }))}
-                      className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer"
+                      className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer min-h-[36px]"
                       aria-label="Fälligkeitsdatum"
                     />
                     <div className="flex items-center gap-1.5">
-                      <Repeat size={14} className="text-purple-500" />
+                      <Repeat size={14} className="text-purple-500 shrink-0" />
                       <select
                         value={draft.recurrence} onChange={(e) => setDraft((p) => ({ ...p, recurrence: e.target.value as RecurrenceType }))}
-                        className="px-3 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
+                        className="px-3 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer min-h-[36px]"
                         aria-label="Wiederholung"
                       >
                         {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -524,18 +691,18 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                         <span className="text-xs text-gray-500 dark:text-gray-400">Bis:</span>
                         <input
                           type="date" value={draft.recurrenceEnd} onChange={(e) => setDraft((p) => ({ ...p, recurrenceEnd: e.target.value }))}
-                          className="px-3 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
+                          className="px-3 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer min-h-[36px]"
                           aria-label="Wiederholen bis"
                         />
                       </div>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => setIsCreateOpen(false)} className="px-3 py-1.5 text-xs rounded-xl font-medium bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer">
+                  <div className="flex items-center justify-end gap-2 w-full sm:w-auto pt-2 sm:pt-0">
+                    <button type="button" onClick={() => setIsCreateOpen(false)} className="flex-1 sm:flex-none px-3 py-2 text-xs rounded-xl font-medium bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer min-h-[36px]">
                       Abbrechen
                     </button>
-                    <button type="submit" disabled={!draft.title.trim() || isSubmitting} className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-xs cursor-pointer">
+                    <button type="submit" disabled={!draft.title.trim() || isSubmitting} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-xs cursor-pointer min-h-[36px]">
                       <Plus size={14} /><span>Aufgabe hinzufügen</span>
                     </button>
                   </div>
@@ -545,28 +712,28 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
           )}
 
           {/* Filter & Sort Card */}
-          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col gap-3.5">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-3.5 sm:p-5 shadow-2xs flex flex-col gap-3 sm:gap-3.5">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
               <div className="relative flex-1">
                 <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Aufgaben durchsuchen..."
-                  className="w-full pl-9 pr-8 py-2 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  className="w-full pl-9 pr-8 py-2 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 min-h-[36px]"
                 />
                 {searchQuery && (
-                  <button type="button" onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                  <button type="button" onClick={() => setSearchQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1">
                     <X size={14} />
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-1.5 self-start sm:self-auto">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 shrink-0">
                 {(['all', 'active', 'completed'] as FilterStatus[]).map((status) => {
                   const isActive = filterStatus === status;
                   const label = status === 'all' ? 'Alle' : status === 'active' ? 'Offen' : 'Erledigt';
                   return (
                     <button
                       key={status} type="button" onClick={() => setFilterStatus(status)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap min-h-[36px] flex items-center justify-center ${
                         isActive ? 'bg-blue-600 text-white shadow-xs' : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
                       }`}
                     >
@@ -579,14 +746,14 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
             {/* Quick folder pills / shortcuts */}
             {(allFolders.length > 0 || unfiledCount.total > 0) && (
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 text-xs">
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 pt-1 text-xs">
                 <span className="text-gray-400 dark:text-gray-500 shrink-0 font-medium flex items-center gap-1">
                   <Folder size={12} /> Ordner:
                 </span>
                 <button
                   type="button"
                   onClick={() => setSelectedFolder(null)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer ${
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[32px] flex items-center transition-colors cursor-pointer ${
                     selectedFolder === null
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
@@ -598,7 +765,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                   <button
                     type="button"
                     onClick={() => setSelectedFolder(selectedFolder === '' ? null : '')}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap flex items-center gap-1 transition-colors cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[32px] flex items-center gap-1 transition-colors cursor-pointer ${
                       selectedFolder === ''
                         ? 'bg-amber-600 text-white shadow-xs'
                         : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
@@ -617,7 +784,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                       key={folder}
                       type="button"
                       onClick={() => setSelectedFolder(isSelected ? null : folder)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap flex items-center gap-1.5 transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[32px] flex items-center gap-1.5 transition-colors cursor-pointer ${
                         isSelected
                           ? 'bg-blue-600 text-white shadow-xs'
                           : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
@@ -634,12 +801,54 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               </div>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-gray-100 dark:border-white/5 text-xs">
+            {/* Quick tag pills / shortcuts */}
+            {allTags.length > 0 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 pt-1 text-xs">
+                <span className="text-gray-400 dark:text-gray-500 shrink-0 font-medium flex items-center gap-1">
+                  <Tag size={12} /> Tags:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTag(null)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[32px] flex items-center transition-colors cursor-pointer ${
+                    selectedTag === null
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                  }`}
+                >
+                  Alle ({totalCount})
+                </button>
+                {allTags.map((tag) => {
+                  const isSelected = selectedTag === tag;
+                  const count = tasks.filter((t) => t.tags?.includes(tag)).length;
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setSelectedTag(isSelected ? null : tag)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap min-h-[32px] flex items-center gap-1.5 transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                      }`}
+                    >
+                      <span>#{tag}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300'}`}>
+                        {count}
+                      </span>
+                      {isSelected && <X size={12} className="ml-0.5" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 pt-3 border-t border-gray-100 dark:border-white/5 text-xs">
               <div className="flex items-center gap-2">
                 <span className="text-gray-500 dark:text-gray-400 font-medium">Priorität:</span>
                 <select
                   value={filterPriority} onChange={(e) => setFilterPriority(e.target.value as Priority | 'all')}
-                  className="px-2.5 py-1.5 bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer"
+                  className="px-2.5 py-1.5 bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer min-h-[36px]"
                 >
                   <option value="all">Alle Prioritäten</option>
                   {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label.replace(/^[^\s]+\s/, '')}</option>)}
@@ -650,11 +859,13 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                 <span className="text-gray-500 dark:text-gray-400 font-medium">Sortieren:</span>
                 <select
                   value={sortBy} onChange={(e) => setSortBy(e.target.value as SortOption)}
-                  className="px-2.5 py-1.5 bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer"
+                  className="px-2.5 py-1.5 bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-800 dark:text-gray-200 focus:outline-none cursor-pointer min-h-[36px]"
                 >
                   <option value="deadline">Fälligkeit</option>
                   <option value="priority">Priorität</option>
                   <option value="created">Erstellt</option>
+                  <option value="tag">Tag</option>
+                  <option value="title">Titel</option>
                 </select>
               </div>
             </div>
@@ -671,10 +882,10 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
               if (isEditing) {
                 return (
-                  <div key={task.id} className="flex flex-col gap-3 p-5 rounded-2xl border border-blue-400 dark:border-blue-500/40 bg-white dark:bg-[#1a1a1a] shadow-md">
+                  <div key={task.id} className="flex flex-col gap-3 p-4 sm:p-5 rounded-2xl border border-blue-400 dark:border-blue-500/40 bg-white dark:bg-[#1a1a1a] shadow-md">
                     <input
                       type="text" value={editDraft.title} onChange={(e) => setEditDraft((p) => ({ ...p, title: e.target.value }))}
-                      className="px-3 py-2 text-sm font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                      className="px-3 py-2 text-sm font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 min-h-[38px]"
                       placeholder="Titel der Aufgabe"
                     />
                     <textarea
@@ -682,15 +893,104 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                       placeholder="Beschreibung (optional)" rows={2}
                       className="px-3 py-2 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none resize-none"
                     />
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
-                      <div className="flex flex-wrap items-center gap-2">
+
+                    {/* Tag selector chips in Edit Form */}
+                    <div className="flex flex-col gap-1.5 pt-0.5">
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 font-medium">
+                        <Tag size={13} className="text-blue-500" />
+                        <span>Tags:</span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {allTags.map((tag) => {
+                          const isSelected = editDraft.tags.includes(tag);
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => {
+                                setEditDraft((p) => ({
+                                  ...p,
+                                  tags: isSelected ? p.tags.filter((t) => t !== tag) : [...p.tags, tag],
+                                }));
+                              }}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/40 shadow-2xs'
+                                  : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'
+                              }`}
+                            >
+                              <span>#{tag}</span>
+                              {isSelected ? (
+                                <Check size={11} className="text-blue-500" />
+                              ) : customTags.includes(tag) ? (
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveCustomTag(tag);
+                                  }}
+                                  className="text-gray-400 hover:text-rose-500 ml-0.5 p-0.5 transition-colors"
+                                  title={`Tag "${tag}" löschen`}
+                                >
+                                  <X size={10} />
+                                </span>
+                              ) : null}
+                            </button>
+                          );
+                        })}
+
+                        <div className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-lg px-2 py-0.5">
+                          <span className="text-xs text-gray-400">#</span>
+                          <input
+                            type="text"
+                            value={editNewTagInput}
+                            onChange={(e) => setEditNewTagInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const trimmed = editNewTagInput.trim().replace(/^#/, '');
+                                if (trimmed) {
+                                  handleAddCustomTag(trimmed);
+                                  if (!editDraft.tags.includes(trimmed)) {
+                                    setEditDraft((p) => ({ ...p, tags: [...p.tags, trimmed] }));
+                                  }
+                                  setEditNewTagInput('');
+                                }
+                              }
+                            }}
+                            placeholder="Neuer Tag..."
+                            className="w-20 sm:w-24 text-xs bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none py-0.5"
+                          />
+                          {editNewTagInput.trim() && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const trimmed = editNewTagInput.trim().replace(/^#/, '');
+                                if (trimmed) {
+                                  handleAddCustomTag(trimmed);
+                                  if (!editDraft.tags.includes(trimmed)) {
+                                    setEditDraft((p) => ({ ...p, tags: [...p.tags, trimmed] }));
+                                  }
+                                  setEditNewTagInput('');
+                                }
+                              }}
+                              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 p-0.5 cursor-pointer"
+                              title="Tag hinzufügen"
+                            >
+                              <Plus size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-2 border-t border-gray-100 dark:border-white/5">
+                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         <select
                           value={editDraft.priority} onChange={(e) => setEditDraft((p) => ({ ...p, priority: e.target.value as Priority }))}
-                          className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
+                          className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer min-h-[36px]"
                         >
                           {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-1 sm:flex-none min-w-[130px]">
                           <Folder size={14} className="text-blue-500 shrink-0" />
                           <input
                             list="todo-folder-options"
@@ -698,13 +998,13 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                             value={editDraft.folder}
                             onChange={(e) => setEditDraft((p) => ({ ...p, folder: e.target.value }))}
                             placeholder="Ordner (optional)"
-                            className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 w-36"
+                            className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 w-full sm:w-36 min-h-[36px]"
                           />
                           {editDraft.folder && (
                             <button
                               type="button"
                               onClick={() => setEditDraft((p) => ({ ...p, folder: '' }))}
-                              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-0.5"
+                              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 min-w-[28px] min-h-[28px] flex items-center justify-center"
                               title="Ordner entfernen"
                             >
                               <X size={12} />
@@ -713,26 +1013,26 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                         </div>
                         <input
                           type="date" value={editDraft.dueDate} onChange={(e) => setEditDraft((p) => ({ ...p, dueDate: e.target.value }))}
-                          className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
+                          className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer min-h-[36px]"
                           aria-label="Fälligkeitsdatum"
                         />
                         <select
                           value={editDraft.recurrence} onChange={(e) => setEditDraft((p) => ({ ...p, recurrence: e.target.value as RecurrenceType }))}
-                          className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
+                          className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer min-h-[36px]"
                         >
                           {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                         {editDraft.recurrence !== 'none' && (
                           <input
                             type="date" value={editDraft.recurrenceEnd} onChange={(e) => setEditDraft((p) => ({ ...p, recurrenceEnd: e.target.value }))}
-                            className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer"
+                            className="px-2.5 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer min-h-[36px]"
                             aria-label="Wiederholen bis"
                           />
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => setEditingTaskId(null)} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-xl font-medium bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer"><X size={13} /> Abbrechen</button>
-                        <button type="button" onClick={() => saveEditing(task.id)} disabled={!editDraft.title.trim()} className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-xl font-medium text-white bg-blue-600 hover:bg-blue-700 transition-opacity disabled:opacity-50 cursor-pointer"><Check size={13} /> Speichern</button>
+                      <div className="flex items-center justify-end gap-2 w-full sm:w-auto pt-2 sm:pt-0">
+                        <button type="button" onClick={() => setEditingTaskId(null)} className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-1.5 text-xs rounded-xl font-medium bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer min-h-[36px]"><X size={13} /> Abbrechen</button>
+                        <button type="button" onClick={() => saveEditing(task.id)} disabled={!editDraft.title.trim()} className="flex-1 sm:flex-none flex items-center justify-center gap-1 px-3 py-1.5 text-xs rounded-xl font-medium text-white bg-blue-600 hover:bg-blue-700 transition-opacity disabled:opacity-50 cursor-pointer min-h-[36px]"><Check size={13} /> Speichern</button>
                       </div>
                     </div>
                   </div>
@@ -743,30 +1043,49 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                 <div
                   key={task.id}
                   onClick={() => onSelectTask?.(task)}
-                  className={`group flex items-start justify-between gap-4 p-5 rounded-2xl border transition-all duration-150 ${
+                  className={`group flex items-start justify-between gap-3 sm:gap-4 p-3.5 sm:p-5 rounded-2xl border transition-all duration-150 ${
                     task.isCompleted
                       ? 'border-gray-100 dark:border-white/5 bg-gray-50/60 dark:bg-[#161616] opacity-75'
                       : 'bg-white dark:bg-[#1a1a1a] border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 shadow-2xs hover:shadow-xs'
                   }`}
                 >
-                  <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                  <div className="flex items-start gap-2.5 sm:gap-3.5 min-w-0 flex-1">
                     <button
                       type="button" onClick={(e) => { e.stopPropagation(); handleToggleTask(task); }}
-                      className="mt-0.5 text-gray-400 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400 transition-colors shrink-0 cursor-pointer"
+                      className="mt-0.5 -ml-1 p-2 min-w-[38px] min-h-[38px] flex items-center justify-center text-gray-400 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400 transition-colors shrink-0 cursor-pointer"
                       aria-label={task.isCompleted ? 'Als unvollständig markieren' : 'Als erledigt markieren'}
                     >
                       {task.isCompleted ? <CheckCircle2 className="w-5 h-5 text-emerald-500 fill-emerald-500/20" /> : <Circle className="w-5 h-5 hover:text-blue-500 transition-colors" />}
                     </button>
 
                     <div className="flex flex-col min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`text-sm font-semibold break-words ${task.isCompleted ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <span className={`text-sm font-semibold break-words mr-1 ${task.isCompleted ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
                           {task.title}
                         </span>
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${priorityCfg.bg} ${priorityCfg.text} ${priorityCfg.border}`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${priorityCfg.dot}`} />
                           {priorityCfg.label}
                         </span>
+                        {task.tags && task.tags.map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTag((prev) => (prev === tag ? null : tag));
+                              setViewMode('tasks');
+                            }}
+                            className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                              selectedTag === tag
+                                ? 'bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-500/40 shadow-2xs'
+                                : 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'
+                            }`}
+                            title={`Nach #${tag} filtern`}
+                          >
+                            <span>#{tag}</span>
+                          </button>
+                        ))}
                         {task.folder && (
                           <button
                             type="button"
@@ -808,9 +1127,9 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 opacity-80 sm:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                    <button type="button" onClick={(e) => { e.stopPropagation(); startEditing(task); }} className="p-2 text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer" title="Aufgabe bearbeiten" aria-label="Aufgabe bearbeiten"><Edit2 size={15} /></button>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }} className="p-2 text-gray-400 hover:text-rose-600 dark:text-gray-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer" title="Aufgabe löschen" aria-label="Aufgabe löschen"><Trash2 size={15} /></button>
+                  <div className="flex items-center gap-0.5 sm:gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); startEditing(task); }} className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-colors cursor-pointer" title="Aufgabe bearbeiten" aria-label="Aufgabe bearbeiten"><Edit2 size={15} /></button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); deleteTask(task.id); }} className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-rose-600 dark:text-gray-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors cursor-pointer" title="Aufgabe löschen" aria-label="Aufgabe löschen"><Trash2 size={15} /></button>
                   </div>
                 </div>
               );
@@ -822,18 +1141,40 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                   {filterStatus === 'completed' ? <CheckCircle2 size={24} /> : <ListTodo size={24} />}
                 </div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">
-                  {filterStatus === 'completed' ? 'Keine erledigten Aufgaben' : filterStatus === 'active' ? 'Alles erledigt!' : searchQuery ? 'Keine Aufgaben gefunden' : selectedFolder !== null ? `Keine Aufgaben in "${selectedFolder || 'Ohne Ordner'}"` : 'Noch keine Aufgaben'}
+                  {filterStatus === 'completed' ? 'Keine erledigten Aufgaben' : filterStatus === 'active' ? 'Alles erledigt!' : searchQuery ? 'Keine Aufgaben gefunden' : selectedTag !== null ? `Keine Aufgaben mit #${selectedTag}` : selectedFolder !== null ? `Keine Aufgaben in "${selectedFolder || 'Ohne Ordner'}"` : 'Noch keine Aufgaben'}
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mb-4">
                   {searchQuery
                     ? `Für "${searchQuery}" wurden keine passenden Aufgaben gefunden.`
+                    : selectedTag !== null
+                    ? `Es gibt aktuell keine passenden Aufgaben mit dem Tag #${selectedTag}.`
                     : selectedFolder !== null
                     ? `In diesem Ordner befinden sich aktuell keine passenden Aufgaben.`
                     : tasks.length === 0
                     ? 'Erstelle oben deine erste Aufgabe, um Termine, Prioritäten und Wiederholungen zu planen.'
                     : 'Keine Aufgaben für die aktuellen Filterkriterien vorhanden.'}
                 </p>
-                {selectedFolder !== null ? (
+                {selectedTag !== null ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraft((p) => ({ ...p, folder: selectedFolder || '', tags: [selectedTag] }));
+                        setIsCreateOpen(true);
+                      }}
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs cursor-pointer"
+                    >
+                      <Plus size={14} /><span>Aufgabe mit #{selectedTag} erstellen</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTag(null)}
+                      className="px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+                    >
+                      Tag-Filter aufheben
+                    </button>
+                  </div>
+                ) : selectedFolder !== null ? (
                   <div className="flex items-center gap-2">
                     <button
                       type="button"

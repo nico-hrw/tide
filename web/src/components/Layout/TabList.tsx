@@ -15,7 +15,8 @@ import {
     Lock, 
     Settings, 
     LogOut,
-    ListTodo 
+    ListTodo,
+    PanelLeft 
 } from 'lucide-react';
 import { useHighlight } from '../HighlightContext';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
@@ -37,6 +38,8 @@ interface TabListProps {
     onTabClose: (e: React.MouseEvent | null, id: string) => void;
     onTabsReorder?: (newTabs: Tab[]) => void;
     onNewTab?: () => void;
+    isSidebarOpen?: boolean;
+    onToggleSidebar?: () => void;
     userProfile?: { 
         username: string; 
         email: string; 
@@ -63,6 +66,8 @@ export default function TabList({
     onTabClose, 
     onTabsReorder, 
     onNewTab,
+    isSidebarOpen,
+    onToggleSidebar,
     userProfile,
     myId,
     isAvatarMenuOpen,
@@ -129,9 +134,20 @@ export default function TabList({
                     onNewTab?.();
                 }
             }}
-            className="w-full flex-shrink-0 h-11 bg-gray-100/70 dark:bg-slate-950/60 border-b border-gray-200/80 dark:border-white/10 flex items-center justify-between px-2.5 gap-2 select-none z-30"
+            className="w-full flex-shrink-0 h-11 bg-gray-100/70 dark:bg-slate-950/60 border-b border-gray-200/80 dark:border-white/10 flex items-center justify-between px-2.5 gap-2 select-none z-30 pt-[env(safe-area-inset-top,0px)]"
         >
             {/* Horizontal Tabs Scroll Container */}
+            {onToggleSidebar && (
+                <button
+                    type="button"
+                    onClick={onToggleSidebar}
+                    title={isSidebarOpen ? "Sidebar einklappen" : "Sidebar ausklappen"}
+                    aria-label="Sidebar umschalten"
+                    className="flex items-center justify-center w-8 h-8 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-200/60 dark:hover:bg-white/10 active:scale-95 transition-all shrink-0 cursor-pointer"
+                >
+                    <PanelLeft className={`w-4 h-4 transition-transform duration-200 ${isSidebarOpen ? '' : 'text-primary'}`} />
+                </button>
+            )}
             <div 
                 ref={scrollRef}
                 onDoubleClick={(e) => {
@@ -179,7 +195,7 @@ export default function TabList({
                                             }
                                         }}
                                         title={getTabLabel(tab)}
-                                        className={`group relative flex items-center gap-2 h-8 px-3 rounded-lg text-xs font-medium cursor-pointer transition-all duration-150 max-w-[190px] min-w-[100px] border
+                                        className={`group relative flex items-center gap-2 min-h-[32px] px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer transition-all duration-150 max-w-[190px] min-w-[100px] border
                                             ${isActive
                                                 ? 'bg-white dark:bg-slate-900 text-gray-900 dark:text-gray-100 shadow-sm border-gray-200/90 dark:border-slate-700/80 font-semibold'
                                                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-slate-900/40 border-transparent'
@@ -206,7 +222,7 @@ export default function TabList({
                                                 e.stopPropagation();
                                                 onTabClose(e, tab.id);
                                             }}
-                                            className={`p-0.5 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all shrink-0
+                                            className={`p-1 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all shrink-0
                                                 ${isActive ? 'opacity-70 hover:opacity-100 hover:bg-gray-100 dark:hover:bg-slate-800' : 'opacity-0 group-hover:opacity-100 hover:bg-gray-300/50 dark:hover:bg-slate-800'}
                                             `}
                                             title="Tab schließen"

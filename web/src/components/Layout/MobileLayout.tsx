@@ -7,7 +7,7 @@ import {
   ChevronRight, ChevronLeft, ChevronDown, Plus, Search, Calendar as CalendarIcon,
   Trash2, GraduationCap, Clock, MapPin,
   DollarSign, X, PenLine, FolderPlus,
-  BookOpen, Coffee, RotateCcw,
+  BookOpen, Coffee, RotateCcw, ListTodo,
 } from 'lucide-react';
 import { isSameDay, format, startOfWeek, addDays, isAfter } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -17,6 +17,7 @@ import { useDataStore } from '@/store/useDataStore';
 import dynamic from 'next/dynamic';
 import { parseGermanDate } from '@/lib/dateParser';
 import { pickGreetingTemplate, formatGreeting, NextEventCountdown } from './MobileHeaderWidgets';
+import TodoList from '../Todo/TodoList';
 
 const getDayDiff = (d1: Date, d2: Date) => {
   const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
@@ -1661,7 +1662,7 @@ export default function MobileLayout({
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [calViewMode, setCalViewMode] = useState<'day' | 'agenda' | 'week' | 'month'>('day');
-  const [activeTab, setActiveTab] = useState<'calendar' | 'notes'>('calendar');
+  const [activeTab, setActiveTab] = useState<'calendar' | 'notes' | 'todos'>('calendar');
   const [dayViewDays, setDayViewDays] = useState<Date[]>([]);
   const dayViewSentinelRef = useRef<HTMLDivElement>(null);
   const [isNewEventSheetOpen, setIsNewEventSheetOpen] = useState(false);
@@ -2798,7 +2799,7 @@ export default function MobileLayout({
           </div>
         )}
       </div>
-      ) : (
+      ) : activeTab === 'notes' ? (
       /* ── Notes tab ── */
       <div className="flex flex-col" style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}>
         {/* Notes header */}
@@ -3019,6 +3020,11 @@ export default function MobileLayout({
           })()}
         </div>
       </div>
+      ) : (
+      /* ── Todos tab ── */
+      <div className="flex-1 overflow-hidden relative w-full h-full flex flex-col" style={{ paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}>
+        <TodoList />
+      </div>
       )}
 
       {/* Quick Mobile New Event Sheet */}
@@ -3036,7 +3042,7 @@ export default function MobileLayout({
 
       {/* ── High-presence Bottom Navigation Bar ────────────────── */}
       <div
-        className="fixed left-0 right-0 flex items-center justify-between z-20 px-5 pt-3"
+        className="fixed left-0 right-0 flex items-center justify-between z-20 px-3 sm:px-5 pt-2.5 sm:pt-3"
         style={{
           bottom: kbOffset > 0 ? kbOffset : 0,
           background: theme === 'dark' ? 'rgba(15, 20, 30, 0.95)' : 'rgba(255, 255, 255, 0.97)',
@@ -3047,17 +3053,20 @@ export default function MobileLayout({
         }}
       >
         {/* Tabs */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {[
             { id: 'calendar' as const, icon: <CalendarIcon size={20} />, label: 'Kalender' },
             { id: 'notes' as const, icon: <BookOpen size={20} />, label: 'Notizen' },
+            ...(!enabledExtensions || enabledExtensions.includes('todos')
+              ? [{ id: 'todos' as const, icon: <ListTodo size={20} />, label: 'Todos' }]
+              : []),
           ].map(tab => {
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl font-bold text-xs transition-all active:scale-95"
+                className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-bold text-[11px] sm:text-xs transition-all active:scale-95 shrink-0"
                 style={{
                   background: isActive
                     ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)')
@@ -3076,13 +3085,13 @@ export default function MobileLayout({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
           <button
             onClick={() => {
               setSearchQuery('');
               setIsSearchOpen(true);
             }}
-            className="w-10 h-10 flex items-center justify-center rounded-2xl transition-all active:scale-95"
+            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0"
             style={{
               background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
               color: T.sec,
@@ -3098,18 +3107,20 @@ export default function MobileLayout({
               if (activeTab === 'calendar') {
                 setNewEventDefaultDate(activeDate);
                 setIsNewEventSheetOpen(true);
-              } else {
+              } else if (activeTab === 'notes') {
                 onNewNote();
                 setIsEditingNote(true);
+              } else if (activeTab === 'todos') {
+                window.dispatchEvent(new CustomEvent('tide:new-todo'));
               }
             }}
-            className="w-10 h-10 flex items-center justify-center rounded-2xl text-white transition-all active:scale-95 shadow-md"
+            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl text-white transition-all active:scale-95 shadow-md shrink-0"
             style={{
               background: 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 50%, #9333ea 100%)',
               boxShadow: '0 4px 14px -2px rgba(126, 34, 206, 0.5), inset 0 1px 1px 0 rgba(255, 255, 255, 0.35)',
               border: '1px solid rgba(216, 180, 254, 0.35)',
             }}
-            title={activeTab === 'calendar' ? 'Neuer Termin' : 'Neue Notiz'}
+            title={activeTab === 'calendar' ? 'Neuer Termin' : activeTab === 'notes' ? 'Neue Notiz' : 'Neue Aufgabe'}
           >
             <Plus size={20} strokeWidth={2.4} />
           </button>

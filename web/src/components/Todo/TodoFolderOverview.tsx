@@ -52,7 +52,7 @@ export const TodoFolderOverview: React.FC<TodoFolderOverviewProps> = ({
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto px-4 py-6 sm:px-6">
+    <div className="w-full max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-28 sm:pb-8">
       {/* Back button */}
       <div className="mb-4">
         <button
@@ -243,7 +243,7 @@ export const TodoFolderOverview: React.FC<TodoFolderOverviewProps> = ({
                           e.stopPropagation();
                           onDeleteFolder(f.name);
                         }}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-all focus:opacity-100"
+                        className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-all focus:opacity-100 cursor-pointer"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

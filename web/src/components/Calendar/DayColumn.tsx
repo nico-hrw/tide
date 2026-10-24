@@ -391,7 +391,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     return (
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
-            className={`w-[150px] md:w-[200px] flex-shrink-0 border-r border-gray-100/80 dark:border-slate-900/50 relative z-[10] bg-transparent`}
+            className={`w-[140px] md:w-[155px] lg:w-[185px] xl:w-[210px] flex-shrink-0 border-r border-gray-100/80 dark:border-slate-900/50 relative z-[10] bg-transparent`}
             onMouseMove={(e) => {
                 physicalMouseRef.current = { x: e.clientX, y: e.clientY };
                 gearedMouseRef.current = { x: e.clientX, y: e.clientY };
@@ -538,7 +538,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             {/* All-Day Events Area */}
             {allDayEvents.length > 0 && (
                 <div className="sticky top-[50px] z-[65] w-full h-0 pointer-events-auto">
-                    <div className="absolute top-0 left-0 right-0 w-[150px] md:w-[200px] bg-white/30 dark:bg-slate-900/40 backdrop-blur-2xl p-1 flex flex-col gap-1 border-b border-gray-200/60 dark:border-slate-800/60 rounded-b-xl">
+                    <div className="absolute top-0 left-0 right-0 w-[140px] md:w-[155px] lg:w-[185px] xl:w-[210px] bg-white/30 dark:bg-slate-900/40 backdrop-blur-2xl p-1 flex flex-col gap-1 border-b border-gray-200/60 dark:border-slate-800/60 rounded-b-xl">
                         {allDayEvents.map(event => {
                             const theme = getEventTheme(event, calendarColorPalette);
                             const isHighlightedEvent = isHighlighted(event.id, 'event');

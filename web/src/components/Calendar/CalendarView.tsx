@@ -1476,7 +1476,7 @@ export default function CalendarView({
                 <div
                     ref={scrollContainerRef}
                     className={`flex-1 relative flex trackpad-scroll-free transition-all duration-300 ${isSpeedTraveling ? 'blur-[1.5px] brightness-105' : ''}`}
-                    style={{ touchAction: 'none', overscrollBehavior: 'none' }}
+                    style={{ touchAction: 'pan-x pan-y', overscrollBehavior: 'none' }}
                 >
                     {/* Time Column (Sticky Left) */}
                     <div className="w-[60px] flex-shrink-0 sticky left-0 z-[400] bg-white dark:bg-slate-950 border-r border-gray-100/80 dark:border-slate-900/50 h-fit min-h-full pb-[40px]">
