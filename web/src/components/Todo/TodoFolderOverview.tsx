@@ -1,18 +1,19 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Folder, Plus, ListTodo, Inbox, ArrowLeft, CheckCircle2, Trash2 } from 'lucide-react';
+import { Folder, Plus, ListTodo, Inbox, ArrowLeft, CheckCircle2, Trash2, Timer } from 'lucide-react';
 
 export interface FolderStat {
   name: string;
   total: number;
   completed: number;
   active: number;
+  inProgress?: number;
 }
 
 export interface TodoFolderOverviewProps {
   folders: FolderStat[];
-  unfiledCount: { total: number; completed: number; active: number };
+  unfiledCount: { total: number; completed: number; active: number; inProgress?: number };
   totalAllTasks: number;
   onSelectFolder: (folderName: string | null) => void;
   onCreateFolder: (folderName: string) => void;
@@ -185,24 +186,42 @@ export const TodoFolderOverview: React.FC<TodoFolderOverviewProps> = ({
                 <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 group-hover:scale-105 transition-transform">
                   <Inbox className="w-5 h-5" />
                 </div>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-zinc-300">
-                  {unfiledCount.total}
-                </span>
+                <div className="flex items-center gap-1">
+                  {unfiledCount.inProgress !== undefined && unfiledCount.inProgress > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                      title={`${unfiledCount.inProgress} in Bearbeitung`}
+                    >
+                      <Timer className="w-3 h-3 animate-pulse" />
+                      <span>{unfiledCount.inProgress}</span>
+                    </span>
+                  )}
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-zinc-300">
+                    {unfiledCount.total}
+                  </span>
+                </div>
               </div>
               <h2 className="mt-4 text-base font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                 Ohne Ordner
               </h2>
               <p className="mt-1 text-xs text-gray-500 dark:text-zinc-400">
-                {unfiledCount.active} offen · {unfiledCount.completed} erledigt
+                {unfiledCount.active} offen{unfiledCount.inProgress ? ` · ${unfiledCount.inProgress} in Arbeit` : ''} · {unfiledCount.completed} erledigt
               </p>
             </div>
 
             <div className="mt-4 pt-2">
-              <div className="w-full h-1.5 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden flex items-stretch">
                 <div
                   className="h-full bg-amber-500 rounded-full transition-all duration-300"
                   style={{ width: `${calculateProgress(unfiledCount.completed, unfiledCount.total)}%` }}
                 />
+                {unfiledCount.inProgress !== undefined && unfiledCount.inProgress > 0 && unfiledCount.total > 0 && (
+                  <div
+                    className="h-full bg-amber-400/80 transition-all duration-300"
+                    style={{ width: `${Math.min(100 - calculateProgress(unfiledCount.completed, unfiledCount.total), Math.round((unfiledCount.inProgress / unfiledCount.total) * 100))}%` }}
+                    title={`${unfiledCount.inProgress} in Bearbeitung`}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -231,6 +250,15 @@ export const TodoFolderOverview: React.FC<TodoFolderOverviewProps> = ({
                     <Folder className="w-5 h-5" />
                   </div>
                   <div className="flex items-center gap-1">
+                    {f.inProgress !== undefined && f.inProgress > 0 && (
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                        title={`${f.inProgress} in Bearbeitung`}
+                      >
+                        <Timer className="w-3 h-3 animate-pulse" />
+                        <span>{f.inProgress}</span>
+                      </span>
+                    )}
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-zinc-300">
                       {f.total}
                     </span>
@@ -255,7 +283,7 @@ export const TodoFolderOverview: React.FC<TodoFolderOverviewProps> = ({
                   {f.name}
                 </h2>
                 <p className="mt-1 text-xs text-gray-500 dark:text-zinc-400">
-                  {f.active} offen · {f.completed} erledigt
+                  {f.active} offen{f.inProgress ? ` · ${f.inProgress} in Arbeit` : ''} · {f.completed} erledigt
                 </p>
               </div>
 
@@ -269,13 +297,20 @@ export const TodoFolderOverview: React.FC<TodoFolderOverviewProps> = ({
                   </span>
                   <span>{progress}%</span>
                 </div>
-                <div className="w-full h-1.5 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+                <div className="w-full h-1.5 bg-gray-100 dark:bg-zinc-800 rounded-full overflow-hidden flex items-stretch">
                   <div
-                    className={`h-full rounded-full transition-all duration-300 ${
+                    className={`h-full transition-all duration-300 ${
                       progress === 100 ? 'bg-emerald-500' : 'bg-blue-500'
                     }`}
                     style={{ width: `${progress}%` }}
                   />
+                  {f.inProgress !== undefined && f.inProgress > 0 && progress < 100 && f.total > 0 && (
+                    <div
+                      className="h-full bg-amber-500 transition-all duration-300"
+                      style={{ width: `${Math.min(100 - progress, Math.round((f.inProgress / f.total) * 100))}%` }}
+                      title={`${f.inProgress} in Bearbeitung`}
+                    />
+                  )}
                 </div>
               </div>
             </div>

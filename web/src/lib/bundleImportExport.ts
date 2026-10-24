@@ -21,6 +21,7 @@ export interface TideBundleItem {
         description?: string;
         color?: string;
         isCompleted?: boolean;
+        status?: string;
         scheduledDate?: string;
     };
     metadata?: Record<string, any>;
@@ -252,11 +253,17 @@ export async function importTideBundle(
 
         // Step 3: Create Tasks
         for (const t of tasks) {
+            const rawStatus = t.task_meta?.status;
+            const validStatus: 'todo' | 'in_progress' | 'completed' | undefined = 
+                (rawStatus === 'todo' || rawStatus === 'in_progress' || rawStatus === 'completed')
+                    ? rawStatus
+                    : (t.task_meta?.isCompleted !== undefined ? (t.task_meta.isCompleted ? 'completed' : 'todo') : undefined);
             const taskDraft = {
                 title: t.title,
                 description: t.task_meta?.description || '',
                 color: t.task_meta?.color || 'blue',
                 isCompleted: t.task_meta?.isCompleted || false,
+                status: validStatus,
                 scheduledDate: t.task_meta?.scheduledDate,
                 linkedNoteId: t.parent_id && idMap.has(t.parent_id) ? idMap.get(t.parent_id) : undefined
             };
@@ -334,14 +341,33 @@ export async function exportTideBundle(
     includeLinkedEvents: boolean = true
 ): Promise<TideBundle> {
     const store = useDataStore.getState();
-    const { notes, events } = store;
+    const { notes, events, tasks } = store;
 
     const bundleItems: TideBundleItem[] = [];
     const eventIdsToInclude = new Set<string>();
+    const taskIdsToInclude = new Set<string>();
 
     for (const id of rootItemIds) {
         const item = notes.find(n => n.id === id);
-        if (!item) continue;
+        if (!item) {
+            const task = tasks.find(t => t.id === id);
+            if (task && !bundleItems.some(b => b.id === task.id)) {
+                bundleItems.push({
+                    id: task.id,
+                    type: 'task',
+                    title: task.title,
+                    parent_id: task.linkedNoteId || null,
+                    task_meta: {
+                        description: task.description,
+                        color: task.color,
+                        isCompleted: task.isCompleted,
+                        status: task.status,
+                        scheduledDate: task.scheduledDate,
+                    }
+                });
+            }
+            continue;
+        }
 
         if (item.type === 'folder') {
             bundleItems.push({
@@ -372,13 +398,22 @@ export async function exportTideBundle(
                     const decrypted = await decryptedBlob.text();
                     content = JSON.parse(decrypted);
 
-                    // Scan for linked events inside note
-                    if (includeLinkedEvents && content) {
-                        scanForEventIds(content, eventIdsToInclude);
+                    // Scan for linked events and tasks inside note
+                    if (content) {
+                        if (includeLinkedEvents) {
+                            scanForEventIds(content, eventIdsToInclude);
+                        }
+                        scanForTaskIds(content, taskIdsToInclude);
                     }
                 }
             } catch (e) {
                 console.warn(`[exportTideBundle] Failed to decrypt note ${item.id}`, e);
+            }
+
+            // Also find tasks linked to this note
+            const linkedTasks = tasks.filter(t => t.linkedNoteId === item.id);
+            for (const lt of linkedTasks) {
+                taskIdsToInclude.add(lt.id);
             }
 
             bundleItems.push({
@@ -413,6 +448,26 @@ export async function exportTideBundle(
         }
     }
 
+    // Include scanned / linked tasks
+    for (const taskId of taskIdsToInclude) {
+        const task = tasks.find(t => t.id === taskId);
+        if (task && !bundleItems.some(b => b.id === task.id)) {
+            bundleItems.push({
+                id: task.id,
+                type: 'task',
+                title: task.title,
+                parent_id: task.linkedNoteId || null,
+                task_meta: {
+                    description: task.description,
+                    color: task.color,
+                    isCompleted: task.isCompleted,
+                    status: task.status,
+                    scheduledDate: task.scheduledDate,
+                }
+            });
+        }
+    }
+
     return {
         version: 1,
         title: bundleItems.length === 1 ? bundleItems[0].title : 'TIDE Export Bundle',
@@ -428,6 +483,16 @@ function scanForEventIds(node: any, eventIds: Set<string>): void {
     }
     if (Array.isArray(node.content)) {
         node.content.forEach((c: any) => scanForEventIds(c, eventIds));
+    }
+}
+
+function scanForTaskIds(node: any, taskIds: Set<string>): void {
+    if (!node || typeof node !== 'object') return;
+    if (node.type === 'taskMention' && node.attrs?.taskId) {
+        taskIds.add(node.attrs.taskId);
+    }
+    if (Array.isArray(node.content)) {
+        node.content.forEach((c: any) => scanForTaskIds(c, taskIds));
     }
 }
 

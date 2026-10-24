@@ -14,6 +14,7 @@ export interface TaskItem {
     description?: string;
     color?: string;
     isCompleted: boolean;
+    status?: 'todo' | 'in_progress' | 'completed';
     linkedNoteId?: string;
     scheduledDate?: string;
     priority?: 'low' | 'medium' | 'high';
@@ -55,8 +56,10 @@ interface DataState {
     // Tasks Actions
     setTasks: (tasks: TaskItem[]) => void;
     addTask: (task: Omit<TaskItem, 'id'>) => Promise<string>;
-    updateTask: (id: string, updates: Partial<TaskItem>) => void;
-    toggleTask: (id: string) => void;
+    updateTask: (id: string, updates: Partial<TaskItem>) => Promise<void>;
+    toggleTask: (id: string) => Promise<void>;
+    toggleTaskInProgress: (id: string) => Promise<void>;
+    setTaskStatus: (id: string, status: 'todo' | 'in_progress' | 'completed') => Promise<void>;
     deleteTask: (id: string) => Promise<void>;
 
     // Lazy Loading File System State
@@ -104,6 +107,8 @@ interface DataState {
     noteCaretPositions: Record<string, { from: number; to: number }>;
     setNoteCaretPosition: (noteId: string, pos: { from: number; to: number }) => void;
 }
+
+export type DataStoreState = DataState;
 
 const deletedTaskIds = new Set<string>();
 
@@ -258,7 +263,13 @@ export const useDataStore = create<DataState>((set, get) => ({
     addTask: async (taskDraft) => {
         const state = get();
         const fallbackId = crypto.randomUUID();
-        const newTask: TaskItem = { id: fallbackId, ...taskDraft, isCompleted: false };
+        const initialStatus: 'todo' | 'in_progress' | 'completed' = taskDraft.status || (taskDraft.isCompleted ? 'completed' : 'todo');
+        const newTask: TaskItem = { 
+            id: fallbackId, 
+            ...taskDraft, 
+            isCompleted: taskDraft.isCompleted !== undefined ? taskDraft.isCompleted : (initialStatus === 'completed'),
+            status: initialStatus
+        };
         set(s => ({ tasks: [...s.tasks, newTask] }));
         
         if (!state.publicKey) return fallbackId;
@@ -269,6 +280,7 @@ export const useDataStore = create<DataState>((set, get) => ({
             const vaultPayload: Record<string, any> = {
                 title: newTask.title,
                 isCompleted: newTask.isCompleted,
+                status: newTask.status || (newTask.isCompleted ? 'completed' : 'todo'),
                 description: newTask.description,
                 color: newTask.color,
                 linkedNoteId: newTask.linkedNoteId,
@@ -309,16 +321,37 @@ export const useDataStore = create<DataState>((set, get) => ({
             return;
         }
 
-        // 1. Optimistic local update immediately
-        set(s => ({ 
-            tasks: s.tasks.map(t => t.id === id ? { ...t, ...updates } : t) 
-        }));
-
-        // 2. Get the fully merged task for encryption
         const state = get();
         const task = state.tasks.find(t => t.id === id);
         if (!task) return;
-        const mergedTask = { ...task, ...updates };
+
+        const resolvedStatus = updates.status !== undefined 
+            ? updates.status 
+            : (updates.isCompleted !== undefined 
+                ? (updates.isCompleted ? 'completed' : 'todo') 
+                : task.status);
+
+        const resolvedCompleted = updates.isCompleted !== undefined
+            ? updates.isCompleted
+            : (updates.status !== undefined ? updates.status === 'completed' : task.isCompleted);
+
+        const mergedUpdates: Partial<TaskItem> = {
+            ...updates,
+            isCompleted: resolvedCompleted,
+            ...(resolvedStatus !== undefined ? { status: resolvedStatus } : {})
+        };
+
+        // 1. Optimistic local update immediately
+        set(s => ({ 
+            tasks: s.tasks.map(t => t.id === id ? { ...t, ...mergedUpdates } : t) 
+        }));
+
+        // 2. Get the fully merged task for encryption
+        const mergedTask: TaskItem = { 
+            ...task, 
+            ...mergedUpdates,
+            status: resolvedStatus
+        };
 
         // 3. Resolve publicKey — prefer store, fall back to sessionStorage
         let publicKey = state.publicKey;
@@ -350,6 +383,7 @@ export const useDataStore = create<DataState>((set, get) => ({
             const vaultPayload: Record<string, any> = {
                 title: mergedTask.title,
                 isCompleted: mergedTask.isCompleted,
+                status: updates.status !== undefined ? updates.status : (updates.isCompleted !== undefined ? (updates.isCompleted ? 'completed' : 'todo') : task.status),
                 description: mergedTask.description,
                 color: mergedTask.color,
                 linkedNoteId: mergedTask.linkedNoteId,
@@ -410,16 +444,40 @@ export const useDataStore = create<DataState>((set, get) => ({
         const task = state.tasks.find(t => t.id === id);
         if (!task) return;
         
-        const newCompleted = !task.isCompleted;
-        get().updateTask(id, { isCompleted: newCompleted });
+        const nextCompleted = !task.isCompleted;
+        const nextStatus: 'todo' | 'completed' = nextCompleted ? 'completed' : 'todo';
+        await get().updateTask(id, { isCompleted: nextCompleted, status: nextStatus });
 
         if (typeof window !== 'undefined') {
             try {
                 const currentCount = parseInt(localStorage.getItem('tide_stats_completed_tasks') || '0', 10);
-                if (newCompleted) {
+                if (nextCompleted) {
                     localStorage.setItem('tide_stats_completed_tasks', (currentCount + 1).toString());
                 } else {
                     localStorage.setItem('tide_stats_completed_tasks', Math.max(0, currentCount - 1).toString());
+                }
+            } catch (e) {
+                console.error("Failed to update completed tasks stats", e);
+            }
+        }
+    },
+    toggleTaskInProgress: async (id: string) => {
+        const state = get();
+        const task = state.tasks.find(t => t.id === id);
+        if (!task) return;
+
+        const nextStatus: 'todo' | 'in_progress' = task.status === 'in_progress' ? 'todo' : 'in_progress';
+        await get().updateTask(id, { status: nextStatus, isCompleted: false });
+    },
+    setTaskStatus: async (id: string, status: 'todo' | 'in_progress' | 'completed') => {
+        const isCompleted = status === 'completed';
+        await get().updateTask(id, { status, isCompleted });
+
+        if (typeof window !== 'undefined') {
+            try {
+                const currentCount = parseInt(localStorage.getItem('tide_stats_completed_tasks') || '0', 10);
+                if (isCompleted) {
+                    localStorage.setItem('tide_stats_completed_tasks', (currentCount + 1).toString());
                 }
             } catch (e) {
                 console.error("Failed to update completed tasks stats", e);
@@ -738,6 +796,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                                 loadedTasks.push({
                                     id: t.id,
                                     ...meta,
+                                    status: (meta.status as any) || (meta.isCompleted ? 'completed' : 'todo'),
                                     recurrence: meta.recurrence as TaskItem['recurrence'],
                                     recurrence_rule: meta.recurrence_rule as string | undefined,
                                     recurrence_end: meta.recurrence_end as string | undefined,
@@ -747,10 +806,10 @@ export const useDataStore = create<DataState>((set, get) => ({
                                 } as TaskItem);
                             } else {
                                 // Fallback for tasks
-                                loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, isLocked: true } as any);
+                                loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, status: 'todo', isLocked: true } as any);
                             }
                         } catch (e) {
-                            loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, isLocked: true } as any);
+                            loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, status: 'todo', isLocked: true } as any);
                         }
                     }
                 }
@@ -758,18 +817,22 @@ export const useDataStore = create<DataState>((set, get) => ({
                 const localMap = new Map(get().tasks.map(t => [t.id, t]));
                 finalMergedTasks = loadedTasks.map(bt => {
                     const local = localMap.get(bt.id);
+                    if (!local) return bt;
                     // If the local task has a scheduledDate that the backend doesn't know yet, keep it
-                    if (local && local.scheduledDate && !bt.scheduledDate) return { ...bt, scheduledDate: local.scheduledDate };
-                    if (local && local.completed_dates && (!bt.completed_dates || local.completed_dates.length > bt.completed_dates.length)) {
+                    if (local.scheduledDate && !bt.scheduledDate) return { ...bt, scheduledDate: local.scheduledDate };
+                    if (local.completed_dates && (!bt.completed_dates || local.completed_dates.length > bt.completed_dates.length)) {
                         return { ...bt, completed_dates: local.completed_dates };
                     }
-                    if (local && local.folder !== undefined && bt.folder === undefined) {
+                    if (local.folder !== undefined && bt.folder === undefined) {
                         return { ...bt, folder: local.folder };
                     }
-                    if (local && local.tags !== undefined && bt.tags === undefined) {
+                    if (local.tags !== undefined && bt.tags === undefined) {
                         return { ...bt, tags: local.tags };
                     }
-                    if (local && local.isCompleted !== bt.isCompleted) return local; // prefer local toggle
+                    if (local.status !== undefined && local.status !== bt.status) {
+                        return { ...bt, status: local.status, isCompleted: local.isCompleted };
+                    }
+                    if (local.isCompleted !== bt.isCompleted) return local; // prefer local toggle
                     return bt;
                 });
             } else {
@@ -1209,6 +1272,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                             loadedTasks.push({
                                 id: t.id,
                                 ...meta,
+                                status: (meta.status as any) || (meta.isCompleted ? 'completed' : 'todo'),
                                 recurrence: meta.recurrence as TaskItem['recurrence'],
                                 recurrence_rule: meta.recurrence_rule as string | undefined,
                                 recurrence_end: meta.recurrence_end as string | undefined,
@@ -1217,10 +1281,10 @@ export const useDataStore = create<DataState>((set, get) => ({
                                 tags: Array.isArray(meta.tags) ? meta.tags : [],
                             } as TaskItem);
                         } else {
-                            loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, isLocked: true } as any);
+                            loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, status: 'todo', isLocked: true } as any);
                         }
                     } catch (e) {
-                        loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, isLocked: true } as any);
+                        loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, status: 'todo', isLocked: true } as any);
                     }
                 }
             }
@@ -1230,17 +1294,21 @@ export const useDataStore = create<DataState>((set, get) => ({
                 const localMap = new Map(s.tasks.map(t => [t.id, t]));
                 const merged = loadedTasks.map(bt => {
                     const local = localMap.get(bt.id);
-                    if (local && local.scheduledDate && !bt.scheduledDate) return { ...bt, scheduledDate: local.scheduledDate };
-                    if (local && local.completed_dates && (!bt.completed_dates || local.completed_dates.length > bt.completed_dates.length)) {
+                    if (!local) return bt;
+                    if (local.scheduledDate && !bt.scheduledDate) return { ...bt, scheduledDate: local.scheduledDate };
+                    if (local.completed_dates && (!bt.completed_dates || local.completed_dates.length > bt.completed_dates.length)) {
                         return { ...bt, completed_dates: local.completed_dates };
                     }
-                    if (local && local.folder !== undefined && bt.folder === undefined) {
+                    if (local.folder !== undefined && bt.folder === undefined) {
                         return { ...bt, folder: local.folder };
                     }
-                    if (local && local.tags !== undefined && bt.tags === undefined) {
+                    if (local.tags !== undefined && bt.tags === undefined) {
                         return { ...bt, tags: local.tags };
                     }
-                    if (local && local.isCompleted !== bt.isCompleted) return local;
+                    if (local.status !== undefined && local.status !== bt.status) {
+                        return { ...bt, status: local.status, isCompleted: local.isCompleted };
+                    }
+                    if (local.isCompleted !== bt.isCompleted) return local;
                     return bt;
                 });
                 return { tasks: merged };

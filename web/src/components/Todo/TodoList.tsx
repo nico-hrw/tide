@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2, Circle, Calendar, Repeat, Trash2, Plus,
   Search, SlidersHorizontal, AlertCircle, Check, X, ListTodo,
-  Folder, Inbox, ArrowLeft, Tag, FolderPlus,
+  Folder, Inbox, ArrowLeft, Tag, FolderPlus, Timer,
 } from 'lucide-react';
 import {
   format, isToday, isTomorrow, isBefore, startOfDay, endOfDay,
@@ -15,7 +15,7 @@ import { useDataStore, TaskItem } from '@/store/useDataStore';
 import TodoFolderOverview, { FolderStat } from './TodoFolderOverview';
 
 export type Priority = 'low' | 'medium' | 'high';
-export type FilterStatus = 'all' | 'active' | 'completed';
+export type FilterStatus = 'all' | 'active' | 'in_progress' | 'completed';
 export type SortOption = 'created' | 'deadline' | 'priority' | 'tag' | 'title';
 export type RecurrenceType = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -104,6 +104,7 @@ interface TodoItemCardProps {
     title: string;
     description: string;
     priority: Priority;
+    status: 'todo' | 'in_progress' | 'completed';
     dueDate: string;
     recurrence: RecurrenceType;
     recurrenceEnd: string;
@@ -114,6 +115,7 @@ interface TodoItemCardProps {
     title: string;
     description: string;
     priority: Priority;
+    status: 'todo' | 'in_progress' | 'completed';
     dueDate: string;
     recurrence: RecurrenceType;
     recurrenceEnd: string;
@@ -133,6 +135,7 @@ interface TodoItemCardProps {
   handleAddCustomTag: (tag: string) => void;
   handleRemoveCustomTag: (tag: string) => void;
   handleToggleTask: (task: TaskItem) => void;
+  handleToggleInProgress: (task: TaskItem) => void;
   saveEditing: (id: string) => void;
   cancelEditing: () => void;
   deleteTask: (id: string) => Promise<void>;
@@ -157,6 +160,7 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
   handleAddCustomTag,
   handleRemoveCustomTag,
   handleToggleTask,
+  handleToggleInProgress,
   saveEditing,
   cancelEditing,
   deleteTask,
@@ -285,16 +289,20 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
         onClick={handleClick}
         className={`relative group flex flex-col p-3.5 sm:p-4 rounded-2xl border transition-colors duration-150 cursor-pointer ${
           isExpanded
-            ? 'bg-white dark:bg-[#1a1a1a] border-blue-500/50 dark:border-blue-500/40 shadow-sm'
+            ? task.status === 'in_progress' && !task.isCompleted
+              ? 'bg-white dark:bg-[#1a1a1a] border-amber-500/50 dark:border-amber-500/40 shadow-sm'
+              : 'bg-white dark:bg-[#1a1a1a] border-blue-500/50 dark:border-blue-500/40 shadow-sm'
             : task.isCompleted
             ? 'border-gray-100 dark:border-white/5 bg-gray-50/60 dark:bg-[#161616] opacity-75'
+            : task.status === 'in_progress'
+            ? 'bg-amber-500/[0.04] dark:bg-amber-500/[0.06] border-amber-500/40 dark:border-amber-500/30 hover:border-amber-500/60 dark:hover:border-amber-500/50 shadow-2xs hover:shadow-xs'
             : 'bg-white dark:bg-[#1a1a1a] border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 shadow-2xs hover:shadow-xs'
         }`}
       >
-        {/* Top row: Left (Checkbox + Title) vs Right (Due date + Priority) */}
+        {/* Top row: Left (Checkbox + In-Progress + Title) vs Right (Due date + Priority) */}
         <div className="flex items-center justify-between gap-3 w-full">
-          {/* Left side: Checkbox + Task Title (left-aligned, truncated if long) */}
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          {/* Left side: Checkbox + In-Progress button + Task Title (left-aligned, truncated if long) */}
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
             <button
               type="button"
               onClick={(e) => {
@@ -311,6 +319,34 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
               )}
             </button>
 
+            {/* In-Progress Quick Toggle Button */}
+            {!task.isCompleted && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleInProgress(task);
+                }}
+                className={`p-1 rounded-lg transition-all shrink-0 cursor-pointer min-w-[28px] min-h-[28px] flex items-center justify-center ${
+                  task.status === 'in_progress'
+                    ? 'text-amber-500 bg-amber-500/15 hover:bg-amber-500/25 ring-1 ring-amber-500/30'
+                    : 'text-gray-400 hover:text-amber-500 hover:bg-amber-500/10 dark:text-gray-500 dark:hover:text-amber-400 opacity-60 hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
+                }`}
+                title={
+                  task.status === 'in_progress'
+                    ? 'In Bearbeitung - klicken um zurückzusetzen'
+                    : "Als 'in Bearbeitung' markieren"
+                }
+                aria-label={
+                  task.status === 'in_progress'
+                    ? 'In Bearbeitung - klicken um zurückzusetzen'
+                    : "Als 'in Bearbeitung' markieren"
+                }
+              >
+                <Timer className={`w-4 h-4 ${task.status === 'in_progress' ? 'animate-pulse' : ''}`} />
+              </button>
+            )}
+
             <span
               className={`text-sm font-semibold truncate ${
                 task.isCompleted ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'
@@ -320,8 +356,17 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
             </span>
           </div>
 
-          {/* Right side: Due date badge and Priority badge */}
+          {/* Right side: In-Progress badge, Due date badge and Priority badge */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {task.status === 'in_progress' && !task.isCompleted && (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                title="Diese Aufgabe ist aktuell in Bearbeitung"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                <span>In Bearbeitung</span>
+              </span>
+            )}
             {deadline && (
               <span
                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium border ${getDeadlineChipClasses(
@@ -425,6 +470,20 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
 
                   {/* Right side: ~35% */}
                   <div className="w-full md:w-[35%] flex flex-col gap-2.5">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
+                        Status
+                      </label>
+                      <select
+                        value={editDraft.status}
+                        onChange={(e) => setEditDraft((p) => ({ ...p, status: e.target.value as 'todo' | 'in_progress' | 'completed' }))}
+                        className="w-full px-3 py-2 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer min-h-[38px]"
+                      >
+                        <option value="todo">⚪ Offen</option>
+                        <option value="in_progress">⏳ In Bearbeitung</option>
+                        <option value="completed">✅ Erledigt</option>
+                      </select>
+                    </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">
                         Priorität
@@ -656,7 +715,7 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
 };
 
 export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask }) => {
-  const { tasks, notes, addTask, updateTask, toggleTask, deleteTask } = useDataStore();
+  const { tasks, notes, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useDataStore();
 
   const [viewMode, setViewMode] = useState<'tasks' | 'folders'>('tasks');
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
@@ -712,7 +771,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       const folderTasks = tasks.filter((t) => t.folder === name);
       const total = folderTasks.length;
       const completed = folderTasks.filter((t) => t.isCompleted).length;
-      return { name, total, completed, active: total - completed };
+      const inProgress = folderTasks.filter((t) => !t.isCompleted && t.status === 'in_progress').length;
+      return { name, total, completed, active: total - completed - inProgress, inProgress };
     });
   }, [allFolders, tasks]);
 
@@ -720,7 +780,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     const unfiledTasks = tasks.filter((t) => !t.folder);
     const total = unfiledTasks.length;
     const completed = unfiledTasks.filter((t) => t.isCompleted).length;
-    return { total, completed, active: total - completed };
+    const inProgress = unfiledTasks.filter((t) => !t.isCompleted && t.status === 'in_progress').length;
+    return { total, completed, active: total - completed - inProgress, inProgress };
   }, [tasks]);
 
   const selectedFolderActiveCount = useMemo(() => {
@@ -803,20 +864,33 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const [newFolderNameInput, setNewFolderNameInput] = useState('');
 
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState({
+  const [editDraft, setEditDraft] = useState<{
+    title: string;
+    description: string;
+    priority: Priority;
+    status: 'todo' | 'in_progress' | 'completed';
+    dueDate: string;
+    recurrence: RecurrenceType;
+    recurrenceEnd: string;
+    folder: string;
+    tags: string[];
+  }>({
     title: '', description: '', priority: 'medium' as Priority,
+    status: 'todo',
     dueDate: '', recurrence: 'none' as RecurrenceType, recurrenceEnd: '',
     folder: '', tags: [] as string[],
   });
 
   const totalCount = tasks.length;
   const completedCount = useMemo(() => tasks.filter((t) => t.isCompleted).length, [tasks]);
+  const inProgressCount = useMemo(() => tasks.filter((t) => !t.isCompleted && t.status === 'in_progress').length, [tasks]);
+  const openCount = useMemo(() => tasks.filter((t) => !t.isCompleted && t.status !== 'in_progress').length, [tasks]);
   const activeCount = totalCount - completedCount;
   const overdueCount = useMemo(() => {
     const today = startOfDay(new Date());
     return tasks.filter((t) => !t.isCompleted && parseDateSafe(t.dueDate || t.scheduledDate) && isBefore(startOfDay(parseDateSafe(t.dueDate || t.scheduledDate)!), today)).length;
   }, [tasks]);
-  const openNonOverdueCount = Math.max(0, activeCount - overdueCount);
+  const openNonOverdueCount = Math.max(0, openCount - overdueCount);
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   const handleToggleTask = (task: TaskItem) => {
@@ -833,6 +907,16 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       }
     } else {
       toggleTask(task.id);
+    }
+  };
+
+  const handleToggleInProgress = (task: TaskItem) => {
+    toggleTaskInProgress(task.id);
+    if (editingTaskId === task.id) {
+      setEditDraft((p) => ({
+        ...p,
+        status: p.status === 'in_progress' ? 'todo' : 'in_progress',
+      }));
     }
   };
 
@@ -867,6 +951,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     setEditingTaskId(task.id);
     setEditDraft({
       title: task.title, description: task.description || '', priority: getTaskPriority(task),
+      status: task.isCompleted ? 'completed' : (task.status || 'todo'),
       dueDate: task.dueDate || task.scheduledDate || '', recurrence: task.recurrence || 'none', recurrenceEnd: task.recurrence_end || '',
       folder: task.folder || '', tags: task.tags ? [...task.tags] : [],
     });
@@ -876,9 +961,13 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const saveEditing = (id: string) => {
     if (!editDraft.title.trim()) return;
     const folderVal = editDraft.folder.trim() || undefined;
+    const isCompleted = editDraft.status === 'completed';
     updateTask(id, {
       title: editDraft.title.trim(), description: editDraft.description.trim() || undefined,
-      priority: editDraft.priority, color: getPriorityColor(editDraft.priority, (editDraft as { color?: string }).color),
+      priority: editDraft.priority,
+      status: editDraft.status,
+      isCompleted,
+      color: getPriorityColor(editDraft.priority, (editDraft as { color?: string }).color),
       scheduledDate: editDraft.dueDate || undefined, dueDate: editDraft.dueDate || undefined,
       recurrence: editDraft.recurrence, recurrence_rule: buildRecurrenceRule(editDraft.recurrence),
       recurrence_end: editDraft.recurrence !== 'none' && editDraft.recurrenceEnd ? editDraft.recurrenceEnd : undefined,
@@ -944,7 +1033,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       if (selectedTag !== null) {
         if (!t.tags || !t.tags.includes(selectedTag)) return false;
       }
-      if (filterStatus === 'active' && t.isCompleted) return false;
+      if (filterStatus === 'active' && (t.isCompleted || t.status === 'in_progress')) return false;
+      if (filterStatus === 'in_progress' && (t.isCompleted || t.status !== 'in_progress')) return false;
       if (filterStatus === 'completed' && !t.isCompleted) return false;
       if (filterPriority !== 'all' && getTaskPriority(t) !== filterPriority) return false;
       const matchesTag = t.tags && t.tags.some((tag) => tag.toLowerCase().includes(q));
@@ -998,6 +1088,13 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                       title={`Erledigt: ${completedCount}`}
                     />
                   )}
+                  {inProgressCount > 0 && (
+                    <div
+                      className="bg-amber-500 dark:bg-amber-400 transition-all duration-300"
+                      style={{ width: `${(inProgressCount / totalCount) * 100}%` }}
+                      title={`In Bearbeitung: ${inProgressCount}`}
+                    />
+                  )}
                   {openNonOverdueCount > 0 && (
                     <div
                       className="bg-blue-500 dark:bg-blue-400 transition-all duration-300"
@@ -1020,6 +1117,12 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                 {completedCount}
               </span>
+              {inProgressCount > 0 && (
+                <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400" title="In Bearbeitung">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                  {inProgressCount}
+                </span>
+              )}
               <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400" title="Offen">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
                 {openNonOverdueCount}
@@ -1382,22 +1485,41 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               </div>
 
               {/* Status Pills */}
-              <div className="flex items-center bg-gray-100 dark:bg-white/5 p-1 rounded-xl border border-gray-200 dark:border-white/10 shrink-0 self-start sm:self-auto">
-                {(['all', 'active', 'completed'] as FilterStatus[]).map((status) => {
-                  const isActive = filterStatus === status;
-                  const label = status === 'all' ? 'Alle' : status === 'active' ? 'Offen' : 'Erledigt';
+              <div className="flex items-center bg-gray-100 dark:bg-white/5 p-1 rounded-xl border border-gray-200 dark:border-white/10 shrink-0 self-start sm:self-auto overflow-x-auto max-w-full">
+                {(
+                  [
+                    { key: 'all' as FilterStatus, label: 'Alle', count: totalCount },
+                    { key: 'active' as FilterStatus, label: 'Offen', count: openCount },
+                    { key: 'in_progress' as FilterStatus, label: 'In Arbeit', count: inProgressCount },
+                    { key: 'completed' as FilterStatus, label: 'Erledigt', count: completedCount },
+                  ]
+                ).map((item) => {
+                  const isActive = filterStatus === item.key;
                   return (
                     <button
-                      key={status}
+                      key={item.key}
                       type="button"
-                      onClick={() => setFilterStatus(status)}
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap min-h-[28px] flex items-center justify-center ${
+                      onClick={() => setFilterStatus(item.key)}
+                      className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap min-h-[28px] flex items-center gap-1.5 justify-center ${
                         isActive
                           ? 'bg-white dark:bg-[#242424] text-blue-600 dark:text-blue-400 shadow-xs'
                           : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                       }`}
                     >
-                      {label}
+                      <span>{item.label}</span>
+                      <span
+                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                          isActive
+                            ? item.key === 'in_progress'
+                              ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                              : 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300'
+                            : item.key === 'in_progress' && item.count > 0
+                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                            : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-400'
+                        }`}
+                      >
+                        {item.count}
+                      </span>
                     </button>
                   );
                 })}
@@ -1560,6 +1682,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                 handleAddCustomTag={handleAddCustomTag}
                 handleRemoveCustomTag={handleRemoveCustomTag}
                 handleToggleTask={handleToggleTask}
+                handleToggleInProgress={handleToggleInProgress}
                 saveEditing={saveEditing}
                 cancelEditing={() => setEditingTaskId(null)}
                 deleteTask={deleteTask}
@@ -1570,14 +1693,34 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             {sortedTasks.length === 0 && (
               <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-12 text-center flex flex-col items-center justify-center shadow-2xs">
                 <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-3">
-                  {filterStatus === 'completed' ? <CheckCircle2 size={24} /> : <ListTodo size={24} />}
+                  {filterStatus === 'completed' ? (
+                    <CheckCircle2 size={24} />
+                  ) : filterStatus === 'in_progress' ? (
+                    <Timer size={24} className="text-amber-500" />
+                  ) : (
+                    <ListTodo size={24} />
+                  )}
                 </div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">
-                  {filterStatus === 'completed' ? 'Keine erledigten Aufgaben' : filterStatus === 'active' ? 'Alles erledigt!' : searchQuery ? 'Keine Aufgaben gefunden' : selectedTag !== null ? `Keine Aufgaben mit #${selectedTag}` : selectedFolder !== null ? `Keine Aufgaben in "${selectedFolder || 'Ohne Ordner'}"` : 'Noch keine Aufgaben'}
+                  {filterStatus === 'completed'
+                    ? 'Keine erledigten Aufgaben'
+                    : filterStatus === 'in_progress'
+                    ? 'Keine Aufgaben in Bearbeitung'
+                    : filterStatus === 'active'
+                    ? 'Alles erledigt!'
+                    : searchQuery
+                    ? 'Keine Aufgaben gefunden'
+                    : selectedTag !== null
+                    ? `Keine Aufgaben mit #${selectedTag}`
+                    : selectedFolder !== null
+                    ? `Keine Aufgaben in "${selectedFolder || 'Ohne Ordner'}"`
+                    : 'Noch keine Aufgaben'}
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mb-4">
                   {searchQuery
                     ? `Für "${searchQuery}" wurden keine passenden Aufgaben gefunden.`
+                    : filterStatus === 'in_progress'
+                    ? 'Aktuell ist keine Aufgabe in Bearbeitung. Klicke auf das Stoppuhr-Symbol einer Aufgabe, um sie zu starten.'
                     : selectedTag !== null
                     ? `Es gibt aktuell keine passenden Aufgaben mit dem Tag #${selectedTag}.`
                     : selectedFolder !== null
