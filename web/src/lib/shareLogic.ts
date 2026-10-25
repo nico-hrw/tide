@@ -1,6 +1,7 @@
 import * as cryptoV2 from './cryptoV2';
 import * as cryptoLib from './crypto';
 import { apiFetch } from './api';
+import { useDataStore } from '../store/useDataStore';
 
 export async function performMessengerShare(
     shareModalFile: { id: string; title: string; type?: string },
@@ -169,6 +170,9 @@ export async function performMessengerShare(
             return null;
         })() : null;
 
+        const currentUser = (useDataStore.getState() as any).user;
+        const senderName = currentUser?.name || currentUser?.email || (typeof window !== 'undefined' ? localStorage.getItem('tide_user_name') || '' : '') || '';
+
         const messageRes = await apiFetch("/api/v1/messages", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -184,6 +188,7 @@ export async function performMessengerShare(
                     permission,
                     can_reshare: canReshare ?? false,
                     event_meta: eventMeta,
+                    sender_name: senderName,
                 })
             })
         });
@@ -335,6 +340,9 @@ export async function performFolderShare(
         console.warn("[FolderShare] Failed to scan descendants:", descendantErr);
     }
 
+    const currentUser = (useDataStore.getState() as any).user;
+    const senderName = currentUser?.name || currentUser?.email || (typeof window !== 'undefined' ? localStorage.getItem('tide_user_name') || '' : '') || '';
+
     // 3. Send chat notification
     await apiFetch("/api/v1/messages", {
         method: "POST",
@@ -349,6 +357,7 @@ export async function performFolderShare(
                 file_type: "folder",
                 file_preview: "Shared folder and all nested contents",
                 permission,
+                sender_name: senderName,
             })
         })
     });

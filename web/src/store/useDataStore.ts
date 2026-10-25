@@ -25,6 +25,7 @@ export interface TaskItem {
     completed_dates?: string[];
     folder?: string;
     tags?: string[];
+    showInCalendar?: boolean;
 }
 
 interface DataState {
@@ -112,10 +113,30 @@ export type DataStoreState = DataState;
 
 const deletedTaskIds = new Set<string>();
 
+function loadCachedTasks(): TaskItem[] {
+    if (typeof window === 'undefined') return [];
+    try {
+        const cached = localStorage.getItem('tide_offline_tasks');
+        return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+        console.warn('Failed to load cached tasks from localStorage', e);
+        return [];
+    }
+}
+
+function saveTasksToOfflineCache(tasks: TaskItem[]): void {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem('tide_offline_tasks', JSON.stringify(tasks));
+    } catch (e) {
+        console.warn('Failed to save tasks to offline cache', e);
+    }
+}
+
 export const useDataStore = create<DataState>((set, get) => ({
     notes: [],
     events: [],
-    tasks: [],
+    tasks: loadCachedTasks(),
     metadataCache: {},
     isSettingsModalOpen: false,
     settingsModalTab: 'account',
@@ -259,18 +280,25 @@ export const useDataStore = create<DataState>((set, get) => ({
     }),
     setNotes: (notes) => set({ notes }),
     setEvents: (events) => set({ events }),
-    setTasks: (tasks) => set({ tasks }),
+    setTasks: (tasks) => {
+        saveTasksToOfflineCache(tasks);
+        set({ tasks });
+    },
     addTask: async (taskDraft) => {
         const state = get();
         const fallbackId = crypto.randomUUID();
         const initialStatus: 'todo' | 'in_progress' | 'completed' = taskDraft.status || (taskDraft.isCompleted ? 'completed' : 'todo');
+        const showInCalendar = taskDraft.showInCalendar ?? true;
         const newTask: TaskItem = { 
             id: fallbackId, 
             ...taskDraft, 
+            showInCalendar,
             isCompleted: taskDraft.isCompleted !== undefined ? taskDraft.isCompleted : (initialStatus === 'completed'),
             status: initialStatus
         };
-        set(s => ({ tasks: [...s.tasks, newTask] }));
+        const nextTasks = [...state.tasks, newTask];
+        set({ tasks: nextTasks });
+        saveTasksToOfflineCache(nextTasks);
         
         if (!state.publicKey) return fallbackId;
         
@@ -293,6 +321,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                 completed_dates: newTask.completed_dates,
                 folder: newTask.folder,
                 tags: newTask.tags || [],
+                showInCalendar: newTask.showInCalendar !== undefined ? newTask.showInCalendar : true,
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, state.publicKey);
             
@@ -306,8 +335,10 @@ export const useDataStore = create<DataState>((set, get) => ({
 
             if (res.ok) {
                 const createdTask = await res.json();
-                if (createdTask.id !== fallbackId) {
-                    set(s => ({ tasks: s.tasks.map(t => t.id === fallbackId ? { ...t, id: createdTask.id } : t) }));
+                if (createdTask.id && createdTask.id !== fallbackId) {
+                    const reconciled = get().tasks.map(t => t.id === fallbackId ? { ...t, id: createdTask.id } : t);
+                    set({ tasks: reconciled });
+                    saveTasksToOfflineCache(reconciled);
                     return createdTask.id;
                 }
             }
@@ -335,21 +366,27 @@ export const useDataStore = create<DataState>((set, get) => ({
             ? updates.isCompleted
             : (updates.status !== undefined ? updates.status === 'completed' : task.isCompleted);
 
+        const resolvedShowInCalendar = updates.showInCalendar !== undefined 
+            ? updates.showInCalendar 
+            : (task.showInCalendar ?? true);
+
         const mergedUpdates: Partial<TaskItem> = {
             ...updates,
+            showInCalendar: resolvedShowInCalendar,
             isCompleted: resolvedCompleted,
             ...(resolvedStatus !== undefined ? { status: resolvedStatus } : {})
         };
 
         // 1. Optimistic local update immediately
-        set(s => ({ 
-            tasks: s.tasks.map(t => t.id === id ? { ...t, ...mergedUpdates } : t) 
-        }));
+        const nextTasks = state.tasks.map(t => t.id === id ? { ...t, ...mergedUpdates } : t);
+        set({ tasks: nextTasks });
+        saveTasksToOfflineCache(nextTasks);
 
         // 2. Get the fully merged task for encryption
         const mergedTask: TaskItem = { 
             ...task, 
             ...mergedUpdates,
+            showInCalendar: resolvedShowInCalendar,
             status: resolvedStatus
         };
 
@@ -396,6 +433,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                 completed_dates: mergedTask.completed_dates,
                 folder: mergedTask.folder,
                 tags: mergedTask.tags !== undefined ? mergedTask.tags : [],
+                showInCalendar: mergedTask.showInCalendar !== undefined ? mergedTask.showInCalendar : true,
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, publicKey);
 
@@ -425,7 +463,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                         const created = await createRes.json();
                         if (created.id && created.id !== id) {
                             // Reconcile local ID with the new backend ID
-                            set(s => ({ tasks: s.tasks.map(t => t.id === id ? { ...t, id: created.id } : t) }));
+                            const reconciled = get().tasks.map(t => t.id === id ? { ...t, id: created.id } : t);
+                            set({ tasks: reconciled });
+                            saveTasksToOfflineCache(reconciled);
                             console.log('[updateTask] ID reconciled:', id, '->', created.id);
                         }
                     } else {
@@ -487,7 +527,9 @@ export const useDataStore = create<DataState>((set, get) => ({
     deleteTask: async (id) => {
         deletedTaskIds.add(id);
         // Optimistic removal
-        set(s => ({ tasks: s.tasks.filter(t => t.id !== id) }));
+        const nextTasks = get().tasks.filter(t => t.id !== id);
+        set({ tasks: nextTasks });
+        saveTasksToOfflineCache(nextTasks);
         try {
             await apiFetch(`/api/v1/tasks/${id}`, { method: 'DELETE' });
         } catch (e) {
@@ -803,6 +845,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                                     completed_dates: meta.completed_dates as string[] | undefined,
                                     folder: meta.folder as string | undefined,
                                     tags: Array.isArray(meta.tags) ? meta.tags : [],
+                                    showInCalendar: meta.showInCalendar !== undefined ? (meta.showInCalendar as boolean) : true,
                                 } as TaskItem);
                             } else {
                                 // Fallback for tasks
@@ -829,12 +872,20 @@ export const useDataStore = create<DataState>((set, get) => ({
                     if (local.tags !== undefined && bt.tags === undefined) {
                         return { ...bt, tags: local.tags };
                     }
+                    if (local.showInCalendar !== undefined && local.showInCalendar !== bt.showInCalendar) {
+                        return { ...bt, showInCalendar: local.showInCalendar };
+                    }
                     if (local.status !== undefined && local.status !== bt.status) {
                         return { ...bt, status: local.status, isCompleted: local.isCompleted };
                     }
                     if (local.isCompleted !== bt.isCompleted) return local; // prefer local toggle
                     return bt;
                 });
+                const backendIds = new Set(loadedTasks.map(t => t.id));
+                const localOnlyTasks = get().tasks.filter(t => !backendIds.has(t.id) && !deletedTaskIds.has(t.id));
+                if (localOnlyTasks.length > 0) {
+                    finalMergedTasks = [...finalMergedTasks, ...localOnlyTasks];
+                }
             } else {
                 const res = await apiFetch(`/api/v1/files?parent_id=${parentId}`);
                 if (!res.ok) {
@@ -1064,6 +1115,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                         mergedCache[key] = val;
                     }
                 }
+                if (finalMergedTasks !== undefined) {
+                    saveTasksToOfflineCache(finalMergedTasks);
+                }
                 return {
                     notes: mergedNotes,
                     events: mergedEvents,
@@ -1077,6 +1131,9 @@ export const useDataStore = create<DataState>((set, get) => ({
             console.log(`[STATE-AUDIT] fetchDirectory SUCCESS | ParentID: ${dirKey}`);
         } catch (e) {
             console.error("[STATE-AUDIT ERROR] fetchDirectory |", e);
+            if (finalMergedTasks !== undefined) {
+                saveTasksToOfflineCache(finalMergedTasks);
+            }
             set(s => {
                 const next = new Set(s.fetchingDirectories);
                 next.delete(dirKey);
@@ -1279,6 +1336,7 @@ export const useDataStore = create<DataState>((set, get) => ({
                                 completed_dates: meta.completed_dates as string[] | undefined,
                                 folder: meta.folder as string | undefined,
                                 tags: Array.isArray(meta.tags) ? meta.tags : [],
+                                showInCalendar: meta.showInCalendar !== undefined ? (meta.showInCalendar as boolean) : true,
                             } as TaskItem);
                         } else {
                             loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, status: 'todo', isLocked: true } as any);
@@ -1305,16 +1363,34 @@ export const useDataStore = create<DataState>((set, get) => ({
                     if (local.tags !== undefined && bt.tags === undefined) {
                         return { ...bt, tags: local.tags };
                     }
+                    if (local.showInCalendar !== undefined && local.showInCalendar !== bt.showInCalendar) {
+                        return { ...bt, showInCalendar: local.showInCalendar };
+                    }
                     if (local.status !== undefined && local.status !== bt.status) {
                         return { ...bt, status: local.status, isCompleted: local.isCompleted };
                     }
                     if (local.isCompleted !== bt.isCompleted) return local;
                     return bt;
                 });
-                return { tasks: merged };
+                const backendIds = new Set(loadedTasks.map(t => t.id));
+                const localOnly = s.tasks.filter(t => !backendIds.has(t.id) && !deletedTaskIds.has(t.id));
+                const finalTasks = localOnly.length > 0 ? [...merged, ...localOnly] : merged;
+                saveTasksToOfflineCache(finalTasks);
+                return { tasks: finalTasks };
             });
         } catch (e) {
             console.error("[STATE-AUDIT ERROR] loadAllMetadata |", e);
         }
     }
 }));
+
+if (typeof window !== 'undefined') {
+    const handleSyncReconcile = () => {
+        const state = useDataStore.getState();
+        if (state.privateKey && state.myId) {
+            state.fetchDirectory(null, true);
+        }
+    };
+    window.addEventListener('tide-synced', handleSyncReconcile);
+    window.addEventListener('online', handleSyncReconcile);
+}

@@ -14,6 +14,7 @@ type Message struct {
 	Content     string    `json:"content"`
 	Status      string    `json:"status"`
 	CreatedAt   time.Time `json:"created_at"`
+	SenderName  string    `json:"sender_name,omitempty" db:"-"`
 }
 
 type Contact struct {

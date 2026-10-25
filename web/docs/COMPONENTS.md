@@ -91,6 +91,7 @@
 | Anchor | `web/src/components/extensions/Anchor.ts` | Scroll-to-block anchor extension |
 | Highlight | `web/src/components/extensions/Highlight.ts` | Text highlight |
 | FontSize | `web/src/components/extensions/FontSize.ts` | Font size override |
+| PencilInkExtension | `web/src/components/extensions/PencilInkExtension.ts` | TipTap document-level attribute extension (`inkStrokes`) persisting freehand Apple Pencil vector strokes in ProseMirror JSON. |
 | HighlightContext | `web/src/components/HighlightContext.tsx` | React context for active highlight |
 
 ## Smart Island
@@ -113,6 +114,8 @@
 | EditorGutter | `web/src/components/Canvas/EditorGutter.tsx` | Right gutter for canvas elements alongside editor |
 | useStyleFile | `web/src/components/Canvas/useStyleFile.ts` | Load/save `.{noteId}_style.json` sidecar |
 | useCanvasImageUpload | `web/src/components/Canvas/useCanvasImageUpload.ts` | Encrypt + upload image to blob store |
+| PencilInkLayer | `web/src/components/Canvas/PencilInkLayer.tsx` | SVG freehand drawing overlay supporting iPadOS Scribble passthrough (`mode === 'text'`), 240Hz Apple Pencil coalesced sampling, palm rejection, Ballpoint Pen, Highlighter Marker, stroke Eraser, and Lasso Selection tool (point-in-polygon encircling & dragging strokes). |
+| PencilToolbox | `web/src/components/Canvas/PencilToolbox.tsx` | GoodNotes-style bottom floating toolbox for iPad/Apple Pencil with Text (Scribble) vs. Draw mode switcher, Pen/Marker/Eraser/Lasso tools, color & stroke width presets, and Undo/Redo. |
 
 ## Calendar
 

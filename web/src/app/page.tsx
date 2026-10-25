@@ -3172,7 +3172,32 @@ export default function Dashboard() {
     useEffect(() => {
         if (!privateKey || !publicKey || !loadedDirectories.has('root') || !tasks || tasks.length === 0) return;
 
-        const tasksWithDueDate = tasks.filter(t => t.dueDate);
+        const tasksWithDueDate = (tasks || []).filter(t => t.dueDate && t.showInCalendar !== false);
+
+        // Remove any existing calendar events for tasks that have showInCalendar explicitly disabled
+        const hiddenTaskIds = new Set((tasks || []).filter(t => t.showInCalendar === false).map(t => t.id));
+        if (hiddenTaskIds.size > 0) {
+            const eventsToRemove = events.filter(e => (e as any).linkedTaskId && hiddenTaskIds.has((e as any).linkedTaskId));
+            if (eventsToRemove.length > 0) {
+                const removeIds = new Set(eventsToRemove.map(e => e.id));
+                useDataStore.getState().setEvents(useDataStore.getState().events.filter(ev => !removeIds.has(ev.id)));
+                eventsToRemove.forEach(async (e) => {
+                    const linkedId = (e as any).linkedTaskId;
+                    if (linkedId) syncingTaskIdsRef.current.add(linkedId);
+                    try {
+                        await apiFetch(`/api/v1/files/${e.id}`, { method: "DELETE" });
+                    } catch (err) {
+                        console.error("Failed to delete hidden task event", err);
+                    } finally {
+                        if (linkedId) {
+                            setTimeout(() => {
+                                syncingTaskIdsRef.current.delete(linkedId);
+                            }, 500);
+                        }
+                    }
+                });
+            }
+        }
 
         tasksWithDueDate.forEach(async (t) => {
             if (syncingTaskIdsRef.current.has(t.id)) return;
@@ -3748,10 +3773,10 @@ export default function Dashboard() {
             />
 
             {/* Left Sidebar Panel */}
-            <div className={`hidden md:flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] shrink-0 z-[100] transition-all duration-300 ease-in-out overflow-hidden ${
+            <div className={`hidden md:flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] shrink-0 z-[100] transition-all duration-300 ease-in-out ${
                 isSidebarOpen
-                    ? 'w-56 md:w-60 lg:w-64 opacity-100'
-                    : 'w-0 opacity-0 border-r-0 pointer-events-none'
+                    ? 'w-56 md:w-60 lg:w-64 opacity-100 overflow-visible'
+                    : 'w-0 opacity-0 border-r-0 pointer-events-none overflow-hidden'
             }`}>
                 <div className="w-56 md:w-60 lg:w-64 h-full flex flex-col shrink-0">
                 <Sidebar
@@ -3840,7 +3865,7 @@ export default function Dashboard() {
                 >
                     {/* Unscheduled Tasks Panel — bottom-right corner floating card, only when calendar is active */}
                     {activeTabId === 'calendar' && (!enabledExtensions || enabledExtensions.includes('todos')) && (() => {
-                        const unscheduledTodos = (tasks || []).filter(t => !t.isCompleted && !t.dueDate && !t.scheduledDate);
+                        const unscheduledTodos = (tasks || []).filter(t => !t.isCompleted && !t.dueDate && !t.scheduledDate && t.showInCalendar !== false);
                         if (unscheduledTodos.length === 0) return null;
                         return (
                             <div className="absolute right-6 bottom-6 z-[55] pointer-events-auto bg-white/90 dark:bg-[#1c1c1c]/95 backdrop-blur-md border border-gray-200/80 dark:border-white/10 rounded-2xl p-3 shadow-xl max-w-xs flex flex-col gap-2 max-h-[40vh] overflow-hidden">

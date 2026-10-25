@@ -12,7 +12,7 @@ import Underline from '@tiptap/extension-underline';
 import { TextStyle } from '@tiptap/extension-text-style';
 import Color from '@tiptap/extension-color';
 import { Highlight } from './extensions/Highlight';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Highlighter, Type, Sigma, Eraser, Bold, Italic, Underline as UnderlineIcon, PinIcon, Link2, Table as TableIcon, ArrowUpToLine, ArrowDownToLine, ArrowLeftToLine, ArrowRightToLine, Trash2, Bookmark, Clock, Calendar } from 'lucide-react';
 import { FontSize } from './extensions/FontSize';
 import { MathBlock, InlineMath } from './extensions/MathBlock';
@@ -46,6 +46,16 @@ import { TaskMentionExtension } from './extensions/TaskMentionExtension';
 import { CalendarEventMentionExtension } from './extensions/CalendarEventMentionExtension';
 import { ReferenceMark } from './extensions/ReferenceMark';
 import { ReferenceScannerMode, ReferenceAutopilotMode } from './extensions/ReferenceModes';
+import {
+    PencilInkExtension,
+    InkStroke,
+    InkToolType,
+    PencilInputMode,
+    getEditorInkStrokes,
+    setEditorInkStrokes,
+} from './extensions/PencilInkExtension';
+import { PencilInkLayer } from './Canvas/PencilInkLayer';
+import { PencilToolbox } from './Canvas/PencilToolbox';
 import { useMemo } from 'react';
 import { extractTimeFromText } from '@/lib/timeParser';
 
@@ -242,6 +252,7 @@ function isDocEmpty(parsed: unknown): boolean {
     if (typeof parsed === 'object' && parsed !== null) {
         const obj = parsed as any;
         if (obj.type === 'doc') {
+            if (Array.isArray(obj.attrs?.inkStrokes) && obj.attrs.inkStrokes.length > 0) return false;
             if (!obj.content || obj.content.length === 0) return true;
             for (const node of obj.content) {
                 if (node.type !== 'paragraph') return false;
@@ -328,6 +339,14 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
 function CollaborativeEditor({ initialContent, isShared = false, editable = true, onChange, onLinkClick, onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady, onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick, onEventClick, onActiveUsersChange, userProfile, myId }: EditorProps) {
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
     const [showBackups, setShowBackups] = useState(false);
+    const [pencilMode, setPencilMode] = useState<PencilInputMode>('text');
+    const [activeInkTool, setActiveInkTool] = useState<InkToolType>('pen');
+    const [inkColor, setInkColor] = useState<string>('#111827');
+    const [inkSize, setInkSize] = useState<number>(4);
+    const [inkStrokes, setInkStrokes] = useState<InkStroke[]>([]);
+    const [selectedStrokeIds, setSelectedStrokeIds] = useState<string[]>([]);
+    const [inkUndoStack, setInkUndoStack] = useState<InkStroke[][]>([]);
+    const [inkRedoStack, setInkRedoStack] = useState<InkStroke[][]>([]);
 
     const [ydoc, setYdoc] = useState(() => new Y.Doc());
     const [provider, setProvider] = useState<WebsocketProvider | null>(null);
@@ -605,6 +624,7 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
                 },
             }),
             ReferenceMark, // ALWAYS added so documents don't crash and marks parse correctly
+            PencilInkExtension,
         ];
 
         if (provider && isShared) {
@@ -646,6 +666,9 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
                 console.log('[Collaboration] Ignoring docChange before content initialization.');
                 return;
             }
+
+            const docStrokes = getEditorInkStrokes(editor);
+            setInkStrokes(docStrokes);
 
             const content = editor.getJSON();
             const isEmptyNow = isDocEmpty(content);
@@ -1171,6 +1194,11 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
     }, [editor, cleanInitial, provider, isShared, ydoc]);
 
     useEffect(() => {
+        if (!editor || editor.isDestroyed) return;
+        setInkStrokes(getEditorInkStrokes(editor));
+    }, [editor, cleanInitial, isSynced]);
+
+    useEffect(() => {
         if (!editor) return;
         const handleRestore = (e: Event) => {
             const customEvent = e as CustomEvent;
@@ -1435,6 +1463,44 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
         window.addEventListener('click', handleGlobalClick);
         return () => window.removeEventListener('click', handleGlobalClick);
     }, []);
+
+    const handleInkStrokesChange = useCallback((nextStrokes: InkStroke[]) => {
+        setInkUndoStack((prev) => [...prev.slice(-49), inkStrokes]);
+        setInkRedoStack([]);
+        setInkStrokes(nextStrokes);
+        userHasTypedRef.current = true;
+        setEditorInkStrokes(editor, nextStrokes);
+    }, [editor, inkStrokes]);
+
+    const handleInkUndo = useCallback(() => {
+        if (inkUndoStack.length === 0) return;
+        const previous = inkUndoStack[inkUndoStack.length - 1];
+        setInkUndoStack((prev) => prev.slice(0, -1));
+        setInkRedoStack((prev) => [...prev, inkStrokes]);
+        setInkStrokes(previous);
+        setSelectedStrokeIds([]);
+        userHasTypedRef.current = true;
+        setEditorInkStrokes(editor, previous);
+    }, [editor, inkUndoStack, inkStrokes]);
+
+    const handleInkRedo = useCallback(() => {
+        if (inkRedoStack.length === 0) return;
+        const next = inkRedoStack[inkRedoStack.length - 1];
+        setInkRedoStack((prev) => prev.slice(0, -1));
+        setInkUndoStack((prev) => [...prev, inkStrokes]);
+        setInkStrokes(next);
+        setSelectedStrokeIds([]);
+        userHasTypedRef.current = true;
+        setEditorInkStrokes(editor, next);
+    }, [editor, inkRedoStack, inkStrokes]);
+
+    const handleDeleteSelectedStrokes = useCallback(() => {
+        if (selectedStrokeIds.length === 0) return;
+        const selectedSet = new Set(selectedStrokeIds);
+        const remaining = inkStrokes.filter((s) => !selectedSet.has(s.id));
+        setSelectedStrokeIds([]);
+        handleInkStrokesChange(remaining);
+    }, [selectedStrokeIds, inkStrokes, handleInkStrokesChange]);
 
     if (!editor) {
         return null;
@@ -1854,7 +1920,7 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
             )}
 
             <div
-                className="min-h-[500px] w-full max-w-full overflow-x-hidden"
+                className="min-h-[500px] w-full max-w-full overflow-x-hidden relative"
                 onContextMenu={(e) => {
                     if (editor?.isActive('table')) {
                         e.preventDefault();
@@ -1889,7 +1955,43 @@ function CollaborativeEditor({ initialContent, isShared = false, editable = true
                 }}
             >
                 <EditorContent editor={editor} className="w-full max-w-full" />
+                <PencilInkLayer
+                    strokes={inkStrokes}
+                    onStrokesChange={handleInkStrokesChange}
+                    mode={pencilMode}
+                    activeTool={activeInkTool}
+                    strokeColor={inkColor}
+                    strokeSize={inkSize}
+                    selectedStrokeIds={selectedStrokeIds}
+                    onSelectedStrokeIdsChange={setSelectedStrokeIds}
+                    editable={editable}
+                />
             </div>
+
+            {editable && (
+                <PencilToolbox
+                    mode={pencilMode}
+                    onModeChange={(nextMode) => {
+                        setPencilMode(nextMode);
+                        if (nextMode === 'text') {
+                            setSelectedStrokeIds([]);
+                        }
+                    }}
+                    activeTool={activeInkTool}
+                    onToolChange={setActiveInkTool}
+                    strokeColor={inkColor}
+                    onColorChange={setInkColor}
+                    strokeSize={inkSize}
+                    onSizeChange={setInkSize}
+                    canUndo={inkUndoStack.length > 0}
+                    canRedo={inkRedoStack.length > 0}
+                    onUndo={handleInkUndo}
+                    onRedo={handleInkRedo}
+                    selectedCount={selectedStrokeIds.length}
+                    onDeleteSelected={handleDeleteSelectedStrokes}
+                    strokeCount={inkStrokes.length}
+                />
+            )}
 
             {tableMenuData && (
                 <div

@@ -132,6 +132,11 @@ func (h *MessageHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	// Broadcast Event
 	// Broadcast Event
+	sender, _ := h.Store.GetUser(r.Context(), senderID)
+	if sender != nil && sender.Username != "" {
+		msg.SenderName = sender.Username
+	}
+
 	if h.Broker != nil {
 		msgBytes, _ := json.Marshal(msg)
 		eventData := fmt.Sprintf(`{"type":"new_message","message":%s}`, string(msgBytes))

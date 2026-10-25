@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Lock, Eye, EyeOff, X, AlertCircle, ArrowRight, Mail, RefreshCw } from 'lucide-react';
 import { ItemSecuritySettings, verifyPin, recordItemUnlock } from '@/lib/pinSecurity';
 import { apiFetch } from '@/lib/api';
@@ -64,7 +65,7 @@ export default function PinPromptModal({
         };
     }, [isOpen, onClose]);
 
-    if (!isOpen) return null;
+    if (!isOpen || typeof document === 'undefined') return null;
 
     const securitySettings: ItemSecuritySettings | null = 
         item.metadata?.security_settings || 
@@ -175,13 +176,13 @@ export default function PinPromptModal({
         }
     };
 
-    return (
+    return createPortal(
         <div 
-            className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-[#111827]/20 animate-in fade-in duration-200"
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-4 overflow-y-auto bg-[#111827]/30 backdrop-blur-xs animate-in fade-in duration-200"
             onClick={onClose}
         >
             <div 
-                className="w-full max-w-sm rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] border border-[#e5e7eb] dark:border-zinc-800 bg-white dark:bg-[#18181b] overflow-hidden p-6 animate-in zoom-in-95 duration-150"
+                className="w-full max-w-sm rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] border border-[#e5e7eb] dark:border-zinc-800 bg-white dark:bg-[#18181b] overflow-hidden p-6 animate-in zoom-in-95 duration-150 my-auto max-h-[calc(100dvh-2rem)] overflow-y-auto"
                 onClick={e => e.stopPropagation()}
             >
                 <div className="flex justify-between items-start mb-4">
@@ -317,6 +318,7 @@ export default function PinPromptModal({
                     </div>
                 )}
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

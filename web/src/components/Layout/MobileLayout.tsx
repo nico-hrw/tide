@@ -18,6 +18,10 @@ import dynamic from 'next/dynamic';
 import { parseGermanDate } from '@/lib/dateParser';
 import { pickGreetingTemplate, formatGreeting, NextEventCountdown } from './MobileHeaderWidgets';
 import TodoList from '../Todo/TodoList';
+import { isItemUnlocked, ItemSecuritySettings } from '@/lib/pinSecurity';
+import PinPromptModal from '@/components/Security/PinPromptModal';
+
+type PinPromptTarget = React.ComponentProps<typeof PinPromptModal>['item'] & { onUnlocked?: () => void };
 
 const getDayDiff = (d1: Date, d2: Date) => {
   const utc1 = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
@@ -178,6 +182,7 @@ const FolderItem = React.memo(function FolderItem({
   onNoteContextMenu,
   onNoteDragStart,
   isDragging,
+  onPromptPin,
 }: {
   folder: any;
   allFiles: any[];
@@ -190,6 +195,7 @@ const FolderItem = React.memo(function FolderItem({
   onNoteContextMenu?: (file: any) => void;
   onNoteDragStart?: (file: any, e: React.TouchEvent) => void;
   isDragging?: boolean;
+  onPromptPin?: (item: PinPromptTarget) => void;
 }) {
   const [open, setOpen] = useState(false);
   const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -214,6 +220,34 @@ const FolderItem = React.memo(function FolderItem({
     <div>
       <button
         onClick={() => {
+          const isFolderProtected = Boolean(
+            folder.has_pin ||
+            folder.is_locked ||
+            folder.metadata?.has_custom_password ||
+            folder.metadata?.security_settings?.has_custom_password ||
+            (typeof folder.title === 'string' && folder.title.startsWith('#'))
+          );
+          if (isFolderProtected && !open && !isItemUnlocked(folder.id, (folder.metadata?.security_settings || folder.metadata) as ItemSecuritySettings | null | undefined)) {
+            const promptData = {
+              id: folder.id,
+              title: folder.title,
+              type: 'folder' as const,
+              metadata: folder.metadata,
+              onUnlocked: () => {
+                setOpen(true);
+                if (!loadedDirectories.has(folder.id)) {
+                  useDataStore.getState().fetchDirectory(folder.id);
+                }
+              }
+            };
+            if (onPromptPin) {
+              onPromptPin(promptData);
+            } else {
+              window.dispatchEvent(new CustomEvent('tide:prompt-pin', { detail: promptData }));
+            }
+            return;
+          }
+
           setOpen(v => !v);
           if (!open && !loadedDirectories.has(folder.id)) {
             useDataStore.getState().fetchDirectory(folder.id);
@@ -294,6 +328,7 @@ const FolderItem = React.memo(function FolderItem({
                 onNoteContextMenu={onNoteContextMenu}
                 onNoteDragStart={onNoteDragStart}
                 isDragging={isDragging}
+                onPromptPin={onPromptPin}
               />
             ))}
             {children.filter(f => f.type !== 'folder').map(f => (
@@ -1668,6 +1703,31 @@ export default function MobileLayout({
   const [isNewEventSheetOpen, setIsNewEventSheetOpen] = useState(false);
   const [newEventDefaultDate, setNewEventDefaultDate] = useState<Date>(new Date());
   const [isSharedFolderOpen, setIsSharedFolderOpen] = useState(true);
+  const [pinPromptItem, setPinPromptItem] = useState<PinPromptTarget | null>(null);
+
+  useEffect(() => {
+    const handlePromptPin = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const detail = customEvent.detail;
+      if (detail && detail.id) {
+        setPinPromptItem({
+          id: detail.id,
+          title: detail.title,
+          type: detail.type,
+          metadata: detail.metadata,
+          onUnlocked: () => {
+            if (detail.onUnlocked) {
+              detail.onUnlocked();
+            } else if (detail.type === 'folder') {
+              useDataStore.getState().toggleFolder(detail.id, true);
+            }
+          }
+        });
+      }
+    };
+    window.addEventListener('tide:prompt-pin', handlePromptPin);
+    return () => window.removeEventListener('tide:prompt-pin', handlePromptPin);
+  }, []);
 
   useEffect(() => {
     if (activeNoteId) {
@@ -2015,11 +2075,35 @@ export default function MobileLayout({
   }, [searchQuery, files, expandedEvents]);
 
   const openNote = useCallback((id: string, title: string) => {
+    const note = useDataStore.getState().notes.find(n => n.id === id) || files.find((f: { id?: string }) => f?.id === id);
+    const isProtected = Boolean(
+      note?.has_pin ||
+      note?.is_locked ||
+      note?.metadata?.has_custom_password ||
+      note?.metadata?.security_settings?.has_custom_password ||
+      (typeof title === 'string' && title.startsWith('#'))
+    );
+    if (isProtected && !isItemUnlocked(id, (note?.metadata?.security_settings || note?.metadata) as ItemSecuritySettings | null | undefined)) {
+      setPinPromptItem({
+        id,
+        title,
+        type: 'note',
+        metadata: note?.metadata,
+        onUnlocked: () => {
+          setIsSidebarOpen(false);
+          setIsSearchOpen(false);
+          onNoteSelect(id, title);
+          setIsEditingNote(true);
+        }
+      });
+      return;
+    }
+
     setIsSidebarOpen(false);
     setIsSearchOpen(false);
     onNoteSelect(id, title);
     setIsEditingNote(true);
-  }, [onNoteSelect]);
+  }, [files, onNoteSelect]);
 
   useEffect(() => {
     const h = (e: Event) => { const { id, title } = (e as CustomEvent).detail; openNote(id, title); };
@@ -2142,7 +2226,8 @@ export default function MobileLayout({
                       <FolderItem key={folder.id} folder={folder} allFiles={files} onOpen={openNote} activeNoteId={activeNoteId} dragOverId={dragOverFolderId} onDragOver={setDragOverFolderId} onDragLeave={() => setDragOverFolderId(null)}
                         onContextMenu={f => setContextMenu({ type: 'folder', id: f.id, title: f.title || 'Ordner', parentId: f.parent_id })}
                         onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
-                        onNoteDragStart={handleNoteDragStart} isDragging={!!draggingNote} />
+                        onNoteDragStart={handleNoteDragStart} isDragging={!!draggingNote}
+                        onPromptPin={setPinPromptItem} />
                     ))}
                     {files.filter(f => !f.parent_id && f.type !== 'folder' && !recentIds.has(f.id)).map(f => (
                       <NoteRow key={f.id} file={f} isActive={activeNoteId === f.id} onOpen={() => openNote(f.id, f.title || 'Untitled')} onDragStart={handleNoteDragStart} onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })} />
@@ -2936,6 +3021,7 @@ export default function MobileLayout({
                               onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
                               onNoteDragStart={handleNoteDragStart}
                               isDragging={!!draggingNote}
+                              onPromptPin={setPinPromptItem}
                             />
                           ) : (
                             <NoteRow
@@ -2991,6 +3077,7 @@ export default function MobileLayout({
                           onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
                           onNoteDragStart={handleNoteDragStart}
                           isDragging={!!draggingNote}
+                          onPromptPin={setPinPromptItem}
                         />
                       ))}
                     </div>
@@ -3126,6 +3213,19 @@ export default function MobileLayout({
           </button>
         </div>
       </div>
+
+      {pinPromptItem && (
+        <PinPromptModal
+          isOpen={!!pinPromptItem}
+          onClose={() => setPinPromptItem(null)}
+          item={pinPromptItem}
+          userEmail={userProfile?.email}
+          onUnlock={() => {
+            pinPromptItem.onUnlocked?.();
+            setPinPromptItem(null);
+          }}
+        />
+      )}
     </div>
   );
 }

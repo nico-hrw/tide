@@ -110,6 +110,7 @@ interface TodoItemCardProps {
     recurrenceEnd: string;
     folder: string;
     tags: string[];
+    showInCalendar: boolean;
   };
   setEditDraft: React.Dispatch<React.SetStateAction<{
     title: string;
@@ -121,6 +122,7 @@ interface TodoItemCardProps {
     recurrenceEnd: string;
     folder: string;
     tags: string[];
+    showInCalendar: boolean;
   }>>;
   editNewTagInput: string;
   setEditNewTagInput: React.Dispatch<React.SetStateAction<string>>;
@@ -660,6 +662,20 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
                   </div>
                 </div>
 
+                {/* Im Kalender anzeigen */}
+                <div className="flex items-center pt-1">
+                  <label className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-700 dark:text-gray-300 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+                    <Calendar size={13} className="text-blue-500 shrink-0" />
+                    <span>Im Kalender anzeigen</span>
+                    <input
+                      type="checkbox"
+                      checked={editDraft.showInCalendar}
+                      onChange={(e) => setEditDraft((p) => ({ ...p, showInCalendar: e.target.checked }))}
+                      className="rounded border-gray-300 dark:border-white/20 text-blue-600 focus:ring-blue-500/40 cursor-pointer h-3.5 w-3.5 ml-1"
+                    />
+                  </label>
+                </div>
+
                 {/* Footer action bar: Löschen on left, Abbrechen & Speichern on right */}
                 <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100 dark:border-white/5">
                   <button
@@ -715,7 +731,7 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
 };
 
 export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask }) => {
-  const { tasks, notes, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useDataStore();
+  const { tasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useDataStore();
 
   const [viewMode, setViewMode] = useState<'tasks' | 'folders'>('tasks');
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
@@ -762,9 +778,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
   const allFolders = useMemo(() => {
     const taskFolders = tasks.map((t) => t.folder).filter(Boolean) as string[];
-    const noteFolders = (notes || []).filter((n) => n.type === 'folder').map((n) => n.title).filter(Boolean);
-    return Array.from(new Set([...taskFolders, ...createdFolders, ...noteFolders])).sort();
-  }, [tasks, createdFolders, notes]);
+    return Array.from(new Set([...taskFolders, ...createdFolders])).sort();
+  }, [tasks, createdFolders]);
 
   const folderStats: FolderStat[] = useMemo(() => {
     return allFolders.map((name) => {
@@ -836,6 +851,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     title: '', description: '', priority: 'medium' as Priority,
     dueDate: '', recurrence: 'none' as RecurrenceType, recurrenceEnd: '',
     folder: '', tags: [] as string[],
+    showInCalendar: true,
   });
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -874,11 +890,13 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     recurrenceEnd: string;
     folder: string;
     tags: string[];
+    showInCalendar: boolean;
   }>({
     title: '', description: '', priority: 'medium' as Priority,
     status: 'todo',
     dueDate: '', recurrence: 'none' as RecurrenceType, recurrenceEnd: '',
     folder: '', tags: [] as string[],
+    showInCalendar: true,
   });
 
   const totalCount = tasks.length;
@@ -934,12 +952,13 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         recurrence_end: draft.recurrence !== 'none' && draft.recurrenceEnd ? draft.recurrenceEnd : undefined,
         folder: folderVal,
         tags: draft.tags.length > 0 ? draft.tags : undefined,
+        showInCalendar: draft.showInCalendar,
         isCompleted: false,
       });
       if (folderVal && !createdFolders.includes(folderVal)) {
         handleCreateFolder(folderVal);
       }
-      setDraft({ title: '', description: '', priority: 'medium', dueDate: '', recurrence: 'none', recurrenceEnd: '', folder: selectedFolder || '', tags: [] });
+      setDraft({ title: '', description: '', priority: 'medium', dueDate: '', recurrence: 'none', recurrenceEnd: '', folder: selectedFolder || '', tags: [], showInCalendar: true });
       setNewTagInput('');
       setIsCreateOpen(false);
     } finally {
@@ -954,6 +973,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       status: task.isCompleted ? 'completed' : (task.status || 'todo'),
       dueDate: task.dueDate || task.scheduledDate || '', recurrence: task.recurrence || 'none', recurrenceEnd: task.recurrence_end || '',
       folder: task.folder || '', tags: task.tags ? [...task.tags] : [],
+      showInCalendar: task.showInCalendar !== false,
     });
     setEditNewTagInput('');
   };
@@ -973,6 +993,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       recurrence_end: editDraft.recurrence !== 'none' && editDraft.recurrenceEnd ? editDraft.recurrenceEnd : undefined,
       folder: folderVal,
       tags: editDraft.tags,
+      showInCalendar: editDraft.showInCalendar,
     });
     if (folderVal && !createdFolders.includes(folderVal)) {
       handleCreateFolder(folderVal);
@@ -1444,6 +1465,17 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                         />
                       </div>
                     )}
+
+                    <label className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-700 dark:text-gray-300 cursor-pointer min-h-[36px] select-none hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+                      <Calendar size={14} className="text-blue-500 shrink-0" />
+                      <span>Im Kalender anzeigen</span>
+                      <input
+                        type="checkbox"
+                        checked={draft.showInCalendar}
+                        onChange={(e) => setDraft((p) => ({ ...p, showInCalendar: e.target.checked }))}
+                        className="rounded border-gray-300 dark:border-white/20 text-blue-600 focus:ring-blue-500/40 cursor-pointer h-3.5 w-3.5 ml-1"
+                      />
+                    </label>
                   </div>
 
                   <div className="flex items-center justify-end gap-2 w-full sm:w-auto pt-2 sm:pt-0">

@@ -105,7 +105,12 @@ export function useRealtimeSync({
 
                                     const contacts = useSocialStore.getState().contacts;
                                     const senderContact = contacts.find(c => c.partner.id === msg.sender_id);
-                                    const senderName = msg.sender_name || senderContact?.partner?.username || senderContact?.partner?.email || 'Jemand';
+                                    const resolvedSender = shareData?.sender_name || msg.sender_name || senderContact?.partner?.username || senderContact?.partner?.email;
+                                    const senderName = resolvedSender || 'Jemand';
+
+                                    if (!resolvedSender && msg.sender_id && contacts.length === 0) {
+                                        useSocialStore.getState().fetchContacts().catch(() => {});
+                                    }
                                     const durationMs = (notificationDurationSeconds || 6) * 1000;
 
                                     if (shareData) {

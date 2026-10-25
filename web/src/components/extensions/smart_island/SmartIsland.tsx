@@ -1037,7 +1037,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
     }
 
     return (
-        <div className="hidden md:block select-none relative z-[100]">
+        <div className="hidden md:block select-none relative z-[500]">
             {islandShell}
         </div>
     );

@@ -854,7 +854,7 @@ export default function Sidebar({
             <div className="flex-shrink-0 h-[220px]" />
 
             {/* Smart Island — absolutely positioned, extends beyond sidebar */}
-            <div className="absolute bottom-4 left-4 z-[100] flex flex-col gap-2 w-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] pointer-events-none [&>*]:pointer-events-auto">
+            <div className="absolute bottom-4 left-4 z-[500] flex flex-col gap-2 w-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] pointer-events-none [&>*]:pointer-events-auto">
                 {(!enabledExtensions || enabledExtensions.includes('todos')) && (
                     <div className="flex items-center justify-start px-1">
                         <button
@@ -1072,9 +1072,9 @@ export default function Sidebar({
             );
         })()}
 
-            {sidebarContextMenu && (
+            {sidebarContextMenu && typeof document !== 'undefined' && createPortal(
                 <div
-                    className="context-menu fixed z-[200] w-56 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
+                    className="context-menu fixed z-[9999] w-56 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
                     style={{ left: sidebarContextMenu.x, top: sidebarContextMenu.y }}
                 >
                     <div className="px-2 py-1.5 flex flex-col gap-0.5">
@@ -1110,7 +1110,8 @@ export default function Sidebar({
                             <span className="font-medium">Importieren (.tide.json, .md)</span>
                         </button>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {securityModalItem && (
