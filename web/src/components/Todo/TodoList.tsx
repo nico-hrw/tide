@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2, Circle, Calendar, Repeat, Trash2, Plus,
   Search, SlidersHorizontal, AlertCircle, Check, X, ListTodo,
-  Folder, Inbox, ArrowLeft, Tag, FolderPlus, Timer,
+  Folder, Inbox, ArrowLeft, Tag, FolderPlus, Timer, ChevronRight,
 } from 'lucide-react';
 import {
   format, isToday, isTomorrow, isBefore, startOfDay, endOfDay,
@@ -100,6 +100,7 @@ function getDeadlineChipClasses(status: string, isCompleted: boolean): string {
 interface TodoItemCardProps {
   task: TaskItem;
   isExpanded: boolean;
+  isCompleting?: boolean;
   editDraft: {
     title: string;
     description: string;
@@ -147,6 +148,7 @@ interface TodoItemCardProps {
 const TodoItemCard: React.FC<TodoItemCardProps> = ({
   task,
   isExpanded,
+  isCompleting = false,
   editDraft,
   setEditDraft,
   editNewTagInput,
@@ -179,6 +181,7 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
   const priority = getTaskPriority(task);
   const priorityCfg = PRIORITY_CONFIG[priority];
   const deadline = getDeadlineInfo(task.dueDate || task.scheduledDate);
+  const isTaskCompleted = task.isCompleted || isCompleting;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (isExpanded) return;
@@ -266,7 +269,7 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
           }`}
         >
           <CheckCircle2 size={20} />
-          <span>{task.isCompleted ? 'Wiedereröffnen' : 'Erledigen'}</span>
+          <span>{isTaskCompleted ? 'Wiedereröffnen' : 'Erledigen'}</span>
         </div>
         <div
           className={`flex items-center gap-2 font-bold text-xs transition-opacity duration-150 ${
@@ -291,10 +294,10 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
         onClick={handleClick}
         className={`relative group flex flex-col p-3.5 sm:p-4 rounded-2xl border transition-colors duration-150 cursor-pointer ${
           isExpanded
-            ? task.status === 'in_progress' && !task.isCompleted
+            ? task.status === 'in_progress' && !isTaskCompleted
               ? 'bg-white dark:bg-[#1a1a1a] border-amber-500/50 dark:border-amber-500/40 shadow-sm'
               : 'bg-white dark:bg-[#1a1a1a] border-blue-500/50 dark:border-blue-500/40 shadow-sm'
-            : task.isCompleted
+            : isTaskCompleted
             ? 'border-gray-100 dark:border-white/5 bg-gray-50/60 dark:bg-[#161616] opacity-75'
             : task.status === 'in_progress'
             ? 'bg-amber-500/[0.04] dark:bg-amber-500/[0.06] border-amber-500/40 dark:border-amber-500/30 hover:border-amber-500/60 dark:hover:border-amber-500/50 shadow-2xs hover:shadow-xs'
@@ -302,7 +305,7 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
         }`}
       >
         {/* Top row: Left (Checkbox + In-Progress + Title) vs Right (Due date + Priority) */}
-        <div className="flex items-center justify-between gap-3 w-full">
+        <div className="min-w-0 w-full flex items-center justify-between gap-2 sm:gap-3">
           {/* Left side: Checkbox + In-Progress button + Task Title (left-aligned, truncated if long) */}
           <div className="flex items-center gap-1.5 sm:gap-2 min-w-0 flex-1">
             <button
@@ -312,46 +315,44 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
                 handleToggleTask(task);
               }}
               className="p-1 -ml-1 text-gray-400 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400 transition-colors shrink-0 cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center"
-              aria-label={task.isCompleted ? 'Als unvollständig markieren' : 'Als erledigt markieren'}
+              aria-label={isTaskCompleted ? 'Als unvollständig markieren' : 'Als erledigt markieren'}
             >
-              {task.isCompleted ? (
+              {isTaskCompleted ? (
                 <CheckCircle2 className="w-5 h-5 text-emerald-500 fill-emerald-500/20" />
               ) : (
                 <Circle className="w-5 h-5 hover:text-blue-500 transition-colors" />
               )}
             </button>
 
-            {/* In-Progress Quick Toggle Button */}
-            {!task.isCompleted && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleInProgress(task);
-                }}
-                className={`p-1 rounded-lg transition-all shrink-0 cursor-pointer min-w-[28px] min-h-[28px] flex items-center justify-center ${
-                  task.status === 'in_progress'
-                    ? 'text-amber-500 bg-amber-500/15 hover:bg-amber-500/25 ring-1 ring-amber-500/30'
-                    : 'text-gray-400 hover:text-amber-500 hover:bg-amber-500/10 dark:text-gray-500 dark:hover:text-amber-400 opacity-60 hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100'
-                }`}
-                title={
-                  task.status === 'in_progress'
-                    ? 'In Bearbeitung - klicken um zurückzusetzen'
-                    : "Als 'in Bearbeitung' markieren"
-                }
-                aria-label={
-                  task.status === 'in_progress'
-                    ? 'In Bearbeitung - klicken um zurückzusetzen'
-                    : "Als 'in Bearbeitung' markieren"
-                }
-              >
-                <Timer className={`w-4 h-4 ${task.status === 'in_progress' ? 'animate-pulse' : ''}`} />
-              </button>
-            )}
+            {/* In-Progress Quick Toggle Button - permanently visible for all todos */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleInProgress(task);
+              }}
+              className={`p-1 rounded-lg transition-all shrink-0 cursor-pointer min-w-[30px] min-h-[30px] flex items-center justify-center opacity-100 ${
+                task.status === 'in_progress'
+                  ? 'text-amber-500 bg-amber-500/20 hover:bg-amber-500/30 ring-1 ring-amber-500/40 shadow-xs'
+                  : 'text-gray-400 hover:text-amber-500 hover:bg-amber-500/10 dark:text-gray-400 dark:hover:text-amber-400'
+              }`}
+              title={
+                task.status === 'in_progress'
+                  ? 'In Bearbeitung - klicken um zurückzusetzen'
+                  : "Als 'in Bearbeitung' markieren"
+              }
+              aria-label={
+                task.status === 'in_progress'
+                  ? 'In Bearbeitung - klicken um zurückzusetzen'
+                  : "Als 'in Bearbeitung' markieren"
+              }
+            >
+              <Timer className={`w-4 h-4 ${task.status === 'in_progress' ? 'animate-pulse' : ''}`} />
+            </button>
 
             <span
-              className={`text-sm font-semibold truncate ${
-                task.isCompleted ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'
+              className={`text-sm font-semibold truncate min-w-0 flex-1 ${
+                isTaskCompleted ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'
               }`}
             >
               {task.title}
@@ -359,10 +360,10 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
           </div>
 
           {/* Right side: In-Progress badge, Due date badge and Priority badge */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {task.status === 'in_progress' && !task.isCompleted && (
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {task.status === 'in_progress' && !isTaskCompleted && (
               <span
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
                 title="Diese Aufgabe ist aktuell in Bearbeitung"
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
@@ -371,17 +372,17 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
             )}
             {deadline && (
               <span
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium border ${getDeadlineChipClasses(
+                className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-lg text-[11px] sm:text-xs font-medium border ${getDeadlineChipClasses(
                   deadline.status,
-                  task.isCompleted
+                  isTaskCompleted
                 )}`}
               >
-                {deadline.status === 'overdue' && !task.isCompleted ? <AlertCircle size={12} /> : <Calendar size={12} />}
+                {deadline.status === 'overdue' && !isTaskCompleted ? <AlertCircle size={12} /> : <Calendar size={12} />}
                 <span>{deadline.label}</span>
               </span>
             )}
             <span
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${priorityCfg.bg} ${priorityCfg.text} ${priorityCfg.border}`}
+              className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-semibold border ${priorityCfg.bg} ${priorityCfg.text} ${priorityCfg.border}`}
             >
               <span className={`w-1.5 h-1.5 rounded-full ${priorityCfg.dot}`} />
               <span>{priorityCfg.label}</span>
@@ -391,7 +392,7 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
 
         {/* Bottom row (under the title): Tags badges */}
         {((task.tags && task.tags.length > 0) || task.folder) && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-1.5 pl-8 sm:pl-9">
+          <div className="min-w-0 flex flex-wrap items-center gap-1.5 mt-1.5 pl-7 sm:pl-9">
             {task.tags?.map((tag) => (
               <span
                 key={tag}
@@ -899,6 +900,9 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     showInCalendar: true,
   });
 
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [completingTaskIds, setCompletingTaskIds] = useState<Set<string>>(new Set());
+
   const totalCount = tasks.length;
   const completedCount = useMemo(() => tasks.filter((t) => t.isCompleted).length, [tasks]);
   const inProgressCount = useMemo(() => tasks.filter((t) => !t.isCompleted && t.status === 'in_progress').length, [tasks]);
@@ -911,7 +915,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const openNonOverdueCount = Math.max(0, openCount - overdueCount);
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-  const handleToggleTask = (task: TaskItem) => {
+  const executeToggleTask = (task: TaskItem) => {
     if (!task.isCompleted && task.recurrence && task.recurrence !== 'none') {
       const currentRef = task.dueDate || task.scheduledDate;
       const baseDate = parseDateSafe(currentRef) || new Date();
@@ -928,12 +932,33 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     }
   };
 
+  const handleToggleTask = (task: TaskItem) => {
+    if (task.isCompleted) {
+      executeToggleTask(task);
+    } else {
+      if (completingTaskIds.has(task.id)) return;
+      setCompletingTaskIds((prev) => new Set(prev).add(task.id));
+      setTimeout(() => {
+        executeToggleTask(task);
+        setCompletingTaskIds((prev) => {
+          const next = new Set(prev);
+          next.delete(task.id);
+          return next;
+        });
+      }, 300);
+    }
+  };
+
   const handleToggleInProgress = (task: TaskItem) => {
-    toggleTaskInProgress(task.id);
+    if (task.isCompleted) {
+      updateTask(task.id, { isCompleted: false, status: 'in_progress' });
+    } else {
+      toggleTaskInProgress(task.id);
+    }
     if (editingTaskId === task.id) {
       setEditDraft((p) => ({
         ...p,
-        status: p.status === 'in_progress' ? 'todo' : 'in_progress',
+        status: (task.isCompleted || task.status !== 'in_progress') ? 'in_progress' : 'todo',
       }));
     }
   };
@@ -1090,15 +1115,19 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     return 0;
   }), [filteredTasks, sortBy]);
 
+  const activeTasks = useMemo(() => sortedTasks.filter((t) => !t.isCompleted), [sortedTasks]);
+  const completedTasks = useMemo(() => sortedTasks.filter((t) => t.isCompleted), [sortedTasks]);
+  const tasksToRender = filterStatus === 'completed' ? completedTasks : activeTasks;
+
   return (
-    <div className={`flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto relative select-none ${className}`}>
+    <div className={`flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto overflow-x-hidden w-full max-w-full relative select-none ${className}`}>
       {/* Header & Status Indicator */}
-      <div className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 md:px-8 py-3 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md">
+      <div className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 px-3 sm:px-6 md:px-8 py-2.5 sm:py-3 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md">
         <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
           <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white leading-tight">Todos</h1>
 
           {/* Thick Segmented Progress Bar */}
-          <div className="flex flex-col gap-1 min-w-[180px] sm:min-w-[240px] max-w-xs">
+          <div className="flex flex-col gap-1 w-full sm:w-auto sm:min-w-[200px] flex-1 sm:flex-initial max-w-xs">
             <div className="h-3.5 sm:h-4 w-full bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden flex items-stretch">
               {totalCount > 0 ? (
                 <>
@@ -1200,7 +1229,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-[#242424] hover:bg-gray-50 dark:hover:bg-white/10 border border-gray-200 dark:border-white/10 active:scale-95 rounded-xl transition-all shadow-2xs shrink-0 cursor-pointer min-h-[36px]"
           >
             <FolderPlus size={16} />
-            <span>Neuer Ordner</span>
+            <span className="hidden sm:inline">Neuer Ordner</span>
+            <span className="sm:hidden">Ordner</span>
           </button>
 
           {/* + Neue Aufgabe */}
@@ -1213,7 +1243,9 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 active:scale-95 rounded-xl transition-all shadow-xs shrink-0 cursor-pointer min-h-[36px]"
           >
-            <Plus size={16} /><span>Neue Aufgabe</span>
+            <Plus size={16} />
+            <span className="hidden sm:inline">Neue Aufgabe</span>
+            <span className="sm:hidden">Aufgabe</span>
           </button>
         </div>
       </div>
@@ -1492,7 +1524,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
           )}
 
           {/* Filter & Sort Card */}
-          <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-3.5 sm:p-4 shadow-2xs flex flex-col gap-3">
+          <div className="w-full max-w-full min-w-0 overflow-hidden bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-3.5 sm:p-4 shadow-2xs flex flex-col gap-3">
             {/* Search & Status Toggle */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3">
               <div className="relative flex-1">
@@ -1517,7 +1549,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               </div>
 
               {/* Status Pills */}
-              <div className="flex items-center bg-gray-100 dark:bg-white/5 p-1 rounded-xl border border-gray-200 dark:border-white/10 shrink-0 self-start sm:self-auto overflow-x-auto max-w-full">
+              <div className="w-full grid grid-cols-4 sm:flex sm:w-auto items-center bg-gray-100 dark:bg-white/5 p-1 rounded-xl border border-gray-200 dark:border-white/10 shrink-0">
                 {(
                   [
                     { key: 'all' as FilterStatus, label: 'Alle', count: totalCount },
@@ -1532,7 +1564,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                       key={item.key}
                       type="button"
                       onClick={() => setFilterStatus(item.key)}
-                      className={`px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap min-h-[28px] flex items-center gap-1.5 justify-center ${
+                      className={`px-1.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap min-h-[28px] flex items-center gap-1 sm:gap-1.5 justify-center ${
                         isActive
                           ? 'bg-white dark:bg-[#242424] text-blue-600 dark:text-blue-400 shadow-xs'
                           : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -1560,7 +1592,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
             {/* Quick folder pills / shortcuts */}
             {(allFolders.length > 0 || unfiledCount.total > 0) && (
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
+              <div className="w-full max-w-full overflow-x-auto no-scrollbar flex items-center gap-1.5 py-0.5 text-xs">
                 <span className="text-gray-400 dark:text-gray-500 shrink-0 font-medium flex items-center gap-1 mr-1">
                   <Folder size={13} /> Ordner:
                 </span>
@@ -1617,7 +1649,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
             {/* Quick tag pills / shortcuts */}
             {allTags.length > 0 && (
-              <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs">
+              <div className="w-full max-w-full overflow-x-auto no-scrollbar flex items-center gap-1.5 py-0.5 text-xs">
                 <span className="text-gray-400 dark:text-gray-500 shrink-0 font-medium flex items-center gap-1 mr-1">
                   <Tag size={13} /> Tags:
                 </span>
@@ -1658,7 +1690,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             )}
 
             {/* Bottom Row: Priority & Sort dropdowns */}
-            <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 pt-2.5 border-t border-gray-100 dark:border-white/5 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2.5 w-full pt-2.5 border-t border-gray-100 dark:border-white/5 text-xs">
               <div className="flex items-center gap-2">
                 <span className="text-gray-500 dark:text-gray-400 font-medium">Priorität:</span>
                 <select
@@ -1694,33 +1726,136 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
           {/* Task Cards List */}
           <div className="flex flex-col gap-3">
-            {sortedTasks.map((task) => (
-              <TodoItemCard
-                key={task.id}
-                task={task}
-                isExpanded={editingTaskId === task.id}
-                editDraft={editDraft}
-                setEditDraft={setEditDraft}
-                editNewTagInput={editNewTagInput}
-                setEditNewTagInput={setEditNewTagInput}
-                allTags={allTags}
-                customTags={customTags}
-                allFolders={allFolders}
-                selectedTag={selectedTag}
-                setSelectedTag={setSelectedTag}
-                selectedFolder={selectedFolder}
-                setSelectedFolder={setSelectedFolder}
-                setViewMode={setViewMode}
-                handleAddCustomTag={handleAddCustomTag}
-                handleRemoveCustomTag={handleRemoveCustomTag}
-                handleToggleTask={handleToggleTask}
-                handleToggleInProgress={handleToggleInProgress}
-                saveEditing={saveEditing}
-                cancelEditing={() => setEditingTaskId(null)}
-                deleteTask={deleteTask}
-                onRowClick={handleRowClick}
-              />
-            ))}
+            <AnimatePresence mode="popLayout" initial={false}>
+              {tasksToRender.map((task) => (
+                <motion.div
+                  key={task.id}
+                  layout
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{
+                    opacity: 0,
+                    x: -20,
+                    height: 0,
+                    marginBottom: 0,
+                    scale: 0.95,
+                    transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1] }
+                  }}
+                  transition={{
+                    layout: { type: 'spring', damping: 26, stiffness: 280 }
+                  }}
+                >
+                  <TodoItemCard
+                    task={task}
+                    isExpanded={editingTaskId === task.id}
+                    isCompleting={completingTaskIds.has(task.id)}
+                    editDraft={editDraft}
+                    setEditDraft={setEditDraft}
+                    editNewTagInput={editNewTagInput}
+                    setEditNewTagInput={setEditNewTagInput}
+                    allTags={allTags}
+                    customTags={customTags}
+                    allFolders={allFolders}
+                    selectedTag={selectedTag}
+                    setSelectedTag={setSelectedTag}
+                    selectedFolder={selectedFolder}
+                    setSelectedFolder={setSelectedFolder}
+                    setViewMode={setViewMode}
+                    handleAddCustomTag={handleAddCustomTag}
+                    handleRemoveCustomTag={handleRemoveCustomTag}
+                    handleToggleTask={handleToggleTask}
+                    handleToggleInProgress={handleToggleInProgress}
+                    saveEditing={saveEditing}
+                    cancelEditing={() => setEditingTaskId(null)}
+                    deleteTask={deleteTask}
+                    onRowClick={handleRowClick}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {filterStatus === 'all' && activeTasks.length === 0 && completedTasks.length > 0 && (
+              <div className="py-4 text-center text-xs text-gray-500 dark:text-gray-400 font-medium">
+                Alle offenen Aufgaben erledigt! 🎉
+              </div>
+            )}
+
+            {/* Collapsible Completed Tasks Section when filterStatus === 'all' */}
+            {filterStatus === 'all' && completedTasks.length > 0 && (
+              <div className="mt-2 pt-3 border-t border-gray-200 dark:border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowCompleted((prev) => !prev)}
+                  className="flex items-center gap-2 text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer py-1 select-none"
+                >
+                  <ChevronRight
+                    size={16}
+                    className={`transition-transform duration-200 ${showCompleted ? 'rotate-90' : ''}`}
+                  />
+                  <span>Erledigte Aufgaben ({completedTasks.length})</span>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {showCompleted && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.25, ease: 'easeInOut' }}
+                      className="overflow-hidden pt-2 flex flex-col gap-3"
+                    >
+                      <AnimatePresence mode="popLayout" initial={false}>
+                        {completedTasks.map((task) => (
+                          <motion.div
+                            key={task.id}
+                            layout
+                            initial={{ opacity: 0, y: -8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{
+                              opacity: 0,
+                              x: -20,
+                              height: 0,
+                              marginBottom: 0,
+                              scale: 0.95,
+                              transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1] }
+                            }}
+                            transition={{
+                              layout: { type: 'spring', damping: 26, stiffness: 280 }
+                            }}
+                          >
+                            <TodoItemCard
+                              task={task}
+                              isExpanded={editingTaskId === task.id}
+                              isCompleting={completingTaskIds.has(task.id)}
+                              editDraft={editDraft}
+                              setEditDraft={setEditDraft}
+                              editNewTagInput={editNewTagInput}
+                              setEditNewTagInput={setEditNewTagInput}
+                              allTags={allTags}
+                              customTags={customTags}
+                              allFolders={allFolders}
+                              selectedTag={selectedTag}
+                              setSelectedTag={setSelectedTag}
+                              selectedFolder={selectedFolder}
+                              setSelectedFolder={setSelectedFolder}
+                              setViewMode={setViewMode}
+                              handleAddCustomTag={handleAddCustomTag}
+                              handleRemoveCustomTag={handleRemoveCustomTag}
+                              handleToggleTask={handleToggleTask}
+                              handleToggleInProgress={handleToggleInProgress}
+                              saveEditing={saveEditing}
+                              cancelEditing={() => setEditingTaskId(null)}
+                              deleteTask={deleteTask}
+                              onRowClick={handleRowClick}
+                            />
+                          </motion.div>
+                        ))}
+                      </AnimatePresence>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
 
             {sortedTasks.length === 0 && (
               <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-12 text-center flex flex-col items-center justify-center shadow-2xs">
