@@ -25,6 +25,7 @@ interface SegmentedDigitInputProps {
     digits: string[];
     onChange: (digits: string[]) => void;
     type?: "text" | "password";
+    allowedChars?: "alphanumeric" | "numeric";
     hasError?: boolean;
     autoComplete?: string;
     inputClassName?: string;
@@ -37,9 +38,10 @@ function SegmentedDigitInput({
     digits,
     onChange,
     type = "text",
+    allowedChars = "numeric",
     hasError = false,
     autoComplete = "off",
-    inputClassName = "w-10 sm:w-12 h-14 sm:h-16 text-xl sm:text-2xl font-light text-center",
+    inputClassName = "w-9 sm:w-11 h-12 sm:h-14 text-xl sm:text-2xl font-light text-center pb-2",
     gapClassName = "gap-1.5 sm:gap-2.5",
     autoFocusFirst = false,
 }: SegmentedDigitInputProps) {
@@ -52,8 +54,15 @@ function SegmentedDigitInput({
         }
     }, [autoFocusFirst]);
 
+    const sanitize = (val: string) => {
+        if (allowedChars === "alphanumeric") {
+            return val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+        }
+        return val.replace(/\D/g, "");
+    };
+
     const handleChange = (i: number, val: string) => {
-        const cl = val.replace(/\D/g, "");
+        const cl = sanitize(val);
         if (!cl) {
             const n = [...digits]; n[i] = ""; onChange(n);
             return;
@@ -84,7 +93,7 @@ function SegmentedDigitInput({
 
     const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
         e.preventDefault();
-        const p = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, length);
+        const p = sanitize(e.clipboardData.getData("text")).slice(0, length);
         if (!p) return;
         const n = Array(length).fill("");
         p.split("").forEach((c, idx) => { n[idx] = c; });
@@ -99,17 +108,18 @@ function SegmentedDigitInput({
                     key={i}
                     ref={(el) => { refs.current[i] = el; }}
                     type={type}
-                    inputMode="numeric"
-                    pattern="[0-9]*"
+                    inputMode={allowedChars === "alphanumeric" ? "text" : "numeric"}
+                    pattern={allowedChars === "alphanumeric" ? undefined : "[0-9]*"}
+                    autoCapitalize={allowedChars === "alphanumeric" ? "characters" : undefined}
                     autoComplete={autoComplete}
                     maxLength={1}
                     value={digit}
                     onChange={(e) => handleChange(i, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(i, e)}
                     onPaste={handlePaste}
-                    className={`${inputClassName} rounded-xl bg-white/70 backdrop-blur-md border ${
-                        hasError ? "border-red-400 bg-red-50/40 text-red-900" : "border-gray-200/90 text-gray-900"
-                    } shadow-sm focus:outline-none focus:border-gray-900 focus:bg-white focus:ring-1 focus:ring-gray-900/10 transition-all duration-150`}
+                    className={`${inputClassName} rounded-none bg-transparent border-0 border-b-2 ${
+                        hasError ? "border-b-red-500 text-red-900" : "border-b-gray-300 text-gray-900 focus:border-b-gray-900"
+                    } focus:outline-none transition-colors duration-200`}
                 />
             ))}
         </div>
@@ -468,7 +478,7 @@ function AuthContent() {
             {/* Container with generous whitespace towards the right */}
             <div className="w-full max-w-7xl mx-auto px-8 md:px-16 lg:px-24 py-12 flex flex-col items-start relative z-10">
                 <div className="max-w-xl w-full">
-                    <span className="text-sm font-bold tracking-[0.4em] text-gray-900 uppercase mb-8 sm:mb-12 block select-none">
+                    <span className="text-sm font-bold tracking-[0.4em] text-gray-900 uppercase mb-3 sm:mb-4 block select-none">
                         TIDE
                     </span>
 
@@ -480,7 +490,7 @@ function AuthContent() {
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        const chars = devCode.slice(0, 6).split("");
+                                        const chars = devCode.slice(0, 6).toUpperCase().split("");
                                         const next = Array(6).fill("");
                                         chars.forEach((c, idx) => { next[idx] = c; });
                                         setCodeDigits(next);
@@ -557,8 +567,17 @@ function AuthContent() {
                             </h1>
 
                             <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
-                                Wir haben dir einen 6-stelligen Bestätigungscode an{" "}
-                                <span className="font-medium text-gray-900">{identifier}</span> geschickt.
+                                Mail an <span className="font-medium text-gray-900">{identifier}</span> gesendet. Nicht deine Mail?{" "}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStep("identifier");
+                                        setErrorMessage("");
+                                    }}
+                                    className="font-medium text-gray-900 underline underline-offset-4 hover:text-gray-600 transition-colors cursor-pointer"
+                                >
+                                    Mail ändern
+                                </button>
                             </p>
 
                             <form onSubmit={handleCodeSubmit} className="w-full relative mb-12" noValidate>
@@ -570,10 +589,11 @@ function AuthContent() {
                                             setCodeDigits(digits);
                                             if (errorMessage) setErrorMessage("");
                                         }}
+                                        allowedChars="alphanumeric"
                                         autoComplete="one-time-code"
                                         autoFocusFirst
                                         hasError={Boolean(errorMessage)}
-                                        inputClassName="w-10 sm:w-12 h-14 sm:h-16 text-xl sm:text-2xl font-light text-center"
+                                        inputClassName="w-9 sm:w-11 h-12 sm:h-14 text-xl sm:text-2xl font-light text-center pb-2"
                                         gapClassName="gap-1.5 sm:gap-2.5 justify-between"
                                     />
                                     <div
@@ -591,16 +611,6 @@ function AuthContent() {
                                         disabled={status === "processing"}
                                         label={status === "processing" ? "Überprüfen..." : "Bestätigen"}
                                     />
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setStep("identifier");
-                                            setErrorMessage("");
-                                        }}
-                                        className="text-sm font-medium text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
-                                    >
-                                        E-Mail ändern
-                                    </button>
                                 </div>
                             </form>
                         </div>
@@ -629,7 +639,7 @@ function AuthContent() {
                                         type="password"
                                         autoFocusFirst
                                         hasError={Boolean(errorMessage)}
-                                        inputClassName="w-11 sm:w-13 h-14 sm:h-16 text-2xl font-mono text-center"
+                                        inputClassName="w-9 sm:w-11 h-12 sm:h-14 text-2xl font-mono text-center pb-2"
                                         gapClassName="gap-2 sm:gap-3"
                                     />
                                     <div
@@ -721,7 +731,7 @@ function AuthContent() {
                                                 if (errorMessage) setErrorMessage("");
                                             }}
                                             type="password"
-                                            inputClassName="w-11 sm:w-13 h-14 sm:h-16 text-2xl font-mono text-center"
+                                            inputClassName="w-9 sm:w-11 h-12 sm:h-14 text-2xl font-mono text-center pb-2"
                                             gapClassName="gap-2 sm:gap-3"
                                         />
                                     </div>
