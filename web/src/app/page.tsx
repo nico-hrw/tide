@@ -10,10 +10,8 @@ import { getMasterKey, storeMasterKey, clearMasterKey, purgeLegacyKeys } from "@
 import ChatPanel from "@/components/Chat/ChatPanel";
 import Sidebar from "@/components/Layout/Sidebar";
 import TabList, { Tab } from "@/components/Layout/TabList";
-import DashboardModals from "@/components/Layout/DashboardModals";
 import CalendarView from "@/components/Calendar/CalendarView";
 import WeekView from "@/components/Calendar/WeekView";
-import SaveStatusMenu from "@/components/Editor/SaveStatusMenu";
 import { ItemSecuritySettings } from "@/lib/pinSecurity";
 import ThemeItem from "@/components/Settings/ThemeItem";
 import ProfilePage from "@/components/Profile/ProfilePage";
@@ -30,31 +28,16 @@ const Editor = dynamic(() => import('@/components/Editor'), {
     loading: () => <div className="min-h-[500px] w-full animate-pulse bg-gray-50 dark:bg-gray-800/50 rounded-lg"></div>
 });
 
-const CanvasLayer = dynamic(() => import('@/components/Canvas/CanvasLayer'), {
-    ssr: false
-});
-
 const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEditor'), { ssr: false });
 
 import MobileLayout from "@/components/Layout/MobileLayout";
 import { Clock, Settings, LogOut, Users, Trash2, GraduationCap, Copy, ListTodo, GripVertical } from 'lucide-react';
 import Avatar from "@/components/Profile/Avatar";
 import SmartIsland from "@/components/SmartIsland";
-import { createLinePatch, applyLinePatch } from "@/lib/diff";
 import { tipTapToMarkdown } from "@/lib/bundleImportExport";
 import TrashPanel from "@/components/TrashPanel";
 
-const FinanceDashboard = dynamic(() => import('@/components/Finance/FinanceDashboard'), {
-    loading: () => <div className="flex-1 flex items-center justify-center p-8 text-gray-400">Loading module...</div>
-});
-
 import { useJobPlannerStore } from "@/store/useJobPlannerStore";
-
-const JobPlanner = dynamic(() => import('@/components/JobPlanner/JobPlanner'), {
-    loading: () => <div className="flex-1 flex items-center justify-center p-8 text-gray-400">Loading planner...</div>
-});
-import EditorGutter from "@/components/Canvas/EditorGutter";
-import ShareManagementPanel from "@/components/ShareManagementPanel";
 import { useStyleFile } from "@/components/Canvas/useStyleFile";
 import { TextWidgetElement } from "@/types/canvas";
 import { useHighlight } from "@/components/HighlightContext";
@@ -73,33 +56,15 @@ import { useTouchContextMenu } from "@/hooks/useTouchContextMenu";
 import { useMobileConnectionSync } from "@/hooks/useMobileConnectionSync";
 import { motion } from 'framer-motion';
 
-interface ProseMirrorNodeLike {
-    type?: string;
-    content?: ProseMirrorNodeLike[];
-    text?: string;
-}
-
-function isDocEmpty(parsed: unknown): boolean {
-    if (!parsed) return true;
-    if (typeof parsed === 'string') return parsed.trim().length === 0;
-    if (typeof parsed === 'object' && parsed !== null) {
-        const obj = parsed as ProseMirrorNodeLike;
-        if (obj.type === 'doc') {
-            if (!obj.content || obj.content.length === 0) return true;
-            for (const node of obj.content) {
-                if (node.type !== 'paragraph') return false;
-                if (node.content && node.content.length > 0) {
-                    for (const textNode of node.content) {
-                        if (textNode.type && textNode.type !== 'text') return false;
-                        if (textNode.text && textNode.text.trim().length > 0) return false;
-                    }
-                }
-            }
-            return true;
-        }
-    }
-    return false;
-}
+// Newly imported modular hooks and components
+import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
+import { useSplitViewDrag } from "@/hooks/useSplitViewDrag";
+import { useAutoSaveSync } from "@/hooks/useAutoSaveSync";
+import { FinanceWorkspace } from "@/components/Workspaces/FinanceWorkspace";
+import { JobsWorkspace } from "@/components/Workspaces/JobsWorkspace";
+import { SearchOverlay } from "@/components/Workspaces/SearchOverlay";
+import { CanvasWorkspace } from "@/components/Workspaces/CanvasWorkspace";
+import { GlobalModalsHost } from "@/components/Layout/GlobalModalsHost";
 
 // Stable ref to avoid stale closures in event-listener callbacks
 function useLatestRef<T>(value: T) {
@@ -176,19 +141,26 @@ export default function Dashboard() {
     const [openTabs, setOpenTabs] = useState<Tab[]>([{ id: 'calendar', title: 'Calendar', type: 'calendar' }]);
     const [activeTabId, setActiveTabId] = useState<string>('calendar');
     const [isSharingDisabled, setIsSharingDisabled] = useState(false);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
-    useEffect(() => {
-        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-            setIsSidebarOpen(false);
-        }
-    }, []);
+    const {
+        width: sidebarWidth,
+        isCollapsed: isSidebarCollapsed,
+        toggleCollapse: toggleSidebarCollapse,
+        setIsCollapsed: setIsSidebarCollapsed,
+        startDragging: startSidebarDrag,
+    } = useSplitViewDrag({
+        defaultWidth: 256,
+        minWidth: 200,
+        maxWidth: 400,
+        storageKey: 'tide_sidebar_width',
+        breakpoint: 1024,
+    });
+    const isSidebarOpen = !isSidebarCollapsed;
     const [userProfile, setUserProfile] = useState<{ username: string; email: string; avatar_seed?: string; avatar_salt?: string; avatar_style?: string; bio?: string; title?: string; is_verified?: boolean; profile_status?: number; id?: string; user_id?: string } | null>(null);
     const [streak, setStreak] = useState(0);
     const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const [summaryStats, setSummaryStats] = useState({ events: 0, tasks: 0 });
     const [showBackups, setShowBackups] = useState(false);
-    const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; fileId: string; isShared: boolean; isFolder: boolean } | null>(null);
+    const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen?: boolean; fileId: string; isShared: boolean; isFolder: boolean } | null>(null);
 
     // Data State (selectors)
     const {
@@ -210,24 +182,13 @@ export default function Dashboard() {
     const tasks = storeTasks as any[];
 
     // Editor & File State
-    const [editorContent, setEditorContent] = useState<any>(null);
-    const [canvasNoteData, setCanvasNoteData] = useState<import('@/types/canvasNote').CanvasNoteData | null>(null);
-    const [isLoadingContent, setIsLoadingContent] = useState(false);
-    const [activeFileKey, setActiveFileKey] = useState<CryptoKey | null>(null);
-    const [saveStatus, setSaveStatus] = useState<"saved" | "unsaved" | "saving">("saved");
-    const [fileName, setFileName] = useState("");
-    const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
-    const [showSharePanel, setShowSharePanel] = useState(false);
-    const [showSaveStatusMenu, setShowSaveStatusMenu] = useState(false);
     const [noteSecurityModalItem, setNoteSecurityModalItem] = useState<{ id: string; title: string; type: 'file' | 'folder' | 'canvas' | 'note'; metadata?: any } | null>(null);
     const [deleteError, setDeleteError] = useState<{ fileId: string, title: string, message: string, isCorrupt: boolean } | null>(null);
     const [activeCollaborators, setActiveCollaborators] = useState<any[]>([]);
     const [editorInstance, setEditorInstance] = useState<any>(null);
     const editorInstanceRef = useRef<any>(null);
     const [editorVersion, setEditorVersion] = useState(0);
-    const lastLoadIdRef = useRef<string | null>(null);
 
     // Sidebar & Reordering State
     const [editingFileId, setEditingFileId] = useState<string | null>(null);
@@ -310,90 +271,62 @@ export default function Dashboard() {
         setTimeout(() => { setEditorInstance(ed); editorInstanceRef.current = ed; }, 0);
     }, []);
 
-    const countWordsInTipTapJson = useCallback((node: any): number => {
-        if (!node) return 0;
-        let count = 0;
-        if (node.text && typeof node.text === 'string') {
-            count += node.text.trim().split(/\s+/).filter(Boolean).length;
-        }
-        if (node.content && Array.isArray(node.content)) {
-            for (const child of node.content) {
-                count += countWordsInTipTapJson(child);
+    const switchTabRef = useLatestRef<((newId: string, type: string, forcedTitle?: string, fallbackData?: any, currentOverride?: any) => Promise<void> | void) | null>(null);
+
+    const {
+        saveStatus,
+        setSaveStatus,
+        isLoadingContent,
+        setIsLoadingContent,
+        activeFileKey,
+        setActiveFileKey,
+        editorContent,
+        setEditorContent,
+        canvasNoteData,
+        setCanvasNoteData,
+        fileName,
+        setFileName,
+        userHasTypedRef,
+        initialContentRef,
+        handleEditorChange,
+        triggerSave,
+        performSave,
+        loadNoteContent,
+    } = useAutoSaveSync({
+        activeNoteId,
+        openTabs,
+        setOpenTabs,
+        setEditorVersion,
+        privateKey,
+        publicKey,
+        myId,
+        files,
+        events,
+        switchTab: (...args) => switchTabRef.current?.(...args),
+    });
+
+    useGlobalShortcuts({
+        onNewNote: () => handleNewNote(),
+        onSave: () => {
+            if (activeNoteId && editorContent) {
+                triggerSave(activeNoteId, activeFileKey, editorContent);
             }
-        }
-        return count;
-    }, []);
-
-    const userHasTypedRef = useRef(false);
-
-    const handleEditorChange = useCallback((json: any, yjsUpdateBase64?: string) => {
-        userHasTypedRef.current = true;
-        // console.log("[Pulse] Editor changed, scheduling save...");
-        const fullContent = yjsUpdateBase64 ? { ...json, __yjs: yjsUpdateBase64 } : json;
-        setEditorContent(fullContent);
-        setSaveStatus("unsaved");
-        const currentActiveId = activeNoteIdRef.current;
-        if (currentActiveId) {
-            unsavedNotesRef.current.add(currentActiveId);
-
-            // Stats tracking: edited notes
-            try {
-                const editedStr = localStorage.getItem('tide_stats_edited_notes');
-                const editedNotes = editedStr ? JSON.parse(editedStr) : [];
-                if (Array.isArray(editedNotes) && !editedNotes.includes(currentActiveId)) {
-                    editedNotes.push(currentActiveId);
-                    localStorage.setItem('tide_stats_edited_notes', JSON.stringify(editedNotes));
-                }
-            } catch (e) {
-                console.error("Failed to update edited notes stats", e);
-            }
-
-            // Stats tracking: words written
-            if (json) {
-                try {
-                    const currentWordCount = countWordsInTipTapJson(json);
-                    if (lastNoteWordCountsRef.current[currentActiveId] === undefined) {
-                        // Initial load of the note, set baseline
-                        lastNoteWordCountsRef.current[currentActiveId] = currentWordCount;
-                    } else {
-                        const prevCount = lastNoteWordCountsRef.current[currentActiveId];
-                        if (currentWordCount > prevCount) {
-                            const diff = currentWordCount - prevCount;
-                            const totalWords = parseInt(localStorage.getItem('tide_stats_words_written') || '0', 10);
-                            localStorage.setItem('tide_stats_words_written', (totalWords + diff).toString());
-                        }
-                        lastNoteWordCountsRef.current[currentActiveId] = currentWordCount;
-                    }
-                } catch (e) {
-                    console.error("Failed to update words written stats", e);
-                }
-            }
-        }
-        setEditorVersion(v => v + 1);
-    }, [countWordsInTipTapJson]);
-
-    // ── Auto-Save ──────────────────────────────────────────────────────────────────────
-    const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const activeNoteIdRef = useRef<string | null>(null);
-    const activeFileKeyRef = useRef<CryptoKey | null>(null);
-    // Refs always have the latest value — safe to use inside setTimeout callbacks
-    const editorContentRef = useRef<any>(null);
-    const canvasNoteDataRef = useRef<any>(null);
-    const saveStatusRef = useRef<string>('saved');
-    const fileNameRef = useRef<string>("");
-    // Per-note in-flight lock: prevents parallel save calls on the same noteId
-    // (avoids IV mismatch when two saves race each other on the same file).
-    const isSavingRef = useRef<Set<string>>(new Set());
-    const initialContentRef = useRef<any>(null);
-    const unsavedNotesRef = useRef<Set<string>>(new Set());
-    const pendingRetriesRef = useRef<Set<string>>(new Set());
-
-    useEffect(() => { activeNoteIdRef.current = activeNoteId ?? null; }, [activeNoteId]);
-    useEffect(() => { activeFileKeyRef.current = activeFileKey; }, [activeFileKey]);
-    useEffect(() => { editorContentRef.current = editorContent; }, [editorContent]);
-    useEffect(() => { canvasNoteDataRef.current = canvasNoteData; }, [canvasNoteData]);
-    useEffect(() => { saveStatusRef.current = saveStatus; }, [saveStatus]);
-    useEffect(() => { fileNameRef.current = fileName; }, [fileName]);
+        },
+        onToggleSidebar: toggleSidebarCollapse,
+        onOpenSearch: () => setIsSearching(true),
+        onToggleTodos: () => handleToggleTodos(),
+        onOpenCalendar: () => handleTabSelect('calendar', 'calendar'),
+        onCloseModals: () => {
+            setIsSearching(false);
+            setSettingsModalOpen(false);
+            setScheduleModalOpen(false);
+            setIsSummaryOpen(false);
+            setShowBackups(false);
+            setDeleteConfirm(null);
+            setShareModalFile(null);
+            setNoteSecurityModalItem(null);
+        },
+    });
 
     useEffect(() => {
         const handleClick = (e: MouseEvent) => {
@@ -405,227 +338,8 @@ export default function Dashboard() {
         return () => document.removeEventListener('mousedown', handleClick);
     }, []);
 
-    // ── Activity Tracking & Passive Productivity Stats ───────────────────────────
-    const lastNoteWordCountsRef = useRef<Record<string, number>>({});
+    // Passive Productivity Stats
     useProductivityStats();
-
-    // Always-current ref to performSave so triggerSave (stable useCallback) never
-    // calls a stale closure where privateKey / publicKey / files are still null.
-    // Declared here (before triggerSave) so it can be referenced inside.
-    const performSaveRef = useRef<((content: any, fileId: string, fileKey: CryptoKey | null, visibility: string) => Promise<void>) | null>(null);
-
-    // Core save function — calls performSaveRef.current so it always uses the
-    // latest closure (fresh privateKey, publicKey, files, etc.) even though
-    // triggerSave itself is a stable useCallback with [] deps.
-    const triggerSave = useCallback(async (noteId: string, fileKey: CryptoKey | null, content: any) => {
-        if (!noteId || !content) return;
-        if (noteId === 'calendar' || noteId === 'messages' || noteId.startsWith('chat-')) return;
-
-        // [FIX-1] In-flight lock: if a save is already running, schedule a retry so we
-        // don't silently drop the latest changes. The retry fires after the in-flight save
-        // completes, using the then-current content from editorContentRef.
-        if (isSavingRef.current.has(noteId)) {
-            console.log(`[AutoSave] Save in-flight for ${noteId} — scheduling retry`);
-            // Only schedule one pending retry at a time per note
-            if (!pendingRetriesRef.current.has(noteId)) {
-                pendingRetriesRef.current.add(noteId);
-                const retryContent = editorContentRef.current;
-                const retryKey = activeFileKeyRef.current;
-                // Wait for in-flight save to finish by polling
-                const waitAndRetry = async () => {
-                    while (isSavingRef.current.has(noteId)) {
-                        await new Promise(r => setTimeout(r, 200));
-                    }
-                    pendingRetriesRef.current.delete(noteId);
-                    if (unsavedNotesRef.current.has(noteId)) {
-                        triggerSave(noteId, retryKey, editorContentRef.current || retryContent);
-                    }
-                };
-                waitAndRetry();
-            }
-            return;
-        }
-
-        // Broaden search to all files and events to ensure items like event-notes are saved
-        const allFiles = useDataStore.getState().notes;
-        const allEvents = useDataStore.getState().events;
-        const currentFile = allFiles.find((f: any) => f.id === noteId) || allEvents.find((e: any) => e.id === noteId);
-
-        if (!currentFile) {
-            console.warn(`[AutoSave] Aborting save: File ${noteId} not found in store.`);
-            return;
-        }
-        
-        // Safety check: Don't save if content is null or an empty doc shell that might
-        // be a side-effect of a component unmount or state transition.
-        if (!content || (isDocEmpty(content) && !isDocEmpty(initialContentRef.current) && !userHasTypedRef.current)) {
-            console.warn(`[AutoSave] Aborted: Prevented overwriting loaded content with empty doc shell`);
-            return;
-        }
-
-        const contentStr = typeof content === 'string' ? content : JSON.stringify(content);
-        if (contentStr === 'decrypting' || contentStr.includes('DECRYPTION ERROR') || contentStr.includes('V2 DECRYPTION ERROR')) {
-            console.warn(`[AutoSave] Aborted: Refusing to save decrypting or errored content`);
-            return;
-        }
-
-        // Only save if content has actually changed from what was initially loaded.
-        // This is the primary protection against phantom-empty overwrites: if the editor
-        // fires onChange during initial content set (e.g. when decryption fails and an
-        // empty doc is set), we must NOT save — that would overwrite real server content.
-        const initialStr = typeof initialContentRef.current === 'string' ? initialContentRef.current : JSON.stringify(initialContentRef.current);
-        if (contentStr === initialStr) {
-            unsavedNotesRef.current.delete(noteId);
-            if (noteId === activeNoteIdRef.current) {
-                setSaveStatus('saved');
-            }
-            return;
-        }
-
-        if (!performSaveRef.current) {
-            console.warn("[AutoSave] Aborting save: performSaveRef.current is null.");
-            return;
-        }
-
-        console.log(`[AutoSave] Triggering save for ${noteId} ("${(currentFile as any).title || 'Untitled'}")`);
-        isSavingRef.current.add(noteId);
-        if (noteId === activeNoteIdRef.current) {
-            setSaveStatus('saving');
-        }
-        try {
-            await performSaveRef.current(content, noteId, fileKey, (currentFile as any).visibility ?? 'private');
-            console.log(`[AutoSave] Successfully saved ${noteId}`);
-            
-            // Only transition to 'saved' if the user didn't type again while saving.
-            const currentContentStr = typeof editorContentRef.current === 'string' ? editorContentRef.current : JSON.stringify(editorContentRef.current);
-            const savedContentStr = typeof content === 'string' ? content : JSON.stringify(content);
-
-            if (currentContentStr === savedContentStr) {
-                initialContentRef.current = content;
-                unsavedNotesRef.current.delete(noteId);
-                if (noteId === activeNoteIdRef.current) {
-                    setSaveStatus('saved');
-                }
-                // [FIX-1b] Update the cached _saveStatus, content and _fileKey on openTabs
-                setOpenTabs(prev => prev.map(tab =>
-                    tab.id === noteId ? { ...tab, _saveStatus: 'saved', content, _fileKey: fileKey } : tab
-                ));
-            } else {
-                console.log(`[AutoSave] Content changed during save for ${noteId}. Leaving as unsaved.`);
-                unsavedNotesRef.current.add(noteId);
-                if (noteId === activeNoteIdRef.current) {
-                    if (saveStatusRef.current !== 'unsaved') {
-                        setSaveStatus('unsaved');
-                    }
-                } else {
-                    setOpenTabs(prev => prev.map(tab =>
-                        tab.id === noteId ? { ...tab, _saveStatus: 'unsaved' } : tab
-                    ));
-                }
-            }
-        } catch (e) {
-            console.error(`[AutoSave] Save FAILED for ${noteId}:`, e);
-            const errMsg = String((e as any)?.message || '');
-            const isForbidden = errMsg.includes('403') || errMsg.includes('status 403');
-            const targetStatus = isForbidden ? 'saved' : 'unsaved';
-
-            if (isForbidden) {
-                unsavedNotesRef.current.delete(noteId);
-            } else {
-                unsavedNotesRef.current.add(noteId);
-            }
-
-            if (noteId === activeNoteIdRef.current) {
-                setSaveStatus(targetStatus);
-            }
-            setOpenTabs(prev => prev.map(tab =>
-                tab.id === noteId ? { ...tab, _saveStatus: targetStatus } : tab
-            ));
-        } finally {
-            isSavingRef.current.delete(noteId);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // Debounced auto-save: 3s after last content change, or when saveStatus flips back to
-    // 'unsaved' after a failed save attempt (so it retries without requiring further edits).
-    useEffect(() => {
-        const content = editorContent ?? canvasNoteData;
-        if (saveStatus !== 'unsaved' || !content) return;
-
-        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-
-        saveTimerRef.current = setTimeout(() => {
-            // Use refs here — closures would be stale by the time the timer fires
-            const content = editorContentRef.current ?? canvasNoteDataRef.current;
-            const noteId = activeNoteIdRef.current;
-            const fileKey = activeFileKeyRef.current;
-
-            if (saveStatusRef.current !== 'unsaved') {
-                console.log("[AutoSave] 1s idle timer fired but status is no longer 'unsaved'. skipping.");
-                return;
-            }
-
-            // Skip save for view-only shared files — backend would reject with 403
-            if (noteId) {
-                const liveFile = [...useDataStore.getState().notes, ...useDataStore.getState().events].find((f: any) => f.id === noteId) as any;
-                const perm = liveFile?.permission;
-                if (perm === 'view' || (liveFile?.share_status === 'shared' && perm && perm !== 'edit' && perm !== 'share')) {
-                    console.log(`[AutoSave] Skipping save for view-only file ${noteId}`);
-                    setSaveStatus('saved');
-                    return;
-                }
-            }
-
-            console.log(`[AutoSave] 1s idle detected for ${noteId}. Starting save pulse...`);
-            triggerSave(noteId!, fileKey, content);
-        }, 1000);
-
-        return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [editorContent, canvasNoteData, saveStatus]);
-
-    // Save immediately when switching away from a note with unsaved changes
-    const prevNoteIdRef = useRef<string | null>(null);
-    useEffect(() => {
-        const prev = prevNoteIdRef.current;
-        prevNoteIdRef.current = activeNoteId ?? null;
-
-        if (!prev || prev === activeNoteId) return;
-        if (saveStatusRef.current !== 'unsaved') return;
-
-        // User switched away — save previous note's content RIGHT NOW (don't wait for timer)
-        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-        console.log(`[Lifecycle] Tab switched from ${prev}. Flushing save...`);
-        triggerSave(prev, activeFileKeyRef.current, editorContentRef.current ?? canvasNoteDataRef.current);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeNoteId]);
-
-    // ULTIMATE PROTECTION: Save when the window is hidden (e.g. user switches browser tab)
-    // or when the window is about to be closed.
-    useEffect(() => {
-        const flushUnsavedToDisk = () => {
-            if (saveStatusRef.current === 'unsaved' && activeNoteIdRef.current) {
-                console.log(`[Lifecycle] Window/Tab losing focus. EMERGENCY FLUSH for ${activeNoteIdRef.current}`);
-                triggerSave(activeNoteIdRef.current, activeFileKeyRef.current, editorContentRef.current ?? canvasNoteDataRef.current);
-            }
-        };
-
-        const handleVisibilityChange = () => { if (document.visibilityState === 'hidden') flushUnsavedToDisk(); };
-        const handleBeforeUnload = (e: BeforeUnloadEvent) => { flushUnsavedToDisk(); };
-
-        window.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => {
-            window.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('beforeunload', handleBeforeUnload);
-        };
-    }, [triggerSave]); // Stable triggerSave
-    // ────────────────────────────────────────────────────────────────────────────
-
-    // -------------------------------------------------------------------------
-    // 1. Core Actions & Tab Management
-    // -------------------------------------------------------------------------
 
     const handleNewNote = async (parentIdOverride?: string | null) => {
         try {
@@ -690,806 +404,8 @@ export default function Dashboard() {
         URL.revokeObjectURL(url);
     }, [activeNoteId, editorContent, fileName, editorInstance]);
 
-    const performSave = async (content: any, fileId: string, fileKey: CryptoKey | null, visibility: string) => {
-        if (!fileId || !content) return;
-
-        if (isDocEmpty(content) && initialContentRef.current && !isDocEmpty(initialContentRef.current)) {
-            console.warn('[Save] Aborted saving empty content over non-empty document');
-            return;
-        }
-
-        try {
-            const contentString = typeof content === 'string' ? content : JSON.stringify(content);
-
-            // --- PUBLIC: Upload unencrypted ---
-            if (visibility === 'public') {
-                const blob = new Blob([contentString], { type: 'application/json' });
-                await apiFetch(`/api/v1/files/${fileId}/upload`, { method: 'POST', body: blob });
-                const allPublicFiles = [...useDataStore.getState().notes, ...useDataStore.getState().events] as any[];
-                const publicFileRecord = allPublicFiles.find((f: any) => f.id === fileId);
-                const title = publicFileRecord?.title || fileNameRef.current || 'Untitled';
-                const putRes = await apiFetch(`/api/v1/files/${fileId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ public_meta: { title } })
-                });
-                if (putRes.status === 404) {
-                    console.warn(`[AutoSave] Public file ${fileId} not found on server (404) — removing from tabs and store.`);
-                    setOpenTabs(prev => prev.filter(t => t.id !== fileId));
-                    useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
-                    const fallbackTab = openTabs.find(t => t.id !== fileId);
-                    if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
-                    return;
-                }
-                useDataStore.getState().updateFileRaw(fileId, { public_meta: { title }, title });
-                try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
-                return;
-            }
-
-            // --- PRIVATE: V2 Envelope Encryption ---
-            const freshState = useDataStore.getState();
-            const freshPrivKey = freshState.privateKey;
-            const freshPubKey = freshState.publicKey;
-            const freshMyId = freshState.myId;
-            if (!freshPubKey || !freshPrivKey || !freshMyId) {
-                throw new Error('[V2-Save] RSA master keys not available — cannot encrypt');
-            }
-
-            // Locate current file record to check existing V2 access_keys
-            const allFiles = [...freshState.notes, ...freshState.events] as any[];
-            const currentFile = allFiles.find(f => f.id === fileId);
-
-            let dek: CryptoKey | null = null;
-            let accessKeysMap: Record<string, { wrapped_key: string }> = {};
-
-            // STRATEGY: Reuse the existing DEK so all recipients' wrapped keys stay valid.
-            if (currentFile?.version >= 2 && currentFile?.access_keys) {
-                const existingKeys = typeof currentFile.access_keys === 'string'
-                    ? JSON.parse(currentFile.access_keys)
-                    : (currentFile.access_keys || {});
-                const myAccess = existingKeys[freshMyId];
-                if (myAccess?.wrapped_key) {
-                    try {
-                        const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, freshPrivKey);
-                        dek = await cryptoV2.importDEK(rawDek);
-                        // Preserve ALL wrapped keys (owner + all recipients) unchanged
-                        accessKeysMap = existingKeys;
-                        console.log(`[V2-Save] Reusing existing DEK for ${fileId}`);
-                    } catch (_) {
-                        console.warn('[V2-Save] DEK reuse failed — generating new DEK (shared recipients must be re-invited)');
-                    }
-                } else {
-                    // Has V2 structure but missing our own key — treat as new
-                    accessKeysMap = existingKeys;
-                }
-            }
-
-            let generatedNewDek = false;
-            if (!dek) {
-                // New file, V1→V2 migration, or DEK recovery failure: create a fresh DEK
-                dek = await cryptoV2.generateDEK();
-                const rawDek = await window.crypto.subtle.exportKey('raw', dek);
-                const wrapped = await cryptoV2.wrapDEKData(rawDek, freshPubKey);
-                accessKeysMap = { ...accessKeysMap, [freshMyId]: { wrapped_key: wrapped.ciphertext } };
-                generatedNewDek = true;
-                console.log(`[V2-Save] Generated new DEK for ${fileId}`);
-            }
-
-            // Encrypt content with DEK + fresh IV
-            const contentIv = window.crypto.getRandomValues(new Uint8Array(12));
-            const contentBuffer = new TextEncoder().encode(contentString);
-            const encryptedContent = await window.crypto.subtle.encrypt(
-                { name: 'AES-GCM', iv: contentIv },
-                dek,
-                contentBuffer
-            );
-            const contentCiphertext = JSON.stringify({
-                data: cryptoLib.arrayBufferToBase64(encryptedContent),
-                iv:   cryptoLib.arrayBufferToBase64(contentIv.buffer as ArrayBuffer)
-            });
-
-            const fileRecord = allFiles.find(f => f.id === fileId);
-            if (!fileRecord) console.warn(`[V2-Save] File ${fileId} not found in store, falling back to fileNameRef`);
-            let title = fileRecord?.title || fileNameRef.current || 'Untitled';
-            if (title.includes('(Corrupted)')) title = title.replace(' (Corrupted)', '').replace('(Corrupted)', '').trim() || 'Untitled';
-
-            // Single atomic PUT: writes blob to BlobStore and updates metadata
-            const isOwner = currentFile?.owner_id === freshMyId;
-
-            // Re-encrypt secured_meta with RSA so fetchDirectory can decrypt the
-            // title on the next reload. CRITICAL FIX: Only do this if we are the owner!
-            // If a collaborator updates secured_meta, they would encrypt it with THEIR
-            // public key, corrupting the owner's title to 'Untitled (Corrupted)'.
-            let freshSecuredMeta: string | undefined;
-            if (isOwner) {
-                try {
-                    freshSecuredMeta = await cryptoLib.encryptMetadata({ title }, freshPubKey);
-                } catch (smErr) {
-                    console.warn('[V2-Save] Could not encrypt secured_meta — title will fall back to metadata.title on reload', smErr);
-                }
-            }
-
-            // Stamp BEFORE the PUT so the SSE cooldown activates even if SSE arrives
-            // before the HTTP response (server sends SSE immediately after processing).
-            if (typeof (window as any).__tideSaveTimestamp === 'function') {
-                (window as any).__tideSaveTimestamp();
-            }
-
-            const putRes = await apiFetch(`/api/v1/files/${fileId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    version: 2,
-                    content_ciphertext: contentCiphertext,
-                    ...(isOwner && generatedNewDek ? { access_keys: accessKeysMap } : {}),
-                    metadata: { has_custom_password: false, title },
-                    ...(freshSecuredMeta ? { secured_meta: freshSecuredMeta } : {}),
-                })
-            });
-            if (putRes.status === 404) {
-                console.warn(`[AutoSave] File ${fileId} not found on server (404) — removing from tabs and store.`);
-                setOpenTabs(prev => prev.filter(t => t.id !== fileId));
-                useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
-                const fallbackTab = openTabs.find(t => t.id !== fileId);
-                if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
-                return;
-            }
-            if (!putRes.ok) throw new Error(`[V2-Save] PUT failed with status ${putRes.status}`);
-
-            useDataStore.getState().updateFileRaw(fileId, {
-                title,
-                version: 2,
-                access_keys: accessKeysMap,
-                metadata: { has_custom_password: false, title }
-            });
-
-            // (timestamp already stamped before PUT — see above)
-
-            // --- Asynchronous client-side HYBRID backup cascade ---
-            // "1 week" = full-copy base (managed by server-side cascade)
-            // Other slots = delta patches computed against the "1 week" base
-            (async () => {
-                try {
-                    const bListRes = await apiFetch(`/api/v1/files/${fileId}/backups`);
-                    if (!bListRes.ok) return;
-                    const backups = await bListRes.json();
-                    
-                    const slotMap: Record<string, any> = {};
-                    if (Array.isArray(backups)) {
-                        for (const b of backups) {
-                            slotMap[b.slot_name.trim()] = b;
-                        }
-                    }
-                    
-                    // Ensure a "1 week" full-copy base exists (server cascade may not
-                    // have created it yet if it ran asynchronously or this is a new file).
-                    if (!slotMap["1 week"]) {
-                        console.log(`[Backup Cascade] Creating initial "1 week" base for file ${fileId}`);
-                        const baseIv = window.crypto.getRandomValues(new Uint8Array(12));
-                        const baseBuffer = new TextEncoder().encode(contentString);
-                        const encryptedBase = await window.crypto.subtle.encrypt(
-                            { name: 'AES-GCM', iv: baseIv },
-                            dek!,
-                            baseBuffer
-                        );
-                        const baseCiphertext = JSON.stringify({
-                            data: cryptoLib.arrayBufferToBase64(encryptedBase),
-                            iv:   cryptoLib.arrayBufferToBase64(baseIv.buffer as ArrayBuffer)
-                        });
-                        const b64Base = btoa(baseCiphertext);
-                        await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent("1 week")}`, {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                version: 2,
-                                encrypted_blob: b64Base,
-                                access_keys: accessKeysMap,
-                            })
-                        });
-                        // No deltas to compute yet (base was just created with current content)
-                        return;
-                    }
-
-                    // Decrypt the "1 week" base to use as the stable reference for deltas
-                    let basePlainJson = "";
-                    let baseSlot = slotMap["1 week"];
-                    if (baseSlot && !baseSlot.encrypted_blob) {
-                        try {
-                            const fullBaseRes = await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent("1 week")}`);
-                            if (fullBaseRes.ok) {
-                                baseSlot = await fullBaseRes.json();
-                            }
-                        } catch (fetchBaseErr) {
-                            console.warn("[Backup Cascade] Failed to fetch full 1 week base backup slot", fetchBaseErr);
-                        }
-                    }
-                    try {
-                        if (baseSlot && baseSlot.encrypted_blob) {
-                            const binaryString = atob(baseSlot.encrypted_blob);
-                            const bLen = binaryString.length;
-                            const bBytes = new Uint8Array(bLen);
-                            for (let i = 0; i < bLen; i++) bBytes[i] = binaryString.charCodeAt(i);
-
-                            const isV2 = (baseSlot.version ?? 1) >= 2 || !!baseSlot.access_keys;
-                            if (isV2) {
-                                const ak = typeof baseSlot.access_keys === 'string'
-                                    ? JSON.parse(baseSlot.access_keys) : (baseSlot.access_keys || {});
-                                const myAccess = ak?.[freshMyId];
-                                if (myAccess?.wrapped_key) {
-                                    const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, freshPrivKey);
-                                    const baseDek = await cryptoV2.importDEK(rawDek);
-                                    const blobText = new TextDecoder().decode(bBytes);
-                                    const payload = JSON.parse(blobText);
-                                    const ivBuf = new Uint8Array(atob(payload.iv).split("").map(c => c.charCodeAt(0)));
-                                    const dataBuf = new Uint8Array(atob(payload.data).split("").map(c => c.charCodeAt(0)));
-                                    const decrypted = await window.crypto.subtle.decrypt(
-                                        { name: 'AES-GCM', iv: ivBuf }, baseDek, dataBuf
-                                    );
-                                    basePlainJson = new TextDecoder().decode(decrypted);
-                                }
-                            } else {
-                                if (baseSlot.secured_meta) {
-                                    const meta = await cryptoLib.decryptMetadata(baseSlot.secured_meta, freshPrivKey, `backup-${fileId}`);
-                                    if (!meta.isLocked) {
-                                        const fk = await window.crypto.subtle.importKey(
-                                            "jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
-                                        );
-                                        const decBlob = await cryptoLib.decryptFile(new Blob([bBytes]), meta.iv as string, fk, fileId);
-                                        basePlainJson = await decBlob.text();
-                                    }
-                                }
-                            }
-                        }
-                    } catch (e) {
-                        console.warn("[Backup Cascade] Failed to decrypt base slot", e);
-                    }
-
-                    if (!basePlainJson) {
-                        console.warn("[Backup Cascade] Base slot empty or undecryptable, skipping delta cascade");
-                        return;
-                    }
-
-                    // Delta slots: compute patches relative to the stable "1 week" base
-                    const now = new Date();
-                    const deltaSlots = [
-                        { name: "10 minutes", dur: 10 * 60 * 1000 },
-                        { name: "30 minutes", dur: 30 * 60 * 1000 },
-                        { name: "1 hour", dur: 60 * 60 * 1000 },
-                        { name: "1 day", dur: 24 * 60 * 60 * 1000 },
-                        { name: "2 days", dur: 2 * 24 * 60 * 60 * 1000 },
-                    ];
-                    
-                    for (const slot of deltaSlots) {
-                        const b = slotMap[slot.name];
-                        const needsUpdate = !b || (now.getTime() - new Date(b.updated_at).getTime()) > slot.dur;
-                        if (needsUpdate) {
-                            console.log(`[Backup Cascade] Updating delta slot "${slot.name}" for file ${fileId}`);
-                            
-                            // Compute delta: diff(basePlainJson, contentString)
-                            // Applying this delta to the base reconstructs contentString
-                            const patch = createLinePatch(basePlainJson, contentString);
-                            const patchStr = JSON.stringify(patch);
-                            if (currentFile?.version === 2 && dek) {
-                                const patchIv = window.crypto.getRandomValues(new Uint8Array(12));
-                                const patchBuffer = new TextEncoder().encode(patchStr);
-                                const encryptedPatch = await window.crypto.subtle.encrypt(
-                                    { name: 'AES-GCM', iv: patchIv },
-                                    dek,
-                                    patchBuffer
-                                );
-                                const patchCiphertext = JSON.stringify({
-                                    data: cryptoLib.arrayBufferToBase64(encryptedPatch),
-                                    iv:   cryptoLib.arrayBufferToBase64(patchIv.buffer as ArrayBuffer)
-                                });
-                                
-                                const b64Payload = btoa(patchCiphertext);
-                                
-                                await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent(slot.name)}`, {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        version: 2,
-                                        encrypted_blob: b64Payload,
-                                        access_keys: accessKeysMap,
-                                    })
-                                });
-                            } else {
-                                // V1 files fallback
-                                const metaStr = typeof currentFile?.secured_meta === 'string' ? currentFile.secured_meta : JSON.stringify(currentFile?.secured_meta || {});
-                                await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent(slot.name)}`, {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        version: 1,
-                                        encrypted_blob: btoa(patchStr), // Fallback, not properly V1 encrypted for now
-                                        secured_meta: metaStr,
-                                    })
-                                });
-                            }
-                        }
-                    }
-                } catch (bErr) {
-                    console.error("[Backup Cascade Error]", bErr);
-                }
-            })();
-
-            try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
-
-        } catch (err) {
-            console.error(`[V2-Save FAILED] ID: ${fileId}:`, err);
-            throw err;
-        }
-    };
-    // Keep the ref in sync with the latest render's closure so triggerSave
-    // (which is a stable useCallback) always calls the CURRENT performSave
-    // and never a stale version with empty privateKey / publicKey / files.
-    performSaveRef.current = performSave;
-
-    const loadNoteContent = async (fileId: string, titleFn: string, passedFile?: any) => {
-        const effectivePrivKey = privateKey || useDataStore.getState().privateKey;
-        if (!effectivePrivKey) {
-            console.warn("[loadNoteContent] privateKey not yet ready, scheduling retry");
-            setTimeout(() => {
-                const retryKey = useDataStore.getState().privateKey;
-                if (retryKey) loadNoteContent(fileId, titleFn, passedFile);
-            }, 300);
-            return;
-        }
-        const effectiveMyId = myId || useDataStore.getState().myId || (typeof window !== 'undefined' ? (localStorage.getItem("tide_user_id") || sessionStorage.getItem("tide_user_id") || "") : "");
-        const loadId = crypto.randomUUID();
-        lastLoadIdRef.current = loadId;
-        setIsLoadingContent(true);
-        setEditorContent(null);
-        // Only set placeholder if we don't know the real title yet.
-        // Avoid stamping 'Locked Note (Decrypting...)' as the displayed title.
-        if (titleFn && !titleFn.includes('Locked')) setFileName(titleFn);
-        setSaveStatus("saved");
-
-        try {
-            let recoveredBackup: any = null;
-            // RECOVERY ON LOAD: Check localStorage for a backup of that ID before fetching
-            try {
-                const backupStr = localStorage.getItem(`tide_backup_${fileId}`);
-                if (backupStr) {
-                    const parsedBackup = JSON.parse(backupStr);
-                    if (!isDocEmpty(parsedBackup)) {
-                        console.warn(`[RECOVERY] Found non-empty unsaved local backup for ${fileId}. Restoring content, but still loading keys.`);
-                        recoveredBackup = parsedBackup;
-                        setEditorContent(recoveredBackup);
-                        setSaveStatus("unsaved");
-                    } else {
-                        try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
-                    }
-                }
-            } catch (backupErr) {
-                console.error("Failed to recover local backup:", backupErr);
-            }
-
-            // [FIX-2] Always read the CURRENT store state (not the React-state snapshot
-            // captured at the last render). On F5, `files` (React state) may still be []
-            // while the store already has data from a concurrent fetchDirectory call.
-            const freshStoreNotes = useDataStore.getState().notes;
-            const freshStoreEvents = useDataStore.getState().events;
-            let target = passedFile
-                || freshStoreNotes.find((f: any) => f.id === fileId)
-                || freshStoreEvents.find((e: any) => e.id === fileId)
-                || files.find(f => f.id === fileId)
-                || events.find(e => e.id === fileId) as any;
-            if (!target) {
-                const res = await apiFetch(`/api/v1/files/${fileId}`);
-                if (res.status === 404) {
-                    // File no longer exists on the server — remove from store + close tab
-                    apiFetch('/api/v1/files/' + fileId, { method: 'DELETE' }).catch(() => {});
-                    useDataStore.getState().setNotes(useDataStore.getState().notes.filter((n: any) => n.id !== fileId));
-                    setOpenTabs(prev => prev.filter(t => t.id !== fileId));
-                    const fallbackTab = openTabs.find(t => t.id !== fileId);
-                    if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
-                    throw new Error(`[loadNoteContent] File ${fileId} not found on server (404) — removed from store`);
-                }
-                if (res.ok) target = await res.json().catch(() => null);
-            }
-            if (!target) throw new Error("File not found");
-
-            let contentText = "";
-            let meta: any = null;
-            let fileKeyToUse: CryptoKey | null = null;
-
-            if (target.visibility === 'public') {
-                const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
-                if (resBlob.status === 404) {
-                    apiFetch('/api/v1/files/' + fileId, { method: 'DELETE' }).catch(() => {});
-                    setOpenTabs(prev => prev.filter(t => t.id !== fileId));
-                    useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
-                    const fallbackTab = openTabs.find(t => t.id !== fileId);
-                    if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
-                    throw new Error("File not found on server (404)");
-                }
-                if (resBlob.ok) contentText = await resBlob.text();
-            } else if ((target.version ?? 1) >= 2 && target.access_keys) {
-                // ── [V2-LOAD] Envelope Encryption V2 path ──────────────────────────────
-                const accessKeys = typeof target.access_keys === 'string'
-                    ? JSON.parse(target.access_keys)
-                    : (target.access_keys || {});
-                const myAccess = (effectiveMyId ? accessKeys[effectiveMyId] : null) || Object.values(accessKeys)[0] as any;
-                if (!myAccess?.wrapped_key) {
-                    throw new Error(`[V2-Load] No access key found for user ${effectiveMyId}. Cannot decrypt file ${fileId}.`);
-                }
-
-                // Unwrap DEK with RSA private key, then import for AES-GCM
-                let rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, effectivePrivKey);
-                if (target.metadata?.has_custom_password) {
-                    const { getSessionPin } = await import('@/lib/pinSecurity');
-                    const sessionPin = getSessionPin(fileId);
-                    if (sessionPin && target.metadata.pwd_salt) {
-                        try {
-                            const saltBuffer = cryptoLib.base64ToArrayBuffer(target.metadata.pwd_salt);
-                            const pwdKey = await cryptoLib.deriveKeyFromPassword(sessionPin, saltBuffer);
-                            const innerB64 = cryptoLib.arrayBufferToBase64(rawDek);
-                            rawDek = await cryptoV2.unwrapDEKData(innerB64, pwdKey, myAccess.pwd_iv);
-                        } catch (pwdErr) {
-                            console.warn('[V2-Load] PIN unwrap with session PIN failed:', pwdErr);
-                        }
-                    }
-                }
-                const dek = await cryptoV2.importDEK(rawDek);
-                setActiveFileKey(dek);
-                fileKeyToUse = dek;
-
-                let v2Title = (target.metadata as any)?.title || target.title;
-                if (target.secured_meta) {
-                    try {
-                        // Attempt DEK (AES-GCM) decryption first
-                        const metaPayload = JSON.parse(target.secured_meta);
-                        if (metaPayload.data && metaPayload.iv) {
-                            const mIvBuf = cryptoLib.base64ToArrayBuffer(metaPayload.iv);
-                            const mDataBuf = cryptoLib.base64ToArrayBuffer(metaPayload.data);
-                            const mDecrypted = await window.crypto.subtle.decrypt(
-                                { name: 'AES-GCM', iv: mIvBuf },
-                                dek,
-                                mDataBuf
-                            );
-                            const mDecoded = new TextDecoder().decode(mDecrypted);
-                            const parsedMeta = JSON.parse(mDecoded);
-                            if (parsedMeta.title) v2Title = parsedMeta.title;
-                        } else {
-                            // Fallback to RSA decryption
-                            const meta = await cryptoLib.decryptMetadata(target.secured_meta, effectivePrivKey, `load-v2-${fileId}`);
-                            if (meta.title) v2Title = meta.title as string;
-                        }
-                    } catch (e) {
-                        try {
-                            const meta = await cryptoLib.decryptMetadata(target.secured_meta, effectivePrivKey, `load-v2-${fileId}`);
-                            if (meta.title) v2Title = meta.title as string;
-                        } catch (err2) {
-                            console.warn("[V2-Load] Metadata decryption failed", err2);
-                        }
-                    }
-                }
-
-                if (v2Title) {
-                    if (!v2Title.includes('Locked Note')) {
-                        setFileName(v2Title);
-                        useDataStore.getState().updateFileRaw(fileId, { title: v2Title, isLocked: false });
-                    } else {
-                        useDataStore.getState().updateFileRaw(fileId, { isLocked: false });
-                    }
-                }
-
-                if (recoveredBackup && !isDocEmpty(recoveredBackup)) {
-                    console.log('[RECOVERY] V2: Skipping server download, using recovered local backup.');
-                } else {
-                    const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
-                    if (resBlob.status === 404) {
-                        apiFetch('/api/v1/files/' + fileId, { method: 'DELETE' }).catch(() => {});
-                        setOpenTabs(prev => prev.filter(t => t.id !== fileId));
-                        useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
-                        const fallbackTab = openTabs.find(t => t.id !== fileId);
-                        if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
-                        throw new Error("File not found on server (404)");
-                    }
-                    if (resBlob.ok) {
-                        const blobText = await resBlob.text();
-                        if (blobText) {
-                            try {
-                                const payload = JSON.parse(blobText);
-                                if (payload.data && payload.iv) {
-                                    const ivBuf   = cryptoLib.base64ToArrayBuffer(payload.iv);
-                                    const dataBuf = cryptoLib.base64ToArrayBuffer(payload.data);
-                                    const decrypted = await window.crypto.subtle.decrypt(
-                                        { name: 'AES-GCM', iv: ivBuf },
-                                        dek,
-                                        dataBuf
-                                    );
-                                    contentText = new TextDecoder().decode(decrypted);
-                                }
-                            } catch (decryptErr) {
-                                console.error(`[V2-Load] DECRYPTION FAILURE | ID: ${fileId}`, decryptErr);
-                                contentText = JSON.stringify({
-                                    type: 'doc',
-                                    content: [{ type: 'paragraph', content: [
-                                        { type: 'text', marks: [{ type: 'bold' }], text: '⚠️ V2 DECRYPTION ERROR: ' },
-                                        { type: 'text', text: 'Content corrupted or DEK mismatch.' }
-                                    ]}]
-                                });
-                            }
-                        }
-                    }
-                }
-            } else {
-                // ── [V1-LOAD] Legacy path (secured_meta contains file key + IV) ────────
-                if (!target.secured_meta) throw new Error("Missing metadata");
-                meta = await cryptoLib.decryptMetadata(target.secured_meta, effectivePrivKey, `load-${fileId}`);
-
-                // Resolve "Locked Note" title once decrypted
-                if (meta.title && (target.title !== meta.title || target.isLocked)) {
-                    console.log(`[Crypto] Decrypted real title for ${fileId}: "${meta.title}"`);
-                    setFileName(meta.title as string);
-                    useDataStore.getState().updateFileRaw(fileId, { title: meta.title, isLocked: false });
-                }
-
-                if (!meta.fileKey || typeof meta.fileKey !== 'object' || !(meta.fileKey as any).kty) {
-                    console.error("Invalid or missing JWK fileKey");
-                    throw new Error("Invalid or missing FileKey structure.");
-                }
-
-                const importedFileKey = await window.crypto.subtle.importKey(
-                    "jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
-                );
-                setActiveFileKey(importedFileKey);
-                fileKeyToUse = importedFileKey;
-
-                if (recoveredBackup && !isDocEmpty(recoveredBackup)) {
-                    console.log("[RECOVERY] V1: Skipping server blob download, using recovered backup.");
-                } else {
-                    const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
-                    if (resBlob.status === 404) {
-                        apiFetch('/api/v1/files/' + fileId, { method: 'DELETE' }).catch(() => {});
-                        setOpenTabs(prev => prev.filter(t => t.id !== fileId));
-                        useDataStore.getState().setNotes(useDataStore.getState().notes.filter(n => n.id !== fileId));
-                        const fallbackTab = openTabs.find(t => t.id !== fileId);
-                        if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
-                        throw new Error("File not found on server (404)");
-                    }
-                    if (resBlob.ok) {
-                        const blob = await resBlob.blob();
-                        if (blob.size > 0) {
-                            try {
-                                const decryptedBlob = await cryptoLib.decryptFile(blob, meta.iv as string, importedFileKey, fileId);
-                                contentText = await decryptedBlob.text();
-                            } catch (decryptErr) {
-                                console.error(`[CRYPTO-AUDIT] DECRYPTION FAILURE | ID: ${fileId}`, decryptErr);
-                                contentText = JSON.stringify({
-                                    type: 'doc',
-                                    content: [{
-                                        type: 'paragraph',
-                                        content: [{ type: 'text', marks: [{ type: 'bold' }], text: "⚠️ DECRYPTION ERROR: " }, { type: 'text', text: "Content corrupted or key mismatch." }]
-                                    }]
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (lastLoadIdRef.current !== loadId) return;
-
-            let parsedContent: any = null;
-            let isContentEmpty = true;
-            if (contentText) {
-                try {
-                    parsedContent = JSON.parse(contentText);
-                    isContentEmpty = isDocEmpty(parsedContent);
-                } catch (e) {
-                    parsedContent = contentText;
-                    isContentEmpty = typeof contentText === 'string' ? contentText.trim().length === 0 : true;
-                }
-            }
-
-            // AUTO-RESTORE FROM BACKUP: If the content is empty but we have a backup history, restore it
-            const isCorruptOrMissing = (parsedContent === null || parsedContent === undefined);
-            if (isCorruptOrMissing && !recoveredBackup) {
-                console.warn(`[RECOVERY] Note ${fileId} loaded empty. Attempting auto-restore from backup history...`);
-                try {
-                    const bListRes = await apiFetch(`/api/v1/files/${fileId}/backups`);
-                    if (bListRes.ok) {
-                        const backups = await bListRes.json();
-                        if (Array.isArray(backups) && backups.length > 0) {
-                            // Prioritise "1 week" (full copy base) first, then sort by recency
-                            const sortedSlots = backups.sort((a, b) => {
-                                const aIsBase = a.slot_name.trim() === '1 week' ? -1 : 0;
-                                const bIsBase = b.slot_name.trim() === '1 week' ? -1 : 0;
-                                if (aIsBase !== bIsBase) return aIsBase - bIsBase;
-                                return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-                            });
-
-                            // Pre-fetch the "1 week" base in case we need it for delta reconstruction
-                            let basePlainText = "";
-                            const baseSlotEntry = backups.find(s => s.slot_name.trim() === '1 week');
-
-                            for (const slot of sortedSlots) {
-                                if (!effectivePrivKey) break;
-                                const slotName = slot.slot_name;
-                                const bRes = await apiFetch(`/api/v1/files/${fileId}/backups/${slotName}`);
-                                if (bRes.ok) {
-                                    const backupData = await bRes.json();
-                                    if (backupData.encrypted_blob) {
-                                        // Decode base64 blob to Uint8Array
-                                        const binaryString = atob(backupData.encrypted_blob);
-                                        const len = binaryString.length;
-                                        const bytes = new Uint8Array(len);
-                                        for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
-
-                                        let decryptedText = "";
-                                        const isV2 = (backupData.version ?? 1) >= 2 || !!backupData.access_keys;
-                                        if (isV2) {
-                                            const accessKeys = typeof backupData.access_keys === 'string'
-                                                ? JSON.parse(backupData.access_keys)
-                                                : (backupData.access_keys || {});
-                                            const myAccess = accessKeys[effectiveMyId] || Object.values(accessKeys)[0];
-                                            if (myAccess?.wrapped_key) {
-                                                const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, effectivePrivKey);
-                                                const dek = await cryptoV2.importDEK(rawDek);
-                                                const blobText = new TextDecoder().decode(bytes);
-                                                const payload = JSON.parse(blobText);
-                                                const ivBuf = cryptoLib.base64ToArrayBuffer(payload.iv);
-                                                const dataBuf = cryptoLib.base64ToArrayBuffer(payload.data);
-                                                const decrypted = await window.crypto.subtle.decrypt(
-                                                    { name: 'AES-GCM', iv: ivBuf },
-                                                    dek,
-                                                    dataBuf
-                                                );
-                                                decryptedText = new TextDecoder().decode(decrypted);
-                                            }
-                                        } else {
-                                            if (backupData.secured_meta) {
-                                                const bMeta = await cryptoLib.decryptMetadata(backupData.secured_meta, effectivePrivKey);
-                                                if (!bMeta.isLocked) {
-                                                    const bFileKey = await window.crypto.subtle.importKey(
-                                                        "jwk", bMeta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]
-                                                    );
-                                                    const blob = new Blob([bytes]);
-                                                    const decryptedBlob = await cryptoLib.decryptFile(blob, bMeta.iv as string, bFileKey, fileId);
-                                                    decryptedText = await decryptedBlob.text();
-                                                }
-                                            }
-                                        }
-
-                                        if (decryptedText) {
-                                            // Cache the "1 week" base plain text for delta reconstruction
-                                            if (slotName.trim() === '1 week') {
-                                                basePlainText = decryptedText;
-                                            }
-
-                                            let parsedDecrypted: any = null;
-                                            try {
-                                                parsedDecrypted = JSON.parse(decryptedText);
-                                            } catch (_) {
-                                                parsedDecrypted = decryptedText;
-                                            }
-
-                                            // Check if this is a delta patch (Array) — needs base to reconstruct
-                                            if (Array.isArray(parsedDecrypted)) {
-                                                if (!basePlainText) {
-                                                    // Need the base first — try to fetch it
-                                                    if (baseSlotEntry) {
-                                                        try {
-                                                            const baseRes = await apiFetch(`/api/v1/files/${fileId}/backups/${baseSlotEntry.slot_name}`);
-                                                            if (baseRes.ok) {
-                                                                const baseData = await baseRes.json();
-                                                                if (baseData.encrypted_blob) {
-                                                                    const baseBin = atob(baseData.encrypted_blob);
-                                                                    const baseBytes = new Uint8Array(baseBin.length);
-                                                                    for (let bi = 0; bi < baseBin.length; bi++) baseBytes[bi] = baseBin.charCodeAt(bi);
-                                                                    const baseIsV2 = (baseData.version ?? 1) >= 2 || !!baseData.access_keys;
-                                                                    if (baseIsV2) {
-                                                                        const bak = typeof baseData.access_keys === 'string' ? JSON.parse(baseData.access_keys) : (baseData.access_keys || {});
-                                                                        const bma = bak[effectiveMyId] || Object.values(bak)[0];
-                                                                        if (bma?.wrapped_key) {
-                                                                            const brd = await cryptoV2.unwrapDEKData(bma.wrapped_key, effectivePrivKey);
-                                                                            const bdek = await cryptoV2.importDEK(brd);
-                                                                            const bbt = new TextDecoder().decode(baseBytes);
-                                                                            const bpl = JSON.parse(bbt);
-                                                                            const biv = cryptoLib.base64ToArrayBuffer(bpl.iv);
-                                                                            const bdb = cryptoLib.base64ToArrayBuffer(bpl.data);
-                                                                            const bdec = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv: biv }, bdek, bdb);
-                                                                            basePlainText = new TextDecoder().decode(bdec);
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        } catch (baseErr) {
-                                                            console.warn("[RECOVERY] Failed to decrypt base for delta reconstruction", baseErr);
-                                                        }
-                                                    }
-                                                }
-                                                if (basePlainText) {
-                                                    try {
-                                                        const reconstructed = applyLinePatch(basePlainText, parsedDecrypted);
-                                                        parsedDecrypted = JSON.parse(reconstructed);
-                                                    } catch (patchErr) {
-                                                        console.warn(`[RECOVERY] Delta patch failed for slot "${slotName}"`, patchErr);
-                                                        continue; // Try next slot
-                                                    }
-                                                } else {
-                                                    console.warn(`[RECOVERY] No base available for delta in slot "${slotName}", skipping`);
-                                                    continue;
-                                                }
-                                            }
-
-                                            if (!isDocEmpty(parsedDecrypted)) {
-                                                console.log(`[RECOVERY] Successfully found non-empty backup content in slot "${slotName}". Restoring...`);
-                                                parsedContent = parsedDecrypted;
-                                                isContentEmpty = false;
-                                                
-                                                // Save restored content back to server so it persists
-                                                const currentFile = [...useDataStore.getState().notes, ...useDataStore.getState().events].find(f => f.id === fileId);
-                                                const activeKey = fileKeyToUse;
-                                                if (currentFile && activeKey) {
-                                                    performSave(parsedDecrypted, fileId, activeKey, currentFile.visibility || 'private')
-                                                        .then(() => console.log(`[RECOVERY] Saved restored content for ${fileId}`))
-                                                        .catch(e => console.error(`[RECOVERY] Failed to save restored content for ${fileId}`, e));
-                                                }
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } catch (recoveryErr) {
-                    console.error("[RECOVERY] Error during auto-restore:", recoveryErr);
-                }
-            }
-
-            if (!isContentEmpty && parsedContent) {
-                try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
-                // Detect canvas note content
-                if (parsedContent?.version === 1 && Array.isArray(parsedContent?.items) && typeof parsedContent?.canvasWidth === 'number') {
-                    setCanvasNoteData(parsedContent);
-                    initialContentRef.current = parsedContent;
-                    setEditorContent(null);
-                } else {
-                    setEditorContent(parsedContent);
-                    initialContentRef.current = parsedContent;
-                }
-                userHasTypedRef.current = false;
-            } else if (recoveredBackup && !isDocEmpty(recoveredBackup)) {
-                setEditorContent(recoveredBackup);
-                initialContentRef.current = recoveredBackup;
-                userHasTypedRef.current = false;
-            } else {
-                const emptyDoc = {
-                    type: 'doc',
-                    content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() } }]
-                };
-                setEditorContent(emptyDoc);
-                initialContentRef.current = emptyDoc;
-                userHasTypedRef.current = false;
-            }
-        } catch (err: any) {
-            if (err?.message?.includes('404')) {
-                apiFetch('/api/v1/files/' + fileId, { method: 'DELETE' }).catch(() => {});
-                useDataStore.getState().setNotes(useDataStore.getState().notes.filter((n: any) => n.id !== fileId));
-                setOpenTabs(prev => prev.filter(t => t.id !== fileId));
-                const fallbackTab = openTabs.find(t => t.id !== fileId);
-                if (fallbackTab) switchTab(fallbackTab.id, fallbackTab.type, fallbackTab.title);
-            } else if (lastLoadIdRef.current === loadId) {
-                console.error("Failed to load note:", err);
-                const fallbackDoc = {
-                    type: 'doc',
-                    content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() }, content: [{ type: 'text', text: '' }] }]
-                };
-                setEditorContent(fallbackDoc);
-                initialContentRef.current = fallbackDoc;
-                userHasTypedRef.current = false;
-            }
-        } finally {
-            if (lastLoadIdRef.current === loadId) setIsLoadingContent(false);
-        }
-    };
-
     const switchTab = async (newId: string, type: string, forcedTitle?: string, fallbackData?: any, currentOverride?: any) => {
+        switchTabRef.current = switchTab;
         if (!newId) {
             newId = 'calendar';
             type = 'calendar';
@@ -1503,7 +419,7 @@ export default function Dashboard() {
         if (isOldAFile && (saveStatus === 'unsaved' || currentOverride) && currentContentToUse) {
             console.log(`[Lifecycle] Tab switch: Forcing final save of ${currentTabId}`);
             // Use triggerSave for the latest logic and keys
-            triggerSave(currentTabId, activeFileKeyRef.current, currentContentToUse);
+            triggerSave(currentTabId, activeFileKey, currentContentToUse);
         }
 
         setOpenTabs(prev => {
@@ -1615,9 +531,9 @@ export default function Dashboard() {
 
         const handleReloadNote = (e: Event) => {
             const { fileId } = (e as CustomEvent).detail || {};
-            if (fileId && fileId === activeNoteIdRef.current) {
+            if (fileId && fileId === activeNoteId) {
                 const liveFile = useDataStore.getState().notes.find(f => f.id === fileId);
-                const title = liveFile?.title || fileNameRef.current || "Untitled";
+                const title = liveFile?.title || fileName || "Untitled";
                 loadNoteContent(fileId, title);
             }
         };
@@ -3275,13 +2191,13 @@ export default function Dashboard() {
         });
     }, [tasks, events, privateKey, publicKey, loadedDirectories]);
 
-    const switchTabRef = useLatestRef(switchTab);
+    switchTabRef.current = switchTab;
 
     useEffect(() => {
         const handleNavigate = (e: Event) => {
             const { noteId } = (e as CustomEvent).detail;
             if (noteId) {
-                switchTabRef.current(noteId, 'file');
+                switchTabRef.current?.(noteId, 'file');
             }
         };
         window.addEventListener('tide:navigate', handleNavigate);
@@ -3792,50 +2708,60 @@ export default function Dashboard() {
             />
 
             {/* Left Sidebar Panel */}
-            <div className={`hidden md:flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] shrink-0 z-[100] transition-all duration-300 ease-in-out ${
-                isSidebarOpen
-                    ? 'w-56 md:w-60 lg:w-64 opacity-100 overflow-visible'
-                    : 'w-0 opacity-0 border-r-0 pointer-events-none overflow-hidden'
-            }`}>
-                <div className="w-56 md:w-60 lg:w-64 h-full flex flex-col shrink-0">
-                <Sidebar
-                    userProfile={userProfile || undefined}
-                    files={sidebarFiles}
-                    onFileSelect={handleFileSelect}
-                    onNewNote={handleNewNote}
-                    onNewCanvasNote={handleNewCanvasNote}
-                    onDeleteNote={handleDeleteNote}
-                    onRenameNote={handleRenameNote}
-                    onToggleVisibility={handleToggleVisibility}
-                    onShare={handleShare}
-                    onOpenMessages={handleOpenMessages}
-                    onChatSelect={handleChatSelect}
-                    editingFileId={editingFileId}
-                    onRenameSubmit={submitRename}
-                    onCreateFolder={handleCreateFolder}
-                    onMoveItem={handleMoveFile}
-                    selectedDate={calendarDate}
-                    onDateSelect={handleDateSelect}
-                    hiddenThemeIds={hiddenThemeIds}
-                    onToggleThemeVisibility={handleToggleThemeVisibility}
-                    eventGroups={files?.filter(f => f.type === 'folder' && f.isGroup)}
-                    onCreateEventGroup={handleCreateEventGroup}
-                    onUpdateEventGroup={handleUpdateEventGroup}
-                    enabledExtensions={enabledExtensions}
-                    openTabs={openTabs}
-                    activeTabId={activeTabId}
-                    onTabSelect={handleTabSelect}
-                    onTabClose={handleTabClose}
-                    onTabsReorder={setOpenTabs}
-                    onOpenCalendar={() => handleTabSelect('calendar', 'calendar')}
-                    onOpenSocial={() => setActiveTabId('social')}
-                    onOpenExams={() => handleTabSelect('job_planner', 'job_planner')}
-                    onOpenFinance={() => handleFileSelect('ext_finance', 'Finance Tracker')}
-                    onOpenTodos={handleToggleTodos}
-                    isTodosActive={activeTabId === 'todos'}
-                    onToggleTodos={handleToggleTodos}
-                />
+            <div
+                style={{ width: isSidebarOpen ? `${sidebarWidth}px` : '0px' }}
+                className={`hidden md:flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] shrink-0 z-[100] transition-[width,opacity] duration-300 ease-in-out relative ${
+                    isSidebarOpen
+                        ? 'opacity-100 overflow-visible'
+                        : 'opacity-0 border-r-0 pointer-events-none overflow-hidden'
+                }`}
+            >
+                <div style={{ width: `${sidebarWidth}px` }} className="h-full flex flex-col shrink-0">
+                    <Sidebar
+                        userProfile={userProfile || undefined}
+                        files={sidebarFiles}
+                        onFileSelect={handleFileSelect}
+                        onNewNote={handleNewNote}
+                        onNewCanvasNote={handleNewCanvasNote}
+                        onDeleteNote={handleDeleteNote}
+                        onRenameNote={handleRenameNote}
+                        onToggleVisibility={handleToggleVisibility}
+                        onShare={handleShare}
+                        onOpenMessages={handleOpenMessages}
+                        onChatSelect={handleChatSelect}
+                        editingFileId={editingFileId}
+                        onRenameSubmit={submitRename}
+                        onCreateFolder={handleCreateFolder}
+                        onMoveItem={handleMoveFile}
+                        selectedDate={calendarDate}
+                        onDateSelect={handleDateSelect}
+                        hiddenThemeIds={hiddenThemeIds}
+                        onToggleThemeVisibility={handleToggleThemeVisibility}
+                        eventGroups={files?.filter(f => f.type === 'folder' && f.isGroup)}
+                        onCreateEventGroup={handleCreateEventGroup}
+                        onUpdateEventGroup={handleUpdateEventGroup}
+                        enabledExtensions={enabledExtensions}
+                        openTabs={openTabs}
+                        activeTabId={activeTabId}
+                        onTabSelect={handleTabSelect}
+                        onTabClose={handleTabClose}
+                        onTabsReorder={setOpenTabs}
+                        onOpenCalendar={() => handleTabSelect('calendar', 'calendar')}
+                        onOpenSocial={() => setActiveTabId('social')}
+                        onOpenExams={() => handleTabSelect('job_planner', 'job_planner')}
+                        onOpenFinance={() => handleFileSelect('ext_finance', 'Finance Tracker')}
+                        onOpenTodos={handleToggleTodos}
+                        isTodosActive={activeTabId === 'todos'}
+                        onToggleTodos={handleToggleTodos}
+                    />
                 </div>
+                {isSidebarOpen && (
+                    <div
+                        onMouseDown={startSidebarDrag}
+                        className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500/30 active:bg-indigo-500/50 transition-colors z-20"
+                        title="Drag to resize sidebar"
+                    />
+                )}
             </div>
 
             {/* Right: Workspace */}
@@ -3843,7 +2769,7 @@ export default function Dashboard() {
                 {/* Horizontal Browser Tab Bar */}
                 <TabList
                     isSidebarOpen={isSidebarOpen}
-                    onToggleSidebar={() => setIsSidebarOpen(prev => !prev)}
+                    onToggleSidebar={toggleSidebarCollapse}
                     tabs={openTabs}
                     activeTabId={activeTabId}
                     onTabSelect={handleTabSelect}
@@ -4020,9 +2946,10 @@ export default function Dashboard() {
 
 
 
-                <div className={`absolute inset-0 z-10 bg-[var(--background)] ${activeTabId === 'ext_finance' ? 'block' : 'hidden'}`}>
-                    {enabledExtensions.includes('finance') ? <FinanceDashboard /> : null}
-                </div>
+                <FinanceWorkspace
+                    isActive={activeTabId === 'ext_finance'}
+                    enabled={enabledExtensions.includes('finance')}
+                />
 
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId.startsWith('profile:') ? 'block' : 'hidden'}`}>
                     {activeTabId.startsWith('profile:') && (
@@ -4046,15 +2973,12 @@ export default function Dashboard() {
                     )}
                 </div>
 
-                <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'job_planner' || activeTabId === 'exams' ? 'block' : 'hidden'}`}>
-                    {(activeTabId === 'job_planner' || activeTabId === 'exams') && (
-                        <JobPlanner
-                            onCreateGroup={handleCreateEventGroup}
-                            onOpenCalendar={() => handleTabSelect('calendar', 'calendar')}
-                            onOpenSettings={(tab?: any) => setSettingsModalOpen(true, tab || 'extensions')}
-                        />
-                    )}
-                </div>
+                <JobsWorkspace
+                    isActive={activeTabId === 'job_planner' || activeTabId === 'exams'}
+                    onCreateGroup={handleCreateEventGroup}
+                    onOpenCalendar={() => handleTabSelect('calendar', 'calendar')}
+                    onOpenSettings={(tab?: any) => setSettingsModalOpen(true, tab || 'extensions')}
+                />
 
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'todos' ? 'block' : 'hidden'}`}>
                     {activeTabId === 'todos' && (!enabledExtensions || enabledExtensions.includes('todos')) && <TodoList />}
@@ -4066,416 +2990,72 @@ export default function Dashboard() {
                     )}
                 </div>
 
-                <div className={`flex-1 min-h-0 relative overflow-y-auto ${activeTabId === 'calendar' || activeTabId === 'todos' || activeTabId === 'messages' || activeTabId === 'social' || activeTabId === 'job_planner' || activeTabId === 'exams' || activeTabId === 'trash' || activeTabId.startsWith('chat-') || activeTabId === 'ext_finance' || activeTabId.startsWith('profile:') ? 'hidden' : 'block'}`}>
-                    {isLoadingContent ? (
-                        <div className="flex items-center justify-center h-full text-gray-400">Loading content...</div>
-                    ) : (
-                        <div className={`mx-auto min-h-[500px] py-12 px-8 lg:px-24 transition-all duration-300 ${noteLayout === 'thin' ? 'max-w-2xl' :
-                                noteLayout === 'normal' ? 'max-w-4xl' :
-                                    noteLayout === 'wide' ? 'max-w-6xl' : 'max-w-full'
-                            }`}>
-                            <CanvasLayer
-                                elements={canvasSidecar.elements}
-                                isLoaded={canvasSidecar.isLoaded}
-                                publicKey={publicKey}
-                                privateKey={privateKey}
-                                userId={myId}
-                                noteId={activeNoteId}
-                                deletedBlockIds={deletedBlockIds}
-                                pendingBindBlockId={pendingBindBlockId}
-                                onBindingComplete={() => setPendingBindBlockId(null)}
-                                onElementMove={(id, ox, oy) => canvasSidecar.updateElement(id, { offsetX: ox, offsetY: oy })}
-                                onElementAdd={canvasSidecar.addElement}
-                                onElementRemove={canvasSidecar.removeElement}
-                                onUpdate={canvasSidecar.updateElement}
-                                onSaveAll={canvasSidecar.save}
-                                hoveredElementId={hoveredElementId}
-                                setHoveredElementId={setHoveredElementId}
-                                isLinkingMode={isLinkingMode}
-                                activeLinkBlockId={activeLinkBlockId}
-                                onLinkingComplete={() => {
-                                    setIsLinkingMode(false);
-                                    setActiveLinkBlockId(null);
-                                }}
-                                onInsertAnchor={(x, y) => {
-                                    if (!editorInstance) return null;
-                                    try {
-                                        // Attempt to find the nearest valid position in the document
-                                        const pos = editorInstance.view.posAtCoords({ left: x, top: y });
-                                        if (!pos) return null;
-
-                                        const anchorId = crypto.randomUUID();
-
-                                        // Focus the editor to ensure the transaction applies correctly
-                                        editorInstance.commands.focus();
-
-                                        editorInstance.chain()
-                                            .insertContentAt(pos.pos, {
-                                                type: 'anchor',
-                                                attrs: { anchorId }
-                                            })
-                                            .run();
-
-                                        return anchorId;
-                                    } catch (e) {
-                                        console.error("[Canvas] Failed to insert anchor", e);
-                                        return null;
-                                    }
-                                }}
-                            >
-                                <div className={`w-full mx-auto flex flex-row items-start min-h-[500px] py-12 px-4 sm:px-8 note-layout-${noteLayout || 'normal'}`}>
-                                    <EditorGutter
-                                        elements={canvasSidecar.elements}
-                                        onPinClick={(bid) => {
-                                            if (isLinkingMode && activeLinkBlockId === bid) {
-                                                setIsLinkingMode(false);
-                                                setActiveLinkBlockId(null);
-                                            } else {
-                                                setIsLinkingMode(true);
-                                                setActiveLinkBlockId(bid);
-                                            }
-                                        }}
-                                        activeLinkBlockId={activeLinkBlockId}
-                                        hoveredElementId={hoveredElementId}
-                                        hoveredBlockId={hoveredBlockId}
-                                        isLinkingMode={isLinkingMode}
-                                        contentVersion={editorVersion}
-                                    />
-                                    <div className="flex-1 min-w-0 flex flex-col">
-                                        {activeNoteId && openTabs.find(t => t.id === activeNoteId && t.type === 'file') && (
-                                            <>
-                                                {(() => {
-                                                    const af = files.find(f => f.id === activeNoteId) as any;
-                                                    if (af && af.permission === 'view') {
-                                                        return (
-                                                            <div className="bg-sky-50/80 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-800/60 rounded-xl p-3.5 mb-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                                                                <div className="flex items-center gap-3 text-sky-900 dark:text-sky-200">
-                                                                    <div className="p-2 rounded-xl bg-sky-100 dark:bg-sky-900/60 text-sky-600 dark:text-sky-400 shrink-0">
-                                                                        <GraduationCap size={20} />
-                                                                    </div>
-                                                                    <div>
-                                                                        <div className="text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
-                                                                            Lehrseite / Schreibgeschützt
-                                                                        </div>
-                                                                        <div className="text-xs text-sky-800/80 dark:text-sky-300/80">
-                                                                            Du hast Lesezugriff auf dieses Dokument. Verlinkungen und Event-Referenzen sind interaktiv.
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                                                                    <button
-                                                                        onClick={async () => {
-                                                                            const newTitle = `${af.title || 'Dokument'} (Kopie)`;
-                                                                            const newId = await useDataStore.getState().createNote(newTitle, editorContent);
-                                                                            await useDataStore.getState().fetchDirectory(null, true);
-                                                                            handleFileSelect(newId, newTitle);
-                                                                        }}
-                                                                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 border border-sky-200 dark:border-sky-700/80 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
-                                                                        title="Erstelle deine eigene bearbeitbare Kopie dieser Notiz"
-                                                                    >
-                                                                        <Copy size={13} />
-                                                                        <span>In eigene Notizen duplizieren</span>
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            const md = tipTapToMarkdown(editorContent);
-                                                                            const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
-                                                                            const url = URL.createObjectURL(blob);
-                                                                            const a = document.createElement('a');
-                                                                            a.href = url;
-                                                                            a.download = `${(af.title || 'note').replace(/[/\\?%*:|"<>]/g, '_')}.md`;
-                                                                            document.body.appendChild(a);
-                                                                            a.click();
-                                                                            document.body.removeChild(a);
-                                                                            URL.revokeObjectURL(url);
-                                                                        }}
-                                                                        className="p-1.5 rounded-lg text-xs bg-white dark:bg-slate-800 border border-sky-200 dark:border-sky-700/80 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
-                                                                        title="Als Markdown herunterladen"
-                                                                    >
-                                                                        <Download size={14} />
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    }
-                                                    return null;
-                                                })()}
-                                                
-                                                {/* Active Collaborators Avatars */}
-                                                {(() => {
-                                                    const af = files.find(f => f.id === activeNoteId) as any;
-                                                    const isSharedNote = af && (af.isShared || (af.owner_id && af.owner_id !== myId));
-                                                    if (!isSharedNote || activeCollaborators.length === 0) return null;
-                                                    return (
-                                                        <div className="flex items-center gap-2 mb-2">
-                                                        {activeCollaborators.map((u, idx) => (
-                                                            <div key={u?.id || `collab-${idx}`} className="relative group" title={`${u?.name || 'User'} (Aktiv)`}>
-                                                                <div className="w-8 h-8 rounded-full border-2 overflow-hidden shadow-sm transition-transform hover:scale-110" style={{ borderColor: u?.color || '#ccc' }}>
-                                                                    <Avatar seed={u?.seed || 'guest'} size={28} />
-                                                                </div>
-                                                                <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">
-                                                                    {u?.name || 'User'}
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                        </div>
-                                                    );
-                                                })()}
-
-                                                <div className="flex items-center gap-2 mb-6">
-                                                    <input
-                                                        id="note-title-input"
-                                                        type="text"
-                                                        autoFocus
-                                                        value={fileName}
-                                                        readOnly={(files.find(f => f.id === activeNoteId) as any)?.permission === 'view'}
-                                                        onChange={(e) => {
-                                                            if ((files.find(f => f.id === activeNoteId) as any)?.permission === 'view') return;
-                                                            const newTitle = e.target.value;
-                                                            setFileName(newTitle);
-                                                            // Mark as unsaved so the debounced triggerSave fires
-                                                            // and writes the new title into secured_meta + content blob
-                                                            setSaveStatus('unsaved');
-                                                            if (activeNoteId) {
-                                                                useDataStore.getState().setNotes(useDataStore.getState().notes.map(f => f.id === activeNoteId ? { ...f, title: newTitle } as any : f));
-                                                                // Keep openTabs (Recent) in sync with every keystroke
-                                                                setOpenTabs(prev => prev.map(t => t.id === activeNoteId ? { ...t, title: newTitle } : t));
-                                                            }
-                                                        }}
-                                                        onBlur={(e) => {
-                                                            if ((files.find(f => f.id === activeNoteId) as any)?.permission === 'view') return;
-                                                            if (activeNoteId) {
-                                                                // Fast-path: update only secured_meta immediately on blur
-                                                                // Full content save is handled by the debounced auto-save above
-                                                                submitRename(activeNoteId, e.target.value);
-                                                            }
-                                                        }}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter' || e.key === 'Tab') {
-                                                                e.preventDefault();
-                                                                editorInstance?.commands.focus();
-                                                            }
-                                                        }}
-                                                        placeholder={getTranslation(useDataStore.getState().language || 'de', 'common', 'newNote')}
-                                                        className="text-4xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-700 pb-1 leading-normal overflow-visible flex-1"
-                                                    />
-                                                    <div className="flex items-center gap-1 shrink-0 self-end mb-2">
-                                                        {(() => {
-                                                            const activeFile = files.find(f => f.id === activeNoteId) as any;
-                                                            const isRecipient = activeFile?.share_status === 'shared' || activeFile?.share_status === 'accepted' || activeFile?.share_status === 'pending';
-                                                            const isOwner = !isRecipient && (!activeFile?.owner_id || activeFile?.owner_id === myId || activeFile?.share_status === 'owner');
-                                                            if (!isOwner) return null;
-                                                            return (
-                                                                <button
-                                                                    onClick={() => setShowBackups(true)}
-                                                                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 hover:text-indigo-600 transition-colors"
-                                                                    title="Versionsverlauf / Backups"
-                                                                >
-                                                                    <Clock size={16} />
-                                                                </button>
-                                                            );
-                                                        })()}
-                                                        {/* Save status indicator with interactive popover menu */}
-                                                        <div className="relative flex items-center justify-center">
-                                                            {(() => {
-                                                                const af = files.find(f => f.id === activeNoteId) as any;
-                                                                const isRecipient = af?.share_status === 'shared' || af?.share_status === 'accepted' || af?.share_status === 'pending';
-                                                                const ak = af?.access_keys;
-                                                                const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {};
-                                                                const isSharedByOwner = Object.keys(akObj).length > 1;
-                                                                const isShared = isRecipient || isSharedByOwner;
-                                                                const isProtected = !!(af?.metadata?.has_custom_password || af?.metadata?.security_settings?.has_custom_password);
-
-                                                                return (
-                                                                    <>
-                                                                        <button
-                                                                            onClick={() => setShowSaveStatusMenu(prev => !prev)}
-                                                                            title={saveStatus === 'saving' ? 'Wird gespeichert…' : saveStatus === 'unsaved' ? 'Nicht gespeichert – Klick für Details' : 'Gespeichert – Klick für Details'}
-                                                                            className="p-1.5 rounded-lg transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center"
-                                                                        >
-                                                                            {saveStatus === 'saved' && (
-                                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isShared ? "text-sky-400 opacity-80 hover:opacity-100" : "text-emerald-500 opacity-80 hover:opacity-100"}>
-                                                                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                                                                                    <polyline points="22 4 12 14.01 9 11.01" />
-                                                                                </svg>
-                                                                            )}
-                                                                            {saveStatus === 'saving' && (
-                                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500 opacity-80 animate-spin">
-                                                                                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                                                                                </svg>
-                                                                            )}
-                                                                            {saveStatus === 'unsaved' && (
-                                                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500 opacity-80">
-                                                                                    <circle cx="12" cy="12" r="10" />
-                                                                                    <line x1="12" y1="8" x2="12" y2="12" />
-                                                                                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                                                                                </svg>
-                                                                            )}
-                                                                        </button>
-                                                                        {showSaveStatusMenu && af && (
-                                                                            <SaveStatusMenu
-                                                                                fileId={activeNoteId}
-                                                                                saveStatus={saveStatus}
-                                                                                visibility={af.visibility}
-                                                                                isShared={isShared}
-                                                                                isSharedByOwner={isSharedByOwner}
-                                                                                isRecipient={isRecipient}
-                                                                                isProtected={isProtected}
-                                                                                onClose={() => setShowSaveStatusMenu(false)}
-                                                                                onOpenShare={() => {
-                                                                                    setShowSaveStatusMenu(false);
-                                                                                    if (isShared && !isSharedByOwner) {
-                                                                                        setShowSharePanel(true);
-                                                                                    } else {
-                                                                                        handleShare({ stopPropagation: () => {} } as any, activeNoteId);
-                                                                                    }
-                                                                                }}
-                                                                                onOpenSecurity={() => {
-                                                                                    setShowSaveStatusMenu(false);
-                                                                                    setNoteSecurityModalItem({
-                                                                                        id: af.id,
-                                                                                        title: af.title,
-                                                                                        type: (af.type as any) || 'note',
-                                                                                        metadata: af.metadata
-                                                                                    });
-                                                                                }}
-                                                                            />
-                                                                        )}
-                                                                        {showSharePanel && af && (
-                                                                            <ShareManagementPanel 
-                                                                                fileId={activeNoteId} 
-                                                                                onClose={() => setShowSharePanel(false)}
-                                                                                isOwner={af?.owner_id === myId}
-                                                                                myPermission={af?.permission || 'view'}
-                                                                                onLeave={() => {
-                                                                                    setShowSharePanel(false);
-                                                                                    handleDeleteNote({ stopPropagation: () => {} } as any, activeNoteId);
-                                                                                }}
-                                                                            />
-                                                                        )}
-                                                                    </>
-                                                                );
-                                                            })()}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
-
-                                        {(() => {
-                                            const activeFileType = files.find(f => f.id === activeNoteId)?.type;
-
-                                            if (activeFileType === 'canvas') {
-                                                return (
-                                                    <div className="flex-1 h-full overflow-hidden">
-                                                        <CanvasNoteEditor
-                                                            key={activeNoteId || ''}
-                                                            noteId={activeNoteId || ''}
-                                                            initialData={canvasNoteData}
-                                                            publicKey={publicKey}
-                                                            privateKey={privateKey}
-                                                            userId={myId}
-                                                            onChange={(data) => {
-                                                                setCanvasNoteData(data);
-                                                                setSaveStatus('unsaved');
-                                                            }}
-                                                        />
-                                                    </div>
-                                                );
-                                            }
-
-                                            const currentAfMobile = files.find(f => f.id === activeNoteId);
-                                            const isSharedNoteMobile = Boolean(currentAfMobile && (
-                                                (currentAfMobile as any).isShared ||
-                                                ((currentAfMobile as any).owner_id && (currentAfMobile as any).owner_id !== myId) ||
-                                                ((currentAfMobile as any).share_status && (currentAfMobile as any).share_status !== 'owner') ||
-                                                (() => {
-                                                    try {
-                                                        const keys = typeof (currentAfMobile as any).access_keys === 'string' ? JSON.parse((currentAfMobile as any).access_keys) : (currentAfMobile as any).access_keys;
-                                                        return keys && typeof keys === 'object' && Object.keys(keys).length > 1;
-                                                    } catch { return false; }
-                                                })()
-                                            ));
-
-                                            return editorContent === null ? (
-                                                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
-                                                    <span className="font-medium text-sm">Lade...</span>
-                                                </div>
-                                            ) : (
-                                                <Editor
-                                                    key={activeTabId}
-                                                    isShared={isSharedNoteMobile}
-                                                    initialContent={editorContent}
-                                                    editable={(() => {
-                                                        const af = files.find(f => f.id === activeNoteId);
-                                                        return (af as any)?.permission !== 'view';
-                                                    })()}
-                                                    onEditorReady={handleEditorReady}
-                                                    onChange={handleEditorChange}
-                                                    onLinkClick={handleMagicLinkClick}
-                                                    onForceSave={(json) => {
-                                                        if (activeNoteId) {
-                                                            const currentFile = files.find(f => f.id === activeNoteId);
-                                                            if (currentFile) {
-                                                                setSaveStatus("saving");
-                                                                performSave(json, activeNoteId, activeFileKey, currentFile.visibility)
-                                                                    .then(() => setSaveStatus("saved"))
-                                                                    .catch(() => setSaveStatus("unsaved"));
-                                                            }
-                                                        }
-                                                    }}
-                                                    onBlocksDeleted={handleBlocksDeleted}
-                                                    onPopOut={(text, anchorBlockId) => {
-                                                        const widget: TextWidgetElement = {
-                                                            id: crypto.randomUUID(),
-                                                            type: 'text-widget',
-                                                            anchorBlockId,
-                                                            offsetX: 24,
-                                                            offsetY: 0,
-                                                            content: text,
-                                                            backgroundColor: 'transparent',
-                                                        };
-                                                        canvasSidecar.addElement(widget);
-                                                    }}
-                                                    onConnectImage={(blockId) => setPendingBindBlockId(blockId)}
-                                                    onBlockHover={setHoveredBlockId}
-                                                    onAbortLinking={() => {
-                                                        if (isLinkingMode) {
-                                                            setIsLinkingMode(false);
-                                                            setActiveLinkBlockId(null);
-                                                        }
-                                                    }}
-                                                    onActiveUsersChange={(users) => {
-                                                        const currentMyId = myId || useDataStore.getState().myId;
-                                                        setActiveCollaborators(currentMyId ? users.filter(u => u.id !== currentMyId) : []);
-                                                    }}
-                                                    activeTabId={activeTabId}
-                                                    onReturnToTab={(tabId) => setActiveTabId(tabId)}
-                                                    userProfile={userProfile}
-                                                    myId={myId}
-                                                />
-                                            );
-                                        })()}
-                                    </div>
-                                </div>
-                            </CanvasLayer>
-                        </div>
-                    )}
-                </div>
+                <CanvasWorkspace
+                    activeTabId={activeTabId}
+                    isLoadingContent={isLoadingContent}
+                    noteLayout={noteLayout}
+                    canvasSidecar={canvasSidecar}
+                    publicKey={publicKey}
+                    privateKey={privateKey}
+                    myId={myId}
+                    activeNoteId={activeNoteId}
+                    deletedBlockIds={deletedBlockIds}
+                    pendingBindBlockId={pendingBindBlockId}
+                    setPendingBindBlockId={setPendingBindBlockId}
+                    hoveredElementId={hoveredElementId}
+                    setHoveredElementId={setHoveredElementId}
+                    isLinkingMode={isLinkingMode}
+                    setIsLinkingMode={setIsLinkingMode}
+                    activeLinkBlockId={activeLinkBlockId}
+                    setActiveLinkBlockId={setActiveLinkBlockId}
+                    hoveredBlockId={hoveredBlockId}
+                    setHoveredBlockId={setHoveredBlockId}
+                    editorInstance={editorInstance}
+                    editorVersion={editorVersion}
+                    openTabs={openTabs}
+                    setOpenTabs={setOpenTabs}
+                    files={files}
+                    editorContent={editorContent}
+                    handleFileSelect={handleFileSelect}
+                    activeCollaborators={activeCollaborators}
+                    setActiveCollaborators={setActiveCollaborators}
+                    fileName={fileName}
+                    setFileName={setFileName}
+                    saveStatus={saveStatus}
+                    setSaveStatus={setSaveStatus}
+                    submitRename={submitRename}
+                    setShowBackups={setShowBackups}
+                    handleShare={(e: any, id?: string) => { if (id) handleShare(e, id); }}
+                    setNoteSecurityModalItem={setNoteSecurityModalItem}
+                    handleDeleteNote={handleDeleteNote}
+                    canvasNoteData={canvasNoteData}
+                    setCanvasNoteData={setCanvasNoteData}
+                    handleEditorReady={handleEditorReady}
+                    handleEditorChange={handleEditorChange}
+                    handleMagicLinkClick={handleMagicLinkClick}
+                    activeFileKey={activeFileKey}
+                    performSave={performSave}
+                    handleBlocksDeleted={handleBlocksDeleted}
+                    setActiveTabId={setActiveTabId}
+                    userProfile={userProfile}
+                />
                 </div>
             </div>
 
-            {/* Dashboard Modals */}
-            <DashboardModals
+            {/* Global Modals Host */}
+            <GlobalModalsHost
                 shareModalFile={shareModalFile}
+                setShareModalFile={setShareModalFile}
                 onCloseShareModal={() => setShareModalFile(null)}
                 onShare={performShare}
                 myId={myId}
                 noteSecurityModalItem={noteSecurityModalItem}
+                setNoteSecurityModalItem={setNoteSecurityModalItem}
                 onCloseSecurityModal={() => setNoteSecurityModalItem(null)}
                 userEmail={userProfile?.email}
                 onSaveSecuritySettings={handleSaveNoteSecuritySettings}
                 isSettingsModalOpen={isSettingsModalOpen}
+                setSettingsModalOpen={(val) => setSettingsModalOpen(Boolean(typeof val === 'function' ? (val as any)(isSettingsModalOpen) : val))}
                 onCloseSettingsModal={() => setSettingsModalOpen(false)}
                 enabledExtensions={enabledExtensions}
                 onToggleExtension={handleToggleExtension}
@@ -4503,14 +3083,17 @@ export default function Dashboard() {
                 }}
                 onCreateGroup={handleCreateEventGroup}
                 scheduleModalOpen={scheduleModalOpen}
+                setScheduleModalOpen={setScheduleModalOpen}
                 onCloseScheduleModal={() => setScheduleModalOpen(false)}
                 onApplySchedule={handleScheduleApply}
                 existingThemes={files?.filter(f => f.type === 'folder' && f.isGroup).map(g => ({ id: g.id, title: g.title, effect: g.effect, color: (g as any).color })) || []}
                 isSummaryOpen={isSummaryOpen}
+                setIsSummaryOpen={setIsSummaryOpen}
                 onCloseSummary={() => setIsSummaryOpen(false)}
                 streak={streak}
                 summaryStats={summaryStats}
                 showBackups={showBackups}
+                setShowBackups={setShowBackups}
                 activeNoteId={activeNoteId}
                 editorContent={editorContent}
                 onCancelBackups={() => setShowBackups(false)}
@@ -4520,7 +3103,6 @@ export default function Dashboard() {
                     initialContentRef.current = content;
                     userHasTypedRef.current = true;
                     setShowBackups(false);
-                    // Trigger a save with the restored content
                     const currentFile = activeNoteId ? files.find(f => f.id === activeNoteId) : null;
                     if (currentFile && activeNoteId) {
                         setSaveStatus("saving");
@@ -4535,9 +3117,11 @@ export default function Dashboard() {
                     }
                 }}
                 deleteConfirm={deleteConfirm}
+                setDeleteConfirm={setDeleteConfirm}
                 onConfirmDelete={executeDeleteNote}
                 onCancelDelete={() => setDeleteConfirm(null)}
                 deleteError={deleteError}
+                setDeleteError={setDeleteError}
                 onConfirmDeleteError={() => {
                     if (deleteError?.isCorrupt) {
                         useDataStore.getState().setNotes(files.filter(f => f.id !== deleteError.fileId) as any);
@@ -4559,7 +3143,18 @@ export default function Dashboard() {
                 }}
             />
 
-
+            {/* Search Overlay */}
+            <SearchOverlay
+                isOpen={isSearching}
+                onClose={() => setIsSearching(false)}
+                onOpen={() => setIsSearching(true)}
+                onSelectResult={(target) => {
+                    handleMagicLinkClick(target);
+                }}
+                privateKey={privateKey}
+                publicKey={publicKey}
+                myId={myId}
+            />
         </div>
     );
 }

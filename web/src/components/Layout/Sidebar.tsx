@@ -1,94 +1,22 @@
 "use client";
 
-import { FileText, Plus, Folder, FolderPlus, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Settings, Lock, Pin, LogOut, Users, Puzzle, Globe, Check, Share2, Edit3, Trash2, Loader2, Upload, Download, Layout, X, GraduationCap, ShieldCheck, ListTodo, Copy } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
-import { createPortal } from "react-dom";
-import { motion, Reorder, AnimatePresence, LayoutGroup } from "framer-motion";
-import { Tab } from '@/components/Layout/TabList';
 import SmartIsland from "../extensions/smart_island/SmartIsland";
 import MiniCalendar from "../Calendar/MiniCalendar";
-import { useHighlight } from "@/components/HighlightContext";
+import { ListTodo } from "lucide-react";
 import { useDataStore } from "@/store/useDataStore";
-import { useDragGhost } from "@/store/useDragGhost";
-import { useSocialStore } from "@/store/useSocialStore";
-import { apiFetch, getApiBase } from "@/lib/api";
-import Avatar from "@/components/Profile/Avatar";
+import { apiFetch } from "@/lib/api";
 import SecuritySettingsModal from "@/components/Security/SecuritySettingsModal";
 import PinPromptModal from "@/components/Security/PinPromptModal";
 import { ItemSecuritySettings, isItemUnlocked } from "@/lib/pinSecurity";
-import { importTideBundle, exportTideBundle, markdownToTipTap, tipTapToMarkdown } from "@/lib/bundleImportExport";
-
-interface DecryptedFile {
-    id: string;
-    title: string;
-    type: string;
-    visibility: string;
-    parent_id?: string | null;
-    color?: string;
-    owner_email?: string;
-    owner_id?: string;
-    effect?: string;
-    isGroup?: boolean;
-    share_status?: string;
-    permission?: string;
-    can_reshare?: boolean;
-    metadata?: any;
-}
-
-type ContextMenuEvent = React.MouseEvent | {
-    clientX: number;
-    clientY: number;
-    preventDefault?: () => void;
-    stopPropagation?: () => void;
-};
-
-const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0));
-
-interface SidebarProps {
-    files: DecryptedFile[];
-    onFileSelect: (fileId: string, title: string) => void;
-    onNewNote: (parentId?: string | null) => void;
-    onDeleteNote: (e: React.MouseEvent, id: string) => void;
-    onRenameNote: (e: React.MouseEvent, id: string, currentTitle: string) => void;
-    onToggleVisibility: (e: React.MouseEvent, id: string, currentVisibility: string) => void;
-    onShare: (e: React.MouseEvent, id: string) => void;
-    onOpenMessages: () => void;
-    editingFileId?: string | null;
-    onRenameSubmit?: (id: string, newTitle: string) => void;
-    onCreateFolder?: (parentId: string | null, color?: string) => void;
-    onMoveItem?: (id: string, newParentId: string | null) => void;
-    selectedDate?: Date;
-    onDateSelect?: (date: Date) => void;
-    hiddenThemeIds?: string[];
-    onToggleThemeVisibility?: (themeId: string) => void;
-    onChatSelect?: (partnerId: string, partnerName: string, partnerEmail: string) => void;
-    eventGroups?: DecryptedFile[];
-    onCreateEventGroup?: () => void;
-    onUpdateEventGroup?: (id: string, updates: any) => void;
-    enabledExtensions?: string[];
-    onOpenSettings?: () => void;
-    userProfile?: { id?: string; user_id?: string; username: string; email: string; bio?: string; title?: string; avatar_seed?: string; avatar_salt?: string };
-    openTabs?: Tab[];
-    activeTabId?: string;
-    onTabSelect?: (id: string, type: Tab['type']) => void;
-    onTabClose?: (e: React.MouseEvent, id: string) => void;
-    onTabsReorder?: (newTabs: Tab[]) => void;
-    onOpenCalendar?: () => void;
-    onOpenSocial?: () => void;
-    onOpenFinance?: () => void;
-    onOpenExams?: () => void;
-    onNewCanvasNote?: () => void;
-    onOpenTodos?: () => void;
-    isTodosActive?: boolean;
-    onToggleTodos?: () => void;
-}
-
-interface ChatUser {
-    id: string;
-    public_key: string;
-    username?: string;
-    email?: string;
-}
+import { Check } from "lucide-react";
+import type { DecryptedFile, ContextMenuEvent, DropIndicator, SidebarProps } from "./sidebar/types";
+import SidebarQuickNotes from "./sidebar/SidebarQuickNotes";
+import SidebarNavTree from "./sidebar/SidebarNavTree";
+import SidebarContextMenu from "./sidebar/SidebarContextMenu";
+import type { FileContextMenuState, SidebarContextMenuState } from "./sidebar/SidebarContextMenu";
+import { useSidebarUserProfile } from "./sidebar/SidebarUserMenu";
+import * as actions from "./sidebar/sidebarActions";
 
 export default function Sidebar({
     files,
@@ -128,21 +56,7 @@ export default function Sidebar({
     isTodosActive,
     onToggleTodos,
 }: SidebarProps) {
-    const { highlight } = useHighlight();
-    const { orderedNoteIds, setOrderedNoteIds, setSettingsModalOpen } = useDataStore();
-    const pendingRequests = useSocialStore(s => s.pendingRequests);
-    const fetchPendingRequests = useSocialStore(s => s.fetchPendingRequests);
-
-    useEffect(() => {
-        fetchPendingRequests();
-        const interval = setInterval(() => {
-            fetchPendingRequests();
-        }, 30000);
-        return () => clearInterval(interval);
-    }, [fetchPendingRequests]);
-    const [chats, setChats] = useState<ChatUser[]>([]);
-    const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-    const profileMenuRef = useRef<HTMLDivElement>(null);
+    const { orderedNoteIds, setOrderedNoteIds } = useDataStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const scrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -153,12 +67,11 @@ export default function Sidebar({
         }
     };
 
-    const [myId, setMyId] = useState<string>("");
-    const [sidebarUserProfile, setSidebarUserProfile] = useState<{ id?: string, user_id?: string, username: string, email: string, avatar_seed?: string, avatar_salt?: string } | null>(null);
-    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, id: string, type: 'file' | 'folder' } | null>(null);
+    const { myId, sidebarUserProfile } = useSidebarUserProfile();
+    const [contextMenu, setContextMenu] = useState<FileContextMenuState | null>(null);
     const lastContextMenuOpenTimeRef = useRef(0);
-    const [sidebarContextMenu, setSidebarContextMenu] = useState<{ x: number; y: number } | null>(null);
-    const [dropIndicator, setDropIndicator] = useState<{ id: string, zone: 'top' | 'middle' | 'bottom' } | null>(null);
+    const [sidebarContextMenu, setSidebarContextMenu] = useState<SidebarContextMenuState | null>(null);
+    const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
 
     // Security & PIN Protection State
@@ -276,42 +189,6 @@ export default function Sidebar({
         const newIds = newItems.map(i => i.id);
     };
 
-    useEffect(() => {
-        const id = sessionStorage.getItem('tide_user_id') || localStorage.getItem('tide_user_id') || '';
-        setMyId(id);
-
-        const email = sessionStorage.getItem("tide_user_email") || localStorage.getItem("tide_user_email");
-        let username = "User";
-
-        if (email) {
-            username = email.split('@')[0];
-            const userRecordStr = localStorage.getItem("tide_user_" + email);
-            if (userRecordStr) {
-                try {
-                    const record = JSON.parse(userRecordStr);
-                    if (record.username) username = record.username;
-                } catch (e) { }
-            }
-            setSidebarUserProfile({ username, email });
-
-            // Fetch real profile (avatar_seed + avatar_salt) from backend
-            if (id) {
-                fetch(`${getApiBase()}/api/v1/profiles/${id}`)
-                    .then(r => r.ok ? r.json() : null)
-                    .then(profile => {
-                        if (profile) {
-                            setSidebarUserProfile({
-                                username: profile.username || username,
-                                email,
-                                avatar_seed: profile.avatar_seed || id,
-                                avatar_salt: profile.avatar_salt || '',
-                            });
-                        }
-                    })
-                    .catch(() => { });
-            }
-        }
-    }, []);
 
     useEffect(() => {
         const handlePromptPin = (e: Event) => {
@@ -338,9 +215,6 @@ export default function Sidebar({
         const handleClickOutside = (event: MouseEvent | TouchEvent) => {
             if (Date.now() - lastContextMenuOpenTimeRef.current < 450) return;
             const target = event.target as HTMLElement | null;
-            if (profileMenuRef.current && target && !profileMenuRef.current.contains(target)) {
-                setIsProfileMenuOpen(false);
-            }
             if (contextMenu && target && !target.closest?.('.context-menu')) {
                 setContextMenu(null);
             }
@@ -354,7 +228,7 @@ export default function Sidebar({
             document.removeEventListener("mousedown", handleClickOutside);
             document.removeEventListener("touchstart", handleClickOutside);
         };
-    }, [isProfileMenuOpen, contextMenu, sidebarContextMenu]);
+    }, [contextMenu, sidebarContextMenu]);
 
     useEffect(() => {
         const handleDragEnd = () => {
@@ -365,14 +239,6 @@ export default function Sidebar({
         return () => document.removeEventListener('dragend', handleDragEnd);
     }, []);
 
-    const handleSignOut = () => {
-        sessionStorage.clear();
-        localStorage.removeItem("tide_user_email");
-        localStorage.removeItem("tide_user_id");
-        localStorage.removeItem("tide_session_token");
-        window.location.reload();
-    };
-
     const handleContextMenu = (e: ContextMenuEvent, id: string, type: 'file' | 'folder') => {
         e.preventDefault?.();
         e.stopPropagation?.();
@@ -382,130 +248,9 @@ export default function Sidebar({
 
     const effectiveUserName = userProfile?.username || (typeof window !== 'undefined' ? sessionStorage.getItem('tide_user_name') : null) || (userProfile?.email || "").split('@')[0] || "User";
 
-    const handleImport = (targetFolderId: string | null = null) => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = '.tide.json,.json,.md,.txt';
-        input.onchange = async (e: any) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                try {
-                    const rawContent = event.target?.result as string;
-                    if (file.name.endsWith('.json') || file.name.endsWith('.tide.json')) {
-                        const parsed = JSON.parse(rawContent);
-                        if (parsed && (parsed.version || Array.isArray(parsed.notes))) {
-                            const res = await importTideBundle(parsed, targetFolderId);
-                            await useDataStore.getState().fetchDirectory(null, true);
-                            if (res.importedNoteIds.length > 0) {
-                                onFileSelect(res.importedNoteIds[0], "Importiert");
-                            }
-                            return;
-                        }
-                    }
-
-                    const title = file.name.replace(/\.(md|txt|json)$/, '');
-                    const tiptapDoc = markdownToTipTap(rawContent);
-                    const newId = await useDataStore.getState().createNote(title, tiptapDoc, targetFolderId);
-                    await useDataStore.getState().fetchDirectory(null, true);
-                    onFileSelect(newId, title);
-                } catch (err: any) {
-                    console.error("Import error:", err);
-                    alert("Import fehlgeschlagen: " + (err?.message || "Ungültige Datei"));
-                }
-            };
-            reader.readAsText(file);
-        };
-        input.click();
-    };
-
-    const handleExport = async (itemId: string, format: 'bundle' | 'markdown') => {
-        const targetFile = files.find(f => f.id === itemId);
-        if (!targetFile) return;
-
-        try {
-            if (format === 'bundle') {
-                const bundle = await exportTideBundle([itemId], true);
-                const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                const safeTitle = (targetFile.title || 'tide_bundle').replace(/[/\\?%*:|"<>]/g, '_');
-                a.download = `${safeTitle}.tide.json`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            } else {
-                const bundle = await exportTideBundle([itemId], false);
-                const noteItem = bundle.items.find(i => i.id === itemId);
-                const md = tipTapToMarkdown(noteItem?.content, noteItem?.title || targetFile.title);
-                const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                const safeTitle = (targetFile.title || 'note').replace(/[/\\?%*:|"<>]/g, '_');
-                a.download = `${safeTitle}.md`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }
-        } catch (err: any) {
-            console.error("Export error:", err);
-            alert("Export fehlgeschlagen: " + (err?.message || "Fehler"));
-        }
-    };
-
-    const handleCopyToMyNotes = async (file: DecryptedFile) => {
-        try {
-            setContextMenu(null);
-            let content: any = null;
-            const backupKey = `tide_backup_${file.id}`;
-            const localBackup = typeof window !== 'undefined' ? localStorage.getItem(backupKey) : null;
-            if (localBackup) {
-                try {
-                    content = JSON.parse(localBackup);
-                } catch (e) {
-                    console.warn("Failed to parse local backup for copy", e);
-                }
-            }
-
-            if (!content) {
-                try {
-                    const bundle = await exportTideBundle([file.id], false);
-                    const item = bundle.items.find(i => i.id === file.id);
-                    if (item?.content) {
-                        content = item.content;
-                    }
-                } catch (bundleErr) {
-                    console.warn("Failed to get content via bundle export", bundleErr);
-                }
-            }
-
-            if (!content) {
-                content = {
-                    type: 'doc',
-                    content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() }, content: [] }]
-                };
-            }
-
-            const newTitle = `${file.title} (Kopie)`;
-            const newId = await useDataStore.getState().createNote(newTitle, content, null);
-            setToastMessage("Notiz in eigene Notizen kopiert! Du hast nun volle Rechte über diese Kopie.");
-            setTimeout(() => {
-                setToastMessage(null);
-            }, 4000);
-
-            if (newId) {
-                onFileSelect(newId, newTitle);
-            }
-        } catch (err: any) {
-            console.error("Failed to copy note to my notes:", err);
-            alert("Kopieren fehlgeschlagen: " + (err?.message || "Unbekannter Fehler"));
-        }
-    };
+    const handleImport = (targetFolderId: string | null = null) => actions.handleImport(onFileSelect, targetFolderId);
+    const handleExport = (itemId: string, format: 'bundle' | 'markdown') => actions.handleExport(files, itemId, format);
+    const handleCopyToMyNotes = (file: DecryptedFile) => actions.handleCopyToMyNotes(file, onFileSelect, setContextMenu, setToastMessage);
 
     return (
         <div
@@ -517,77 +262,15 @@ export default function Sidebar({
                 setSidebarContextMenu({ x: e.clientX, y: e.clientY });
             }}
         >
-            {/* Sticky top section: Navigation & Recent */}
-            <div className="flex-shrink-0 p-2 pt-[max(1rem,calc(env(safe-area-inset-top)+8px))] pb-0">
-                {/* Navigation Section */}
-                <div className="mb-2 px-1 flex gap-1">
-                    <button
-                        onClick={() => onOpenSocial?.()}
-                        className={`flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group relative ${activeTabId === 'social' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
-                    >
-                        <div className={`relative shrink-0 ${activeTabId === 'social' ? 'text-blue-500' : 'text-[var(--text-muted)] group-hover:text-blue-500 transition-colors'}`}>
-                            <Users size={16} />
-                            {pendingRequests.length > 0 && (
-                                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[var(--bg-panel)]" />
-                            )}
-                        </div>
-                        <span className={`text-[13px] font-medium flex-1 text-left ${activeTabId === 'social' ? 'text-[var(--text-body)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-body)] transition-colors'}`}>
-                            Social
-                        </span>
-                        {pendingRequests.length > 0 && (
-                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-500 text-white shrink-0 leading-none">
-                                {pendingRequests.length}
-                            </span>
-                        )}
-                    </button>
-
-                    {(!enabledExtensions || enabledExtensions.includes('job_planner')) && (
-                        <button
-                            onClick={() => onOpenExams?.()}
-                            className={`flex items-center gap-2 px-2 py-1.5 rounded-[var(--radius)] cursor-pointer interactive-hover transition-colors group ${activeTabId === 'job_planner' || activeTabId === 'exams' ? 'bg-[#EBEBEB] dark:bg-white/10' : 'hover:bg-[var(--hover-bg)]'}`}
-                        >
-                            <div className={`shrink-0 ${activeTabId === 'job_planner' || activeTabId === 'exams' ? 'text-blue-500' : 'text-[var(--text-muted)] group-hover:text-blue-500 transition-colors'}`}>
-                                <GraduationCap size={16} />
-                            </div>
-                            <span className={`text-[13px] font-medium flex-1 text-left ${activeTabId === 'job_planner' || activeTabId === 'exams' ? 'text-[var(--text-body)]' : 'text-[var(--text-muted)] group-hover:text-[var(--text-body)] transition-colors'}`}>
-                                Job & Uni
-                            </span>
-                        </button>
-                    )}
-
-                </div>
-            </div>{/* end sticky top section */}
-
-            {/* Notes label with quick actions */}
-            <div className="flex-shrink-0 px-2 pt-1 pb-1 flex items-center justify-between">
-                <p className="text-[11px] font-semibold uppercase tracking-[1.2px] text-gray-700 dark:text-slate-300">
-                    Notes
-                </p>
-                <div className="flex items-center gap-0.5">
-                    <button
-                        onClick={() => handleImport(null)}
-                        className="p-1 rounded-md text-gray-400 hover:text-gray-900 dark:text-slate-500 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                        title="Notiz oder Bundle importieren (.tide.json, .md)"
-                    >
-                        <Upload size={13} />
-                    </button>
-                    <button
-                        onClick={() => onCreateFolder?.(null)}
-                        className="p-1 rounded-md text-gray-400 hover:text-gray-900 dark:text-slate-500 dark:hover:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                        title="Neuer Ordner"
-                    >
-                        <FolderPlus size={13} />
-                    </button>
-                    <button
-                        onClick={() => onNewNote(null)}
-                        className="p-1 rounded-md text-gray-400 hover:text-blue-600 dark:text-slate-500 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                        title="Neue Notiz"
-                    >
-                        <Plus size={14} />
-                    </button>
-                </div>
-            </div>
-
+            <SidebarQuickNotes
+                activeTabId={activeTabId}
+                enabledExtensions={enabledExtensions}
+                onOpenSocial={onOpenSocial}
+                onOpenExams={onOpenExams}
+                onCreateFolder={onCreateFolder}
+                onNewNote={onNewNote}
+                onImport={() => handleImport(null)}
+            />
             {/* Scrollable notes section — flex-based height so RECENT expansion doesn't push content under Smart Island */}
             <div
                 ref={scrollContainerRef}
@@ -637,217 +320,37 @@ export default function Sidebar({
                     setDropIndicator(null);
                 }}
             >
-                <div className="space-y-0.5">
-                    {sharedWithMeItems.length > 0 && (
-                        <div className="mb-1">
-                            <button
-                                onClick={() => setIsSharedFolderOpen(o => !o)}
-                                className="group flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover transition-colors"
-                            >
-                                <div className="flex items-center gap-1.5 truncate flex-1">
-                                    <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300 transition-colors">
-                                        {isSharedFolderOpen ? (
-                                            <ChevronDown size={12} className="shrink-0 transition-transform duration-150" />
-                                        ) : (
-                                            <ChevronRight size={12} className="shrink-0 transition-transform duration-150" />
-                                        )}
-                                    </span>
-                                    {isSharedFolderOpen ? <FolderOpen size={15} className="text-violet-400 shrink-0" /> : <Folder size={15} className="text-violet-400 shrink-0" />}
-                                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">Geteilt mit mir</span>
-                                    {pendingShareCount > 0 && (
-                                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
-                                            {pendingShareCount} neu
-                                        </span>
-                                    )}
-                                </div>
-                            </button>
-                            {isSharedFolderOpen && (
-                                <div className="relative mt-0.5 ml-3 pl-2.5 border-l border-violet-200/60 dark:border-violet-800/40 space-y-0.5">
-                                    {(() => {
-                                        const topShared = sharedWithMeItems.filter(f => !f.parent_id || !sharedWithMeItems.some(p => p.id === f.parent_id));
-                                        return topShared.map((item) => (
-                                            item.type === 'folder' ? (
-                                                <FolderItem
-                                                    key={item.id}
-                                                    folder={item}
-                                                    allFiles={files}
-                                                    level={0}
-                                                    viewMode={'files'}
-                                                    onSelect={handleProtectedSelect}
-                                                    onDelete={onDeleteNote}
-                                                    onRename={onRenameNote}
-                                                    onVisibility={onToggleVisibility}
-                                                    onShare={onShare}
-                                                    editingId={editingFileId}
-                                                    onRenameSubmit={onRenameSubmit}
-                                                    onCreateFolder={onCreateFolder}
-                                                    onMoveItem={onMoveItem}
-                                                    onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
-                                                    hiddenThemeIds={hiddenThemeIds}
-                                                    onToggleThemeVisibility={(id) => onToggleThemeVisibility && onToggleThemeVisibility(id)}
-                                                    enabledExtensions={enabledExtensions}
-                                                    myId={myId}
-                                                    onContextMenu={handleContextMenu}
-                                                    dropIndicator={dropIndicator}
-                                                    setDropIndicator={setDropIndicator}
-                                                    orderedNoteIds={orderedNoteIds}
-                                                    setOrderedNoteIds={setOrderedNoteIds}
-                                                    handleReorder={handleReorder}
-                                                    activeTabId={activeTabId}
-                                                    openTabs={openTabs}
-                                                />
-                                            ) : (
-                                                <FileItem
-                                                    key={item.id}
-                                                    file={item}
-                                                    level={0}
-                                                    onSelect={handleProtectedSelect}
-                                                    onDelete={onDeleteNote}
-                                                    onRename={onRenameNote}
-                                                    onVisibility={onToggleVisibility}
-                                                    onShare={onShare}
-                                                    editingId={editingFileId}
-                                                    onRenameSubmit={onRenameSubmit}
-                                                    onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
-                                                    enabledExtensions={enabledExtensions}
-                                                    myId={myId}
-                                                    onContextMenu={handleContextMenu}
-                                                    activeTabId={activeTabId}
-                                                    openTabs={openTabs}
-                                                />
-                                            )
-                                        ));
-                                    })()}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                    {orderedItems.map((item, i) => (
-                        <motion.div
-                            layout
-                            key={item.id}
-                            transition={{ layout: { type: 'spring', stiffness: 350, damping: 40, mass: 0.8 } }}
-                            className={
-                                dropIndicator?.id === item.id && dropIndicator.zone === 'top'
-                                    ? 'border-t-2 border-blue-400 rounded-t'
-                                    : dropIndicator?.id === item.id && dropIndicator.zone === 'bottom'
-                                    ? 'border-b-2 border-blue-400 rounded-b'
-                                    : ''
-                            }
-                            onDragOver={(e: React.DragEvent) => {
-                                if (e.dataTransfer.types.includes('tide/calendar-event')) {
-                                    return; // Let FileItem handle calendar drops!
-                                }
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const rowHeight = 32; // Feste Höhe einer Item-Row
-                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                const y = e.clientY - rect.top;
-                                let zone: 'top' | 'middle' | 'bottom' = 'middle';
-                                if (item.type === 'folder') {
-                                    if (y < rowHeight * 0.3) zone = 'top';
-                                    else if (y > rowHeight * 0.7) zone = 'bottom';
-                                } else {
-                                    zone = y < rowHeight / 2 ? 'top' : 'bottom';
-                                }
-                                setDropIndicator({ id: item.id, zone });
-                            }}
-                            onDragLeave={(e: React.DragEvent) => {
-                                if ((e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) return;
-                                setDropIndicator(null);
-                            }}
-                            onDrop={(e: React.DragEvent) => {
-                                if (e.dataTransfer.types.includes('tide/calendar-event')) {
-                                    return; // Handled by FileItem
-                                }
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const zone = dropIndicator?.zone || 'bottom';
-                                setDropIndicator(null);
-                                const draggedId = e.dataTransfer.getData("text/plain");
-                                if (!draggedId || draggedId === item.id) return;
-
-                                if (zone === 'middle' && item.type === 'folder') {
-                                    onMoveItem?.(draggedId, item.id);
-                                    return;
-                                }
-
-                                const draggedFile = files.find(o => o.id === draggedId);
-                                if (!draggedFile) return;
-
-                                const newItems = [...orderedItems].filter(o => o.id !== draggedId);
-                                let dropIdx = newItems.findIndex(o => o.id === item.id);
-                                if (zone === 'bottom') dropIdx += 1;
-
-                                if (draggedFile.parent_id !== null) {
-                                    onMoveItem?.(draggedId, null);
-                                    // Since it's moving from a folder to root, we must add it to the top level
-                                    newItems.splice(dropIdx, 0, draggedFile);
-                                    handleReorder(newItems);
-                                } else {
-                                    // It's already top level, just reorder
-                                    const draggedItemInOrder = orderedItems.find(o => o.id === draggedId);
-                                    if (draggedItemInOrder) {
-                                        newItems.splice(dropIdx, 0, draggedItemInOrder);
-                                        handleReorder(newItems);
-                                    }
-                                }
-                            }}
-                        >
-                            {item.type === 'folder' ? (
-                                <div className={`relative ${dropIndicator?.id === item.id && dropIndicator.zone === 'middle' ? 'ring-2 ring-blue-500 bg-blue-50/50 rounded-lg' : ''}`}>
-                                    <FolderItem
-                                        folder={item}
-                                        allFiles={files}
-                                        level={0}
-                                        viewMode={'files'}
-                                        onSelect={handleProtectedSelect}
-                                        onDelete={onDeleteNote}
-                                        onRename={onRenameNote}
-                                        onVisibility={onToggleVisibility}
-                                        onShare={onShare}
-                                        editingId={editingFileId}
-                                        onRenameSubmit={onRenameSubmit}
-                                        onCreateFolder={onCreateFolder}
-                                        onMoveItem={onMoveItem}
-                                        onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
-                                        hiddenThemeIds={hiddenThemeIds}
-                                        onToggleThemeVisibility={(id) => onToggleThemeVisibility && onToggleThemeVisibility(id)}
-                                        enabledExtensions={enabledExtensions}
-                                        myId={myId}
-                                        onContextMenu={handleContextMenu}
-                                        dropIndicator={dropIndicator}
-                                        setDropIndicator={setDropIndicator}
-                                        orderedNoteIds={orderedNoteIds}
-                                        setOrderedNoteIds={setOrderedNoteIds}
-                                        handleReorder={handleReorder}
-                                        activeTabId={activeTabId}
-                                        openTabs={openTabs}
-                                    />
-                                </div>
-                            ) : (
-                                <FileItem
-                                    file={item}
-                                    level={0}
-                                    onSelect={handleProtectedSelect}
-                                    onDelete={onDeleteNote}
-                                    onRename={onRenameNote}
-                                    onVisibility={onToggleVisibility}
-                                    onShare={onShare}
-                                    editingId={editingFileId}
-                                    onRenameSubmit={onRenameSubmit}
-                                    onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
-                                    enabledExtensions={enabledExtensions}
-                                    myId={myId}
-                                    onContextMenu={handleContextMenu}
-                                    activeTabId={activeTabId}
-                                    openTabs={openTabs}
-                                />
-                            )}
-                        </motion.div>
-                    ))}
-                </div>
+                <SidebarNavTree
+                    files={files}
+                    onDeleteNote={onDeleteNote}
+                    onRenameNote={onRenameNote}
+                    onToggleVisibility={onToggleVisibility}
+                    onShare={onShare}
+                    editingFileId={editingFileId}
+                    onRenameSubmit={onRenameSubmit}
+                    onCreateFolder={onCreateFolder}
+                    onMoveItem={onMoveItem}
+                    hiddenThemeIds={hiddenThemeIds}
+                    onToggleThemeVisibility={onToggleThemeVisibility}
+                    enabledExtensions={enabledExtensions}
+                    activeTabId={activeTabId}
+                    openTabs={openTabs}
+                    myId={myId}
+                    sharedWithMeItems={sharedWithMeItems}
+                    pendingShareCount={pendingShareCount}
+                    isSharedFolderOpen={isSharedFolderOpen}
+                    setIsSharedFolderOpen={setIsSharedFolderOpen}
+                    orderedItems={orderedItems}
+                    dropIndicator={dropIndicator}
+                    setDropIndicator={setDropIndicator}
+                    orderedNoteIds={orderedNoteIds}
+                    setOrderedNoteIds={setOrderedNoteIds}
+                    handleReorder={handleReorder}
+                    handleProtectedSelect={handleProtectedSelect}
+                    handleContextMenu={handleContextMenu}
+                />
             </div>
+
 
             {/* Bottom spacer — reserves height for the absolutely-positioned Smart Island.
                 Needs to be >= island height (≈250px) + bottom-6 margin (24px). */}
@@ -884,235 +387,24 @@ export default function Sidebar({
                 )}
             </div>
 
-
-            {contextMenu && typeof document !== 'undefined' && (() => {
-                const clampedX = typeof window !== 'undefined' ? Math.max(8, Math.min(contextMenu.x, window.innerWidth - 240)) : contextMenu.x;
-                const clampedY = typeof window !== 'undefined' ? Math.max(8, Math.min(contextMenu.y, window.innerHeight - 340)) : contextMenu.y;
-                return createPortal(
-                    <div
-                        className="context-menu fixed z-[9999] w-56 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
-                        style={{ left: clampedX, top: clampedY }}
-                    >
-                        <div className="px-2 py-1.5 flex flex-col gap-0.5">
-                        {/* 1. Rename */}
-                        <button
-                            onClick={(e) => { setContextMenu(null); onRenameNote(e, contextMenu.id, ""); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
-                        >
-                            <Edit3 size={15} className="text-gray-400 group-hover:text-blue-500" />
-                            <span className="font-medium">Umbenennen</span>
-                        </button>
-
-                        {/* 2. New Note | Folder (auf einer Zeile) */}
-                        {(() => {
-                            const currentFile = files.find((f) => f.id === contextMenu.id);
-                            const parentId = contextMenu.type === 'folder' ? contextMenu.id : (currentFile?.parent_id || null);
-                            return (
-                                <div className="grid grid-cols-2 gap-1 my-0.5">
-                                    <button
-                                        onClick={() => { 
-                                            setContextMenu(null); 
-                                            onNewNote(parentId);
-                                        }}
-                                        className="flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-slate-800/80 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors border border-gray-200/50 dark:border-slate-700/50"
-                                        title="Neue Notiz"
-                                    >
-                                        <Plus size={14} className="text-blue-500" />
-                                        <span>Notiz</span>
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            setContextMenu(null);
-                                            onCreateFolder?.(parentId);
-                                        }}
-                                        className="flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-slate-800/80 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors border border-gray-200/50 dark:border-slate-700/50"
-                                        title="Neuer Ordner"
-                                    >
-                                        <FolderPlus size={14} className="text-amber-500" />
-                                        <span>Ordner</span>
-                                    </button>
-                                </div>
-                            );
-                        })()}
-
-                        {/* 3. Trennlinie */}
-                        <div className="h-px bg-gray-100 dark:bg-slate-800 my-1" />
-
-                        {/* In meine Notizen kopieren (für geteilte Notizen) */}
-                        {(() => {
-                            const targetFile = files.find(f => f.id === contextMenu.id);
-                            const currentMyId = myId || useDataStore.getState().myId;
-                            const isSharedNote = targetFile && targetFile.type !== 'folder' && targetFile.owner_id && currentMyId && targetFile.owner_id !== currentMyId;
-                            if (!isSharedNote) return null;
-                            return (
-                                <button
-                                    onClick={() => handleCopyToMyNotes(targetFile)}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
-                                >
-                                    <Copy size={15} className="text-gray-400 group-hover:text-blue-500" />
-                                    <span className="font-medium">In meine Notizen kopieren</span>
-                                </button>
-                            );
-                        })()}
-
-                        {/* 4. Share (nur wenn isOwner || file.can_reshare) */}
-                        {(() => {
-                            const targetFile = files.find(f => f.id === contextMenu.id);
-                            const currentMyId = myId || useDataStore.getState().myId;
-                            const isOwner = !targetFile?.owner_id || targetFile?.owner_id === currentMyId || targetFile?.share_status === 'owner';
-                            const canShare = isOwner || Boolean(targetFile?.can_reshare);
-                            if (!canShare) return null;
-                            return (
-                        <button
-                            onClick={(e) => { setContextMenu(null); onShare(e, contextMenu.id); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
-                        >
-                            <Share2 size={15} className="text-gray-400 group-hover:text-blue-500" />
-                            <span className="font-medium">Teilen</span>
-                        </button>
-
-                            );
-                        })()}
-
-                        {/* 5. Secure (PIN) */}
-                        {(() => {
-                            const targetFile = files.find(f => f.id === contextMenu.id);
-                            const isProtected = !!(targetFile?.metadata?.has_custom_password || targetFile?.metadata?.security_settings?.has_custom_password);
-                            return (
-                                <button
-                                    onClick={() => {
-                                        const targetId = contextMenu.id;
-                                        setContextMenu(null);
-                                        handleOpenSecuritySettings(targetId);
-                                    }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
-                                >
-                                    {isProtected ? (
-                                        <ShieldCheck size={15} className="text-amber-500 group-hover:text-amber-600" />
-                                    ) : (
-                                        <Lock size={15} className="text-gray-400 group-hover:text-purple-500" />
-                                    )}
-                                    <span className="font-medium">
-                                        {isProtected ? "PIN-Schutz verwalten" : "Sichern"}
-                                    </span>
-                                </button>
-                            );
-                        })()}
-
-                        {/* 6. Export & Import */}
-                        <div className="h-px bg-gray-100 dark:bg-slate-800 my-1" />
-                        <button
-                            onClick={() => {
-                                const targetId = contextMenu.id;
-                                setContextMenu(null);
-                                handleExport(targetId, 'bundle');
-                            }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
-                            title="Exportiert als komplettes Bundle inklusive interner Referenzen"
-                        >
-                            <Download size={15} className="text-gray-400 group-hover:text-blue-500" />
-                            <span className="font-medium">Export (.tide.json)</span>
-                        </button>
-                        {contextMenu.type === 'file' && (
-                            <button
-                                onClick={() => {
-                                    const targetId = contextMenu.id;
-                                    setContextMenu(null);
-                                    handleExport(targetId, 'markdown');
-                                }}
-                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
-                                title="Exportiert reines Markdown"
-                            >
-                                <FileText size={15} className="text-gray-400 group-hover:text-blue-500" />
-                                <span className="font-medium">Export (.md)</span>
-                            </button>
-                        )}
-                        <button
-                            onClick={() => {
-                                const currentFile = files.find(f => f.id === contextMenu.id);
-                                const targetFolder = contextMenu.type === 'folder' ? contextMenu.id : (currentFile?.parent_id || null);
-                                setContextMenu(null);
-                                handleImport(targetFolder);
-                            }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
-                            title="Importiert Notizen oder Bundles direkt an diese Stelle"
-                        >
-                            <Upload size={15} className="text-gray-400 group-hover:text-blue-500" />
-                            <span className="font-medium">Hier importieren</span>
-                        </button>
-
-                        {/* 7. Trennlinie */}
-                        <div className="h-px bg-gray-100 dark:bg-slate-800 my-1" />
-
-                        {/* 8. Delete */}
-                        {(() => {
-                            const targetFile = files.find(f => f.id === contextMenu.id);
-                            const isShared = targetFile && targetFile.share_status && targetFile.share_status !== 'owner';
-                            const isFolder = contextMenu.type === 'folder';
-                            
-                            return (
-                                <button
-                                    onClick={(e) => { setContextMenu(null); onDeleteNote(e, contextMenu.id); }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors group"
-                                >
-                                    {isShared ? (
-                                        <LogOut size={15} className="text-rose-400 group-hover:text-rose-600" />
-                                    ) : (
-                                        <Trash2 size={15} className="text-rose-400 group-hover:text-rose-600" />
-                                    )}
-                                    <span className="font-medium">
-                                        {isShared ? (isFolder ? "Ordner verlassen" : "Notiz verlassen") : (isFolder ? "Ordner löschen" : "Löschen")}
-                                    </span>
-                                </button>
-                            );
-                        })()}
-                    </div>
-                </div>,
-                document.body
-            );
-        })()}
-
-            {sidebarContextMenu && typeof document !== 'undefined' && createPortal(
-                <div
-                    className="context-menu fixed z-[9999] w-56 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
-                    style={{ left: sidebarContextMenu.x, top: sidebarContextMenu.y }}
-                >
-                    <div className="px-2 py-1.5 flex flex-col gap-0.5">
-                        <button
-                            onClick={() => { setSidebarContextMenu(null); onNewNote(); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
-                        >
-                            <Plus size={16} className="text-gray-400 group-hover:text-blue-500" />
-                            <span className="font-medium">Neue Notiz</span>
-                        </button>
-                        {onNewCanvasNote && (
-                            <button
-                                onClick={() => { setSidebarContextMenu(null); onNewCanvasNote(); }}
-                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
-                            >
-                                <Layout size={16} className="text-gray-400 group-hover:text-blue-500" />
-                                <span className="font-medium">Neue Leinwand</span>
-                            </button>
-                        )}
-                        <button
-                            onClick={() => { setSidebarContextMenu(null); onCreateFolder && onCreateFolder(null); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
-                        >
-                            <FolderPlus size={16} className="text-gray-400 group-hover:text-blue-500" />
-                            <span className="font-medium">Neuer Ordner</span>
-                        </button>
-                        <div className="h-px bg-gray-100 my-1" />
-                        <button
-                            onClick={() => { setSidebarContextMenu(null); handleImport(); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
-                        >
-                            <Upload size={16} className="text-gray-400 group-hover:text-blue-500" />
-                            <span className="font-medium">Importieren (.tide.json, .md)</span>
-                        </button>
-                    </div>
-                </div>,
-                document.body
-            )}
+            <SidebarContextMenu
+                files={files}
+                onNewNote={onNewNote}
+                onCreateFolder={onCreateFolder}
+                onShare={onShare}
+                onDeleteNote={onDeleteNote}
+                onRenameNote={onRenameNote}
+                onNewCanvasNote={onNewCanvasNote}
+                contextMenu={contextMenu}
+                setContextMenu={setContextMenu}
+                sidebarContextMenu={sidebarContextMenu}
+                setSidebarContextMenu={setSidebarContextMenu}
+                myId={myId}
+                handleOpenSecuritySettings={handleOpenSecuritySettings}
+                handleExport={handleExport}
+                handleImport={handleImport}
+                handleCopyToMyNotes={handleCopyToMyNotes}
+            />
 
             {securityModalItem && (
                 <SecuritySettingsModal
@@ -1157,625 +449,3 @@ export default function Sidebar({
         </div>
     );
 }
-
-interface FileItemProps {
-    file: DecryptedFile;
-    level: number;
-    onSelect: (id: string, title: string) => void;
-    onDelete: (e: React.MouseEvent, id: string) => void;
-    onRename: (e: React.MouseEvent, id: string, currentTitle: string) => void;
-    onVisibility: (e: React.MouseEvent, id: string, currentVisibility: string) => void;
-    onShare: (e: React.MouseEvent, id: string) => void;
-    editingId?: string | null;
-    onRenameSubmit?: (id: string, newTitle: string) => void;
-    onDragStart: (e: React.DragEvent, id: string) => void;
-    onContextMenu: (e: ContextMenuEvent, id: string, type: 'file' | 'folder') => void;
-    enabledExtensions?: string[];
-    myId?: string;
-    index?: number;
-    activeTabId?: string;
-    openTabs?: Tab[];
-}
-
-const AnimatedLinkingText = ({ text, index = 0 }: { text: string, index?: number }) => {
-    return (
-        <motion.span
-            initial={{ color: 'inherit', textShadow: 'none', fontWeight: 500 }}
-            animate={{
-                color: ['inherit', '#a855f7', '#a855f7', 'inherit'],
-                textShadow: ['none', '0 0 12px rgba(168,85,247,0.7)', '0 0 12px rgba(168,85,247,0.7)', 'none'],
-                fontWeight: [500, 700, 700, 500]
-            }}
-            transition={{
-                duration: 2.5,
-                repeat: 3, // Don't animate continuously
-                delay: (index * 0.15), // Wave effect
-                ease: "easeInOut",
-                times: [0, 0.3, 0.7, 1]
-            }}
-            className="inline-block truncate w-full"
-        >
-            {text}
-        </motion.span>
-    );
-};
-
-const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onDragStart, onContextMenu, enabledExtensions, myId, index, activeTabId, openTabs }: FileItemProps) => {
-    const { isHighlighted, highlight } = useHighlight();
-    const startGhost = useDragGhost(s => s.startGhost);
-    const [isCalendarDropTarget, setIsCalendarDropTarget] = useState(false);
-    const activeNoteId = useDataStore(s => s.activeNoteId);
-
-    // Active state and Open tabs state
-    const isActive = activeTabId === file.id || activeNoteId === file.id;
-    const isOpen = !!openTabs?.some(t => t.id === file.id);
-    const isLocked = Boolean(file.metadata?.has_custom_password || file.metadata?.security_settings?.has_custom_password || (typeof file.title === 'string' && file.title.startsWith('#')));
-
-    // Touch long-press handling
-    const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-    const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const isLongPressTriggeredRef = useRef(false);
-
-    useEffect(() => {
-        return () => {
-            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-        };
-    }, []);
-
-    // Custom-drag detection: the calendar's main drag uses mousedown/mousemove,
-    // not HTML5 DnD, so onDragOver never fires. We listen for the global custom
-    // events emitted by CalendarView and decide whether the cursor is over our
-    // own bounding rect.
-    const tileRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        const onMove = (ev: Event) => {
-            const detail = (ev as CustomEvent).detail;
-            if (!detail || !tileRef.current) return;
-            const r = tileRef.current.getBoundingClientRect();
-            const inside = detail.x >= r.left && detail.x <= r.right && detail.y >= r.top && detail.y <= r.bottom;
-            if (inside && !isCalendarDropTarget) {
-                setIsCalendarDropTarget(true);
-                onSelect(file.id, file.title);
-            } else if (!inside && isCalendarDropTarget) {
-                setIsCalendarDropTarget(false);
-            }
-        };
-        const onDrop = (ev: Event) => {
-            const detail = (ev as CustomEvent).detail;
-            if (!detail || detail.consumed || !tileRef.current) return;
-            const r = tileRef.current.getBoundingClientRect();
-            const inside = detail.x >= r.left && detail.x <= r.right && detail.y >= r.top && detail.y <= r.bottom;
-            if (!inside) return;
-            // Mark this drop as consumed so CalendarView skips its own time-move logic.
-            detail.consumed = true;
-            detail.targetNoteId = file.id;
-            setIsCalendarDropTarget(false);
-            onSelect(file.id, file.title);
-            setTimeout(() => {
-                startGhost({
-                    eventId: detail.eventId,
-                    title: detail.title || 'Untitled',
-                    start: detail.start || '',
-                    end: detail.end || '',
-                    color: detail.color || undefined,
-                    targetNoteId: file.id,
-                });
-            }, 80);
-        };
-        window.addEventListener('tide:event-drag-move', onMove);
-        window.addEventListener('tide:event-drag-drop', onDrop);
-        return () => {
-            window.removeEventListener('tide:event-drag-move', onMove);
-            window.removeEventListener('tide:event-drag-drop', onDrop);
-        };
-    }, [file.id, file.title, isCalendarDropTarget, onSelect, startGhost]);
-
-    return (
-        <motion.div
-            ref={tileRef}
-            data-note-tile={file.id}
-            layout
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ type: 'spring', stiffness: 350, damping: 40, mass: 0.8, delay: (index || 0) * 0.03 }}
-            draggable={!isTouchDevice}
-            style={{
-                WebkitTouchCallout: 'none',
-                userSelect: 'none',
-            }}
-            onTouchStart={(e) => {
-                if (e.touches.length !== 1) return;
-                const touch = e.touches[0];
-                touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-                isLongPressTriggeredRef.current = false;
-                if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-                longPressTimerRef.current = setTimeout(() => {
-                    isLongPressTriggeredRef.current = true;
-                    onContextMenu({
-                        clientX: touch.clientX,
-                        clientY: touch.clientY,
-                        preventDefault: () => {},
-                        stopPropagation: () => {},
-                    }, file.id, 'file');
-                }, 450);
-            }}
-            onTouchMove={(e) => {
-                if (!touchStartRef.current || !longPressTimerRef.current) return;
-                const touch = e.touches[0];
-                const dx = touch.clientX - touchStartRef.current.x;
-                const dy = touch.clientY - touchStartRef.current.y;
-                if (Math.hypot(dx, dy) > 10) {
-                    clearTimeout(longPressTimerRef.current);
-                    longPressTimerRef.current = null;
-                }
-            }}
-            onTouchEnd={(e) => {
-                if (longPressTimerRef.current) {
-                    clearTimeout(longPressTimerRef.current);
-                    longPressTimerRef.current = null;
-                }
-                if (isLongPressTriggeredRef.current) {
-                    e.preventDefault();
-                    setTimeout(() => {
-                        isLongPressTriggeredRef.current = false;
-                    }, 150);
-                }
-            }}
-            onTouchCancel={() => {
-                if (longPressTimerRef.current) {
-                    clearTimeout(longPressTimerRef.current);
-                    longPressTimerRef.current = null;
-                }
-                isLongPressTriggeredRef.current = false;
-            }}
-            onDragStart={(e: any) => onDragStart(e, file.id)}
-            onContextMenu={(e: any) => onContextMenu(e, file.id, 'file')}
-            onDragOver={(e) => {
-                if (e.dataTransfer.types.includes('tide/calendar-event')) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.dataTransfer.dropEffect = 'copy';
-                    if (!isCalendarDropTarget) {
-                        setIsCalendarDropTarget(true);
-                        // Open the note when hovering over it
-                        onSelect(file.id, file.title);
-                    }
-                }
-            }}
-            onDragLeave={() => setIsCalendarDropTarget(false)}
-            onDrop={(e) => {
-                const payload = e.dataTransfer.getData('tide/calendar-event');
-                if (!payload) return;
-                e.preventDefault();
-                e.stopPropagation();
-                setIsCalendarDropTarget(false);
-                try {
-                    const ev = JSON.parse(payload);
-                    onSelect(file.id, file.title);
-                    // Defer slightly so the editor has time to mount before the click handler arms.
-                    setTimeout(() => {
-                        startGhost({
-                            eventId: ev.id,
-                            title: ev.title || 'Untitled',
-                            start: ev.start || '',
-                            end: ev.end || '',
-                            color: ev.color || undefined,
-                            targetNoteId: file.id,
-                        });
-                    }, 80);
-                } catch (err) {
-                    console.error('[Sidebar] Bad calendar-event drop payload', err);
-                }
-            }}
-            onClick={(e) => {
-                if (isLongPressTriggeredRef.current) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    return;
-                }
-                if (highlight.isSelectingLink && highlight.onLinkSelect) {
-                    e.stopPropagation();
-                    highlight.onLinkSelect({ id: file.id, title: file.title, type: 'file', rect: e.currentTarget.getBoundingClientRect() });
-                } else {
-                    onSelect(file.id, file.title);
-                }
-            }}
-            className={`group flex items-center justify-between w-full px-2 py-1 min-h-[28px] rounded-lg cursor-pointer transition-all duration-150
-                ${isCalendarDropTarget ? 'ring-2 ring-violet-400 bg-violet-50 dark:bg-violet-900/20' : ''}
-                ${isActive
-                    ? 'bg-blue-100/90 dark:bg-blue-950/60 text-blue-900 dark:text-blue-100 font-semibold ring-1 ring-blue-400/40'
-                    : isOpen
-                        ? 'bg-blue-50/75 dark:bg-blue-950/30 text-blue-800 dark:text-blue-200 font-medium'
-                        : 'hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover text-gray-700 dark:text-gray-300'
-                }`}
-        >
-            <div className="flex items-center gap-2 truncate flex-1 flex-shrink-0">
-                <div className="relative shrink-0 flex items-center justify-center">
-                    {file.type === 'canvas' ? (
-                        <Layout size={15} className={`shrink-0 ${isActive || isOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
-                    ) : (
-                        <FileText size={15} className={`shrink-0 ${isActive || isOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
-                    )}
-                    {isLocked && (
-                        <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[1px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
-                            <Lock size={8} className="text-amber-500" strokeWidth={2.5} />
-                        </span>
-                    )}
-                </div>
-                {(file as any).share_status === 'shared' && (
-                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-sky-400" title="Geteilte Notiz" />
-                )}
-                {editingId === file.id ? (
-                    <input
-                        autoFocus
-                        onFocus={(e) => e.target.select()}
-                        defaultValue={file.title}
-                        onClick={(e) => e.stopPropagation()}
-                        onBlur={(e) => onRenameSubmit?.(file.id, e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && onRenameSubmit?.(file.id, e.currentTarget.value)}
-                        className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-1 text-sm outline-none text-gray-900 dark:text-gray-100"
-                    />
-                ) : (
-                    <span className={`text-sm truncate transition-colors ${
-                        isActive
-                            ? 'text-blue-950 dark:text-blue-100 font-semibold'
-                            : isOpen
-                                ? 'text-blue-800 dark:text-blue-200 font-medium'
-                                : 'text-gray-700 dark:text-gray-300 font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100'
-                    } ${file.owner_id && myId && file.owner_id !== myId ? 'purple-shimmer-text' : ''}`}>
-                        {(highlight.isSelectingLink || isHighlighted(file.id, 'file')) ? <AnimatedLinkingText text={file.title.startsWith('#') ? file.title.slice(1).trim() : file.title} index={index} /> : (file.title.startsWith('#') ? file.title.slice(1).trim() : file.title)}
-                    </span>
-                )}
-            </div>
-        </motion.div>
-    );
-};
-
-interface FolderItemProps {
-    folder: DecryptedFile;
-    allFiles: DecryptedFile[];
-    level: number;
-    onSelect: (id: string, title: string) => void;
-    onDelete: (e: React.MouseEvent, id: string) => void;
-    onRename: (e: React.MouseEvent, id: string, currentTitle: string) => void;
-    onVisibility: (e: React.MouseEvent, id: string, currentVisibility: string) => void;
-    onShare: (e: React.MouseEvent, id: string) => void;
-    editingId?: string | null;
-    onRenameSubmit?: (id: string, newTitle: string) => void;
-    onCreateFolder?: (parentId: string | null, color?: string) => void;
-    onMoveItem?: (id: string, newParentId: string | null) => void;
-    onDragStart: (e: React.DragEvent, id: string) => void;
-    onContextMenu: (e: ContextMenuEvent, id: string, type: 'file' | 'folder') => void;
-    hiddenThemeIds?: string[];
-    onToggleThemeVisibility?: (id: string) => void;
-    viewMode?: 'files' | 'calendar';
-    enabledExtensions?: string[];
-    myId?: string;
-    index?: number;
-    dropIndicator?: { id: string, zone: 'top' | 'middle' | 'bottom' } | null;
-    setDropIndicator?: (indicator: { id: string, zone: 'top' | 'middle' | 'bottom' } | null) => void;
-    orderedNoteIds?: string[];
-    setOrderedNoteIds?: (ids: string[]) => void;
-    handleReorder?: (newItems: DecryptedFile[]) => void;
-    activeTabId?: string;
-    openTabs?: Tab[];
-}
-
-const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onCreateFolder, onMoveItem, onDragStart, onContextMenu, viewMode, enabledExtensions, myId, index, dropIndicator, setDropIndicator, orderedNoteIds, setOrderedNoteIds, handleReorder, activeTabId, openTabs }: FolderItemProps) => {
-    const [isLoading, setIsLoading] = useState(false);
-    const children = allFiles.filter(f => f.parent_id === folder.id);
-    const { highlight } = useHighlight();
-    const { fetchDirectory, loadedDirectories, openFolderIds, toggleFolder } = useDataStore();
-    const isOpen = openFolderIds.has(folder.id);
-    const isLocked = Boolean(folder.metadata?.has_custom_password || folder.metadata?.security_settings?.has_custom_password || (typeof folder.title === 'string' && folder.title.startsWith('#')));
-
-    // Touch long-press handling
-    const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-    const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const isLongPressTriggeredRef = useRef(false);
-
-    useEffect(() => {
-        return () => {
-            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-        };
-    }, []);
-
-    const handleToggle = async (e: React.MouseEvent) => {
-        if (isLongPressTriggeredRef.current) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-        }
-        e.stopPropagation();
-
-        const isFolderProtected = !!(folder.metadata?.has_custom_password || folder.metadata?.security_settings?.has_custom_password);
-        if (isFolderProtected && !isOpen && !isItemUnlocked(folder.id, folder.metadata?.security_settings || folder.metadata)) {
-            window.dispatchEvent(new CustomEvent('tide:prompt-pin', {
-                detail: {
-                    id: folder.id,
-                    title: folder.title,
-                    type: 'folder',
-                    metadata: folder.metadata
-                }
-            }));
-            return;
-        }
-
-        if (!isOpen) {
-            // Expand
-            setIsLoading(true);
-            await fetchDirectory(folder.id);
-            setIsLoading(false);
-            toggleFolder(folder.id, true);
-        } else {
-            // Collapse
-            toggleFolder(folder.id, false);
-        }
-    };
-
-    return (
-        <div>
-            <motion.div
-                layout
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ type: 'spring', stiffness: 350, damping: 40, mass: 0.8, delay: (index || 0) * 0.03 }}
-                draggable={!isTouchDevice}
-                style={{
-                    WebkitTouchCallout: 'none',
-                    userSelect: 'none',
-                }}
-                onTouchStart={(e) => {
-                    if (e.touches.length !== 1) return;
-                    const touch = e.touches[0];
-                    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-                    isLongPressTriggeredRef.current = false;
-                    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-                    longPressTimerRef.current = setTimeout(() => {
-                        isLongPressTriggeredRef.current = true;
-                        onContextMenu({
-                            clientX: touch.clientX,
-                            clientY: touch.clientY,
-                            preventDefault: () => {},
-                            stopPropagation: () => {},
-                        }, folder.id, 'folder');
-                    }, 450);
-                }}
-                onTouchMove={(e) => {
-                    if (!touchStartRef.current || !longPressTimerRef.current) return;
-                    const touch = e.touches[0];
-                    const dx = touch.clientX - touchStartRef.current.x;
-                    const dy = touch.clientY - touchStartRef.current.y;
-                    if (Math.hypot(dx, dy) > 10) {
-                        clearTimeout(longPressTimerRef.current);
-                        longPressTimerRef.current = null;
-                    }
-                }}
-                onTouchEnd={(e) => {
-                    if (longPressTimerRef.current) {
-                        clearTimeout(longPressTimerRef.current);
-                        longPressTimerRef.current = null;
-                    }
-                    if (isLongPressTriggeredRef.current) {
-                        e.preventDefault();
-                        setTimeout(() => {
-                            isLongPressTriggeredRef.current = false;
-                        }, 150);
-                    }
-                }}
-                onTouchCancel={() => {
-                    if (longPressTimerRef.current) {
-                        clearTimeout(longPressTimerRef.current);
-                        longPressTimerRef.current = null;
-                    }
-                    isLongPressTriggeredRef.current = false;
-                }}
-                onDragStart={(e: any) => onDragStart(e, folder.id)}
-                onContextMenu={(e: any) => onContextMenu(e, folder.id, 'folder')}
-                onDragOver={level > 0 ? (e: any) => e.preventDefault() : undefined}
-                onDrop={level > 0 ? (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const id = e.dataTransfer.getData("text/plain");
-                    if (id && id !== folder.id) onMoveItem?.(id, folder.id);
-                } : undefined}
-                onClick={handleToggle}
-                className={`group flex items-center justify-between w-full px-2 py-1 min-h-[28px] rounded-lg cursor-pointer transition-all duration-150 hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover`}
-            >
-                <div className="flex items-center gap-1.5 truncate flex-1">
-                    <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300 transition-colors">
-                        {isOpen ? (
-                            <ChevronDown size={12} className="shrink-0 transition-transform duration-150" />
-                        ) : (
-                            <ChevronRight size={12} className="shrink-0 transition-transform duration-150" />
-                        )}
-                    </span>
-                    <div className="relative shrink-0 flex items-center justify-center">
-                        {isLoading ? (
-                            <Loader2 size={15} className="text-gray-400 animate-spin shrink-0" />
-                        ) : isOpen ? (
-                            <FolderOpen size={15} className="text-gray-400 dark:text-slate-500 shrink-0" />
-                        ) : (
-                            <Folder size={15} className="text-gray-400 dark:text-slate-500 shrink-0" />
-                        )}
-                        {isLocked && (
-                            <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[1px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
-                                <Lock size={8} className="text-amber-500" strokeWidth={2.5} />
-                            </span>
-                        )}
-                    </div>
-                    {(folder as any).share_status === 'shared' && (
-                        <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-sky-400" title="Geteilter Ordner" />
-                    )}
-                    {editingId === folder.id ? (
-                        <input
-                            autoFocus
-                            onFocus={(e) => e.target.select()}
-                            defaultValue={folder.title}
-                            onClick={(e) => e.stopPropagation()}
-                            onBlur={(e) => onRenameSubmit?.(folder.id, e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && onRenameSubmit?.(folder.id, e.currentTarget.value)}
-                            className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-1 text-sm outline-none font-normal text-gray-900 dark:text-gray-100"
-                        />
-                    ) : (
-                        <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-                            {folder.title.startsWith('#') ? folder.title.slice(1).trim() : folder.title}
-                        </span>
-                    )}
-                </div>
-            </motion.div>
-            {isOpen && (
-                <div className="relative mt-0.5 ml-3 pl-2.5 border-l border-gray-200/90 dark:border-white/10 space-y-0.5">
-                    {children
-                        .sort((a, b) => {
-                            if (!orderedNoteIds) return 0;
-                            const indexA = orderedNoteIds.indexOf(a.id);
-                            const indexB = orderedNoteIds.indexOf(b.id);
-                            if (indexA === -1 && indexB === -1) return 0;
-                            if (indexA === -1) return 1;
-                            if (indexB === -1) return -1;
-                            return indexA - indexB;
-                        })
-                        .map((f, i) => (
-                            <motion.div
-                                layout
-                                key={f.id}
-                                transition={{ layout: { type: 'spring', stiffness: 350, damping: 40, mass: 0.8 } }}
-                                className={
-                                    dropIndicator?.id === f.id && dropIndicator.zone === 'top'
-                                        ? 'border-t-2 border-blue-400 rounded-t'
-                                        : dropIndicator?.id === f.id && dropIndicator.zone === 'bottom'
-                                        ? 'border-b-2 border-blue-400 rounded-b'
-                                        : ''
-                                }
-                                onDragOver={(e: React.DragEvent) => {
-                                    if (e.dataTransfer.types.includes('tide/calendar-event')) return;
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    const rowHeight = 32;
-                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-                                    const y = e.clientY - rect.top;
-                                    let zone: 'top' | 'middle' | 'bottom' = 'middle';
-                                    if (f.type === 'folder') {
-                                        if (y < rowHeight * 0.3) zone = 'top';
-                                        else if (y > rowHeight * 0.7) zone = 'bottom';
-                                    } else {
-                                        zone = y < rowHeight / 2 ? 'top' : 'bottom';
-                                    }
-                                    setDropIndicator?.({ id: f.id, zone });
-                                }}
-                                onDragLeave={(e: React.DragEvent) => {
-                                    if ((e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) return;
-                                    setDropIndicator?.(null);
-                                }}
-                                onDrop={(e: React.DragEvent) => {
-                                    if (e.dataTransfer.types.includes('tide/calendar-event')) return;
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    const zone = dropIndicator?.zone || 'bottom';
-                                    setDropIndicator?.(null);
-                                    const draggedId = e.dataTransfer.getData("text/plain");
-                                    if (!draggedId || draggedId === f.id) return;
-
-                                    if (zone === 'middle' && f.type === 'folder') {
-                                        onMoveItem?.(draggedId, f.id);
-                                        return;
-                                    }
-
-                                    const draggedFile = allFiles.find(o => o.id === draggedId);
-                                    if (!draggedFile) return;
-
-                                    // If moved to a new folder, trigger move
-                                    if (draggedFile.parent_id !== folder.id) {
-                                        onMoveItem?.(draggedId, folder.id);
-                                    }
-
-                                    // Local reorder within the folder using orderedNoteIds
-                                    if (orderedNoteIds && setOrderedNoteIds) {
-                                        const sortedChildren = children.sort((a, b) => {
-                                            const iA = orderedNoteIds.indexOf(a.id);
-                                            const iB = orderedNoteIds.indexOf(b.id);
-                                            if (iA === -1 && iB === -1) return 0;
-                                            if (iA === -1) return 1;
-                                            if (iB === -1) return -1;
-                                            return iA - iB;
-                                        });
-                                        const newChildren = sortedChildren.filter(o => o.id !== draggedId);
-                                        let dropIdx = newChildren.findIndex(o => o.id === f.id);
-                                        if (zone === 'bottom') dropIdx += 1;
-                                        newChildren.splice(dropIdx, 0, draggedFile);
-
-                                        // Update global orderedNoteIds
-                                        const newOrderedIds = [...orderedNoteIds];
-                                        // Remove draggedId from its old place
-                                        const oldIdx = newOrderedIds.indexOf(draggedId);
-                                        if (oldIdx !== -1) newOrderedIds.splice(oldIdx, 1);
-                                        // Insert it relative to the target item in global order
-                                        const targetGlobalIdx = newOrderedIds.indexOf(f.id);
-                                        if (targetGlobalIdx !== -1) {
-                                            newOrderedIds.splice(zone === 'bottom' ? targetGlobalIdx + 1 : targetGlobalIdx, 0, draggedId);
-                                        } else {
-                                            newOrderedIds.push(draggedId);
-                                        }
-                                        setOrderedNoteIds(newOrderedIds);
-                                    }
-                                }}
-                            >
-                                {f.type === 'folder' ? (
-                                    <div className={`relative ${dropIndicator?.id === f.id && dropIndicator.zone === 'middle' ? 'ring-2 ring-blue-500 bg-blue-50/50 rounded-lg' : ''}`}>
-                                        <FolderItem
-                                            index={i}
-                                            folder={f}
-                                            allFiles={allFiles}
-                                            level={level + 1}
-                                            onSelect={onSelect}
-                                            onDelete={onDelete}
-                                            onRename={onRename}
-                                            onVisibility={onVisibility}
-                                            onShare={onShare}
-                                            editingId={editingId}
-                                            onRenameSubmit={onRenameSubmit}
-                                            onCreateFolder={onCreateFolder}
-                                            onMoveItem={onMoveItem}
-                                            onDragStart={onDragStart}
-                                            onContextMenu={onContextMenu}
-                                            enabledExtensions={enabledExtensions}
-                                            myId={myId}
-                                            dropIndicator={dropIndicator}
-                                            setDropIndicator={setDropIndicator}
-                                            orderedNoteIds={orderedNoteIds}
-                                            setOrderedNoteIds={setOrderedNoteIds}
-                                            handleReorder={handleReorder}
-                                            activeTabId={activeTabId}
-                                            openTabs={openTabs}
-                                        />
-                                    </div>
-                                ) : (
-                                    <FileItem
-                                        index={i}
-                                        file={f}
-                                        level={level + 1}
-                                        onSelect={onSelect}
-                                        onDelete={onDelete}
-                                        onRename={onRename}
-                                        onVisibility={onVisibility}
-                                        onShare={onShare}
-                                        editingId={editingId}
-                                        onRenameSubmit={onRenameSubmit}
-                                        onDragStart={onDragStart}
-                                        onContextMenu={onContextMenu}
-                                        enabledExtensions={enabledExtensions}
-                                        myId={myId}
-                                        activeTabId={activeTabId}
-                                        openTabs={openTabs}
-                                    />
-                                )}
-                            </motion.div>
-                        ))}
-                </div>
-            )}
-        </div>
-    );
-};
-
-

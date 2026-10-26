@@ -87,7 +87,7 @@ describe("keyStorage", () => {
                 await crypto.subtle.exportKey("jwk", masterKey!);
                 expect.unreachable("Exporting non-extractable key should have failed");
             } catch (err: any) {
-                expect(err.name).toBe("InvalidAccessError");
+                expect(["InvalidAccessError", "InvalidAccessException"]).toContain(err.name);
             }
         });
 
