@@ -1,3 +1,4 @@
+import path from "path";
 import type { NextConfig } from "next";
 import withPWAInit from "@ducanh2912/next-pwa";
 
@@ -5,13 +6,37 @@ const withPWA = withPWAInit({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
   register: true,
+  cacheOnFrontEndNav: true,
+  aggressiveFrontEndNavCaching: true,
+  reloadOnOnline: false,
+  extendDefaultRuntimeCaching: true,
+  workboxOptions: {
+    runtimeCaching: [
+      {
+        urlPattern: ({ request, url }) => {
+          return (
+            (request.mode === "navigate" || url.pathname === "/") &&
+            !url.pathname.startsWith("/api/")
+          );
+        },
+        handler: "NetworkFirst",
+        options: {
+          cacheName: "pages-cache",
+          expiration: {
+            maxEntries: 64,
+            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+          },
+          networkTimeoutSeconds: 3,
+        },
+      },
+    ],
+  },
 });
 
 const nextConfig: NextConfig = {
   reactStrictMode: false,
   turbopack: {},
   webpack: (config, { dev }) => {
-    const path = require('path');
     config.resolve.alias['yjs'] = path.resolve(__dirname, 'node_modules/yjs');
 
     if (dev) {

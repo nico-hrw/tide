@@ -590,6 +590,7 @@ interface AppleDateWheelProps {
   onSelectDate: (d: Date) => void;
   now: Date;
   theme: string;
+  onMonthChange?: (monthYear: string) => void;
 }
 
 const AppleDateWheel = React.memo(function AppleDateWheel({
@@ -597,8 +598,16 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
   onSelectDate,
   now,
   theme,
+  onMonthChange,
 }: AppleDateWheelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const monthLabelRef = useRef<HTMLSpanElement>(null);
+  const currentMonthLabelRef = useRef<string>(format(activeDate, 'MMMM yyyy', { locale: de }));
+  const onMonthChangeRef = useRef(onMonthChange);
+  useEffect(() => {
+    onMonthChangeRef.current = onMonthChange;
+  }, [onMonthChange]);
+
   const [wheelAnchor, setWheelAnchor] = useState<Date>(() => now);
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isProgrammaticScroll = useRef(false);
@@ -609,6 +618,16 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
   const mountedRef = useRef(false);
 
   const [prevActive, setPrevActive] = useState<Date>(activeDate);
+
+  // Sync month label when activeDate changes
+  useEffect(() => {
+    const label = format(activeDate, 'MMMM yyyy', { locale: de });
+    currentMonthLabelRef.current = label;
+    if (monthLabelRef.current) {
+      monthLabelRef.current.textContent = label;
+    }
+    onMonthChangeRef.current?.(label);
+  }, [activeDate]);
 
   // If activeDate moves far away (e.g. navigated via another view > 90 days), re-anchor smoothly
   if (activeDate !== prevActive) {
@@ -633,12 +652,20 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
     const children = container.children;
     const radius = 110; // lens influence radius in px
 
+    let closestChild: HTMLElement | null = null;
+    let minDistance = Infinity;
+
     for (let i = 0; i < children.length; i++) {
       const child = children[i] as HTMLElement;
       if (!child.id?.startsWith('wheel-date-')) continue;
       const cr = child.getBoundingClientRect();
       const childCenter = cr.left + cr.width / 2;
       const dist = Math.abs(childCenter - centerX);
+
+      if (dist < minDistance) {
+        minDistance = dist;
+        closestChild = child;
+      }
 
       if (dist < radius) {
         // Cosine bell curve: 1 at exact center, 0 at edge
@@ -650,6 +677,24 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
       } else {
         child.style.transform = 'scale(0.72)';
         child.style.opacity = '0.35';
+      }
+    }
+
+    if (closestChild) {
+      const dateStr = closestChild.id.replace('wheel-date-', '');
+      if (dateStr) {
+        const parts = dateStr.split('-').map(Number);
+        const d = new Date(parts[0], parts[1] - 1, parts[2]);
+        if (!isNaN(d.getTime())) {
+          const newMonthLabel = format(d, 'MMMM yyyy', { locale: de });
+          if (newMonthLabel !== currentMonthLabelRef.current) {
+            currentMonthLabelRef.current = newMonthLabel;
+            if (monthLabelRef.current) {
+              monthLabelRef.current.textContent = newMonthLabel;
+            }
+            onMonthChangeRef.current?.(newMonthLabel);
+          }
+        }
       }
     }
   }, []);
@@ -781,6 +826,21 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
   return (
     <div className="flex items-center gap-2 px-3 pb-1 w-full min-w-0">
       <div className="flex-1 min-w-0 flex flex-col relative">
+        {/* Live Month & Year indicator directly above wheel */}
+        <div className="flex items-center justify-between px-1 pb-1">
+          <div className="flex items-center gap-1.5">
+            <span
+              ref={monthLabelRef}
+              className="text-[11px] font-black tracking-wider uppercase"
+              style={{
+                color: theme === 'dark' ? '#c084fc' : '#7e22ce',
+              }}
+            >
+              {format(activeDate, 'MMMM yyyy', { locale: de })}
+            </span>
+          </div>
+        </div>
+
         <div
           ref={containerRef}
           className="flex items-center gap-1 overflow-x-auto no-scrollbar py-1 w-full select-none"
@@ -798,6 +858,7 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
             const diff = Math.abs(getDayDiff(d, activeDate));
             const isSelected = diff === 0;
             const isTodayDate = isSameDay(d, now);
+            const isFirstDayOfMonth = d.getDate() === 1;
             const initialScale = isSelected ? 1.32 : diff === 1 ? 0.95 : diff === 2 ? 0.80 : 0.72;
             const initialOpacity = isSelected ? 1 : diff === 1 ? 0.75 : diff === 2 ? 0.50 : 0.35;
 
@@ -826,29 +887,46 @@ const AppleDateWheel = React.memo(function AppleDateWheel({
                   height: 52,
                   transform: `scale(${initialScale})`,
                   opacity: initialOpacity,
-                  background: 'transparent',
-                  border: 'none',
+                  background: isFirstDayOfMonth
+                    ? (theme === 'dark' ? 'rgba(168, 85, 247, 0.08)' : 'rgba(147, 51, 234, 0.05)')
+                    : 'transparent',
+                  border: isFirstDayOfMonth
+                    ? `1px solid ${theme === 'dark' ? 'rgba(168, 85, 247, 0.25)' : 'rgba(147, 51, 234, 0.18)'}`
+                    : 'none',
                   color: isSelected
                     ? (theme === 'dark' ? '#ffffff' : '#09090b')
                     : (theme === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'),
                 }}
               >
-                <span
-                  className="text-[10px] uppercase tracking-wider"
-                  style={{
-                    color: isTodayDate
-                      ? (theme === 'dark' ? '#d8b4fe' : '#9333ea')
-                      : isSelected
-                      ? (theme === 'dark' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)')
-                      : T.mut,
-                    fontWeight: isTodayDate ? 900 : 700,
-                    textShadow: isTodayDate
-                      ? (theme === 'dark' ? '0 0 8px rgba(216, 180, 254, 0.45)' : '0 0 6px rgba(147, 51, 234, 0.25)')
-                      : 'none',
-                  }}
-                >
-                  {format(d, 'EEE', { locale: de })}
-                </span>
+                {isFirstDayOfMonth ? (
+                  <span
+                    className="text-[8.5px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-full leading-tight"
+                    style={{
+                      background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
+                      color: '#ffffff',
+                      boxShadow: '0 1px 4px rgba(124, 58, 237, 0.35)',
+                    }}
+                  >
+                    {format(d, 'MMM', { locale: de }).replace('.', '')}
+                  </span>
+                ) : (
+                  <span
+                    className="text-[10px] uppercase tracking-wider"
+                    style={{
+                      color: isTodayDate
+                        ? (theme === 'dark' ? '#d8b4fe' : '#9333ea')
+                        : isSelected
+                        ? (theme === 'dark' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)')
+                        : T.mut,
+                      fontWeight: isTodayDate ? 900 : 700,
+                      textShadow: isTodayDate
+                        ? (theme === 'dark' ? '0 0 8px rgba(216, 180, 254, 0.45)' : '0 0 6px rgba(147, 51, 234, 0.25)')
+                        : 'none',
+                    }}
+                  >
+                    {format(d, 'EEE', { locale: de })}
+                  </span>
+                )}
                 <span
                   className="text-lg leading-none mt-0.5"
                   style={{
@@ -1698,6 +1776,7 @@ export default function MobileLayout({
   const [renameValue, setRenameValue] = useState('');
   const [calViewMode, setCalViewMode] = useState<'day' | 'agenda' | 'week' | 'month'>('day');
   const [activeTab, setActiveTab] = useState<'calendar' | 'notes' | 'todos'>('calendar');
+  const [wheelVisibleMonth, setWheelVisibleMonth] = useState<string>(() => format(activeDate, 'MMMM yyyy', { locale: de }));
   const [dayViewDays, setDayViewDays] = useState<Date[]>([]);
   const dayViewSentinelRef = useRef<HTMLDivElement>(null);
   const [isNewEventSheetOpen, setIsNewEventSheetOpen] = useState(false);
@@ -2015,6 +2094,11 @@ export default function MobileLayout({
         .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
       const hasEvents = allDayEvs.length > 0 || dayEvs.length > 0;
+      const isFirstDayOfMonth = day.getDate() === 1;
+
+      if (isFirstDayOfMonth && emptyRun.length > 0) {
+        flushEmptyRun();
+      }
 
       if (isToday || hasEvents) {
         flushEmptyRun();
@@ -2542,8 +2626,29 @@ export default function MobileLayout({
         {/* Row 1: Date & Greeting ("XX. Monat", "Guten Morgen/Mittag/Tag/Abend Name!") */}
         <div className="px-5 pt-1 pb-1.5 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold uppercase tracking-wider" style={{ color: T.mut }}>
-              {format(now, 'd. MMMM', { locale: de })}
+            <p className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 flex-wrap" style={{ color: T.mut }}>
+              {activeTab === 'calendar' ? (
+                <>
+                  <span>
+                    {isSameDay(activeDate, now)
+                      ? format(now, 'd. MMMM', { locale: de })
+                      : format(activeDate, 'd. MMMM yyyy', { locale: de })}
+                  </span>
+                  {wheelVisibleMonth && wheelVisibleMonth !== format(isSameDay(activeDate, now) ? now : activeDate, 'MMMM yyyy', { locale: de }) && (
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded-full font-bold normal-case tracking-normal"
+                      style={{
+                        background: theme === 'dark' ? 'rgba(168, 85, 247, 0.25)' : 'rgba(147, 51, 234, 0.12)',
+                        color: theme === 'dark' ? '#d8b4fe' : '#7e22ce',
+                      }}
+                    >
+                      {wheelVisibleMonth}
+                    </span>
+                  )}
+                </>
+              ) : (
+                format(now, 'd. MMMM', { locale: de })
+              )}
             </p>
             <h1 className="text-[1.7rem] font-black tracking-tight line-clamp-2 leading-tight mt-0.5" style={{ color: T.pri }}>
               {formatGreeting(greetingTemplate, displayName)}
@@ -2566,6 +2671,7 @@ export default function MobileLayout({
             }}
             now={now}
             theme={theme}
+            onMonthChange={setWheelVisibleMonth}
           />
         )}
 
@@ -2781,81 +2887,117 @@ export default function MobileLayout({
           /* ── Fortlaufend / Agenda view (infinite scroll) ── */
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
             <div className="flex-1 overflow-y-auto pb-4 px-4 pt-2">
-              {groupedDayViewItems.map(item => {
-                if (item.kind === 'empty-range') {
-                  return (
-                    <div
-                      key={`empty-${item.startDate.toISOString()}-${item.endDate.toISOString()}`}
-                      className="my-3 px-3.5 py-2.5 rounded-lg flex items-center justify-between text-xs"
-                      style={{
-                        background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-                        color: T.mut,
-                      }}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <CalendarIcon size={13} style={{ opacity: 0.6, flexShrink: 0 }} />
-                        <span className="truncate">
-                          {format(item.startDate, 'EEE d. MMM', { locale: de })} – {format(item.endDate, 'EEE d. MMM', { locale: de })}
-                        </span>
-                        <span className="font-semibold shrink-0" style={{ color: T.sec }}>
-                          · {item.count} Tage frei
-                        </span>
-                      </div>
+              {groupedDayViewItems.map((item, idx) => {
+                const itemDate = item.kind === 'day' ? item.date : item.startDate;
+                const currentMonthKey = format(itemDate, 'yyyy-MM');
+                const prevItem = idx > 0 ? groupedDayViewItems[idx - 1] : null;
+                const prevMonthKey = prevItem
+                  ? format(prevItem.kind === 'day' ? prevItem.date : prevItem.startDate, 'yyyy-MM')
+                  : null;
+                const isNewMonth = idx === 0 || currentMonthKey !== prevMonthKey;
 
-                    </div>
-                  );
-                }
-
-                const { date: day, events: dayEvs, allDayEvents: allDayEvs, isToday } = item;
                 return (
-                  <div key={day.toISOString()} id={`day-${format(day, 'yyyy-MM-dd')}`} className="mb-4">
-                    {/* Day header: Today colored in metallic purple (Requirement 8) */}
-                    <div className="flex items-center gap-3 py-2.5">
-                      {isToday && (
-                        <span
-                          className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shrink-0 text-white shadow-sm"
-                          style={{
-                            background: 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 50%, #9333ea 100%)',
-                            boxShadow: '0 2px 8px rgba(126, 34, 206, 0.35)',
-                          }}
-                        >
-                          Heute
-                        </span>
-                      )}
-                      <span
-                        className="text-[11px] uppercase tracking-wider"
+                  <React.Fragment key={item.kind === 'day' ? item.date.toISOString() : `empty-${item.startDate.toISOString()}-${item.endDate.toISOString()}`}>
+                    {isNewMonth && (
+                      <div
+                        className="sticky top-0 z-10 py-1 px-3 my-2 rounded-xl backdrop-blur-md flex items-center justify-between shadow-sm"
                         style={{
-                          color: isToday ? (theme === 'dark' ? '#d8b4fe' : '#7e22ce') : T.sec,
-                          fontWeight: isToday ? 900 : 700,
-                          textShadow: isToday ? (theme === 'dark' ? '0 0 10px rgba(168, 85, 247, 0.4)' : 'none') : 'none',
+                          background: theme === 'dark' ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.92)',
+                          border: `1px solid ${T.brd}`,
                         }}
                       >
-                        {format(day, 'EEEE d. MMMM', { locale: de })}
-                      </span>
+                        <div className="flex items-center gap-1.5">
+                          <CalendarIcon size={12} style={{ color: theme === 'dark' ? '#c084fc' : '#7e22ce' }} />
+                          <span
+                            className="text-xs font-black uppercase tracking-wider"
+                            style={{
+                              color: theme === 'dark' ? '#c084fc' : '#7e22ce',
+                            }}
+                          >
+                            {format(itemDate, 'MMMM yyyy', { locale: de })}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                    {item.kind === 'empty-range' ? (
                       <div
-                        className="flex-1 h-px"
+                        className="my-3 px-3.5 py-2.5 rounded-lg flex items-center justify-between text-xs"
                         style={{
-                          background: isToday
-                            ? 'linear-gradient(90deg, rgba(168, 85, 247, 0.5), transparent)'
-                            : T.brd,
+                          background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                          color: T.mut,
                         }}
-                      />
-                    </div>
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <CalendarIcon size={13} style={{ opacity: 0.6, flexShrink: 0 }} />
+                          <span className="truncate">
+                            {format(item.startDate, 'EEE d. MMM', { locale: de })} – {format(item.endDate, 'EEE d. MMM', { locale: de })}
+                          </span>
+                          <span className="font-semibold shrink-0" style={{ color: T.sec }}>
+                            · {item.count} Tage frei
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div id={`day-${format(item.date, 'yyyy-MM-dd')}`} className="mb-4">
+                        {/* Day header: Today colored in metallic purple (Requirement 8) */}
+                        <div className="flex items-center gap-3 py-2.5">
+                          {item.isToday && (
+                            <span
+                              className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shrink-0 text-white shadow-sm"
+                              style={{
+                                background: 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 50%, #9333ea 100%)',
+                                boxShadow: '0 2px 8px rgba(126, 34, 206, 0.35)',
+                              }}
+                            >
+                              Heute
+                            </span>
+                          )}
+                          {item.date.getDate() === 1 && !item.isToday && (
+                            <span
+                              className="text-[10px] font-extrabold px-2 py-0.5 rounded-full shrink-0 text-white shadow-sm"
+                              style={{
+                                background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
+                              }}
+                            >
+                              1. {format(item.date, 'MMMM', { locale: de })}
+                            </span>
+                          )}
+                          <span
+                            className="text-[11px] uppercase tracking-wider"
+                            style={{
+                              color: item.isToday ? (theme === 'dark' ? '#d8b4fe' : '#7e22ce') : T.sec,
+                              fontWeight: item.isToday ? 900 : 700,
+                              textShadow: item.isToday ? (theme === 'dark' ? '0 0 10px rgba(168, 85, 247, 0.4)' : 'none') : 'none',
+                            }}
+                          >
+                            {format(item.date, 'EEEE d. MMMM', { locale: de })}
+                          </span>
+                          <div
+                            className="flex-1 h-px"
+                            style={{
+                              background: item.isToday
+                                ? 'linear-gradient(90deg, rgba(168, 85, 247, 0.5), transparent)'
+                                : T.brd,
+                            }}
+                          />
+                        </div>
 
-                    <DbTimelineDay
-                      day={day}
-                      dayEvs={dayEvs}
-                      allDayEvs={allDayEvs}
-                      isToday={isToday}
-                      now={now}
-                      theme={theme}
-                      onNewEvent={date => {
-                        setNewEventDefaultDate(date);
-                        setIsNewEventSheetOpen(true);
-                      }}
-                      onDeleteEvent={onEventDelete}
-                    />
-                  </div>
+                        <DbTimelineDay
+                          day={item.date}
+                          dayEvs={item.events}
+                          allDayEvs={item.allDayEvents}
+                          isToday={item.isToday}
+                          now={now}
+                          theme={theme}
+                          onNewEvent={date => {
+                            setNewEventDefaultDate(date);
+                            setIsNewEventSheetOpen(true);
+                          }}
+                          onDeleteEvent={onEventDelete}
+                        />
+                      </div>
+                    )}
+                  </React.Fragment>
                 );
               })}
               {/* Infinite scroll sentinel */}

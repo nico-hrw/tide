@@ -6,6 +6,7 @@ import {
   CheckCircle2, Circle, Calendar, Repeat, Trash2, Plus,
   Search, SlidersHorizontal, AlertCircle, Check, X, ListTodo,
   Folder, Inbox, ArrowLeft, Tag, FolderPlus, Timer, ChevronRight,
+  Archive, Clock, History, RotateCcw,
 } from 'lucide-react';
 import {
   format, isToday, isTomorrow, isBefore, startOfDay, endOfDay,
@@ -15,7 +16,7 @@ import { useDataStore, TaskItem } from '@/store/useDataStore';
 import TodoFolderOverview, { FolderStat } from './TodoFolderOverview';
 
 export type Priority = 'low' | 'medium' | 'high';
-export type FilterStatus = 'all' | 'active' | 'in_progress' | 'completed';
+export type FilterStatus = 'all' | 'active' | 'in_progress' | 'completed' | 'archived';
 export type SortOption = 'created' | 'deadline' | 'priority' | 'tag' | 'title';
 export type RecurrenceType = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -96,6 +97,73 @@ function getDeadlineChipClasses(status: string, isCompleted: boolean): string {
   if (status === 'tomorrow') return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30';
   return 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10';
 }
+
+export type ArchiveTier = 'week' | 'month' | 'year';
+
+export const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+export const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+export const ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+export function getTaskCompletionTime(task: TaskItem): number | null {
+  if (task.completedAt) {
+    const t = new Date(task.completedAt).getTime();
+    if (!isNaN(t)) return t;
+  }
+  const fallbackStr = task.dueDate || task.scheduledDate;
+  if (fallbackStr) {
+    const d = parseDateSafe(fallbackStr);
+    if (d && !isNaN(d.getTime())) return d.getTime();
+  }
+  return null;
+}
+
+export function isTaskArchived(task: TaskItem): boolean {
+  if (task.isArchived) return true;
+  if (!task.isCompleted) return false;
+  const time = getTaskCompletionTime(task);
+  if (time !== null) {
+    return Date.now() - time > SEVEN_DAYS_MS;
+  }
+  return false;
+}
+
+export function getTaskArchiveTier(task: TaskItem): ArchiveTier {
+  const time = getTaskCompletionTime(task);
+  if (time !== null) {
+    const diff = Date.now() - time;
+    if (diff > ONE_YEAR_MS) return 'year';
+    if (diff > THIRTY_DAYS_MS) return 'month';
+    return 'week';
+  }
+  return 'week';
+}
+
+export const ARCHIVE_TIER_CONFIG = [
+  {
+    key: 'week' as const,
+    label: '> 1 Woche',
+    sublabel: '7 – 30 Tage',
+    icon: Clock,
+    color: 'text-blue-500',
+    bg: 'bg-blue-500/10 dark:bg-blue-500/20',
+  },
+  {
+    key: 'month' as const,
+    label: '> 1 Monat',
+    sublabel: '1 – 12 Monate',
+    icon: Calendar,
+    color: 'text-amber-500',
+    bg: 'bg-amber-500/10 dark:bg-amber-500/20',
+  },
+  {
+    key: 'year' as const,
+    label: '> 1 Jahr',
+    sublabel: 'Älter als 1 Jahr',
+    icon: History,
+    color: 'text-purple-500',
+    bg: 'bg-purple-500/10 dark:bg-purple-500/20',
+  },
+];
 
 interface TodoItemCardProps {
   task: TaskItem;
@@ -370,7 +438,15 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
                 <span>In Bearbeitung</span>
               </span>
             )}
-            {deadline && (
+            {isTaskCompleted && task.completedAt ? (
+              <span
+                className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-lg text-[11px] sm:text-xs font-medium border bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-white/10"
+                title={`Erledigt am ${format(new Date(task.completedAt), 'dd.MM.yyyy HH:mm')}`}
+              >
+                <Check size={11} className="text-emerald-500" />
+                <span>{format(new Date(task.completedAt), 'dd.MM.yyyy')}</span>
+              </span>
+            ) : deadline ? (
               <span
                 className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-lg text-[11px] sm:text-xs font-medium border ${getDeadlineChipClasses(
                   deadline.status,
@@ -380,7 +456,7 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
                 {deadline.status === 'overdue' && !isTaskCompleted ? <AlertCircle size={12} /> : <Calendar size={12} />}
                 <span>{deadline.label}</span>
               </span>
-            )}
+            ) : null}
             <span
               className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[11px] sm:text-xs font-semibold border ${priorityCfg.bg} ${priorityCfg.text} ${priorityCfg.border}`}
             >
@@ -679,22 +755,39 @@ const TodoItemCard: React.FC<TodoItemCardProps> = ({
 
                 {/* Footer action bar: Löschen on left, Abbrechen & Speichern on right */}
                 <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-100 dark:border-white/5">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      deleteTask(task.id);
-                    }}
-                    onTouchEnd={(e) => {
-                      e.stopPropagation();
-                    }}
-                    className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/40 rounded-xl transition-colors cursor-pointer min-h-[36px]"
-                    title="Aufgabe löschen"
-                  >
-                    <Trash2 size={15} />
-                    <span>Löschen</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        deleteTask(task.id);
+                      }}
+                      onTouchEnd={(e) => {
+                        e.stopPropagation();
+                      }}
+                      className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/40 rounded-xl transition-colors cursor-pointer min-h-[36px]"
+                      title="Aufgabe löschen"
+                    >
+                      <Trash2 size={15} />
+                      <span>Löschen</span>
+                    </button>
+
+                    {isTaskCompleted && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleTask(task);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:hover:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-900/40 rounded-xl transition-colors cursor-pointer min-h-[36px]"
+                        title="Aufgabe wieder in die aktive Liste verschieben"
+                      >
+                        <RotateCcw size={13} />
+                        <span>Wiederherstellen</span>
+                      </button>
+                    )}
+                  </div>
 
                   <div className="flex items-center gap-2">
                     <button
@@ -901,28 +994,54 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   });
 
   const [showCompleted, setShowCompleted] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
+  const [openTiers, setOpenTiers] = useState<Record<ArchiveTier, boolean>>({
+    week: true,
+    month: true,
+    year: true,
+  });
   const [completingTaskIds, setCompletingTaskIds] = useState<Set<string>>(new Set());
 
-  const totalCount = tasks.length;
-  const completedCount = useMemo(() => tasks.filter((t) => t.isCompleted).length, [tasks]);
-  const inProgressCount = useMemo(() => tasks.filter((t) => !t.isCompleted && t.status === 'in_progress').length, [tasks]);
-  const openCount = useMemo(() => tasks.filter((t) => !t.isCompleted && t.status !== 'in_progress').length, [tasks]);
-  const activeCount = totalCount - completedCount;
-  const overdueCount = useMemo(() => {
-    const today = startOfDay(new Date());
-    return tasks.filter((t) => !t.isCompleted && parseDateSafe(t.dueDate || t.scheduledDate) && isBefore(startOfDay(parseDateSafe(t.dueDate || t.scheduledDate)!), today)).length;
+  // Active cycle calculations:
+  // Open tasks (!t.isCompleted && !t.isArchived) + Recently completed tasks (completed in last 7 days, !t.isArchived)
+  const activeCycleTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (t.isArchived) return false;
+      if (!t.isCompleted) return true;
+      return !isTaskArchived(t);
+    });
   }, [tasks]);
-  const openNonOverdueCount = Math.max(0, openCount - overdueCount);
-  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  const activeCycleTotal = activeCycleTasks.length;
+  const activeCycleCompletedCount = useMemo(() => activeCycleTasks.filter((t) => t.isCompleted).length, [activeCycleTasks]);
+  const activeCycleInProgressCount = useMemo(() => activeCycleTasks.filter((t) => !t.isCompleted && t.status === 'in_progress').length, [activeCycleTasks]);
+  const activeCycleOpenCount = useMemo(() => activeCycleTasks.filter((t) => !t.isCompleted && t.status !== 'in_progress').length, [activeCycleTasks]);
+  const activeCycleOverdueCount = useMemo(() => {
+    const today = startOfDay(new Date());
+    return activeCycleTasks.filter((t) => !t.isCompleted && parseDateSafe(t.dueDate || t.scheduledDate) && isBefore(startOfDay(parseDateSafe(t.dueDate || t.scheduledDate)!), today)).length;
+  }, [activeCycleTasks]);
+  const activeCycleOpenNonOverdueCount = Math.max(0, activeCycleOpenCount - activeCycleOverdueCount);
+
+  const archivedCount = useMemo(() => tasks.filter((t) => isTaskArchived(t)).length, [tasks]);
+  const totalCount = tasks.length;
 
   const executeToggleTask = (task: TaskItem) => {
+    if (task.isCompleted) {
+      updateTask(task.id, {
+        isCompleted: false,
+        status: 'todo',
+        completedAt: undefined,
+        isArchived: false,
+      });
+      return;
+    }
     if (!task.isCompleted && task.recurrence && task.recurrence !== 'none') {
       const currentRef = task.dueDate || task.scheduledDate;
       const baseDate = parseDateSafe(currentRef) || new Date();
       const nextDate = task.recurrence === 'daily' ? addDays(baseDate, 1) : task.recurrence === 'weekly' ? addWeeks(baseDate, 1) : task.recurrence === 'monthly' ? addMonths(baseDate, 1) : addYears(baseDate, 1);
       const end = parseDateSafe(task.recurrence_end);
       if (end && nextDate > endOfDay(end)) {
-        updateTask(task.id, { isCompleted: true, completed_dates: [...(task.completed_dates || []), new Date().toISOString()] });
+        updateTask(task.id, { isCompleted: true, completedAt: new Date().toISOString(), completed_dates: [...(task.completed_dates || []), new Date().toISOString()] });
       } else {
         const nextDateStr = currentRef && currentRef.includes('T') ? format(nextDate, "yyyy-MM-dd'T'HH:mm:ss") : format(nextDate, 'yyyy-MM-dd');
         updateTask(task.id, { dueDate: nextDateStr, scheduledDate: nextDateStr, isCompleted: false, completed_dates: [...(task.completed_dates || []), new Date().toISOString()] });
@@ -1079,9 +1198,11 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       if (selectedTag !== null) {
         if (!t.tags || !t.tags.includes(selectedTag)) return false;
       }
-      if (filterStatus === 'active' && (t.isCompleted || t.status === 'in_progress')) return false;
-      if (filterStatus === 'in_progress' && (t.isCompleted || t.status !== 'in_progress')) return false;
-      if (filterStatus === 'completed' && !t.isCompleted) return false;
+      const archived = isTaskArchived(t);
+      if (filterStatus === 'active' && (t.isCompleted || t.status === 'in_progress' || archived)) return false;
+      if (filterStatus === 'in_progress' && (t.isCompleted || t.status !== 'in_progress' || archived)) return false;
+      if (filterStatus === 'completed' && (!t.isCompleted || archived)) return false;
+      if (filterStatus === 'archived' && !archived) return false;
       if (filterPriority !== 'all' && getTaskPriority(t) !== filterPriority) return false;
       const matchesTag = t.tags && t.tags.some((tag) => tag.toLowerCase().includes(q));
       if (q && !t.title.toLowerCase().includes(q) && !(t.description || '').toLowerCase().includes(q) && !matchesTag) return false;
@@ -1115,9 +1236,28 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     return 0;
   }), [filteredTasks, sortBy]);
 
-  const activeTasks = useMemo(() => sortedTasks.filter((t) => !t.isCompleted), [sortedTasks]);
-  const completedTasks = useMemo(() => sortedTasks.filter((t) => t.isCompleted), [sortedTasks]);
-  const tasksToRender = filterStatus === 'completed' ? completedTasks : activeTasks;
+  const activeTasks = useMemo(() => sortedTasks.filter((t) => !t.isCompleted && !isTaskArchived(t)), [sortedTasks]);
+  const recentlyCompletedTasks = useMemo(() => sortedTasks.filter((t) => t.isCompleted && !isTaskArchived(t)), [sortedTasks]);
+  const archivedTasks = useMemo(() => sortedTasks.filter((t) => isTaskArchived(t)), [sortedTasks]);
+
+  const tasksToRender = useMemo(() => {
+    if (filterStatus === 'completed') return recentlyCompletedTasks;
+    if (filterStatus === 'archived') return [];
+    return activeTasks;
+  }, [filterStatus, recentlyCompletedTasks, activeTasks]);
+
+  const archivedByTier = useMemo(() => {
+    const week: TaskItem[] = [];
+    const month: TaskItem[] = [];
+    const year: TaskItem[] = [];
+    for (const t of archivedTasks) {
+      const tier = getTaskArchiveTier(t);
+      if (tier === 'year') year.push(t);
+      else if (tier === 'month') month.push(t);
+      else week.push(t);
+    }
+    return { week, month, year };
+  }, [archivedTasks]);
 
   return (
     <div className={`flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto overflow-x-hidden w-full max-w-full relative select-none ${className}`}>
@@ -1127,60 +1267,80 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
           <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white leading-tight">Todos</h1>
 
           {/* Thick Segmented Progress Bar */}
-          <div className="flex flex-col gap-1 w-full sm:w-auto sm:min-w-[200px] flex-1 sm:flex-initial max-w-xs">
+          <div className="flex flex-col gap-1 w-full sm:w-auto sm:min-w-[220px] flex-1 sm:flex-initial max-w-xs">
+            <div className="flex items-center justify-between text-[11px] font-semibold text-gray-700 dark:text-gray-300 px-0.5">
+              <span className="truncate">
+                {activeCycleTotal > 0
+                  ? `${activeCycleCompletedCount} von ${activeCycleTotal} erledigt`
+                  : 'Keine aktiven Aufgaben'}
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal ml-1">
+                  (letzte 7 Tage)
+                </span>
+              </span>
+              {archivedCount > 0 && (
+                <span
+                  className="text-[10px] px-1.5 py-0.2 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 font-medium shrink-0 ml-1.5"
+                  title={`${archivedCount} archivierte Aufgaben (> 7 Tage)`}
+                >
+                  +{archivedCount} archiviert
+                </span>
+              )}
+            </div>
+
             <div className="h-3.5 sm:h-4 w-full bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden flex items-stretch">
-              {totalCount > 0 ? (
+              {activeCycleTotal > 0 ? (
                 <>
-                  {completedCount > 0 && (
+                  {activeCycleCompletedCount > 0 && (
                     <div
                       className="bg-emerald-500 dark:bg-emerald-400 transition-all duration-300"
-                      style={{ width: `${(completedCount / totalCount) * 100}%` }}
-                      title={`Erledigt: ${completedCount}`}
+                      style={{ width: `${(activeCycleCompletedCount / activeCycleTotal) * 100}%` }}
+                      title={`Erledigt: ${activeCycleCompletedCount}`}
                     />
                   )}
-                  {inProgressCount > 0 && (
+                  {activeCycleInProgressCount > 0 && (
                     <div
                       className="bg-amber-500 dark:bg-amber-400 transition-all duration-300"
-                      style={{ width: `${(inProgressCount / totalCount) * 100}%` }}
-                      title={`In Bearbeitung: ${inProgressCount}`}
+                      style={{ width: `${(activeCycleInProgressCount / activeCycleTotal) * 100}%` }}
+                      title={`In Bearbeitung: ${activeCycleInProgressCount}`}
                     />
                   )}
-                  {openNonOverdueCount > 0 && (
+                  {activeCycleOpenNonOverdueCount > 0 && (
                     <div
                       className="bg-blue-500 dark:bg-blue-400 transition-all duration-300"
-                      style={{ width: `${(openNonOverdueCount / totalCount) * 100}%` }}
-                      title={`Offen: ${openNonOverdueCount}`}
+                      style={{ width: `${(activeCycleOpenNonOverdueCount / activeCycleTotal) * 100}%` }}
+                      title={`Offen: ${activeCycleOpenNonOverdueCount}`}
                     />
                   )}
-                  {overdueCount > 0 && (
+                  {activeCycleOverdueCount > 0 && (
                     <div
                       className="bg-rose-500 dark:bg-rose-400 transition-all duration-300"
-                      style={{ width: `${(overdueCount / totalCount) * 100}%` }}
-                      title={`Überfällig: ${overdueCount}`}
+                      style={{ width: `${(activeCycleOverdueCount / activeCycleTotal) * 100}%` }}
+                      title={`Überfällig: ${activeCycleOverdueCount}`}
                     />
                   )}
                 </>
               ) : null}
             </div>
+
             <div className="flex items-center gap-2.5 text-xs font-bold px-0.5">
-              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400" title="Erledigt">
+              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400" title="Erledigt (letzte 7 Tage)">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                {completedCount}
+                {activeCycleCompletedCount}
               </span>
-              {inProgressCount > 0 && (
+              {activeCycleInProgressCount > 0 && (
                 <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400" title="In Bearbeitung">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                  {inProgressCount}
+                  {activeCycleInProgressCount}
                 </span>
               )}
               <span className="flex items-center gap-1 text-blue-600 dark:text-blue-400" title="Offen">
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-                {openNonOverdueCount}
+                {activeCycleOpenNonOverdueCount}
               </span>
-              {overdueCount > 0 && (
+              {activeCycleOverdueCount > 0 && (
                 <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400" title="Überfällig">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
-                  {overdueCount}
+                  {activeCycleOverdueCount}
                 </span>
               )}
             </div>
@@ -1549,13 +1709,14 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               </div>
 
               {/* Status Pills */}
-              <div className="w-full grid grid-cols-4 sm:flex sm:w-auto items-center bg-gray-100 dark:bg-white/5 p-1 rounded-xl border border-gray-200 dark:border-white/10 shrink-0">
+              <div className="w-full flex overflow-x-auto no-scrollbar sm:w-auto items-center bg-gray-100 dark:bg-white/5 p-1 rounded-xl border border-gray-200 dark:border-white/10 shrink-0 gap-0.5">
                 {(
                   [
                     { key: 'all' as FilterStatus, label: 'Alle', count: totalCount },
-                    { key: 'active' as FilterStatus, label: 'Offen', count: openCount },
-                    { key: 'in_progress' as FilterStatus, label: 'In Arbeit', count: inProgressCount },
-                    { key: 'completed' as FilterStatus, label: 'Erledigt', count: completedCount },
+                    { key: 'active' as FilterStatus, label: 'Offen', count: activeCycleOpenCount },
+                    { key: 'in_progress' as FilterStatus, label: 'In Arbeit', count: activeCycleInProgressCount },
+                    { key: 'completed' as FilterStatus, label: 'Erledigt', count: activeCycleCompletedCount },
+                    { key: 'archived' as FilterStatus, label: 'Archiv', count: archivedCount },
                   ]
                 ).map((item) => {
                   const isActive = filterStatus === item.key;
@@ -1564,7 +1725,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                       key={item.key}
                       type="button"
                       onClick={() => setFilterStatus(item.key)}
-                      className={`px-1.5 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap min-h-[28px] flex items-center gap-1 sm:gap-1.5 justify-center ${
+                      className={`px-2 sm:px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap min-h-[28px] flex items-center gap-1 sm:gap-1.5 justify-center shrink-0 ${
                         isActive
                           ? 'bg-white dark:bg-[#242424] text-blue-600 dark:text-blue-400 shadow-xs'
                           : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -1774,25 +1935,32 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               ))}
             </AnimatePresence>
 
-            {filterStatus === 'all' && activeTasks.length === 0 && completedTasks.length > 0 && (
+            {filterStatus === 'all' && activeTasks.length === 0 && (recentlyCompletedTasks.length > 0 || archivedTasks.length > 0) && (
               <div className="py-4 text-center text-xs text-gray-500 dark:text-gray-400 font-medium">
                 Alle offenen Aufgaben erledigt! 🎉
               </div>
             )}
 
             {/* Collapsible Completed Tasks Section when filterStatus === 'all' */}
-            {filterStatus === 'all' && completedTasks.length > 0 && (
+            {filterStatus === 'all' && recentlyCompletedTasks.length > 0 && (
               <div className="mt-2 pt-3 border-t border-gray-200 dark:border-white/10">
                 <button
                   type="button"
                   onClick={() => setShowCompleted((prev) => !prev)}
-                  className="flex items-center gap-2 text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer py-1 select-none"
+                  className="w-full flex items-center justify-between text-xs font-bold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer py-1.5 select-none"
                 >
-                  <ChevronRight
-                    size={16}
-                    className={`transition-transform duration-200 ${showCompleted ? 'rotate-90' : ''}`}
-                  />
-                  <span>Erledigte Aufgaben ({completedTasks.length})</span>
+                  <div className="flex items-center gap-2">
+                    <ChevronRight
+                      size={16}
+                      className={`transition-transform duration-200 ${showCompleted ? 'rotate-90' : ''}`}
+                    />
+                    <CheckCircle2 size={15} className="text-emerald-500" />
+                    <span>Kürzlich erledigt</span>
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal">(letzte 7 Tage)</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400">
+                    {recentlyCompletedTasks.length}
+                  </span>
                 </button>
 
                 <AnimatePresence initial={false}>
@@ -1805,7 +1973,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                       className="overflow-hidden pt-2 flex flex-col gap-3"
                     >
                       <AnimatePresence mode="popLayout" initial={false}>
-                        {completedTasks.map((task) => (
+                        {recentlyCompletedTasks.map((task) => (
                           <motion.div
                             key={task.id}
                             layout
@@ -1857,6 +2025,152 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               </div>
             )}
 
+            {/* In filterStatus === 'completed', if there are no recently completed tasks but there are archived tasks */}
+            {filterStatus === 'completed' && recentlyCompletedTasks.length === 0 && archivedTasks.length > 0 && (
+              <div className="py-3 text-center text-xs text-gray-500 dark:text-gray-400 font-medium">
+                Keine Aufgaben in den letzten 7 Tagen erledigt. Ältere Aufgaben befinden sich im Archiv unten.
+              </div>
+            )}
+
+            {/* Collapsible Archive Section when filterStatus === 'all' | 'completed' | 'archived' */}
+            {(filterStatus === 'all' || filterStatus === 'completed' || filterStatus === 'archived') && archivedTasks.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-200 dark:border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowArchive((prev) => !prev)}
+                  className="w-full flex items-center justify-between text-xs font-bold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer py-1.5 select-none"
+                >
+                  <div className="flex items-center gap-2">
+                    <ChevronRight
+                      size={16}
+                      className={`transition-transform duration-200 ${showArchive || filterStatus === 'archived' ? 'rotate-90' : ''}`}
+                    />
+                    <Archive size={15} className="text-gray-500 dark:text-gray-400" />
+                    <span>Archiv</span>
+                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal">(&gt; 7 Tage)</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400">
+                    {archivedTasks.length}
+                  </span>
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {(showArchive || filterStatus === 'archived') && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.25, ease: 'easeInOut' }}
+                      className="overflow-hidden pt-2 flex flex-col gap-3"
+                    >
+                      {ARCHIVE_TIER_CONFIG.map((tierCfg) => {
+                        const tierTasks = archivedByTier[tierCfg.key];
+                        if (tierTasks.length === 0) return null;
+                        const isTierOpen = openTiers[tierCfg.key];
+                        const TierIcon = tierCfg.icon;
+
+                        return (
+                          <div
+                            key={tierCfg.key}
+                            className="rounded-2xl border border-gray-200/80 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] p-3 sm:p-3.5 transition-all"
+                          >
+                            {/* Tier Accordion Header */}
+                            <button
+                              type="button"
+                              onClick={() => setOpenTiers((prev) => ({ ...prev, [tierCfg.key]: !prev[tierCfg.key] }))}
+                              className="w-full flex items-center justify-between cursor-pointer select-none"
+                            >
+                              <div className="flex items-center gap-2 sm:gap-2.5">
+                                <ChevronRight
+                                  size={14}
+                                  className={`text-gray-400 transition-transform duration-200 ${isTierOpen ? 'rotate-90' : ''}`}
+                                />
+                                <div className={`p-1.5 rounded-lg ${tierCfg.bg} ${tierCfg.color}`}>
+                                  <TierIcon size={14} />
+                                </div>
+                                <div className="flex items-baseline gap-1.5 text-left">
+                                  <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                                    {tierCfg.label}
+                                  </span>
+                                  <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal">
+                                    ({tierCfg.sublabel})
+                                  </span>
+                                </div>
+                              </div>
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white dark:bg-white/10 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/5 shadow-2xs">
+                                {tierTasks.length}
+                              </span>
+                            </button>
+
+                            {/* Tier Tasks List */}
+                            <AnimatePresence initial={false}>
+                              {isTierOpen && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: 'auto' }}
+                                  exit={{ opacity: 0, height: 0 }}
+                                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                                  className="overflow-hidden pt-3 flex flex-col gap-2.5"
+                                >
+                                  <AnimatePresence mode="popLayout" initial={false}>
+                                    {tierTasks.map((task) => (
+                                      <motion.div
+                                        key={task.id}
+                                        layout
+                                        initial={{ opacity: 0, y: -6 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{
+                                          opacity: 0,
+                                          x: -20,
+                                          height: 0,
+                                          marginBottom: 0,
+                                          scale: 0.95,
+                                          transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1] }
+                                        }}
+                                        transition={{
+                                          layout: { type: 'spring', damping: 26, stiffness: 280 }
+                                        }}
+                                      >
+                                        <TodoItemCard
+                                          task={task}
+                                          isExpanded={editingTaskId === task.id}
+                                          isCompleting={completingTaskIds.has(task.id)}
+                                          editDraft={editDraft}
+                                          setEditDraft={setEditDraft}
+                                          editNewTagInput={editNewTagInput}
+                                          setEditNewTagInput={setEditNewTagInput}
+                                          allTags={allTags}
+                                          customTags={customTags}
+                                          allFolders={allFolders}
+                                          selectedTag={selectedTag}
+                                          setSelectedTag={setSelectedTag}
+                                          selectedFolder={selectedFolder}
+                                          setSelectedFolder={setSelectedFolder}
+                                          setViewMode={setViewMode}
+                                          handleAddCustomTag={handleAddCustomTag}
+                                          handleRemoveCustomTag={handleRemoveCustomTag}
+                                          handleToggleTask={handleToggleTask}
+                                          handleToggleInProgress={handleToggleInProgress}
+                                          saveEditing={saveEditing}
+                                          cancelEditing={() => setEditingTaskId(null)}
+                                          deleteTask={deleteTask}
+                                          onRowClick={handleRowClick}
+                                        />
+                                      </motion.div>
+                                    ))}
+                                  </AnimatePresence>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
             {sortedTasks.length === 0 && (
               <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-12 text-center flex flex-col items-center justify-center shadow-2xs">
                 <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-3">
@@ -1864,13 +2178,17 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                     <CheckCircle2 size={24} />
                   ) : filterStatus === 'in_progress' ? (
                     <Timer size={24} className="text-amber-500" />
+                  ) : filterStatus === 'archived' ? (
+                    <Archive size={24} className="text-purple-500" />
                   ) : (
                     <ListTodo size={24} />
                   )}
                 </div>
                 <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">
                   {filterStatus === 'completed'
-                    ? 'Keine erledigten Aufgaben'
+                    ? 'Keine kürzlich erledigten Aufgaben'
+                    : filterStatus === 'archived'
+                    ? 'Keine archivierten Aufgaben'
                     : filterStatus === 'in_progress'
                     ? 'Keine Aufgaben in Bearbeitung'
                     : filterStatus === 'active'
@@ -1886,6 +2204,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                 <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mb-4">
                   {searchQuery
                     ? `Für "${searchQuery}" wurden keine passenden Aufgaben gefunden.`
+                    : filterStatus === 'archived'
+                    ? 'Aufgaben, die älter als 7 Tage erledigt sind, werden hier übersichtlich nach Alter gruppiert.'
                     : filterStatus === 'in_progress'
                     ? 'Aktuell ist keine Aufgabe in Bearbeitung. Klicke auf das Stoppuhr-Symbol einer Aufgabe, um sie zu starten.'
                     : selectedTag !== null

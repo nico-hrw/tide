@@ -67,43 +67,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         checkAuth();
     }, [pathname, router]);
 
-    // Offline / Error State
-    const [isOffline, setIsOffline] = useState(false);
-
-    useEffect(() => {
-        const handleOffline = () => {
-            setIsOffline(true);
-            setTimeout(() => setIsOffline(false), 5000); // Auto-hide after 5s
-        };
-        window.addEventListener("tide-offline", handleOffline);
-        return () => window.removeEventListener("tide-offline", handleOffline);
-    }, []);
-
     // Prevent flash of content
     if (!authorized) {
         if (PUBLIC_PATHS.includes(pathname)) {
-            return (
-                <>
-                    {isOffline && (
-                        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, background: '#ef4444', color: 'white', textAlign: 'center', padding: '0.5rem', zIndex: 9999 }}>
-                            ⚠️ Cloud Unreachable. Please check your connection.
-                        </div>
-                    )}
-                    {children}
-                </>
-            );
+            return <>{children}</>;
         }
         return null;
     }
 
-    return (
-        <>
-            {isOffline && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, background: '#ef4444', color: 'white', textAlign: 'center', padding: '0.5rem', zIndex: 9999 }}>
-                    ⚠️ Cloud Unreachable. Please check your connection.
-                </div>
-            )}
-            {children}
-        </>
-    );
+    return <>{children}</>;
 }

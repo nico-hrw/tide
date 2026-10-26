@@ -26,6 +26,9 @@ export interface TaskItem {
     folder?: string;
     tags?: string[];
     showInCalendar?: boolean;
+    createdAt?: string;
+    completedAt?: string;
+    isArchived?: boolean;
 }
 
 interface DataState {
@@ -133,9 +136,49 @@ function saveTasksToOfflineCache(tasks: TaskItem[]): void {
     }
 }
 
+function loadCachedNotes(): DataItem[] {
+    if (typeof window === 'undefined') return [];
+    try {
+        const cached = localStorage.getItem('tide_offline_notes');
+        return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+        console.warn('Failed to load cached notes from localStorage', e);
+        return [];
+    }
+}
+
+function saveNotesToOfflineCache(notes: DataItem[]): void {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem('tide_offline_notes', JSON.stringify(notes));
+    } catch (e) {
+        console.warn('Failed to save notes to offline cache', e);
+    }
+}
+
+function loadCachedEvents(): DataItem[] {
+    if (typeof window === 'undefined') return [];
+    try {
+        const cached = localStorage.getItem('tide_offline_events');
+        return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+        console.warn('Failed to load cached events from localStorage', e);
+        return [];
+    }
+}
+
+function saveEventsToOfflineCache(events: DataItem[]): void {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.setItem('tide_offline_events', JSON.stringify(events));
+    } catch (e) {
+        console.warn('Failed to save events to offline cache', e);
+    }
+}
+
 export const useDataStore = create<DataState>((set, get) => ({
-    notes: [],
-    events: [],
+    notes: loadCachedNotes(),
+    events: loadCachedEvents(),
     tasks: loadCachedTasks(),
     metadataCache: {},
     isSettingsModalOpen: false,
@@ -268,18 +311,28 @@ export const useDataStore = create<DataState>((set, get) => ({
         }
         
         if (isNote) {
+            const nextNotes = s.notes.map(n => n.id === id ? { ...n, ...updates } : n);
+            saveNotesToOfflineCache(nextNotes);
             return { 
-                notes: s.notes.map(n => n.id === id ? { ...n, ...updates } : n),
+                notes: nextNotes,
                 metadataCache: nextCache
             };
         }
+        const nextEvents = s.events.map(e => e.id === id ? { ...e, ...updates } : e);
+        saveEventsToOfflineCache(nextEvents);
         return { 
-            events: s.events.map(e => e.id === id ? { ...e, ...updates } : e),
+            events: nextEvents,
             metadataCache: nextCache
         };
     }),
-    setNotes: (notes) => set({ notes }),
-    setEvents: (events) => set({ events }),
+    setNotes: (notes) => {
+        saveNotesToOfflineCache(notes);
+        set({ notes });
+    },
+    setEvents: (events) => {
+        saveEventsToOfflineCache(events);
+        set({ events });
+    },
     setTasks: (tasks) => {
         saveTasksToOfflineCache(tasks);
         set({ tasks });
@@ -289,12 +342,19 @@ export const useDataStore = create<DataState>((set, get) => ({
         const fallbackId = crypto.randomUUID();
         const initialStatus: 'todo' | 'in_progress' | 'completed' = taskDraft.status || (taskDraft.isCompleted ? 'completed' : 'todo');
         const showInCalendar = taskDraft.showInCalendar ?? true;
+        const isCompleted = taskDraft.isCompleted !== undefined ? taskDraft.isCompleted : (initialStatus === 'completed');
+        const createdAt = taskDraft.createdAt || new Date().toISOString();
+        const completedAt = taskDraft.completedAt !== undefined 
+            ? taskDraft.completedAt 
+            : (isCompleted ? new Date().toISOString() : undefined);
         const newTask: TaskItem = { 
             id: fallbackId, 
             ...taskDraft, 
             showInCalendar,
-            isCompleted: taskDraft.isCompleted !== undefined ? taskDraft.isCompleted : (initialStatus === 'completed'),
-            status: initialStatus
+            isCompleted,
+            status: initialStatus,
+            createdAt,
+            completedAt,
         };
         const nextTasks = [...state.tasks, newTask];
         set({ tasks: nextTasks });
@@ -322,6 +382,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                 folder: newTask.folder,
                 tags: newTask.tags || [],
                 showInCalendar: newTask.showInCalendar !== undefined ? newTask.showInCalendar : true,
+                createdAt: newTask.createdAt,
+                completedAt: newTask.completedAt,
+                isArchived: newTask.isArchived,
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, state.publicKey);
             
@@ -370,11 +433,23 @@ export const useDataStore = create<DataState>((set, get) => ({
             ? updates.showInCalendar 
             : (task.showInCalendar ?? true);
 
+        let resolvedCompletedAt = updates.completedAt;
+        if (resolvedCompletedAt === undefined && !('completedAt' in updates)) {
+            if (resolvedCompleted && !task.isCompleted) {
+                resolvedCompletedAt = new Date().toISOString();
+            } else if (!resolvedCompleted && task.isCompleted) {
+                resolvedCompletedAt = undefined;
+            } else {
+                resolvedCompletedAt = task.completedAt;
+            }
+        }
+
         const mergedUpdates: Partial<TaskItem> = {
             ...updates,
             showInCalendar: resolvedShowInCalendar,
             isCompleted: resolvedCompleted,
-            ...(resolvedStatus !== undefined ? { status: resolvedStatus } : {})
+            ...(resolvedStatus !== undefined ? { status: resolvedStatus } : {}),
+            completedAt: resolvedCompletedAt,
         };
 
         // 1. Optimistic local update immediately
@@ -387,7 +462,8 @@ export const useDataStore = create<DataState>((set, get) => ({
             ...task, 
             ...mergedUpdates,
             showInCalendar: resolvedShowInCalendar,
-            status: resolvedStatus
+            status: resolvedStatus,
+            completedAt: resolvedCompletedAt,
         };
 
         // 3. Resolve publicKey — prefer store, fall back to sessionStorage
@@ -434,6 +510,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                 folder: mergedTask.folder,
                 tags: mergedTask.tags !== undefined ? mergedTask.tags : [],
                 showInCalendar: mergedTask.showInCalendar !== undefined ? mergedTask.showInCalendar : true,
+                createdAt: mergedTask.createdAt,
+                completedAt: mergedTask.completedAt,
+                isArchived: mergedTask.isArchived,
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, publicKey);
 
@@ -486,7 +565,8 @@ export const useDataStore = create<DataState>((set, get) => ({
         
         const nextCompleted = !task.isCompleted;
         const nextStatus: 'todo' | 'completed' = nextCompleted ? 'completed' : 'todo';
-        await get().updateTask(id, { isCompleted: nextCompleted, status: nextStatus });
+        const completedAt = nextCompleted ? new Date().toISOString() : undefined;
+        await get().updateTask(id, { isCompleted: nextCompleted, status: nextStatus, completedAt });
 
         if (typeof window !== 'undefined') {
             try {
@@ -507,11 +587,12 @@ export const useDataStore = create<DataState>((set, get) => ({
         if (!task) return;
 
         const nextStatus: 'todo' | 'in_progress' = task.status === 'in_progress' ? 'todo' : 'in_progress';
-        await get().updateTask(id, { status: nextStatus, isCompleted: false });
+        await get().updateTask(id, { status: nextStatus, isCompleted: false, completedAt: undefined });
     },
     setTaskStatus: async (id: string, status: 'todo' | 'in_progress' | 'completed') => {
         const isCompleted = status === 'completed';
-        await get().updateTask(id, { status, isCompleted });
+        const completedAt = isCompleted ? new Date().toISOString() : undefined;
+        await get().updateTask(id, { status, isCompleted, completedAt });
 
         if (typeof window !== 'undefined') {
             try {
@@ -544,9 +625,14 @@ export const useDataStore = create<DataState>((set, get) => ({
         const eventMap = new Map(state.events.map(e => [e.id, e]));
         newEvents.forEach(e => eventMap.set(e.id, { ...eventMap.get(e.id), ...e }));
         
+        const mergedNotes = Array.from(noteMap.values());
+        const mergedEvents = Array.from(eventMap.values());
+        saveNotesToOfflineCache(mergedNotes);
+        saveEventsToOfflineCache(mergedEvents);
+
         return {
-            notes: Array.from(noteMap.values()),
-            events: Array.from(eventMap.values())
+            notes: mergedNotes,
+            events: mergedEvents
         };
     }),
     orderedNoteIds: [],
@@ -555,7 +641,11 @@ export const useDataStore = create<DataState>((set, get) => ({
         const state = get();
         if (!state.privateKey || !state.publicKey) {
             const fallbackId = crypto.randomUUID();
-            set(s => ({ notes: [...s.notes, { id: fallbackId, title, type: 'note' }] }));
+            set(s => {
+                const nextNotes = [...s.notes, { id: fallbackId, title, type: 'note' }];
+                saveNotesToOfflineCache(nextNotes);
+                return { notes: nextNotes };
+            });
             return fallbackId;
         }
 
@@ -611,18 +701,26 @@ export const useDataStore = create<DataState>((set, get) => ({
                 parent_id: targetParentId,
                 isLocked: false
             };
-            set((s) => ({
-                notes: [...s.notes, newNote],
-                metadataCache: {
-                    ...s.metadataCache,
-                    [newFile.id]: { title, isLocked: false, parent_id: targetParentId }
-                }
-            }));
+            set((s) => {
+                const nextNotes = [...s.notes, newNote];
+                saveNotesToOfflineCache(nextNotes);
+                return {
+                    notes: nextNotes,
+                    metadataCache: {
+                        ...s.metadataCache,
+                        [newFile.id]: { title, isLocked: false, parent_id: targetParentId }
+                    }
+                };
+            });
             return newFile.id;
         } catch (e) {
             console.error("Failed to create note on server", e);
             const fallbackId = crypto.randomUUID();
-            set((s) => ({ notes: [...s.notes, { id: fallbackId, title, type: 'note' }] }));
+            set((s) => {
+                const nextNotes = [...s.notes, { id: fallbackId, title, type: 'note' }];
+                saveNotesToOfflineCache(nextNotes);
+                return { notes: nextNotes };
+            });
             return fallbackId;
         }
     },
@@ -630,7 +728,11 @@ export const useDataStore = create<DataState>((set, get) => ({
         const state = get();
         if (!state.privateKey || !state.publicKey) {
             const fallbackId = crypto.randomUUID();
-            set(s => ({ notes: [...s.notes, { id: fallbackId, title, type: 'canvas' }] }));
+            set(s => {
+                const nextNotes = [...s.notes, { id: fallbackId, title, type: 'canvas' }];
+                saveNotesToOfflineCache(nextNotes);
+                return { notes: nextNotes };
+            });
             return fallbackId;
         }
         try {
@@ -673,12 +775,20 @@ export const useDataStore = create<DataState>((set, get) => ({
             });
 
             const newNote = { id: newFile.id, title, type: 'canvas', parent_id: state.activeParentId || null };
-            set(s => ({ notes: [...s.notes, newNote], metadataCache: { ...s.metadataCache, [newFile.id]: { title } } }));
+            set(s => {
+                const nextNotes = [...s.notes, newNote];
+                saveNotesToOfflineCache(nextNotes);
+                return { notes: nextNotes, metadataCache: { ...s.metadataCache, [newFile.id]: { title } } };
+            });
             return newFile.id;
         } catch (e) {
             console.error('Failed to create canvas note on server', e);
             const fallbackId = crypto.randomUUID();
-            set(s => ({ notes: [...s.notes, { id: fallbackId, title, type: 'canvas' }] }));
+            set(s => {
+                const nextNotes = [...s.notes, { id: fallbackId, title, type: 'canvas' }];
+                saveNotesToOfflineCache(nextNotes);
+                return { notes: nextNotes };
+            });
             return fallbackId;
         }
     },
@@ -846,6 +956,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                                     folder: meta.folder as string | undefined,
                                     tags: Array.isArray(meta.tags) ? meta.tags : [],
                                     showInCalendar: meta.showInCalendar !== undefined ? (meta.showInCalendar as boolean) : true,
+                                    createdAt: meta.createdAt as string | undefined,
+                                    completedAt: meta.completedAt as string | undefined,
+                                    isArchived: meta.isArchived as boolean | undefined,
                                 } as TaskItem);
                             } else {
                                 // Fallback for tasks
@@ -876,9 +989,18 @@ export const useDataStore = create<DataState>((set, get) => ({
                         return { ...bt, showInCalendar: local.showInCalendar };
                     }
                     if (local.status !== undefined && local.status !== bt.status) {
-                        return { ...bt, status: local.status, isCompleted: local.isCompleted };
+                        return { ...bt, status: local.status, isCompleted: local.isCompleted, completedAt: local.completedAt };
                     }
                     if (local.isCompleted !== bt.isCompleted) return local; // prefer local toggle
+                    if (local.completedAt !== bt.completedAt && local.isCompleted) {
+                        return { ...bt, completedAt: local.completedAt };
+                    }
+                    if (local.createdAt && !bt.createdAt) {
+                        return { ...bt, createdAt: local.createdAt };
+                    }
+                    if (local.isArchived !== undefined && local.isArchived !== bt.isArchived) {
+                        return { ...bt, isArchived: local.isArchived };
+                    }
                     return bt;
                 });
                 const backendIds = new Set(loadedTasks.map(t => t.id));
@@ -1118,6 +1240,8 @@ export const useDataStore = create<DataState>((set, get) => ({
                 if (finalMergedTasks !== undefined) {
                     saveTasksToOfflineCache(finalMergedTasks);
                 }
+                saveNotesToOfflineCache(mergedNotes);
+                saveEventsToOfflineCache(mergedEvents);
                 return {
                     notes: mergedNotes,
                     events: mergedEvents,
@@ -1312,9 +1436,14 @@ export const useDataStore = create<DataState>((set, get) => ({
                     }
                 });
 
+                const finalNotes = Array.from(noteMap.values());
+                const finalEvents = Array.from(eventMap.values());
+                saveNotesToOfflineCache(finalNotes);
+                saveEventsToOfflineCache(finalEvents);
+
                 return {
-                    notes: Array.from(noteMap.values()),
-                    events: Array.from(eventMap.values()),
+                    notes: finalNotes,
+                    events: finalEvents,
                     metadataCache: { ...s.metadataCache, ...newMetaCache },
                 };
             });
@@ -1337,6 +1466,9 @@ export const useDataStore = create<DataState>((set, get) => ({
                                 folder: meta.folder as string | undefined,
                                 tags: Array.isArray(meta.tags) ? meta.tags : [],
                                 showInCalendar: meta.showInCalendar !== undefined ? (meta.showInCalendar as boolean) : true,
+                                createdAt: meta.createdAt as string | undefined,
+                                completedAt: meta.completedAt as string | undefined,
+                                isArchived: meta.isArchived as boolean | undefined,
                             } as TaskItem);
                         } else {
                             loadedTasks.push({ id: t.id, title: "Locked Task (Decrypting...)", isCompleted: false, status: 'todo', isLocked: true } as any);
@@ -1367,9 +1499,18 @@ export const useDataStore = create<DataState>((set, get) => ({
                         return { ...bt, showInCalendar: local.showInCalendar };
                     }
                     if (local.status !== undefined && local.status !== bt.status) {
-                        return { ...bt, status: local.status, isCompleted: local.isCompleted };
+                        return { ...bt, status: local.status, isCompleted: local.isCompleted, completedAt: local.completedAt };
                     }
                     if (local.isCompleted !== bt.isCompleted) return local;
+                    if (local.completedAt !== bt.completedAt && local.isCompleted) {
+                        return { ...bt, completedAt: local.completedAt };
+                    }
+                    if (local.createdAt && !bt.createdAt) {
+                        return { ...bt, createdAt: local.createdAt };
+                    }
+                    if (local.isArchived !== undefined && local.isArchived !== bt.isArchived) {
+                        return { ...bt, isArchived: local.isArchived };
+                    }
                     return bt;
                 });
                 const backendIds = new Set(loadedTasks.map(t => t.id));
