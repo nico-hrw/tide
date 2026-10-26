@@ -4,6 +4,7 @@ import { useState, Suspense, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import * as cryptoLib from "@/lib/crypto";
 import { apiFetch } from "@/lib/api";
+import { storeMasterKey, purgeLegacyKeys } from "@/lib/keyStorage";
 
 // CONSTANTS
 const DEV_PHASE_SECRET = "DEV_PHASE_SECRET_FIXED_KEY_123";
@@ -38,7 +39,7 @@ function AuthContent() {
 
     // Listen for Magic Link success in another tab
     useEffect(() => {
-        const handleStorage = (e: StorageEvent) => {
+        const handleStorage = async (e: StorageEvent) => {
             if (e.key === "tide_auth_signal") {
                 console.log("Auth signal received!", e.newValue);
                 // The verify tab sets "tide_session_key" in sessionStorage ONLY for itself.
@@ -55,7 +56,16 @@ function AuthContent() {
                 try {
                     const signal = JSON.parse(e.newValue || "{}");
                     if (signal.sessionKey && signal.email) {
-                        localStorage.setItem("tide_session_key", signal.sessionKey);
+                        const jwk = typeof signal.sessionKey === "string" ? JSON.parse(signal.sessionKey) : signal.sessionKey;
+                        const cryptoKey = await window.crypto.subtle.importKey(
+                            "jwk",
+                            jwk,
+                            { name: "RSA-OAEP", hash: "SHA-256" },
+                            false,
+                            ["decrypt"]
+                        );
+                        await storeMasterKey(cryptoKey);
+                        purgeLegacyKeys();
                         localStorage.setItem("tide_user_email", signal.email);
                         if (signal.publicKey) {
                             localStorage.setItem("tide_user_public_key", signal.publicKey);
@@ -158,9 +168,10 @@ function AuthContent() {
                 typeof loginData.encrypted_vault === 'string' ? JSON.parse(loginData.encrypted_vault) : loginData.encrypted_vault
             );
 
-            // Export to JWK to persist in sessionStorage for reloads
-            const exportedKey = await window.crypto.subtle.exportKey("jwk", decryptedKey);
-            localStorage.setItem("tide_session_key", JSON.stringify(exportedKey));
+
+
+            await storeMasterKey(decryptedKey);
+            purgeLegacyKeys();
             
             localStorage.setItem("tide_user_email", identifier);
             localStorage.setItem("tide_user_id", loginData.user_id);

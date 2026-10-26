@@ -270,25 +270,10 @@ func (s *SQLiteStore) migrate() error {
 		return fmt.Errorf("failed to migrate users table: %w", err)
 	}
 
-	// 3. Additional safely added columns for other tables
-	// Ignore errors if column already exists
-	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN visibility TEXT DEFAULT 'private'")
-	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN secured_meta BLOB")
-	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN status TEXT DEFAULT 'pending'")
-	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN permission TEXT NOT NULL DEFAULT 'view'")
-	_, _ = s.DB.Exec("ALTER TABLE file_shares ADD COLUMN can_reshare INTEGER NOT NULL DEFAULT 0")
-	_, _ = s.DB.Exec("ALTER TABLE messages ADD COLUMN status TEXT DEFAULT 'pending'")
-	_, _ = s.DB.Exec("ALTER TABLE ext_finance_accounts ADD COLUMN linked_account_id TEXT")
-	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN version INTEGER DEFAULT 1")
-	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN metadata TEXT")
-	_, _ = s.DB.Exec("ALTER TABLE files ADD COLUMN access_keys TEXT")
-	_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0")
-	_, _ = s.DB.Exec("ALTER TABLE profiles ADD COLUMN avatar_salt TEXT NOT NULL DEFAULT ''")
-	_, _ = s.DB.Exec("ALTER TABLE file_backups ADD COLUMN secured_meta BLOB")
-	// [FIX MITTEL-6] V2 backup fields: access_keys stores the per-user wrapped DEKs,
-	// version distinguishes V1 blob (raw ciphertext) from V2 blob ({data, iv} JSON).
-	_, _ = s.DB.Exec("ALTER TABLE file_backups ADD COLUMN access_keys TEXT DEFAULT '{}'")
-	_, _ = s.DB.Exec("ALTER TABLE file_backups ADD COLUMN version INTEGER DEFAULT 1")
+	// 3. Deterministic Sequential Migrations (ARC-02)
+	if err := s.runDeterministicMigrations(); err != nil {
+		return err
+	}
 
 	// 4. Create Indices (Now that columns exist)
 	indices := `
@@ -349,12 +334,19 @@ func (s *SQLiteStore) handleUserSchemaMigration() error {
 
 	if !hasLegacy {
 		// Still try to add new columns if they don't exist (ALTER TABLE is safer for small updates)
-		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN encrypted_vault BLOB")
-		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN encrypted_pepper BLOB")
-		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN enabled_extensions TEXT DEFAULT '[]'")
-		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN pin_hash TEXT")
-		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN login_code TEXT")
-		_, _ = s.DB.Exec("ALTER TABLE users ADD COLUMN username TEXT")
+		userCols := []string{
+			"ALTER TABLE users ADD COLUMN encrypted_vault BLOB",
+			"ALTER TABLE users ADD COLUMN encrypted_pepper BLOB",
+			"ALTER TABLE users ADD COLUMN enabled_extensions TEXT DEFAULT '[]'",
+			"ALTER TABLE users ADD COLUMN pin_hash TEXT",
+			"ALTER TABLE users ADD COLUMN login_code TEXT",
+			"ALTER TABLE users ADD COLUMN username TEXT",
+		}
+		for _, stmt := range userCols {
+			if _, err := s.DB.Exec(stmt); err != nil && !isDuplicateColumnError(err) {
+				return fmt.Errorf("failed to migrate users table column: %w", err)
+			}
+		}
 		return nil
 	}
 
@@ -414,6 +406,262 @@ func (s *SQLiteStore) handleUserSchemaMigration() error {
 	// 4. Drop old table
 	if _, err := tx.Exec("DROP TABLE users_old"); err != nil {
 		return err
+	}
+
+	return tx.Commit()
+}
+
+// --- Deterministic Migrations (ARC-02) ---
+
+type schemaMigration struct {
+	version int
+	name    string
+	stmts   []string
+}
+
+func isDuplicateColumnError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate column name")
+}
+
+func (s *SQLiteStore) runDeterministicMigrations() error {
+	var currentVersion int
+	if err := s.DB.QueryRow("PRAGMA user_version;").Scan(&currentVersion); err != nil {
+		return fmt.Errorf("failed to get current database schema user_version: %w", err)
+	}
+
+	migrations := []schemaMigration{
+		{
+			version: 1,
+			name:    "file_visibility_and_shares_metadata",
+			stmts: []string{
+				"ALTER TABLE files ADD COLUMN visibility TEXT DEFAULT 'private'",
+				"ALTER TABLE file_shares ADD COLUMN secured_meta BLOB",
+				"ALTER TABLE file_shares ADD COLUMN status TEXT DEFAULT 'pending'",
+				"ALTER TABLE file_shares ADD COLUMN permission TEXT NOT NULL DEFAULT 'view'",
+				"ALTER TABLE file_shares ADD COLUMN can_reshare INTEGER NOT NULL DEFAULT 0",
+				"ALTER TABLE messages ADD COLUMN status TEXT DEFAULT 'pending'",
+			},
+		},
+		{
+			version: 2,
+			name:    "finance_linked_accounts",
+			stmts: []string{
+				"ALTER TABLE ext_finance_accounts ADD COLUMN linked_account_id TEXT",
+			},
+		},
+		{
+			version: 3,
+			name:    "file_versions_metadata_and_access_keys",
+			stmts: []string{
+				"ALTER TABLE files ADD COLUMN version INTEGER DEFAULT 1",
+				"ALTER TABLE files ADD COLUMN metadata TEXT",
+				"ALTER TABLE files ADD COLUMN access_keys TEXT",
+			},
+		},
+		{
+			version: 4,
+			name:    "user_verification_and_avatar_salt",
+			stmts: []string{
+				"ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0",
+				"ALTER TABLE profiles ADD COLUMN avatar_salt TEXT NOT NULL DEFAULT ''",
+			},
+		},
+		{
+			version: 5,
+			name:    "file_backups_v2",
+			stmts: []string{
+				"ALTER TABLE file_backups ADD COLUMN secured_meta BLOB",
+				"ALTER TABLE file_backups ADD COLUMN access_keys TEXT DEFAULT '{}'",
+				"ALTER TABLE file_backups ADD COLUMN version INTEGER DEFAULT 1",
+			},
+		},
+	}
+
+	for _, m := range migrations {
+		if currentVersion >= m.version {
+			continue
+		}
+
+		tx, err := s.DB.BeginTx(context.Background(), nil)
+		if err != nil {
+			return fmt.Errorf("migration to version %d failed to begin transaction: %w", m.version, err)
+		}
+
+		for _, stmt := range m.stmts {
+			if _, execErr := tx.Exec(stmt); execErr != nil {
+				if isDuplicateColumnError(execErr) {
+					continue
+				}
+				_ = tx.Rollback()
+				return fmt.Errorf("migration to version %d failed: %w", m.version, execErr)
+			}
+		}
+
+		if _, err := tx.Exec(fmt.Sprintf("PRAGMA user_version = %d;", m.version)); err != nil {
+			_ = tx.Rollback()
+			return fmt.Errorf("migration to version %d failed to update user_version: %w", m.version, err)
+		}
+
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("migration to version %d failed to commit: %w", m.version, err)
+		}
+
+		currentVersion = m.version
+	}
+
+	return nil
+}
+
+// --- Atomic Access Key & Finance Store Helpers ---
+
+// UpdateFileAccessKey atomically updates the access_keys JSON map for a file.
+func (s *SQLiteStore) UpdateFileAccessKey(ctx context.Context, fileID, userID, wrappedKeyJSON string) error {
+	jsonPath := fmt.Sprintf(`$."%s"`, userID)
+	query := `UPDATE files SET access_keys = json_set(COALESCE(NULLIF(access_keys, ''), '{}'), ?, json(?)), updated_at = ? WHERE id = ?`
+	_, err := s.DB.ExecContext(ctx, query, jsonPath, wrappedKeyJSON, time.Now(), fileID)
+	return err
+}
+
+// RemoveFileAccessKey atomically removes a user from the access_keys JSON map for a file.
+func (s *SQLiteStore) RemoveFileAccessKey(ctx context.Context, fileID, userID string) error {
+	jsonPath := fmt.Sprintf(`$."%s"`, userID)
+	query := `UPDATE files SET access_keys = json_remove(COALESCE(NULLIF(access_keys, ''), '{}'), ?), updated_at = ? WHERE id = ?`
+	_, err := s.DB.ExecContext(ctx, query, jsonPath, time.Now(), fileID)
+	return err
+}
+
+// CreateFinanceAccount inserts a new finance account.
+func (s *SQLiteStore) CreateFinanceAccount(ctx context.Context, accountID, userID, name, accountType, linkedAccountID string, createdAt time.Time) error {
+	var linkedID *string
+	if linkedAccountID != "" {
+		linkedID = &linkedAccountID
+	}
+	if createdAt.IsZero() {
+		createdAt = time.Now()
+	}
+	query := `INSERT INTO ext_finance_accounts (id, user_id, name, type, linked_account_id, created_at) VALUES (?, ?, ?, ?, ?, ?)`
+	_, err := s.DB.ExecContext(ctx, query, accountID, userID, name, accountType, linkedID, createdAt)
+	return err
+}
+
+// GetFinanceAccounts retrieves all finance accounts for a user ordered by name ascending.
+func (s *SQLiteStore) GetFinanceAccounts(ctx context.Context, userID string) ([]FinanceAccount, error) {
+	query := `
+		SELECT a.id, a.user_id, a.name, a.type, COALESCE(SUM(e.amount), 0) AS balance, a.linked_account_id, a.created_at
+		FROM ext_finance_accounts a
+		LEFT JOIN ext_finance_entries e ON a.id = e.account_id
+		WHERE a.user_id = ?
+		GROUP BY a.id, a.user_id, a.name, a.type, a.linked_account_id, a.created_at
+		ORDER BY a.name ASC
+	`
+	rows, err := s.readDB().QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	accounts := make([]FinanceAccount, 0)
+	for rows.Next() {
+		var a FinanceAccount
+		if err := rows.Scan(&a.ID, &a.UserID, &a.Name, &a.Type, &a.Balance, &a.LinkedAccountID, &a.CreatedAt); err != nil {
+			return nil, err
+		}
+		accounts = append(accounts, a)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return accounts, nil
+}
+
+// GetFinanceTransactions retrieves finance transactions for a user ordered by date descending.
+func (s *SQLiteStore) GetFinanceTransactions(ctx context.Context, userID string) ([]FinanceTransaction, error) {
+	query := `
+		SELECT t.id, t.user_id, t.date AS tx_date, t.description, 
+		       COALESCE(SUM(CASE WHEN a.type = 'asset' THEN e.amount ELSE 0 END), 0) AS amount, 
+		       t.created_at
+		FROM ext_finance_transactions t
+		LEFT JOIN ext_finance_entries e ON t.id = e.transaction_id
+		LEFT JOIN ext_finance_accounts a ON e.account_id = a.id
+		WHERE t.user_id = ?
+		GROUP BY t.id, t.user_id, t.date, t.description, t.created_at
+		ORDER BY tx_date DESC
+	`
+	rows, err := s.readDB().QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	transactions := make([]FinanceTransaction, 0)
+	for rows.Next() {
+		var t FinanceTransaction
+		if err := rows.Scan(&t.ID, &t.UserID, &t.Date, &t.Description, &t.Amount, &t.CreatedAt); err != nil {
+			return nil, err
+		}
+		transactions = append(transactions, t)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return transactions, nil
+}
+
+// CreateFinanceTransactionAtomic atomically records a double-entry transaction and its balance entries.
+func (s *SQLiteStore) CreateFinanceTransactionAtomic(ctx context.Context, txID, userID string, txDate time.Time, description string, debitAccountID string, creditAccountID string, amount float64) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	now := time.Now()
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO ext_finance_transactions (id, user_id, date, description, created_at) VALUES (?, ?, ?, ?, ?)`,
+		txID, userID, txDate, description, now); err != nil {
+		return fmt.Errorf("failed to insert transaction record: %w", err)
+	}
+
+	debitEntryID := fmt.Sprintf("entry-%s-dr", txID)
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO ext_finance_entries (id, transaction_id, account_id, amount) VALUES (?, ?, ?, ?)`,
+		debitEntryID, txID, debitAccountID, amount); err != nil {
+		return fmt.Errorf("failed to insert debit entry: %w", err)
+	}
+
+	creditEntryID := fmt.Sprintf("entry-%s-cr", txID)
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO ext_finance_entries (id, transaction_id, account_id, amount) VALUES (?, ?, ?, ?)`,
+		creditEntryID, txID, creditAccountID, -amount); err != nil {
+		return fmt.Errorf("failed to insert credit entry: %w", err)
+	}
+
+	return tx.Commit()
+}
+
+// DeleteFinanceAccountAtomic atomically deletes an external finance account and its entries.
+func (s *SQLiteStore) DeleteFinanceAccountAtomic(ctx context.Context, accountID, userID string) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM ext_finance_entries WHERE account_id = ?`, accountID); err != nil {
+		return fmt.Errorf("failed to delete finance entries: %w", err)
+	}
+
+	res, err := tx.ExecContext(ctx, `DELETE FROM ext_finance_accounts WHERE id = ? AND user_id = ?`, accountID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete finance account: %w", err)
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return ErrNotFound
 	}
 
 	return tx.Commit()

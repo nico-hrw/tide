@@ -1,4 +1,4 @@
-import { arrayBufferToBase64, base64ToArrayBuffer, deriveKeyFromPassword, decryptFile, MasterKeys } from "./crypto";
+import { arrayBufferToBase64, base64ToArrayBuffer, deriveKeyFromPassword, decryptFile, decryptMetadata, encryptMetadata, MasterKeys } from "./crypto";
 
 // --- Types ---
 
@@ -237,7 +237,235 @@ export async function decryptFileV2(opts: DecryptFileV2Options): Promise<Blob> {
     return new Blob([decryptedBuffer]);
 }
 
-// --- 3. Lazy Migration Logic ---
+// --- 3. Migration & Deprecation Logic ---
+
+/**
+ * @deprecated Legacy V1 encryption format (direct AES-GCM file key in RSA secured_meta) is deprecated.
+ * Use V2 Envelope Encryption (AES-GCM DEK + RSA-OAEP KEK) via `encryptFileV2` / `decryptFileV2`.
+ * For automatic migration of legacy entities, use `migrateV1ToV2IfNeeded`.
+ */
+export const LEGACY_V1_DEPRECATION_NOTICE = "Tide V1 encryption is deprecated. Migrate to V2 using migrateV1ToV2IfNeeded." as const;
+
+export interface MigrateV1ToV2Options {
+    /** The user's RSA public key (used for wrapping the DEK and encrypting metadata in V2). */
+    userPublicKey?: CryptoKey;
+    /** The user ID used for the access_keys map. Defaults to entity.user_id, entity.userId, or "me". */
+    userID?: string;
+    /** Optional custom password if double-wrapping with AES-GCM is desired. */
+    customPassword?: string;
+    /** Optional file key for legacy V1 files if not embedded in secured_meta. */
+    legacyFileKey?: CryptoKey;
+}
+
+/**
+ * Attempts to derive an RSA-OAEP public CryptoKey from an extractable private CryptoKey.
+ */
+export async function derivePublicKeyFromPrivateKey(privateKey: CryptoKey): Promise<CryptoKey> {
+    if (!privateKey.extractable) {
+        throw new Error("[CRYPTO-V2] Cannot derive public key: privateKey is non-extractable. Provide userPublicKey explicitly.");
+    }
+    const jwk = await window.crypto.subtle.exportKey("jwk", privateKey);
+    return window.crypto.subtle.importKey(
+        "jwk",
+        {
+            kty: jwk.kty,
+            n: jwk.n,
+            e: jwk.e,
+            alg: jwk.alg || "RSA-OAEP-256",
+            ext: true,
+            key_ops: ["encrypt"],
+        },
+        {
+            name: "RSA-OAEP",
+            hash: "SHA-256",
+        },
+        true,
+        ["encrypt"]
+    );
+}
+
+/**
+ * Checks whether an entity record uses legacy V1 payload formatting
+ * (e.g. lacks V2 headers/format, has V1 version/markers, or legacy encrypted fields).
+ */
+export function isV1Payload(entity: Record<string, unknown>): boolean {
+    if (!entity || typeof entity !== "object") return false;
+
+    const version = typeof entity.version === "number" ? entity.version : undefined;
+
+    // If explicitly marked as version >= 2 and has V2 ciphertext or access keys, it is not V1
+    if (version !== undefined && version >= 2 && (entity.content_ciphertext || entity.access_keys)) {
+        return false;
+    }
+
+    // Has explicit V1 version marker
+    if (version === 1) {
+        return true;
+    }
+
+    // Has legacy IV or V1-specific fields without V2 format
+    const hasLegacyIv = Boolean(
+        (typeof entity.iv === "string" && entity.iv.length > 0) ||
+        (entity.public_meta && typeof entity.public_meta === "object" && "iv" in entity.public_meta)
+    );
+
+    const hasLegacyPayload = Boolean(
+        entity.content !== undefined ||
+        entity.ciphertext !== undefined ||
+        (typeof entity.secured_meta === "string" && entity.secured_meta.length > 0)
+    );
+
+    const lacksV2Envelope = !entity.content_ciphertext || !entity.access_keys;
+
+    return hasLegacyPayload && (hasLegacyIv || lacksV2Envelope);
+}
+
+/**
+ * Checks whether an entity uses legacy V1 payload formatting, and if so,
+ * decrypts it and re-encrypts it using V2 Envelope Encryption (AES-GCM DEK + RSA-OAEP KEK).
+ * If the entity is already in V2 format, it is returned unchanged.
+ *
+ * @param entity The entity object (e.g. Note, File, Event).
+ * @param userPrivateKey The user's RSA-OAEP master private key for decrypting V1 secured_meta / payloads.
+ * @param options Optional migration settings (userPublicKey, userID, customPassword, legacyFileKey).
+ * @returns The migrated entity in V2 format.
+ */
+export async function migrateV1ToV2IfNeeded<T extends Record<string, unknown>>(
+    entity: T,
+    userPrivateKey: CryptoKey,
+    options?: MigrateV1ToV2Options
+): Promise<T> {
+    if (!isV1Payload(entity)) {
+        return entity;
+    }
+
+    // 1. Resolve user's public key (needed for V2 DEK wrapping)
+    let publicKey = options?.userPublicKey;
+    if (!publicKey) {
+        try {
+            publicKey = await derivePublicKeyFromPrivateKey(userPrivateKey);
+        } catch {
+            throw new Error(
+                "[CRYPTO-V2] migrateV1ToV2IfNeeded: userPublicKey was not provided and could not be derived from userPrivateKey (non-extractable). Please pass options.userPublicKey."
+            );
+        }
+    }
+
+    // 2. Resolve userID for access_keys mapping
+    const userID = options?.userID ||
+        (typeof entity.user_id === "string" ? entity.user_id :
+            (typeof entity.userId === "string" ? entity.userId : "me"));
+
+    // 3. Decrypt secured_meta if present
+    let decryptedMeta: Record<string, unknown> | null = null;
+    let legacyKey: CryptoKey | undefined = options?.legacyFileKey;
+
+    if (typeof entity.secured_meta === "string" && entity.secured_meta.trim().length > 0) {
+        try {
+            const meta = await decryptMetadata(entity.secured_meta, userPrivateKey, typeof entity.id === "string" ? entity.id : undefined);
+            if (meta && !meta.isLocked) {
+                decryptedMeta = meta;
+                if (meta.fileKey && typeof meta.fileKey === "object") {
+                    try {
+                        legacyKey = await window.crypto.subtle.importKey(
+                            "jwk",
+                            meta.fileKey as JsonWebKey,
+                            { name: "AES-GCM" },
+                            true,
+                            ["encrypt", "decrypt"]
+                        );
+                    } catch (importErr) {
+                        console.warn("[CRYPTO-V2] Failed to import legacy fileKey from secured_meta", importErr);
+                    }
+                }
+            }
+        } catch (metaErr) {
+            console.warn("[CRYPTO-V2] Failed to decrypt secured_meta during migration", metaErr);
+        }
+    }
+
+    // 4. Resolve legacy IV
+    let legacyIv = "";
+    if (typeof entity.iv === "string" && entity.iv) {
+        legacyIv = entity.iv;
+    } else if (decryptedMeta && typeof decryptedMeta.iv === "string" && decryptedMeta.iv) {
+        legacyIv = decryptedMeta.iv;
+    } else if (typeof entity.public_meta === "object" && entity.public_meta !== null && "iv" in entity.public_meta) {
+        legacyIv = String((entity.public_meta as Record<string, unknown>).iv);
+    }
+
+    // 5. Decrypt content if present
+    let decryptedBlob: Blob | null = null;
+    const rawContent = entity.ciphertext ?? entity.content ?? entity.data;
+
+    if (rawContent !== undefined && rawContent !== null) {
+        let blobToDecrypt: Blob;
+        if (rawContent instanceof Blob) {
+            blobToDecrypt = rawContent;
+        } else if (typeof rawContent === "string") {
+            try {
+                const ab = base64ToArrayBuffer(rawContent);
+                blobToDecrypt = new Blob([ab]);
+            } catch {
+                blobToDecrypt = new Blob([new TextEncoder().encode(rawContent)]);
+            }
+        } else if (rawContent instanceof ArrayBuffer) {
+            blobToDecrypt = new Blob([rawContent]);
+        } else {
+            blobToDecrypt = new Blob([new TextEncoder().encode(JSON.stringify(rawContent))]);
+        }
+
+        if (legacyKey && legacyIv) {
+            decryptedBlob = await decryptFile(blobToDecrypt, legacyIv, legacyKey, typeof entity.id === "string" ? entity.id : undefined);
+        } else if (userPrivateKey.algorithm.name === "RSA-OAEP") {
+            try {
+                const buf = await blobToDecrypt.arrayBuffer();
+                const decrypted = await window.crypto.subtle.decrypt({ name: "RSA-OAEP" }, userPrivateKey, buf);
+                decryptedBlob = new Blob([decrypted]);
+            } catch {
+                decryptedBlob = blobToDecrypt;
+            }
+        } else {
+            decryptedBlob = blobToDecrypt;
+        }
+    }
+
+    // 6. Encrypt to V2 if content exists
+    let v2Result: EncryptedFileV2Result | undefined;
+    if (decryptedBlob) {
+        v2Result = await encryptFileV2(decryptedBlob, publicKey, options?.customPassword);
+    }
+
+    // 7. Assemble migrated V2 entity
+    const existingMetadata = typeof entity.metadata === "object" && entity.metadata !== null
+        ? (entity.metadata as Record<string, unknown>)
+        : {};
+
+    const mergedMetadata: Record<string, unknown> = {
+        ...existingMetadata,
+        ...(decryptedMeta || {}),
+        ...(v2Result ? v2Result.metadata : { has_custom_password: false }),
+        ...(decryptedMeta?.title ? { title: decryptedMeta.title } : {}),
+    };
+    mergedMetadata.has_custom_password = Boolean(mergedMetadata.has_custom_password);
+
+    const migrated: Record<string, unknown> = {
+        ...entity,
+        version: 2,
+        metadata: mergedMetadata,
+    };
+
+    if (v2Result) {
+        migrated.content_ciphertext = v2Result.content_ciphertext;
+        migrated.access_keys = {
+            [userID]: v2Result.encrypted_dek,
+        };
+        delete migrated.ciphertext;
+        delete migrated.iv;
+    }
+
+    return migrated as T;
+}
 
 export interface MigratedDataPayload {
     needsMigration: boolean;
@@ -252,6 +480,7 @@ export interface MigratedDataPayload {
 
 /**
  * Wrapper function for UI components to load files seamlessly and trigger lazy migrations.
+ * @deprecated Prefer using `migrateV1ToV2IfNeeded` for transparent entity migration.
  */
 export async function loadAndMigrateFile(
     fileRecord: any, 
@@ -403,7 +632,7 @@ export async function testCryptoV2() {
         }
         console.assert(didThrow, "Should throw ERR_CUSTOM_PASSWORD_REQUIRED");
         
-        // 2b. Attempt Decrypt WITH Password
+        // Test 2b: Attempt Decrypt WITH Password
         const decBlob2 = await decryptFileV2({
             content_ciphertext: r2.content_ciphertext,
             access_keys: accessMap2,
@@ -415,6 +644,61 @@ export async function testCryptoV2() {
         const outMsg2 = await decBlob2.text();
         console.assert(outMsg2 === msg2, "Decrypted text mismatch in Test 2");
         console.log("Test 2 Passed: ", outMsg2);
+
+        // Test 3: Transparent V1 to V2 Migration
+        console.log("--- Test 3: Transparent V1 to V2 Migration ---");
+        const v1RawText = "Legacy V1 Secret Document Content";
+        const fileKey = await window.crypto.subtle.generateKey(
+            { name: "AES-GCM", length: 256 },
+            true,
+            ["encrypt", "decrypt"]
+        );
+        const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", fileKey);
+        const v1Iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const v1IvBase64 = arrayBufferToBase64(v1Iv.buffer);
+        const encText = await window.crypto.subtle.encrypt(
+            { name: "AES-GCM", iv: v1Iv },
+            fileKey,
+            new TextEncoder().encode(v1RawText)
+        );
+        const v1Blob = new Blob([encText]);
+        const securedMeta = await encryptMetadata(
+            { title: "Legacy Note", fileKey: fileKeyJwk, iv: v1IvBase64 },
+            masterKeys.publicKey
+        );
+
+        const v1Entity: Record<string, unknown> = {
+            id: "legacy-note-1",
+            version: 1,
+            title: "Legacy Note",
+            ciphertext: v1Blob,
+            iv: v1IvBase64,
+            secured_meta: securedMeta,
+        };
+
+        console.assert(isV1Payload(v1Entity) === true, "isV1Payload should identify v1Entity as V1");
+
+        const migratedEntity = await migrateV1ToV2IfNeeded(v1Entity, masterKeys.privateKey, {
+            userPublicKey: masterKeys.publicKey,
+            userID: myUserID,
+        });
+
+        console.assert(migratedEntity.version === 2, "Migrated version should be 2");
+        console.assert(Boolean(migratedEntity.content_ciphertext), "Migrated content_ciphertext must exist");
+        console.assert(Boolean(migratedEntity.access_keys), "Migrated access_keys must exist");
+        console.assert(isV1Payload(migratedEntity) === false, "isV1Payload should identify migrated entity as V2");
+
+        // Verify that decryptFileV2 can decrypt the migrated entity
+        const decMigratedBlob = await decryptFileV2({
+            content_ciphertext: migratedEntity.content_ciphertext as string,
+            access_keys: migratedEntity.access_keys as AccessKeysMap,
+            metadata: migratedEntity.metadata as any,
+            masterKey: masterKeys.privateKey,
+            userID: myUserID,
+        });
+        const outMigratedText = await decMigratedBlob.text();
+        console.assert(outMigratedText === v1RawText, "Migrated content text mismatch");
+        console.log("Test 3 Passed: Successfully migrated V1 entity to V2:", outMigratedText);
 
         console.log("=== CRYPTO V2 VERIFICATION SUCCESSFUL ===");
         return true;

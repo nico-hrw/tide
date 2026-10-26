@@ -13,9 +13,63 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for web app clients
-	},
+	CheckOrigin: checkOrigin,
+}
+
+// checkOrigin validates the Origin header against trusted origins to prevent CSWSH (SEC-08).
+func checkOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		// Allow requests without Origin header (e.g. non-browser clients, native apps, backend tests)
+		return true
+	}
+
+	// 1. Same host match (Origin matches Host header)
+	if origin == "http://"+r.Host || origin == "https://"+r.Host {
+		return true
+	}
+
+	// 2. Default local development origins & production domains
+	trustedOrigins := []string{
+		"http://localhost:3000",
+		"http://localhost:5173",
+		"http://localhost:8080",
+		"http://127.0.0.1:3000",
+		"http://127.0.0.1:5173",
+		"http://127.0.0.1:8080",
+		"https://go-tide.app",
+		"https://www.go-tide.app",
+	}
+	for _, trusted := range trustedOrigins {
+		if origin == trusted {
+			return true
+		}
+	}
+
+	// Also allow arbitrary localhost and 127.0.0.1 dev ports
+	if strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:") {
+		return true
+	}
+
+	// 3. Configured APP_URL
+	if appURL := strings.TrimSpace(os.Getenv("APP_URL")); appURL != "" {
+		if origin == strings.TrimRight(appURL, "/") {
+			return true
+		}
+	}
+
+	// 4. Configured ALLOWED_ORIGINS (comma-separated list)
+	if envOrigins := os.Getenv("ALLOWED_ORIGINS"); envOrigins != "" {
+		for _, o := range strings.Split(envOrigins, ",") {
+			o = strings.TrimSpace(o)
+			if o != "" && origin == strings.TrimRight(o, "/") {
+				return true
+			}
+		}
+	}
+
+	log.Printf("[WebSocket] Rejecting untrusted origin: %s", origin)
+	return false
 }
 
 // Hub maintains the set of active clients per fileID and broadcasts messages to the clients.
@@ -144,8 +198,12 @@ func (h *FileHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
 					if claims, ok := token.Claims.(jwt.MapClaims); ok {
 						if sub, ok := claims["sub"].(string); ok && sub != "" {
 							userID = sub
+						} else if uid, ok := claims["user_id"].(string); ok && uid != "" {
+							userID = uid
 						}
 					}
+				} else if err != nil {
+					log.Printf("[WebSocket] Token validation error: %v", err)
 				}
 			}
 		}

@@ -12,6 +12,7 @@ import { apiFetch } from '@/lib/api';
 import APIAccessSettings from './APIAccessSettings';
 import DebugPluginSettings from './DebugPluginSettings';
 import MobileConnectionSettings from './MobileConnectionSettings';
+import { storeMasterKey, clearMasterKey, getMasterKey, purgeLegacyKeys } from '@/lib/keyStorage';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -644,19 +645,32 @@ export default function SettingsModal({
         }
     };
 
-    const handleExportMasterKey = () => {
+    const handleExportMasterKey = async () => {
         try {
-            const rawKey = localStorage.getItem("tide_session_key") || sessionStorage.getItem("tide_session_key");
-            if (!rawKey) {
-                setBackupStatus({ type: 'error', msg: 'Kein aktiver Master-Schlüssel im Browser-Speicher gefunden.' });
-                return;
+            let privateKeyJwk: any = null;
+            const masterKey = await getMasterKey();
+            if (masterKey) {
+                try {
+                    privateKeyJwk = await window.crypto.subtle.exportKey("jwk", masterKey);
+                } catch {
+                    // Non-extractable key cannot be exported as JWK
+                }
             }
 
-            let privateKeyJwk: any;
-            try {
-                privateKeyJwk = typeof rawKey === 'string' ? JSON.parse(rawKey) : rawKey;
-            } catch {
-                privateKeyJwk = rawKey;
+            if (!privateKeyJwk) {
+                const rawKey = localStorage.getItem("tide_session_key") || sessionStorage.getItem("tide_session_key");
+                if (rawKey) {
+                    try {
+                        privateKeyJwk = typeof rawKey === 'string' ? JSON.parse(rawKey) : rawKey;
+                    } catch {
+                        privateKeyJwk = rawKey;
+                    }
+                }
+            }
+
+            if (!privateKeyJwk) {
+                setBackupStatus({ type: 'error', msg: 'Kein aktiver Master-Schlüssel im Browser-Speicher gefunden.' });
+                return;
             }
 
             const email = localStorage.getItem("tide_user_email") || sessionStorage.getItem("tide_user_email") || userProfile?.email || "";
@@ -694,17 +708,30 @@ export default function SettingsModal({
 
     const handleCopyMasterKey = async () => {
         try {
-            const rawKey = localStorage.getItem("tide_session_key") || sessionStorage.getItem("tide_session_key");
-            if (!rawKey) {
-                setBackupStatus({ type: 'error', msg: 'Kein aktiver Master-Schlüssel im Browser-Speicher gefunden.' });
-                return;
+            let privateKeyJwk: any = null;
+            const masterKey = await getMasterKey();
+            if (masterKey) {
+                try {
+                    privateKeyJwk = await window.crypto.subtle.exportKey("jwk", masterKey);
+                } catch {
+                    // Non-extractable key cannot be exported as JWK
+                }
             }
 
-            let privateKeyJwk: any;
-            try {
-                privateKeyJwk = typeof rawKey === 'string' ? JSON.parse(rawKey) : rawKey;
-            } catch {
-                privateKeyJwk = rawKey;
+            if (!privateKeyJwk) {
+                const rawKey = localStorage.getItem("tide_session_key") || sessionStorage.getItem("tide_session_key");
+                if (rawKey) {
+                    try {
+                        privateKeyJwk = typeof rawKey === 'string' ? JSON.parse(rawKey) : rawKey;
+                    } catch {
+                        privateKeyJwk = rawKey;
+                    }
+                }
+            }
+
+            if (!privateKeyJwk) {
+                setBackupStatus({ type: 'error', msg: 'Kein aktiver Master-Schlüssel im Browser-Speicher gefunden.' });
+                return;
             }
 
             const email = localStorage.getItem("tide_user_email") || sessionStorage.getItem("tide_user_email") || userProfile?.email || "";
@@ -736,7 +763,7 @@ export default function SettingsModal({
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
                 if (!text) throw new Error("Datei ist leer.");
@@ -749,10 +776,17 @@ export default function SettingsModal({
                     throw new Error("Ungültiges RSA-Schlüsselformat: kty muss 'RSA' sein und Komponenten 'n' & 'd' müssen existieren.");
                 }
 
-                // Update localStorage and sessionStorage
-                const keyStr = JSON.stringify(privateKey);
-                localStorage.setItem("tide_session_key", keyStr);
-                sessionStorage.setItem("tide_session_key", keyStr);
+                // Import RSA private key to CryptoKey and store securely
+                const importedKey = await window.crypto.subtle.importKey(
+                    "jwk",
+                    privateKey,
+                    { name: "RSA-OAEP", hash: "SHA-256" },
+                    true,
+                    ["decrypt"]
+                );
+
+                await storeMasterKey(importedKey);
+                purgeLegacyKeys();
 
                 if (parsed.userId) {
                     localStorage.setItem("tide_user_id", parsed.userId);
@@ -796,6 +830,18 @@ export default function SettingsModal({
         };
 
         reader.readAsText(file);
+    };
+
+    const handleLogout = async () => {
+        try {
+            await clearMasterKey();
+            purgeLegacyKeys();
+        } catch (err) {
+            console.error("Error clearing master key:", err);
+        }
+        if (onLogout) {
+            onLogout();
+        }
     };
 
     const renderAccount = () => (
@@ -1049,7 +1095,7 @@ export default function SettingsModal({
 
             <div className="pt-4 border-t border-gray-100 dark:border-white/5">
                 <button
-                    onClick={onLogout}
+                    onClick={handleLogout}
                     className="flex items-center gap-3 px-4 py-3 text-sm text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-colors font-bold group w-fit"
                 >
                     <LogOut className="w-5 h-5 text-rose-400 group-hover:text-rose-500" />

@@ -46,14 +46,10 @@ func main() {
 	}
 
 	masterKeyStr := os.Getenv("SERVER_MASTER_KEY")
-	if masterKeyStr == "" {
-		log.Println("WARNING: SERVER_MASTER_KEY not set. Using insecure dev key.")
-		masterKeyStr = "12345678901234567890123456789012" // 32 bytes for DEV ONLY!
+	if len(masterKeyStr) < 32 {
+		log.Fatal("CRITICAL: SERVER_MASTER_KEY must be set and at least 32 characters long")
 	}
-	if len(masterKeyStr) != 32 {
-		log.Fatalf("SERVER_MASTER_KEY must be exactly 32 bytes, got %d", len(masterKeyStr))
-	}
-	masterKey := []byte(masterKeyStr)
+	masterKey := []byte(masterKeyStr[:32])
 
 	// [FIX MITTEL-1] Abort startup immediately if JWT_SECRET is not set.
 	// This prevents any issued JWTs from being signed with an insecure fallback key.
@@ -76,6 +72,7 @@ func main() {
 	authHandler := api.NewAuthHandler(sqliteStore, masterKey)
 	authLimiter := api.NewIPRateLimiter(0.1, 5)
 	otpVerifyLimiter := api.NewIPRateLimiter(0.166, 5)
+	searchLimiter := api.NewIPRateLimiter(20.0/60.0, 20)
 	fileHandler := api.NewFileHandler(sqliteStore, blobStore, broker)
 	linkHandler := api.NewLinkHandler(sqliteStore)
 	messageHandler := &api.MessageHandler{Store: sqliteStore, Broker: broker}
@@ -101,24 +98,32 @@ func main() {
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
-			trustedOrigins := []string{
-				"http://localhost:3000",
-				"https://go-tide.app",
-				"https://www.go-tide.app",
+			trustedOrigins := map[string]bool{
+				"http://localhost:3000":   true,
+				"http://localhost:5173":   true,
+				"http://127.0.0.1:3000":   true,
+				"http://127.0.0.1:5173":   true,
+				"https://go-tide.app":     true,
+				"https://www.go-tide.app": true,
+			}
+
+			if appURL := os.Getenv("APP_URL"); appURL != "" {
+				trustedOrigins[strings.TrimRight(strings.TrimSpace(appURL), "/")] = true
+			}
+			if allowedOrigins := os.Getenv("ALLOWED_ORIGINS"); allowedOrigins != "" {
+				for _, o := range strings.Split(allowedOrigins, ",") {
+					o = strings.TrimRight(strings.TrimSpace(o), "/")
+					if o != "" {
+						trustedOrigins[o] = true
+					}
+				}
 			}
 
 			isTrusted := false
 			if origin != "" {
-				for _, tr := range trustedOrigins {
-					if origin == tr ||
-						strings.HasPrefix(origin, "http://localhost") ||
-						strings.HasSuffix(origin, ".go-tide.app") ||
-						strings.HasPrefix(origin, "http://192.168.") ||
-						strings.HasPrefix(origin, "http://10.") ||
-						strings.HasPrefix(origin, "http://127.0.0.1") {
-						isTrusted = true
-						break
-					}
+				cleanOrigin := strings.TrimRight(origin, "/")
+				if trustedOrigins[cleanOrigin] {
+					isTrusted = true
 				}
 			} else {
 				// No Origin header (same-origin or non-browser request)
@@ -169,7 +174,7 @@ func main() {
 		r.Route("/messages", messageHandler.RegisterRoutes)
 		r.Route("/contacts", contactHandler.RegisterRoutes)
 		r.Route("/profiles", profileHandler.RegisterRoutes)
-		r.Get("/search", profileHandler.Search)
+		r.With(api.AuthMiddleware, api.RateLimitMiddleware(searchLimiter)).Get("/search", profileHandler.Search)
 		r.Route("/user/extensions", extensionsHandler.RegisterRoutes)
 		r.Route("/tabs", tabsHandler.RegisterRoutes)
 		r.Route("/tasks", taskHandler.RegisterRoutes)

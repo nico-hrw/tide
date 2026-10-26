@@ -15,6 +15,8 @@ type BlobStore interface {
 	Put(ctx context.Context, id string, r io.Reader) error
 	Get(ctx context.Context, id string) (io.ReadCloser, error)
 	Exists(ctx context.Context, id string) bool
+	Delete(ctx context.Context, id string) error
+	GetSize(ctx context.Context, id string) (int64, error)
 }
 
 // LocalBlobStore implements BlobStore using the local filesystem.
@@ -90,4 +92,34 @@ func (s *LocalBlobStore) Exists(ctx context.Context, id string) bool {
 	}
 	_, err = os.Stat(path)
 	return err == nil
+}
+
+func (s *LocalBlobStore) Delete(ctx context.Context, id string) error {
+	path, err := s.resolvePath(id)
+	if err != nil {
+		return err
+	}
+	err = os.Remove(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+func (s *LocalBlobStore) GetSize(ctx context.Context, id string) (int64, error) {
+	path, err := s.resolvePath(id)
+	if err != nil {
+		return 0, err
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, ErrNotFound
+		}
+		return 0, err
+	}
+	return info.Size(), nil
 }

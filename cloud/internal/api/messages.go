@@ -99,20 +99,13 @@ func (h *MessageHandler) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contact, _ := h.Store.GetContact(r.Context(), senderID, recipient.ID) // Store Interface Update? Store.GetContact(ctx, from, to)
-
-	// Check if this is a system message (file share, event share, etc.)
-	// System messages should be allowed even without friendship
-	var contentData map[string]interface{}
-	isSystemMessage := false
-	if err := json.Unmarshal([]byte(req.Content), &contentData); err == nil {
-		if msgType, ok := contentData["type"].(string); ok {
-			isSystemMessage = msgType == "file_share_request" || msgType == "event_share"
-		}
-	}
-
-	if !isSystemMessage && (contact == nil || contact.Status != "accepted") {
-		http.Error(w, "You must be friends to message each other", http.StatusForbidden)
+	contact, _ := h.Store.GetContact(r.Context(), senderID, recipient.ID)
+	if contact == nil || contact.Status != "accepted" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Users must be connected to share files or events",
+		})
 		return
 	}
 

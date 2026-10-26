@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 
@@ -84,24 +85,14 @@ func (h *FinanceHandler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tx, err := h.Store.DB.BeginTx(r.Context(), nil)
-	if err != nil {
-		http.Error(w, "Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	// For a simple prototype, we just delete the account. If entries exist, foreign keys might block
-	// unless CASCADE is enabled, or we delete entries first.
-	_, _ = tx.ExecContext(r.Context(), `DELETE FROM ext_finance_entries WHERE account_id = ?`, accountID)
-	_, err = tx.ExecContext(r.Context(), `DELETE FROM ext_finance_accounts WHERE id = ? AND user_id = ?`, accountID, userID)
-
-	if err != nil {
-		tx.Rollback()
+	if err := h.Store.DeleteFinanceAccountAtomic(r.Context(), accountID, userID); err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.Error(w, "Account not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "Failed to delete account", http.StatusInternalServerError)
 		return
 	}
-
-	tx.Commit()
 
 	h.Broker.Broadcast(userID, "finance_update")
 	w.WriteHeader(http.StatusOK)
@@ -162,50 +153,8 @@ func (h *FinanceHandler) CreateTransaction(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	// Start a DB Transaction
-	tx, err := h.Store.DB.BeginTx(r.Context(), nil)
-	if err != nil {
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
-	// 1. Insert Transaction Record
-	_, err = tx.ExecContext(r.Context(),
-		`INSERT INTO ext_finance_transactions (id, user_id, date, description, created_at) VALUES (?, ?, ?, ?, ?)`,
-		transactionID, userID, txDate, req.Description, time.Now())
-
-	if err != nil {
-		tx.Rollback()
-		http.Error(w, "Failed to create transaction record", http.StatusInternalServerError)
-		return
-	}
-
-	// 2. Insert Debit Entry (Positive amount by convention for our simple ledger, or we could strict-sign it)
-	// For strict double entry debit = positive, credit = negative. Must sum to 0.
-	_, err = tx.ExecContext(r.Context(),
-		`INSERT INTO ext_finance_entries (id, transaction_id, account_id, amount) VALUES (?, ?, ?, ?)`,
-		uuid.New().String(), transactionID, debitAccountID, req.Amount)
-
-	if err != nil {
-		tx.Rollback()
-		http.Error(w, "Failed to create debit entry", http.StatusInternalServerError)
-		return
-	}
-
-	// 3. Insert Credit Entry
-	_, err = tx.ExecContext(r.Context(),
-		`INSERT INTO ext_finance_entries (id, transaction_id, account_id, amount) VALUES (?, ?, ?, ?)`,
-		uuid.New().String(), transactionID, creditAccountID, -req.Amount)
-
-	if err != nil {
-		tx.Rollback()
-		http.Error(w, "Failed to create credit entry", http.StatusInternalServerError)
-		return
-	}
-
-	// Commit
-	if err := tx.Commit(); err != nil {
-		http.Error(w, "Failed to commit transaction", http.StatusInternalServerError)
+	if err := h.Store.CreateFinanceTransactionAtomic(r.Context(), transactionID, userID, txDate, req.Description, debitAccountID, creditAccountID, req.Amount); err != nil {
+		http.Error(w, "Failed to create transaction", http.StatusInternalServerError)
 		return
 	}
 

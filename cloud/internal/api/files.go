@@ -375,14 +375,8 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 	}
 	if dekToStore != "" {
 		wrappedKeyJSON, _ := json.Marshal(map[string]string{"wrapped_key": dekToStore})
-		// recipient.ID is a UUID fetched from DB — safe to use in json_set path.
-		jsonPath := fmt.Sprintf("'$.%s'", recipient.ID)
-		query := fmt.Sprintf(
-			`UPDATE files SET access_keys = json_set(COALESCE(NULLIF(access_keys, ''), '{}'), %s, json(?)), updated_at = ? WHERE id = ?`,
-			jsonPath,
-		)
-		if _, dbErr := h.Store.DB.ExecContext(r.Context(), query, string(wrappedKeyJSON), time.Now(), fileID); dbErr != nil {
-			log.Printf("[SHARE] Warning: atomic access_keys update failed for file %s: %v", fileID, dbErr)
+		if err := h.Store.UpdateFileAccessKey(r.Context(), fileID, recipient.ID, string(wrappedKeyJSON)); err != nil {
+			log.Printf("[SHARE] Warning: atomic access_keys update failed for file %s: %v", fileID, err)
 		}
 	}
 
@@ -495,9 +489,7 @@ func (h *FileHandler) RevokeShare(w http.ResponseWriter, r *http.Request) {
 	h.Broker.Broadcast(targetUserID, eventData)
 
 	// Also remove the recipient's wrapped DEK from access_keys.
-	jsonPath := fmt.Sprintf("$.%s", targetUserID)
-	query := `UPDATE files SET access_keys = json_remove(COALESCE(NULLIF(access_keys, ''), '{}'), ?), updated_at = ? WHERE id = ?`
-	_, _ = h.Store.DB.ExecContext(r.Context(), query, jsonPath, time.Now(), fileID)
+	_ = h.Store.RemoveFileAccessKey(r.Context(), fileID, targetUserID)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "Share revoked"}`))
 }
@@ -721,9 +713,11 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Owner has full access; otherwise the requester must have an accepted share with at least 'edit' permission.
+	var sharePermission string
 	if file.OwnerID != requesterID {
-		perm, _ := h.Store.GetSharePermission(r.Context(), id, requesterID)
-		if perm != "edit" && perm != "share" {
+		var err error
+		sharePermission, err = h.Store.GetSharePermission(r.Context(), id, requesterID)
+		if err != nil || (sharePermission != "edit" && sharePermission != "share") {
 			http.Error(w, "Forbidden: read-only access", http.StatusForbidden)
 			return
 		}
@@ -748,7 +742,11 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 			file.SecuredMeta = decodeBase64OrRaw(*req.SecuredMeta)
 		} else {
 			// If a collaborator updates secured_meta (e.g. rename), update their own entry in file_shares
-			_, _ = h.Store.DB.ExecContext(r.Context(), `UPDATE file_shares SET secured_meta = ? WHERE file_id = ? AND user_id = ?`, decodeBase64OrRaw(*req.SecuredMeta), id, requesterID)
+			canReshare := false
+			if share, err := h.Store.GetShare(r.Context(), id, requesterID); err == nil && share != nil {
+				canReshare = share.CanReshare
+			}
+			_ = h.Store.ShareFileWithPermission(r.Context(), id, requesterID, decodeBase64OrRaw(*req.SecuredMeta), sharePermission, canReshare)
 		}
 	}
 	if req.Visibility != nil {

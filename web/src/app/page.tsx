@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import * as cryptoLib from "@/lib/crypto";
 import * as cryptoV2 from "@/lib/cryptoV2";
 import { apiFetch, getApiBase } from "@/lib/api";
+import { getMasterKey, storeMasterKey, clearMasterKey, purgeLegacyKeys } from "@/lib/keyStorage";
 import ChatPanel from "@/components/Chat/ChatPanel";
 import Sidebar from "@/components/Layout/Sidebar";
 import TabList, { Tab } from "@/components/Layout/TabList";
@@ -1826,8 +1827,9 @@ export default function Dashboard() {
         return () => window.removeEventListener('dataStore:createNote', h);
     }, [handleNewNote]);
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
         sessionStorage.clear();
+        await clearMasterKey();
         localStorage.removeItem("tide_session_key");
         localStorage.removeItem("tide_session_token");
         localStorage.removeItem("tide_user_id");
@@ -2085,14 +2087,36 @@ export default function Dashboard() {
             console.log("[STATE-AUDIT] Initializing Application | Restore Session Start");
             const email = sessionStorage.getItem("tide_user_email") || localStorage.getItem("tide_user_email");
             const userId = sessionStorage.getItem("tide_user_id") || localStorage.getItem("tide_user_id");
-            const privKeyJwkStr = sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
+            let privKey = await getMasterKey();
+            if (!privKey) {
+                const legacyKeyJwkStr = sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
+                if (legacyKeyJwkStr) {
+                    try {
+                        privKey = await window.crypto.subtle.importKey(
+                            "jwk",
+                            JSON.parse(legacyKeyJwkStr),
+                            { name: "RSA-OAEP", hash: "SHA-256" },
+                            true,
+                            ["decrypt"]
+                        );
+                        if (privKey) {
+                            await storeMasterKey(privKey);
+                        }
+                    } catch (e) {
+                        console.error("Failed to migrate legacy session key", e);
+                    }
+                }
+            }
+            purgeLegacyKeys();
+
             const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
 
-            if (!email || !userId || !privKeyJwkStr || !token) {
+            if (!email || !userId || !privKey || !token) {
                 console.warn("[STATE-AUDIT] Session missing or incomplete.");
                 setStatus("ready");
                 if (window.location.pathname !== '/auth' && window.location.pathname !== '/login') {
                     sessionStorage.clear();
+                    await clearMasterKey();
                     localStorage.removeItem("tide_session_key");
                     localStorage.removeItem("tide_session_token");
                     router.push("/auth");
@@ -2117,6 +2141,7 @@ export default function Dashboard() {
                 console.error("Public key not found for user", email);
                 setStatus("ready");
                 sessionStorage.clear();
+                await clearMasterKey();
                 localStorage.removeItem("tide_session_key");
                 localStorage.removeItem("tide_session_token");
                 router.push("/auth");
@@ -2124,14 +2149,6 @@ export default function Dashboard() {
             }
 
             try {
-                const privKey = await window.crypto.subtle.importKey(
-                    "jwk",
-                    JSON.parse(privKeyJwkStr),
-                    { name: "RSA-OAEP", hash: "SHA-256" },
-                    true,
-                    ["decrypt"]
-                );
-
                 const pubKey = await window.crypto.subtle.importKey(
                     "spki",
                     cryptoLib.base64ToArrayBuffer(pubKeySpkiStr),
@@ -2160,6 +2177,7 @@ export default function Dashboard() {
                     
                     if (isCryptoError || sanityErr.message.includes("Sanity check")) {
                         console.warn("[CRYPTO-AUDIT] Performing emergency cache reset...");
+                        await clearMasterKey();
                         localStorage.clear();
                         sessionStorage.clear();
                         window.location.href = "/auth?error=crypto_reset";
@@ -2250,6 +2268,7 @@ export default function Dashboard() {
                 console.error("Session restore failed:", e);
                 setStatus("ready");
                 sessionStorage.clear();
+                await clearMasterKey();
                 localStorage.removeItem("tide_session_key");
                 localStorage.removeItem("tide_session_token");
                 router.push("/auth");

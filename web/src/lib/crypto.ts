@@ -47,6 +47,9 @@ export async function getKeyFingerprint(key: CryptoKey): Promise<string> {
         console.warn("[CRYPTO-WARN] getKeyFingerprint called with non-CryptoKey:", key);
         return "not-a-cryptokey";
     }
+    if (!key.extractable) {
+        return `[non-extractable ${key.algorithm.name || 'key'}]`;
+    }
     try {
         // Export to JWK to get a stable representation
         const exported = await window.crypto.subtle.exportKey("jwk", key);
@@ -77,9 +80,16 @@ export async function generateMasterKeys(): Promise<MasterKeys> {
     return keyPair as MasterKeys;
 }
 
+export const DEFAULT_PBKDF2_ITERATIONS = 600000;
+export const LEGACY_PBKDF2_ITERATIONS = 100000;
+
 // 2. Derive Key from Password (PBKDF2)
 // Used to encrypt/decrypt the Master Private Key.
-export async function deriveKeyFromPassword(password: string, salt: ArrayBuffer): Promise<CryptoKey> {
+export async function deriveKeyWithIterations(
+    password: string,
+    salt: ArrayBuffer,
+    iterations: number = DEFAULT_PBKDF2_ITERATIONS
+): Promise<CryptoKey> {
     const enc = new TextEncoder();
     const passwordKey = await window.crypto.subtle.importKey(
         "raw",
@@ -93,13 +103,38 @@ export async function deriveKeyFromPassword(password: string, salt: ArrayBuffer)
         {
             name: "PBKDF2",
             salt: salt,
-            iterations: 100000,
+            iterations: iterations,
             hash: "SHA-256",
         },
         passwordKey,
         { name: "AES-GCM", length: 256 },
         false, // Not extractable
         ["encrypt", "decrypt", "wrapKey", "unwrapKey"]
+    );
+}
+
+export async function deriveKeyFromPassword(
+    password: string,
+    salt: ArrayBuffer,
+    iterations: number = DEFAULT_PBKDF2_ITERATIONS
+): Promise<CryptoKey> {
+    return deriveKeyWithIterations(password, salt, iterations);
+}
+
+// Helper to safely import private key (non-extractable by default for SEC-04)
+export async function importPrivateKey(
+    privateKeyData: ArrayBuffer,
+    extractable: boolean = false
+): Promise<CryptoKey> {
+    return window.crypto.subtle.importKey(
+        "pkcs8",
+        privateKeyData,
+        {
+            name: "RSA-OAEP",
+            hash: "SHA-256",
+        },
+        extractable,
+        ["decrypt"]
     );
 }
 
@@ -130,35 +165,46 @@ export async function encryptPrivateKey(privateKey: CryptoKey, derivedKey: Crypt
 
 // 4. Decrypt Private Key
 // Unwraps the Master Private Key.
-export async function decryptPrivateKey(encryptedKey: EncryptedPrivateKey, password: string): Promise<CryptoKey> {
+export async function decryptPrivateKey(
+    encryptedKey: EncryptedPrivateKey,
+    password: string,
+    extractable: boolean = false,
+    iterations: number = DEFAULT_PBKDF2_ITERATIONS
+): Promise<CryptoKey> {
     const salt = base64ToArrayBuffer(encryptedKey.salt);
     const iv = base64ToArrayBuffer(encryptedKey.iv);
     const ciphertext = base64ToArrayBuffer(encryptedKey.ciphertext);
 
-    // Re-derive key
-    const derivedKey = await deriveKeyFromPassword(password, salt);
-
-    // Decrypt
-    const privateKeyData = await window.crypto.subtle.decrypt(
-        {
-            name: "AES-GCM",
-            iv: iv,
-        },
-        derivedKey,
-        ciphertext
-    );
+    let privateKeyData: ArrayBuffer;
+    try {
+        const derivedKey = await deriveKeyFromPassword(password, salt, iterations);
+        privateKeyData = await window.crypto.subtle.decrypt(
+            {
+                name: "AES-GCM",
+                iv: iv,
+            },
+            derivedKey,
+            ciphertext
+        );
+    } catch (err) {
+        // Fallback for backwards compatibility with legacy 100k iterations
+        if (iterations === DEFAULT_PBKDF2_ITERATIONS) {
+            const legacyKey = await deriveKeyFromPassword(password, salt, LEGACY_PBKDF2_ITERATIONS);
+            privateKeyData = await window.crypto.subtle.decrypt(
+                {
+                    name: "AES-GCM",
+                    iv: iv,
+                },
+                legacyKey,
+                ciphertext
+            );
+        } else {
+            throw err;
+        }
+    }
 
     // Import
-    return window.crypto.subtle.importKey(
-        "pkcs8",
-        privateKeyData,
-        {
-            name: "RSA-OAEP",
-            hash: "SHA-256",
-        },
-        true,
-        ["decrypt"]
-    );
+    return importPrivateKey(privateKeyData, extractable);
 }
 
 // Export Public Key (SPKI) for server storage
@@ -168,7 +214,11 @@ export async function exportPublicKey(publicKey: CryptoKey): Promise<string> {
 }
 
 // 5. Generate User Vault (Zero-Knowledge Architecture)
-export async function generateUserVault(pin: string, pepperBase64: string): Promise<{ masterKeys: MasterKeys, encryptedVault: EncryptedPrivateKey }> {
+export async function generateUserVault(
+    pin: string,
+    pepperBase64: string,
+    iterations: number = DEFAULT_PBKDF2_ITERATIONS
+): Promise<{ masterKeys: MasterKeys, encryptedVault: EncryptedPrivateKey }> {
     // 1. Generate RSA-OAEP-256 Keypair
     const masterKeys = await generateMasterKeys();
 
@@ -176,7 +226,7 @@ export async function generateUserVault(pin: string, pepperBase64: string): Prom
     const salt = base64ToArrayBuffer(pepperBase64);
 
     // 3. Derive KEK via PBKDF2 (pin is password, pepper is salt)
-    const derivedKey = await deriveKeyFromPassword(pin, salt);
+    const derivedKey = await deriveKeyFromPassword(pin, salt, iterations);
 
     // 4. Encrypt Private Key with KEK
     const encryptedVault = await encryptPrivateKey(masterKeys.privateKey, derivedKey, salt);
@@ -185,35 +235,47 @@ export async function generateUserVault(pin: string, pepperBase64: string): Prom
 }
 
 // 6. Unlock User Vault
-export async function unlockVault(pin: string, pepperBase64: string, encryptedVault: EncryptedPrivateKey): Promise<CryptoKey> {
+export async function unlockVault(
+    pin: string,
+    pepperBase64: string,
+    encryptedVault: EncryptedPrivateKey,
+    extractable: boolean = false,
+    iterations: number = DEFAULT_PBKDF2_ITERATIONS
+): Promise<CryptoKey> {
     const salt = base64ToArrayBuffer(pepperBase64);
     
-    // Re-derive KEK via PBKDF2
-    const derivedKey = await deriveKeyFromPassword(pin, salt);
-
     // Decrypt the vault
     const iv = base64ToArrayBuffer(encryptedVault.iv);
     const ciphertext = base64ToArrayBuffer(encryptedVault.ciphertext);
 
-    const privateKeyData = await window.crypto.subtle.decrypt(
-        {
-            name: "AES-GCM",
-            iv: iv,
-        },
-        derivedKey,
-        ciphertext
-    );
+    let privateKeyData: ArrayBuffer;
+    try {
+        const derivedKey = await deriveKeyFromPassword(pin, salt, iterations);
+        privateKeyData = await window.crypto.subtle.decrypt(
+            {
+                name: "AES-GCM",
+                iv: iv,
+            },
+            derivedKey,
+            ciphertext
+        );
+    } catch (err) {
+        if (iterations === DEFAULT_PBKDF2_ITERATIONS) {
+            const legacyKey = await deriveKeyFromPassword(pin, salt, LEGACY_PBKDF2_ITERATIONS);
+            privateKeyData = await window.crypto.subtle.decrypt(
+                {
+                    name: "AES-GCM",
+                    iv: iv,
+                },
+                legacyKey,
+                ciphertext
+            );
+        } else {
+            throw err;
+        }
+    }
 
-    return window.crypto.subtle.importKey(
-        "pkcs8",
-        privateKeyData,
-        {
-            name: "RSA-OAEP",
-            hash: "SHA-256",
-        },
-        true,
-        ["decrypt"]
-    );
+    return importPrivateKey(privateKeyData, extractable);
 }
 
 
@@ -342,12 +404,13 @@ export async function decryptMetadata(encryptedBase64: string, privateKey: Crypt
             console.error("[CRYPTO-AUDIT] JSON Parse failed in decryptMetadata", e, decoded);
             return { title: "Untitled (Corrupted)", isLocked: false };
         }
-    } catch (err: any) {
+    } catch (err: unknown) {
+        const error = err instanceof Error ? err : new Error(String(err));
         if (!label?.startsWith('v2-')) {
-            console.warn(`[CRYPTO-AUDIT] Decryption failed for ${label || 'unknown'}. Error: ${err?.name || 'UnknownError'} - ${err?.message || ''}`);
+            console.warn(`[CRYPTO-AUDIT] Decryption failed for ${label || 'unknown'}. Error: ${error.name || 'UnknownError'} - ${error.message || ''}`);
         }
         // If it's a size mismatch, it's a huge hint for V1 vs V2 key issues
-        if (err?.message?.includes("data size")) {
+        if (error.message.includes("data size")) {
             console.error("[CRYPTO-AUDIT] RSA Size Mismatch: Ciphertext length does not match key modulus. (Key mismatch?)");
         }
         return { title: "Locked Note (Decryption Failed)", isLocked: true };
