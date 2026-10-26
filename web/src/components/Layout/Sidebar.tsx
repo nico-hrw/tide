@@ -49,7 +49,6 @@ export default function Sidebar({
     onTabsReorder,
     onOpenCalendar,
     onOpenSocial,
-    onOpenFinance,
     onOpenExams,
     onNewCanvasNote,
     onOpenTodos,

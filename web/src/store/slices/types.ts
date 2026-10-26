@@ -167,32 +167,6 @@ export interface FsSlice {
     appendFiles: (files: DataItem[], events: DataItem[]) => void;
 }
 
-export interface FinanceAccount {
-    id: string;
-    name: string;
-    type: string;
-    balance: number;
-}
-
-export interface FinanceTransaction {
-    id: string;
-    date: string;
-    description: string;
-    amount: number;
-    category?: string;
-    accountId?: string;
-}
-
-export interface FinanceSlice {
-    accounts: FinanceAccount[];
-    transactions: FinanceTransaction[];
-    financeAccounts?: FinanceAccount[];
-    financeTransactions?: FinanceTransaction[];
-    setFinanceAccounts?: (accounts: FinanceAccount[]) => void;
-    setFinanceTransactions?: (transactions: FinanceTransaction[]) => void;
-    fetchFinanceData: () => Promise<void>;
-}
-
 export interface ContactItem {
     id: string;
     username: string;
@@ -216,7 +190,6 @@ export type DataStoreState = NotesSlice &
     TodosSlice &
     UiSlice &
     FsSlice &
-    Partial<FinanceSlice> &
     Partial<ContactsSlice>;
 
 export type DataState = DataStoreState;

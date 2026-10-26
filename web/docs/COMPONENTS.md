@@ -168,8 +168,6 @@
 
 | Component | File | Role |
 |-----------|------|------|
-| FinanceDashboard | `web/src/components/Finance/FinanceDashboard.tsx` | Finance extension root |
-| AccountNode | `web/src/components/Finance/AccountNode.tsx` | Finance account node |
 | JobPlanner | `web/src/components/JobPlanner/JobPlanner.tsx` | Job & study planning module |
 
 ## Settings

@@ -28,25 +28,6 @@ type Contact struct {
 	AvatarStyle string    `json:"avatar_style,omitempty"`
 }
 
-type FinanceAccount struct {
-	ID              string    `json:"id"`
-	UserID          string    `json:"user_id,omitempty"`
-	Name            string    `json:"name"`
-	Type            string    `json:"type"`
-	Balance         float64   `json:"balance"`
-	LinkedAccountID *string   `json:"linked_account_id,omitempty"`
-	CreatedAt       time.Time `json:"created_at,omitempty"`
-}
-
-type FinanceTransaction struct {
-	ID          string    `json:"id"`
-	UserID      string    `json:"user_id,omitempty"`
-	Date        time.Time `json:"date"`
-	Description string    `json:"description"`
-	Amount      float64   `json:"amount"`
-	CreatedAt   time.Time `json:"created_at,omitempty"`
-}
-
 // Store defines the interface for database operations.
 type Store interface {
 	// User
@@ -134,11 +115,4 @@ type Store interface {
 	UpsertProfile(ctx context.Context, profile *db.Profile) error
 	SearchPublicData(ctx context.Context, query string, skipUserID string) ([]*db.SearchResult, error)
 	GetRandomProfiles(ctx context.Context, limit int, skipUserID string) ([]*db.SearchResult, error)
-
-	// Finance
-	CreateFinanceAccount(ctx context.Context, accountID, userID, name, accountType, linkedAccountID string, createdAt time.Time) error
-	GetFinanceAccounts(ctx context.Context, userID string) ([]FinanceAccount, error)
-	GetFinanceTransactions(ctx context.Context, userID string) ([]FinanceTransaction, error)
-	CreateFinanceTransactionAtomic(ctx context.Context, txID, userID string, txDate time.Time, description string, debitAccountID string, creditAccountID string, amount float64) error
-	DeleteFinanceAccountAtomic(ctx context.Context, accountID, userID string) error
 }

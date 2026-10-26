@@ -5,7 +5,6 @@ import { createEventsSlice } from './slices/createEventsSlice';
 import { createTodosSlice } from './slices/createTodosSlice';
 import { createUiSlice } from './slices/createUiSlice';
 import { createFsSlice } from './slices/createFsSlice';
-import { createFinanceSlice } from './slices/createFinanceSlice';
 import { createContactsSlice } from './slices/createContactsSlice';
 import { broadcastSync, subscribeToSync } from './sync/broadcast';
 import type { DataStoreState } from './slices/types';
@@ -36,7 +35,6 @@ export const useDataStore = create<DataStoreState>()((...a) => ({
     ...createTodosSlice(...a),
     ...createUiSlice(...a),
     ...createFsSlice(...a),
-    ...createFinanceSlice(...a),
     ...createContactsSlice(...a),
 }));
 

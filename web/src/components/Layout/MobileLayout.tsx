@@ -6,7 +6,7 @@ import {
   Settings, ArrowLeft, ArrowRight, Folder, FolderOpen, FileText, Lock, Layout,
   ChevronRight, ChevronLeft, ChevronDown, Plus, Search, Calendar as CalendarIcon,
   Trash2, GraduationCap, Clock, MapPin,
-  DollarSign, X, PenLine, FolderPlus,
+  X, PenLine, FolderPlus,
   BookOpen, Coffee, RotateCcw, ListTodo,
 } from 'lucide-react';
 import { isSameDay, format, startOfWeek, addDays, isAfter } from 'date-fns';
@@ -45,9 +45,6 @@ const getDayDiff = (d1: Date, d2: Date) => {
 };
 
 const JobPlanner = dynamic(() => import('../JobPlanner/JobPlanner'), {
-  loading: () => <div className="flex-1 flex items-center justify-center p-8 text-sm" style={{ color: 'var(--muted-text)' }}>Lade…</div>,
-});
-const FinanceDashboard = dynamic(() => import('../Finance/FinanceDashboard'), {
   loading: () => <div className="flex-1 flex items-center justify-center p-8 text-sm" style={{ color: 'var(--muted-text)' }}>Lade…</div>,
 });
 
@@ -362,7 +359,6 @@ export default function MobileLayout({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [isExamsOpen, setIsExamsOpen] = useState(false);
-  const [isFinanceOpen, setIsFinanceOpen] = useState(false);
   const [activeDate, setActiveDate] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
@@ -834,7 +830,6 @@ export default function MobileLayout({
               <div className="flex overflow-x-auto gap-2 px-3 py-3 no-scrollbar">
                 {[
                   { id: 'job_planner', icon: <GraduationCap size={18} />, label: 'Job & Uni', ext: 'job_planner', action: () => { setIsSidebarOpen(false); setIsExamsOpen(true); } },
-                  { id: 'finance', icon: <DollarSign size={18} />, label: 'Finanzen', ext: 'finance', action: () => { setIsSidebarOpen(false); setIsFinanceOpen(true); } },
                   { id: 'settings', icon: <Settings size={18} />, label: 'Optionen', ext: '', action: () => { setIsSidebarOpen(false); setSettingsOpen(true); } },
                 ].map(tab => {
                   const enabled = !tab.ext || enabledExtensions.includes(tab.ext);
@@ -911,13 +906,6 @@ export default function MobileLayout({
         {isExamsOpen && (
           <OverlayShell key="job_planner" title="Job & Uni" onBack={() => setIsExamsOpen(false)}>
             <div className="flex-1 overflow-y-auto"><JobPlanner /></div>
-          </OverlayShell>
-        )}
-
-        {/* Finance */}
-        {isFinanceOpen && (
-          <OverlayShell key="finance" title="Finanzen" onBack={() => setIsFinanceOpen(false)}>
-            <div className="flex-1 overflow-y-auto"><FinanceDashboard /></div>
           </OverlayShell>
         )}
 

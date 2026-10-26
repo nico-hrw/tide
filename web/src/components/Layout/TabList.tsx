@@ -6,7 +6,6 @@ import {
     Calendar, 
     FileText, 
     MessageSquare, 
-    DollarSign, 
     User, 
     Users, 
     GraduationCap, 
@@ -26,7 +25,7 @@ import { useSocialStore } from '@/store/useSocialStore';
 export interface Tab {
     id: string;
     title: string;
-    type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash';
+    type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash';
     content?: any;
     _fileKey?: CryptoKey | null;
     _saveStatus?: "saved" | "unsaved" | "saving";
@@ -35,7 +34,7 @@ export interface Tab {
 interface TabListProps {
     tabs: Tab[];
     activeTabId: string;
-    onTabSelect: (id: string, type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash') => void;
+    onTabSelect: (id: string, type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash') => void;
     onTabClose: (e: React.MouseEvent | null, id: string) => void;
     onTabsReorder?: (newTabs: Tab[]) => void;
     onNewTab?: () => void;
@@ -99,8 +98,6 @@ export default function TabList({
             case 'job_planner':
             case 'exams':
                 return <GraduationCap size={13} />;
-            case 'ext_finance':
-                return <DollarSign size={13} />;
             case 'trash':
                 return <Trash2 size={13} />;
             case 'file':
@@ -121,7 +118,6 @@ export default function TabList({
             case 'exams': return 'Job & Uni';
             case 'chat': return 'Chat';
             case 'profile': return 'Profil';
-            case 'ext_finance': return 'Finanzen';
             case 'trash': return 'Papierkorb';
             case 'file':
             default:

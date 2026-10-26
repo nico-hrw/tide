@@ -78,7 +78,6 @@ export interface SidebarProps {
     onTabsReorder?: (newTabs: Tab[]) => void;
     onOpenCalendar?: () => void;
     onOpenSocial?: () => void;
-    onOpenFinance?: () => void;
     onOpenExams?: () => void;
     onNewCanvasNote?: () => void;
     onOpenTodos?: () => void;

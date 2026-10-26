@@ -60,7 +60,6 @@ import { motion } from 'framer-motion';
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useSplitViewDrag } from "@/hooks/useSplitViewDrag";
 import { useAutoSaveSync } from "@/hooks/useAutoSaveSync";
-import { FinanceWorkspace } from "@/components/Workspaces/FinanceWorkspace";
 import { JobsWorkspace } from "@/components/Workspaces/JobsWorkspace";
 import { SearchOverlay } from "@/components/Workspaces/SearchOverlay";
 import { CanvasWorkspace } from "@/components/Workspaces/CanvasWorkspace";
@@ -493,11 +492,7 @@ export default function Dashboard() {
     };
 
     const handleFileSelect = async (fileId: string, title: string, fileData?: any) => {
-        if (fileId === 'ext_finance') {
-            switchTab('ext_finance', 'ext_finance', 'Finance Tracker', fileData);
-        } else {
-            switchTab(fileId, 'file', title, fileData);
-        }
+        switchTab(fileId, 'file', title, fileData);
     };
 
     // -------------------------------------------------------------------------
@@ -2749,7 +2744,6 @@ export default function Dashboard() {
                         onOpenCalendar={() => handleTabSelect('calendar', 'calendar')}
                         onOpenSocial={() => setActiveTabId('social')}
                         onOpenExams={() => handleTabSelect('job_planner', 'job_planner')}
-                        onOpenFinance={() => handleFileSelect('ext_finance', 'Finance Tracker')}
                         onOpenTodos={handleToggleTodos}
                         isTodosActive={activeTabId === 'todos'}
                         onToggleTodos={handleToggleTodos}
@@ -2946,10 +2940,6 @@ export default function Dashboard() {
 
 
 
-                <FinanceWorkspace
-                    isActive={activeTabId === 'ext_finance'}
-                    enabled={enabledExtensions.includes('finance')}
-                />
 
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId.startsWith('profile:') ? 'block' : 'hidden'}`}>
                     {activeTabId.startsWith('profile:') && (

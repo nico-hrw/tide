@@ -89,7 +89,6 @@ func main() {
 	taskHandler := api.NewTaskHandler(sqliteStore)
 
 	tabsHandler := api.NewTabsHandler(sqliteStore)
-	financeHandler := api.NewFinanceHandler(sqliteStore, broker)
 	apiTokenHandler := api.NewAPITokenHandler(sqliteStore)
 	externalHandler := api.NewExternalHandler(sqliteStore)
 
@@ -189,7 +188,6 @@ func main() {
 		r.Route("/user/extensions", extensionsHandler.RegisterRoutes)
 		r.Route("/tabs", tabsHandler.RegisterRoutes)
 		r.Route("/tasks", taskHandler.RegisterRoutes)
-		r.Route("/finance", financeHandler.RegisterRoutes)
 		r.Route("/api-tokens", apiTokenHandler.RegisterRoutes)
 		r.Route("/external", externalHandler.RegisterRoutes)
 
