@@ -191,12 +191,8 @@ export function useTipTapConfig({
                 }, 2000);
             }
 
-            try {
-                const currentId = activeTabIdRef.current;
-                if (currentId && !currentId.startsWith('chat-') && currentId !== 'calendar' && currentId !== 'messages') {
-                    if (!isDocEmpty(content) || userHasTyped.current) localStorage.setItem(`tide_backup_${currentId}`, JSON.stringify(content));
-                }
-            } catch (e) { console.warn("[BACKUP] Local storage fallback failed:", e); }
+            // Zero-Knowledge / Datenschutz: Unverschlüsseltes Caching im LocalStorage ist untersagt.
+            // Persistenz und Autosave laufen verschlüsselt über useDataStore und die Synchronisations-Pipeline.
         },
         onSelectionUpdate: ({ editor }) => {
             const activeId = activeTabIdRef.current;

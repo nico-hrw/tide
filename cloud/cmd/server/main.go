@@ -201,11 +201,11 @@ func main() {
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		// Run once on startup:
-		if err := sqliteStore.PurgeOldTrashedFiles(context.Background()); err != nil {
+		if err := sqliteStore.PurgeOldTrashedFiles(context.Background(), blobStore); err != nil {
 			log.Printf("[GC] Error purging old trashed files: %v", err)
 		}
 		for range ticker.C {
-			if err := sqliteStore.PurgeOldTrashedFiles(context.Background()); err != nil {
+			if err := sqliteStore.PurgeOldTrashedFiles(context.Background(), blobStore); err != nil {
 				log.Printf("[GC] Error purging old trashed files: %v", err)
 			}
 		}

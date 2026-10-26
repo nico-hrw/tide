@@ -33,7 +33,7 @@ func NewSQLiteStore(dataDir string) (*SQLiteStore, error) {
 	}
 
 	dbPath := filepath.Join(dataDir, "tide.db")
-	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)", dbPath)
+	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)", dbPath)
 
 	conn, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -55,7 +55,7 @@ func NewSQLiteStore(dataDir string) (*SQLiteStore, error) {
 	if maxReaders < 4 {
 		maxReaders = 4
 	}
-	readerDSN := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=query_only(true)", dbPath)
+	readerDSN := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=query_only(true)&_pragma=foreign_keys(ON)", dbPath)
 	readerConn, err := sql.Open("sqlite", readerDSN)
 	if err != nil {
 		conn.Close()
@@ -286,6 +286,11 @@ func (s *SQLiteStore) migrate() error {
 
 	CREATE INDEX IF NOT EXISTS idx_api_tokens_user ON api_tokens(user_id);
 	CREATE INDEX IF NOT EXISTS idx_api_tokens_hash ON api_tokens(token_hash);
+
+	CREATE INDEX IF NOT EXISTS idx_file_shares_user ON file_shares(user_id);
+	CREATE INDEX IF NOT EXISTS idx_finance_entries_account ON ext_finance_entries(account_id);
+	CREATE INDEX IF NOT EXISTS idx_messages_recipient_created ON messages(recipient_id, created_at);
+	CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
 	`
 	if _, err := s.DB.Exec(indices); err != nil {
 		return err
@@ -2428,7 +2433,7 @@ func (s *SQLiteStore) ListTrashedFiles(ctx context.Context, viewerID string) ([]
 	return out, nil
 }
 
-func (s *SQLiteStore) PurgeOldTrashedFiles(ctx context.Context) error {
+func (s *SQLiteStore) PurgeOldTrashedFiles(ctx context.Context, blobStore BlobStore) error {
 	query := `
 		SELECT id FROM files 
 		WHERE json_extract(metadata, '$.deleted_at') IS NOT NULL 
@@ -2451,8 +2456,18 @@ func (s *SQLiteStore) PurgeOldTrashedFiles(ctx context.Context) error {
 
 	for _, id := range ids {
 		log.Printf("[GC] Permanently deleting old trashed file: %s", id)
+		blobPaths, _ := s.GetFileBlobPaths(ctx, id)
 		if err := s.DeleteFile(ctx, id); err != nil {
 			log.Printf("[GC] Failed to permanently delete old trashed file %s: %v", id, err)
+			continue
+		}
+		if blobStore != nil {
+			for _, blobPath := range blobPaths {
+				refs, err := s.CountBlobReferencesExcluding(ctx, blobPath, nil)
+				if err == nil && refs == 0 {
+					_ = blobStore.Delete(ctx, blobPath)
+				}
+			}
 		}
 	}
 	return nil
