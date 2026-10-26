@@ -41,7 +41,13 @@ const MathNodeView = ({ node, updateAttributes }: any) => {
                                 try {
                                     return katex.renderToString(node.attrs.code || ' ', { displayMode: true, throwOnError: false });
                                 } catch (e) {
-                                    return `<span class="text-red-500">${e}</span>`;
+                                    const safeMsg = String(e)
+                                        .replace(/&/g, '&amp;')
+                                        .replace(/</g, '&lt;')
+                                        .replace(/>/g, '&gt;')
+                                        .replace(/"/g, '&quot;')
+                                        .replace(/'/g, '&#39;');
+                                    return `<span class="text-red-500">${safeMsg}</span>`;
                                 }
                             })()
                         }}

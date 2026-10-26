@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -95,8 +97,8 @@ func TestSQLiteStore_ConcurrentReadsAndWrites(t *testing.T) {
 	}
 
 	const (
-		numWriters = 8
-		numReaders = 16
+		numWriters   = 8
+		numReaders   = 16
 		opsPerWorker = 30
 	)
 
@@ -223,5 +225,495 @@ func TestSQLiteStore_Close(t *testing.T) {
 	}
 	if err := store.reader.Ping(); err == nil {
 		t.Errorf("expected reader Ping to fail after Close, but it succeeded")
+	}
+}
+
+func TestUserCRUD(t *testing.T) {
+	tempDir := t.TempDir()
+	store, err := NewSQLiteStore(tempDir)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	emailHash := "email-blind-hash-test"
+	pinHash := "initial-pin-hash"
+	user := &db.User{
+		ID:              uuid.New().String(),
+		EmailHash:       &emailHash,
+		EncryptedVault:  []byte("vault-bytes"),
+		EncryptedPepper: []byte("pepper-bytes"),
+		PublicKey:       "pubkey-test-user",
+		Username:        "testuser",
+		PinHash:         &pinHash,
+		CreatedAt:       time.Now().UTC(),
+	}
+
+	// 1. Create user
+	if err := store.CreateUser(ctx, user); err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	// 2. Retrieve by ID
+	fetchedUser, err := store.GetUser(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("GetUser failed: %v", err)
+	}
+	if fetchedUser.ID != user.ID {
+		t.Errorf("expected user ID %s, got %s", user.ID, fetchedUser.ID)
+	}
+	if fetchedUser.Username != "testuser" {
+		t.Errorf("expected username 'testuser', got %s", fetchedUser.Username)
+	}
+	if fetchedUser.PinHash == nil || *fetchedUser.PinHash != pinHash {
+		t.Errorf("expected pin_hash %s, got %v", pinHash, fetchedUser.PinHash)
+	}
+
+	// 3. Retrieve by EmailHash
+	fetchedByEmail, err := store.GetUserByEmailHash(ctx, emailHash)
+	if err != nil {
+		t.Fatalf("GetUserByEmailHash failed: %v", err)
+	}
+	if fetchedByEmail.ID != user.ID {
+		t.Errorf("expected user ID %s, got %s", user.ID, fetchedByEmail.ID)
+	}
+
+	// 4. Update username
+	newUsername := "updateduser"
+	if err := store.UpdateUserUsername(ctx, user.ID, newUsername); err != nil {
+		t.Fatalf("UpdateUserUsername failed: %v", err)
+	}
+
+	// 5. Update PIN
+	newPinHash := "updated-pin-hash"
+	if err := store.UpdateUserPin(ctx, user.ID, newPinHash); err != nil {
+		t.Fatalf("UpdateUserPin failed: %v", err)
+	}
+
+	// Verify updates
+	updatedUser, err := store.GetUser(ctx, user.ID)
+	if err != nil {
+		t.Fatalf("GetUser after updates failed: %v", err)
+	}
+	if updatedUser.Username != newUsername {
+		t.Errorf("expected updated username %s, got %s", newUsername, updatedUser.Username)
+	}
+	if updatedUser.PinHash == nil || *updatedUser.PinHash != newPinHash {
+		t.Errorf("expected updated pin_hash %s, got %v", newPinHash, updatedUser.PinHash)
+	}
+}
+
+func TestFileCRUD_And_IDOR(t *testing.T) {
+	tempDir := t.TempDir()
+	store, err := NewSQLiteStore(tempDir)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Create User A and User B
+	userA := &db.User{
+		ID:              uuid.New().String(),
+		PublicKey:       "pubkey-user-a",
+		EncryptedVault:  []byte("vault-a"),
+		EncryptedPepper: []byte("pepper-a"),
+		CreatedAt:       time.Now().UTC(),
+	}
+	if err := store.CreateUser(ctx, userA); err != nil {
+		t.Fatalf("failed to create User A: %v", err)
+	}
+
+	userB := &db.User{
+		ID:              uuid.New().String(),
+		PublicKey:       "pubkey-user-b",
+		EncryptedVault:  []byte("vault-b"),
+		EncryptedPepper: []byte("pepper-b"),
+		CreatedAt:       time.Now().UTC(),
+	}
+	if err := store.CreateUser(ctx, userB); err != nil {
+		t.Fatalf("failed to create User B: %v", err)
+	}
+
+	// User A creates a file/note (Type: "note", OwnerID: User A)
+	fileA := &db.File{
+		ID:          uuid.New().String(),
+		OwnerID:     userA.ID,
+		ParentID:    nil,
+		Type:        db.FileTypeNote,
+		MIMEType:    nil,
+		Size:        256,
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
+		Visibility:  "private",
+		PublicMeta:  []byte("{}"),
+		SecuredMeta: []byte("user-a-secret-note"),
+		Metadata:    []byte("{}"),
+		AccessKeys:  []byte("{}"),
+	}
+	if err := store.CreateFile(ctx, fileA); err != nil {
+		t.Fatalf("CreateFile failed for User A: %v", err)
+	}
+
+	// Verify User A can fetch it with GetFile
+	fetchedFile, err := store.GetFile(ctx, fileA.ID)
+	if err != nil {
+		t.Fatalf("User A GetFile failed: %v", err)
+	}
+	if fetchedFile.ID != fileA.ID || fetchedFile.OwnerID != userA.ID {
+		t.Errorf("unexpected file returned: %+v", fetchedFile)
+	}
+
+	// Verify User A can fetch it with GetAccessibleFile
+	accessibleFileA, err := store.GetAccessibleFile(ctx, fileA.ID, userA.ID)
+	if err != nil {
+		t.Fatalf("User A GetAccessibleFile failed: %v", err)
+	}
+	if accessibleFileA.ID != fileA.ID || accessibleFileA.OwnerID != userA.ID {
+		t.Errorf("unexpected accessible file returned: %+v", accessibleFileA)
+	}
+
+	// IDOR Check: User B attempts GetAccessibleFile on fileA.ID -> must return error (file not found/accessible)
+	_, err = store.GetAccessibleFile(ctx, fileA.ID, userB.ID)
+	if err == nil {
+		t.Fatalf("expected IDOR error when User B accesses User A's file, but got nil")
+	}
+	if !errors.Is(err, ErrNotFound) {
+		t.Logf("User B GetAccessibleFile error (expected ErrNotFound): %v", err)
+	}
+
+	// Verify ListAccessibleFiles for User B does NOT return User A's file
+	// Test both non-recursive and recursive listing
+	filesForUserB, err := store.ListAccessibleFiles(ctx, userB.ID, nil, nil, false)
+	if err != nil {
+		t.Fatalf("ListAccessibleFiles non-recursive for User B failed: %v", err)
+	}
+	for _, f := range filesForUserB {
+		if f.ID == fileA.ID {
+			t.Fatalf("IDOR violation: User B found User A's file in non-recursive ListAccessibleFiles")
+		}
+	}
+
+	filesForUserBRec, err := store.ListAccessibleFiles(ctx, userB.ID, nil, nil, true)
+	if err != nil {
+		t.Fatalf("ListAccessibleFiles recursive for User B failed: %v", err)
+	}
+	for _, f := range filesForUserBRec {
+		if f.ID == fileA.ID {
+			t.Fatalf("IDOR violation: User B found User A's file in recursive ListAccessibleFiles")
+		}
+	}
+}
+
+func TestTaskCRUD_And_IDOR(t *testing.T) {
+	tempDir := t.TempDir()
+	store, err := NewSQLiteStore(tempDir)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Create User A and User B
+	userA := &db.User{
+		ID:              uuid.New().String(),
+		PublicKey:       "pubkey-user-a-task",
+		EncryptedVault:  []byte("vault-a"),
+		EncryptedPepper: []byte("pepper-a"),
+		CreatedAt:       time.Now().UTC(),
+	}
+	if err := store.CreateUser(ctx, userA); err != nil {
+		t.Fatalf("failed to create User A: %v", err)
+	}
+
+	userB := &db.User{
+		ID:              uuid.New().String(),
+		PublicKey:       "pubkey-user-b-task",
+		EncryptedVault:  []byte("vault-b"),
+		EncryptedPepper: []byte("pepper-b"),
+		CreatedAt:       time.Now().UTC(),
+	}
+	if err := store.CreateUser(ctx, userB); err != nil {
+		t.Fatalf("failed to create User B: %v", err)
+	}
+
+	// User A creates Task A (UserID: User A)
+	taskA := &db.Task{
+		ID:             uuid.New().String(),
+		UserID:         userA.ID,
+		EncryptedVault: []byte("user-a-secret-task"),
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
+	}
+	if err := store.CreateTask(ctx, taskA); err != nil {
+		t.Fatalf("CreateTask failed for User A: %v", err)
+	}
+
+	// Verify User A can fetch with GetTask(ctx, taskA.ID, userA.ID)
+	fetchedTask, err := store.GetTask(ctx, taskA.ID, userA.ID)
+	if err != nil {
+		t.Fatalf("User A GetTask failed: %v", err)
+	}
+	if fetchedTask.ID != taskA.ID || fetchedTask.UserID != userA.ID {
+		t.Fatalf("unexpected task fetched: %+v", fetchedTask)
+	}
+	if string(fetchedTask.EncryptedVault) != "user-a-secret-task" {
+		t.Errorf("expected vault 'user-a-secret-task', got %s", string(fetchedTask.EncryptedVault))
+	}
+
+	// IDOR Check: User B attempts GetTask(ctx, taskA.ID, userB.ID) -> must return error
+	_, err = store.GetTask(ctx, taskA.ID, userB.ID)
+	if err == nil {
+		t.Fatalf("expected IDOR error when User B calls GetTask on Task A, got nil")
+	}
+
+	// IDOR Check: User B attempts UpdateTask on Task A -> must return error or not modify
+	hackedTask := &db.Task{
+		ID:             taskA.ID,
+		UserID:         userB.ID,
+		EncryptedVault: []byte("hacked-task-vault"),
+		UpdatedAt:      time.Now().UTC(),
+	}
+	err = store.UpdateTask(ctx, hackedTask)
+	if err == nil {
+		t.Fatalf("expected error when User B attempts UpdateTask on Task A, got nil")
+	}
+
+	// Verify User A's task was NOT modified
+	checkTask, err := store.GetTask(ctx, taskA.ID, userA.ID)
+	if err != nil {
+		t.Fatalf("GetTask failed after update attempt: %v", err)
+	}
+	if string(checkTask.EncryptedVault) != "user-a-secret-task" {
+		t.Fatalf("task was modified unexpectedly! got: %s", string(checkTask.EncryptedVault))
+	}
+
+	// IDOR Check: User B attempts DeleteTask(ctx, taskA.ID, userB.ID) -> must return error
+	err = store.DeleteTask(ctx, taskA.ID, userB.ID)
+	if err == nil {
+		t.Fatalf("expected error when User B attempts DeleteTask on Task A, got nil")
+	}
+
+	// Verify User A's task still exists
+	stillExists, err := store.GetTask(ctx, taskA.ID, userA.ID)
+	if err != nil {
+		t.Fatalf("GetTask failed after delete attempt: %v", err)
+	}
+	if stillExists == nil || stillExists.ID != taskA.ID {
+		t.Fatalf("User A's task is missing after delete attempt")
+	}
+}
+
+func TestBlobReferencesCount(t *testing.T) {
+	tempDir := t.TempDir()
+	store, err := NewSQLiteStore(tempDir)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	user := &db.User{
+		ID:              uuid.New().String(),
+		PublicKey:       "pubkey-blob-test",
+		EncryptedVault:  []byte("vault"),
+		EncryptedPepper: []byte("pepper"),
+		CreatedAt:       time.Now().UTC(),
+	}
+	if err := store.CreateUser(ctx, user); err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	// Build a file hierarchy:
+	// rootFolder (folder)
+	//   childFolder (folder)
+	//     file1 (blob_path: "blob-1")
+	//   file2 (blob_path: "blob-2")
+	// file3 (root level, blob_path: "blob-1" - shared blob reference e.g. copied file)
+	rootFolderID := uuid.New().String()
+	rootFolder := &db.File{
+		ID:         rootFolderID,
+		OwnerID:    user.ID,
+		ParentID:   nil,
+		Type:       db.FileTypeFolder,
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+		Visibility: "private",
+	}
+	if err := store.CreateFile(ctx, rootFolder); err != nil {
+		t.Fatalf("failed to create rootFolder: %v", err)
+	}
+
+	childFolderID := uuid.New().String()
+	childFolder := &db.File{
+		ID:         childFolderID,
+		OwnerID:    user.ID,
+		ParentID:   &rootFolderID,
+		Type:       db.FileTypeFolder,
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+		Visibility: "private",
+	}
+	if err := store.CreateFile(ctx, childFolder); err != nil {
+		t.Fatalf("failed to create childFolder: %v", err)
+	}
+
+	blob1 := "blob-path-1"
+	blob2 := "blob-path-2"
+
+	file1ID := uuid.New().String()
+	file1 := &db.File{
+		ID:         file1ID,
+		OwnerID:    user.ID,
+		ParentID:   &childFolderID,
+		Type:       db.FileTypeFile,
+		BlobPath:   &blob1,
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+		Visibility: "private",
+	}
+	if err := store.CreateFile(ctx, file1); err != nil {
+		t.Fatalf("failed to create file1: %v", err)
+	}
+
+	file2ID := uuid.New().String()
+	file2 := &db.File{
+		ID:         file2ID,
+		OwnerID:    user.ID,
+		ParentID:   &rootFolderID,
+		Type:       db.FileTypeNote,
+		BlobPath:   &blob2,
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+		Visibility: "private",
+	}
+	if err := store.CreateFile(ctx, file2); err != nil {
+		t.Fatalf("failed to create file2: %v", err)
+	}
+
+	// file3 is at root level and references blob1 as well (e.g., duplicated/copied file)
+	file3ID := uuid.New().String()
+	file3 := &db.File{
+		ID:         file3ID,
+		OwnerID:    user.ID,
+		ParentID:   nil,
+		Type:       db.FileTypeFile,
+		BlobPath:   &blob1,
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+		Visibility: "private",
+	}
+	if err := store.CreateFile(ctx, file3); err != nil {
+		t.Fatalf("failed to create file3: %v", err)
+	}
+
+	// Test 1: GetFileBlobPaths for hierarchy
+	rootBlobPaths, err := store.GetFileBlobPaths(ctx, rootFolderID)
+	if err != nil {
+		t.Fatalf("GetFileBlobPaths failed for rootFolder: %v", err)
+	}
+	sort.Strings(rootBlobPaths)
+	expectedRootBlobs := []string{blob1, blob2}
+	sort.Strings(expectedRootBlobs)
+	if len(rootBlobPaths) != len(expectedRootBlobs) || rootBlobPaths[0] != expectedRootBlobs[0] || rootBlobPaths[1] != expectedRootBlobs[1] {
+		t.Fatalf("expected root blobs %v, got %v", expectedRootBlobs, rootBlobPaths)
+	}
+
+	childBlobPaths, err := store.GetFileBlobPaths(ctx, childFolderID)
+	if err != nil {
+		t.Fatalf("GetFileBlobPaths failed for childFolder: %v", err)
+	}
+	if len(childBlobPaths) != 1 || childBlobPaths[0] != blob1 {
+		t.Fatalf("expected child blobs [%s], got %v", blob1, childBlobPaths)
+	}
+
+	leafBlobPaths, err := store.GetFileBlobPaths(ctx, file2ID)
+	if err != nil {
+		t.Fatalf("GetFileBlobPaths failed for file2: %v", err)
+	}
+	if len(leafBlobPaths) != 1 || leafBlobPaths[0] != blob2 {
+		t.Fatalf("expected leaf blobs [%s], got %v", blob2, leafBlobPaths)
+	}
+
+	emptyBlobPaths, err := store.GetFileBlobPaths(ctx, uuid.New().String())
+	if err != nil {
+		t.Fatalf("GetFileBlobPaths failed for non-existent file: %v", err)
+	}
+	if len(emptyBlobPaths) != 0 {
+		t.Fatalf("expected 0 blobs for non-existent file, got %v", emptyBlobPaths)
+	}
+
+	// Test 2: CountBlobReferencesExcluding
+	// Count blob1 with no exclusions -> should be 2 (file1 and file3)
+	count, err := store.CountBlobReferencesExcluding(ctx, blob1, nil)
+	if err != nil {
+		t.Fatalf("CountBlobReferencesExcluding failed: %v", err)
+	}
+	if count != 2 {
+		t.Errorf("expected 2 references for %s, got %d", blob1, count)
+	}
+
+	// Count blob1 excluding file1 -> should be 1 (file3 remains)
+	count, err = store.CountBlobReferencesExcluding(ctx, blob1, []string{file1ID})
+	if err != nil {
+		t.Fatalf("CountBlobReferencesExcluding with exclusion failed: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 reference for %s excluding %s, got %d", blob1, file1ID, count)
+	}
+
+	// Count blob1 excluding both file1 and file3 -> should be 0
+	count, err = store.CountBlobReferencesExcluding(ctx, blob1, []string{file1ID, file3ID})
+	if err != nil {
+		t.Fatalf("CountBlobReferencesExcluding with all exclusions failed: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected 0 references for %s excluding both, got %d", blob1, count)
+	}
+
+	// Count blob2 with no exclusions -> should be 1 (file2)
+	count, err = store.CountBlobReferencesExcluding(ctx, blob2, []string{})
+	if err != nil {
+		t.Fatalf("CountBlobReferencesExcluding failed for blob2: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected 1 reference for %s, got %d", blob2, count)
+	}
+
+	// Count non-existent blob -> should be 0
+	count, err = store.CountBlobReferencesExcluding(ctx, "nonexistent-blob", nil)
+	if err != nil {
+		t.Fatalf("CountBlobReferencesExcluding failed for nonexistent blob: %v", err)
+	}
+	if count != 0 {
+		t.Errorf("expected 0 references for nonexistent blob, got %d", count)
+	}
+
+	// Test 3: LocalBlobStore Put, GetSize, Exists, Delete
+	blobStore := NewLocalBlobStore(tempDir)
+	blobContent := "encrypted-binary-data-12345"
+	if err := blobStore.Put(ctx, blob1, strings.NewReader(blobContent)); err != nil {
+		t.Fatalf("blobStore.Put failed: %v", err)
+	}
+	if !blobStore.Exists(ctx, blob1) {
+		t.Fatalf("expected blobStore.Exists to return true for %s", blob1)
+	}
+	size, err := blobStore.GetSize(ctx, blob1)
+	if err != nil {
+		t.Fatalf("blobStore.GetSize failed: %v", err)
+	}
+	if size != int64(len(blobContent)) {
+		t.Errorf("expected size %d, got %d", len(blobContent), size)
+	}
+	if err := blobStore.Delete(ctx, blob1); err != nil {
+		t.Fatalf("blobStore.Delete failed: %v", err)
+	}
+	if blobStore.Exists(ctx, blob1) {
+		t.Fatalf("expected blobStore.Exists to return false after Delete")
 	}
 }

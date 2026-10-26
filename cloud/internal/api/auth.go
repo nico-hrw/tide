@@ -36,6 +36,7 @@ type otpEntry struct {
 type AuthHandler struct {
 	Store           *store.SQLiteStore
 	ServerMasterKey []byte
+	pinLimiter      *FailedAttemptTracker
 	otpCache        map[string]otpEntry
 	mu              sync.Mutex
 }
@@ -44,6 +45,7 @@ func NewAuthHandler(s *store.SQLiteStore, masterKey []byte) *AuthHandler {
 	return &AuthHandler{
 		Store:           s,
 		ServerMasterKey: masterKey,
+		pinLimiter:      NewFailedAttemptTracker(5, 15*time.Minute),
 		otpCache:        make(map[string]otpEntry),
 	}
 }
@@ -54,6 +56,8 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 	r.Post("/verify-otp", h.VerifyOTP)
 	r.Post("/verify-pin", h.VerifyPin)
 	r.Post("/login/step2", h.VerifyPin)
+	r.Post("/auth/verify-pin", h.VerifyPin)
+	r.Post("/auth/login/step2", h.VerifyPin)
 	
 	r.With(AuthMiddleware).Get("/me", h.Me)
 	r.With(AuthMiddleware).Put("/me", h.UpdateMe)
@@ -474,15 +478,32 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 
 	// If PIN is provided during OTP verification, verify & migrate it
 	if req.Pin != "" {
+		lockKey := fmt.Sprintf("%s:%s", r.RemoteAddr, user.ID)
+		if h.pinLimiter != nil {
+			if locked, remaining := h.pinLimiter.IsLocked(lockKey); locked {
+				http.Error(w, fmt.Sprintf("Too many failed attempts. Account temporarily locked for %d seconds", int(remaining.Seconds())), http.StatusTooManyRequests)
+				return
+			}
+		}
+
 		if user.PinHash != nil && *user.PinHash != "" {
 			if !h.verifyAndMigratePin(r.Context(), user.ID, req.Pin, *user.PinHash) {
+				if h.pinLimiter != nil {
+					h.pinLimiter.RecordFailure(lockKey)
+				}
 				http.Error(w, "Invalid PIN", http.StatusUnauthorized)
 				return
+			}
+			if h.pinLimiter != nil {
+				h.pinLimiter.RecordSuccess(lockKey)
 			}
 		} else {
 			newHash, err := hashPinArgon2id(req.Pin)
 			if err == nil {
 				_ = h.Store.UpdateUserPin(r.Context(), user.ID, newHash)
+			}
+			if h.pinLimiter != nil {
+				h.pinLimiter.RecordSuccess(lockKey)
 			}
 		}
 	}
@@ -691,6 +712,14 @@ func (h *AuthHandler) VerifyPin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lockKey := fmt.Sprintf("%s:%s", r.RemoteAddr, user.ID)
+	if h.pinLimiter != nil {
+		if locked, remaining := h.pinLimiter.IsLocked(lockKey); locked {
+			http.Error(w, fmt.Sprintf("Too many failed attempts. Account temporarily locked for %d seconds", int(remaining.Seconds())), http.StatusTooManyRequests)
+			return
+		}
+	}
+
 	if user.PinHash == nil || *user.PinHash == "" {
 		newPinHash, err := hashPinArgon2id(req.Pin)
 		if err != nil {
@@ -701,9 +730,19 @@ func (h *AuthHandler) VerifyPin(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to set PIN", http.StatusInternalServerError)
 			return
 		}
+		if h.pinLimiter != nil {
+			h.pinLimiter.RecordSuccess(lockKey)
+		}
 	} else if !h.verifyAndMigratePin(r.Context(), user.ID, req.Pin, *user.PinHash) {
+		if h.pinLimiter != nil {
+			h.pinLimiter.RecordFailure(lockKey)
+		}
 		http.Error(w, "Invalid PIN", http.StatusUnauthorized)
 		return
+	} else {
+		if h.pinLimiter != nil {
+			h.pinLimiter.RecordSuccess(lockKey)
+		}
 	}
 
 	w.WriteHeader(http.StatusOK)

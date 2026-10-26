@@ -108,9 +108,16 @@ func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 	if file.OwnerID == userID {
 		if permanent {
 			// Owner: Permanent Delete File
+			blobPaths, _ := h.Store.GetFileBlobPaths(r.Context(), id)
 			if err := h.Store.DeleteFile(r.Context(), id); err != nil {
 				http.Error(w, "Failed to delete file permanently", http.StatusInternalServerError)
 				return
+			}
+			for _, blobPath := range blobPaths {
+				refs, err := h.Store.CountBlobReferencesExcluding(r.Context(), blobPath, nil)
+				if err == nil && refs == 0 && h.BlobStore != nil {
+					_ = h.BlobStore.Delete(r.Context(), blobPath)
+				}
 			}
 			h.broadcastToFileUsers(id, file.OwnerID, fmt.Sprintf(`{"type":"file_deleted","file_id":"%s"}`, id))
 		} else {

@@ -12,11 +12,11 @@ import (
 )
 
 type FinanceHandler struct {
-	Store  *store.SQLiteStore
+	Store  store.Store
 	Broker *Broker
 }
 
-func NewFinanceHandler(s *store.SQLiteStore, b *Broker) *FinanceHandler {
+func NewFinanceHandler(s store.Store, b *Broker) *FinanceHandler {
 	return &FinanceHandler{Store: s, Broker: b}
 }
 
@@ -55,16 +55,7 @@ func (h *FinanceHandler) CreateAccount(w http.ResponseWriter, r *http.Request) {
 
 	accountID := uuid.New().String()
 
-	var linkedID *string
-	if req.LinkedAccountID != "" {
-		linkedID = &req.LinkedAccountID
-	}
-
-	// Insert into ext_finance_accounts
-	query := `INSERT INTO ext_finance_accounts (id, user_id, name, type, linked_account_id, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := h.Store.DB.ExecContext(r.Context(), query, accountID, userID, req.Name, req.Type, linkedID, time.Now())
-
-	if err != nil {
+	if err := h.Store.CreateFinanceAccount(r.Context(), accountID, userID, req.Name, req.Type, req.LinkedAccountID, time.Now()); err != nil {
 		http.Error(w, "Failed to create account", http.StatusInternalServerError)
 		return
 	}
@@ -166,14 +157,6 @@ func (h *FinanceHandler) CreateTransaction(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(map[string]string{"id": transactionID, "status": "success"})
 }
 
-type AccountResponse struct {
-	ID              string  `json:"id"`
-	Name            string  `json:"name"`
-	Type            string  `json:"type"`
-	Balance         float64 `json:"balance"`
-	LinkedAccountID *string `json:"linked_account_id,omitempty"`
-}
-
 func (h *FinanceHandler) GetAccounts(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("user_id").(string)
 	if !ok || userID == "" {
@@ -181,39 +164,14 @@ func (h *FinanceHandler) GetAccounts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	query := `
-		SELECT a.id, a.name, a.type, COALESCE(SUM(e.amount), 0) as balance, a.linked_account_id
-		FROM ext_finance_accounts a
-		LEFT JOIN ext_finance_entries e ON a.id = e.account_id
-		WHERE a.user_id = ?
-		GROUP BY a.id, a.name, a.type, a.linked_account_id
-		ORDER BY a.name ASC
-	`
-	rows, err := h.Store.DB.QueryContext(r.Context(), query, userID)
+	accounts, err := h.Store.GetFinanceAccounts(r.Context(), userID)
 	if err != nil {
 		http.Error(w, "Failed to query accounts", http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
-
-	var accounts []AccountResponse
-	for rows.Next() {
-		var a AccountResponse
-		if err := rows.Scan(&a.ID, &a.Name, &a.Type, &a.Balance, &a.LinkedAccountID); err != nil {
-			continue
-		}
-		accounts = append(accounts, a)
-	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(accounts)
-}
-
-type TransactionResponse struct {
-	ID          string    `json:"id"`
-	Date        time.Time `json:"date"`
-	Description string    `json:"description"`
-	Amount      float64   `json:"amount"` // Derived from asset account
 }
 
 func (h *FinanceHandler) GetTransactions(w http.ResponseWriter, r *http.Request) {
@@ -223,31 +181,10 @@ func (h *FinanceHandler) GetTransactions(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Dynamically compute amounts based on entries touching asset accounts
-	query := `
-		SELECT t.id, t.date, t.description, COALESCE(SUM(e.amount), 0)
-		FROM ext_finance_transactions t
-		LEFT JOIN ext_finance_entries e ON t.id = e.transaction_id
-		LEFT JOIN ext_finance_accounts a ON e.account_id = a.id AND a.type = 'asset'
-		WHERE t.user_id = ? AND a.id IS NOT NULL
-		GROUP BY t.id, t.date, t.description
-		ORDER BY t.date DESC
-		LIMIT 100
-	`
-	rows, err := h.Store.DB.QueryContext(r.Context(), query, userID)
+	transactions, err := h.Store.GetFinanceTransactions(r.Context(), userID)
 	if err != nil {
 		http.Error(w, "Failed to query transactions", http.StatusInternalServerError)
 		return
-	}
-	defer rows.Close()
-
-	var transactions []TransactionResponse
-	for rows.Next() {
-		var t TransactionResponse
-		if err := rows.Scan(&t.ID, &t.Date, &t.Description, &t.Amount); err != nil {
-			continue
-		}
-		transactions = append(transactions, t)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

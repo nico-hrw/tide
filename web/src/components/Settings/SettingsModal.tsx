@@ -12,7 +12,7 @@ import { apiFetch } from '@/lib/api';
 import APIAccessSettings from './APIAccessSettings';
 import DebugPluginSettings from './DebugPluginSettings';
 import MobileConnectionSettings from './MobileConnectionSettings';
-import { storeMasterKey, clearMasterKey, getMasterKey, purgeLegacyKeys } from '@/lib/keyStorage';
+import { storeMasterKey, clearMasterKey, getMasterKey, purgeLegacyKeys, getEncryptedVault, storeEncryptedVault } from '@/lib/keyStorage';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -669,6 +669,30 @@ export default function SettingsModal({
             }
 
             if (!privateKeyJwk) {
+                const encryptedVault = await getEncryptedVault();
+                if (encryptedVault) {
+                    const backupPayload = JSON.stringify({
+                        app: "tide",
+                        version: 2,
+                        type: "encrypted_vault_backup",
+                        exportedAt: new Date().toISOString(),
+                        vault: encryptedVault
+                    }, null, 2);
+
+                    const blob = new Blob([backupPayload], { type: "application/json" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `tide-master-key-vault-backup.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    setBackupStatus({ type: 'success', msg: 'Master-Schlüssel erfolgreich exportiert!' });
+                    setTimeout(() => setBackupStatus(null), 4000);
+                    return;
+                }
+
                 setBackupStatus({ type: 'error', msg: 'Kein aktiver Master-Schlüssel im Browser-Speicher gefunden.' });
                 return;
             }
@@ -730,6 +754,26 @@ export default function SettingsModal({
             }
 
             if (!privateKeyJwk) {
+                const encryptedVault = await getEncryptedVault();
+                if (encryptedVault) {
+                    const backupPayload = JSON.stringify({
+                        app: "tide",
+                        version: 2,
+                        type: "encrypted_vault_backup",
+                        exportedAt: new Date().toISOString(),
+                        vault: encryptedVault
+                    }, null, 2);
+
+                    await navigator.clipboard.writeText(backupPayload);
+                    setCopyFeedback(true);
+                    setBackupStatus({ type: 'success', msg: 'Verschlüsseltes Master-Key-Backup in die Zwischenablage kopiert!' });
+                    setTimeout(() => {
+                        setCopyFeedback(false);
+                        setBackupStatus(null);
+                    }, 2000);
+                    return;
+                }
+
                 setBackupStatus({ type: 'error', msg: 'Kein aktiver Master-Schlüssel im Browser-Speicher gefunden.' });
                 return;
             }
@@ -769,6 +813,35 @@ export default function SettingsModal({
                 if (!text) throw new Error("Datei ist leer.");
 
                 const parsed = JSON.parse(text);
+
+                // Handle encrypted vault backup format
+                if (parsed && (parsed.type === "encrypted_vault_backup" || (parsed.app === "tide" && parsed.vault))) {
+                    const vaultData = parsed.vault || parsed;
+                    await storeEncryptedVault(vaultData);
+                    purgeLegacyKeys();
+
+                    const userId = vaultData.userId || parsed.userId;
+                    if (userId) {
+                        localStorage.setItem("tide_user_id", userId);
+                        sessionStorage.setItem("tide_user_id", userId);
+                    }
+                    const email = vaultData.email || parsed.email;
+                    if (email) {
+                        localStorage.setItem("tide_user_email", email);
+                        sessionStorage.setItem("tide_user_email", email);
+                    }
+
+                    setBackupStatus({
+                        type: 'success',
+                        msg: 'Verschlüsseltes Master-Key-Backup erfolgreich importiert! Die Seite wird neu geladen...'
+                    });
+
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1200);
+                    return;
+                }
+
                 const privateKey = parsed.privateKeyJwk || parsed;
 
                 // Validate privateKeyJwk: checks for kty === "RSA" and existence of n and d

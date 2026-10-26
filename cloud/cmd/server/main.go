@@ -46,8 +46,15 @@ func main() {
 	}
 
 	masterKeyStr := os.Getenv("SERVER_MASTER_KEY")
-	if len(masterKeyStr) < 32 {
-		log.Fatal("CRITICAL: SERVER_MASTER_KEY must be set and at least 32 characters long")
+	if os.Getenv("ENV") == "production" {
+		if len(masterKeyStr) < 32 {
+			log.Fatal("CRITICAL: SERVER_MASTER_KEY must be set and at least 32 characters long")
+		}
+	} else {
+		if len(masterKeyStr) < 32 {
+			log.Println("DEV WARNING: SERVER_MASTER_KEY not set or too short (<32 bytes), using fallback dev key")
+			masterKeyStr = "12345678901234567890123456789012"
+		}
 	}
 	masterKey := []byte(masterKeyStr[:32])
 
@@ -124,6 +131,10 @@ func main() {
 				cleanOrigin := strings.TrimRight(origin, "/")
 				if trustedOrigins[cleanOrigin] {
 					isTrusted = true
+				} else if os.Getenv("ENV") != "production" {
+					if strings.HasPrefix(origin, "http://localhost") || strings.HasPrefix(origin, "http://127.0.0.1") {
+						isTrusted = true
+					}
 				}
 			} else {
 				// No Origin header (same-origin or non-browser request)

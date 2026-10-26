@@ -1,6 +1,7 @@
 import { get, set, del } from "idb-keyval";
 
 const MASTER_KEY_STORAGE_KEY = "tide_master_key";
+const ENCRYPTED_VAULT_STORAGE_KEY = "encrypted_vault";
 
 /**
  * In-memory singleton cache to provide instantaneous access to the master key
@@ -153,6 +154,56 @@ export async function clearMasterKey(): Promise<void> {
     if (typeof window !== "undefined") {
         try {
             await del(MASTER_KEY_STORAGE_KEY);
+        } catch {
+            // Ignore error if IndexedDB is inaccessible
+        }
+    }
+}
+
+/**
+ * Stores the encrypted vault package in IndexedDB.
+ * This allows exporting key backups even when live CryptoKey objects are non-extractable.
+ */
+export async function storeEncryptedVault(vaultData: {
+    salt?: string;
+    iv?: string;
+    ciphertext?: string;
+    pepper?: string;
+    email?: string;
+    userId?: string;
+    [key: string]: any;
+}): Promise<void> {
+    if (typeof window === "undefined") {
+        return;
+    }
+    await set(ENCRYPTED_VAULT_STORAGE_KEY, vaultData);
+}
+
+/**
+ * Retrieves the stored encrypted vault package from IndexedDB.
+ */
+export async function getEncryptedVault(): Promise<any | null> {
+    if (typeof window === "undefined") {
+        return null;
+    }
+    try {
+        const stored = await get(ENCRYPTED_VAULT_STORAGE_KEY);
+        if (stored) {
+            return stored;
+        }
+        return (await get("tide_encrypted_vault")) || null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Clears the encrypted vault package from IndexedDB.
+ */
+export async function clearEncryptedVault(): Promise<void> {
+    if (typeof window !== "undefined") {
+        try {
+            await del(ENCRYPTED_VAULT_STORAGE_KEY);
         } catch {
             // Ignore error if IndexedDB is inaccessible
         }

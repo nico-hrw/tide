@@ -1072,6 +1072,65 @@ func (s *SQLiteStore) DeleteFile(ctx context.Context, id string) error {
 
 	return tx.Commit()
 }
+
+// GetFileBlobPaths returns all non-empty blob paths in the file hierarchy starting from rootFileID.
+func (s *SQLiteStore) GetFileBlobPaths(ctx context.Context, rootFileID string) ([]string, error) {
+	query := `
+		WITH RECURSIVE descendants(id) AS (
+			SELECT id FROM files WHERE id = ?
+			UNION ALL
+			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
+		)
+		SELECT DISTINCT blob_path 
+		FROM files 
+		WHERE id IN descendants AND blob_path IS NOT NULL AND blob_path != ''
+	`
+	rows, err := s.readDB().QueryContext(ctx, query, rootFileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var blobPaths []string
+	for rows.Next() {
+		var bp string
+		if err := rows.Scan(&bp); err != nil {
+			return nil, err
+		}
+		blobPaths = append(blobPaths, bp)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if blobPaths == nil {
+		blobPaths = []string{}
+	}
+	return blobPaths, nil
+}
+
+// CountBlobReferencesExcluding counts how many files in files table still reference blobPath outside excludedFileIDs.
+func (s *SQLiteStore) CountBlobReferencesExcluding(ctx context.Context, blobPath string, excludedFileIDs []string) (int, error) {
+	if len(excludedFileIDs) == 0 {
+		var count int
+		query := `SELECT COUNT(1) FROM files WHERE blob_path = ?`
+		err := s.readDB().QueryRowContext(ctx, query, blobPath).Scan(&count)
+		return count, err
+	}
+
+	placeholders := make([]string, len(excludedFileIDs))
+	args := make([]interface{}, 0, 1+len(excludedFileIDs))
+	args = append(args, blobPath)
+	for i, id := range excludedFileIDs {
+		placeholders[i] = "?"
+		args = append(args, id)
+	}
+
+	query := fmt.Sprintf(`SELECT COUNT(1) FROM files WHERE blob_path = ? AND id NOT IN (%s)`, strings.Join(placeholders, ","))
+	var count int
+	err := s.readDB().QueryRowContext(ctx, query, args...).Scan(&count)
+	return count, err
+}
+
 func (s *SQLiteStore) SetVisibility(ctx context.Context, fileID string, visibility string) error {
 	query := `UPDATE files SET visibility = ?, updated_at = ? WHERE id = ?`
 	_, err := s.DB.ExecContext(ctx, query, visibility, time.Now(), fileID)

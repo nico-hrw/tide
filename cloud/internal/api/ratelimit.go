@@ -134,3 +134,85 @@ func RateLimitMiddleware(limiter *IPRateLimiter) func(http.Handler) http.Handler
 		})
 	}
 }
+
+// LockoutEntry tracks failed login/sensitive operation attempts for a key.
+type LockoutEntry struct {
+	FailCount   int
+	LockedUntil time.Time
+	LastAttempt time.Time
+}
+
+// FailedAttemptTracker tracks consecutive failed attempts and locks out keys exceeding maxAttempts.
+type FailedAttemptTracker struct {
+	mu          sync.Mutex
+	entries     map[string]*LockoutEntry
+	maxAttempts int
+	lockoutDur  time.Duration
+}
+
+// NewFailedAttemptTracker creates a FailedAttemptTracker with background cleanup.
+func NewFailedAttemptTracker(maxAttempts int, lockoutDur time.Duration) *FailedAttemptTracker {
+	tracker := &FailedAttemptTracker{
+		entries:     make(map[string]*LockoutEntry),
+		maxAttempts: maxAttempts,
+		lockoutDur:  lockoutDur,
+	}
+	// Background cleanup loop for expired entries
+	go tracker.cleanupLoop()
+	return tracker
+}
+
+func (t *FailedAttemptTracker) cleanupLoop() {
+	ticker := time.NewTicker(10 * time.Minute)
+	for range ticker.C {
+		t.mu.Lock()
+		now := time.Now()
+		for k, v := range t.entries {
+			if now.After(v.LockedUntil) && now.Sub(v.LastAttempt) > 30*time.Minute {
+				delete(t.entries, k)
+			}
+		}
+		t.mu.Unlock()
+	}
+}
+
+// IsLocked checks if the key is currently locked out. Returns true and the remaining lockout duration.
+func (t *FailedAttemptTracker) IsLocked(key string) (bool, time.Duration) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	entry, exists := t.entries[key]
+	if !exists {
+		return false, 0
+	}
+	if time.Now().Before(entry.LockedUntil) {
+		return true, time.Until(entry.LockedUntil)
+	}
+	return false, 0
+}
+
+// RecordFailure increments failed attempts. If threshold reached, sets LockedUntil. Returns if now locked and remaining attempts before lock.
+func (t *FailedAttemptTracker) RecordFailure(key string) (locked bool, remaining int) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	now := time.Now()
+	entry, exists := t.entries[key]
+	if !exists || now.After(entry.LockedUntil) && entry.FailCount >= t.maxAttempts {
+		entry = &LockoutEntry{LastAttempt: now}
+		t.entries[key] = entry
+	}
+	entry.LastAttempt = now
+	entry.FailCount++
+	if entry.FailCount >= t.maxAttempts {
+		entry.LockedUntil = now.Add(t.lockoutDur)
+		return true, 0
+	}
+	return false, t.maxAttempts - entry.FailCount
+}
+
+// RecordSuccess resets failed count for the key.
+func (t *FailedAttemptTracker) RecordSuccess(key string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	delete(t.entries, key)
+}
+

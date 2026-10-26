@@ -113,12 +113,22 @@ function AuthContent() {
                 }
                 setStatus("idle");
             } else {
-                throw new Error("Server error");
+                const errText = await res.text().catch(() => "");
+                let errMsg = `Error ${res.status}`;
+                try {
+                    const parsed = JSON.parse(errText);
+                    if (parsed.error) errMsg = parsed.error;
+                    else if (parsed.message) errMsg = parsed.message;
+                } catch {
+                    if (errText) errMsg = errText;
+                }
+                setStatus("error");
+                alert(`Login request failed: ${errMsg}`);
             }
         } catch (err) {
             console.error(err);
             setStatus("error");
-            alert("Connection failed");
+            alert(`Connection failed: Could not reach server. Please check your network connection or server status.`);
         }
     };
 
