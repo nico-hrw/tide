@@ -2,10 +2,13 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/nicoh/tide/internal/db"
 )
+
+var ErrVersionConflict = errors.New("version conflict")
 
 type Message struct {
 	ID          string    `json:"id"`
@@ -42,6 +45,7 @@ type Store interface {
 	CreateFile(ctx context.Context, file *db.File) error
 	GetFile(ctx context.Context, id string) (*db.File, error)
 	UpdateFile(ctx context.Context, file *db.File) error
+	UpdateFileWithOCC(ctx context.Context, file *db.File, expectedVersion int) error
 	DeleteFile(ctx context.Context, id string) error
 	SoftDeleteFile(ctx context.Context, id string) error
 	RestoreFile(ctx context.Context, id string) error

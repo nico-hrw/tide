@@ -861,6 +861,52 @@ blob_path=?, visibility=?, public_meta=?, secured_meta=?, version=?, metadata=?,
 	return err
 }
 
+// UpdateFileWithOCC updates a file record only if the current version matches expectedVersion (Optimistic Concurrency Control).
+func (s *SQLiteStore) UpdateFileWithOCC(ctx context.Context, file *db.File, expectedVersion int) error {
+	query := `
+		UPDATE files
+		SET owner_id=?, parent_id=?, type=?, mime_type=?, size=?, updated_at=?, 
+		    blob_path=?, visibility=?, public_meta=?, secured_meta=?, version=version+1, metadata=?, access_keys=?
+		WHERE id=? AND version=?
+	`
+	md := string(file.Metadata)
+	if md == "" {
+		md = "{}"
+	}
+	ak := string(file.AccessKeys)
+	if ak == "" {
+		ak = "{}"
+	}
+	res, err := s.DB.ExecContext(ctx, query,
+		file.OwnerID,
+		file.ParentID,
+		file.Type,
+		file.MIMEType,
+		file.Size,
+		file.UpdatedAt,
+		file.BlobPath,
+		file.Visibility,
+		file.PublicMeta,
+		file.SecuredMeta,
+		md,
+		ak,
+		file.ID,
+		expectedVersion,
+	)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return ErrVersionConflict
+	}
+	file.Version = expectedVersion + 1
+	return nil
+}
+
 func (s *SQLiteStore) DeleteFile(ctx context.Context, id string) error {
 	// Find all descendant IDs including the file itself using a recursive CTE query
 	queryDescendants := `

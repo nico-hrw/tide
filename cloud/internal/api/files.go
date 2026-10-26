@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -759,9 +760,6 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 	if req.Visibility != nil {
 		file.Visibility = *req.Visibility
 	}
-	if req.Version != nil {
-		file.Version = *req.Version
-	}
 	if req.Metadata != nil {
 		file.Metadata = req.Metadata
 	}
@@ -790,7 +788,24 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 	}
 	file.UpdatedAt = time.Now()
 
-	if err := h.Store.UpdateFile(r.Context(), file); err != nil {
+	var updateErr error
+	if req.Version != nil {
+		updateErr = h.Store.UpdateFileWithOCC(r.Context(), file, *req.Version)
+		if errors.Is(updateErr, store.ErrVersionConflict) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":           "conflict",
+				"message":         "File has been modified by another session",
+				"current_version": file.Version,
+			})
+			return
+		}
+	} else {
+		updateErr = h.Store.UpdateFile(r.Context(), file)
+	}
+
+	if updateErr != nil {
 		http.Error(w, "Failed to update file", http.StatusInternalServerError)
 		return
 	}
