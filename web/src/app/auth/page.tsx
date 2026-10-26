@@ -2,92 +2,199 @@
 
 import { useState, Suspense, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowRight, Loader2 } from "lucide-react";
 import * as cryptoLib from "@/lib/crypto";
 import { apiFetch } from "@/lib/api";
-import { storeMasterKey, purgeLegacyKeys } from "@/lib/keyStorage";
+import { storeMasterKey, purgeLegacyKeys, getMasterKey } from "@/lib/keyStorage";
 
-// CONSTANTS
-const DEV_PHASE_SECRET = "DEV_PHASE_SECRET_FIXED_KEY_123";
+interface LoginResponseData {
+    user_id: string;
+    email?: string;
+    username?: string;
+    public_key: string;
+    encrypted_vault: string | object;
+    pepper: string;
+    token?: string;
+    [key: string]: unknown;
+}
+
+interface SegmentedDigitInputProps {
+    length: number;
+    digits: string[];
+    onChange: (digits: string[]) => void;
+    type?: "text" | "password";
+    hasError?: boolean;
+    autoComplete?: string;
+    inputClassName?: string;
+    gapClassName?: string;
+    autoFocusFirst?: boolean;
+}
+
+function SegmentedDigitInput({
+    length,
+    digits,
+    onChange,
+    type = "text",
+    hasError = false,
+    autoComplete = "off",
+    inputClassName = "w-10 sm:w-12 h-14 sm:h-16 text-xl sm:text-2xl font-light text-center",
+    gapClassName = "gap-1.5 sm:gap-2.5",
+    autoFocusFirst = false,
+}: SegmentedDigitInputProps) {
+    const refs = useRef<(HTMLInputElement | null)[]>([]);
+
+    useEffect(() => {
+        if (autoFocusFirst) {
+            const timer = setTimeout(() => refs.current[0]?.focus(), 60);
+            return () => clearTimeout(timer);
+        }
+    }, [autoFocusFirst]);
+
+    const handleChange = (i: number, val: string) => {
+        const cl = val.replace(/\D/g, "");
+        if (!cl) {
+            const n = [...digits]; n[i] = ""; onChange(n);
+            return;
+        }
+        if (cl.length > 1) {
+            const pasted = cl.slice(0, length).split("");
+            const n = Array(length).fill("");
+            pasted.forEach((ch, idx) => { n[idx] = ch; });
+            onChange(n);
+            refs.current[Math.min(pasted.length, length - 1)]?.focus();
+            return;
+        }
+        const n = [...digits]; n[i] = cl; onChange(n);
+        if (i < length - 1) refs.current[i + 1]?.focus();
+    };
+
+    const handleKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === "Backspace" && !digits[i] && i > 0) {
+            e.preventDefault();
+            const n = [...digits]; n[i - 1] = ""; onChange(n);
+            refs.current[i - 1]?.focus();
+        } else if (e.key === "ArrowLeft" && i > 0) {
+            e.preventDefault(); refs.current[i - 1]?.focus();
+        } else if (e.key === "ArrowRight" && i < length - 1) {
+            e.preventDefault(); refs.current[i + 1]?.focus();
+        }
+    };
+
+    const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+        e.preventDefault();
+        const p = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, length);
+        if (!p) return;
+        const n = Array(length).fill("");
+        p.split("").forEach((c, idx) => { n[idx] = c; });
+        onChange(n);
+        refs.current[Math.min(p.length, length - 1)]?.focus();
+    };
+
+    return (
+        <div className={`flex items-center ${gapClassName}`}>
+            {digits.map((digit, i) => (
+                <input
+                    key={i}
+                    ref={(el) => { refs.current[i] = el; }}
+                    type={type}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoComplete={autoComplete}
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleChange(i, e.target.value)}
+                    onKeyDown={(e) => handleKeyDown(i, e)}
+                    onPaste={handlePaste}
+                    className={`${inputClassName} rounded-xl bg-white/70 backdrop-blur-md border ${
+                        hasError ? "border-red-400 bg-red-50/40 text-red-900" : "border-gray-200/90 text-gray-900"
+                    } shadow-sm focus:outline-none focus:border-gray-900 focus:bg-white focus:ring-1 focus:ring-gray-900/10 transition-all duration-150`}
+                />
+            ))}
+        </div>
+    );
+}
+
+function ActionButton({ loading, disabled, label }: { loading: boolean; disabled: boolean; label: string }) {
+    return (
+        <button
+            type="submit"
+            disabled={disabled}
+            className="group inline-flex items-center gap-3 px-7 py-3.5 rounded-full bg-gray-900 text-white font-medium text-base hover:bg-gray-800 active:scale-[0.98] transition-all duration-200 shadow-sm disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+        >
+            <span>{label}</span>
+            {loading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-white/80" />
+            ) : (
+                <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-2" />
+            )}
+        </button>
+    );
+}
 
 function AuthContent() {
     const router = useRouter();
-    const [mousePos, setMousePos] = useState({ x: 50, y: 50 });
 
+    const [step, setStep] = useState<"identifier" | "code" | "pin" | "details">("identifier");
+    const [identifier, setIdentifier] = useState("");
+    const [name, setName] = useState("");
+    const [status, setStatus] = useState<"idle" | "processing" | "success" | "error">("idle");
+    const [errorMessage, setErrorMessage] = useState("");
+    const [successMessage, setSuccessMessage] = useState("");
+    const [devCode, setDevCode] = useState<string | null>(null);
+    const [loginData, setLoginData] = useState<LoginResponseData | null>(null);
+
+    const [codeDigits, setCodeDigits] = useState<string[]>(["", "", "", "", "", ""]);
+    const [pinDigits, setPinDigits] = useState<string[]>(["", "", "", "", ""]);
+    const [regPinDigits, setRegPinDigits] = useState<string[]>(["", "", "", "", ""]);
+
+    // Auto-login check on mount
     useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            setMousePos({ x: e.clientX, y: e.clientY });
-        };
-        window.addEventListener('mousemove', handleMouseMove);
-        
-        // Auto-login check
-        if (typeof window !== 'undefined' && localStorage.getItem("tide_session_key")) {
-            router.push("/");
+        if (typeof window !== "undefined") {
+            if (localStorage.getItem("tide_session_token")) {
+                router.push("/");
+                return;
+            }
+            getMasterKey().then((key) => { if (key) router.push("/"); });
         }
-
-        return () => window.removeEventListener('mousemove', handleMouseMove);
     }, [router]);
 
-    // State
-    const [step, setStep] = useState<"identifier" | "pin" | "code" | "details">("identifier");
-    const [identifier, setIdentifier] = useState("");
-    const [pin, setPin] = useState(""); // 5-digit PIN
-    const [loginCode, setLoginCode] = useState(""); // Alphanumeric secondary code
-    const [name, setName] = useState("");
-    const [isLoginMode, setIsLoginMode] = useState(false);
-    const [status, setStatus] = useState("idle"); // idle, checking, processing, success, error
-    const [loginData, setLoginData] = useState<any>(null); // Store pepper and vault
-
-    // Listen for Magic Link success in another tab
+    // Multi-tab synchronization (magic link signal)
     useEffect(() => {
         const handleStorage = async (e: StorageEvent) => {
             if (e.key === "tide_auth_signal") {
-                console.log("Auth signal received!", e.newValue);
-                // The verify tab sets "tide_session_key" in sessionStorage ONLY for itself.
-                // WE (this tab) do not have the session key yet because sessionStorage is per-tab.
-                // FIX: Verify page must put the session key in localStorage (encrypted/temp) 
-                // OR we just redirect to dashboard? 
-                // If we redirect to dashboard, AuthGuard checks sessionStorage. It will be empty!
-
-                // SO: Verify page must share the key via localStorage.
-                // Let's go back and fix Verify page to put key in localStorage briefly?
-                // OR, since `tide_auth_signal` is in localStorage, we can put the key IN the signal?
-                // Yes.
-
                 try {
                     const signal = JSON.parse(e.newValue || "{}");
                     if (signal.sessionKey && signal.email) {
                         const jwk = typeof signal.sessionKey === "string" ? JSON.parse(signal.sessionKey) : signal.sessionKey;
                         const cryptoKey = await window.crypto.subtle.importKey(
-                            "jwk",
-                            jwk,
-                            { name: "RSA-OAEP", hash: "SHA-256" },
-                            false,
-                            ["decrypt"]
+                            "jwk", jwk, { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]
                         );
                         await storeMasterKey(cryptoKey);
                         purgeLegacyKeys();
                         localStorage.setItem("tide_user_email", signal.email);
-                        if (signal.publicKey) {
-                            localStorage.setItem("tide_user_public_key", signal.publicKey);
-                        }
-                        if (signal.userId) {
-                            localStorage.setItem("tide_user_id", signal.userId);
-                        }
+                        if (signal.publicKey) localStorage.setItem("tide_user_public_key", signal.publicKey);
+                        if (signal.userId) localStorage.setItem("tide_user_id", signal.userId);
                         router.push("/");
                     }
-                } catch (e) { console.error(e); }
+                } catch (err) {
+                    console.error("Multi-tab auth signal error:", err);
+                }
             }
         };
         window.addEventListener("storage", handleStorage);
         return () => window.removeEventListener("storage", handleStorage);
     }, [router]);
 
-    // Step 1: Identifier (Email)
+    // ─── Step 1: Request Code / User Lookup ──────────────────────────────────
     const handleIdentifierSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!identifier) return;
+        const trimmedEmail = identifier.trim().toLowerCase();
+        if (!trimmedEmail) return;
 
         setStatus("processing");
+        setErrorMessage("");
+        setSuccessMessage("");
+        setDevCode(null);
         sessionStorage.clear();
         localStorage.removeItem("tide_session_token");
 
@@ -95,362 +202,464 @@ function AuthContent() {
             const res = await apiFetch("/api/v1/auth/request-otp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: identifier })
+                body: JSON.stringify({ email: trimmedEmail }),
             });
 
             if (res.ok) {
                 const data = await res.json();
-                if (data.otp) alert(`Your Login Code: ${data.otp}`);
-                
+                if (data.otp) setDevCode(data.otp);
                 if (data.user_exists) {
-                    // User exists -> Proceed to OTP Step
-                    setIsLoginMode(true);
-                    setStep("code"); // OTP code
+                    setStep("code");
+                    setCodeDigits(["", "", "", "", "", ""]);
                 } else {
-                    // User not found -> Register Flow
-                    setIsLoginMode(false);
                     setStep("details");
                 }
                 setStatus("idle");
             } else {
-                const errText = await res.text().catch(() => "");
-                let errMsg = `Error ${res.status}`;
+                const text = await res.text().catch(() => "");
+                let msg = "Anmeldung fehlgeschlagen.";
                 try {
-                    const parsed = JSON.parse(errText);
-                    if (parsed.error) errMsg = parsed.error;
-                    else if (parsed.message) errMsg = parsed.message;
-                } catch {
-                    if (errText) errMsg = errText;
-                }
+                    const p = JSON.parse(text);
+                    if (p.error || p.message) msg = p.error || p.message;
+                } catch { if (text) msg = text; }
                 setStatus("error");
-                alert(`Login request failed: ${errMsg}`);
+                setErrorMessage(msg);
             }
-        } catch (err) {
-            console.error(err);
+        } catch {
             setStatus("error");
-            alert(`Connection failed: Could not reach server. Please check your network connection or server status.`);
+            setErrorMessage("Verbindungsfehler. Bitte überprüfe deine Internetverbindung.");
         }
     };
 
-    // Step 2 Login: Verify OTP
+    // ─── Step 2: Verify Code ─────────────────────────────────────────────────
     const handleCodeSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!loginCode) return;
+        const fullCode = codeDigits.join("");
+        if (fullCode.length !== 6) return;
 
         setStatus("processing");
+        setErrorMessage("");
 
         try {
             const res = await apiFetch("/api/v1/auth/verify-otp", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: identifier, otp: loginCode })
+                body: JSON.stringify({ email: identifier.trim().toLowerCase(), otp: fullCode }),
             });
 
             if (res.ok) {
-                const data = await res.json();
-                // We got the JWT in httpOnly cookie automatically!
-                // We also got the pepper, encrypted_vault, user_id, public_key
+                const data: LoginResponseData = await res.json();
                 setLoginData(data);
                 setStep("pin");
+                setPinDigits(["", "", "", "", ""]);
                 setStatus("idle");
             } else {
-                alert("Invalid OTP");
-                setStatus("idle");
+                setStatus("error");
+                setErrorMessage("Ungültiger Bestätigungscode. Bitte überprüfe deine Eingabe.");
+                setCodeDigits(["", "", "", "", "", ""]);
             }
-        } catch (err) {
-            console.error(err);
+        } catch {
             setStatus("error");
-            alert("Verification failed");
+            setErrorMessage("Bestätigung fehlgeschlagen. Bitte versuche es erneut.");
         }
     };
 
-    // Step 3 Login: PIN Unlock
+    // ─── Step 3: PIN Unlock (Decrypt Vault) ──────────────────────────────────
     const handlePinSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (pin.length !== 5 || !loginData) return;
+        const fullPin = pinDigits.join("");
+        if (fullPin.length !== 5 || !loginData) return;
 
         setStatus("processing");
+        setErrorMessage("");
 
         try {
-            const decryptedKey = await cryptoLib.unlockVault(
-                pin,
-                loginData.pepper,
-                typeof loginData.encrypted_vault === 'string' ? JSON.parse(loginData.encrypted_vault) : loginData.encrypted_vault
-            );
+            const rawVault = typeof loginData.encrypted_vault === "string"
+                ? JSON.parse(loginData.encrypted_vault)
+                : loginData.encrypted_vault;
 
-
-
+            const decryptedKey = await cryptoLib.unlockVault(fullPin, loginData.pepper, rawVault);
             await storeMasterKey(decryptedKey);
             purgeLegacyKeys();
-            
-            localStorage.setItem("tide_user_email", identifier);
+
+            localStorage.setItem("tide_user_email", identifier.trim().toLowerCase());
             localStorage.setItem("tide_user_id", loginData.user_id);
             if (loginData.username) {
                 localStorage.setItem("tide_user_name", loginData.username);
-                // Also update local record for persistent sessions/fallback
                 const localRec = JSON.parse(localStorage.getItem("tide_user_" + identifier) || "{}");
                 localStorage.setItem("tide_user_" + identifier, JSON.stringify({ ...localRec, username: loginData.username }));
             }
             localStorage.setItem("tide_user_public_key", loginData.public_key);
-            if (loginData.token) {
-                localStorage.setItem("tide_session_token", loginData.token);
-            }
+            if (loginData.token) localStorage.setItem("tide_session_token", loginData.token);
 
             setStatus("success");
             router.push("/");
-        } catch (err: any) {
+        } catch (err) {
             console.error("Failed to decrypt vault:", err);
-            alert(`Incorrect PIN (System Error: ${err.name || err.message || JSON.stringify(err)})`);
-            setStatus("idle");
+            setStatus("error");
+            setErrorMessage("Falscher PIN. Bitte versuche es erneut.");
+            setPinDigits(["", "", "", "", ""]);
         }
     };
 
-    // Step 2 Register: Finalize Auth
+    // ─── Step 4: Register Flow ───────────────────────────────────────────────
     const handleFinalSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (isLoginMode) return;
+        const trimmedName = name.trim();
+        const fullPin = regPinDigits.join("");
+
+        if (!trimmedName) {
+            setErrorMessage("Bitte gib deinen Namen ein.");
+            return;
+        }
+        if (fullPin.length !== 5) {
+            setErrorMessage("Der PIN muss genau 5 Ziffern lang sein.");
+            return;
+        }
 
         setStatus("processing");
+        setErrorMessage("");
 
         try {
-            if (!name || pin.length !== 5) {
-                alert("Please enter your Name and a 5-digit PIN.");
-                setStatus("idle");
-                return;
-            }
-
-            // Generate Client Pepper
             const pepperBuffer = new Uint8Array(32);
             window.crypto.getRandomValues(pepperBuffer);
             const pepperBase64 = cryptoLib.arrayBufferToBase64(pepperBuffer.buffer);
 
-            // Generate Vault
-            const { masterKeys, encryptedVault } = await cryptoLib.generateUserVault(pin, pepperBase64);
+            const { masterKeys, encryptedVault } = await cryptoLib.generateUserVault(fullPin, pepperBase64);
             const publicKeySpki = await cryptoLib.exportPublicKey(masterKeys.publicKey);
 
-            // Sanity Check Decrypt (Verifies local WebCrypto integrity before sending)
             try {
-                console.log("[SANITY CHECK] Testing local vault decryption...");
-                await cryptoLib.unlockVault(pin, pepperBase64, encryptedVault);
-                console.log("[SANITY CHECK] Passed. Vault is healthy.");
-            } catch (sanityErr: any) {
-                console.error("[SANITY CHECK FAILED]", sanityErr);
-                alert(`CRITICAL ERROR: Browser failed to decrypt the vault it just generated. Error: ${sanityErr.name || sanityErr.message}`);
-                setStatus("idle");
+                await cryptoLib.unlockVault(fullPin, pepperBase64, encryptedVault);
+            } catch {
+                setStatus("error");
+                setErrorMessage("Schlüsselerstellung fehlgeschlagen. Bitte versuche es erneut.");
                 return;
             }
-
-            // Payload
-            const payload = {
-                email: identifier,
-                username: name,
-                phone: "000000000",
-                public_key: publicKeySpki,
-                encrypted_vault: JSON.stringify(encryptedVault),
-                pepper: pepperBase64,
-                pin: pin
-            };
 
             const res = await apiFetch("/api/v1/auth/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({
+                    email: identifier.trim().toLowerCase(),
+                    username: trimmedName,
+                    phone: "000000000",
+                    public_key: publicKeySpki,
+                    encrypted_vault: JSON.stringify(encryptedVault),
+                    pepper: pepperBase64,
+                    pin: fullPin,
+                }),
             });
 
             if (res.ok) {
-                alert("Account created! Please log in with your new PIN.");
+                setSuccessMessage("Konto erfolgreich erstellt! Bitte melde dich an.");
                 setStep("identifier");
                 setStatus("idle");
-                setPin("");
+                setRegPinDigits(["", "", "", "", ""]);
+                setName("");
             } else {
-                const errText = await res.text();
-                alert("Registration failed: " + errText);
-                setStatus("idle");
+                const text = await res.text().catch(() => "");
+                let msg = "Registrierung fehlgeschlagen.";
+                try {
+                    const p = JSON.parse(text);
+                    if (p.error || p.message) msg = p.error || p.message;
+                } catch { if (text) msg = text; }
+                setStatus("error");
+                setErrorMessage(msg);
             }
-        } catch (err) {
-            console.error(err);
+        } catch {
             setStatus("error");
-            alert("Registration failed");
+            setErrorMessage("Registrierung fehlgeschlagen. Bitte überprüfe deine Eingaben.");
         }
     };
 
     return (
-        <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh',
-            gap: '2rem', position: 'relative', overflow: 'hidden'
-        }}>
-            {/* Tide wave gradient background */}
+        <div className="min-h-screen min-h-[100dvh] flex flex-col justify-center items-center px-5 sm:px-8 py-10 sm:py-16 relative overflow-hidden font-sans">
             <style>{`
-                @keyframes tide-wave-1 {
-                    0%, 100% { transform: translateX(-8%) translateY(4%); }
-                    50% { transform: translateX(8%) translateY(-4%); }
-                }
-                @keyframes tide-wave-2 {
-                    0%, 100% { transform: translateX(6%) translateY(-6%); }
-                    50% { transform: translateX(-6%) translateY(6%); }
-                }
-                @keyframes tide-wave-3 {
-                    0%, 100% { transform: translateX(-4%) translateY(8%); }
-                    50% { transform: translateX(4%) translateY(-8%); }
-                }
+                @keyframes blob-float-1 { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(60px, -40px) scale(1.08); } 66% { transform: translate(-30px, 50px) scale(0.95); } }
+                @keyframes blob-float-2 { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(-50px, 60px) scale(1.05); } 66% { transform: translate(40px, -30px) scale(0.92); } }
+                @keyframes blob-float-3 { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(40px, 40px) scale(0.96); } 66% { transform: translate(-50px, -40px) scale(1.06); } }
             `}</style>
-            {/* Subtle cursor-following accent */}
-            <div style={{
-                position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
-                background: `radial-gradient(900px circle at ${mousePos.x}px ${mousePos.y}px, rgba(56,189,248,0.04) 0%, transparent 60%)`,
-                transition: 'background 0.4s ease',
-            }} />
-            {/* Wave layer 1 - deep ocean */}
-            <div style={{
-                position: 'fixed', inset: '-20%', zIndex: 0, pointerEvents: 'none',
-                background: 'radial-gradient(ellipse 80% 40% at 30% 70%, rgba(14,165,233,0.06) 0%, transparent 70%)',
-                animation: 'tide-wave-1 12s ease-in-out infinite',
-            }} />
-            {/* Wave layer 2 - seafoam */}
-            <div style={{
-                position: 'fixed', inset: '-20%', zIndex: 0, pointerEvents: 'none',
-                background: 'radial-gradient(ellipse 70% 35% at 70% 35%, rgba(6,182,212,0.05) 0%, transparent 70%)',
-                animation: 'tide-wave-2 16s ease-in-out infinite',
-            }} />
-            {/* Wave layer 3 - horizon */}
-            <div style={{
-                position: 'fixed', inset: '-20%', zIndex: 0, pointerEvents: 'none',
-                background: 'radial-gradient(ellipse 60% 45% at 50% 85%, rgba(99,102,241,0.04) 0%, transparent 70%)',
-                animation: 'tide-wave-3 20s ease-in-out infinite',
-            }} />
-            <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', width: '100%' }}>
-            <div style={{ textAlign: 'center' }}>
-                <h1>Welcome to Tide</h1>
-                <p className="text-gray-500 dark:text-slate-400">Minimalist. Local-First. Encrypted.</p>
+
+            {/* Floating animated pastel blobs background */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10 bg-[#fcfcfd]">
+                <div
+                    className="absolute -top-[12%] -left-[10%] w-[480px] sm:w-[560px] h-[480px] sm:h-[560px] rounded-full opacity-70"
+                    style={{ backgroundColor: "#e0f2fe", filter: "blur(140px)", animation: "blob-float-1 24s ease-in-out infinite alternate", willChange: "transform" }}
+                />
+                <div
+                    className="absolute -bottom-[15%] -right-[10%] w-[520px] sm:w-[620px] h-[520px] sm:h-[620px] rounded-full opacity-65"
+                    style={{ backgroundColor: "#dcfce7", filter: "blur(140px)", animation: "blob-float-2 28s ease-in-out infinite alternate", willChange: "transform" }}
+                />
+                <div
+                    className="absolute top-[28%] -right-[8%] w-[420px] sm:w-[500px] h-[420px] sm:h-[500px] rounded-full opacity-60"
+                    style={{ backgroundColor: "#f3e8ff", filter: "blur(140px)", animation: "blob-float-3 22s ease-in-out infinite alternate", willChange: "transform" }}
+                />
             </div>
 
-            {step === "identifier" && (
-                <form onSubmit={handleIdentifierSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '320px' }}>
-                    <div>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 'bold' }}>Email</label>
-                        <input
-                            type="email"
-                            placeholder="name@example.com"
-                            value={identifier}
-                            autoFocus
-                            onChange={e => setIdentifier(e.target.value)}
-                            required
-                            style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={status === 'processing'}
-                        className="px-8 py-4 glass-pill-blue font-bold text-gray-800 tracking-wide text-lg w-full flex items-center justify-center mt-4"
-                    >
-                        {status === 'processing' ? 'Processing...' : 'Continue'}
-                    </button>
-                </form>
-            )}
+            <div className="w-full max-w-[460px] sm:max-w-[500px] relative z-10">
+                <div className="text-xs sm:text-sm font-semibold tracking-[0.4em] text-gray-500 uppercase mb-4 sm:mb-6 select-none">
+                    TIDE
+                </div>
 
-            {step === "code" && (
-                <form onSubmit={handleCodeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '320px' }}>
-                    <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-                        <h3>Login-Code</h3>
-                        <p className="text-sm text-gray-500">Enter the 6-digit OTP from your email.</p>
+                {devCode && (
+                    <div className="mb-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50/80 border border-blue-200/80 text-xs text-blue-700">
+                        <span className="font-semibold">Bestätigungscode (Dev):</span>
+                        <span className="font-mono tracking-widest font-bold">{devCode}</span>
+                        {step === "code" && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const chars = devCode.slice(0, 6).split("");
+                                    const next = Array(6).fill("");
+                                    chars.forEach((c, idx) => { next[idx] = c; });
+                                    setCodeDigits(next);
+                                }}
+                                className="underline hover:text-blue-900 ml-1 text-[11px] font-medium cursor-pointer"
+                            >
+                                Ausfüllen
+                            </button>
+                        )}
                     </div>
-                    <div>
-                        <input
-                            type="text"
-                            placeholder="123456"
-                            maxLength={6}
-                            value={loginCode}
-                            autoFocus
-                            onChange={e => setLoginCode(e.target.value)}
-                            required
-                            style={{
-                                width: '100%', padding: '1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)',
-                                textAlign: 'center', fontSize: '1.5rem', fontWeight: 'bold'
-                            }}
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={status === 'processing' || loginCode.length !== 6}
-                        className="px-8 py-4 glass-pill-pink font-bold text-gray-800 tracking-wide text-lg w-full flex items-center justify-center mt-4"
-                    >
-                        {status === 'processing' ? 'Verifying...' : 'Verify OTP'}
-                    </button>
-                    <button type="button" onClick={() => setStep("identifier")} className="text-sm underline text-center">Back</button>
-                </form>
-            )}
+                )}
 
-            {step === "pin" && (
-                <form onSubmit={handlePinSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '320px' }}>
-                    <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
-                        <h3>Verify PIN</h3>
-                        <p className="text-sm text-gray-500">Enter your 5-digit PIN to unlock your vault.</p>
-                    </div>
+                {/* ─── Step 1: Identifier (Email) ─────────────────────────────── */}
+                {step === "identifier" && (
                     <div>
-                        <input
-                            type="password"
-                            placeholder="00000"
-                            maxLength={5}
-                            value={pin}
-                            autoFocus
-                            onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
-                            required
-                            style={{
-                                width: '100%', padding: '1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)',
-                                textAlign: 'center', fontSize: '2rem', letterSpacing: '1rem'
-                            }}
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        disabled={status === 'processing' || pin.length !== 5}
-                        className="px-8 py-4 glass-pill-blue font-bold text-gray-800 tracking-wide text-lg w-full flex items-center justify-center mt-4"
-                    >
-                        {status === 'processing' ? 'Unlocking...' : 'Unlock Vault'}
-                    </button>
-                    <button type="button" onClick={() => setStep("code")} className="text-sm underline text-center">Back</button>
-                </form>
-            )}
+                        <h1 className="text-4xl sm:text-5xl md:text-6xl font-medium tracking-tight text-gray-900 mb-8 sm:mb-10 leading-[1.15]">
+                            Dein Studium, <br />
+                            endlich im Flow.
+                        </h1>
 
-            {step === "details" && (
-                <form onSubmit={handleFinalSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '320px' }}>
-                    <div className="bg-gray-100 dark:bg-slate-800" style={{ padding: '0.75rem', borderRadius: 'var(--radius)', fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span>{identifier}</span>
-                        <button type="button" onClick={() => setStep("identifier")} className="text-sm underline text-blue-400">Change</button>
+                        <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
+                            Notizen, Termine und Todos in einer minimalistischen App vereint, um deinen Kopf frei zu halten.
+                        </p>
+
+                        <form onSubmit={handleIdentifierSubmit} className="w-full">
+                            <div className="mb-8">
+                                <input
+                                    type="email"
+                                    placeholder="name@uni-beispiel.de"
+                                    value={identifier}
+                                    autoFocus
+                                    onChange={(e) => {
+                                        setIdentifier(e.target.value);
+                                        if (errorMessage) setErrorMessage("");
+                                    }}
+                                    required
+                                    className={`w-full bg-transparent border-0 border-b-2 ${
+                                        errorMessage
+                                            ? "border-red-500 text-red-900 focus:border-red-500"
+                                            : "border-gray-200 hover:border-gray-300 focus:border-gray-900 text-gray-900"
+                                    } py-3 px-0.5 text-lg sm:text-xl placeholder:text-gray-400 focus:outline-none transition-colors duration-200`}
+                                />
+                                {errorMessage && <p className="text-sm font-medium text-red-600 mt-2">{errorMessage}</p>}
+                                {successMessage && <p className="text-sm font-medium text-emerald-600 mt-2">{successMessage}</p>}
+                            </div>
+
+                            <ActionButton
+                                loading={status === "processing"}
+                                disabled={status === "processing" || !identifier}
+                                label={status === "processing" ? "Einen Moment..." : "Weiter"}
+                            />
+                        </form>
                     </div>
+                )}
+
+                {/* ─── Step 2: Code Verification ──────────────────────────────── */}
+                {step === "code" && (
                     <div>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 'bold' }}>Your Name</label>
-                        <input
-                            type="text"
-                            placeholder="Jane Doe"
-                            value={name}
-                            autoFocus
-                            onChange={e => setName(e.target.value)}
-                            required
-                            style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}
-                        />
+                        <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-gray-900 mb-4 sm:mb-6 leading-[1.15]">
+                            Bestätigungscode
+                        </h1>
+
+                        <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
+                            Wir haben dir einen 6-stelligen Bestätigungscode an{" "}
+                            <span className="font-medium text-gray-900">{identifier}</span> geschickt.
+                        </p>
+
+                        <form onSubmit={handleCodeSubmit} className="w-full">
+                            <div className="mb-8 w-full max-w-sm sm:max-w-md">
+                                <SegmentedDigitInput
+                                    length={6}
+                                    digits={codeDigits}
+                                    onChange={(digits) => {
+                                        setCodeDigits(digits);
+                                        if (errorMessage) setErrorMessage("");
+                                    }}
+                                    autoComplete="one-time-code"
+                                    autoFocusFirst
+                                    hasError={Boolean(errorMessage)}
+                                    inputClassName="w-10 sm:w-12 h-14 sm:h-16 text-xl sm:text-2xl font-light text-center"
+                                    gapClassName="gap-1.5 sm:gap-2.5 justify-between"
+                                />
+                            </div>
+
+                            {errorMessage && <p className="text-sm font-medium text-red-600 -mt-4 mb-6">{errorMessage}</p>}
+
+                            <div className="flex items-center gap-5">
+                                <ActionButton
+                                    loading={status === "processing"}
+                                    disabled={status === "processing" || codeDigits.some((d) => !d)}
+                                    label={status === "processing" ? "Überprüfen..." : "Bestätigen"}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStep("identifier");
+                                        setErrorMessage("");
+                                    }}
+                                    className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors underline-offset-4 hover:underline cursor-pointer"
+                                >
+                                    E-Mail ändern
+                                </button>
+                            </div>
+                        </form>
                     </div>
+                )}
+
+                {/* ─── Step 3: PIN Unlock (Vault) ─────────────────────────────── */}
+                {step === "pin" && (
                     <div>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 'bold' }}>Create 5-digit PIN</label>
-                        <input
-                            type="password"
-                            placeholder="00000"
-                            maxLength={5}
-                            value={pin}
-                            onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
-                            required
-                            style={{ width: '100%', padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', textAlign: 'center', fontSize: '1.2rem', letterSpacing: '0.5rem' }}
-                        />
+                        <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-gray-900 mb-4 sm:mb-6 leading-[1.15]">
+                            Tresor entsperren
+                        </h1>
+
+                        <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
+                            Gib deinen 5-stelligen PIN ein, um deinen privaten Tresor zu entschlüsseln.
+                        </p>
+
+                        <form onSubmit={handlePinSubmit} className="w-full">
+                            <div className="mb-8 w-fit">
+                                <SegmentedDigitInput
+                                    length={5}
+                                    digits={pinDigits}
+                                    onChange={(digits) => {
+                                        setPinDigits(digits);
+                                        if (errorMessage) setErrorMessage("");
+                                    }}
+                                    type="password"
+                                    autoFocusFirst
+                                    hasError={Boolean(errorMessage)}
+                                    inputClassName="w-11 sm:w-13 h-14 sm:h-16 text-2xl font-mono text-center"
+                                    gapClassName="gap-2 sm:gap-3"
+                                />
+                            </div>
+
+                            {errorMessage && <p className="text-sm font-medium text-red-600 -mt-4 mb-6">{errorMessage}</p>}
+
+                            <div className="flex items-center gap-5">
+                                <ActionButton
+                                    loading={status === "processing"}
+                                    disabled={status === "processing" || pinDigits.some((d) => !d)}
+                                    label={status === "processing" ? "Entschlüsseln..." : "Tresor öffnen"}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStep("code");
+                                        setErrorMessage("");
+                                    }}
+                                    className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors underline-offset-4 hover:underline cursor-pointer"
+                                >
+                                    Zurück
+                                </button>
+                            </div>
+                        </form>
                     </div>
-                    <button
-                        type="submit"
-                        disabled={status === 'processing'}
-                        className="px-8 py-4 glass-pill-pink font-bold text-gray-800 tracking-wide text-lg w-full flex items-center justify-center mt-4"
-                    >
-                        {status === 'processing' ? 'Creating Account...' : 'Start using Tide'}
-                    </button>
-                </form>
-            )}
+                )}
+
+                {/* ─── Step 4: Register Flow (Konto erstellen) ────────────────── */}
+                {step === "details" && (
+                    <div>
+                        <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-gray-900 mb-4 sm:mb-6 leading-[1.15]">
+                            Konto erstellen
+                        </h1>
+
+                        <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
+                            Wähle deinen Namen und erstelle einen sicheren 5-stelligen PIN für deinen privaten Tresor.
+                        </p>
+
+                        <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/70 backdrop-blur-md border border-gray-200/80 mb-6 text-sm text-gray-700">
+                            <span className="font-medium text-gray-900 truncate">{identifier}</span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setStep("identifier");
+                                    setErrorMessage("");
+                                }}
+                                className="text-xs font-semibold text-gray-500 hover:text-gray-900 underline ml-3 shrink-0 cursor-pointer"
+                            >
+                                Ändern
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleFinalSubmit} className="w-full">
+                            <div className="mb-6">
+                                <label className="block text-xs font-semibold tracking-wider uppercase text-gray-500 mb-2">
+                                    Dein Name
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="Wie heißt du?"
+                                    value={name}
+                                    autoFocus
+                                    onChange={(e) => {
+                                        setName(e.target.value);
+                                        if (errorMessage) setErrorMessage("");
+                                    }}
+                                    required
+                                    className="w-full bg-transparent border-0 border-b-2 border-gray-200 focus:border-gray-900 py-2.5 px-0.5 text-lg sm:text-xl text-gray-900 placeholder:text-gray-400 focus:outline-none transition-colors duration-200"
+                                />
+                            </div>
+
+                            <div className="mb-8">
+                                <label className="block text-xs font-semibold tracking-wider uppercase text-gray-500 mb-2">
+                                    5-stelliger PIN
+                                </label>
+                                <p className="text-xs text-gray-500 mb-3 font-light">
+                                    Mit diesem PIN wird dein privater Tresor auf deinem Gerät verschlüsselt.
+                                </p>
+                                <div className="w-fit">
+                                    <SegmentedDigitInput
+                                        length={5}
+                                        digits={regPinDigits}
+                                        onChange={(digits) => {
+                                            setRegPinDigits(digits);
+                                            if (errorMessage) setErrorMessage("");
+                                        }}
+                                        type="password"
+                                        inputClassName="w-11 sm:w-13 h-14 sm:h-16 text-2xl font-mono text-center"
+                                        gapClassName="gap-2 sm:gap-3"
+                                    />
+                                </div>
+                            </div>
+
+                            {errorMessage && <p className="text-sm font-medium text-red-600 -mt-4 mb-6">{errorMessage}</p>}
+
+                            <div className="flex items-center gap-5">
+                                <ActionButton
+                                    loading={status === "processing"}
+                                    disabled={
+                                        status === "processing" ||
+                                        !name.trim() ||
+                                        regPinDigits.some((d) => !d)
+                                    }
+                                    label={status === "processing" ? "Konto wird erstellt..." : "Konto erstellen"}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setStep("identifier");
+                                        setErrorMessage("");
+                                    }}
+                                    className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors underline-offset-4 hover:underline cursor-pointer"
+                                >
+                                    Abbrechen
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -458,7 +667,7 @@ function AuthContent() {
 
 export default function Auth() {
     return (
-        <Suspense fallback={<div>Loading...</div>}>
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400">Laden...</div>}>
             <AuthContent />
         </Suspense>
     );
