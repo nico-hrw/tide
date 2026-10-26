@@ -2,10 +2,12 @@
 
 import { useState, Suspense, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import * as cryptoLib from "@/lib/crypto";
 import { apiFetch } from "@/lib/api";
 import { storeMasterKey, purgeLegacyKeys, getMasterKey } from "@/lib/keyStorage";
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface LoginResponseData {
     user_id: string;
@@ -119,13 +121,21 @@ function ActionButton({ loading, disabled, label }: { loading: boolean; disabled
         <button
             type="submit"
             disabled={disabled}
-            className="group inline-flex items-center gap-3 px-7 py-3.5 rounded-full bg-gray-900 text-white font-medium text-base hover:bg-gray-800 active:scale-[0.98] transition-all duration-200 shadow-sm disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+            className="group flex items-center text-gray-900 text-lg tracking-wide hover:text-gray-600 transition-colors duration-300 focus:outline-none disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
         >
-            <span>{label}</span>
+            <span className="font-medium mr-4">{label}</span>
             {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin text-white/80" />
+                <Loader2 className="w-6 h-6 animate-spin text-gray-600" />
             ) : (
-                <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-2" />
+                <svg
+                    className="w-6 h-6 transform transition-transform duration-300 group-hover:translate-x-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
             )}
         </button>
     );
@@ -146,6 +156,16 @@ function AuthContent() {
     const [codeDigits, setCodeDigits] = useState<string[]>(["", "", "", "", "", ""]);
     const [pinDigits, setPinDigits] = useState<string[]>(["", "", "", "", ""]);
     const [regPinDigits, setRegPinDigits] = useState<string[]>(["", "", "", "", ""]);
+
+    const [mousePos, setMousePos] = useState({ x: -1000, y: -1000 });
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            setMousePos({ x: e.clientX, y: e.clientY });
+        };
+        window.addEventListener("mousemove", handleMouseMove);
+        return () => window.removeEventListener("mousemove", handleMouseMove);
+    }, []);
 
     // Auto-login check on mount
     useEffect(() => {
@@ -189,7 +209,16 @@ function AuthContent() {
     const handleIdentifierSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const trimmedEmail = identifier.trim().toLowerCase();
-        if (!trimmedEmail) return;
+
+        if (!trimmedEmail) {
+            setErrorMessage("Bitte gib deine E-Mail-Adresse ein.");
+            return;
+        }
+
+        if (!emailRegex.test(trimmedEmail)) {
+            setErrorMessage("Diese E-Mail-Adresse sieht ungültig aus.");
+            return;
+        }
 
         setStatus("processing");
         setErrorMessage("");
@@ -235,7 +264,10 @@ function AuthContent() {
     const handleCodeSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const fullCode = codeDigits.join("");
-        if (fullCode.length !== 6) return;
+        if (fullCode.length !== 6) {
+            setErrorMessage("Bitte gib den 6-stelligen Bestätigungscode ein.");
+            return;
+        }
 
         setStatus("processing");
         setErrorMessage("");
@@ -268,7 +300,11 @@ function AuthContent() {
     const handlePinSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const fullPin = pinDigits.join("");
-        if (fullPin.length !== 5 || !loginData) return;
+        if (fullPin.length !== 5) {
+            setErrorMessage("Bitte gib deinen 5-stelligen PIN ein.");
+            return;
+        }
+        if (!loginData) return;
 
         setStatus("processing");
         setErrorMessage("");
@@ -373,293 +409,347 @@ function AuthContent() {
     };
 
     return (
-        <div className="min-h-screen min-h-[100dvh] flex flex-col justify-center items-center px-5 sm:px-8 py-10 sm:py-16 relative overflow-hidden font-sans">
+        <div className="min-h-screen min-h-[100dvh] flex flex-col justify-center relative overflow-hidden font-sans">
             <style>{`
-                @keyframes blob-float-1 { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(60px, -40px) scale(1.08); } 66% { transform: translate(-30px, 50px) scale(0.95); } }
-                @keyframes blob-float-2 { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(-50px, 60px) scale(1.05); } 66% { transform: translate(40px, -30px) scale(0.92); } }
-                @keyframes blob-float-3 { 0%, 100% { transform: translate(0, 0) scale(1); } 33% { transform: translate(40px, 40px) scale(0.96); } 66% { transform: translate(-50px, -40px) scale(1.06); } }
+                @keyframes float-1 {
+                    0% { transform: translate(0, 0) scale(1) rotate(0deg); }
+                    50% { transform: translate(50px, -80px) scale(1.1) rotate(45deg); }
+                    100% { transform: translate(-50px, 50px) scale(0.95) rotate(-15deg); }
+                }
+                @keyframes float-2 {
+                    0% { transform: translate(0, 0) scale(1); }
+                    50% { transform: translate(-60px, 50px) scale(1.08); }
+                    100% { transform: translate(40px, -40px) scale(0.92); }
+                }
+                @keyframes float-3 {
+                    0% { transform: translate(0, 0) scale(1); }
+                    50% { transform: translate(40px, 60px) scale(0.95); }
+                    100% { transform: translate(-40px, -30px) scale(1.05); }
+                }
             `}</style>
 
-            {/* Floating animated pastel blobs background */}
-            <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10 bg-[#fcfcfd]">
+            {/* Background elements */}
+            <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10 bg-[#fdfdfd]">
                 <div
-                    className="absolute -top-[12%] -left-[10%] w-[480px] sm:w-[560px] h-[480px] sm:h-[560px] rounded-full opacity-70"
-                    style={{ backgroundColor: "#e0f2fe", filter: "blur(140px)", animation: "blob-float-1 24s ease-in-out infinite alternate", willChange: "transform" }}
+                    className="absolute -top-[10%] -right-[5%] w-[700px] h-[700px] rounded-full opacity-50"
+                    style={{
+                        backgroundColor: "#e0f2fe",
+                        filter: "blur(140px)",
+                        animation: "float-1 25s infinite ease-in-out alternate",
+                        willChange: "transform",
+                    }}
                 />
                 <div
-                    className="absolute -bottom-[15%] -right-[10%] w-[520px] sm:w-[620px] h-[520px] sm:h-[620px] rounded-full opacity-65"
-                    style={{ backgroundColor: "#dcfce7", filter: "blur(140px)", animation: "blob-float-2 28s ease-in-out infinite alternate", willChange: "transform" }}
+                    className="absolute -bottom-[20%] right-[20%] w-[800px] h-[800px] rounded-full opacity-50"
+                    style={{
+                        backgroundColor: "#dcfce7",
+                        filter: "blur(140px)",
+                        animation: "float-2 25s infinite ease-in-out alternate -5s",
+                        willChange: "transform",
+                    }}
                 />
                 <div
-                    className="absolute top-[28%] -right-[8%] w-[420px] sm:w-[500px] h-[420px] sm:h-[500px] rounded-full opacity-60"
-                    style={{ backgroundColor: "#f3e8ff", filter: "blur(140px)", animation: "blob-float-3 22s ease-in-out infinite alternate", willChange: "transform" }}
+                    className="absolute top-[30%] -left-[10%] w-[500px] h-[500px] rounded-full opacity-40"
+                    style={{
+                        backgroundColor: "#f3e8ff",
+                        filter: "blur(140px)",
+                        animation: "float-3 25s infinite ease-in-out alternate -10s",
+                        willChange: "transform",
+                    }}
+                />
+                <div
+                    className="absolute inset-0 transition-opacity duration-300 pointer-events-none"
+                    style={{
+                        background: `radial-gradient(700px circle at ${mousePos.x}px ${mousePos.y}px, rgba(224, 242, 254, 0.45), rgba(243, 232, 255, 0.25) 35%, transparent 70%)`,
+                    }}
                 />
             </div>
 
-            <div className="w-full max-w-[460px] sm:max-w-[500px] relative z-10">
-                <div className="text-xs sm:text-sm font-semibold tracking-[0.4em] text-gray-500 uppercase mb-4 sm:mb-6 select-none">
-                    TIDE
-                </div>
+            {/* Container with generous whitespace towards the right */}
+            <div className="w-full max-w-7xl mx-auto px-8 md:px-16 lg:px-24 py-12 flex flex-col items-start relative z-10">
+                <div className="max-w-xl w-full">
+                    <span className="text-sm font-bold tracking-[0.4em] text-gray-900 uppercase mb-8 sm:mb-12 block select-none">
+                        TIDE
+                    </span>
 
-                {devCode && (
-                    <div className="mb-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50/80 border border-blue-200/80 text-xs text-blue-700">
-                        <span className="font-semibold">Bestätigungscode (Dev):</span>
-                        <span className="font-mono tracking-widest font-bold">{devCode}</span>
-                        {step === "code" && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    const chars = devCode.slice(0, 6).split("");
-                                    const next = Array(6).fill("");
-                                    chars.forEach((c, idx) => { next[idx] = c; });
-                                    setCodeDigits(next);
-                                }}
-                                className="underline hover:text-blue-900 ml-1 text-[11px] font-medium cursor-pointer"
-                            >
-                                Ausfüllen
-                            </button>
-                        )}
-                    </div>
-                )}
-
-                {/* ─── Step 1: Identifier (Email) ─────────────────────────────── */}
-                {step === "identifier" && (
-                    <div>
-                        <h1 className="text-4xl sm:text-5xl md:text-6xl font-medium tracking-tight text-gray-900 mb-8 sm:mb-10 leading-[1.15]">
-                            Dein Studium, <br />
-                            endlich im Flow.
-                        </h1>
-
-                        <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
-                            Notizen, Termine und Todos in einer minimalistischen App vereint, um deinen Kopf frei zu halten.
-                        </p>
-
-                        <form onSubmit={handleIdentifierSubmit} className="w-full">
-                            <div className="mb-8">
-                                <input
-                                    type="email"
-                                    placeholder="name@uni-beispiel.de"
-                                    value={identifier}
-                                    autoFocus
-                                    onChange={(e) => {
-                                        setIdentifier(e.target.value);
-                                        if (errorMessage) setErrorMessage("");
-                                    }}
-                                    required
-                                    className={`w-full bg-transparent border-0 border-b-2 ${
-                                        errorMessage
-                                            ? "border-red-500 text-red-900 focus:border-red-500"
-                                            : "border-gray-200 hover:border-gray-300 focus:border-gray-900 text-gray-900"
-                                    } py-3 px-0.5 text-lg sm:text-xl placeholder:text-gray-400 focus:outline-none transition-colors duration-200`}
-                                />
-                                {errorMessage && <p className="text-sm font-medium text-red-600 mt-2">{errorMessage}</p>}
-                                {successMessage && <p className="text-sm font-medium text-emerald-600 mt-2">{successMessage}</p>}
-                            </div>
-
-                            <ActionButton
-                                loading={status === "processing"}
-                                disabled={status === "processing" || !identifier}
-                                label={status === "processing" ? "Einen Moment..." : "Weiter"}
-                            />
-                        </form>
-                    </div>
-                )}
-
-                {/* ─── Step 2: Code Verification ──────────────────────────────── */}
-                {step === "code" && (
-                    <div>
-                        <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-gray-900 mb-4 sm:mb-6 leading-[1.15]">
-                            Bestätigungscode
-                        </h1>
-
-                        <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
-                            Wir haben dir einen 6-stelligen Bestätigungscode an{" "}
-                            <span className="font-medium text-gray-900">{identifier}</span> geschickt.
-                        </p>
-
-                        <form onSubmit={handleCodeSubmit} className="w-full">
-                            <div className="mb-8 w-full max-w-sm sm:max-w-md">
-                                <SegmentedDigitInput
-                                    length={6}
-                                    digits={codeDigits}
-                                    onChange={(digits) => {
-                                        setCodeDigits(digits);
-                                        if (errorMessage) setErrorMessage("");
-                                    }}
-                                    autoComplete="one-time-code"
-                                    autoFocusFirst
-                                    hasError={Boolean(errorMessage)}
-                                    inputClassName="w-10 sm:w-12 h-14 sm:h-16 text-xl sm:text-2xl font-light text-center"
-                                    gapClassName="gap-1.5 sm:gap-2.5 justify-between"
-                                />
-                            </div>
-
-                            {errorMessage && <p className="text-sm font-medium text-red-600 -mt-4 mb-6">{errorMessage}</p>}
-
-                            <div className="flex items-center gap-5">
-                                <ActionButton
-                                    loading={status === "processing"}
-                                    disabled={status === "processing" || codeDigits.some((d) => !d)}
-                                    label={status === "processing" ? "Überprüfen..." : "Bestätigen"}
-                                />
+                    {devCode && (
+                        <div className="mb-8 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50/80 border border-blue-200/80 text-xs text-blue-700">
+                            <span className="font-semibold">Bestätigungscode (Dev):</span>
+                            <span className="font-mono tracking-widest font-bold">{devCode}</span>
+                            {step === "code" && (
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        setStep("identifier");
-                                        setErrorMessage("");
+                                        const chars = devCode.slice(0, 6).split("");
+                                        const next = Array(6).fill("");
+                                        chars.forEach((c, idx) => { next[idx] = c; });
+                                        setCodeDigits(next);
                                     }}
-                                    className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors underline-offset-4 hover:underline cursor-pointer"
+                                    className="underline hover:text-blue-900 ml-1 text-[11px] font-medium cursor-pointer"
                                 >
-                                    E-Mail ändern
+                                    Ausfüllen
                                 </button>
-                            </div>
-                        </form>
-                    </div>
-                )}
-
-                {/* ─── Step 3: PIN Unlock (Vault) ─────────────────────────────── */}
-                {step === "pin" && (
-                    <div>
-                        <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-gray-900 mb-4 sm:mb-6 leading-[1.15]">
-                            Tresor entsperren
-                        </h1>
-
-                        <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
-                            Gib deinen 5-stelligen PIN ein, um deinen privaten Tresor zu entschlüsseln.
-                        </p>
-
-                        <form onSubmit={handlePinSubmit} className="w-full">
-                            <div className="mb-8 w-fit">
-                                <SegmentedDigitInput
-                                    length={5}
-                                    digits={pinDigits}
-                                    onChange={(digits) => {
-                                        setPinDigits(digits);
-                                        if (errorMessage) setErrorMessage("");
-                                    }}
-                                    type="password"
-                                    autoFocusFirst
-                                    hasError={Boolean(errorMessage)}
-                                    inputClassName="w-11 sm:w-13 h-14 sm:h-16 text-2xl font-mono text-center"
-                                    gapClassName="gap-2 sm:gap-3"
-                                />
-                            </div>
-
-                            {errorMessage && <p className="text-sm font-medium text-red-600 -mt-4 mb-6">{errorMessage}</p>}
-
-                            <div className="flex items-center gap-5">
-                                <ActionButton
-                                    loading={status === "processing"}
-                                    disabled={status === "processing" || pinDigits.some((d) => !d)}
-                                    label={status === "processing" ? "Entschlüsseln..." : "Tresor öffnen"}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setStep("code");
-                                        setErrorMessage("");
-                                    }}
-                                    className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors underline-offset-4 hover:underline cursor-pointer"
-                                >
-                                    Zurück
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                )}
-
-                {/* ─── Step 4: Register Flow (Konto erstellen) ────────────────── */}
-                {step === "details" && (
-                    <div>
-                        <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-gray-900 mb-4 sm:mb-6 leading-[1.15]">
-                            Konto erstellen
-                        </h1>
-
-                        <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
-                            Wähle deinen Namen und erstelle einen sicheren 5-stelligen PIN für deinen privaten Tresor.
-                        </p>
-
-                        <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/70 backdrop-blur-md border border-gray-200/80 mb-6 text-sm text-gray-700">
-                            <span className="font-medium text-gray-900 truncate">{identifier}</span>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setStep("identifier");
-                                    setErrorMessage("");
-                                }}
-                                className="text-xs font-semibold text-gray-500 hover:text-gray-900 underline ml-3 shrink-0 cursor-pointer"
-                            >
-                                Ändern
-                            </button>
+                            )}
                         </div>
+                    )}
 
-                        <form onSubmit={handleFinalSubmit} className="w-full">
-                            <div className="mb-6">
-                                <label className="block text-xs font-semibold tracking-wider uppercase text-gray-500 mb-2">
-                                    Dein Name
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="Wie heißt du?"
-                                    value={name}
-                                    autoFocus
-                                    onChange={(e) => {
-                                        setName(e.target.value);
-                                        if (errorMessage) setErrorMessage("");
-                                    }}
-                                    required
-                                    className="w-full bg-transparent border-0 border-b-2 border-gray-200 focus:border-gray-900 py-2.5 px-0.5 text-lg sm:text-xl text-gray-900 placeholder:text-gray-400 focus:outline-none transition-colors duration-200"
+                    {/* ─── Step 1: Identifier (Email) ─────────────────────────────── */}
+                    {step === "identifier" && (
+                        <div>
+                            <h1 className="text-5xl md:text-6xl font-medium tracking-tight text-gray-900 mb-12 leading-tight">
+                                Dein Studium, <br />
+                                endlich im Flow.
+                            </h1>
+
+                            <form onSubmit={handleIdentifierSubmit} className="w-full relative mb-16" noValidate>
+                                <div className="relative w-full max-w-sm mb-12">
+                                    <label htmlFor="email" className="sr-only">E-Mail Adresse</label>
+                                    <input
+                                        type="email"
+                                        id="email"
+                                        name="email"
+                                        placeholder="name@uni-beispiel.de"
+                                        value={identifier}
+                                        autoFocus
+                                        autoComplete="email"
+                                        onChange={(e) => {
+                                            setIdentifier(e.target.value);
+                                            if (errorMessage) setErrorMessage("");
+                                        }}
+                                        className={`w-full bg-transparent border-0 border-b ${
+                                            errorMessage
+                                                ? "border-b-red-500 text-gray-900 focus:border-b-red-500"
+                                                : "border-b-gray-300 focus:border-b-gray-900 text-gray-800"
+                                        } py-2 px-0 text-xl font-light placeholder:text-gray-300 focus:outline-none transition-colors duration-300`}
+                                    />
+                                    <div
+                                        className={`absolute left-0 top-full mt-2 text-sm text-red-500 transition-opacity duration-300 pointer-events-none ${
+                                            errorMessage ? "opacity-100" : "opacity-0"
+                                        }`}
+                                    >
+                                        {errorMessage}
+                                    </div>
+                                    {successMessage && !errorMessage && (
+                                        <div className="absolute left-0 top-full mt-2 text-sm text-emerald-600 transition-opacity duration-300 pointer-events-none">
+                                            {successMessage}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <ActionButton
+                                    loading={status === "processing"}
+                                    disabled={status === "processing"}
+                                    label={status === "processing" ? "Einen Moment..." : "Weiter"}
                                 />
-                            </div>
+                            </form>
 
-                            <div className="mb-8">
-                                <label className="block text-xs font-semibold tracking-wider uppercase text-gray-500 mb-2">
-                                    5-stelliger PIN
-                                </label>
-                                <p className="text-xs text-gray-500 mb-3 font-light">
-                                    Mit diesem PIN wird dein privater Tresor auf deinem Gerät verschlüsselt.
-                                </p>
-                                <div className="w-fit">
+                            <p className="text-lg text-gray-500 font-light leading-relaxed max-w-md">
+                                Notizen, Termine und Todos in einer minimalistischen App vereint, um deinen Kopf frei zu halten.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* ─── Step 2: Code Verification ──────────────────────────────── */}
+                    {step === "code" && (
+                        <div>
+                            <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-gray-900 mb-4 sm:mb-6 leading-tight">
+                                Bestätigungscode
+                            </h1>
+
+                            <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
+                                Wir haben dir einen 6-stelligen Bestätigungscode an{" "}
+                                <span className="font-medium text-gray-900">{identifier}</span> geschickt.
+                            </p>
+
+                            <form onSubmit={handleCodeSubmit} className="w-full relative mb-12" noValidate>
+                                <div className="relative mb-8 w-full max-w-sm sm:max-w-md">
+                                    <SegmentedDigitInput
+                                        length={6}
+                                        digits={codeDigits}
+                                        onChange={(digits) => {
+                                            setCodeDigits(digits);
+                                            if (errorMessage) setErrorMessage("");
+                                        }}
+                                        autoComplete="one-time-code"
+                                        autoFocusFirst
+                                        hasError={Boolean(errorMessage)}
+                                        inputClassName="w-10 sm:w-12 h-14 sm:h-16 text-xl sm:text-2xl font-light text-center"
+                                        gapClassName="gap-1.5 sm:gap-2.5 justify-between"
+                                    />
+                                    <div
+                                        className={`absolute left-0 top-full mt-2 text-sm text-red-500 transition-opacity duration-300 pointer-events-none ${
+                                            errorMessage ? "opacity-100" : "opacity-0"
+                                        }`}
+                                    >
+                                        {errorMessage}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-6 mt-10">
+                                    <ActionButton
+                                        loading={status === "processing"}
+                                        disabled={status === "processing"}
+                                        label={status === "processing" ? "Überprüfen..." : "Bestätigen"}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setStep("identifier");
+                                            setErrorMessage("");
+                                        }}
+                                        className="text-sm font-medium text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                                    >
+                                        E-Mail ändern
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* ─── Step 3: PIN Unlock (Vault) ─────────────────────────────── */}
+                    {step === "pin" && (
+                        <div>
+                            <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-gray-900 mb-4 sm:mb-6 leading-tight">
+                                Tresor entsperren
+                            </h1>
+
+                            <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
+                                Gib deinen 5-stelligen PIN ein, um deinen privaten Tresor zu entschlüsseln.
+                            </p>
+
+                            <form onSubmit={handlePinSubmit} className="w-full relative mb-12" noValidate>
+                                <div className="relative mb-8 w-fit">
                                     <SegmentedDigitInput
                                         length={5}
-                                        digits={regPinDigits}
+                                        digits={pinDigits}
                                         onChange={(digits) => {
-                                            setRegPinDigits(digits);
+                                            setPinDigits(digits);
                                             if (errorMessage) setErrorMessage("");
                                         }}
                                         type="password"
+                                        autoFocusFirst
+                                        hasError={Boolean(errorMessage)}
                                         inputClassName="w-11 sm:w-13 h-14 sm:h-16 text-2xl font-mono text-center"
                                         gapClassName="gap-2 sm:gap-3"
                                     />
+                                    <div
+                                        className={`absolute left-0 top-full mt-2 text-sm text-red-500 transition-opacity duration-300 pointer-events-none ${
+                                            errorMessage ? "opacity-100" : "opacity-0"
+                                        }`}
+                                    >
+                                        {errorMessage}
+                                    </div>
                                 </div>
-                            </div>
 
-                            {errorMessage && <p className="text-sm font-medium text-red-600 -mt-4 mb-6">{errorMessage}</p>}
+                                <div className="flex items-center gap-6 mt-10">
+                                    <ActionButton
+                                        loading={status === "processing"}
+                                        disabled={status === "processing"}
+                                        label={status === "processing" ? "Entschlüsseln..." : "Tresor öffnen"}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setStep("code");
+                                            setErrorMessage("");
+                                        }}
+                                        className="text-sm font-medium text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                                    >
+                                        Zurück
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
 
-                            <div className="flex items-center gap-5">
-                                <ActionButton
-                                    loading={status === "processing"}
-                                    disabled={
-                                        status === "processing" ||
-                                        !name.trim() ||
-                                        regPinDigits.some((d) => !d)
-                                    }
-                                    label={status === "processing" ? "Konto wird erstellt..." : "Konto erstellen"}
-                                />
+                    {/* ─── Step 4: Register Flow (Konto erstellen) ────────────────── */}
+                    {step === "details" && (
+                        <div>
+                            <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-gray-900 mb-4 sm:mb-6 leading-tight">
+                                Konto erstellen
+                            </h1>
+
+                            <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
+                                Wähle deinen Namen und erstelle einen sicheren 5-stelligen PIN für deinen privaten Tresor.
+                            </p>
+
+                            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/70 backdrop-blur-md border border-gray-200/80 mb-6 text-sm text-gray-700 max-w-sm">
+                                <span className="font-medium text-gray-900 truncate">{identifier}</span>
                                 <button
                                     type="button"
                                     onClick={() => {
                                         setStep("identifier");
                                         setErrorMessage("");
                                     }}
-                                    className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors underline-offset-4 hover:underline cursor-pointer"
+                                    className="text-xs font-semibold text-gray-500 hover:text-gray-900 underline ml-3 shrink-0 cursor-pointer"
                                 >
-                                    Abbrechen
+                                    Ändern
                                 </button>
                             </div>
-                        </form>
-                    </div>
-                )}
+
+                            <form onSubmit={handleFinalSubmit} className="w-full relative mb-12" noValidate>
+                                <div className="mb-6 max-w-sm">
+                                    <label className="block text-xs font-semibold tracking-wider uppercase text-gray-500 mb-2">
+                                        Dein Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Wie heißt du?"
+                                        value={name}
+                                        autoFocus
+                                        onChange={(e) => {
+                                            setName(e.target.value);
+                                            if (errorMessage) setErrorMessage("");
+                                        }}
+                                        className="w-full bg-transparent border-0 border-b border-gray-300 focus:border-b-gray-900 py-2.5 px-0 text-xl font-light text-gray-900 placeholder:text-gray-300 focus:outline-none transition-colors duration-300"
+                                    />
+                                </div>
+
+                                <div className="mb-8 max-w-sm">
+                                    <label className="block text-xs font-semibold tracking-wider uppercase text-gray-500 mb-2">
+                                        5-stelliger PIN
+                                    </label>
+                                    <p className="text-xs text-gray-500 mb-3 font-light">
+                                        Mit diesem PIN wird dein privater Tresor auf deinem Gerät verschlüsselt.
+                                    </p>
+                                    <div className="relative w-fit">
+                                        <SegmentedDigitInput
+                                            length={5}
+                                            digits={regPinDigits}
+                                            onChange={(digits) => {
+                                                setRegPinDigits(digits);
+                                                if (errorMessage) setErrorMessage("");
+                                            }}
+                                            type="password"
+                                            inputClassName="w-11 sm:w-13 h-14 sm:h-16 text-2xl font-mono text-center"
+                                            gapClassName="gap-2 sm:gap-3"
+                                        />
+                                    </div>
+                                </div>
+
+                                {errorMessage && <p className="text-sm font-medium text-red-500 mb-6">{errorMessage}</p>}
+
+                                <div className="flex items-center gap-6 mt-10">
+                                    <ActionButton
+                                        loading={status === "processing"}
+                                        disabled={status === "processing"}
+                                        label={status === "processing" ? "Konto wird erstellt..." : "Konto erstellen"}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setStep("identifier");
+                                            setErrorMessage("");
+                                        }}
+                                        className="text-sm font-medium text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                                    >
+                                        Abbrechen
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
