@@ -9,6 +9,86 @@ import { storeMasterKey, purgeLegacyKeys, getMasterKey } from "@/lib/keyStorage"
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+const SAMPLE_EMAILS = [
+    "max.mustermann@tum.de",
+    "sophie.schmidt@lmu.de",
+    "lukas.weber@rwth-aachen.de",
+    "elena.bauer@fu-berlin.de",
+    "jonas.becker@uni-heidelberg.de",
+    "anna.meyer@kit.edu",
+    "felix.fischer@uni-koeln.de",
+    "laura.wagner@uni-hamburg.de",
+    "tim.hoffmann@uni-bonn.de",
+    "marie.schulz@hu-berlin.de",
+    "david.koch@uni-freiburg.de",
+    "sara.richter@uni-tuebingen.de",
+    "moritz.wolf@uni-goettingen.de",
+    "lea.schneider@uni-stuttgart.de",
+    "jan.krause@tu-darmstadt.de",
+];
+
+function useTypewriterPlaceholder(
+    emails: string[],
+    enabled: boolean,
+    typingSpeed = 70,
+    deletingSpeed = 35,
+    pauseDuration = 1800
+) {
+    const [placeholderText, setPlaceholderText] = useState("");
+
+    useEffect(() => {
+        if (!enabled || emails.length === 0) {
+            setPlaceholderText("");
+            return;
+        }
+
+        let isMounted = true;
+        let emailIndex = 0;
+        let charIndex = 0;
+        let isDeleting = false;
+        let timeoutId: ReturnType<typeof setTimeout>;
+
+        const tick = () => {
+            if (!isMounted) return;
+
+            const currentEmail = emails[emailIndex % emails.length];
+
+            if (!isDeleting) {
+                charIndex++;
+                setPlaceholderText(currentEmail.slice(0, charIndex));
+
+                if (charIndex >= currentEmail.length) {
+                    isDeleting = true;
+                    timeoutId = setTimeout(tick, pauseDuration);
+                    return;
+                }
+                timeoutId = setTimeout(tick, typingSpeed);
+            } else {
+                charIndex--;
+                setPlaceholderText(currentEmail.slice(0, charIndex));
+
+                if (charIndex <= 0) {
+                    isDeleting = false;
+                    charIndex = 0;
+                    emailIndex = (emailIndex + 1) % emails.length;
+                    timeoutId = setTimeout(tick, typingSpeed);
+                    return;
+                }
+                timeoutId = setTimeout(tick, deletingSpeed);
+            }
+        };
+
+        timeoutId = setTimeout(tick, typingSpeed);
+
+        return () => {
+            isMounted = false;
+            clearTimeout(timeoutId);
+        };
+    }, [enabled, emails, typingSpeed, deletingSpeed, pauseDuration]);
+
+    return placeholderText;
+}
+
 interface LoginResponseData {
     user_id: string;
     email?: string;
@@ -162,6 +242,11 @@ function AuthContent() {
     const [successMessage, setSuccessMessage] = useState("");
     const [devCode, setDevCode] = useState<string | null>(null);
     const [loginData, setLoginData] = useState<LoginResponseData | null>(null);
+
+    const placeholderText = useTypewriterPlaceholder(
+        SAMPLE_EMAILS,
+        step === "identifier" && !identifier
+    );
 
     const [codeDigits, setCodeDigits] = useState<string[]>(["", "", "", "", "", ""]);
     const [pinDigits, setPinDigits] = useState<string[]>(["", "", "", "", ""]);
@@ -518,7 +603,7 @@ function AuthContent() {
                                         type="email"
                                         id="email"
                                         name="email"
-                                        placeholder="name@uni-beispiel.de"
+                                        placeholder={placeholderText || "name@uni-beispiel.de"}
                                         value={identifier}
                                         autoFocus
                                         autoComplete="email"
