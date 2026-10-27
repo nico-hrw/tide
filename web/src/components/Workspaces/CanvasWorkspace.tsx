@@ -82,7 +82,7 @@ const isSharedFile = (f: any, myId: string) => Boolean(f && (
     (() => { try { const k = typeof f.access_keys === 'string' ? JSON.parse(f.access_keys) : f.access_keys; return k && typeof k === 'object' && Object.keys(k).length > 1; } catch { return false; } })()
 ));
 
-const NON_EDITOR_TABS = new Set(['calendar', 'todos', 'messages', 'social', 'job_planner', 'exams', 'trash', 'ext_finance']);
+const NON_EDITOR_TABS = new Set(['calendar', 'todos', 'messages', 'social', 'job_planner', 'exams', 'trash', 'folders', 'ext_finance']);
 
 export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     const {

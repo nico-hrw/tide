@@ -164,6 +164,7 @@ export interface FsSlice {
     setUpdatingMetadata: (id: string, updating: boolean) => void;
     updateSpecificMetadataCache: (id: string, updates: any) => void;
     updateFileRaw: (id: string, updates: Partial<DataItem>) => void;
+    updateFile: (id: string, updates: Partial<DataItem>) => void;
     appendFiles: (files: DataItem[], events: DataItem[]) => void;
 }
 

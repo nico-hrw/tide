@@ -65,7 +65,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
 
             {filterStatus === 'all' && activeTasks.length === 0 && (recentlyCompletedTasks.length > 0 || archivedTasks.length > 0) && (
               <div className="py-4 text-center text-xs text-gray-500 dark:text-gray-400 font-medium">
-                Alle offenen Aufgaben erledigt! ðŸŽ‰
+                Alle offenen Aufgaben erledigt! 🎉
               </div>
             )}
 
@@ -83,7 +83,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                       className={`transition-transform duration-200 ${showCompleted ? 'rotate-90' : ''}`}
                     />
                     <CheckCircle2 size={15} className="text-emerald-500" />
-                    <span>KÃ¼rzlich erledigt</span>
+                    <span>Kürzlich erledigt</span>
                     <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal">(letzte 7 Tage)</span>
                   </div>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400">

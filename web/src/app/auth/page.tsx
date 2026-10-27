@@ -603,7 +603,7 @@ function AuthContent() {
                                         type="email"
                                         id="email"
                                         name="email"
-                                        placeholder={placeholderText || "name@uni-beispiel.de"}
+                                        placeholder={placeholderText || ""}
                                         value={identifier}
                                         autoFocus
                                         autoComplete="email"

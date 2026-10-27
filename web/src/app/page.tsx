@@ -22,6 +22,7 @@ import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import { TodoList } from '../components/Todo/TodoList';
 import { getEventGroupIds } from '../lib/calendarUtils';
+import { getFolderColor, loadTodoFoldersMeta, isTaskVisibleInCalendar } from '../lib/folderColors';
 
 const Editor = dynamic(() => import('@/components/Editor'), {
     ssr: false,
@@ -41,7 +42,7 @@ import { useJobPlannerStore } from "@/store/useJobPlannerStore";
 import { useStyleFile } from "@/components/Canvas/useStyleFile";
 import { TextWidgetElement } from "@/types/canvas";
 import { useHighlight } from "@/components/HighlightContext";
-import { CheckCircle2, Loader2, Plus, ChevronDown, Share, Download, Check } from 'lucide-react';
+import { CheckCircle2, Loader2, Plus, ChevronDown, ChevronRight, Share, Download, Check } from 'lucide-react';
 import { useIslandStore } from '@/components/extensions/smart_island/useIslandStore';
 import { isSameDay } from 'date-fns';
 import { useDataStore, DataItem, TaskItem } from "@/store/useDataStore";
@@ -63,6 +64,7 @@ import { useAutoSaveSync } from "@/hooks/useAutoSaveSync";
 import { JobsWorkspace } from "@/components/Workspaces/JobsWorkspace";
 import { SearchOverlay } from "@/components/Workspaces/SearchOverlay";
 import { CanvasWorkspace } from "@/components/Workspaces/CanvasWorkspace";
+import { CentralFolderView } from "@/components/Workspaces/CentralFolderView";
 import { GlobalModalsHost } from "@/components/Layout/GlobalModalsHost";
 
 // Stable ref to avoid stale closures in event-listener callbacks
@@ -128,6 +130,20 @@ export default function Dashboard() {
     // -------------------------------------------------------------------------
     useTouchContextMenu();
 
+    const [isTablet, setIsTablet] = useState(false);
+    useEffect(() => {
+        const checkTablet = () => {
+            const w = window.innerWidth;
+            const isTouch = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+            const isPad = /iPad|Macintosh/i.test(navigator.userAgent) && isTouch;
+            setIsTablet((w >= 768 && w <= 1180) || isPad);
+        };
+        checkTablet();
+        window.addEventListener('resize', checkTablet);
+        return () => window.removeEventListener('resize', checkTablet);
+    }, []);
+
+
     // Auth & User State
     const [privateKey, setPrivateKey] = useState<CryptoKey | null>(null);
     const [publicKey, setPublicKey] = useState<CryptoKey | null>(null);
@@ -175,6 +191,7 @@ export default function Dashboard() {
     } = useDataStore();
     const deleteTask = useDataStore(s => s.deleteTask);
     const updateTask = useDataStore(s => s.updateTask);
+    const toggleTask = useDataStore(s => s.toggleTask);
 
     const files = storeFiles as unknown as DecryptedFile[];
     const events = storeEvents as unknown as CalendarEvent[];
@@ -205,6 +222,29 @@ export default function Dashboard() {
     const [pinnedEventIds, setPinnedEventIds] = useState<string[]>([]);
     const [minimizedEventIds, setMinimizedEventIds] = useState<string[]>([]);
     const syncingTaskIdsRef = useRef<Set<string>>(new Set());
+    const [collapsedCalendarFolders, setCollapsedCalendarFolders] = useState<string[]>(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            const saved = localStorage.getItem('tide_calendar_collapsed_folders');
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
+
+    const toggleCalendarFolderCollapse = useCallback((folderName: string) => {
+        setCollapsedCalendarFolders(prev => {
+            const next = prev.includes(folderName)
+                ? prev.filter(f => f !== folderName)
+                : [...prev, folderName];
+            try {
+                localStorage.setItem('tide_calendar_collapsed_folders', JSON.stringify(next));
+            } catch (e) {
+                console.error('Failed to save collapsed calendar folders', e);
+            }
+            return next;
+        });
+    }, []);
 
     // Canvas & Linking State
     const [deletedBlockIds, setDeletedBlockIds] = useState<string[]>([]);
@@ -249,7 +289,7 @@ export default function Dashboard() {
 
     // Derived State
     const activeTabIdStr = typeof activeTabId === 'string' ? activeTabId : String(activeTabId || 'calendar');
-    const activeNoteId = (activeTabIdStr !== 'calendar' && activeTabIdStr !== 'todos' && activeTabIdStr !== 'messages' && !activeTabIdStr.startsWith('chat-'))
+    const activeNoteId = (activeTabIdStr !== 'calendar' && activeTabIdStr !== 'todos' && activeTabIdStr !== 'messages' && activeTabIdStr !== 'folders' && !activeTabIdStr.startsWith('chat-'))
         ? activeTabIdStr
         : null;
 
@@ -815,9 +855,10 @@ export default function Dashboard() {
                 color: color
             };
             // Refresh parent
-            const pKey = parentId === null ? 'root' : parentId;
+            const targetParent = parentId || null;
+            const pKey = targetParent === null ? 'root' : targetParent;
             useDataStore.getState().loadedDirectories.delete(pKey);
-            useDataStore.getState().fetchDirectory(parentId);
+            useDataStore.getState().fetchDirectory(targetParent);
             setEditingFileId(newFolder.id); // Rename immediately
 
         } catch (e) {
@@ -941,6 +982,88 @@ export default function Dashboard() {
             }));
         } catch (e) {
             console.error("Failed to update group", e);
+        }
+    };
+
+    
+    const handleMoveFileToFolder = async (fileId: string, targetFolderId: string | null) => {
+        try {
+            await apiFetch(`/api/v1/files/${fileId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ parent_id: targetFolderId })
+            });
+            useDataStore.getState().updateFile(fileId, { parent_id: targetFolderId });
+            const s = useDataStore.getState();
+            s.loadedDirectories.clear();
+            s.fetchDirectory(targetFolderId);
+        } catch (err) {
+            console.error('Failed to move file', err);
+        }
+    };
+
+    const handleUpdateFolderColor = async (folderId: string, color: string) => {
+        try {
+            useDataStore.getState().updateFile(folderId, { color });
+            await apiFetch(`/api/v1/files/${folderId}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ metadata: { color } })
+            });
+            useDataStore.getState().updateSpecificMetadataCache(folderId, { color });
+        } catch (err) {
+            console.error('Failed to update folder color', err);
+        }
+    };
+
+    const handleCreateFolderCentral = async (name: string, color?: string, parentId?: string | null) => {
+        if (!privateKey || !publicKey) return;
+        const folderColor = color || '#3b82f6';
+        try {
+            const meta = { title: name, parent_id: parentId, color: folderColor };
+            const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
+
+            const res = await apiFetch("/api/v1/files", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    type: "folder",
+                    parent_id: parentId,
+                    public_meta: {},
+                    metadata: { title: name, color: folderColor },
+                    secured_meta: securedMeta,
+                    visibility: 'private'
+                })
+            });
+
+            if (!res.ok) throw new Error("Failed to create folder");
+            const newFolder = await res.json();
+
+            const decFolder: DecryptedFile = {
+                id: newFolder.id,
+                title: name,
+                type: 'folder',
+                size: 0,
+                updated_at: new Date().toISOString(),
+                secured_meta: newFolder.secured_meta,
+                share_status: 'owner',
+                visibility: 'private',
+                parent_id: parentId,
+                color: folderColor
+            };
+
+            useDataStore.setState(s => ({
+                notes: [...s.notes, decFolder as any],
+                metadataCache: {
+                    ...s.metadataCache,
+                    [newFolder.id]: { title: name, color: folderColor, parent_id: parentId }
+                }
+            }));
+
+            const targetParent = parentId || null;
+            const pKey = targetParent === null ? 'root' : targetParent;
+            useDataStore.getState().loadedDirectories.delete(pKey);
+            useDataStore.getState().fetchDirectory(targetParent);
+        } catch (e) {
+            console.error('Failed to create folder', e);
         }
     };
 
@@ -2102,10 +2225,11 @@ export default function Dashboard() {
     useEffect(() => {
         if (!privateKey || !publicKey || !loadedDirectories.has('root') || !tasks || tasks.length === 0) return;
 
-        const tasksWithDueDate = (tasks || []).filter(t => t.dueDate && t.showInCalendar !== false);
+        const foldersMeta = loadTodoFoldersMeta();
+        const tasksWithDueDate = (tasks || []).filter(t => t.dueDate && isTaskVisibleInCalendar(t, foldersMeta));
 
         // Remove any existing calendar events for tasks that have showInCalendar explicitly disabled
-        const hiddenTaskIds = new Set((tasks || []).filter(t => t.showInCalendar === false).map(t => t.id));
+        const hiddenTaskIds = new Set((tasks || []).filter(t => !isTaskVisibleInCalendar(t, foldersMeta)).map(t => t.id));
         if (hiddenTaskIds.size > 0) {
             const eventsToRemove = events.filter(e => (e as any).linkedTaskId && hiddenTaskIds.has((e as any).linkedTaskId));
             if (eventsToRemove.length > 0) {
@@ -2144,7 +2268,7 @@ export default function Dashboard() {
                         title: t.title,
                         is_task: true,
                         linkedTaskId: t.id,
-                        color: t.color,
+                        color: t.color || (t.folder && foldersMeta[t.folder]?.color ? getFolderColor(foldersMeta[t.folder]?.color).hex : undefined),
                         recurrence_rule: t.recurrence_rule,
                         recurrence_end: t.recurrence_end,
                         is_completed: t.isCompleted,
@@ -2370,7 +2494,11 @@ export default function Dashboard() {
         }
     };
 
-    const handleTabSelect = (id: string, type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash') => {
+    const handleTabSelect = (id: string, type: Tab['type']) => {
+        if (id === 'folders' || type === 'folders') {
+            switchTab('folders', 'folders', 'Ordner');
+            return;
+        }
         if (id === 'todos' || type === 'todos') {
             switchTab('todos', 'todos', 'Todos');
             return;
@@ -2770,6 +2898,7 @@ export default function Dashboard() {
                     onTabClose={handleTabClose}
                     onTabsReorder={setOpenTabs}
                     onNewTab={() => handleNewNote()}
+                    onOpenFolders={() => switchTab('folders', 'folders', 'Ordner')}
                     userProfile={userProfile}
                     myId={myId}
                     isAvatarMenuOpen={isAvatarMenuOpen}
@@ -2804,47 +2933,117 @@ export default function Dashboard() {
                 >
                     {/* Unscheduled Tasks Panel — bottom-right corner floating card, only when calendar is active */}
                     {activeTabId === 'calendar' && (!enabledExtensions || enabledExtensions.includes('todos')) && (() => {
-                        const unscheduledTodos = (tasks || []).filter(t => !t.isCompleted && !t.dueDate && !t.scheduledDate && t.showInCalendar !== false);
-                        if (unscheduledTodos.length === 0) return null;
+                        const foldersMeta = loadTodoFoldersMeta();
+                        const visibleUnscheduled = (tasks || []).filter(
+                            t => !t.isCompleted && !t.dueDate && !t.scheduledDate && isTaskVisibleInCalendar(t, foldersMeta)
+                        );
+                        if (visibleUnscheduled.length === 0) return null;
+
+                        const groupedTasks: Record<string, typeof visibleUnscheduled> = {};
+                        visibleUnscheduled.forEach(t => {
+                            const folderKey = t.folder && t.folder.trim() ? t.folder.trim() : "Ohne Ordner";
+                            if (!groupedTasks[folderKey]) {
+                                groupedTasks[folderKey] = [];
+                            }
+                            groupedTasks[folderKey].push(t);
+                        });
+
+                        const folderEntries = Object.entries(groupedTasks).sort(([a], [b]) => {
+                            if (a === "Ohne Ordner") return 1;
+                            if (b === "Ohne Ordner") return -1;
+                            return a.localeCompare(b);
+                        });
+
                         return (
-                            <div className="absolute right-6 bottom-6 z-[55] pointer-events-auto bg-white/90 dark:bg-[#1c1c1c]/95 backdrop-blur-md border border-gray-200/80 dark:border-white/10 rounded-2xl p-3 shadow-xl max-w-xs flex flex-col gap-2 max-h-[40vh] overflow-hidden">
+                            <div className="absolute right-6 bottom-6 z-[55] pointer-events-auto bg-white/90 dark:bg-[#1c1c1c]/95 backdrop-blur-md border border-gray-200/80 dark:border-white/10 rounded-2xl p-3 shadow-xl w-72 sm:w-80 flex flex-col gap-2 max-h-[50vh] overflow-hidden">
                                 <div className="flex items-center justify-between px-1">
                                     <div className="flex items-center gap-2">
                                         <ListTodo className="w-4 h-4 text-blue-500" />
                                         <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">Todos</span>
                                     </div>
                                     <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300">
-                                        {unscheduledTodos.length}
+                                        {visibleUnscheduled.length}
                                     </span>
                                 </div>
-                                <div className="flex flex-col gap-1.5 overflow-y-auto pr-1">
-                                    {unscheduledTodos.map(t => {
-                                        const priorityColor = t.priority === 'high' ? 'bg-red-500' : t.priority === 'medium' ? 'bg-amber-500' : t.priority === 'low' ? 'bg-blue-400' : 'bg-gray-400';
+                                <div className="flex flex-col gap-2 overflow-y-auto pr-1">
+                                    {folderEntries.map(([folderName, folderTasks]) => {
+                                        const isCollapsed = collapsedCalendarFolders.includes(folderName);
+                                        const folderMetaColor = folderName !== "Ohne Ordner" ? foldersMeta[folderName]?.color : undefined;
+                                        const colorDef = getFolderColor(folderMetaColor);
+
                                         return (
-                                            <div
-                                                key={t.id}
-                                                draggable
-                                                onDragStart={(e) => {
-                                                    e.dataTransfer.setData('text/plain', t.id);
-                                                    e.dataTransfer.setData('application/json', JSON.stringify({ type: 'task', id: t.id }));
-                                                }}
-                                                className="rounded-xl px-3 py-2 bg-gray-50/80 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200/60 dark:border-white/10 flex items-center gap-2 cursor-grab active:cursor-grabbing transition-all hover:scale-[1.02] hover:shadow-xs group"
-                                            >
-                                                <GripVertical className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                                                <span
-                                                    className={`w-2 h-2 rounded-full shrink-0 ${t.color ? '' : priorityColor}`}
-                                                    style={t.color ? { backgroundColor: t.color } : undefined}
-                                                />
-                                                <span className="text-xs text-gray-700 dark:text-gray-300 truncate flex-1 font-medium">{t.title}</span>
+                                            <div key={folderName} className="flex flex-col gap-1">
                                                 <button
                                                     type="button"
-                                                    title="Delete task"
-                                                    className="opacity-0 group-hover:opacity-100 ml-auto shrink-0 p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition-all"
-                                                    onMouseDown={(e) => e.stopPropagation()}
-                                                    onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}
+                                                    onClick={() => toggleCalendarFolderCollapse(folderName)}
+                                                    className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-left group"
                                                 >
-                                                    <Trash2 className="w-3 h-3" />
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        {isCollapsed ? (
+                                                            <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                                        ) : (
+                                                            <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                                        )}
+                                                        <span
+                                                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                                                            style={{ backgroundColor: colorDef.hex }}
+                                                        />
+                                                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 truncate">
+                                                            {folderName}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 shrink-0">
+                                                        {folderTasks.length}
+                                                    </span>
                                                 </button>
+                                                {!isCollapsed && (
+                                                    <div className="flex flex-col gap-1 pl-2">
+                                                        {folderTasks.map(t => {
+                                                            const priorityColor = t.priority === 'high' ? 'bg-red-500' : t.priority === 'medium' ? 'bg-amber-500' : t.priority === 'low' ? 'bg-blue-400' : 'bg-gray-400';
+                                                            return (
+                                                                <div
+                                                                    key={t.id}
+                                                                    draggable
+                                                                    onDragStart={(e) => {
+                                                                        e.dataTransfer.setData('text/plain', t.id);
+                                                                        e.dataTransfer.setData('application/json', JSON.stringify({ type: 'task', id: t.id }));
+                                                                    }}
+                                                                    className="rounded-xl px-2.5 py-1.5 bg-gray-50/80 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200/60 dark:border-white/10 flex items-center gap-2 cursor-grab active:cursor-grabbing transition-all hover:scale-[1.01] hover:shadow-xs group"
+                                                                >
+                                                                    <GripVertical className="w-3.5 h-3.5 text-gray-400 shrink-0 opacity-40 group-hover:opacity-100" />
+                                                                    <button
+                                                                        type="button"
+                                                                        title="Aufgabe erledigen"
+                                                                        className="w-3.5 h-3.5 rounded border border-gray-300 dark:border-white/20 hover:border-primary flex items-center justify-center shrink-0 transition-colors"
+                                                                        onMouseDown={(e) => e.stopPropagation()}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            toggleTask(t.id);
+                                                                        }}
+                                                                    >
+                                                                        {t.isCompleted && <Check className="w-2.5 h-2.5 text-primary" />}
+                                                                    </button>
+                                                                    {(t.priority || t.color) && (
+                                                                        <span
+                                                                            className={`w-2 h-2 rounded-full shrink-0 ${t.color ? '' : priorityColor}`}
+                                                                            style={t.color ? { backgroundColor: t.color } : undefined}
+                                                                        />
+                                                                    )}
+                                                                    <span className="text-xs text-gray-700 dark:text-gray-300 truncate flex-1 font-medium">{t.title}</span>
+                                                                    <button
+                                                                        type="button"
+                                                                        title="Delete task"
+                                                                        className="opacity-0 group-hover:opacity-100 ml-auto shrink-0 p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-400 hover:text-red-500 transition-all"
+                                                                        onMouseDown={(e) => e.stopPropagation()}
+                                                                        onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}
+                                                                    >
+                                                                        <Trash2 className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })}
@@ -2977,6 +3176,26 @@ export default function Dashboard() {
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'trash' ? 'block' : 'hidden'}`}>
                     {activeTabId === 'trash' && (
                         <TrashPanel />
+                    )}
+                </div>
+
+                
+                {/* Central Folder View for iPad / Tablet and Folders Tab */}
+                <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${
+                    activeTabId === 'folders' || (isTablet && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))
+                        ? 'block'
+                        : 'hidden'
+                }`}>
+                    {(activeTabId === 'folders' || (isTablet && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))) && (
+                        <CentralFolderView
+                            files={files}
+                            onFileSelect={(id, title) => handleFileSelect(id, title)}
+                            onCreateFolder={handleCreateFolderCentral}
+                            onCreateNote={(folderId) => handleNewNote(folderId)}
+                            onMoveFile={handleMoveFileToFolder}
+                            onUpdateFolderColor={handleUpdateFolderColor}
+                            onDeleteFile={(id) => handleDeleteNote({ stopPropagation: () => {} } as any, id)}
+                        />
                     )}
                 </div>
 

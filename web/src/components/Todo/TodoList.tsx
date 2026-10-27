@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -18,6 +18,7 @@ import TodoFolderBanner from './TodoFolderBanner';
 import TodoListSections from './TodoListSections';
 import TodoFolderModal from './TodoFolderModal';
 import TodoCreateCard, { TaskCreateDraft } from './TodoCreateCard';
+import { loadTodoFoldersMeta, saveTodoFoldersMeta } from '../../lib/folderColors';
 import {
   Priority, FilterStatus, SortOption, RecurrenceType, ArchiveTier, TodoListProps, TaskEditDraft,
   PRIORITY_WEIGHT, ARCHIVE_TIER_CONFIG,
@@ -48,7 +49,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     return [];
   });
 
-  const handleCreateFolder = (name: string) => {
+  const handleCreateFolder = (name: string, color?: string, showInCalendar?: boolean) => {
     const trimmed = name.trim();
     if (!trimmed) return;
     setCreatedFolders((prev) => {
@@ -59,6 +60,16 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       } catch {}
       return next;
     });
+    try {
+      const meta = loadTodoFoldersMeta();
+      meta[trimmed] = {
+        id: trimmed,
+        name: trimmed,
+        color: color || 'blue',
+        showInCalendar: showInCalendar !== false,
+      };
+      saveTodoFoldersMeta(meta);
+    } catch {}
   };
 
   const handleDeleteFolder = (name: string) => {
@@ -69,6 +80,11 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       } catch {}
       return next;
     });
+    try {
+      const meta = loadTodoFoldersMeta();
+      delete meta[name];
+      saveTodoFoldersMeta(meta);
+    } catch {}
     tasks.filter((t) => t.folder === name).forEach((t) => {
       updateTask(t.id, { folder: undefined });
     });
@@ -341,43 +357,13 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     setEditingTaskId(null);
   };
 
-  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastClickedTaskIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (clickTimeoutRef.current) {
-        clearTimeout(clickTimeoutRef.current);
-      }
-    };
-  }, []);
-
   const handleRowClick = (task: TaskItem) => {
-    if (clickTimeoutRef.current && lastClickedTaskIdRef.current === task.id) {
-      // Double click / double tap detected -> complete/toggle task
-      clearTimeout(clickTimeoutRef.current);
-      clickTimeoutRef.current = null;
-      lastClickedTaskIdRef.current = null;
-      handleToggleTask(task);
+    if (editingTaskId === task.id) {
+      saveEditing(task.id);
     } else {
-      if (clickTimeoutRef.current) {
-        clearTimeout(clickTimeoutRef.current);
-      }
-      lastClickedTaskIdRef.current = task.id;
-      clickTimeoutRef.current = setTimeout(() => {
-        clickTimeoutRef.current = null;
-        lastClickedTaskIdRef.current = null;
-        // Single click -> smoothly expand/collapse accordion
-        if (editingTaskId === task.id) {
-          saveEditing(task.id);
-        } else {
-          if (editingTaskId) {
-            saveEditing(editingTaskId);
-          }
-          startEditing(task);
-          onSelectTask?.(task);
-        }
-      }, 250);
+      if (editingTaskId) saveEditing(editingTaskId);
+      startEditing(task);
+      onSelectTask?.(task);
     }
   };
 
@@ -515,6 +501,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
           onCreateFolder={handleCreateFolder}
           onDeleteFolder={handleDeleteFolder}
           onBackToTasks={() => setViewMode('tasks')}
+          onAssignTaskFolder={(taskId, folderName) => updateTask(taskId, { folder: folderName || undefined })}
         />
       ) : (
         /* Main Container */

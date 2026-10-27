@@ -15,7 +15,8 @@ import {
     Settings, 
     LogOut,
     ListTodo,
-    PanelLeft 
+    PanelLeft,
+    Folder 
 } from 'lucide-react';
 import { useHighlight } from '../HighlightContext';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
@@ -25,7 +26,7 @@ import { useSocialStore } from '@/store/useSocialStore';
 export interface Tab {
     id: string;
     title: string;
-    type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash';
+    type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash' | 'folders';
     content?: any;
     _fileKey?: CryptoKey | null;
     _saveStatus?: "saved" | "unsaved" | "saving";
@@ -34,10 +35,11 @@ export interface Tab {
 interface TabListProps {
     tabs: Tab[];
     activeTabId: string;
-    onTabSelect: (id: string, type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash') => void;
+    onTabSelect: (id: string, type: Tab['type']) => void;
     onTabClose: (e: React.MouseEvent | null, id: string) => void;
     onTabsReorder?: (newTabs: Tab[]) => void;
     onNewTab?: () => void;
+    onOpenFolders?: () => void;
     isSidebarOpen?: boolean;
     onToggleSidebar?: () => void;
     userProfile?: { 
@@ -66,6 +68,7 @@ export default function TabList({
     onTabClose, 
     onTabsReorder, 
     onNewTab,
+    onOpenFolders,
     isSidebarOpen,
     onToggleSidebar,
     userProfile,
@@ -100,6 +103,8 @@ export default function TabList({
                 return <GraduationCap size={13} />;
             case 'trash':
                 return <Trash2 size={13} />;
+            case 'folders':
+                return <Folder size={13} />;
             case 'file':
             default:
                 return <FileText size={13} />;
@@ -119,6 +124,7 @@ export default function TabList({
             case 'chat': return 'Chat';
             case 'profile': return 'Profil';
             case 'trash': return 'Papierkorb';
+            case 'folders': return 'Ordner';
             case 'file':
             default:
                 return 'Neue Notiz';
@@ -234,6 +240,17 @@ export default function TabList({
                     </AnimatePresence>
                 </Reorder.Group>
 
+                                {/* Ordner Tab Button */}
+                {onOpenFolders && (
+                    <button
+                        onClick={onOpenFolders}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors shrink-0 ${activeTabId === 'folders' ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 font-semibold shadow-xs border border-gray-200/90 dark:border-slate-700/80' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-200/70 dark:hover:bg-slate-800/80'}`}
+                        title="Ordneransicht"
+                    >
+                        <Folder size={13} />
+                        <span>Ordner</span>
+                    </button>
+                )}
                 {/* "+" New Note Tab Button */}
                 {onNewTab && (
                     <button

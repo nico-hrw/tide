@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2, Circle, Calendar, Repeat, Trash2, Plus,
@@ -61,7 +61,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   const isSwipingRef = useRef(false);
   const isVerticalScrollRef = useRef(false);
   const justSwipedRef = useRef(false);
-  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const isControlledExpanded = isExpanded !== undefined ? isExpanded : editingTaskId !== undefined ? editingTaskId === task.id : undefined;
   const [localExpanded, setLocalExpanded] = useState(false);
@@ -80,8 +79,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   const [localTagInput, setLocalTagInput] = useState('');
   const tagInput = editNewTagInput !== undefined ? editNewTagInput : localTagInput;
   const setTagInput = setEditNewTagInput || setLocalTagInput;
-
-  useEffect(() => () => { if (clickTimeoutRef.current) clearTimeout(clickTimeoutRef.current); }, []);
 
   const priority = getTaskPriority(task);
   const priorityCfg = PRIORITY_CONFIG[priority];
@@ -127,20 +124,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
 
   const handleClick = () => {
     if (justSwipedRef.current) { justSwipedRef.current = false; return; }
-    if (disableClickDebounce) { onRowClick ? onRowClick(task) : onSelectTask?.(task); return; }
-    if (clickTimeoutRef.current) {
-      clearTimeout(clickTimeoutRef.current);
-      clickTimeoutRef.current = null;
-      handleToggleTask(task);
-    } else {
-      clickTimeoutRef.current = setTimeout(() => {
-        clickTimeoutRef.current = null;
-        if (onRowClick) onRowClick(task);
-        else {
-          if (isControlledExpanded === undefined) setLocalExpanded((p) => !p);
-          onSelectTask?.(task);
-        }
-      }, 250);
+    if (onRowClick) onRowClick(task);
+    else {
+      if (isControlledExpanded === undefined) setLocalExpanded((p) => !p);
+      onSelectTask?.(task);
     }
   };
 

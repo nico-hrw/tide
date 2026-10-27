@@ -91,6 +91,8 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
         };
     }),
 
+    updateFile: (id, updates) => get().updateFileRaw(id, updates),
+
     appendFiles: (newNotes, newEvents) => set(state => {
         const noteMap = new Map(state.notes.map(n => [n.id, n]));
         newNotes.forEach(n => noteMap.set(n.id, { ...noteMap.get(n.id), ...n }));
