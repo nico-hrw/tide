@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -15,6 +16,15 @@ import (
 	"github.com/nicoh/tide/internal/api"
 	"github.com/nicoh/tide/internal/store"
 )
+
+const AppVersion = "0.2.0"
+
+func getAppVersion() string {
+	if envVer := os.Getenv("APP_VERSION"); envVer != "" {
+		return envVer
+	}
+	return AppVersion
+}
 
 func main() {
 	// Determine stable base directory for path resolution
@@ -172,6 +182,14 @@ func main() {
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/version", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"version":   getAppVersion(),
+				"timestamp": time.Now().Unix(),
+			})
+		})
+
 		// Flattened Auth routes to avoid sub-router 404 confusion
 		r.With(api.RateLimitMiddleware(authLimiter)).Post("/auth/register", authHandler.Register)
 		r.With(api.RateLimitMiddleware(authLimiter)).Post("/auth/request-otp", authHandler.RequestOTP)

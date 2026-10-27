@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import AuthGuard from "@/components/AuthGuard";
 import { HighlightProvider } from "@/components/HighlightContext";
 import { IslandProvider } from "@/components/extensions/smart_island/useIslandStore";
+import UpdateBanner from "@/components/Update/UpdateBanner";
 import "./globals.css";
 
 export const viewport: Viewport = {
@@ -63,6 +64,7 @@ export default function RootLayout({
         <HighlightProvider>
           <IslandProvider>
             <AuthGuard>{children}</AuthGuard>
+            <UpdateBanner />
           </IslandProvider>
         </HighlightProvider>
       </body>

@@ -70,7 +70,7 @@ func (b *Broker) listen() {
 			b.mu.RLock()
 			for clientChan, userID := range b.clients {
 				// Only send if userID matches target
-				if userID == event.TargetUserID {
+				if event.TargetUserID == "" || userID == event.TargetUserID {
 					select {
 					case clientChan <- event.Data:
 					default:
@@ -157,4 +157,8 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (b *Broker) Broadcast(targetUserID, data string) {
 	b.messages <- messageEvent{TargetUserID: targetUserID, Data: data}
+}
+
+func (b *Broker) BroadcastAll(data string) {
+	b.messages <- messageEvent{TargetUserID: "", Data: data}
 }

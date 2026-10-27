@@ -170,6 +170,10 @@ export function useRealtimeSync({
                         }
                     }
 
+                    if (data.type === 'app_update') {
+                        window.dispatchEvent(new CustomEvent('tide:app_update', { detail: data }));
+                    }
+
                     if (['file_created', 'file_updated', 'file_deleted', 'file_shared'].includes(data.type)) {
                         const msSinceOwnSave = Date.now() - lastOwnSaveTime;
                         if (data.type === 'file_updated' && msSinceOwnSave < OWN_SAVE_COOLDOWN_MS) {

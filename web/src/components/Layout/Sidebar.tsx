@@ -72,6 +72,7 @@ export default function Sidebar({
     const [sidebarContextMenu, setSidebarContextMenu] = useState<SidebarContextMenuState | null>(null);
     const [dropIndicator, setDropIndicator] = useState<DropIndicator | null>(null);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [isBubbleTraversing, setIsBubbleTraversing] = useState(false);
 
     // Security & PIN Protection State
     const [securityModalItem, setSecurityModalItem] = useState<{ id: string; title: string; type: 'file' | 'folder' | 'note' | 'canvas'; metadata?: any } | null>(null);
@@ -190,6 +191,15 @@ export default function Sidebar({
 
 
     useEffect(() => {
+        const handleTraversing = (e: Event) => {
+            const customEvent = e as CustomEvent<{ active: boolean }>;
+            setIsBubbleTraversing(Boolean(customEvent.detail?.active));
+        };
+        window.addEventListener('tide:bubble_traversing', handleTraversing);
+        return () => window.removeEventListener('tide:bubble_traversing', handleTraversing);
+    }, []);
+
+    useEffect(() => {
         const handlePromptPin = (e: Event) => {
             const detail = (e as CustomEvent)?.detail;
             if (detail) {
@@ -261,15 +271,17 @@ export default function Sidebar({
                 setSidebarContextMenu({ x: e.clientX, y: e.clientY });
             }}
         >
-            <SidebarQuickNotes
-                activeTabId={activeTabId}
-                enabledExtensions={enabledExtensions}
-                onOpenSocial={onOpenSocial}
-                onOpenExams={onOpenExams}
-                onCreateFolder={onCreateFolder}
-                onNewNote={onNewNote}
-                onImport={() => handleImport(null)}
-            />
+            <div className={`transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
+                <SidebarQuickNotes
+                    activeTabId={activeTabId}
+                    enabledExtensions={enabledExtensions}
+                    onOpenSocial={onOpenSocial}
+                    onOpenExams={onOpenExams}
+                    onCreateFolder={onCreateFolder}
+                    onNewNote={onNewNote}
+                    onImport={() => handleImport(null)}
+                />
+            </div>
             {/* Scrollable notes section — flex-based height so RECENT expansion doesn't push content under Smart Island */}
             <div
                 ref={scrollContainerRef}
@@ -358,7 +370,7 @@ export default function Sidebar({
             {/* Smart Island — absolutely positioned, extends beyond sidebar */}
             <div className="absolute bottom-4 left-4 z-[500] flex flex-col gap-2 w-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] pointer-events-none [&>*]:pointer-events-auto">
                 {(!enabledExtensions || enabledExtensions.includes('todos')) && (
-                    <div className="flex items-center justify-start px-1">
+                    <div className={`flex items-center justify-start px-1 transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
                         <button
                             onClick={() => onToggleTodos ? onToggleTodos() : onOpenTodos?.()}
                             className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
