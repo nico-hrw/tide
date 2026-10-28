@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, User, Puzzle, Palette, Info, KeyRound, Calendar, Wrench } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
+import { NoteLayout } from '@/store/slices/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import DebugPluginSettings from './DebugPluginSettings';
 import { ProfileTab } from './tabs/ProfileTab';
@@ -20,8 +21,8 @@ interface SettingsModalProps {
     onToggleExtension: (extensionId: string, enabled: boolean) => void;
     userProfile?: { id?: string; user_id?: string; username: string; email: string; bio?: string; title?: string; avatar_seed?: string; avatar_salt?: string; avatar_style?: string; is_verified?: boolean; profile_status?: number };
     onLogout?: () => void;
-    noteLayout?: 'thin' | 'normal' | 'wide' | 'extra-wide';
-    onSetNoteLayout?: (layout: 'thin' | 'normal' | 'wide' | 'extra-wide') => void;
+    noteLayout?: NoteLayout;
+    onSetNoteLayout?: (layout: NoteLayout) => void;
     groups?: { id: string; title: string; effect?: string; color?: string }[];
     hiddenGroupIds?: string[];
     onToggleGroupVisibility?: (id: string) => void;

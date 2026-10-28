@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import { NoteLayout } from '@/store/slices/types';
 import DashboardModals, { DashboardModalsProps, ScheduleEventData } from './DashboardModals';
 
 export type { ScheduleEventData };
@@ -30,8 +31,8 @@ export interface GlobalModalsHostProps {
     onToggleExtension: (extensionId: string, enabled: boolean) => void;
     userProfile?: DashboardModalsProps['userProfile'];
     onLogout?: () => void;
-    noteLayout?: 'thin' | 'normal' | 'wide' | 'extra-wide';
-    onSetNoteLayout?: (layout: 'thin' | 'normal' | 'wide' | 'extra-wide') => void;
+    noteLayout?: NoteLayout;
+    onSetNoteLayout?: (layout: NoteLayout) => void;
     groups: { id: string; title: string; effect?: string; color?: string }[];
     hiddenGroupIds: string[];
     onToggleGroupVisibility: (id: string) => void;

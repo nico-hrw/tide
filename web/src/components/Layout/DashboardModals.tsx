@@ -6,9 +6,9 @@ import SecuritySettingsModal from "@/components/Security/SecuritySettingsModal";
 import SettingsModal from "@/components/Settings/SettingsModal";
 import { ScheduleModal, ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import DailySummary from "@/components/Calendar/DailySummary";
-import BackupHistory from "@/components/BackupHistory";
 import ConfirmModal from "@/components/Modals/ConfirmModal";
 import { useDataStore } from "@/store/useDataStore";
+import type { NoteLayout } from "@/store/slices/types";
 
 export type { ScheduleEventData };
 
@@ -58,8 +58,8 @@ export interface DashboardModalsProps {
         profile_status?: number;
     } | null;
     onLogout?: () => void;
-    noteLayout?: 'thin' | 'normal' | 'wide' | 'extra-wide';
-    onSetNoteLayout?: (layout: 'thin' | 'normal' | 'wide' | 'extra-wide') => void;
+    noteLayout?: NoteLayout;
+    onSetNoteLayout?: (layout: NoteLayout) => void;
     groups: { id: string; title: string; effect?: string; color?: string }[];
     hiddenGroupIds: string[];
     onToggleGroupVisibility: (id: string) => void;
@@ -84,12 +84,12 @@ export interface DashboardModalsProps {
     streak: number;
     summaryStats: { events: number; tasks: number };
 
-    // Backup History Modal
-    showBackups: boolean;
-    activeNoteId: string | null;
-    editorContent: any;
-    onCancelBackups: () => void;
-    onRestoreBackup: (content: any) => void;
+    // Backup History Modal (optional - versions managed directly in-note)
+    showBackups?: boolean;
+    activeNoteId?: string | null;
+    editorContent?: any;
+    onCancelBackups?: () => void;
+    onRestoreBackup?: (content: any) => void;
 
     // Delete Confirm Modal
     deleteConfirm: { isOpen?: boolean; fileId: string; isShared: boolean; isFolder: boolean } | null;
@@ -145,13 +145,6 @@ export function DashboardModals({
     onCloseSummary,
     streak,
     summaryStats,
-
-    // Backup History
-    showBackups,
-    activeNoteId,
-    editorContent,
-    onCancelBackups,
-    onRestoreBackup,
 
     // Delete Confirm
     deleteConfirm,
@@ -224,16 +217,6 @@ export function DashboardModals({
                 eventsToday={summaryStats.events}
                 completedTasksToday={summaryStats.tasks}
             />
-
-            {/* Backup History */}
-            {showBackups && activeNoteId && (
-                <BackupHistory
-                    fileId={activeNoteId}
-                    currentContent={editorContent}
-                    onCancel={onCancelBackups}
-                    onRestore={onRestoreBackup}
-                />
-            )}
 
             {/* Delete Confirm Modal */}
             <ConfirmModal

@@ -1,10 +1,11 @@
 import React from 'react';
 import { Sun, Settings, Moon, Check } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
+import type { NoteLayout } from '@/store/slices/types';
 
 export interface AppearanceTabProps {
-    noteLayout?: 'thin' | 'normal' | 'wide' | 'extra-wide';
-    onSetNoteLayout?: (layout: 'thin' | 'normal' | 'wide' | 'extra-wide') => void;
+    noteLayout?: NoteLayout;
+    onSetNoteLayout?: (layout: NoteLayout) => void;
 }
 
 export const AppearanceTab: React.FC<AppearanceTabProps> = ({

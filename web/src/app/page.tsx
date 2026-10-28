@@ -19,6 +19,7 @@ import SocialHub from "@/components/Social/SocialHub";
 import dynamic from 'next/dynamic';
 import { getTranslation, useTranslation } from "@/lib/i18n";
 import { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import type { JSONContent } from '@tiptap/react';
 import { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import { TodoList } from '../components/Todo/TodoList';
 import { getEventGroupIds } from '../lib/calendarUtils';
@@ -2662,6 +2663,25 @@ export default function Dashboard() {
         setActiveTabId(newTab.id);
     };
 
+    const handleRestoreBackup = (content: JSONContent | Record<string, unknown> | null) => {
+        window.dispatchEvent(new CustomEvent('editor:restore-content', { detail: content }));
+        setEditorContent(content);
+        initialContentRef.current = content;
+        userHasTypedRef.current = true;
+        setShowBackups(false);
+        const currentFile = activeNoteId ? files.find(f => f.id === activeNoteId) : null;
+        if (currentFile && activeNoteId) {
+            setSaveStatus("saving");
+            performSave(content, activeNoteId, activeFileKey, currentFile.visibility)
+                .then(() => {
+                    setSaveStatus("saved");
+                    setOpenTabs(prev => prev.map(tab =>
+                        tab.id === activeNoteId ? { ...tab, content, _saveStatus: 'saved' } : tab
+                    ));
+                })
+                .catch(() => setSaveStatus("unsaved"));
+        }
+    };
     if (status === "loading") return (
         <div className="flex flex-col items-center justify-center h-screen bg-white dark:bg-[#0F172A] gap-4">
             <div className="relative w-8 h-8">
@@ -3259,6 +3279,8 @@ export default function Dashboard() {
                     setSaveStatus={setSaveStatus}
                     submitRename={submitRename}
                     setShowBackups={setShowBackups}
+                    showBackups={showBackups}
+                    onRestoreBackup={handleRestoreBackup}
                     handleShare={(e: any, id?: string) => { if (id) handleShare(e, id); }}
                     setNoteSecurityModalItem={setNoteSecurityModalItem}
                     handleDeleteNote={handleDeleteNote}
@@ -3331,25 +3353,7 @@ export default function Dashboard() {
                 activeNoteId={activeNoteId}
                 editorContent={editorContent}
                 onCancelBackups={() => setShowBackups(false)}
-                onRestoreBackup={(content) => {
-                    window.dispatchEvent(new CustomEvent('editor:restore-content', { detail: content }));
-                    setEditorContent(content);
-                    initialContentRef.current = content;
-                    userHasTypedRef.current = true;
-                    setShowBackups(false);
-                    const currentFile = activeNoteId ? files.find(f => f.id === activeNoteId) : null;
-                    if (currentFile && activeNoteId) {
-                        setSaveStatus("saving");
-                        performSave(content, activeNoteId, activeFileKey, currentFile.visibility)
-                            .then(() => {
-                                setSaveStatus("saved");
-                                setOpenTabs(prev => prev.map(tab =>
-                                    tab.id === activeNoteId ? { ...tab, content, _saveStatus: 'saved' } : tab
-                                ));
-                            })
-                            .catch(() => setSaveStatus("unsaved"));
-                    }
-                }}
+                onRestoreBackup={handleRestoreBackup}
                 deleteConfirm={deleteConfirm}
                 setDeleteConfirm={setDeleteConfirm}
                 onConfirmDelete={executeDeleteNote}
