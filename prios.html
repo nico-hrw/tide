@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tide - Mobile To-Do</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Phosphor Icons (Modern & Clean) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Hide scrollbar for the horizontal filter bar */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex items-center justify-center p-4 selection:bg-brand-100 selection:text-brand-600">
+
+    <!-- Mobile Device Mockup Container -->
+    <div class="w-full max-w-[400px] h-[850px] bg-white rounded-[40px] shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] relative overflow-hidden border-[8px] border-gray-100 flex flex-col">
+        
+        <!-- Status Bar space (mock) -->
+        <div class="h-12 w-full shrink-0 flex items-center justify-between px-6 pt-2">
+            <span class="text-[13px] font-medium text-gray-900">9:41</span>
+            <div class="flex items-center gap-1.5 text-gray-900">
+                <i class="ph-fill ph-cell-signal-full text-sm"></i>
+                <i class="ph-fill ph-wifi-high text-sm"></i>
+                <i class="ph-fill ph-battery-full text-[16px]"></i>
+            </div>
+        </div>
+
+        <!-- Header -->
+        <header class="px-6 pt-6 pb-4 shrink-0">
+            <div class="flex justify-between items-start mb-6 gap-2">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900 tracking-tight leading-tight">Hi, <span class="text-4xl text-black">Nico,</span></h1>
+                    <h1 class="text-3xl font-bold text-gray-900 tracking-tight leading-tight">was steht an?</h1>
+                </div>
+                <div class="bg-gray-900 text-white px-4 py-3.5 rounded-xl text-right shadow-[0_4px_10px_rgba(0,0,0,0.15)] flex flex-col justify-center shrink-0">
+                    <p class="text-xl font-bold text-white mb-1 leading-none">Arbeit</p>
+                    <p class="text-[11px] font-medium text-gray-400">endet in: 3:31h</p>
+                </div>
+            </div>
+
+            <!-- Very Thin Elegant Progress Bar -->
+            <div class="w-full h-[3px] bg-gray-100 rounded-full overflow-hidden flex">
+                <div class="h-full bg-brand-500 transition-all duration-500 ease-out" style="width: 40%;"></div>
+                <div class="h-full bg-red-500 transition-all duration-500 ease-out" style="width: 10%;"></div>
+            </div>
+            <p class="text-[11px] font-medium text-gray-400 mt-2 text-right">8 von 20 erledigt</p>
+        </header>
+
+        <!-- Horizontally Scrollable Filter Bar -->
+        <div class="px-6 pb-2 shrink-0">
+            <div class="flex items-center gap-3 overflow-x-auto hide-scrollbar pb-2">
+                <button class="whitespace-nowrap px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-full shadow-sm transition-transform active:scale-95">Alle</button>
+                <button class="whitespace-nowrap px-4 py-2 bg-gray-50 text-gray-600 border border-gray-200 text-sm font-medium rounded-full hover:bg-gray-100 transition-colors">Arbeit</button>
+                <button class="whitespace-nowrap px-4 py-2 bg-gray-50 text-gray-600 border border-gray-200 text-sm font-medium rounded-full hover:bg-gray-100 transition-colors">Kleidung</button>
+                <button class="whitespace-nowrap px-4 py-2 bg-gray-50 text-gray-600 border border-gray-200 text-sm font-medium rounded-full hover:bg-gray-100 transition-colors">Pflanzen</button>
+                <button class="whitespace-nowrap px-4 py-2 bg-gray-50 text-gray-600 border border-gray-200 text-sm font-medium rounded-full hover:bg-gray-100 transition-colors">HTW</button>
+            </div>
+        </div>
+
+        <!-- Task List -->
+        <div class="flex-1 overflow-y-auto px-6 pb-28">
+            <h2 class="text-lg font-bold text-gray-900 mb-3 mt-1">Heute</h2>
+            <ul class="flex flex-col">
+                
+                <!-- Task P3 (Sehr wichtig) -->
+                <li class="flex flex-col py-4 border-b border-gray-100/80">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="flex items-center justify-center shrink-0">
+                                <span class="text-[10px] font-bold text-white bg-black px-1.5 py-0.5 rounded leading-none">P3</span>
+                            </div>
+                            <span class="text-gray-900 font-medium text-[15px] leading-tight">BAföG Unterlagen einreichen</span>
+                        </div>
+                        <span class="text-[11px] font-medium bg-red-50 text-red-600 px-1.5 py-0.5 rounded whitespace-nowrap shrink-0">Überfällig</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 mt-1.5 ml-[34px]">
+                        <span class="text-[12px] text-gray-500 font-medium">HTW</span>
+                        <span class="text-[11px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium">vorbereiten</span>
+                    </div>
+                </li>
+
+                <!-- Task P2 (Normal wichtig) -->
+                <li class="flex flex-col py-4 border-b border-gray-100/80">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="flex items-center justify-center shrink-0">
+                                <span class="text-[10px] font-bold text-white bg-gray-500 px-1.5 py-0.5 rounded leading-none">P2</span>
+                            </div>
+                            <span class="text-gray-900 font-medium text-[15px] leading-tight">Monstera stützen</span>
+                        </div>
+                        <span class="text-[12px] font-medium text-gray-400 shrink-0">Heute</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 mt-1.5 ml-[34px]">
+                        <span class="text-[12px] text-gray-500 font-medium">Pflanzen</span>
+                        <span class="text-[11px] bg-green-50 text-green-700 px-1.5 py-0.5 rounded font-medium">pflegen</span>
+                    </div>
+                </li>
+
+                <!-- Task P2 (Normal wichtig - alternative) -->
+                <li class="flex flex-col py-4 border-b border-gray-100/80">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="flex items-center justify-center shrink-0">
+                                <span class="text-[10px] font-bold text-white bg-gray-500 px-1.5 py-0.5 rounded leading-none">P2</span>
+                            </div>
+                            <span class="text-gray-900 font-medium text-[15px] leading-tight">2 Pullover aussortieren</span>
+                        </div>
+                        <span class="text-[12px] font-medium text-gray-400 shrink-0">26. Okt</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 mt-1.5 ml-[34px]">
+                        <span class="text-[12px] text-gray-500 font-medium">Kleidung</span>
+                        <span class="text-[11px] bg-orange-50 text-orange-700 px-1.5 py-0.5 rounded font-medium">aufräumen</span>
+                    </div>
+                </li>
+
+                <!-- Task P1 (Unwichtig) -->
+                <li class="flex flex-col py-4 border-b border-gray-100/80">
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="flex items-center justify-center shrink-0">
+                                <span class="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded leading-none">P1</span>
+                            </div>
+                            <span class="text-gray-900 font-medium text-[15px] leading-tight">Alle Zimmerpflanzen gießen</span>
+                        </div>
+                        <span class="text-[12px] font-medium text-gray-400 shrink-0">27. Okt</span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2 mt-1.5 ml-[34px]">
+                        <span class="text-[12px] text-gray-500 font-medium">Pflanzen</span>
+                        <span class="text-[11px] bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded font-medium">routine</span>
+                    </div>
+                </li>
+
+            </ul>
+        </div>
+
+        <!-- Floating Action Buttons -->
+        <div class="absolute bottom-8 right-6 flex items-center gap-3">
+            <!-- Filter Button -->
+            <button class="w-12 h-12 bg-white text-gray-700 rounded-full flex items-center justify-center shadow-[0_8px_16px_rgba(0,0,0,0.08)] border border-gray-100 transition-transform active:scale-95">
+                <i class="ph ph-faders text-xl"></i>
+            </button>
+            <!-- Add Button -->
+            <button class="w-14 h-14 bg-gray-900 hover:bg-black rounded-full flex items-center justify-center text-white shadow-[0_8px_16px_rgba(0,0,0,0.25)] transition-transform active:scale-95">
+                <i class="ph ph-plus text-2xl font-bold"></i>
+            </button>
+        </div>
+
+        <!-- Home Indicator (mock) -->
+        <div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-32 h-1 bg-gray-900 rounded-full"></div>
+
+    </div>
+
+</body>
+</html>
