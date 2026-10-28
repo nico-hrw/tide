@@ -200,6 +200,44 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const [newFolderNameInput, setNewFolderNameInput] = useState('');
 
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement | null>(null);
+  const filterMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Close menus on click outside or escape key
+  useEffect(() => {
+    if (!isAddMenuOpen && !isFilterMenuOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (isAddMenuOpen && addMenuRef.current && !addMenuRef.current.contains(target)) {
+        setIsAddMenuOpen(false);
+      }
+      if (isFilterMenuOpen && filterMenuRef.current && !filterMenuRef.current.contains(target)) {
+        setIsFilterMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsAddMenuOpen(false);
+        setIsFilterMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAddMenuOpen, isFilterMenuOpen]);
+
+  // Hide popovers when editing task
+  useEffect(() => {
+    if (editingTaskId !== null) {
+      setIsAddMenuOpen(false);
+      setIsFilterMenuOpen(false);
+    }
+  }, [editingTaskId]);
   const [editDraft, setEditDraft] = useState<TaskEditDraft>({
     title: '', description: '', priority: 'medium' as Priority,
     status: 'todo',
@@ -344,6 +382,33 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleOpenCreateTask = () => {
+    if (viewMode === 'folders') {
+      setViewMode('tasks');
+    }
+    setDraft({
+      title: '',
+      description: '',
+      priority: 'medium',
+      dueDate: '',
+      recurrence: 'none',
+      recurrenceEnd: '',
+      folder: selectedFolder || '',
+      tags: [],
+      showInCalendar: true,
+    });
+    setIsCreateOpen(true);
+    setIsAddMenuOpen(false);
+    setTimeout(() => {
+      titleInputRef.current?.focus();
+    }, 50);
+  };
+
+  const handleOpenCreateFolder = () => {
+    setIsFolderModalOpen(true);
+    setIsAddMenuOpen(false);
   };
 
   const startEditing = (task: TaskItem) => {
@@ -650,44 +715,333 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               )}
             </AnimatePresence>
           </div>
+        </div>
+      )}
 
-          {/* Minimalist Floating Action Buttons (FABs) from tide_minimalist_to_do_app.html */}
-          {editingTaskId === null && (
-            <div className="absolute bottom-8 right-6 flex items-center gap-3 z-30">
-              {/* Filter FAB */}
-              <button
-                type="button"
-                onClick={() => setShowFilters((prev) => !prev)}
-                aria-label="Filter"
-                className="w-12 h-12 bg-white dark:bg-[#1f1f1f] text-gray-700 dark:text-gray-200 rounded-full flex items-center justify-center shadow-[0_8px_16px_rgba(0,0,0,0.08)] border border-gray-100 dark:border-white/10 transition-transform active:scale-95 cursor-pointer"
-              >
-                <SlidersHorizontal size={20} />
-              </button>
+      {/* Floating Action Buttons (FABs) & Sleek Popovers */}
+      {editingTaskId === null && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex justify-center">
+          <div className="w-full max-w-2xl lg:max-w-3xl relative h-0">
+            <div className="pointer-events-auto absolute bottom-8 right-6 flex items-center gap-3">
+              {/* Filter FAB & Popover */}
+              <div ref={filterMenuRef} className="relative">
+                <AnimatePresence>
+                  {isFilterMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.92, y: 8 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.92, y: 8 }}
+                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                      className="absolute bottom-full right-[-4.25rem] sm:right-0 mb-3 w-[310px] sm:w-[340px] max-w-[calc(100vw-2.5rem)] max-h-[75vh] overflow-y-auto bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-xl border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] p-4 flex flex-col gap-4 z-50 text-xs text-gray-700 dark:text-gray-300"
+                    >
+                      {/* Header */}
+                      <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-white/10">
+                        <div className="flex items-center gap-2">
+                          <SlidersHorizontal size={15} className="text-blue-500" />
+                          <span className="font-semibold text-sm text-gray-900 dark:text-white">Ansicht & Filter</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {(filterPriority !== 'all' || selectedTag !== null || filterStatus !== 'all' || searchQuery.trim() !== '') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setFilterPriority('all');
+                                setSelectedTag(null);
+                                setFilterStatus('all');
+                                setSearchQuery('');
+                              }}
+                              className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5 rounded cursor-pointer"
+                            >
+                              Zurücksetzen
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setIsFilterMenuOpen(false)}
+                            className="p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg transition-colors cursor-pointer"
+                            aria-label="Schließen"
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                      </div>
 
-              {/* Add FAB */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCreateOpen(true);
-                  setDraft({
-                    title: '',
-                    description: '',
-                    priority: 'medium',
-                    dueDate: '',
-                    recurrence: 'none',
-                    recurrenceEnd: '',
-                    folder: selectedFolder || '',
-                    tags: [],
-                    showInCalendar: true,
-                  });
-                }}
-                aria-label="Neue Aufgabe"
-                className="w-14 h-14 bg-gray-900 dark:bg-white hover:bg-black text-white dark:text-gray-900 rounded-full flex items-center justify-center shadow-[0_8px_16px_rgba(0,0,0,0.25)] transition-transform active:scale-95 cursor-pointer"
-              >
-                <Plus size={24} strokeWidth={2.5} />
-              </button>
+                      {/* Search Input */}
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                        <input
+                          type="text"
+                          placeholder="Aufgaben durchsuchen..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full pl-8 pr-7 py-1.5 bg-gray-100 dark:bg-white/5 border border-gray-200/80 dark:border-white/10 rounded-xl text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        {searchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* View Mode Switcher */}
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
+                          Ansicht
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5 bg-gray-100 dark:bg-white/5 p-1 rounded-xl border border-gray-200/60 dark:border-white/10">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setViewMode('tasks');
+                              setIsFilterMenuOpen(false);
+                            }}
+                            className={`flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                              viewMode === 'tasks'
+                                ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                            }`}
+                          >
+                            <ListTodo size={14} />
+                            <span>Aufgabenliste</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setViewMode('folders');
+                              setIsFilterMenuOpen(false);
+                            }}
+                            className={`flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                              viewMode === 'folders'
+                                ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                            }`}
+                          >
+                            <Folder size={14} />
+                            <span>Ordnerliste</span>
+                            {allFolders.length > 0 && (
+                              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-semibold">
+                                {allFolders.length}
+                              </span>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Filter nach Status */}
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
+                          Status
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            { id: 'all' as FilterStatus, label: 'Alle' },
+                            { id: 'active' as FilterStatus, label: 'Offen' },
+                            { id: 'in_progress' as FilterStatus, label: 'In Arbeit' },
+                            { id: 'completed' as FilterStatus, label: 'Erledigt' },
+                            { id: 'archived' as FilterStatus, label: 'Archiv' },
+                          ].map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => {
+                                setFilterStatus(item.id);
+                                setIsFilterMenuOpen(false);
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                                filterStatus === item.id
+                                  ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-xs font-semibold'
+                                  : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                              }`}
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Filter nach Priorität */}
+                      <div>
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
+                          Priorität
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {[
+                            { id: 'all' as const, label: 'Alle', colorDot: 'bg-gray-400' },
+                            { id: 'high' as const, label: 'P3 (Hoch)', colorDot: 'bg-red-500' },
+                            { id: 'medium' as const, label: 'P2 (Mittel)', colorDot: 'bg-amber-500' },
+                            { id: 'low' as const, label: 'P1 (Niedrig)', colorDot: 'bg-emerald-500' },
+                          ].map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => {
+                                setFilterPriority(item.id);
+                                setIsFilterMenuOpen(false);
+                              }}
+                              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                                filterPriority === item.id
+                                  ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-xs font-semibold'
+                                  : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10'
+                              }`}
+                            >
+                              <span className={`w-2 h-2 rounded-full ${item.colorDot} shrink-0`} />
+                              <span className="truncate">{item.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Filter nach Tags */}
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
+                          <span className="flex items-center gap-1">
+                            <Tag size={12} />
+                            Tags
+                          </span>
+                          {selectedTag && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedTag(null);
+                                setIsFilterMenuOpen(false);
+                              }}
+                              className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline capitalize cursor-pointer"
+                            >
+                              Tag entfernen
+                            </button>
+                          )}
+                        </div>
+                        {allTags.length === 0 ? (
+                          <p className="text-[11px] text-gray-400 dark:text-gray-500 italic py-1">
+                            Keine Tags vorhanden
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedTag(null);
+                                setIsFilterMenuOpen(false);
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                                selectedTag === null
+                                  ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-xs font-semibold'
+                                  : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                              }`}
+                            >
+                              Alle Tags
+                            </button>
+                            {allTags.map((tag) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedTag(selectedTag === tag ? null : tag);
+                                  setIsFilterMenuOpen(false);
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                                  selectedTag === tag
+                                    ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                                    : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10'
+                                }`}
+                              >
+                                #{tag}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Filter Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsFilterMenuOpen((prev) => !prev);
+                    setIsAddMenuOpen(false);
+                  }}
+                  aria-label="Filter und Ansicht"
+                  aria-expanded={isFilterMenuOpen}
+                  className={`w-12 h-12 bg-white dark:bg-[#1f1f1f] text-gray-700 dark:text-gray-200 rounded-full flex items-center justify-center shadow-[0_8px_16px_rgba(0,0,0,0.08)] border border-gray-100 dark:border-white/10 transition-all active:scale-95 cursor-pointer relative ${
+                    isFilterMenuOpen ? 'ring-2 ring-blue-500' : ''
+                  }`}
+                >
+                  <SlidersHorizontal size={20} />
+                  {(filterPriority !== 'all' || selectedTag !== null || filterStatus !== 'all' || searchQuery.trim() !== '') && (
+                    <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-white dark:ring-[#1f1f1f]" />
+                  )}
+                </button>
+              </div>
+
+              {/* Add FAB & Popover */}
+              <div ref={addMenuRef} className="relative">
+                <AnimatePresence>
+                  {isAddMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.92, y: 8 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.92, y: 8 }}
+                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                      className="absolute bottom-full right-0 mb-3 w-56 p-1.5 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-xl border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] z-50 flex flex-col gap-1"
+                    >
+                      <button
+                        type="button"
+                        onClick={handleOpenCreateTask}
+                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-left text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors group cursor-pointer"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                          <Plus size={18} strokeWidth={2.5} />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-semibold text-gray-900 dark:text-white leading-tight">Aufgabe erstellen</span>
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate">Neue Aufgabe hinzufügen</span>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleOpenCreateFolder}
+                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-left text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors group cursor-pointer"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                          <FolderPlus size={18} />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-semibold text-gray-900 dark:text-white leading-tight">Ordner erstellen</span>
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate">Neuen Ordner anlegen</span>
+                        </div>
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddMenuOpen((prev) => !prev);
+                    setIsFilterMenuOpen(false);
+                  }}
+                  aria-label="Erstellen"
+                  aria-expanded={isAddMenuOpen}
+                  className={`w-14 h-14 bg-gray-900 dark:bg-white hover:bg-black text-white dark:text-gray-900 rounded-full flex items-center justify-center shadow-[0_8px_20px_rgba(0,0,0,0.25)] transition-all active:scale-95 cursor-pointer ${
+                    isAddMenuOpen ? 'ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-black' : ''
+                  }`}
+                >
+                  <Plus
+                    size={24}
+                    strokeWidth={2.5}
+                    className={`transition-transform duration-200 ${isAddMenuOpen ? 'rotate-45' : ''}`}
+                  />
+                </button>
+              </div>
             </div>
-          )}
+          </div>
         </div>
       )}
 

@@ -111,6 +111,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                   damping: 32,
                 }}
                 style={itemStyle}
+                className={task.id === editingTaskId ? 'sticky top-0 z-20' : undefined}
               >
                 {renderTask(task as TaskWithChildren)}
               </motion.div>
@@ -122,7 +123,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
           <motion.div
             animate={
               editingTaskId
-                ? { opacity: 0, y: 600, pointerEvents: 'none' as const }
+                ? { opacity: 0, y: 800, pointerEvents: 'none' as const }
                 : { opacity: 1, y: 0, pointerEvents: 'auto' as const }
             }
             transition={{ type: 'spring', stiffness: 350, damping: 32 }}
@@ -138,7 +139,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
             className="mt-2 pt-3 border-t border-gray-200 dark:border-white/10"
             animate={
               editingTaskId
-                ? { opacity: 0, y: 600, pointerEvents: 'none' as const }
+                ? { opacity: 0, y: 800, pointerEvents: 'none' as const }
                 : { opacity: 1, y: 0, pointerEvents: 'auto' as const }
             }
             transition={{ type: 'spring', stiffness: 350, damping: 32 }}
@@ -205,7 +206,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
           <motion.div
             animate={
               editingTaskId
-                ? { opacity: 0, y: 600, pointerEvents: 'none' as const }
+                ? { opacity: 0, y: 800, pointerEvents: 'none' as const }
                 : { opacity: 1, y: 0, pointerEvents: 'auto' as const }
             }
             transition={{ type: 'spring', stiffness: 350, damping: 32 }}
@@ -221,7 +222,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
             className="mt-3 pt-3 border-t border-gray-200 dark:border-white/10"
             animate={
               editingTaskId
-                ? { opacity: 0, y: 600, pointerEvents: 'none' as const }
+                ? { opacity: 0, y: 800, pointerEvents: 'none' as const }
                 : { opacity: 1, y: 0, pointerEvents: 'auto' as const }
             }
             transition={{ type: 'spring', stiffness: 350, damping: 32 }}

@@ -34,9 +34,9 @@ export const PRIORITY_LABELS: Record<NormalizedPriority, string> = {
 };
 
 export const PRIORITY_CLASSES: Record<NormalizedPriority, string> = {
-  P3: 'text-[10px] font-bold text-white bg-black px-1.5 py-0.5 rounded leading-none',
-  P2: 'text-[10px] font-bold text-white bg-gray-500 px-1.5 py-0.5 rounded leading-none',
-  P1: 'text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded leading-none',
+  P3: 'text-[10px] font-bold px-1.5 py-0.5 rounded leading-none text-white bg-red-600 dark:bg-red-500',
+  P2: 'text-[10px] font-bold px-1.5 py-0.5 rounded leading-none text-black bg-amber-400 dark:bg-amber-400',
+  P1: 'text-[10px] font-bold px-1.5 py-0.5 rounded leading-none text-white bg-emerald-600 dark:bg-emerald-500',
 };
 
 export function normalizePriority(priority?: PriorityLevel | string): NormalizedPriority {
