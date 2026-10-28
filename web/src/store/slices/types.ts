@@ -49,7 +49,8 @@ export type SettingsModalTab =
     | 'info'
     | 'debug';
 
-export type NoteLayout = 'thin' | 'normal' | 'wide' | 'extra-wide';
+export type NoteLayout = 'thin' | 'normal' | 'wide' | 'extra-wide' | 'a4';
+export type PaperPattern = 'blanko' | 'ruled' | 'grid';
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type AppTheme = 'light' | 'dark';
 export type AppLanguage = 'en' | 'de';
@@ -137,6 +138,8 @@ export interface UiSlice {
     themePreference: ThemePreference;
     language: AppLanguage;
     navigationMode: NavigationMode;
+    paperPattern: PaperPattern;
+    showPageBreaks: boolean;
 
     setSettingsModalOpen: (open: boolean, tab?: SettingsModalTab) => void;
     setSettingsModalTab: (tab: SettingsModalTab) => void;
@@ -147,6 +150,8 @@ export interface UiSlice {
     setThemePreference: (pref: ThemePreference) => void;
     setLanguage: (lang: AppLanguage) => void;
     setNavigationMode: (mode: NavigationMode) => void;
+    setPaperPattern: (pattern: PaperPattern) => void;
+    setShowPageBreaks: (show: boolean) => void;
 }
 
 export interface FsSlice {

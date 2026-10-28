@@ -22,12 +22,12 @@ export function saveNotesToOfflineCache(notes: DataItem[]): void {
 }
 
 function getInitialNoteLayout(): NoteLayout {
-    if (typeof window === 'undefined') return 'wide';
+    if (typeof window === 'undefined') return 'a4';
     const saved = localStorage.getItem('tide_note_layout');
-    if (saved === 'thin' || saved === 'normal' || saved === 'wide' || saved === 'extra-wide') {
+    if (saved === 'thin' || saved === 'normal' || saved === 'wide' || saved === 'extra-wide' || saved === 'a4') {
         return saved;
     }
-    return 'wide';
+    return 'a4';
 }
 
 export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({

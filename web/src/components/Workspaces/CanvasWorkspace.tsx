@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { Clock, GraduationCap, Copy, Download } from 'lucide-react';
+import { Clock, GraduationCap, Copy, Download, X, Check, MoreHorizontal } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { getTranslation } from '@/lib/i18n';
 import { tipTapToMarkdown } from '@/lib/bundleImportExport';
@@ -11,6 +11,11 @@ import EditorGutter from '@/components/Canvas/EditorGutter';
 import SaveStatusMenu from '@/components/Editor/SaveStatusMenu';
 import ShareManagementPanel from '@/components/ShareManagementPanel';
 import type { TextWidgetElement } from '@/types/canvas';
+import { useNoteBackups } from '@/hooks/useNoteBackups';
+import NoteVersionTimeline from '@/components/Editor/NoteVersionTimeline';
+import NoteVersionDiffView from '@/components/Editor/NoteVersionDiffView';
+import NoteSettingsMenuComponent from './NoteSettingsMenu';
+const NoteSettingsMenu = NoteSettingsMenuComponent as React.ComponentType<any>;
 
 const Editor = dynamic(() => import('@/components/Editor'), {
     ssr: false,
@@ -62,6 +67,8 @@ export interface CanvasWorkspaceProps {
     setSaveStatus: (status: 'unsaved' | 'saving' | 'saved') => void;
     submitRename: (id: string, newTitle: string) => void;
     setShowBackups: (show: boolean) => void;
+    showBackups?: boolean;
+    onRestoreBackup?: (content: any) => void;
     handleShare: (e: any, id?: string) => void;
     setNoteSecurityModalItem: (item: any) => void;
     handleDeleteNote: (e: any, id: string) => void;
@@ -93,7 +100,33 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
         handleShare, setNoteSecurityModalItem, handleDeleteNote, canvasNoteData, setCanvasNoteData,
         handleEditorReady, handleEditorChange, handleMagicLinkClick, activeFileKey, performSave,
         handleBlocksDeleted, setActiveTabId, userProfile,
+        showBackups, onRestoreBackup,
     } = props;
+
+    const [isHistoryMode, setIsHistoryMode] = useState<boolean>(false);
+
+    useEffect(() => {
+        if (typeof showBackups === 'boolean') {
+            setIsHistoryMode(showBackups);
+        }
+    }, [showBackups]);
+
+    const {
+        points,
+        activeIndex,
+        setActiveIndex,
+        selectedPoint,
+        selectedContent,
+        diffChanges,
+        isLoading: isBackupLoading,
+        error: backupError
+    } = useNoteBackups({
+        fileId: activeNoteId,
+        privateKey,
+        myId,
+        currentContent: editorContent,
+        enabled: isHistoryMode,
+    });
 
     const [internalHoveredElementId, setInternalHoveredElementId] = useState<string | null>(null);
     const [internalIsLinkingMode, setInternalIsLinkingMode] = useState(false);
@@ -101,6 +134,10 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     const [internalHoveredBlockId, setInternalHoveredBlockId] = useState<string | null>(null);
     const [showSaveStatusMenu, setShowSaveStatusMenu] = useState(false);
     const [showSharePanel, setShowSharePanel] = useState(false);
+    const [showNoteSettingsMenu, setShowNoteSettingsMenu] = useState(false);
+    const paperPattern = useDataStore((s) => s.paperPattern);
+    const showPageBreaks = useDataStore((s) => s.showPageBreaks);
+    const activeNoteTitle = fileName;
 
     const hoveredElementId = props.hoveredElementId !== undefined ? props.hoveredElementId : internalHoveredElementId;
     const setHoveredElementId = props.setHoveredElementId || setInternalHoveredElementId;
@@ -167,7 +204,10 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                 isLinkingMode={isLinkingMode}
                                 contentVersion={editorVersion}
                             />
-                            <div className="flex-1 min-w-0 flex flex-col">
+                            <div className={`relative flex-1 min-w-0 flex flex-col paper-${paperPattern || 'blanko'}`}>
+                                {noteLayout === 'a4' && showPageBreaks && (
+                                    <div className="a4-page-breaks-overlay pointer-events-none absolute inset-0 z-0" />
+                                )}
                                 {activeNoteId && openTabs.find(t => t.id === activeNoteId && t.type === 'file') && (
                                     <>
                                         {(() => {
@@ -278,13 +318,62 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                     const isOwner = !isRecipient && (!af?.owner_id || af?.owner_id === myId || af?.share_status === 'owner');
                                                     if (!isOwner) return null;
                                                     return (
-                                                        <button
-                                                            onClick={() => setShowBackups(true)}
-                                                            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 hover:text-indigo-600 transition-colors"
-                                                            title="Versionsverlauf / Backups"
-                                                        >
-                                                            <Clock size={16} />
-                                                        </button>
+                                                        <>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const next = !isHistoryMode;
+                                                                    setIsHistoryMode(next);
+                                                                    setShowBackups?.(next);
+                                                                }}
+                                                                className={`p-1.5 rounded-lg transition-colors ${
+                                                                    isHistoryMode
+                                                                        ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40'
+                                                                        : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 hover:text-indigo-600'
+                                                                }`}
+                                                                title="Versionsverlauf / Backups"
+                                                            >
+                                                                <Clock size={16} />
+                                                            </button>
+                                                            {isHistoryMode && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setIsHistoryMode(false);
+                                                                            setShowBackups?.(false);
+                                                                            setActiveIndex(0);
+                                                                        }}
+                                                                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 transition-colors"
+                                                                        title="Versionsverlauf abbrechen"
+                                                                    >
+                                                                        <X size={14} />
+                                                                        <span>Abbrechen</span>
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            if (selectedContent) {
+                                                                                if (onRestoreBackup) {
+                                                                                    onRestoreBackup(selectedContent);
+                                                                                } else {
+                                                                                    window.dispatchEvent(new CustomEvent('editor:restore-content', { detail: selectedContent }));
+                                                                                    if (activeNoteId && performSave) {
+                                                                                        const currentFile = files.find(f => f.id === activeNoteId);
+                                                                                        performSave(selectedContent, activeNoteId, activeFileKey, currentFile?.visibility);
+                                                                                    }
+                                                                                }
+                                                                            }
+                                                                            setIsHistoryMode(false);
+                                                                            setShowBackups?.(false);
+                                                                            setActiveIndex(0);
+                                                                        }}
+                                                                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors"
+                                                                        title="Ausgewählten Stand speichern"
+                                                                    >
+                                                                        <Check size={14} />
+                                                                        <span>Speichern</span>
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </>
                                                     );
                                                 })()}
                                                 <div className="relative flex items-center justify-center">
@@ -352,6 +441,28 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                         );
                                                     })()}
                                                 </div>
+                                                <div className="relative">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowNoteSettingsMenu(prev => !prev)}
+                                                        className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                                                        title="Notiz-Optionen & Export"
+                                                    >
+                                                        <MoreHorizontal size={16} />
+                                                    </button>
+                                                    {showNoteSettingsMenu && (
+                                                        <NoteSettingsMenu
+                                                            onClose={() => setShowNoteSettingsMenu(false)}
+                                                            activeNoteId={activeNoteId}
+                                                            activeNoteTitle={activeNoteTitle}
+                                                            editorContent={editorContent}
+                                                            isOpen={showNoteSettingsMenu}
+                                                            noteId={activeNoteId || undefined}
+                                                            noteTitle={activeNoteTitle}
+                                                            noteContent={editorContent}
+                                                        />
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </>
@@ -384,6 +495,15 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                     return editorContent === null ? (
                                         <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
                                             <span className="font-medium text-sm">Lade...</span>
+                                        </div>
+                                    ) : isHistoryMode ? (
+                                        <div className="flex-1 min-w-0">
+                                            <NoteVersionDiffView
+                                                point={selectedPoint}
+                                                diffChanges={diffChanges}
+                                                isLoading={isBackupLoading}
+                                                error={backupError}
+                                            />
                                         </div>
                                     ) : (
                                         <Editor
@@ -435,6 +555,16 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                     );
                                 })()}
                             </div>
+                            {isHistoryMode && (
+                                <div className="shrink-0 pl-6 sticky top-12 z-10">
+                                    <NoteVersionTimeline
+                                        points={points}
+                                        activeIndex={activeIndex}
+                                        onSelectIndex={setActiveIndex}
+                                        isLoading={isBackupLoading}
+                                    />
+                                </div>
+                            )}
                         </div>
                     </CanvasLayer>
                 </div>

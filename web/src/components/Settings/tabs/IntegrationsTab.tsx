@@ -4,6 +4,7 @@ import {
     Bookmark,
     Briefcase,
     Check,
+    FileText,
     Flame,
     ListTodo,
     Smartphone,
@@ -59,6 +60,15 @@ const EXTENSIONS: ExtensionItem[] = [
         updated: 'Today',
         icon: Smartphone,
         color: 'text-sky-500',
+    },
+    {
+        id: 'file_support',
+        title: 'Erweiterte Dateiformate',
+        desc: 'Erweiterter Export & Import für DOCX, Markdown, PDF+ und Notizen-Bundles.',
+        version: 'v1.0.0',
+        updated: 'Aktuell',
+        icon: FileText,
+        color: 'text-amber-500',
     },
 ];
 

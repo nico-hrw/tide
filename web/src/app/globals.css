@@ -170,6 +170,9 @@
   /* Interactive */
   --hover-bg:     #F5F5F5;  /* DARK: rgba(255,255,255,0.06) */
   --today-accent: #EF4444;  /* DARK: #EF4444 */
+
+  /* Paper patterns */
+  --paper-line-color: rgba(156, 163, 175, 0.3);
 }
 
 .dark {
@@ -237,6 +240,7 @@
   --shadow-modal: 0px 24px 64px rgba(0, 0, 0, 0.45);
 
   --hover-bg: rgba(255, 255, 255, 0.06);
+  --paper-line-color: rgba(148, 163, 184, 0.2);
 }
 
 /* Fallback: apply dark variables before JS loads via media query */
@@ -272,6 +276,7 @@
     --shadow-float: 0px 8px 24px rgba(0, 0, 0, 0.3), 0px 2px 6px rgba(0, 0, 0, 0.2);
     --shadow-modal: 0px 24px 64px rgba(0, 0, 0, 0.45);
     --hover-bg: rgba(255, 255, 255, 0.06);
+    --paper-line-color: rgba(148, 163, 184, 0.2);
   }
 }
 
@@ -576,6 +581,55 @@ ul[data-type="taskList"] li>div>p {
 
 .note-layout-extra-wide {
   max-width: 100% !important;
+}
+
+.note-layout-a4 {
+  max-width: 794px !important;
+  width: 100%;
+}
+
+/* ─── Paper Patterns ─────────────────────────────────────────────────────── */
+.paper-blanko {
+  background-color: transparent;
+  background-image: none;
+}
+
+.paper-ruled {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 27px,
+    var(--paper-line-color, rgba(156, 163, 175, 0.3)) 27px,
+    var(--paper-line-color, rgba(156, 163, 175, 0.3)) 28px
+  );
+  background-size: 100% 28px;
+}
+
+.paper-grid {
+  background-size: 20px 20px;
+  background-image:
+    linear-gradient(to right, var(--paper-line-color, rgba(156, 163, 175, 0.25)) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--paper-line-color, rgba(156, 163, 175, 0.25)) 1px, transparent 1px);
+}
+
+/* ─── A4 Page Break Guidelines ────────────────────────────────────────────── */
+.a4-page-break-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 1px dashed rgba(156, 163, 175, 0.4);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.a4-page-breaks-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='1123'%3E%3Cline x1='0' y1='1122.5' x2='6' y2='1122.5' stroke='rgba(156, 163, 175, 0.4)' stroke-width='1'/%3E%3C/svg%3E");
+  background-repeat: repeat;
 }
 
 /* ─── Tiptap Node View Wrapper Reset ─────────────────────────────────────── */
@@ -894,4 +948,62 @@ span.task-mention-pill,
   color: #9ca3af;
   pointer-events: none;
 }
+
+/* ─── Print & PDF Export Styles ───────────────────────────────────────────── */
+@media print {
+  /* Hide sidebars, header, tabs, floating toolbox, and buttons */
+  aside,
+  nav,
+  header,
+  button,
+  .sidebar,
+  .tabs,
+  .header,
+  .floating-toolbox,
+  .pencil-toolbox,
+  .no-print,
+  [data-no-print],
+  [data-pencil-toolbox],
+  [data-floating-toolbox],
+  .tippy-box {
+    display: none !important;
+  }
+
+  /* Expand editor container to 100% width, white background, no box-shadows */
+  html,
+  body {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  main,
+  .editor-container,
+  .note-layout-a4,
+  .note-layout-thin,
+  .note-layout-normal,
+  .note-layout-wide,
+  .note-layout-extra-wide,
+  .ProseMirror,
+  [data-editor-container] {
+    width: 100% !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    box-shadow: none !important;
+    filter: none !important;
+    border: none !important;
+    margin: 0 !important;
+  }
+
+  .a4-page-break-line,
+  .a4-page-breaks-overlay {
+    display: none !important;
+  }
+}
+
 

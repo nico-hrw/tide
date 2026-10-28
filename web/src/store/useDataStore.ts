@@ -126,12 +126,16 @@ export const useUiActions = () =>
             theme: s.theme,
             themePreference: s.themePreference,
             language: s.language,
+            paperPattern: s.paperPattern,
+            showPageBreaks: s.showPageBreaks,
             setSettingsModalOpen: s.setSettingsModalOpen,
             setSettingsModalTab: s.setSettingsModalTab,
             setSmartIsland: s.setSmartIsland,
             setEnabledExtensions: s.setEnabledExtensions,
             setThemePreference: s.setThemePreference,
             setLanguage: s.setLanguage,
+            setPaperPattern: s.setPaperPattern,
+            setShowPageBreaks: s.setShowPageBreaks,
         }))
     );
 

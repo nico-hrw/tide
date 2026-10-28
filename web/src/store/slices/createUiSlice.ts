@@ -3,6 +3,7 @@ import type {
     AppTheme,
     DataStoreSlice,
     NavigationMode,
+    PaperPattern,
     SettingsModalTab,
     SmartIslandState,
     ThemePreference,
@@ -16,6 +17,7 @@ const DEFAULT_ENABLED_EXTENSIONS: string[] = [
     'job_planner',
     'todos',
     'debug',
+    'file_support',
 ];
 
 function applyThemeClass(theme: AppTheme): void {
@@ -70,6 +72,18 @@ function getInitialNavigationMode(): NavigationMode {
     return stored === 'folders' ? 'folders' : 'sidebar';
 }
 
+function getInitialPaperPattern(): PaperPattern {
+    if (typeof window === 'undefined') return 'blanko';
+    const stored = localStorage.getItem('tide_paper_pattern') as PaperPattern | null;
+    return stored === 'blanko' || stored === 'ruled' || stored === 'grid' ? stored : 'blanko';
+}
+
+function getInitialShowPageBreaks(): boolean {
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem('tide_show_page_breaks');
+    return stored !== null ? stored === 'true' : true;
+}
+
 export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     isSettingsModalOpen: false,
     settingsModalTab: 'account',
@@ -79,6 +93,8 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     themePreference: getInitialThemePreference(),
     language: getInitialLanguage(),
     navigationMode: getInitialNavigationMode(),
+    paperPattern: getInitialPaperPattern(),
+    showPageBreaks: getInitialShowPageBreaks(),
 
     setSettingsModalOpen: (open: boolean, tab?: SettingsModalTab) =>
         set((state) => ({
@@ -156,5 +172,29 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
                 }
             }
             return { navigationMode: mode };
+        }),
+
+    setPaperPattern: (pattern: PaperPattern) =>
+        set(() => {
+            if (typeof window !== 'undefined') {
+                try {
+                    localStorage.setItem('tide_paper_pattern', pattern);
+                } catch (e) {
+                    console.warn('Failed to save paper pattern to localStorage', e);
+                }
+            }
+            return { paperPattern: pattern };
+        }),
+
+    setShowPageBreaks: (show: boolean) =>
+        set(() => {
+            if (typeof window !== 'undefined') {
+                try {
+                    localStorage.setItem('tide_show_page_breaks', String(show));
+                } catch (e) {
+                    console.warn('Failed to save show page breaks to localStorage', e);
+                }
+            }
+            return { showPageBreaks: show };
         }),
 });
