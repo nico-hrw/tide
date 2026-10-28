@@ -115,7 +115,11 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                     while (isSavingRef.current.has(noteId)) await new Promise(r => setTimeout(r, 200));
                     pendingRetriesRef.current.delete(noteId);
                     if (unsavedNotesRef.current.has(noteId)) {
-                        triggerSave(noteId, retryKey, editorContentRef.current || retryContent);
+                        // Prevent runaway zero-delay retry loops
+                        await new Promise(r => setTimeout(r, 1000));
+                        if (unsavedNotesRef.current.has(noteId) && !isSavingRef.current.has(noteId)) {
+                            triggerSave(noteId, retryKey, editorContentRef.current || retryContent);
+                        }
                     }
                 };
                 waitAndRetry();
@@ -201,6 +205,7 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
 
             const allFiles = [...freshState.notes, ...freshState.events] as any[];
             const currentFile = allFiles.find(f => f.id === fileId);
+            const currentVersion = typeof currentFile?.version === 'number' ? currentFile.version : 1;
 
             const { dek, accessKeysMap, generatedNewDek } = await resolveSaveDEK(
                 currentFile, freshMyId, freshPrivKey, freshPubKey
@@ -221,25 +226,47 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
 
             if (typeof (window as any).__tideSaveTimestamp === 'function') (window as any).__tideSaveTimestamp();
 
-            const putRes = await apiFetch(`/api/v1/files/${fileId}`, {
+            const createPutPayload = (v: number) => JSON.stringify({
+                version: v,
+                content_ciphertext: contentCiphertext,
+                ...(isOwner && generatedNewDek ? { access_keys: accessKeysMap } : {}),
+                metadata: { has_custom_password: false, title },
+                ...(freshSecuredMeta ? { secured_meta: freshSecuredMeta } : {}),
+            });
+
+            let activeVersion = currentVersion;
+            let putRes = await apiFetch(`/api/v1/files/${fileId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    version: 2,
-                    content_ciphertext: contentCiphertext,
-                    ...(isOwner && generatedNewDek ? { access_keys: accessKeysMap } : {}),
-                    metadata: { has_custom_password: false, title },
-                    ...(freshSecuredMeta ? { secured_meta: freshSecuredMeta } : {}),
-                })
+                body: createPutPayload(activeVersion)
             });
             if (putRes.status === 404) {
                 handleFileNotFound(fileId);
                 return;
             }
+            if (putRes.status === 409) {
+                const errData = await putRes.json().catch(() => null);
+                const serverVersion = errData?.current_version;
+                if (typeof serverVersion === 'number') {
+                    useDataStore.getState().updateFileRaw(fileId, { version: serverVersion });
+                    activeVersion = serverVersion;
+                    putRes = await apiFetch(`/api/v1/files/${fileId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: createPutPayload(activeVersion)
+                    });
+                }
+                if (!putRes.ok) {
+                    throw new Error('[V2-Save] PUT conflict (409) - updated to latest version');
+                }
+            }
             if (!putRes.ok) throw new Error(`[V2-Save] PUT failed with status ${putRes.status}`);
 
+            const updatedFile = await putRes.json().catch(() => null);
+            const newVersion = updatedFile?.version ?? (activeVersion + 1);
+
             useDataStore.getState().updateFileRaw(fileId, {
-                title, version: 2, access_keys: accessKeysMap, metadata: { has_custom_password: false, title }
+                title, version: newVersion, access_keys: accessKeysMap, metadata: { has_custom_password: false, title }
             });
 
             runClientBackupCascade({

@@ -956,28 +956,53 @@ export default function Dashboard() {
             // suppresses the immediate refetch that would overwrite our update
             if ((window as any).__tideSaveTimestamp) (window as any).__tideSaveTimestamp();
 
-            await apiFetch(`/api/v1/files/${id}`, {
+            const putPayload: Record<string, any> = {
+                secured_meta: encryptedMeta,
+                public_meta: { isGroup: true },
+                metadata: { title: meta.title, isGroup: true, effect: meta.effect, color: meta.color },
+            };
+            if (typeof (group as any)?.version === 'number') {
+                putPayload.version = (group as any).version;
+            }
+
+            const res = await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 // public_meta preserves isGroup in plaintext so fetchDirectory always finds it.
                 // metadata stores title/effect/color as plaintext V2 fallback — themes
                 // contain no sensitive data so this is safe and ensures persistence even
                 // if RSA decryption fails on reload.
-                body: JSON.stringify({
-                    secured_meta: encryptedMeta,
-                    public_meta: { isGroup: true },
-                    metadata: { title: meta.title, isGroup: true, effect: meta.effect, color: meta.color },
-                    version: 2
-                })
+                body: JSON.stringify(putPayload)
             });
+
+            let newVersion: number | undefined;
+            if (res.ok) {
+                try {
+                    const data = await res.json();
+                    if (typeof data?.version === 'number') {
+                        newVersion = data.version;
+                    }
+                } catch {
+                    // Ignore parse error
+                }
+            }
 
             // Re-apply optimistic update after API success to survive any concurrent refetch.
             // Must update BOTH notes AND metadataCache again.
             useDataStore.setState(s => ({
-                notes: s.notes.map(f => f.id === id ? { ...f, ...updates } as any : f),
+                notes: s.notes.map(f => f.id === id ? {
+                    ...f,
+                    ...updates,
+                    ...(newVersion !== undefined ? { version: newVersion } : {})
+                } as any : f),
                 metadataCache: {
                     ...s.metadataCache,
-                    [id]: { ...(s.metadataCache[id] || {}), ...updates, isGroup: true }
+                    [id]: {
+                        ...(s.metadataCache[id] || {}),
+                        ...updates,
+                        ...(newVersion !== undefined ? { version: newVersion } : {}),
+                        isGroup: true
+                    }
                 }
             }));
         } catch (e) {
