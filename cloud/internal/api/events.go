@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -22,6 +23,10 @@ type Broker struct {
 	// Channel to broadcast messages
 	messages chan messageEvent
 
+	// User status tracking
+	userStatus map[string]string
+	lastSeen   map[string]time.Time
+
 	// Mutex for clients map safety
 	mu sync.RWMutex
 }
@@ -42,9 +47,38 @@ func NewBroker() *Broker {
 		newClients:    make(chan clientReq),
 		closedClients: make(chan chan string),
 		messages:      make(chan messageEvent),
+		userStatus:    make(map[string]string),
+		lastSeen:      make(map[string]time.Time),
 	}
 	go broker.listen()
+	go broker.reaper()
 	return broker
+}
+
+func makeStatusPayload(userID, status string) string {
+	payload, err := json.Marshal(map[string]any{
+		"type": "user_status_changed",
+		"payload": map[string]any{
+			"user_id": userID,
+			"status":  status,
+		},
+	})
+	if err != nil {
+		return ""
+	}
+	return string(payload)
+}
+
+func (b *Broker) broadcastLocked(data string) {
+	if data == "" {
+		return
+	}
+	for clientChan := range b.clients {
+		select {
+		case clientChan <- data:
+		default:
+		}
+	}
 }
 
 func (b *Broker) listen() {
@@ -53,15 +87,46 @@ func (b *Broker) listen() {
 		// Add new client
 		case req := <-b.newClients:
 			b.mu.Lock()
+			activeChannels := 0
+			for _, uid := range b.clients {
+				if uid == req.userID {
+					activeChannels++
+				}
+			}
 			b.clients[req.msgChan] = req.userID
+			if activeChannels == 0 {
+				st := b.userStatus[req.userID]
+				if st == "" || st == "offline" {
+					st = "online"
+				}
+				b.userStatus[req.userID] = st
+				b.lastSeen[req.userID] = time.Now()
+				b.broadcastLocked(makeStatusPayload(req.userID, st))
+			}
 			b.mu.Unlock()
 			log.Printf("Client connected: %s", req.userID)
 
 		// Remove client
 		case s := <-b.closedClients:
 			b.mu.Lock()
+			userID := b.clients[s]
 			delete(b.clients, s)
 			close(s)
+
+			if userID != "" {
+				hasRemaining := false
+				for _, uid := range b.clients {
+					if uid == userID {
+						hasRemaining = true
+						break
+					}
+				}
+				if !hasRemaining {
+					b.lastSeen[userID] = time.Now()
+					b.userStatus[userID] = "offline"
+					b.broadcastLocked(makeStatusPayload(userID, "offline"))
+				}
+			}
 			b.mu.Unlock()
 			log.Printf("Client disconnected")
 
@@ -96,7 +161,6 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -161,4 +225,84 @@ func (b *Broker) Broadcast(targetUserID, data string) {
 
 func (b *Broker) BroadcastAll(data string) {
 	b.messages <- messageEvent{TargetUserID: "", Data: data}
+}
+
+func (b *Broker) SetUserStatus(userID string, status string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.userStatus[userID] = status
+	b.lastSeen[userID] = time.Now()
+}
+
+func (b *Broker) GetUserStatus(userID string) string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	if b.userStatus[userID] == "offline" {
+		return "offline"
+	}
+
+	hasActive := false
+	for _, uid := range b.clients {
+		if uid == userID {
+			hasActive = true
+			break
+		}
+	}
+
+	st := b.userStatus[userID]
+	if st == "" {
+		st = "online"
+	}
+
+	if hasActive {
+		return st
+	}
+
+	if last, ok := b.lastSeen[userID]; ok && !last.IsZero() && time.Since(last) < 2*time.Minute {
+		return st
+	}
+
+	return "offline"
+}
+
+func (b *Broker) TouchUser(userID string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.lastSeen[userID] = time.Now()
+}
+
+func (b *Broker) BroadcastPresence(userID string, status string) {
+	data := makeStatusPayload(userID, status)
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	b.broadcastLocked(data)
+}
+
+func (b *Broker) reaper() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		b.sweepInactiveUsers()
+	}
+}
+
+func (b *Broker) sweepInactiveUsers() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	activeUsers := make(map[string]bool)
+	for _, uid := range b.clients {
+		activeUsers[uid] = true
+	}
+
+	for userID, status := range b.userStatus {
+		if status == "online" && !activeUsers[userID] {
+			if last, ok := b.lastSeen[userID]; ok && time.Since(last) > 90*time.Second {
+				b.userStatus[userID] = "offline"
+				b.broadcastLocked(makeStatusPayload(userID, "offline"))
+			}
+		}
+	}
 }

@@ -52,6 +52,19 @@ function isCircular(startId: string, targetId: string, elements: CanvasElement[]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function detectIPadOrTablet(): boolean {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent;
+    const isIPadUA =
+        /iPad/i.test(ua) ||
+        (Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 1) && /Macintosh/i.test(ua));
+    const isTouchTablet =
+        Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 0) &&
+        window.innerWidth >= 768 &&
+        !/iPhone|iPod/i.test(ua);
+    return isIPadUA || isTouchTablet;
+}
+
 function getAllDomBlockIds(): string[] {
     return Array.from(document.querySelectorAll<HTMLElement>('[data-block-id]'))
         .map(n => n.getAttribute('data-block-id')!).filter(Boolean);
@@ -104,7 +117,21 @@ export default function CanvasLayer({
     pendingBindBlockId, onBindingComplete, onUpdate, onInsertAnchor,
     hoveredElementId, setHoveredElementId, isLinkingMode, activeLinkBlockId, onLinkingComplete,
 }: CanvasLayerProps) {
-    const isMobile = useMediaQuery('(max-width: 768px)');
+    const isSmallScreen = useMediaQuery('(max-width: 768px)');
+    const [isTablet, setIsTablet] = useState<boolean>(() => detectIPadOrTablet());
+
+    useEffect(() => {
+        const updateTablet = () => setIsTablet(detectIPadOrTablet());
+        window.addEventListener('resize', updateTablet);
+        window.addEventListener('orientationchange', updateTablet);
+        return () => {
+            window.removeEventListener('resize', updateTablet);
+            window.removeEventListener('orientationchange', updateTablet);
+        };
+    }, []);
+
+    // Treat iPads/tablets as desktop canvas mode (enables dragging, resizing, rotation)
+    const isMobile = isSmallScreen && !isTablet;
     const shellRef = useRef<HTMLDivElement>(null);
     const imageBlobCache = useRef(new Map<string, string>());
     const [activeElementId] = useState<string | null>(null);

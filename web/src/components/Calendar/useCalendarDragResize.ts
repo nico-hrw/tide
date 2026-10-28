@@ -363,12 +363,15 @@ export function useCalendarDragResize({
         } else if (draggingId && dragState) {
             const dId = draggingId;
             const dState = dragState;
-            setDraggingId(null);
-            setDragState(null);
-            isDraggingRef.current = false; // Reset drag threshold for next drag
-
             const { x: gX, y: gY } = gearedMouseRef.current;
-            await commitEventDrop(dId, dState, gX, gY);
+
+            try {
+                await commitEventDrop(dId, dState, gX, gY);
+            } finally {
+                setDraggingId(null);
+                setDragState(null);
+                isDraggingRef.current = false; // Reset drag threshold for next drag
+            }
 
         } else if (resizingId && resizeDragState) {
             const rId = resizingId;

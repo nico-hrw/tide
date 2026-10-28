@@ -137,6 +137,12 @@ export function getPlainTextFromJSON(node: any): string {
             text += getPlainTextFromJSON(child);
         }
     }
+    if (Array.isArray(node.attrs?.inkStrokes) && node.attrs.inkStrokes.length > 0) {
+        if (text && !text.endsWith('\n')) {
+            text += '\n';
+        }
+        text += `[Zeichnung: ${node.attrs.inkStrokes.length} Striche]\n`;
+    }
     if (['paragraph', 'heading', 'listItem', 'tableRow'].includes(node.type)) {
         text += "\n";
     }

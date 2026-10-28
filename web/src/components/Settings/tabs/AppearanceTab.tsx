@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sun, Settings, Moon } from 'lucide-react';
+import { Sun, Settings, Moon, Check } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 
 export interface AppearanceTabProps {
@@ -11,7 +11,7 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({
     noteLayout,
     onSetNoteLayout,
 }) => {
-    const { themePreference, setThemePreference, language, setLanguage } = useDataStore();
+    const { themePreference, setThemePreference, language, setLanguage, navigationMode, setNavigationMode } = useDataStore();
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -54,6 +54,44 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({
                         Dark
                     </button>
                 </div>
+            </div>
+
+            <div className="p-6 bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl mb-6 flex items-center justify-between gap-4">
+                <div className="flex-1 pr-4">
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-white">GoodNotes-Ordneransicht nutzen</h4>
+                    <p className="text-xs text-gray-500 mt-1">Zeigt Ordner und Notizen übersichtlich auf der Startseite im GoodNotes-Stil an (Standard auf dem iPad).</p>
+                </div>
+                <button
+                    type="button"
+                    role="switch"
+                    aria-checked={navigationMode === 'folders'}
+                    onClick={() => {
+                        const nextMode = navigationMode === 'folders' ? 'sidebar' : 'folders';
+                        if (typeof window !== 'undefined') {
+                            try {
+                                localStorage.setItem('tide_navigation_mode', nextMode);
+                            } catch (e) {
+                                console.warn('Failed to save navigation mode to localStorage', e);
+                            }
+                        }
+                        setNavigationMode(nextMode);
+                    }}
+                    className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none cursor-pointer ${
+                        navigationMode === 'folders' ? 'bg-[#111827] dark:bg-white' : 'bg-gray-200 dark:bg-gray-700'
+                    }`}
+                >
+                    <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full ${
+                            navigationMode === 'folders' ? 'bg-white dark:bg-zinc-900' : 'bg-white'
+                        } shadow transition duration-200 ${
+                            navigationMode === 'folders' ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                    >
+                        {navigationMode === 'folders' && (
+                            <Check className="absolute inset-0 m-auto h-3 w-3 text-[#111827] dark:text-white" />
+                        )}
+                    </span>
+                </button>
             </div>
 
             <div className="p-6 bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">

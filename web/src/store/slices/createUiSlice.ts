@@ -2,6 +2,7 @@ import type {
     AppLanguage,
     AppTheme,
     DataStoreSlice,
+    NavigationMode,
     SettingsModalTab,
     SmartIslandState,
     ThemePreference,
@@ -63,6 +64,12 @@ function getInitialLanguage(): AppLanguage {
     return stored === 'de' ? 'de' : 'en';
 }
 
+function getInitialNavigationMode(): NavigationMode {
+    if (typeof window === 'undefined') return 'sidebar';
+    const stored = localStorage.getItem('tide_navigation_mode');
+    return stored === 'folders' ? 'folders' : 'sidebar';
+}
+
 export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     isSettingsModalOpen: false,
     settingsModalTab: 'account',
@@ -71,6 +78,7 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     theme: getInitialTheme(),
     themePreference: getInitialThemePreference(),
     language: getInitialLanguage(),
+    navigationMode: getInitialNavigationMode(),
 
     setSettingsModalOpen: (open: boolean, tab?: SettingsModalTab) =>
         set((state) => ({
@@ -136,5 +144,17 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
                 }
             }
             return { language: lang };
+        }),
+
+    setNavigationMode: (mode: NavigationMode) =>
+        set(() => {
+            if (typeof window !== 'undefined') {
+                try {
+                    localStorage.setItem('tide_navigation_mode', mode);
+                } catch (e) {
+                    console.warn('Failed to save navigation mode to localStorage', e);
+                }
+            }
+            return { navigationMode: mode };
         }),
 });

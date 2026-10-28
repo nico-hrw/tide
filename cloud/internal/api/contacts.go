@@ -11,7 +11,8 @@ import (
 )
 
 type ContactHandler struct {
-	Store *store.SQLiteStore
+	Store  *store.SQLiteStore
+	Broker *Broker
 }
 
 func (h *ContactHandler) RegisterRoutes(r chi.Router) {
@@ -252,6 +253,7 @@ func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
 			AvatarSeed  string `json:"avatar_seed"`
 			AvatarSalt  string `json:"avatar_salt"`
 			AvatarStyle string `json:"avatar_style"`
+			Status      string `json:"status"`
 		} `json:"partner"`
 	}
 
@@ -281,6 +283,11 @@ func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		partnerStatus := "offline"
+		if h.Broker != nil {
+			partnerStatus = h.Broker.GetUserStatus(partnerID)
+		}
+
 		enriched = append(enriched, EnrichedContact{
 			ID:     c.ID,
 			Status: c.Status,
@@ -292,6 +299,7 @@ func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
 				AvatarSeed  string `json:"avatar_seed"`
 				AvatarSalt  string `json:"avatar_salt"`
 				AvatarStyle string `json:"avatar_style"`
+				Status      string `json:"status"`
 			}{
 				ID:          user.ID,
 				Username:    user.Username,
@@ -300,6 +308,7 @@ func (h *ContactHandler) ListContacts(w http.ResponseWriter, r *http.Request) {
 				AvatarSeed:  avatarSeed,
 				AvatarSalt:  avatarSalt,
 				AvatarStyle: avatarStyle,
+				Status:      partnerStatus,
 			},
 		})
 	}

@@ -847,7 +847,7 @@ export default function MobileLayout({
           </motion.aside>
         )}
 
-        {/* Note editor with rename header + SmartSearch at bottom */}
+        {/* Note editor with rename header (Fullscreen focus mode) */}
         {(isEditingNote || Boolean(activeNoteId)) && editorElement && (
           <motion.div key="editor"
             initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
@@ -879,24 +879,12 @@ export default function MobileLayout({
                 placeholder="Notiz…"
               />
             </div>
-            <div className="flex-1 overflow-y-auto w-full overscroll-contain px-3 py-2">
+            <div
+              className="flex-1 overflow-y-auto w-full overscroll-contain px-3 py-2"
+              style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
+            >
               {editorElement}
             </div>
-            {/* SmartSearch bar — opens the same slide-up panel as the calendar */}
-            {kbOffset === 0 && (
-              <button
-                onClick={() => { setSearchQuery(''); setIsSearchOpen(true); }}
-                className="flex items-center gap-3 px-4 py-3 mx-3 mb-3 rounded-2xl shrink-0"
-                style={{
-                  background: theme === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.04)',
-                  backdropFilter: 'blur(16px)',
-                  WebkitBackdropFilter: 'blur(16px)',
-                  border: `1px solid ${T.brd}`,
-                }}>
-                  <Search size={14} style={{ color: T.sec }} />
-                  <span className="text-sm flex-1 text-left" style={{ color: T.mut }}>Suchen, Notiz oder Termin erfassen…</span>
-              </button>
-            )}
           </motion.div>
         )}
 
@@ -1590,8 +1578,28 @@ export default function MobileLayout({
       </div>
       ) : (
       /* ── Todos tab ── */
-      <div className="flex-1 overflow-hidden relative w-full h-full flex flex-col" style={{ paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}>
-        <TodoList />
+      <div
+        className="mobile-todos-container flex-1 min-h-0 relative w-full max-w-full flex flex-col overflow-hidden"
+        style={{ paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}
+      >
+        <style>{`
+          .mobile-todos-container .sticky.top-0 {
+            display: none !important;
+          }
+          .mobile-todos-container [class*="bg-gradient-to-r"] {
+            display: none !important;
+          }
+          .mobile-todos-container .max-w-4xl,
+          .mobile-todos-container .md\\:max-w-5xl {
+            padding-left: 12px !important;
+            padding-right: 12px !important;
+            padding-top: 12px !important;
+            padding-bottom: calc(28px + env(safe-area-inset-bottom)) !important;
+            gap: 12px !important;
+            max-width: 100% !important;
+          }
+        `}</style>
+        <TodoList className="w-full flex-1 min-h-0" />
       </div>
       )}
 

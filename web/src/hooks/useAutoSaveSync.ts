@@ -5,6 +5,8 @@ import { useDataStore } from "@/store/useDataStore";
 import { Tab } from "@/components/Layout/TabList";
 import { apiFetch } from "@/lib/api";
 import * as cryptoLib from "@/lib/crypto";
+import { idb } from "@/lib/idb";
+import { addToSyncQueue } from "@/lib/syncQueue";
 import {
     isDocEmpty,
     countWordsInTipTapJson,
@@ -47,6 +49,7 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
     const [intEd, setIntEd] = useState<any>(null), [intCnv, setIntCnv] = useState<any>(null);
     const [intStat, setIntStat] = useState<"saved" | "unsaved" | "saving">("saved");
     const [intName, setIntName] = useState<string>(""), [intLoad, setIntLoad] = useState<boolean>(false);
+    const [isOfflinePending, setIsOfflinePending] = useState<boolean>(false);
 
     const activeNoteId = options.activeNoteId ?? null;
     const activeFileKey = options.activeFileKey !== undefined ? options.activeFileKey : intKey;
@@ -70,7 +73,20 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
     const isSavingRef = useRef<Set<string>>(new Set()), initialContentRef = useRef<any>(null);
     const unsavedNotesRef = useRef<Set<string>>(new Set()), pendingRetriesRef = useRef<Set<string>>(new Set());
     const lastLoadIdRef = useRef<string | null>(null), prevNoteIdRef = useRef<string | null>(null);
-    const performSaveRef = useRef<((content: any, fileId: string, fileKey: CryptoKey | null, visibility: string) => Promise<void>) | null>(null);
+    const performSaveRef = useRef<((content: any, fileId: string, fileKey: CryptoKey | null, visibility: string) => Promise<any>) | null>(null);
+
+    useEffect(() => {
+        const handleSynced = () => setIsOfflinePending(false);
+        const handleOnline = () => setIsOfflinePending(false);
+        if (typeof window !== 'undefined') {
+            window.addEventListener('tide-synced', handleSynced);
+            window.addEventListener('tide-online', handleOnline);
+            return () => {
+                window.removeEventListener('tide-synced', handleSynced);
+                window.removeEventListener('tide-online', handleOnline);
+            };
+        }
+    }, []);
 
     useEffect(() => {
         activeNoteIdRef.current = activeNoteId;
@@ -174,12 +190,41 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
             }
         } catch (e: any) {
             const isForbidden = String(e?.message || '').includes('403');
-            const targetStatus = isForbidden ? 'saved' : 'unsaved';
-            if (isForbidden) unsavedNotesRef.current.delete(noteId);
-            else unsavedNotesRef.current.add(noteId);
+            const isOfflineOr5xx = /5\d{2}|fetch|network|offline|failed to fetch/i.test(String(e?.message || ''));
 
-            if (noteId === activeNoteIdRef.current) setSaveStatus(targetStatus);
-            options.setOpenTabs?.(prev => prev.map(tab => tab.id === noteId ? { ...tab, _saveStatus: targetStatus } : tab));
+            if (isOfflineOr5xx) {
+                try {
+                    await addToSyncQueue({
+                        url: `/api/v1/files/${noteId}`,
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        fileId: noteId,
+                        description: `PUT /api/v1/files/${noteId}`
+                    });
+                } catch (_) {}
+
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent("tide-offline", { detail: "Cloud nicht erreichbar – lokal gesichert" }));
+                    window.dispatchEvent(new CustomEvent("tide-warning", { detail: "Cloud nicht erreichbar – lokal gesichert" }));
+                }
+
+                setIsOfflinePending(true);
+
+                // Keep status marked as locally saved instead of treating data as lost
+                initialContentRef.current = content;
+                unsavedNotesRef.current.delete(noteId);
+                if (noteId === activeNoteIdRef.current) setSaveStatus('saved');
+                options.setOpenTabs?.(prev => prev.map(tab =>
+                    tab.id === noteId ? { ...tab, _saveStatus: 'saved', content, _fileKey: fileKey } : tab
+                ));
+            } else {
+                const targetStatus = isForbidden ? 'saved' : 'unsaved';
+                if (isForbidden) unsavedNotesRef.current.delete(noteId);
+                else unsavedNotesRef.current.add(noteId);
+
+                if (noteId === activeNoteIdRef.current) setSaveStatus(targetStatus);
+                options.setOpenTabs?.(prev => prev.map(tab => tab.id === noteId ? { ...tab, _saveStatus: targetStatus } : tab));
+            }
         } finally {
             isSavingRef.current.delete(noteId);
         }
@@ -193,6 +238,9 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
             const contentString = typeof content === 'string' ? content : JSON.stringify(content);
 
             if (visibility === 'public') {
+                try {
+                    await idb.set(`api_cache_/api/v1/files/${fileId}/download`, contentString);
+                } catch (_) {}
                 await uploadPublicFile(fileId, contentString, fileNameRef.current, () => handleFileNotFound(fileId));
                 return;
             }
@@ -234,35 +282,113 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                 ...(freshSecuredMeta ? { secured_meta: freshSecuredMeta } : {}),
             });
 
-            let activeVersion = currentVersion;
-            let putRes = await apiFetch(`/api/v1/files/${fileId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: createPutPayload(activeVersion)
-            });
-            if (putRes.status === 404) {
-                handleFileNotFound(fileId);
-                return;
+            // Enforce offline-first: persist encrypted content to local IndexedDB BEFORE sending cloud HTTP PUT
+            try {
+                await idb.set(`api_cache_/api/v1/files/${fileId}/download`, contentCiphertext);
+                await idb.set(`file_ciphertext_${fileId}`, contentCiphertext);
+            } catch (idbErr) {
+                console.error('[V2-Save] Failed to persist encrypted content to IndexedDB:', idbErr);
             }
-            if (putRes.status === 409) {
-                const errData = await putRes.json().catch(() => null);
-                const serverVersion = errData?.current_version;
-                if (typeof serverVersion === 'number') {
-                    useDataStore.getState().updateFileRaw(fileId, { version: serverVersion });
-                    activeVersion = serverVersion;
-                    putRes = await apiFetch(`/api/v1/files/${fileId}`, {
+
+            let activeVersion = currentVersion;
+            const putPayload = createPutPayload(activeVersion);
+
+            let putRes: Response | null = null;
+            let isOfflineOr5xx = false;
+
+            try {
+                putRes = await apiFetch(`/api/v1/files/${fileId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: putPayload
+                });
+            } catch (fetchErr: any) {
+                console.warn(`[V2-Save] apiFetch threw error for ${fileId}:`, fetchErr);
+                isOfflineOr5xx = true;
+            }
+
+            if (putRes) {
+                if (putRes.status === 404) {
+                    handleFileNotFound(fileId);
+                    return;
+                }
+                if (putRes.status === 409) {
+                    const errData = await putRes.json().catch(() => null);
+                    const serverVersion = errData?.current_version;
+                    if (typeof serverVersion === 'number') {
+                        useDataStore.getState().updateFileRaw(fileId, { version: serverVersion });
+                        activeVersion = serverVersion;
+                        try {
+                            putRes = await apiFetch(`/api/v1/files/${fileId}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: createPutPayload(activeVersion)
+                            });
+                        } catch (retryErr: any) {
+                            console.warn(`[V2-Save] retry apiFetch threw error for ${fileId}:`, retryErr);
+                            isOfflineOr5xx = true;
+                        }
+                    }
+                    if (putRes && !putRes.ok && putRes.status < 500) {
+                        throw new Error('[V2-Save] PUT conflict (409) - updated to latest version');
+                    }
+                }
+                if (putRes.status >= 500) {
+                    isOfflineOr5xx = true;
+                }
+            }
+
+            if (isOfflineOr5xx) {
+                // Ensure mutation is added to the offline sync queue
+                try {
+                    await addToSyncQueue({
+                        url: `/api/v1/files/${fileId}`,
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: createPutPayload(activeVersion)
+                        body: createPutPayload(activeVersion),
+                        fileId,
+                        description: `PUT /api/v1/files/${fileId}`
                     });
+                } catch (queueErr) {
+                    console.error('[V2-Save] Failed to enqueue offline mutation:', queueErr);
                 }
-                if (!putRes.ok) {
-                    throw new Error('[V2-Save] PUT conflict (409) - updated to latest version');
+
+                // Display/dispatch warning instead of resetting or treating data as lost
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent("tide-offline", { detail: "Cloud nicht erreichbar – lokal gesichert" }));
+                    window.dispatchEvent(new CustomEvent("tide-warning", { detail: "Cloud nicht erreichbar – lokal gesichert" }));
                 }
+
+                setIsOfflinePending(true);
+
+                // Update local store with locally saved version & access keys
+                useDataStore.getState().updateFileRaw(fileId, {
+                    title, version: activeVersion, access_keys: accessKeysMap, metadata: { has_custom_password: false, title }
+                });
+
+                runClientBackupCascade({
+                    fileId, contentString, dek, accessKeysMap, currentFile, myId: freshMyId, privateKey: freshPrivKey
+                });
+
+                try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
+
+                return { offline: true };
             }
-            if (!putRes.ok) throw new Error(`[V2-Save] PUT failed with status ${putRes.status}`);
+
+            if (!putRes || !putRes.ok) throw new Error(`[V2-Save] PUT failed with status ${putRes?.status}`);
 
             const updatedFile = await putRes.json().catch(() => null);
+            const isSyntheticOffline = Boolean(updatedFile?.offline || updatedFile?._offlineQueued);
+            if (isSyntheticOffline) {
+                setIsOfflinePending(true);
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent("tide-offline", { detail: "Cloud nicht erreichbar – lokal gesichert" }));
+                    window.dispatchEvent(new CustomEvent("tide-warning", { detail: "Cloud nicht erreichbar – lokal gesichert" }));
+                }
+            } else {
+                setIsOfflinePending(false);
+            }
+
             const newVersion = updatedFile?.version ?? (activeVersion + 1);
 
             useDataStore.getState().updateFileRaw(fileId, {
@@ -274,6 +400,7 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
             });
 
             try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
+            return { offline: isSyntheticOffline };
         } catch (err) {
             console.error(`[V2-Save FAILED] ID: ${fileId}:`, err);
             throw err;
@@ -496,5 +623,6 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
         performSave,
         loadNoteContent,
         countWordsInTipTapJson,
+        isOfflinePending,
     };
 }

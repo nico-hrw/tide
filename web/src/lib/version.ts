@@ -1,4 +1,4 @@
-export const CURRENT_APP_VERSION = '0.1.0';
+export const CURRENT_APP_VERSION = '0.2.0';
 
 const DISMISSED_VERSION_KEY = 'tide_dismissed_version';
 const POST_UPDATE_KEY = 'tide_just_updated';

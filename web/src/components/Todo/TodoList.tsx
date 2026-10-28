@@ -18,9 +18,11 @@ import TodoFolderBanner from './TodoFolderBanner';
 import TodoListSections from './TodoListSections';
 import TodoFolderModal from './TodoFolderModal';
 import TodoCreateCard, { TaskCreateDraft } from './TodoCreateCard';
+import TodoFocusedGroupView from './TodoFocusedGroupView';
+import { buildTaskTree } from './treeUtils';
 import { loadTodoFoldersMeta, saveTodoFoldersMeta } from '../../lib/folderColors';
 import {
-  Priority, FilterStatus, SortOption, RecurrenceType, ArchiveTier, TodoListProps, TaskEditDraft,
+  Priority, FilterStatus, SortOption, RecurrenceType, ArchiveTier, TodoListProps, TaskEditDraft, TaskWithChildren,
   PRIORITY_WEIGHT, ARCHIVE_TIER_CONFIG,
   getTaskPriority, getPriorityColor, buildRecurrenceRule, parseDateSafe,
   isTaskArchived, getTaskArchiveTier,
@@ -213,6 +215,27 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     year: true,
   });
   const [completingTaskIds, setCompletingTaskIds] = useState<Set<string>>(new Set());
+  const [focusedGroupId, setFocusedGroupId] = useState<string | null>(null);
+
+  // Hierarchical task tree: roots are tasks without valid parentId
+  const taskTree = useMemo(() => {
+    return buildTaskTree(tasks);
+  }, [tasks]);
+
+  // Focused group task details
+  const focusedTask = useMemo(() => {
+    if (!focusedGroupId) return null;
+    const parent = tasks.find((t) => t.id === focusedGroupId);
+    if (!parent) return null;
+    const children = tasks.filter((t) => t.parentId === focusedGroupId);
+    return { ...parent, children } as TaskWithChildren;
+  }, [tasks, focusedGroupId]);
+
+  useEffect(() => {
+    if (focusedGroupId && !tasks.some((t) => t.id === focusedGroupId)) {
+      setFocusedGroupId(null);
+    }
+  }, [focusedGroupId, tasks]);
 
   // Active cycle calculations:
   // Open tasks (!t.isCompleted && !t.isArchived) + Recently completed tasks (completed in last 7 days, !t.isArchived)
@@ -369,7 +392,16 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return tasks.filter((t) => {
+
+    const matchesSearch = (t: TaskWithChildren): boolean => {
+      if (t.title.toLowerCase().includes(q)) return true;
+      if ((t.description || '').toLowerCase().includes(q)) return true;
+      if (t.tags && t.tags.some((tag) => tag.toLowerCase().includes(q))) return true;
+      if (t.children && t.children.some(matchesSearch)) return true;
+      return false;
+    };
+
+    return taskTree.filter((t) => {
       if (selectedFolder !== null) {
         if (selectedFolder === '') {
           if (t.folder) return false;
@@ -386,11 +418,10 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       if (filterStatus === 'completed' && (!t.isCompleted || archived)) return false;
       if (filterStatus === 'archived' && !archived) return false;
       if (filterPriority !== 'all' && getTaskPriority(t) !== filterPriority) return false;
-      const matchesTag = t.tags && t.tags.some((tag) => tag.toLowerCase().includes(q));
-      if (q && !t.title.toLowerCase().includes(q) && !(t.description || '').toLowerCase().includes(q) && !matchesTag) return false;
+      if (q && !matchesSearch(t)) return false;
       return true;
     });
-  }, [tasks, selectedFolder, selectedTag, filterStatus, filterPriority, searchQuery]);
+  }, [taskTree, selectedFolder, selectedTag, filterStatus, filterPriority, searchQuery]);
 
   const sortedTasks = useMemo(() => [...filteredTasks].sort((a, b) => {
     if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
@@ -441,11 +472,12 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     return { week, month, year };
   }, [archivedTasks]);
 
-  const renderTask = (task: TaskItem) => (
+  const renderTask = (task: TaskWithChildren) => (
     <TodoTreeItem disableClickDebounce
         task={task}
         isExpanded={editingTaskId === task.id}
         isCompleting={completingTaskIds.has(task.id)}
+        completingTaskIds={completingTaskIds}
         editDraft={editDraft}
         setEditDraft={setEditDraft}
         editNewTagInput={editNewTagInput}
@@ -466,6 +498,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         cancelEditing={() => setEditingTaskId(null)}
         deleteTask={deleteTask}
         onRowClick={handleRowClick}
+        onFocusGroup={(groupTask) => setFocusedGroupId(groupTask.id)}
       />
   );
 
@@ -506,64 +539,108 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       ) : (
         /* Main Container */
         <div className="max-w-4xl md:max-w-5xl w-full mx-auto px-3 sm:px-6 md:px-8 py-4 sm:py-6 flex flex-col gap-4 sm:gap-5 pb-28 sm:pb-8">
-          <TodoFolderBanner
-            setViewMode={setViewMode}
-            selectedFolder={selectedFolder}
-            setSelectedFolder={setSelectedFolder}
-            selectedFolderActiveCount={selectedFolderActiveCount}
-          />
+          <AnimatePresence mode="wait" initial={false}>
+            {focusedTask ? (
+              <motion.div
+                key={`focused-group-${focusedTask.id}`}
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                className="w-full"
+              >
+                <TodoFocusedGroupView
+                  groupTask={focusedTask}
+                  allTasks={tasks}
+                  onMinimize={() => setFocusedGroupId(null)}
+                  onToggleTask={handleToggleTask}
+                  onToggleInProgress={handleToggleInProgress}
+                  onUpdateTask={updateTask}
+                  onDeleteTask={deleteTask}
+                  completingTaskIds={completingTaskIds}
+                  onAddSubtask={async (title, parentId) => {
+                    await addTask({
+                      title,
+                      parentId,
+                      folder: focusedTask.folder,
+                      tags: focusedTask.tags ? [...focusedTask.tags] : [],
+                      priority: focusedTask.priority || 'medium',
+                      isCompleted: false,
+                      status: 'todo',
+                      order: focusedTask.children?.length || 0,
+                    });
+                  }}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="standard-list-view"
+                initial={{ opacity: 0, x: -300, scale: 0.95 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: -300, scale: 0.95, transition: { duration: 0.3 } }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                className="flex flex-col gap-4 sm:gap-5"
+              >
+                <TodoFolderBanner
+                  setViewMode={setViewMode}
+                  selectedFolder={selectedFolder}
+                  setSelectedFolder={setSelectedFolder}
+                  selectedFolderActiveCount={selectedFolderActiveCount}
+                />
 
+                {/* Task Creation Form Card (Collapsed by default) */}
+                {isCreateOpen && (
+                  <TodoCreateCard
+                    draft={draft} setDraft={setDraft} titleInputRef={titleInputRef}
+                    newTagInput={newTagInput} setNewTagInput={setNewTagInput}
+                    allTags={allTags} customTags={customTags} allFolders={allFolders}
+                    isSubmitting={isSubmitting} handleAddTask={handleAddTask}
+                    handleAddCustomTag={handleAddCustomTag} handleRemoveCustomTag={handleRemoveCustomTag}
+                    onClose={() => setIsCreateOpen(false)}
+                  />
+                )}
 
-          {/* Task Creation Form Card (Collapsed by default) */}
-          {isCreateOpen && (
-            <TodoCreateCard
-              draft={draft} setDraft={setDraft} titleInputRef={titleInputRef}
-              newTagInput={newTagInput} setNewTagInput={setNewTagInput}
-              allTags={allTags} customTags={customTags} allFolders={allFolders}
-              isSubmitting={isSubmitting} handleAddTask={handleAddTask}
-              handleAddCustomTag={handleAddCustomTag} handleRemoveCustomTag={handleRemoveCustomTag}
-              onClose={() => setIsCreateOpen(false)}
-            />
-          )}
+                {/* Filter & Sort Card */}
+                <TodoFilterBar
+                  searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+                  filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+                  totalCount={totalCount} activeCycleOpenCount={activeCycleOpenCount}
+                  activeCycleInProgressCount={activeCycleInProgressCount}
+                  activeCycleCompletedCount={activeCycleCompletedCount} archivedCount={archivedCount}
+                  allFolders={allFolders} unfiledCount={unfiledCount}
+                  selectedFolder={selectedFolder} setSelectedFolder={setSelectedFolder}
+                  allTags={allTags} selectedTag={selectedTag} setSelectedTag={setSelectedTag}
+                  tasks={tasks} filterPriority={filterPriority} setFilterPriority={setFilterPriority}
+                  sortBy={sortBy} setSortBy={setSortBy}
+                />
 
-          {/* Filter & Sort Card */}
-          <TodoFilterBar
-            searchQuery={searchQuery} setSearchQuery={setSearchQuery}
-            filterStatus={filterStatus} setFilterStatus={setFilterStatus}
-            totalCount={totalCount} activeCycleOpenCount={activeCycleOpenCount}
-            activeCycleInProgressCount={activeCycleInProgressCount}
-            activeCycleCompletedCount={activeCycleCompletedCount} archivedCount={archivedCount}
-            allFolders={allFolders} unfiledCount={unfiledCount}
-            selectedFolder={selectedFolder} setSelectedFolder={setSelectedFolder}
-            allTags={allTags} selectedTag={selectedTag} setSelectedTag={setSelectedTag}
-            tasks={tasks} filterPriority={filterPriority} setFilterPriority={setFilterPriority}
-            sortBy={sortBy} setSortBy={setSortBy}
-          />
-
-          <TodoListSections
-            selectedFolder={selectedFolder}
-            setSelectedFolder={setSelectedFolder}
-            filterStatus={filterStatus}
-            searchQuery={searchQuery}
-            tasks={tasks}
-            sortedTasks={sortedTasks}
-            tasksToRender={tasksToRender}
-            activeTasks={activeTasks}
-            recentlyCompletedTasks={recentlyCompletedTasks}
-            archivedTasks={archivedTasks}
-            archivedByTier={archivedByTier}
-            openTiers={openTiers}
-            showCompleted={showCompleted}
-            showArchive={showArchive}
-            setShowCompleted={setShowCompleted}
-            setShowArchive={setShowArchive}
-            setOpenTiers={setOpenTiers}
-            setDraft={setDraft}
-            setIsCreateOpen={setIsCreateOpen}
-            setSelectedTag={setSelectedTag}
-            selectedTag={selectedTag}
-            renderTask={renderTask}
-          />
+                <TodoListSections
+                  selectedFolder={selectedFolder}
+                  setSelectedFolder={setSelectedFolder}
+                  filterStatus={filterStatus}
+                  searchQuery={searchQuery}
+                  tasks={tasks}
+                  sortedTasks={sortedTasks}
+                  tasksToRender={tasksToRender}
+                  activeTasks={activeTasks}
+                  recentlyCompletedTasks={recentlyCompletedTasks}
+                  archivedTasks={archivedTasks}
+                  archivedByTier={archivedByTier}
+                  openTiers={openTiers}
+                  showCompleted={showCompleted}
+                  showArchive={showArchive}
+                  setShowCompleted={setShowCompleted}
+                  setShowArchive={setShowArchive}
+                  setOpenTiers={setOpenTiers}
+                  setDraft={setDraft}
+                  setIsCreateOpen={setIsCreateOpen}
+                  setSelectedTag={setSelectedTag}
+                  selectedTag={selectedTag}
+                  renderTask={renderTask}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 

@@ -85,10 +85,10 @@ const SIZE_PRESETS: Array<{ value: number; dotSize: number; label: string }> = [
 
 function detectIPadOrTablet(): boolean {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
-    const isIPadUA =
-        navigator.maxTouchPoints > 1 && /Macintosh|iPad/i.test(navigator.userAgent);
-    const isTouchTablet = navigator.maxTouchPoints > 0 && window.innerWidth >= 768;
-    return isIPadUA || isTouchTablet;
+    return (
+        navigator.maxTouchPoints > 1 &&
+        /Macintosh|iPad/i.test(navigator.userAgent)
+    );
 }
 
 export const PencilToolbox: React.FC<PencilToolboxProps> = ({
@@ -135,8 +135,18 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
         };
 
         const handleToggleEvent = () => {
-            setManuallyOpened(true);
-            setIsMinimized((prev) => !prev);
+            if (isTabletOrPenDetected) {
+                setIsMinimized((prev) => !prev);
+            } else {
+                setManuallyOpened((prev) => {
+                    if (!prev) {
+                        setIsMinimized(false);
+                        return true;
+                    }
+                    setIsMinimized((m) => !m);
+                    return true;
+                });
+            }
         };
 
         window.addEventListener('resize', handleResize, { passive: true });
@@ -185,10 +195,12 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
         [mode, onModeChange, onSizeChange]
     );
 
-    const shouldAutoShow = isTabletOrPenDetected || strokeCount > 0 || manuallyOpened;
-    const isExpanded = shouldAutoShow && !isMinimized;
+    const isVisible = isTabletOrPenDetected || manuallyOpened;
+    if (!isVisible) {
+        return null;
+    }
 
-    if (!isExpanded) {
+    if (isMinimized) {
         return (
             <button
                 type="button"
@@ -197,24 +209,24 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
                     setIsMinimized(false);
                 }}
                 title="Apple Pencil & Zeichenwerkzeuge öffnen"
-                className="fixed bottom-4 right-4 z-[110] flex items-center gap-2 px-3.5 py-2 text-xs font-medium transition-transform active:scale-95"
+                className="fixed bottom-4 right-4 z-[110] flex items-center gap-2 px-3 py-1.5 text-xs font-medium transition-transform active:scale-95 shadow-sm"
                 style={{
-                    backgroundColor: DT.glass(false),
+                    backgroundColor: 'var(--surface-card, var(--sidebar-bg))',
                     backdropFilter: 'blur(' + DT.blur + ')',
                     WebkitBackdropFilter: 'blur(' + DT.blur + ')',
-                    borderRadius: DT.modal.radius,
-                    boxShadow: DT.shadowE1,
+                    borderRadius: DT.radius,
+                    boxShadow: DT.shadowFloat,
                     border: '1px solid var(--border-color)',
                     color: 'var(--foreground)',
                 }}
             >
-                <Pencil size={15} style={{ color: mode === 'draw' ? DT.accent : undefined }} />
+                <Pencil size={14} style={{ color: mode === 'draw' ? DT.accent : undefined }} />
                 <span>Pencil</span>
                 {strokeCount > 0 && (
                     <span
                         className="px-1.5 py-0.5 text-[10px] font-semibold"
                         style={{
-                            borderRadius: DT.radius,
+                            borderRadius: DT.radiusSm,
                             backgroundColor: DT.status.info.bg,
                             color: DT.foreground,
                         }}
@@ -231,13 +243,13 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
             role="toolbar"
             aria-label="Apple Pencil und Zeichen-Werkzeugleiste"
             onPointerDown={(e) => e.stopPropagation()}
-            className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[120] flex flex-wrap items-center gap-2 px-3 py-2 max-w-[96vw] select-none"
+            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[120] flex flex-wrap items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 max-w-[96vw] select-none"
             style={{
-                backgroundColor: DT.glass(false),
+                backgroundColor: 'var(--surface-card, var(--sidebar-bg))',
                 backdropFilter: 'blur(' + DT.blur + ')',
                 WebkitBackdropFilter: 'blur(' + DT.blur + ')',
-                borderRadius: DT.modal.radius,
-                boxShadow: DT.shadowE2,
+                borderRadius: DT.cardRadius,
+                boxShadow: DT.shadowFloat,
                 border: '1px solid var(--border-color)',
                 color: 'var(--foreground)',
             }}
@@ -247,7 +259,7 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
                 className="flex items-center p-0.5"
                 style={{
                     backgroundColor: 'var(--sidebar-bg)',
-                    borderRadius: DT.cardRadius,
+                    borderRadius: DT.radius,
                     border: '1px solid var(--border-color)',
                 }}
             >
@@ -255,11 +267,11 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
                     type="button"
                     onClick={() => onModeChange('text')}
                     title="Text (Scribble) — Handschrift wird automatisch in Text umgewandelt"
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors"
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium transition-colors"
                     style={{
-                        borderRadius: DT.radius,
+                        borderRadius: DT.radiusSm,
                         backgroundColor: mode === 'text' ? DT.accent : 'transparent',
-                        color: mode === 'text' ? DT.status.danger.fg : 'var(--foreground)',
+                        color: mode === 'text' ? '#ffffff' : 'var(--foreground)',
                     }}
                 >
                     <Type size={14} />
@@ -269,11 +281,11 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
                     type="button"
                     onClick={() => onModeChange('draw')}
                     title="Malen / Schreiben — Freihand-Skizzen & Handschrift auf der Notiz"
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-colors"
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium transition-colors"
                     style={{
-                        borderRadius: DT.radius,
+                        borderRadius: DT.radiusSm,
                         backgroundColor: mode === 'draw' ? DT.accent : 'transparent',
-                        color: mode === 'draw' ? DT.status.danger.fg : 'var(--foreground)',
+                        color: mode === 'draw' ? '#ffffff' : 'var(--foreground)',
                     }}
                 >
                     <Pencil size={14} />
@@ -294,14 +306,14 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
                             type="button"
                             onClick={() => handleSelectDrawingTool(tool.id)}
                             title={tool.title}
-                            className="flex items-center justify-center w-8 h-8 transition-all"
+                            className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 transition-all"
                             style={{
                                 borderRadius: DT.radius,
                                 backgroundColor: isSelected ? DT.accent : 'transparent',
-                                color: isSelected ? DT.status.danger.fg : 'var(--foreground)',
+                                color: isSelected ? '#ffffff' : 'var(--foreground)',
                             }}
                         >
-                            <Icon size={16} />
+                            <Icon size={15} />
                         </button>
                     );
                 })}
@@ -320,13 +332,12 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
                             type="button"
                             onClick={() => handleSelectColor(preset.value)}
                             title={`Farbe: ${preset.label}`}
-                            className="w-5 h-5 flex items-center justify-center transition-transform"
+                            className="w-5 h-5 rounded-full flex items-center justify-center transition-transform"
                             style={{
-                                borderRadius: DT.modal.radius,
                                 backgroundColor: preset.value,
                                 transform: isCurrentColor ? 'scale(1.18)' : 'scale(1)',
                                 boxShadow: isCurrentColor
-                                    ? `0 0 0 2px ${DT.status.danger.fg}, 0 0 0 4px ${DT.accent}`
+                                    ? `0 0 0 2px var(--background), 0 0 0 3.5px ${DT.accent}`
                                     : `inset 0 0 0 1px ${DT.modal.scrim}`,
                             }}
                         />
@@ -358,10 +369,10 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
                             }}
                         >
                             <span
+                                className="rounded-full"
                                 style={{
                                     width: `${preset.dotSize}px`,
                                     height: `${preset.dotSize}px`,
-                                    borderRadius: DT.modal.radius,
                                     backgroundColor: 'var(--foreground)',
                                     display: 'block',
                                 }}
@@ -374,13 +385,13 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
             <div className="h-5 w-px" style={{ backgroundColor: 'var(--border-color)' }} />
 
             {/* Undo / Redo / Selection Delete / Minimize */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5 sm:gap-1">
                 <button
                     type="button"
                     onClick={onUndo}
                     disabled={!canUndo}
                     title="Rückgängig"
-                    className="w-8 h-8 flex items-center justify-center transition-opacity disabled:opacity-35"
+                    className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center transition-opacity disabled:opacity-35"
                     style={{ borderRadius: DT.radius }}
                 >
                     <Undo2 size={15} />
@@ -390,7 +401,7 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
                     onClick={onRedo}
                     disabled={!canRedo}
                     title="Wiederholen"
-                    className="w-8 h-8 flex items-center justify-center transition-opacity disabled:opacity-35"
+                    className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center transition-opacity disabled:opacity-35"
                     style={{ borderRadius: DT.radius }}
                 >
                     <Redo2 size={15} />
@@ -401,14 +412,14 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
                         type="button"
                         onClick={onDeleteSelected}
                         title={`Ausgewählte Elemente löschen (${selectedCount})`}
-                        className="flex items-center gap-1 px-2 h-8 text-xs font-medium transition-opacity hover:opacity-90"
+                        className="flex items-center gap-1 px-2 h-7 sm:h-8 text-xs font-medium transition-opacity hover:opacity-90"
                         style={{
                             borderRadius: DT.radius,
                             backgroundColor: DT.status.danger.bg,
                             color: DT.status.danger.fg,
                         }}
                     >
-                        <Trash2 size={14} />
+                        <Trash2 size={13} />
                         <span>{selectedCount}</span>
                     </button>
                 )}
@@ -417,10 +428,10 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
                     type="button"
                     onClick={() => setIsMinimized(true)}
                     title="Werkzeugleiste minimieren"
-                    className="w-8 h-8 flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity"
+                    className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity"
                     style={{ borderRadius: DT.radius }}
                 >
-                    <ChevronDown size={16} />
+                    <ChevronDown size={15} />
                 </button>
             </div>
         </div>

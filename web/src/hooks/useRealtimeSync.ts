@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useDataStore } from '@/store/useDataStore';
-import { getApiBase } from '@/lib/api';
+import { getApiBase, apiFetch } from '@/lib/api';
 import { useIslandStore } from '@/store/useIslandStore';
 import { useIslandSettingsStore } from '@/store/useIslandSettingsStore';
 import { useSocialStore } from '@/store/useSocialStore';
@@ -174,6 +174,15 @@ export function useRealtimeSync({
                         window.dispatchEvent(new CustomEvent('tide:app_update', { detail: data }));
                     }
 
+                    if (data.type === 'user_status_changed' || data.type === 'presence_update') {
+                        const payload = data.payload || data;
+                        const userId = payload.user_id || payload.userId;
+                        const status = payload.status;
+                        if (userId && status) {
+                            useSocialStore.getState().updatePartnerStatus(userId, status);
+                        }
+                    }
+
                     if (['file_created', 'file_updated', 'file_deleted', 'file_shared'].includes(data.type)) {
                         const msSinceOwnSave = Date.now() - lastOwnSaveTime;
                         if (data.type === 'file_updated' && msSinceOwnSave < OWN_SAVE_COOLDOWN_MS) {
@@ -263,6 +272,27 @@ export function useRealtimeSync({
             if (retryTimer) clearTimeout(retryTimer);
             eventSource?.close();
             delete (window as any).__tideSaveTimestamp;
+        };
+    }, [myId]);
+
+    // Heartbeat Effect — ping presence every 45s
+    useEffect(() => {
+        if (!myId) return;
+        const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
+        if (!token) return;
+
+        const sendHeartbeat = () => {
+            apiFetch('/api/v1/user/heartbeat', {
+                method: 'POST',
+                body: JSON.stringify({ status: useSocialStore.getState().myStatus }),
+            }).catch(() => {});
+        };
+
+        sendHeartbeat();
+        const heartbeatInterval = setInterval(sendHeartbeat, 45000);
+
+        return () => {
+            clearInterval(heartbeatInterval);
         };
     }, [myId]);
 

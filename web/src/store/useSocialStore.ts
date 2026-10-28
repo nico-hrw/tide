@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { apiFetch } from '@/lib/api';
 
+export type UserStatus = 'online' | 'away' | 'offline';
+
 export interface SocialContact {
     contact_row_id: string;
     status: string;
@@ -12,6 +14,7 @@ export interface SocialContact {
         avatar_seed: string;
         avatar_salt: string;
         avatar_style: string;
+        status?: UserStatus;
     };
 }
 
@@ -30,7 +33,11 @@ interface SocialState {
     pendingRequests: ContactRequest[];
     sentRequests: Record<string, boolean>; // track locally sent requests
     isFetching: boolean;
+    myStatus: UserStatus;
+    partnerStatuses: Record<string, UserStatus>;
 
+    setMyStatus: (status: UserStatus) => Promise<void>;
+    updatePartnerStatus: (userId: string, status: UserStatus) => void;
     fetchContacts: () => Promise<void>;
     fetchPendingRequests: () => Promise<void>;
     sendRequest: (targetUserId: string) => Promise<boolean>;
@@ -49,6 +56,36 @@ export const useSocialStore = create<SocialState>((set, get) => ({
     pendingRequests: [],
     sentRequests: {},
     isFetching: false,
+    myStatus: (typeof window !== 'undefined' ? (localStorage.getItem('tide_user_status') as UserStatus) || 'online' : 'online'),
+    partnerStatuses: {},
+
+    setMyStatus: async (status: UserStatus) => {
+        set({ myStatus: status });
+        if (typeof window !== 'undefined') {
+            try {
+                localStorage.setItem('tide_user_status', status);
+            } catch (e) {
+                console.warn('Failed to save status to localStorage', e);
+            }
+        }
+        try {
+            await apiFetch('/api/v1/user/status', {
+                method: 'PUT',
+                body: JSON.stringify({ status }),
+            });
+        } catch (e) {
+            console.error('[SocialStore] setMyStatus failed', e);
+        }
+    },
+
+    updatePartnerStatus: (userId: string, status: UserStatus) => {
+        set((s) => ({
+            partnerStatuses: {
+                ...s.partnerStatuses,
+                [userId]: status,
+            },
+        }));
+    },
 
     requestCount: () => get().pendingRequests.length,
 

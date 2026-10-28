@@ -20,6 +20,22 @@ export interface TodoListProps {
   onSelectTask?: (task: TaskItem) => void;
 }
 
+export interface TaskCreateDraft {
+  title: string;
+  description?: string;
+  priority?: Priority;
+  status?: 'todo' | 'in_progress' | 'completed';
+  dueDate?: string;
+  recurrence?: RecurrenceType;
+  recurrenceEnd?: string;
+  folder?: string;
+  tags?: string[];
+  showInCalendar?: boolean;
+  color?: string;
+  parentId?: string | null;
+  order?: number;
+}
+
 export interface TaskEditDraft {
   title: string;
   description: string;

@@ -8,38 +8,60 @@ const ImageNodeView = ({ node, updateAttributes, selected }: any) => {
     const imgRef = useRef<HTMLImageElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    const handleMouseDown = (e: React.MouseEvent, pos: string) => {
+    const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, pos: string) => {
         e.preventDefault();
         e.stopPropagation();
+        const target = e.currentTarget;
+        const pointerId = e.pointerId;
+        try {
+            target.setPointerCapture(pointerId);
+        } catch {
+            // ignore if unsupported
+        }
+
         const startX = e.clientX;
         const startWidth = imgRef.current?.offsetWidth || 0;
 
-        const handleMouseMove = (mouseMoveEvent: MouseEvent) => {
+        const handlePointerMove = (pointerMoveEvent: PointerEvent) => {
             setIsResizing(true);
-            const currentX = mouseMoveEvent.clientX;
+            const currentX = pointerMoveEvent.clientX;
             const delta = pos === 'right' ? currentX - startX : startX - currentX;
             const newWidth = Math.max(50, startWidth + delta);
             updateAttributes({ width: newWidth });
         };
 
-        const handleMouseUp = () => {
+        const handlePointerUp = () => {
             setIsResizing(false);
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
+            try {
+                if (target.hasPointerCapture(pointerId)) {
+                    target.releasePointerCapture(pointerId);
+                }
+            } catch {
+                // ignore
+            }
+            window.removeEventListener('pointermove', handlePointerMove);
+            window.removeEventListener('pointerup', handlePointerUp);
+            window.removeEventListener('pointercancel', handlePointerUp);
         };
 
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
+        window.addEventListener('pointermove', handlePointerMove);
+        window.addEventListener('pointerup', handlePointerUp);
+        window.addEventListener('pointercancel', handlePointerUp);
     };
 
     return (
         <NodeViewWrapper 
             as="span"
-            className={`relative inline-block align-bottom ${selected ? 'ProseMirror-selectednode' : ''}`}
+            className={`relative inline-block align-bottom max-w-full box-border ${selected ? 'ProseMirror-selectednode' : ''}`}
             draggable="true" 
             data-drag-handle="true"
             ref={containerRef}
-            style={{ width: width ? `${width}px` : 'auto', maxWidth: '100%', lineHeight: 0 }}
+            style={{
+                width: width ? `${width}px` : 'auto',
+                maxWidth: '100%',
+                boxSizing: 'border-box',
+                lineHeight: 0
+            }}
         >
             <img
                 ref={imgRef}
@@ -51,6 +73,7 @@ const ImageNodeView = ({ node, updateAttributes, selected }: any) => {
                     width: width ? `${width}px` : 'auto',
                     height: height ? `${height}px` : 'auto',
                     maxWidth: '100%',
+                    boxSizing: 'border-box',
                     objectFit: 'contain',
                     outline: selected && !isResizing ? '3px solid #a855f7' : 'none',
                     outlineOffset: '2px', // Use outline for cleaner selection box without layout shifting
@@ -64,18 +87,18 @@ const ImageNodeView = ({ node, updateAttributes, selected }: any) => {
             {selected && (
                 <>
                     <div
-                        className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-3 h-8 bg-purple-500 rounded-full cursor-ew-resize opacity-0 hover:opacity-100 transition-opacity z-20 flex items-center justify-center shadow-sm"
-                        onMouseDown={(e) => handleMouseDown(e, 'right')}
-                        style={{ opacity: isResizing ? 1 : undefined }}
+                        className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-10 bg-purple-500 rounded-full cursor-ew-resize opacity-100 transition-opacity z-20 flex items-center justify-center shadow-md select-none touch-none"
+                        onPointerDown={(e) => handlePointerDown(e, 'right')}
+                        style={{ touchAction: 'none' }}
                     >
-                        <div className="w-0.5 h-4 bg-white/60 rounded-full" />
+                        <div className="w-0.5 h-5 bg-white/80 rounded-full" />
                     </div>
                     <div
-                        className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-3 h-8 bg-purple-500 rounded-full cursor-ew-resize opacity-0 hover:opacity-100 transition-opacity z-20 flex items-center justify-center shadow-sm"
-                        onMouseDown={(e) => handleMouseDown(e, 'left')}
-                        style={{ opacity: isResizing ? 1 : undefined }}
+                        className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-10 bg-purple-500 rounded-full cursor-ew-resize opacity-100 transition-opacity z-20 flex items-center justify-center shadow-md select-none touch-none"
+                        onPointerDown={(e) => handlePointerDown(e, 'left')}
+                        style={{ touchAction: 'none' }}
                     >
-                        <div className="w-0.5 h-4 bg-white/60 rounded-full" />
+                        <div className="w-0.5 h-5 bg-white/80 rounded-full" />
                     </div>
                 </>
             )}

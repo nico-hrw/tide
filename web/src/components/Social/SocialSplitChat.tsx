@@ -4,7 +4,7 @@ import React from 'react';
 import { Search, MessageSquare, ArrowLeft } from 'lucide-react';
 import Avatar from '@/components/Profile/Avatar';
 import ChatPanel from '@/components/Chat/ChatPanel';
-import { SocialContact } from '@/store/useSocialStore';
+import { SocialContact, useSocialStore, UserStatus } from '@/store/useSocialStore';
 import { ChatPartner } from './SocialHub';
 
 type PartnerWithTitle = SocialContact['partner'] & {
@@ -40,6 +40,16 @@ export default function SocialSplitChat({
     privateKey,
     myId,
 }: SocialSplitChatProps) {
+    const partnerStatuses = useSocialStore((state) => state.partnerStatuses);
+
+    const getStatusInfo = (userId: string, fallbackStatus?: string) => {
+        const rawStatus = partnerStatuses[userId] || fallbackStatus;
+        const status: UserStatus = (rawStatus === 'online' || rawStatus === 'away' || rawStatus === 'offline') ? rawStatus : 'offline';
+        const color = status === 'online' ? 'bg-emerald-500' : status === 'away' ? 'bg-amber-500' : 'bg-gray-400 dark:bg-gray-500';
+        const label = status === 'online' ? 'Online' : status === 'away' ? 'Abwesend' : 'Offline';
+        return { status, color, label };
+    };
+
     const filteredContacts = chatFilter.trim()
         ? contacts.filter((c) => c.partner.username.toLowerCase().includes(chatFilter.toLowerCase()))
         : contacts;
@@ -56,9 +66,16 @@ export default function SocialSplitChat({
                 </button>
                 {activePartner && (
                     <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-gray-900 dark:text-white bg-gray-100 dark:bg-white/10 px-2.5 py-1 rounded-lg">
-                            {activePartner.username}
-                        </span>
+                        {(() => {
+                            const { color: statusColor, label: statusLabel } = getStatusInfo(activePartner.id);
+                            return (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-900 dark:text-white bg-gray-100 dark:bg-white/10 px-2.5 py-1 rounded-lg">
+                                    <span className={`w-2 h-2 rounded-full ${statusColor}`} />
+                                    <span>{activePartner.username}</span>
+                                    <span className="text-[10px] font-normal text-gray-400">({statusLabel})</span>
+                                </span>
+                            );
+                        })()}
                     </div>
                 )}
             </div>
@@ -87,6 +104,8 @@ export default function SocialSplitChat({
                                 const isSelected = activeChatUser === c.partner.id;
                                 const avatarStyle = c.partner.avatar_style === 'openPeeps' ? 'openPeeps' : 'notionists';
                                 const partnerInfo = c.partner as PartnerWithTitle;
+                                const { color: statusColor, label: statusLabel } = getStatusInfo(c.partner.id, c.partner.status);
+                                const subtitle = partnerInfo.title ? `${partnerInfo.title} • ${statusLabel}` : statusLabel;
                                 return (
                                     <button
                                         key={c.partner.id}
@@ -99,11 +118,11 @@ export default function SocialSplitChat({
                                     >
                                         <div className="relative shrink-0">
                                             <Avatar seed={(c.partner.avatar_seed || c.partner.id) + (c.partner.avatar_salt || '')} style={avatarStyle} size={36} />
-                                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-[#161616]" />
+                                            <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ${statusColor} ring-2 ring-white dark:ring-[#161616]`} />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className={`text-xs font-semibold truncate ${isSelected ? 'text-blue-900 dark:text-blue-200' : 'text-gray-900 dark:text-white'}`}>{c.partner.username}</p>
-                                            <p className="text-[10px] text-gray-400 truncate">{partnerInfo.title || 'Online'}</p>
+                                            <p className="text-[10px] text-gray-400 truncate">{subtitle}</p>
                                         </div>
                                     </button>
                                 );

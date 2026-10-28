@@ -4,7 +4,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, ListTodo, ChevronRight, Archive, CheckCircle2, Timer } from 'lucide-react';
 import { TaskItem } from '@/store/useDataStore';
-import { FilterStatus, ArchiveTier, ARCHIVE_TIER_CONFIG } from './types';
+import { FilterStatus, ArchiveTier, ARCHIVE_TIER_CONFIG, TaskWithChildren } from './types';
 import { TaskCreateDraft } from './TodoCreateCard';
 
 export interface TodoListSectionsProps {
@@ -14,11 +14,11 @@ export interface TodoListSectionsProps {
   searchQuery: string;
   tasks: TaskItem[];
   sortedTasks: TaskItem[];
-  tasksToRender: TaskItem[];
-  activeTasks: TaskItem[];
-  recentlyCompletedTasks: TaskItem[];
-  archivedTasks: TaskItem[];
-  archivedByTier: Record<ArchiveTier, TaskItem[]>;
+  tasksToRender: (TaskWithChildren | TaskItem)[];
+  activeTasks: (TaskWithChildren | TaskItem)[];
+  recentlyCompletedTasks: (TaskWithChildren | TaskItem)[];
+  archivedTasks: (TaskWithChildren | TaskItem)[];
+  archivedByTier: Record<ArchiveTier, (TaskWithChildren | TaskItem)[]>;
   openTiers: Record<ArchiveTier, boolean>;
   showCompleted: boolean;
   showArchive: boolean;
@@ -29,7 +29,7 @@ export interface TodoListSectionsProps {
   setIsCreateOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setSelectedTag: (tag: string | null) => void;
   selectedTag: string | null;
-  renderTask: (task: TaskItem) => React.ReactNode;
+  renderTask: (task: TaskWithChildren) => React.ReactNode;
 }
 
 export const TodoListSections: React.FC<TodoListSectionsProps> = ({
@@ -58,7 +58,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     layout: { type: 'spring', damping: 26, stiffness: 280 }
                   }}
                 >
-                  {renderTask(task)}
+                  {renderTask(task as TaskWithChildren)}
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -119,7 +119,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                               layout: { type: 'spring', damping: 26, stiffness: 280 }
                             }}
                           >
-                            {renderTask(task)}
+                            {renderTask(task as TaskWithChildren)}
                           </motion.div>
                         ))}
                       </AnimatePresence>
@@ -235,7 +235,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                                           layout: { type: 'spring', damping: 26, stiffness: 280 }
                                         }}
                                       >
-                                        {renderTask(task)}
+                                        {renderTask(task as TaskWithChildren)}
                                       </motion.div>
                                     ))}
                                   </AnimatePresence>

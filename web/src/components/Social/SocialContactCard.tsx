@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MoreHorizontal, ExternalLink, MessageSquare, UserMinus } from 'lucide-react';
 import Avatar from '@/components/Profile/Avatar';
-import { SocialContact } from '@/store/useSocialStore';
+import { useSocialStore, SocialContact } from '@/store/useSocialStore';
 
 type PartnerWithProfile = SocialContact['partner'] & {
     title?: string;
@@ -26,6 +26,11 @@ export default function SocialContactCard({
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const partner = contact.partner as PartnerWithProfile;
+    const partnerStatuses = useSocialStore((state) => state.partnerStatuses);
+    const rawStatus = partnerStatuses[partner.id] || partner.status;
+    const status = (rawStatus === 'online' || rawStatus === 'away' || rawStatus === 'offline') ? rawStatus : 'offline';
+    const statusColor = status === 'online' ? 'bg-emerald-500' : status === 'away' ? 'bg-amber-500' : 'bg-gray-400 dark:bg-gray-500';
+    const statusTitle = status === 'online' ? 'Online' : status === 'away' ? 'Abwesend' : 'Offline';
 
     useEffect(() => {
         const handleDocClick = (e: MouseEvent) => {
@@ -61,8 +66,8 @@ export default function SocialContactCard({
                                 size={48}
                             />
                             <span
-                                className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-[#1a1a1a]"
-                                title="Aktiv"
+                                className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ${statusColor} ring-2 ring-white dark:ring-[#1a1a1a] transition-colors`}
+                                title={statusTitle}
                             />
                         </div>
                         <div className="min-w-0 flex-1">
@@ -70,7 +75,7 @@ export default function SocialContactCard({
                                 {partner.username}
                             </h3>
                             <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider truncate">
-                                {partner.title || 'Kontakt'}
+                                {partner.title ? `${partner.title} • ${statusTitle}` : statusTitle}
                             </p>
                         </div>
                     </div>

@@ -295,6 +295,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                         const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {};
                                                         const isSharedByOwner = Object.keys(akObj).length > 1;
                                                         const isShared = isRecipient || isSharedByOwner;
+                                                        const isOwner = !isRecipient && (!af?.owner_id || af?.owner_id === myId || af?.share_status === 'owner');
                                                         const isProtected = !!(af?.metadata?.has_custom_password || af?.metadata?.security_settings?.has_custom_password);
 
                                                         return (
@@ -326,7 +327,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                                         onClose={() => setShowSaveStatusMenu(false)}
                                                                         onOpenShare={() => {
                                                                             setShowSaveStatusMenu(false);
-                                                                            if (isShared && !isSharedByOwner) setShowSharePanel(true);
+                                                                            if (isShared) setShowSharePanel(true);
                                                                             else handleShare({ stopPropagation: () => {} } as any, activeNoteId);
                                                                         }}
                                                                         onOpenSecurity={() => {
@@ -339,7 +340,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                                     <ShareManagementPanel
                                                                         fileId={activeNoteId}
                                                                         onClose={() => setShowSharePanel(false)}
-                                                                        isOwner={af?.owner_id === myId}
+                                                                        isOwner={isOwner}
                                                                         myPermission={af?.permission || 'view'}
                                                                         onLeave={() => {
                                                                             setShowSharePanel(false);

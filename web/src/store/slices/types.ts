@@ -28,6 +28,8 @@ export interface TaskItem {
     createdAt?: string;
     completedAt?: string;
     isArchived?: boolean;
+    parentId?: string | null;
+    order?: number;
 }
 
 export interface SmartIslandState {
@@ -56,6 +58,7 @@ export type CalendarOverlapMode = 'overlap' | 'stack';
 export type CalendarHolidayPackage = 'DE' | 'AT' | 'CH' | 'US';
 export type EventMentionStyle = 'blue' | 'calendar';
 export type EventMentionPreview = 'always' | 'hover' | 'off';
+export type NavigationMode = 'sidebar' | 'folders';
 
 export interface NotesSlice {
     notes: DataItem[];
@@ -133,6 +136,7 @@ export interface UiSlice {
     theme: AppTheme;
     themePreference: ThemePreference;
     language: AppLanguage;
+    navigationMode: NavigationMode;
 
     setSettingsModalOpen: (open: boolean, tab?: SettingsModalTab) => void;
     setSettingsModalTab: (tab: SettingsModalTab) => void;
@@ -142,6 +146,7 @@ export interface UiSlice {
     ) => void;
     setThemePreference: (pref: ThemePreference) => void;
     setLanguage: (lang: AppLanguage) => void;
+    setNavigationMode: (mode: NavigationMode) => void;
 }
 
 export interface FsSlice {

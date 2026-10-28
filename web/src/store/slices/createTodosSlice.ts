@@ -55,6 +55,8 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
         const newTask: TaskItem = {
             id: fallbackId,
             ...taskDraft,
+            parentId: taskDraft.parentId !== undefined ? taskDraft.parentId : null,
+            order: taskDraft.order !== undefined ? taskDraft.order : 0,
             showInCalendar,
             isCompleted,
             status: initialStatus,
@@ -90,6 +92,8 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
                 createdAt: newTask.createdAt,
                 completedAt: newTask.completedAt,
                 isArchived: newTask.isArchived,
+                parentId: newTask.parentId ?? null,
+                order: newTask.order ?? 0,
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, state.publicKey);
 
@@ -162,6 +166,8 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
 
         const mergedUpdates: Partial<TaskItem> = {
             ...updates,
+            parentId: updates.parentId !== undefined ? updates.parentId : (task.parentId ?? null),
+            order: updates.order !== undefined ? updates.order : (task.order ?? 0),
             showInCalendar: resolvedShowInCalendar,
             isCompleted: resolvedCompleted,
             ...(resolvedStatus !== undefined ? { status: resolvedStatus } : {}),
@@ -237,6 +243,8 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
                 createdAt: mergedTask.createdAt,
                 completedAt: mergedTask.completedAt,
                 isArchived: mergedTask.isArchived,
+                parentId: (updates.parentId !== undefined ? updates.parentId : task?.parentId) ?? null,
+                order: (updates.order !== undefined ? updates.order : task?.order) ?? 0,
             };
             const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, publicKey);
 

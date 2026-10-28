@@ -4,10 +4,11 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2, Circle, Calendar, Repeat, Trash2, Plus,
-  AlertCircle, Check, X, Folder, Timer, RotateCcw, ChevronDown, Tag,
+  AlertCircle, Check, X, Folder, Timer, RotateCcw, ChevronDown, Tag, GitFork, Layers, Maximize2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { TaskItem } from '@/store/useDataStore';
+import TodoSplitModal from './TodoSplitModal';
 import {
   Priority, RecurrenceType, TaskWithChildren, TaskEditDraft,
   PRIORITY_CONFIG, PRIORITY_OPTIONS, RECURRENCE_OPTIONS,
@@ -15,34 +16,20 @@ import {
 } from './types';
 
 export interface TodoTreeItemProps {
-  task: TaskWithChildren;
-  depth?: number;
-  isExpanded?: boolean;
-  editingTaskId?: string | null;
-  isCompleting?: boolean;
-  completingTaskIds?: Set<string>;
-  editDraft?: TaskEditDraft;
-  setEditDraft?: React.Dispatch<React.SetStateAction<TaskEditDraft>>;
-  editNewTagInput?: string;
-  setEditNewTagInput?: React.Dispatch<React.SetStateAction<string>>;
-  allTags?: string[];
-  customTags?: string[];
-  allFolders?: string[];
-  selectedTag?: string | null;
-  setSelectedTag?: (tag: string | null) => void;
-  selectedFolder?: string | null;
-  setSelectedFolder?: (folder: string | null) => void;
+  task: TaskWithChildren; depth?: number; isExpanded?: boolean; editingTaskId?: string | null;
+  isCompleting?: boolean; completingTaskIds?: Set<string>;
+  editDraft?: TaskEditDraft; setEditDraft?: React.Dispatch<React.SetStateAction<TaskEditDraft>>;
+  editNewTagInput?: string; setEditNewTagInput?: React.Dispatch<React.SetStateAction<string>>;
+  allTags?: string[]; customTags?: string[]; allFolders?: string[];
+  selectedTag?: string | null; setSelectedTag?: (tag: string | null) => void;
+  selectedFolder?: string | null; setSelectedFolder?: (folder: string | null) => void;
   setViewMode?: (mode: 'tasks' | 'folders') => void;
-  handleAddCustomTag?: (tag: string) => void;
-  handleRemoveCustomTag?: (tag: string) => void;
-  handleToggleTask: (task: TaskItem) => void;
-  handleToggleInProgress: (task: TaskItem) => void;
-  saveEditing?: (id: string, draft?: TaskEditDraft) => void;
-  cancelEditing?: () => void;
+  handleAddCustomTag?: (tag: string) => void; handleRemoveCustomTag?: (tag: string) => void;
+  handleToggleTask: (task: TaskItem) => void; handleToggleInProgress: (task: TaskItem) => void;
+  saveEditing?: (id: string, draft?: TaskEditDraft) => void; cancelEditing?: () => void;
   deleteTask: (id: string) => Promise<void> | void;
-  onRowClick?: (task: TaskItem) => void;
-  onSelectTask?: (task: TaskItem) => void;
-  disableClickDebounce?: boolean;
+  onRowClick?: (task: TaskItem) => void; onSelectTask?: (task: TaskItem) => void;
+  disableClickDebounce?: boolean; onFocusGroup?: (task: TaskWithChildren) => void;
 }
 
 export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
@@ -52,10 +39,12 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   selectedTag = null, setSelectedTag, selectedFolder = null, setSelectedFolder, setViewMode,
   handleAddCustomTag, handleRemoveCustomTag, handleToggleTask, handleToggleInProgress,
   saveEditing, cancelEditing, deleteTask, onRowClick, onSelectTask, disableClickDebounce = false,
+  onFocusGroup,
 }) => {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const [isChildrenCollapsed, setIsChildrenCollapsed] = useState(false);
+  const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
   const touchStartXRef = useRef(0);
   const touchStartYRef = useRef(0);
   const isSwipingRef = useRef(false);
@@ -201,13 +190,35 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                 {task.title}
               </span>
               {task.children && task.children.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-white/10 text-gray-500 font-medium shrink-0">
-                  {task.children.filter((c) => c.isCompleted).length}/{task.children.length}
-                </span>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); if (onFocusGroup) onFocusGroup(task); else setIsChildrenCollapsed((p) => !p); }}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 dark:border-blue-500/30 transition-all cursor-pointer shrink-0"
+                  title="Unteraufgaben-Gruppe anzeigen / fokussieren"
+                >
+                  <Layers size={12} className="text-blue-500" />
+                  <span>{task.children.filter((c) => c.isCompleted).length}/{task.children.length} Unteraufgaben</span>
+                </button>
               )}
             </div>
 
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+              {task.children && task.children.length > 0 && onFocusGroup && (
+                <button
+                  type="button" onClick={(e) => { e.stopPropagation(); onFocusGroup(task); }}
+                  className="p-1 rounded-lg text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors cursor-pointer shrink-0"
+                  title="Gruppe vergrößern / zentrieren" aria-label="Gruppe vergrößern"
+                >
+                  <Maximize2 size={13} />
+                </button>
+              )}
+              <button
+                type="button" onClick={(e) => { e.stopPropagation(); setIsSplitModalOpen(true); }}
+                className="p-1 rounded-lg text-gray-400 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer opacity-70 sm:opacity-0 group-hover:opacity-100 shrink-0"
+                title="In Unteraufgaben aufteilen" aria-label="In Unteraufgaben aufteilen"
+              >
+                <GitFork size={13} />
+              </button>
               {task.status === 'in_progress' && !isTaskCompleted && (
                 <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /><span>In Bearbeitung</span>
@@ -427,6 +438,13 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           <RotateCcw size={13} /><span>Wiederherstellen</span>
                         </button>
                       )}
+                      <button
+                        type="button" onClick={(e) => { e.stopPropagation(); setIsSplitModalOpen(true); }}
+                        className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-900/40 rounded-xl transition-colors cursor-pointer min-h-[36px]"
+                        title="Unteraufgabe hinzufügen oder aufteilen"
+                      >
+                        <Plus size={13} /><span>Unteraufgabe</span>
+                      </button>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -467,10 +485,13 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
               handleToggleTask={handleToggleTask} handleToggleInProgress={handleToggleInProgress}
               saveEditing={saveEditing} cancelEditing={cancelEditing} deleteTask={deleteTask}
               onRowClick={onRowClick} onSelectTask={onSelectTask} disableClickDebounce={disableClickDebounce}
+              onFocusGroup={onFocusGroup}
             />
           ))}
         </div>
       )}
+
+      <TodoSplitModal isOpen={isSplitModalOpen} onClose={() => setIsSplitModalOpen(false)} parentTask={task} />
     </div>
   );
 };

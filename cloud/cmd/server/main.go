@@ -93,7 +93,8 @@ func main() {
 	fileHandler := api.NewFileHandler(sqliteStore, blobStore, broker)
 	linkHandler := api.NewLinkHandler(sqliteStore)
 	messageHandler := &api.MessageHandler{Store: sqliteStore, Broker: broker}
-	contactHandler := &api.ContactHandler{Store: sqliteStore}
+	contactHandler := &api.ContactHandler{Store: sqliteStore, Broker: broker}
+	presenceHandler := &api.PresenceHandler{Broker: broker}
 	profileHandler := &api.ProfileHandler{Store: sqliteStore}
 	extensionsHandler := api.NewExtensionsHandler(sqliteStore)
 	taskHandler := api.NewTaskHandler(sqliteStore)
@@ -204,6 +205,8 @@ func main() {
 		r.Route("/profiles", profileHandler.RegisterRoutes)
 		r.With(api.AuthMiddleware, api.RateLimitMiddleware(searchLimiter)).Get("/search", profileHandler.Search)
 		r.Route("/user/extensions", extensionsHandler.RegisterRoutes)
+		r.With(api.AuthMiddleware).Put("/user/status", presenceHandler.UpdateStatus)
+		r.With(api.AuthMiddleware).Post("/user/heartbeat", presenceHandler.Heartbeat)
 		r.Route("/tabs", tabsHandler.RegisterRoutes)
 		r.Route("/tasks", taskHandler.RegisterRoutes)
 		r.Route("/api-tokens", apiTokenHandler.RegisterRoutes)

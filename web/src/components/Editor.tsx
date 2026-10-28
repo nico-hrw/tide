@@ -41,11 +41,12 @@ function CollaborativeEditor({
     onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick,
     onEventClick, onActiveUsersChange, userProfile, myId,
 }: EditorProps) {
+    const cleanInitial = useMemo(() => getCleanDocContent(initialContent), [initialContent]);
     const [pencilMode, setPencilMode] = useState<PencilInputMode>('text');
     const [activeInkTool, setActiveInkTool] = useState<InkToolType>('pen');
     const [inkColor, setInkColor] = useState<string>('#111827');
     const [inkSize, setInkSize] = useState<number>(4);
-    const [inkStrokes, setInkStrokes] = useState<InkStroke[]>([]);
+    const [inkStrokes, setInkStrokes] = useState<InkStroke[]>(() => cleanInitial?.attrs?.inkStrokes || (initialContent as any)?.attrs?.inkStrokes || []);
     const [selectedStrokeIds, setSelectedStrokeIds] = useState<string[]>([]);
     const [inkUndoStack, setInkUndoStack] = useState<InkStroke[][]>([]);
     const [inkRedoStack, setInkRedoStack] = useState<InkStroke[][]>([]);
@@ -55,7 +56,6 @@ function CollaborativeEditor({
     const syncTimedOutRef = useRef(false);
     const [isSynced, setIsSynced] = useState(false);
     const userHasTypedRef = useRef(false);
-    const cleanInitial = useMemo(() => getCleanDocContent(initialContent), [initialContent]);
 
     useEffect(() => { userHasTypedRef.current = false; }, [activeTabId, cleanInitial]);
 
@@ -153,6 +153,15 @@ function CollaborativeEditor({
         onEventClick, onForceSave, setInkStrokes, userHasTypedRef, contentInitialized,
     });
 
+    useEffect(() => {
+        const strokes = cleanInitial?.attrs?.inkStrokes || (initialContent as any)?.attrs?.inkStrokes;
+        if (strokes && Array.isArray(strokes)) {
+            setInkStrokes(strokes);
+        } else if (editor?.state?.doc?.attrs?.inkStrokes && Array.isArray(editor.state.doc.attrs.inkStrokes) && editor.state.doc.attrs.inkStrokes.length > 0) {
+            setInkStrokes(editor.state.doc.attrs.inkStrokes);
+        }
+    }, [cleanInitial, initialContent, editor]);
+
     // Handle restore-content custom event
     useEffect(() => {
         if (!editor) return;
@@ -176,11 +185,18 @@ function CollaborativeEditor({
                 } else {
                     editor.commands.setContent(cleanJson);
                 }
+                const restoredStrokes = cleanJson?.attrs?.inkStrokes || [];
+                setInkStrokes(restoredStrokes);
+                setEditorInkStrokes(editor, restoredStrokes);
                 userHasTypedRef.current = true;
             } catch (err) {
                 console.error('Failed to restore via Yjs/setContent:', err);
                 try {
                     editor.commands.setContent(content);
+                    const parsedFallback = typeof content === 'string' ? JSON.parse(content) : content;
+                    const fallbackStrokes = parsedFallback?.attrs?.inkStrokes || [];
+                    setInkStrokes(fallbackStrokes);
+                    setEditorInkStrokes(editor, fallbackStrokes);
                     userHasTypedRef.current = true;
                 } catch (fallbackErr) {
                     console.error('Fallback setContent failed:', fallbackErr);

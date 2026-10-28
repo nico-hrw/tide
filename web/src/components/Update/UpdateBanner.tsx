@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CheckCircle2 } from 'lucide-react';
 import {
@@ -15,7 +16,69 @@ import { apiFetch } from '@/lib/api';
 
 type BannerState = 'idle' | 'ascending' | 'banner' | 'success';
 
+function isAuthOrLoginRoute(path: string | null): boolean {
+    const current = path ?? (typeof window !== 'undefined' ? window.location.pathname : '');
+    if (!current) return false;
+    return current.startsWith('/auth') || current.startsWith('/login');
+}
+
+function hasAuthToken(): boolean {
+    if (typeof window === 'undefined') return false;
+    try {
+        const tokenKeys = [
+            'tide_session_token',
+            'tide_session_key',
+            'token',
+            'session_token',
+            'auth_token',
+        ];
+        return tokenKeys.some(key => {
+            const lVal = localStorage.getItem(key);
+            const sVal = sessionStorage.getItem(key);
+            return (lVal !== null && lVal !== '') || (sVal !== null && sVal !== '');
+        });
+    } catch {
+        return false;
+    }
+}
+
+function isVersionDismissed(version: string): boolean {
+    if (typeof window === 'undefined' || !version) return false;
+    try {
+        const cleanVersion = version.replace(/^v/i, '');
+        if (
+            localStorage.getItem(`dismissed_${version}`) ||
+            localStorage.getItem(`dismissed_${cleanVersion}`) ||
+            localStorage.getItem(`dismissed_v${cleanVersion}`)
+        ) {
+            return true;
+        }
+        if (version === getStoredDismissedVersion() || cleanVersion === getStoredDismissedVersion()) {
+            return true;
+        }
+        return false;
+    } catch {
+        return false;
+    }
+}
+
+function persistDismissedVersion(version: string): void {
+    if (typeof window === 'undefined' || !version) return;
+    try {
+        const cleanVersion = version.replace(/^v/i, '');
+        localStorage.setItem(`dismissed_${version}`, 'true');
+        localStorage.setItem(`dismissed_${cleanVersion}`, 'true');
+        setStoredDismissedVersion(version);
+    } catch {
+        // Ignore storage errors
+    }
+}
+
 export default function UpdateBanner() {
+    const pathname = usePathname();
+    const [mounted, setMounted] = useState<boolean>(false);
+    const [authTokenPresent, setAuthTokenPresent] = useState<boolean>(false);
+
     const [bannerState, setBannerState] = useState<BannerState>(() => {
         if (typeof window !== 'undefined' && checkAndClearPostUpdateFlag()) {
             return 'success';
@@ -23,9 +86,15 @@ export default function UpdateBanner() {
         return 'idle';
     });
     const [remoteVersion, setRemoteVersion] = useState<string | null>(null);
+    const remoteVersionRef = useRef<string | null>(null);
     const [isUpdating, setIsUpdating] = useState<boolean>(false);
     const [isMobile, setIsMobile] = useState<boolean>(false);
     const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    useEffect(() => {
+        setMounted(true);
+        setAuthTokenPresent(hasAuthToken());
+    }, [pathname]);
 
     // Track responsive layout for starting coordinate of the ascending sphere
     useEffect(() => {
@@ -36,6 +105,20 @@ export default function UpdateBanner() {
         window.addEventListener('resize', updateIsMobile);
         return () => window.removeEventListener('resize', updateIsMobile);
     }, []);
+
+    // If on auth/login or no token, ensure any active banner state is reset
+    useEffect(() => {
+        if (mounted && (isAuthOrLoginRoute(pathname) || !authTokenPresent)) {
+            setBannerState(prev => {
+                if (prev === 'ascending') {
+                    window.dispatchEvent(
+                        new CustomEvent('tide:bubble_traversing', { detail: { active: false } })
+                    );
+                }
+                return 'idle';
+            });
+        }
+    }, [mounted, pathname, authTokenPresent]);
 
     // Handle auto-dismissal if initialized in success state
     useEffect(() => {
@@ -50,6 +133,13 @@ export default function UpdateBanner() {
     }, [bannerState]);
 
     const triggerUpdate = useCallback((newVer: string) => {
+        if (isAuthOrLoginRoute(pathname) || !hasAuthToken()) {
+            return;
+        }
+        if (isVersionDismissed(newVer)) {
+            return;
+        }
+        remoteVersionRef.current = newVer;
         setRemoteVersion(newVer);
         setBannerState(prev => {
             if (prev === 'banner' || prev === 'ascending') return prev;
@@ -58,9 +148,12 @@ export default function UpdateBanner() {
             );
             return 'ascending';
         });
-    }, []);
+    }, [pathname]);
 
     const checkForUpdate = useCallback(async () => {
+        if (isAuthOrLoginRoute(pathname) || !hasAuthToken()) {
+            return;
+        }
         try {
             const res = await apiFetch('/api/v1/version');
             if (res.ok) {
@@ -69,7 +162,7 @@ export default function UpdateBanner() {
                 if (
                     version &&
                     isNewerVersion(version, CURRENT_APP_VERSION) &&
-                    version !== getStoredDismissedVersion()
+                    !isVersionDismissed(version)
                 ) {
                     triggerUpdate(version);
                 }
@@ -77,9 +170,13 @@ export default function UpdateBanner() {
         } catch {
             // Silently ignore network or offline failures
         }
-    }, [triggerUpdate]);
+    }, [pathname, triggerUpdate]);
 
     useEffect(() => {
+        if (!mounted || isAuthOrLoginRoute(pathname) || !authTokenPresent) {
+            return;
+        }
+
         const initialTimer = setTimeout(() => {
             void checkForUpdate();
         }, 500);
@@ -88,12 +185,15 @@ export default function UpdateBanner() {
         const interval = setInterval(checkForUpdate, 15 * 60 * 1000);
 
         const handleAppUpdate = (event: Event) => {
+            if (isAuthOrLoginRoute(pathname) || !hasAuthToken()) {
+                return;
+            }
             const customEvent = event as CustomEvent;
             const version = customEvent.detail?.version || customEvent.detail?.data?.version;
             if (version) {
                 if (
                     isNewerVersion(version, CURRENT_APP_VERSION) &&
-                    version !== getStoredDismissedVersion()
+                    !isVersionDismissed(version)
                 ) {
                     triggerUpdate(version);
                 }
@@ -112,12 +212,13 @@ export default function UpdateBanner() {
                 new CustomEvent('tide:bubble_traversing', { detail: { active: false } })
             );
         };
-    }, [checkForUpdate, triggerUpdate]);
+    }, [mounted, pathname, authTokenPresent, checkForUpdate, triggerUpdate]);
 
     const handleReload = () => {
         setIsUpdating(true);
-        if (remoteVersion) {
-            setStoredDismissedVersion(remoteVersion);
+        const versionToDismiss = remoteVersion || remoteVersionRef.current;
+        if (versionToDismiss) {
+            persistDismissedVersion(versionToDismiss);
         }
         setPostUpdateFlag();
         if ('serviceWorker' in navigator) {
@@ -129,8 +230,9 @@ export default function UpdateBanner() {
     };
 
     const handleDismiss = useCallback(() => {
-        if (remoteVersion) {
-            setStoredDismissedVersion(remoteVersion);
+        const versionToDismiss = remoteVersion || remoteVersionRef.current;
+        if (versionToDismiss) {
+            persistDismissedVersion(versionToDismiss);
         }
         setBannerState('idle');
     }, [remoteVersion]);
@@ -144,6 +246,10 @@ export default function UpdateBanner() {
             return () => clearTimeout(timer);
         }
     }, [bannerState, handleDismiss]);
+
+    if (!mounted || isAuthOrLoginRoute(pathname) || !authTokenPresent) {
+        return null;
+    }
 
     return (
         <AnimatePresence>

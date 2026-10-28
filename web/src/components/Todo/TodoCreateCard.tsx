@@ -14,6 +14,8 @@ export interface TaskCreateDraft {
   folder: string;
   tags: string[];
   showInCalendar: boolean;
+  parentId?: string | null;
+  order?: number;
 }
 
 export interface TodoCreateCardProps {

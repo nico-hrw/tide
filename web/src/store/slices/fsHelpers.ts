@@ -90,6 +90,8 @@ export async function decryptTasks(
                     createdAt: meta.createdAt as string | undefined,
                     completedAt: meta.completedAt as string | undefined,
                     isArchived: meta.isArchived as boolean | undefined,
+                    parentId: (meta.parentId as string | null) ?? null,
+                    order: (meta.order as number) ?? 0,
                 } as TaskItem);
             } else {
                 loadedTasks.push({ id: t.id, title: 'Locked Task (Decrypting...)', isCompleted: false, status: 'todo', isLocked: true } as unknown as TaskItem);
@@ -122,6 +124,8 @@ export function reconcileTasksWithLocal(
             ...(local.completedAt !== bt.completedAt && local.isCompleted ? { completedAt: local.completedAt } : {}),
             ...(local.createdAt && !bt.createdAt ? { createdAt: local.createdAt } : {}),
             ...(local.isArchived !== undefined && local.isArchived !== bt.isArchived ? { isArchived: local.isArchived } : {}),
+            ...(local.parentId !== undefined && local.parentId !== bt.parentId ? { parentId: local.parentId } : {}),
+            ...(local.order !== undefined && local.order !== bt.order ? { order: local.order } : {}),
         };
     });
 
