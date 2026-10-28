@@ -11,6 +11,7 @@ import EditorGutter from '@/components/Canvas/EditorGutter';
 import SaveStatusMenu from '@/components/Editor/SaveStatusMenu';
 import ShareManagementPanel from '@/components/ShareManagementPanel';
 import type { TextWidgetElement } from '@/types/canvas';
+import type { JSONContent } from '@tiptap/react';
 import { useNoteBackups } from '@/hooks/useNoteBackups';
 import NoteVersionTimeline from '@/components/Editor/NoteVersionTimeline';
 import NoteVersionDiffView from '@/components/Editor/NoteVersionDiffView';
@@ -68,7 +69,7 @@ export interface CanvasWorkspaceProps {
     submitRename: (id: string, newTitle: string) => void;
     setShowBackups: (show: boolean) => void;
     showBackups?: boolean;
-    onRestoreBackup?: (content: any) => void;
+    onRestoreBackup?: (content: JSONContent | Record<string, unknown> | null) => void;
     handleShare: (e: any, id?: string) => void;
     setNoteSecurityModalItem: (item: any) => void;
     handleDeleteNote: (e: any, id: string) => void;
