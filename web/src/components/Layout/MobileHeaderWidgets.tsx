@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { DT } from '@/lib/designTokens';
 
 const NIGHT_TEMPLATES: readonly string[] = [
   'Gute Nacht{name} – noch wach?', 'Späte Stunde{name}!', 'Schlaf gut{name}!',
@@ -87,25 +86,14 @@ export interface CountdownEvent {
   color?: string;
 }
 
-function getColorStyles(color?: string) {
-  const fallback = DT.accent || '#3b82f6';
-  const c = color && color.trim() ? color.trim() : fallback;
-  if (/^#[0-9a-fA-F]{6}$/.test(c)) {
-    return { bg: `${c}1F`, border: `1px solid ${c}40`, dot: c, text: c };
-  }
-  if (/^#[0-9a-fA-F]{3}$/.test(c)) {
-    const expanded = `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}`;
-    return { bg: `${expanded}1F`, border: `1px solid ${expanded}40`, dot: expanded, text: expanded };
-  }
-  return { bg: `${fallback}1F`, border: `1px solid ${fallback}40`, dot: fallback, text: fallback };
-}
-
 export const NextEventCountdown = React.memo(function NextEventCountdown({
   events,
   onTap,
+  className,
 }: {
   events: CountdownEvent[];
   onTap?: (eventId: string) => void;
+  className?: string;
 }) {
   const [now, setNow] = useState<Date>(() => new Date());
 
@@ -171,54 +159,26 @@ export const NextEventCountdown = React.memo(function NextEventCountdown({
   const pad = (n: number) => n.toString().padStart(2, '0');
   const h = Math.floor(diffSec / 3600);
   const m = Math.floor((diffSec % 3600) / 60);
-  const s = diffSec % 60;
-  const timeStr = `${pad(h)}:${pad(m)}:${pad(s)}`;
-
-  const title = target.event.title?.trim() || 'Termin';
-  const colorStyles = getColorStyles(target.event.color);
+  const formattedHoursMins = `${h}:${pad(m)}h`;
 
   return (
     <button
       type="button"
       onClick={() => onTap?.(target.event.id)}
-      aria-label={`${target.isActive ? 'Laufender Termin' : 'Nächster Termin'}: ${title}, ${
-        target.isActive ? 'noch' : 'in'
-      } ${timeStr}`}
-      className="shrink-0 max-w-[150px] w-full cursor-pointer text-left transition-opacity hover:opacity-90 active:scale-[0.98] transition-transform overflow-hidden"
-      style={{
-        borderRadius: DT.cardRadius || '14px',
-        padding: '6px 10px',
-        backgroundColor: colorStyles.bg,
-        border: colorStyles.border,
-      }}
+      className={`bg-gray-900 text-white px-4 py-3 rounded-xl text-right shadow-[0_4px_10px_rgba(0,0,0,0.15)] flex flex-col justify-center shrink-0 transition-transform active:scale-95 ${className || ''}`}
     >
-      <div
-        className="text-[12px] font-bold truncate leading-tight"
-        style={{ color: 'var(--foreground, #111827)' }}
-        title={title}
-      >
-        {title}
-      </div>
-      <div className="text-[11px] font-medium tabular-nums flex items-center gap-1.5 leading-tight mt-0.5">
-        {target.isActive && (
-          <span className="relative flex h-2 w-2 shrink-0">
-            <span
-              className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75"
-              style={{ backgroundColor: colorStyles.dot }}
-            />
-            <span
-              className="relative inline-flex rounded-full h-2 w-2"
-              style={{ backgroundColor: colorStyles.dot }}
-            />
-          </span>
-        )}
-        <span className="text-[var(--muted-text,#6b7280)] font-normal">
-          {target.isActive ? 'noch' : 'in'}
-        </span>
-        <span className="font-bold" style={{ color: colorStyles.text }}>
-          {timeStr}
-        </span>
-      </div>
+      <p className="text-base sm:text-lg font-bold text-white mb-0.5 leading-none truncate max-w-[140px] text-right">
+        {target.event.title || 'Termin'}
+      </p>
+      {target.isActive ? (
+        <p className="text-[11px] font-medium text-gray-400 text-right">
+          endet in: {formattedHoursMins}
+        </p>
+      ) : (
+        <p className="text-[11px] font-medium text-gray-400 text-right">
+          in: {formattedHoursMins}
+        </p>
+      )}
     </button>
   );
 });

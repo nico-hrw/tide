@@ -1070,93 +1070,95 @@ export default function MobileLayout({
       </AnimatePresence>
 
       {/* ── Top Header with Greeting, Sidebar Menu, and Apple-style Date Wheel ── */}
-      <div
-        className="shrink-0 z-20 sticky top-0"
-        style={{
-          paddingTop: 'max(12px, calc(env(safe-area-inset-top) + 4px))',
-          background: T.bg,
-        }}
-      >
-        {/* Row 1: Date & Greeting ("XX. Monat", "Guten Morgen/Mittag/Tag/Abend Name!") */}
-        <div className="px-5 pt-1 pb-1.5 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 flex-wrap" style={{ color: T.mut }}>
-              {activeTab === 'calendar' ? (
-                <>
-                  <span>
-                    {isSameDay(activeDate, now)
-                      ? format(now, 'd. MMMM', { locale: de })
-                      : format(activeDate, 'd. MMMM yyyy', { locale: de })}
-                  </span>
-                  {wheelVisibleMonth && wheelVisibleMonth !== format(isSameDay(activeDate, now) ? now : activeDate, 'MMMM yyyy', { locale: de }) && (
-                    <span
-                      className="text-[10px] px-1.5 py-0.5 rounded-full font-bold normal-case tracking-normal"
-                      style={{
-                        background: theme === 'dark' ? 'rgba(168, 85, 247, 0.25)' : 'rgba(147, 51, 234, 0.12)',
-                        color: theme === 'dark' ? '#d8b4fe' : '#7e22ce',
-                      }}
-                    >
-                      {wheelVisibleMonth}
+      {activeTab !== 'todos' && (
+        <div
+          className="shrink-0 z-20 sticky top-0"
+          style={{
+            paddingTop: 'max(12px, calc(env(safe-area-inset-top) + 4px))',
+            background: T.bg,
+          }}
+        >
+          {/* Row 1: Date & Greeting ("XX. Monat", "Guten Morgen/Mittag/Tag/Abend Name!") */}
+          <div className="px-5 pt-1 pb-1.5 flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 flex-wrap" style={{ color: T.mut }}>
+                {activeTab === 'calendar' ? (
+                  <>
+                    <span>
+                      {isSameDay(activeDate, now)
+                        ? format(now, 'd. MMMM', { locale: de })
+                        : format(activeDate, 'd. MMMM yyyy', { locale: de })}
                     </span>
-                  )}
-                </>
-              ) : (
-                format(now, 'd. MMMM', { locale: de })
-              )}
-            </p>
-            <h1 className="text-[1.7rem] font-black tracking-tight line-clamp-2 leading-tight mt-0.5" style={{ color: T.pri }}>
-              {formatGreeting(greetingTemplate, displayName)}
-            </h1>
+                    {wheelVisibleMonth && wheelVisibleMonth !== format(isSameDay(activeDate, now) ? now : activeDate, 'MMMM yyyy', { locale: de }) && (
+                      <span
+                        className="text-[10px] px-1.5 py-0.5 rounded-full font-bold normal-case tracking-normal"
+                        style={{
+                          background: theme === 'dark' ? 'rgba(168, 85, 247, 0.25)' : 'rgba(147, 51, 234, 0.12)',
+                          color: theme === 'dark' ? '#d8b4fe' : '#7e22ce',
+                        }}
+                      >
+                        {wheelVisibleMonth}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  format(now, 'd. MMMM', { locale: de })
+                )}
+              </p>
+              <h1 className="text-[1.7rem] font-black tracking-tight line-clamp-2 leading-tight mt-0.5" style={{ color: T.pri }}>
+                {formatGreeting(greetingTemplate, displayName)}
+              </h1>
+            </div>
+            <NextEventCountdown events={expandedEvents} onTap={handleCountdownTap} />
           </div>
-          <NextEventCountdown events={expandedEvents} onTap={handleCountdownTap} />
+
+          {/* Row 2: Apple-style Horizontal Date Wheel */}
+          {activeTab === 'calendar' && calViewMode !== 'month' && (
+            <MobileDateWheel
+              activeDate={activeDate}
+              onSelectDate={d => {
+                setActiveDate(d);
+                if (calViewMode === 'agenda') {
+                  requestAnimationFrame(() => {
+                    document.getElementById(`day-${format(d, 'yyyy-MM-dd')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  });
+                }
+              }}
+              now={now}
+              theme={theme}
+              onMonthChange={setWheelVisibleMonth}
+            />
+          )}
+
+          {/* Row 3: View mode selector — compact pills */}
+          {activeTab === 'calendar' && (
+            <div className="flex items-center gap-1 px-4 pb-2 pt-0.5">
+              {(['day', 'agenda', 'week', 'month'] as const).map(mode => {
+                const labels: Record<string, string> = { day: 'Tag', agenda: 'Fortlaufend', week: 'Woche', month: 'Monat' };
+                const isAct = calViewMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    id={`btn-view-${mode}`}
+                    onClick={() => setCalViewMode(mode)}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all active:scale-95"
+                    style={{
+                      background: isAct
+                        ? (theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)')
+                        : 'transparent',
+                      color: isAct ? T.pri : T.mut,
+                    }}
+                  >
+                    {labels[mode]}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="h-px" style={{ background: T.brd }} />
         </div>
-
-        {/* Row 2: Apple-style Horizontal Date Wheel */}
-        {activeTab === 'calendar' && calViewMode !== 'month' && (
-          <MobileDateWheel
-            activeDate={activeDate}
-            onSelectDate={d => {
-              setActiveDate(d);
-              if (calViewMode === 'agenda') {
-                requestAnimationFrame(() => {
-                  document.getElementById(`day-${format(d, 'yyyy-MM-dd')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                });
-              }
-            }}
-            now={now}
-            theme={theme}
-            onMonthChange={setWheelVisibleMonth}
-          />
-        )}
-
-        {/* Row 3: View mode selector — compact pills */}
-        {activeTab === 'calendar' && (
-          <div className="flex items-center gap-1 px-4 pb-2 pt-0.5">
-            {(['day', 'agenda', 'week', 'month'] as const).map(mode => {
-              const labels: Record<string, string> = { day: 'Tag', agenda: 'Fortlaufend', week: 'Woche', month: 'Monat' };
-              const isAct = calViewMode === mode;
-              return (
-                <button
-                  key={mode}
-                  id={`btn-view-${mode}`}
-                  onClick={() => setCalViewMode(mode)}
-                  className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all active:scale-95"
-                  style={{
-                    background: isAct
-                      ? (theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)')
-                      : 'transparent',
-                    color: isAct ? T.pri : T.mut,
-                  }}
-                >
-                  {labels[mode]}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="h-px" style={{ background: T.brd }} />
-      </div>
+      )}
 
       {/* ── Main content area ───────────────────────────── */}
       {activeTab === 'calendar' ? (
@@ -1579,15 +1581,12 @@ export default function MobileLayout({
       ) : (
       /* ── Todos tab ── */
       <div
-        className="mobile-todos-container flex-1 min-h-0 relative w-full max-w-full flex flex-col overflow-hidden"
-        style={{ paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}
+        className="mobile-todos-container w-full h-full flex flex-col flex-1 min-h-0 relative max-w-full overflow-hidden pb-24"
+        style={{ paddingBottom: 'max(96px, calc(80px + env(safe-area-inset-bottom)))' }}
       >
         <style>{`
           .mobile-todos-container .sticky.top-0 {
-            display: none !important;
-          }
-          .mobile-todos-container [class*="bg-gradient-to-r"] {
-            display: none !important;
+            padding-top: max(16px, calc(env(safe-area-inset-top) + 8px)) !important;
           }
           .mobile-todos-container .max-w-4xl,
           .mobile-todos-container .md\\:max-w-5xl {

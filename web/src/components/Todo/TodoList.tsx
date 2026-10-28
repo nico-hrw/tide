@@ -195,6 +195,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('deadline');
+  const [showFilters, setShowFilters] = useState(true);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [newFolderNameInput, setNewFolderNameInput] = useState('');
 
@@ -503,7 +504,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   );
 
   return (
-    <div className={`flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto overflow-x-hidden w-full max-w-full relative select-none ${className}`}>
+    <div className={`w-full h-full flex flex-col bg-white dark:bg-[#0a0a0a] relative overflow-hidden ${className || ''}`}>
       <TodoListHeader
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -523,124 +524,170 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
 
       {viewMode === 'folders' ? (
-        <TodoFolderOverview
-          folders={folderStats}
-          unfiledCount={unfiledCount}
-          totalAllTasks={totalCount}
-          onSelectFolder={(folder) => {
-            setSelectedFolder(folder);
-            setViewMode('tasks');
-          }}
-          onCreateFolder={handleCreateFolder}
-          onDeleteFolder={handleDeleteFolder}
-          onBackToTasks={() => setViewMode('tasks')}
-          onAssignTaskFolder={(taskId, folderName) => updateTask(taskId, { folder: folderName || undefined })}
-        />
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <TodoFolderOverview
+            folders={folderStats}
+            unfiledCount={unfiledCount}
+            totalAllTasks={totalCount}
+            onSelectFolder={(folder) => {
+              setSelectedFolder(folder);
+              setViewMode('tasks');
+            }}
+            onCreateFolder={handleCreateFolder}
+            onDeleteFolder={handleDeleteFolder}
+            onBackToTasks={() => setViewMode('tasks')}
+            onAssignTaskFolder={(taskId, folderName) => updateTask(taskId, { folder: folderName || undefined })}
+          />
+        </div>
       ) : (
-        /* Main Container */
-        <div className="max-w-4xl md:max-w-5xl w-full mx-auto px-3 sm:px-6 md:px-8 py-4 sm:py-6 flex flex-col gap-4 sm:gap-5 pb-28 sm:pb-8">
-          <AnimatePresence mode="wait" initial={false}>
-            {focusedTask ? (
-              <motion.div
-                key={`focused-group-${focusedTask.id}`}
-                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                className="w-full"
-              >
-                <TodoFocusedGroupView
-                  groupTask={focusedTask}
-                  allTasks={tasks}
-                  onMinimize={() => setFocusedGroupId(null)}
-                  onToggleTask={handleToggleTask}
-                  onToggleInProgress={handleToggleInProgress}
-                  onUpdateTask={updateTask}
-                  onDeleteTask={deleteTask}
-                  completingTaskIds={completingTaskIds}
-                  onAddSubtask={async (title, parentId) => {
-                    await addTask({
-                      title,
-                      parentId,
-                      folder: focusedTask.folder,
-                      tags: focusedTask.tags ? [...focusedTask.tags] : [],
-                      priority: focusedTask.priority || 'medium',
-                      isCompleted: false,
-                      status: 'todo',
-                      order: focusedTask.children?.length || 0,
-                    });
-                  }}
-                />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="standard-list-view"
-                initial={{ opacity: 0, x: -300, scale: 0.95 }}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
-                exit={{ opacity: 0, x: -300, scale: 0.95, transition: { duration: 0.3 } }}
-                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                className="flex flex-col gap-4 sm:gap-5"
-              >
-                <TodoFolderBanner
-                  setViewMode={setViewMode}
-                  selectedFolder={selectedFolder}
-                  setSelectedFolder={setSelectedFolder}
-                  selectedFolderActiveCount={selectedFolderActiveCount}
-                />
-
-                {/* Task Creation Form Card (Collapsed by default) */}
-                {isCreateOpen && (
-                  <TodoCreateCard
-                    draft={draft} setDraft={setDraft} titleInputRef={titleInputRef}
-                    newTagInput={newTagInput} setNewTagInput={setNewTagInput}
-                    allTags={allTags} customTags={customTags} allFolders={allFolders}
-                    isSubmitting={isSubmitting} handleAddTask={handleAddTask}
-                    handleAddCustomTag={handleAddCustomTag} handleRemoveCustomTag={handleRemoveCustomTag}
-                    onClose={() => setIsCreateOpen(false)}
+        /* Center container */
+        <div className="w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2">
+          {/* Scrollable list container */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4 sm:py-6 flex flex-col gap-4 sm:gap-5 pb-28">
+            <AnimatePresence mode="wait" initial={false}>
+              {focusedTask ? (
+                <motion.div
+                  key={`focused-group-${focusedTask.id}`}
+                  initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                  transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                  className="w-full"
+                >
+                  <TodoFocusedGroupView
+                    groupTask={focusedTask}
+                    allTasks={tasks}
+                    onMinimize={() => setFocusedGroupId(null)}
+                    onToggleTask={handleToggleTask}
+                    onToggleInProgress={handleToggleInProgress}
+                    onUpdateTask={updateTask}
+                    onDeleteTask={deleteTask}
+                    completingTaskIds={completingTaskIds}
+                    onAddSubtask={async (title, parentId) => {
+                      await addTask({
+                        title,
+                        parentId,
+                        folder: focusedTask.folder,
+                        tags: focusedTask.tags ? [...focusedTask.tags] : [],
+                        priority: focusedTask.priority || 'medium',
+                        isCompleted: false,
+                        status: 'todo',
+                        order: focusedTask.children?.length || 0,
+                      });
+                    }}
                   />
-                )}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="standard-list-view"
+                  initial={{ opacity: 0, x: -300, scale: 0.95 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: -300, scale: 0.95, transition: { duration: 0.3 } }}
+                  transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex flex-col gap-4 sm:gap-5"
+                >
+                  <TodoFolderBanner
+                    setViewMode={setViewMode}
+                    selectedFolder={selectedFolder}
+                    setSelectedFolder={setSelectedFolder}
+                    selectedFolderActiveCount={selectedFolderActiveCount}
+                  />
 
-                {/* Filter & Sort Card */}
-                <TodoFilterBar
-                  searchQuery={searchQuery} setSearchQuery={setSearchQuery}
-                  filterStatus={filterStatus} setFilterStatus={setFilterStatus}
-                  totalCount={totalCount} activeCycleOpenCount={activeCycleOpenCount}
-                  activeCycleInProgressCount={activeCycleInProgressCount}
-                  activeCycleCompletedCount={activeCycleCompletedCount} archivedCount={archivedCount}
-                  allFolders={allFolders} unfiledCount={unfiledCount}
-                  selectedFolder={selectedFolder} setSelectedFolder={setSelectedFolder}
-                  allTags={allTags} selectedTag={selectedTag} setSelectedTag={setSelectedTag}
-                  tasks={tasks} filterPriority={filterPriority} setFilterPriority={setFilterPriority}
-                  sortBy={sortBy} setSortBy={setSortBy}
-                />
+                  {/* Task Creation Form Card (Collapsed by default) */}
+                  {isCreateOpen && (
+                    <TodoCreateCard
+                      draft={draft} setDraft={setDraft} titleInputRef={titleInputRef}
+                      newTagInput={newTagInput} setNewTagInput={setNewTagInput}
+                      allTags={allTags} customTags={customTags} allFolders={allFolders}
+                      isSubmitting={isSubmitting} handleAddTask={handleAddTask}
+                      handleAddCustomTag={handleAddCustomTag} handleRemoveCustomTag={handleRemoveCustomTag}
+                      onClose={() => setIsCreateOpen(false)}
+                    />
+                  )}
 
-                <TodoListSections
-                  selectedFolder={selectedFolder}
-                  setSelectedFolder={setSelectedFolder}
-                  filterStatus={filterStatus}
-                  searchQuery={searchQuery}
-                  tasks={tasks}
-                  sortedTasks={sortedTasks}
-                  tasksToRender={tasksToRender}
-                  activeTasks={activeTasks}
-                  recentlyCompletedTasks={recentlyCompletedTasks}
-                  archivedTasks={archivedTasks}
-                  archivedByTier={archivedByTier}
-                  openTiers={openTiers}
-                  showCompleted={showCompleted}
-                  showArchive={showArchive}
-                  setShowCompleted={setShowCompleted}
-                  setShowArchive={setShowArchive}
-                  setOpenTiers={setOpenTiers}
-                  setDraft={setDraft}
-                  setIsCreateOpen={setIsCreateOpen}
-                  setSelectedTag={setSelectedTag}
-                  selectedTag={selectedTag}
-                  renderTask={renderTask}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
+                  {/* Filter & Sort Card */}
+                  {showFilters && (
+                    <TodoFilterBar
+                      searchQuery={searchQuery} setSearchQuery={setSearchQuery}
+                      filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+                      totalCount={totalCount} activeCycleOpenCount={activeCycleOpenCount}
+                      activeCycleInProgressCount={activeCycleInProgressCount}
+                      activeCycleCompletedCount={activeCycleCompletedCount} archivedCount={archivedCount}
+                      allFolders={allFolders} unfiledCount={unfiledCount}
+                      selectedFolder={selectedFolder} setSelectedFolder={setSelectedFolder}
+                      allTags={allTags} selectedTag={selectedTag} setSelectedTag={setSelectedTag}
+                      tasks={tasks} filterPriority={filterPriority} setFilterPriority={setFilterPriority}
+                      sortBy={sortBy} setSortBy={setSortBy}
+                    />
+                  )}
+
+                  <TodoListSections
+                    selectedFolder={selectedFolder}
+                    setSelectedFolder={setSelectedFolder}
+                    filterStatus={filterStatus}
+                    searchQuery={searchQuery}
+                    tasks={tasks}
+                    sortedTasks={sortedTasks}
+                    tasksToRender={tasksToRender}
+                    activeTasks={activeTasks}
+                    recentlyCompletedTasks={recentlyCompletedTasks}
+                    archivedTasks={archivedTasks}
+                    archivedByTier={archivedByTier}
+                    openTiers={openTiers}
+                    showCompleted={showCompleted}
+                    showArchive={showArchive}
+                    setShowCompleted={setShowCompleted}
+                    setShowArchive={setShowArchive}
+                    setOpenTiers={setOpenTiers}
+                    setDraft={setDraft}
+                    setIsCreateOpen={setIsCreateOpen}
+                    setSelectedTag={setSelectedTag}
+                    selectedTag={selectedTag}
+                    renderTask={renderTask}
+                    editingTaskId={editingTaskId}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Minimalist Floating Action Buttons (FABs) from tide_minimalist_to_do_app.html */}
+          {editingTaskId === null && (
+            <div className="absolute bottom-8 right-6 flex items-center gap-3 z-30">
+              {/* Filter FAB */}
+              <button
+                type="button"
+                onClick={() => setShowFilters((prev) => !prev)}
+                aria-label="Filter"
+                className="w-12 h-12 bg-white dark:bg-[#1f1f1f] text-gray-700 dark:text-gray-200 rounded-full flex items-center justify-center shadow-[0_8px_16px_rgba(0,0,0,0.08)] border border-gray-100 dark:border-white/10 transition-transform active:scale-95 cursor-pointer"
+              >
+                <SlidersHorizontal size={20} />
+              </button>
+
+              {/* Add FAB */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreateOpen(true);
+                  setDraft({
+                    title: '',
+                    description: '',
+                    priority: 'medium',
+                    dueDate: '',
+                    recurrence: 'none',
+                    recurrenceEnd: '',
+                    folder: selectedFolder || '',
+                    tags: [],
+                    showInCalendar: true,
+                  });
+                }}
+                aria-label="Neue Aufgabe"
+                className="w-14 h-14 bg-gray-900 dark:bg-white hover:bg-black text-white dark:text-gray-900 rounded-full flex items-center justify-center shadow-[0_8px_16px_rgba(0,0,0,0.25)] transition-transform active:scale-95 cursor-pointer"
+              >
+                <Plus size={24} strokeWidth={2.5} />
+              </button>
+            </div>
+          )}
         </div>
       )}
 
