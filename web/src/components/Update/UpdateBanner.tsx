@@ -116,16 +116,34 @@ export default function UpdateBanner() {
 
     const handleReload = () => {
         setIsUpdating(true);
+        if (remoteVersion) {
+            setStoredDismissedVersion(remoteVersion);
+        }
         setPostUpdateFlag();
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(regs => {
+                regs.forEach(reg => reg.waiting?.postMessage({ type: 'SKIP_WAITING' }));
+            });
+        }
         window.location.reload();
     };
 
-    const handleDismiss = () => {
+    const handleDismiss = useCallback(() => {
         if (remoteVersion) {
             setStoredDismissedVersion(remoteVersion);
         }
         setBannerState('idle');
-    };
+    }, [remoteVersion]);
+
+    // Auto-dismiss banner after 10s
+    useEffect(() => {
+        if (bannerState === 'banner') {
+            const timer = setTimeout(() => {
+                handleDismiss();
+            }, 10000);
+            return () => clearTimeout(timer);
+        }
+    }, [bannerState, handleDismiss]);
 
     return (
         <AnimatePresence>
@@ -133,16 +151,18 @@ export default function UpdateBanner() {
                 <motion.div
                     key="bubble-ascend"
                     initial={{
-                        top: 'calc(100vh - 60px)',
-                        left: isMobile ? '50%' : '24px',
+                        bottom: isMobile ? '24px' : '40px',
+                        left: isMobile ? '50%' : '20px',
                         x: isMobile ? '-50%' : '0%',
+                        top: 'auto',
                         scale: 1,
                         opacity: 1,
                     }}
                     animate={{
-                        top: '24px',
-                        left: '50%',
-                        x: '-50%',
+                        bottom: isMobile ? '96px' : '260px',
+                        left: isMobile ? '50%' : '20px',
+                        x: isMobile ? '-50%' : '0%',
+                        top: 'auto',
                         scale: 1,
                         opacity: 1,
                     }}
@@ -167,9 +187,9 @@ export default function UpdateBanner() {
                     key="update-banner"
                     initial={{ scale: 0.3, opacity: 0.8 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                    exit={{ opacity: 0, y: 20, scale: 0.95 }}
                     transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                    className="fixed top-6 left-1/2 -translate-x-1/2 z-[10000] w-[90%] max-w-md bg-gray-900 text-white rounded-full pl-4 pr-2 py-1.5 flex items-center gap-3 shadow-2xl ring-1 ring-white/10"
+                    className="fixed bottom-24 md:bottom-[260px] left-1/2 md:left-4 -translate-x-1/2 md:translate-x-0 z-[10000] w-[90%] md:w-auto md:max-w-md bg-gray-900 text-white rounded-full pl-4 pr-2 py-1.5 flex items-center gap-3 shadow-2xl ring-1 ring-white/10"
                 >
                     <span className="text-base leading-none select-none">⚡</span>
                     <span className="text-sm font-medium tracking-wide truncate">
@@ -179,7 +199,7 @@ export default function UpdateBanner() {
                     <button
                         onClick={handleReload}
                         disabled={isUpdating}
-                        className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 bg-emerald-400/10 hover:bg-emerald-400/20 rounded-full px-3 py-1 transition-colors whitespace-nowrap disabled:opacity-50"
+                        className="text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 rounded-full px-3 py-1 transition-colors whitespace-nowrap disabled:opacity-50 shadow-sm"
                     >
                         {isUpdating ? 'Wird geladen...' : 'Aktualisieren'}
                     </button>
@@ -196,11 +216,11 @@ export default function UpdateBanner() {
             {bannerState === 'success' && (
                 <motion.div
                     key="success-banner"
-                    initial={{ opacity: 0, y: -20, scale: 0.95 }}
+                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                    exit={{ opacity: 0, y: 20, scale: 0.95 }}
                     transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                    className="fixed top-6 left-1/2 -translate-x-1/2 z-[10000] pointer-events-auto"
+                    className="fixed bottom-24 md:bottom-[260px] left-1/2 md:left-4 -translate-x-1/2 md:translate-x-0 z-[10000] pointer-events-auto"
                 >
                     <div className="bg-gray-900 text-white rounded-full pl-4 pr-4 py-1.5 flex items-center gap-2.5 shadow-2xl ring-1 ring-white/10">
                         <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />

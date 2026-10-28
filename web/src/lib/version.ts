@@ -6,7 +6,7 @@ const POST_UPDATE_KEY = 'tide_just_updated';
 export function getStoredDismissedVersion(): string | null {
     if (typeof window === 'undefined') return null;
     try {
-        return sessionStorage.getItem(DISMISSED_VERSION_KEY);
+        return localStorage.getItem(DISMISSED_VERSION_KEY);
     } catch {
         return null;
     }
@@ -15,7 +15,7 @@ export function getStoredDismissedVersion(): string | null {
 export function setStoredDismissedVersion(version: string): void {
     if (typeof window === 'undefined') return;
     try {
-        sessionStorage.setItem(DISMISSED_VERSION_KEY, version);
+        localStorage.setItem(DISMISSED_VERSION_KEY, version);
     } catch {
         // Ignore storage errors (e.g. private browsing or quota restrictions)
     }
