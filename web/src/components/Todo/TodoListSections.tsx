@@ -61,7 +61,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
               ? { opacity: 0, height: 0, marginBottom: 0, overflow: 'hidden', pointerEvents: 'none' as const }
               : { opacity: 1, height: 'auto', marginBottom: 12, pointerEvents: 'auto' as const }
           }
-          transition={{ duration: 0.15 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
           className="text-lg font-bold text-gray-900 dark:text-white mt-1"
         >
           {sectionTitle}
@@ -106,7 +106,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                   scale: 0.95,
                   transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1] },
                 }}
-                transition={{ type: 'spring', stiffness: 280, damping: 28, mass: 0.8 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 style={itemStyle}
                 className={isEditing ? 'relative z-20' : undefined}
               >

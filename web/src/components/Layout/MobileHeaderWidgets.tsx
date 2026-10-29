@@ -171,7 +171,7 @@ export const NextEventCountdown = React.memo(function NextEventCountdown({
         {target.event.title || 'Termin'}
       </span>
       <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-none">
-        {target.isActive ? 'endet in' : 'startet in'}
+        {target.isActive ? 'NOCH' : 'STARTET IN'}
       </span>
       <span className="text-2xl sm:text-[26px] font-black tracking-tight tabular-nums text-white leading-none">
         {formattedHoursMins}

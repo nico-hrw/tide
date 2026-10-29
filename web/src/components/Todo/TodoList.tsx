@@ -175,6 +175,43 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const [isSubmitting, setIsSubmitting] = useState(false);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
+  const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('deadline');
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+  const [newFolderNameInput, setNewFolderNameInput] = useState('');
+
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement | null>(null);
+  const filterMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const cancelEditing = (_id?: string) => {
+    setEditingTaskId(null);
+  };
+
+  const editingTaskIdRef = useRef<string | null>(editingTaskId);
+  editingTaskIdRef.current = editingTaskId;
+
+  const cancelEditingRef = useRef(cancelEditing);
+  cancelEditingRef.current = cancelEditing;
+
+  const saveEditingRef = useRef<(id: string) => void>(() => {});
+
+  const deleteTaskRef = useRef(deleteTask);
+  deleteTaskRef.current = deleteTask;
+
+  // Synchronize editing state with the bottom navigation
+  useEffect(() => {
+    if (editingTaskId) {
+      window.dispatchEvent(new CustomEvent('tide:todo-editing-start', { detail: { id: editingTaskId } }));
+    } else {
+      window.dispatchEvent(new CustomEvent('tide:todo-editing-end'));
+    }
+  }, [editingTaskId]);
+
   useEffect(() => {
     const handleNewTodoEvent = () => {
       setViewMode('tasks');
@@ -191,28 +228,42 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       setIsFolderModalOpen(true);
     };
 
+    const handleCancelEdit = () => {
+      const currentId = editingTaskIdRef.current || editingTaskId;
+      if (currentId) cancelEditingRef.current(currentId);
+    };
+    const handleSaveEdit = () => {
+      const currentId = editingTaskIdRef.current || editingTaskId;
+      if (currentId) saveEditingRef.current(currentId);
+    };
+    const handleDeleteTask = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id?: string }>;
+      if (customEvent.detail?.id) {
+        deleteTaskRef.current(customEvent.detail.id);
+      }
+      setEditingTaskId(null);
+    };
+    const handleNewSubtask = () => {
+      window.dispatchEvent(new CustomEvent('tide:toggle-subtask-input'));
+    };
+
     window.addEventListener('tide:new-todo', handleNewTodoEvent);
     window.addEventListener('tide:toggle-todo-filter', handleToggleFilterEvent);
     window.addEventListener('tide:new-todo-folder', handleNewFolderEvent);
+    window.addEventListener('tide:todo-cancel-edit', handleCancelEdit);
+    window.addEventListener('tide:todo-save-edit', handleSaveEdit);
+    window.addEventListener('tide:todo-delete', handleDeleteTask as EventListener);
+    window.addEventListener('tide:new-subtask', handleNewSubtask);
     return () => {
       window.removeEventListener('tide:new-todo', handleNewTodoEvent);
       window.removeEventListener('tide:toggle-todo-filter', handleToggleFilterEvent);
       window.removeEventListener('tide:new-todo-folder', handleNewFolderEvent);
+      window.removeEventListener('tide:todo-cancel-edit', handleCancelEdit);
+      window.removeEventListener('tide:todo-save-edit', handleSaveEdit);
+      window.removeEventListener('tide:todo-delete', handleDeleteTask as EventListener);
+      window.removeEventListener('tide:new-subtask', handleNewSubtask);
     };
   }, []);
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
-  const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
-  const [sortBy, setSortBy] = useState<SortOption>('deadline');
-  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
-  const [newFolderNameInput, setNewFolderNameInput] = useState('');
-
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
-  const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
-  const addMenuRef = useRef<HTMLDivElement | null>(null);
-  const filterMenuRef = useRef<HTMLDivElement | null>(null);
 
   // Close menus on click outside or escape key
   useEffect(() => {
@@ -458,6 +509,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     }
     setEditingTaskId(null);
   };
+  saveEditingRef.current = saveEditing;
 
   const handleRowClick = (task: TaskItem) => {
     if (editingTaskId === task.id) {
@@ -574,7 +626,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         handleToggleTask={handleToggleTask}
         handleToggleInProgress={handleToggleInProgress}
         saveEditing={saveEditing}
-        cancelEditing={() => setEditingTaskId(null)}
+        cancelEditing={() => cancelEditing(task.id)}
         deleteTask={deleteTask}
         onRowClick={handleRowClick}
         onFocusGroup={(groupTask) => setFocusedGroupId(groupTask.id)}
@@ -582,7 +634,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   );
 
   return (
-    <div className={`w-full h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] relative overflow-hidden ${className || ''}`}>
+    <div className={`w-full h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] relative overflow-hidden ${editingTaskId !== null ? 'pt-0 overflow-hidden' : ''} ${className || ''}`}>
       <TodoListHeader
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -620,7 +672,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         </div>
       ) : (
         /* Center container */
-        <div className="w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2">
+        <div className={`w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2 ${editingTaskId !== null ? 'pt-0 overflow-hidden' : ''}`}>
           {/* Scrollable list container */}
           <div className={`flex-1 ${editingTaskId !== null ? 'overflow-hidden pt-0' : 'overflow-y-auto pt-1 sm:pt-2'} overflow-x-hidden px-3 sm:px-4 ${editingTaskId !== null ? 'pb-8' : 'pb-16'} flex flex-col gap-2`}>
             <AnimatePresence mode="wait" initial={false}>

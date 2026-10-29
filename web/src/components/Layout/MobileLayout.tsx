@@ -7,7 +7,7 @@ import {
   ChevronRight, ChevronLeft, ChevronDown, Plus, Search, Calendar as CalendarIcon,
   Trash2, GraduationCap, Clock, MapPin,
   X, PenLine, FolderPlus,
-  BookOpen, Coffee, RotateCcw, ListTodo, SlidersHorizontal,
+  BookOpen, Coffee, RotateCcw, ListTodo, SlidersHorizontal, Check,
 } from 'lucide-react';
 import { isSameDay, format, startOfWeek, addDays, isAfter } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -375,6 +375,18 @@ export default function MobileLayout({
   const [isSharedFolderOpen, setIsSharedFolderOpen] = useState(true);
   const [pinPromptItem, setPinPromptItem] = useState<PinPromptTarget | null>(null);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
+  const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleStart = (e: any) => setEditingTodoId(e.detail?.id || 'active');
+    const handleEnd = () => setEditingTodoId(null);
+    window.addEventListener('tide:todo-editing-start', handleStart);
+    window.addEventListener('tide:todo-editing-end', handleEnd);
+    return () => {
+      window.removeEventListener('tide:todo-editing-start', handleStart);
+      window.removeEventListener('tide:todo-editing-end', handleEnd);
+    };
+  }, []);
 
   useEffect(() => {
     const handlePromptPin = (e: Event) => {
@@ -1592,79 +1604,128 @@ export default function MobileLayout({
           paddingBottom: 'max(14px, env(safe-area-inset-bottom))',
         }}
       >
-        {/* Tabs */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {[
-            { id: 'calendar' as const, icon: <CalendarIcon size={20} />, label: 'Kalender' },
-            { id: 'notes' as const, icon: <BookOpen size={20} />, label: 'Notizen' },
-            ...(!enabledExtensions || enabledExtensions.includes('todos')
-              ? [{ id: 'todos' as const, icon: <ListTodo size={20} />, label: 'Todos' }]
-              : []),
-          ].map(tab => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setIsPlusMenuOpen(false);
-                }}
-                className="w-10 h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
-                style={{
-                  background: isActive
-                    ? (theme === 'dark' ? '#ffffff' : '#000000')
-                    : 'transparent',
-                  color: isActive
-                    ? (theme === 'dark' ? '#000000' : '#ffffff')
-                    : T.mut,
-                  border: '1px solid transparent',
-                }}
-                title={tab.label}
-              >
-                {tab.icon}
-              </button>
-            );
-          })}
-        </div>
+        {/* Tabs / Edit controls */}
+        {editingTodoId ? (
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit'))}
+              className="h-10 px-3 flex items-center gap-1.5 rounded-xl sm:rounded-2xl text-xs font-semibold transition-all active:scale-95 shrink-0 cursor-pointer"
+              style={{
+                background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+                color: T.pri,
+                border: '1px solid transparent',
+              }}
+              title="Abbrechen"
+            >
+              <X size={15} />
+              <span>Abbrechen</span>
+            </button>
+
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('tide:todo-delete', { detail: { id: editingTodoId } }))}
+              className="w-10 h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer hover:bg-rose-500/10"
+              style={{
+                background: 'transparent',
+                color: '#f43f5e',
+                border: '1px solid transparent',
+              }}
+              title="Löschen"
+            >
+              <Trash2 size={16} />
+            </button>
+
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('tide:todo-save-edit', { detail: { id: editingTodoId } }))}
+              className="h-10 px-3 flex items-center gap-1.5 rounded-xl sm:rounded-2xl text-xs font-semibold transition-all active:scale-95 shrink-0 cursor-pointer"
+              style={{
+                background: theme === 'dark' ? '#ffffff' : '#000000',
+                color: theme === 'dark' ? '#000000' : '#ffffff',
+                border: '1px solid transparent',
+              }}
+              title="Fertig"
+            >
+              <Check size={15} strokeWidth={2.4} />
+              <span>Fertig</span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {[
+              { id: 'calendar' as const, icon: <CalendarIcon size={20} />, label: 'Kalender' },
+              { id: 'notes' as const, icon: <BookOpen size={20} />, label: 'Notizen' },
+              ...(!enabledExtensions || enabledExtensions.includes('todos')
+                ? [{ id: 'todos' as const, icon: <ListTodo size={20} />, label: 'Todos' }]
+                : []),
+            ].map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setIsPlusMenuOpen(false);
+                  }}
+                  className="w-10 h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
+                  style={{
+                    background: isActive
+                      ? (theme === 'dark' ? '#ffffff' : '#000000')
+                      : 'transparent',
+                    color: isActive
+                      ? (theme === 'dark' ? '#000000' : '#ffffff')
+                      : T.mut,
+                    border: '1px solid transparent',
+                  }}
+                  title={tab.label}
+                >
+                  {tab.icon}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-          <button
-            onClick={() => {
-              setSearchQuery('');
-              setIsSearchOpen(true);
-            }}
-            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
-            style={{
-              background: 'transparent',
-              color: T.sec,
-              border: 'none',
-            }}
-            title="Suchen"
-          >
-            <Search size={18} />
-          </button>
+          {!editingTodoId && (
+            <>
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setIsSearchOpen(true);
+                }}
+                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
+                style={{
+                  background: 'transparent',
+                  color: T.sec,
+                  border: 'none',
+                }}
+                title="Suchen"
+              >
+                <Search size={18} />
+              </button>
 
-          <button
-            onClick={() => {
-              if (activeTab !== 'todos') {
-                setActiveTab('todos');
-              }
-              window.dispatchEvent(new CustomEvent('tide:toggle-todo-filter'));
-            }}
-            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
-            style={{
-              background: 'transparent',
-              color: T.sec,
-              border: 'none',
-            }}
-            title="Filter"
-          >
-            <SlidersHorizontal size={18} />
-          </button>
+              <button
+                onClick={() => {
+                  if (activeTab !== 'todos') {
+                    setActiveTab('todos');
+                  }
+                  window.dispatchEvent(new CustomEvent('tide:toggle-todo-filter'));
+                }}
+                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
+                style={{
+                  background: 'transparent',
+                  color: T.sec,
+                  border: 'none',
+                }}
+                title="Filter"
+              >
+                <SlidersHorizontal size={18} />
+              </button>
+            </>
+          )}
 
           <div className="relative">
-            {isPlusMenuOpen && (activeTab === 'notes' || activeTab === 'todos') && (
+            {!editingTodoId && isPlusMenuOpen && (activeTab === 'notes' || activeTab === 'todos') && (
               <>
                 <div
                   className="fixed inset-0 z-40"
@@ -1737,6 +1798,10 @@ export default function MobileLayout({
 
             <button
               onClick={() => {
+                if (editingTodoId) {
+                  window.dispatchEvent(new CustomEvent('tide:new-subtask'));
+                  return;
+                }
                 if (activeTab === 'calendar') {
                   setNewEventDefaultDate(activeDate);
                   setIsNewEventSheetOpen(true);
@@ -1745,7 +1810,7 @@ export default function MobileLayout({
                 }
               }}
               className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl bg-gray-900 dark:bg-white hover:bg-black text-white dark:text-gray-900 shadow-md transition-all active:scale-95 shrink-0 cursor-pointer"
-              title={activeTab === 'calendar' ? 'Neuer Termin' : 'Neues Element'}
+              title={editingTodoId ? 'Unteraufgabe hinzufügen' : (activeTab === 'calendar' ? 'Neuer Termin' : 'Neues Element')}
             >
               <Plus size={20} strokeWidth={2.4} />
             </button>

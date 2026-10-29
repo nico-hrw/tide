@@ -55,14 +55,14 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
 
       {!props.hideProgress && (
         <>
-          {/* Hairline 3px Progress Bar */}
-          <div className="w-full h-[3px] bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden flex">
+          {/* Progress Bar */}
+          <div className="w-full h-2.5 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden flex">
             <div
-              className="h-full bg-blue-500 transition-all duration-500 ease-out"
+              className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
               style={{ width: `${(activeCycleCompletedCount / Math.max(activeCycleTotal, 1)) * 100}%` }}
             />
             <div
-              className="h-full bg-red-500 transition-all duration-500 ease-out"
+              className="h-full rounded-full bg-red-500 transition-all duration-500 ease-out"
               style={{ width: `${(activeCycleOverdueCount / Math.max(activeCycleTotal, 1)) * 100}%` }}
             />
           </div>

@@ -97,8 +97,11 @@ function StatusBadges({ isActive, isNext, remStr, evEnd, evStart, startStr, durS
   if (isActive) {
     return (
       <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1.5 shrink-0" style={{ background: theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)', color: theme === 'dark' ? '#f4f4f5' : '#18181b', border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.16)' : '1px solid rgba(0, 0, 0, 0.1)' }}>
-          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+        <span
+          className="text-[10px] font-bold px-2.5 py-0.5 rounded-md flex items-center gap-1.5 shrink-0 text-white shadow-xs"
+          style={{ background: '#f97316', border: 'none' }}
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
           Noch {remStr} · bis {format(evEnd, 'HH:mm')} Uhr
         </span>
         <span className="text-[10px] font-medium opacity-75 ml-auto shrink-0" style={{ color: '#ffffff' }}>{durStr}</span>
@@ -112,7 +115,7 @@ function StatusBadges({ isActive, isNext, remStr, evEnd, evStart, startStr, durS
           className="text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0"
           style={{ background: theme === 'dark' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(59, 130, 246, 0.08)', color: theme === 'dark' ? '#93c5fd' : '#2563eb', border: theme === 'dark' ? '1px solid rgba(59, 130, 246, 0.22)' : '1px solid rgba(59, 130, 246, 0.18)' }}
         >
-          <Clock size={11} /> Startet um {format(evStart, 'HH:mm')} Uhr (in {startStr})
+          <Clock size={11} /> Startet in {startStr}
         </span>
         <span className="text-[10px] font-medium opacity-75 ml-auto shrink-0" style={{ color: T.mut }}>{durStr}</span>
       </div>

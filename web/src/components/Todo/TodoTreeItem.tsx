@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  CheckCircle2, Circle, Trash2, Plus,
+  Trash2, Plus,
   X, Folder, Tag, Repeat, Check,
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
@@ -88,6 +88,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   const [isSwiping, setIsSwiping] = useState(false);
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const [showSubtaskInput, setShowSubtaskInput] = useState(false);
+  const subtaskInputRef = useRef<HTMLInputElement>(null);
   const totalCount = task.children?.length || 0;
   const completedCount = task.children?.filter((c) => c.isCompleted).length || 0;
   const touchStartXRef = useRef(0);
@@ -99,6 +101,26 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   const isControlledExpanded = isExpanded !== undefined ? isExpanded : editingTaskId !== undefined ? editingTaskId === task.id : undefined;
   const [localExpanded, setLocalExpanded] = useState(false);
   const expanded = isControlledExpanded !== undefined ? isControlledExpanded : localExpanded;
+
+  useEffect(() => {
+    if (!expanded) return;
+    const handleToggleSubtask = () => {
+      setShowSubtaskInput((prev) => !prev);
+    };
+    window.addEventListener('tide:toggle-subtask-input', handleToggleSubtask);
+    return () => {
+      window.removeEventListener('tide:toggle-subtask-input', handleToggleSubtask);
+    };
+  }, [expanded]);
+
+  useEffect(() => {
+    if (showSubtaskInput) {
+      const timer = setTimeout(() => {
+        subtaskInputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [showSubtaskInput]);
 
   const [localDraft, setLocalDraft] = useState<TaskEditDraft>(() => ({
     title: task.title, description: task.description || '', priority: getTaskPriority(task),
@@ -229,7 +251,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
         {!expanded && (
           <div className={`absolute inset-0 my-0.5 sm:my-1 flex items-center justify-between px-5 rounded-xl sm:rounded-2xl pointer-events-none transition-colors ${swipeOffset > 0 ? 'bg-emerald-500 text-white' : swipeOffset < 0 ? 'bg-rose-500 text-white' : 'bg-transparent'}`}>
             <div className={`flex items-center gap-2 font-bold text-xs transition-opacity duration-150 ${swipeOffset > 30 ? 'opacity-100' : 'opacity-0'}`}>
-              <CheckCircle2 size={20} /><span>{isTaskCompleted ? 'Wiedereröffnen' : 'Erledigen'}</span>
+              <Check size={20} /><span>{isTaskCompleted ? 'Wiedereröffnen' : 'Erledigen'}</span>
             </div>
             <div className={`flex items-center gap-2 font-bold text-xs transition-opacity duration-150 ${swipeOffset < -30 ? 'opacity-100' : 'opacity-0'}`}>
               <span>Löschen</span><Trash2 size={20} />
@@ -260,7 +282,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
               {/* Left Date Column */}
               {parsedDate ? (
                 isOverdue ? (
-                  <div className="w-12 shrink-0 pt-0.5 text-left flex flex-col ml-1 sm:ml-2">
+                  <div className="w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2">
                     <span className="text-[14px] font-bold text-red-500 leading-tight">
                       {format(parsedDate, 'd.')}
                     </span>
@@ -269,13 +291,13 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                     </span>
                   </div>
                 ) : isTodayDate ? (
-                  <div className="w-12 shrink-0 pt-0.5 text-left flex flex-col ml-1 sm:ml-2">
+                  <div className="w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2">
                     <span className={`text-[13px] font-bold leading-tight ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-white dark:text-black'}`}>
                       Heute
                     </span>
                   </div>
                 ) : (
-                  <div className="w-12 shrink-0 pt-0.5 text-left flex flex-col ml-1 sm:ml-2">
+                  <div className="w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2">
                     <span className={`text-[14px] font-bold leading-tight ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
                       {format(parsedDate, 'd.')}
                     </span>
@@ -285,7 +307,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                   </div>
                 )
               ) : (
-                <div className="w-12 shrink-0 ml-1 sm:ml-2" />
+                <div className="w-12 shrink-0 self-center ml-1 sm:ml-2" />
               )}
 
               {/* Right Content Column */}
@@ -293,23 +315,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                 {/* Title Line */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    {(!depth || depth < 1) && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleTask(task);
-                        }}
-                        className="text-gray-400 hover:text-emerald-500 transition-colors shrink-0 cursor-pointer"
-                        aria-label={isTaskCompleted ? 'Als unvollständig markieren' : 'Als erledigt markieren'}
-                      >
-                        {isTaskCompleted ? (
-                          <CheckCircle2 size={16} className="text-emerald-500 fill-emerald-500/20" />
-                        ) : (
-                          <Circle size={16} />
-                        )}
-                      </button>
-                    )}
                     <div className="shrink-0 flex items-center justify-center">
                       <TodoPriorityBadge priority={task.priority} />
                     </div>
@@ -337,7 +342,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
 
                 {/* Sub-details Line */}
                 {((task.tags && task.tags.length > 0) || task.folder || (depth && depth > 0)) && (
-                  <div className={`${depth && depth > 0 ? '' : 'ml-[32px] sm:ml-[34px]'} flex flex-wrap items-center gap-2 mt-0.5`}>
+                  <div className="flex flex-wrap items-center gap-2 mt-0.5">
                     {depth && depth > 0 ? (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
                         Teilaufgabe
@@ -398,25 +403,66 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                     </div>
                   ) : null}
 
-                  {/* Editable Title */}
-                <input
-                  value={draft.title}
-                  onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      if (draft.title.trim()) saveEditing?.(task.id, draft);
-                      if (isControlledExpanded === undefined) setLocalExpanded(false);
-                    }
-                  }}
-                  placeholder="Titel der Aufgabe..."
-                  className="text-lg font-bold text-gray-900 dark:text-white bg-transparent outline-none w-full border-b border-gray-200 dark:border-white/10 pb-1.5 mb-3"
-                />
+                  {/* Title row with Priority selector */}
+                  <div className="flex items-center justify-between gap-3 border-b border-gray-200 dark:border-white/10 pb-2 mb-3">
+                    <input
+                      value={draft.title}
+                      onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (draft.title.trim()) saveEditing?.(task.id, draft);
+                          if (isControlledExpanded === undefined) setLocalExpanded(false);
+                        } else if (e.key === 'Escape') {
+                          cancelEditing?.();
+                          if (isControlledExpanded === undefined) setLocalExpanded(false);
+                        }
+                      }}
+                      placeholder="Titel der Aufgabe..."
+                      className="text-lg font-bold text-gray-900 dark:text-white bg-transparent outline-none flex-1 min-w-0"
+                    />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setDraft((p) => ({ ...p, priority: 'low' }))}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
+                          draft.priority === 'low'
+                            ? 'bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
+                            : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
+                        }`}
+                        title="Niedrige Priorität"
+                      >
+                        ∨
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDraft((p) => ({ ...p, priority: 'medium' }))}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
+                          draft.priority === 'medium'
+                            ? 'bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
+                            : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
+                        }`}
+                        title="Mittlere Priorität"
+                      >
+                        2
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDraft((p) => ({ ...p, priority: 'high' }))}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
+                          draft.priority === 'high'
+                            ? 'bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
+                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
+                        }`}
+                        title="Hohe Priorität"
+                      >
+                        ∧
+                      </button>
+                    </div>
+                  </div>
 
-                {/* Properties Section */}
-                <div className="flex flex-col gap-3">
-                  {/* Row 2: Fälligkeit & Priorität */}
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                  {/* Properties Section */}
+                  <div className="flex flex-col gap-3">
                     {/* Fälligkeit */}
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <button
@@ -462,81 +508,42 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       </div>
                     </div>
 
-                    {/* Priorität: 1 grün, 2 gelb, 3 rot */}
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => setDraft((p) => ({ ...p, priority: 'low' }))}
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
-                          draft.priority === 'low'
-                            ? 'bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
-                            : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
-                        }`}
-                      >
-                        1
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDraft((p) => ({ ...p, priority: 'medium' }))}
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
-                          draft.priority === 'medium'
-                            ? 'bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
-                            : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
-                        }`}
-                      >
-                        2
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDraft((p) => ({ ...p, priority: 'high' }))}
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
-                          draft.priority === 'high'
-                            ? 'bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
-                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
-                        }`}
-                      >
-                        3
-                      </button>
-                    </div>
-                  </div>
+                    {/* Ordner & Wiederholung (2-column grid) */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1.5 min-w-0">
+                        <Folder size={14} className="text-gray-400 shrink-0" />
+                        <select
+                          value={draft.folder}
+                          onChange={(e) => setDraft((p) => ({ ...p, folder: e.target.value }))}
+                          className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer w-full truncate pr-1"
+                        >
+                          <option value="" className="bg-white dark:bg-[#1a1a1a]">Kein Ordner</option>
+                          {allFolders.map((f) => (
+                            <option key={f} value={f} className="bg-white dark:bg-[#1a1a1a]">{f}</option>
+                          ))}
+                        </select>
+                      </div>
 
-                  {/* Row 3: Ordner & Wiederholung (2-column grid) */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1.5 min-w-0">
-                      <Folder size={14} className="text-gray-400 shrink-0" />
-                      <select
-                        value={draft.folder}
-                        onChange={(e) => setDraft((p) => ({ ...p, folder: e.target.value }))}
-                        className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer w-full truncate pr-1"
-                      >
-                        <option value="" className="bg-white dark:bg-[#1a1a1a]">Kein Ordner</option>
-                        {allFolders.map((f) => (
-                          <option key={f} value={f} className="bg-white dark:bg-[#1a1a1a]">{f}</option>
-                        ))}
-                      </select>
+                      <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1.5 min-w-0">
+                        <Repeat size={14} className="text-gray-400 shrink-0" />
+                        <select
+                          value={draft.recurrence}
+                          onChange={(e) => setDraft((p) => ({ ...p, recurrence: e.target.value as RecurrenceType }))}
+                          className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer w-full truncate pr-1"
+                        >
+                          {RECURRENCE_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value} className="bg-white dark:bg-[#1a1a1a]">{o.label}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1.5 min-w-0">
-                      <Repeat size={14} className="text-gray-400 shrink-0" />
-                      <select
-                        value={draft.recurrence}
-                        onChange={(e) => setDraft((p) => ({ ...p, recurrence: e.target.value as RecurrenceType }))}
-                        className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer w-full truncate pr-1"
-                      >
-                        {RECURRENCE_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value} className="bg-white dark:bg-[#1a1a1a]">{o.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Row 4: Tags & Im Kalender anzeigen */}
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
+                    {/* Tags section - full width with comfortable padding */}
+                    <div className="w-full flex flex-wrap items-center gap-2 p-2.5 bg-gray-50 dark:bg-white/[0.04] rounded-xl border border-gray-100 dark:border-white/5">
                       {draft.tags.map((tag) => (
                         <span
                           key={tag}
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${getTagColorClass(tag)}`}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${getTagColorClass(tag)}`}
                         >
                           <span>{tag}</span>
                           <button
@@ -545,12 +552,12 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                             className="hover:opacity-75 p-0.5 cursor-pointer"
                             title={`Tag "${tag}" entfernen`}
                           >
-                            <X size={10} />
+                            <X size={12} />
                           </button>
                         </span>
                       ))}
-                      <div className="inline-flex items-center gap-1 bg-gray-100 dark:bg-white/10 rounded-lg px-2 py-1 text-xs">
-                        <Tag size={12} className="text-gray-400" />
+                      <div className="inline-flex items-center gap-1.5 bg-white dark:bg-white/10 rounded-lg px-2.5 py-1 text-xs border border-gray-200/60 dark:border-white/10">
+                        <Tag size={13} className="text-gray-400" />
                         <input
                           type="text"
                           value={tagInput}
@@ -562,8 +569,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                               if (t) handleAddTag(t);
                             }
                           }}
-                          placeholder="Tag..."
-                          className="w-16 bg-transparent text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
+                          placeholder="Tag hinzufügen..."
+                          className="w-28 bg-transparent text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
                         />
                         {tagInput.trim() && (
                           <button
@@ -575,177 +582,137 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                             className="text-blue-600 dark:text-blue-400 hover:text-blue-700 p-0.5 cursor-pointer"
                             title="Tag hinzufügen"
                           >
-                            <Plus size={11} />
+                            <Plus size={12} />
                           </button>
                         )}
                       </div>
                     </div>
 
-                    <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none shrink-0">
-                      <input
-                        type="checkbox"
-                        checked={draft.showInCalendar}
-                        onChange={(e) => setDraft((p) => ({ ...p, showInCalendar: e.target.checked }))}
-                        className="rounded border-gray-300 dark:border-white/20 text-blue-600 focus:ring-blue-500 cursor-pointer h-3.5 w-3.5"
+                    {/* Notes/Description textarea */}
+                    <textarea
+                      value={draft.description}
+                      onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
+                      placeholder="Optionale Notiz..."
+                      rows={1}
+                      className="w-full text-xs sm:text-sm bg-gray-50 dark:bg-white/[0.03] rounded-lg p-2.5 border border-gray-100 dark:border-white/5 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600 outline-none resize-none focus:border-gray-300 dark:focus:border-white/20 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                {/* Raw Unteraufgaben Header */}
+                {(!depth || depth < 1) && (
+                  <div className="shrink-0 z-20">
+                    <div className="flex items-center justify-between px-1 pt-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                        Unteraufgaben ({completedCount}/{totalCount})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowSubtaskInput((prev) => !prev)}
+                        className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Plus size={12} />
+                        <span>Hinzufügen</span>
+                      </button>
+                    </div>
+                    <div className="w-full h-2 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden mt-1.5 mb-2">
+                      <div
+                        className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                        style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }}
                       />
-                      <span>Im Kalender anzeigen</span>
-                    </label>
-                  </div>
+                    </div>
 
-                  {/* Row 5: Notes/Description textarea */}
-                  <textarea
-                    value={draft.description}
-                    onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
-                    placeholder="Optionale Notiz..."
-                    rows={1}
-                    className="w-full text-xs sm:text-sm bg-gray-50 dark:bg-white/[0.03] rounded-lg p-2.5 border border-gray-100 dark:border-white/5 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600 outline-none resize-none focus:border-gray-300 dark:focus:border-white/20 transition-colors"
-                  />
-                </div>
-              </div>
-
-              {/* Raw Unteraufgaben Header */}
-              {(!depth || depth < 1) && (
-                <div className="shrink-0 z-20">
-                  <div className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-1 pt-2">
-                    Unteraufgaben ({completedCount}/{totalCount})
+                    {showSubtaskInput && (
+                      <div className="flex items-center gap-2 mb-2 px-1">
+                        <input
+                          ref={subtaskInputRef}
+                          type="text"
+                          value={newSubtaskTitle}
+                          onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              void handleAddSubtask();
+                            } else if (e.key === 'Escape') {
+                              setShowSubtaskInput(false);
+                            }
+                          }}
+                          placeholder="Neue Unteraufgabe hinzufügen..."
+                          className="flex-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-white/10 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none border border-transparent focus:border-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleAddSubtask()}
+                          disabled={!newSubtaskTitle.trim()}
+                          className="p-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-black dark:hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                          title="Unteraufgabe hinzufügen"
+                        >
+                          <Plus size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowSubtaskInput(false)}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                          title="Schließen"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className="w-full h-1 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden mt-1 mb-2">
-                    <div
-                      className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                      style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Subtasks list - ONLY scrollable element */}
-            {(!depth || depth < 1) && (
-              <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1 pb-44">
-                {task.children && task.children.length > 0 ? (
-                  task.children.map((child) => (
-                    <TodoTreeItem
-                      key={child.id}
-                      task={child as TaskWithChildren}
-                      depth={1}
-                      allTags={allTags}
-                      customTags={customTags}
-                      allFolders={allFolders}
-                      selectedTag={selectedTag}
-                      setSelectedTag={setSelectedTag}
-                      selectedFolder={selectedFolder}
-                      setSelectedFolder={setSelectedFolder}
-                      setViewMode={setViewMode}
-                      handleAddCustomTag={handleAddCustomTag}
-                      handleRemoveCustomTag={handleRemoveCustomTag}
-                      handleToggleTask={handleToggleTask}
-                      handleToggleInProgress={handleToggleInProgress}
-                      saveEditing={(id, d) => {
-                        if (d) {
-                          updateTask(id, {
-                            title: d.title,
-                            description: d.description,
-                            priority: d.priority,
-                            status: d.status,
-                            dueDate: d.dueDate || undefined,
-                            recurrence: d.recurrence,
-                            recurrence_end: d.recurrenceEnd || undefined,
-                            folder: d.folder || undefined,
-                            tags: d.tags,
-                            showInCalendar: d.showInCalendar,
-                          });
-                        }
-                        if (saveEditing) {
-                          saveEditing(id, d);
-                        }
-                      }}
-                      deleteTask={deleteTask}
-                      disableClickDebounce={disableClickDebounce}
-                    />
-                  ))
-                ) : (
-                  <div className="text-xs text-gray-400 italic py-2 px-1">Keine Unteraufgaben vorhanden</div>
                 )}
               </div>
-            )}
 
-            {/* Fixed Bottom Action Bar covering the navigation */}
-            <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pt-2.5 pb-[max(14px,env(safe-area-inset-bottom))] bg-white/95 dark:bg-[#121212]/95 backdrop-blur-xl border-t border-gray-200/80 dark:border-white/10 shadow-2xl flex flex-col gap-2">
+              {/* Subtasks list - ONLY scrollable element */}
               {(!depth || depth < 1) && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newSubtaskTitle}
-                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        void handleAddSubtask();
-                      }
-                    }}
-                    placeholder="Neue Unteraufgabe hinzufügen..."
-                    className="flex-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-white/10 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none border border-transparent focus:border-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void handleAddSubtask()}
-                    disabled={!newSubtaskTitle.trim()}
-                    className="p-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-black dark:hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                    title="Unteraufgabe hinzufügen"
-                  >
-                    <Plus size={14} />
-                  </button>
+                <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1 pb-24">
+                  {task.children && task.children.length > 0 ? (
+                    task.children.map((child) => (
+                      <TodoTreeItem
+                        key={child.id}
+                        task={child as TaskWithChildren}
+                        depth={1}
+                        allTags={allTags}
+                        customTags={customTags}
+                        allFolders={allFolders}
+                        selectedTag={selectedTag}
+                        setSelectedTag={setSelectedTag}
+                        selectedFolder={selectedFolder}
+                        setSelectedFolder={setSelectedFolder}
+                        setViewMode={setViewMode}
+                        handleAddCustomTag={handleAddCustomTag}
+                        handleRemoveCustomTag={handleRemoveCustomTag}
+                        handleToggleTask={handleToggleTask}
+                        handleToggleInProgress={handleToggleInProgress}
+                        saveEditing={(id, d) => {
+                          if (d) {
+                            updateTask(id, {
+                              title: d.title,
+                              description: d.description,
+                              priority: d.priority,
+                              status: d.status,
+                              dueDate: d.dueDate || undefined,
+                              recurrence: d.recurrence,
+                              recurrence_end: d.recurrenceEnd || undefined,
+                              folder: d.folder || undefined,
+                              tags: d.tags,
+                              showInCalendar: d.showInCalendar,
+                            });
+                          }
+                          if (saveEditing) {
+                            saveEditing(id, d);
+                          }
+                        }}
+                        deleteTask={deleteTask}
+                        disableClickDebounce={disableClickDebounce}
+                      />
+                    ))
+                  ) : (
+                    <div className="text-xs text-gray-400 italic py-2 px-1">Keine Unteraufgaben vorhanden</div>
+                  )}
                 </div>
               )}
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      cancelEditing?.();
-                      if (isControlledExpanded === undefined) setLocalExpanded(false);
-                    }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <X size={14} />
-                    <span>Abbrechen</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      void deleteTask(task.id);
-                    }}
-                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
-                    title="Aufgabe löschen"
-                    aria-label="Aufgabe löschen"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (draft.title.trim()) {
-                      saveEditing?.(task.id, draft);
-                    } else {
-                      cancelEditing?.();
-                    }
-                    if (isControlledExpanded === undefined) setLocalExpanded(false);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-semibold rounded-lg hover:bg-black dark:hover:bg-gray-100 transition-colors cursor-pointer shadow-xs"
-                >
-                  <Check size={14} />
-                  <span>Fertig</span>
-                </button>
-              </div>
-            </div>
-          </motion.div>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
