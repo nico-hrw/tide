@@ -11,7 +11,6 @@ import {
 } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
 import TodoFolderOverview, { FolderStat } from './TodoFolderOverview';
-import TodoFilterBar from './TodoFilterBar';
 import TodoTreeItem from './TodoTreeItem';
 import TodoListHeader from './TodoListHeader';
 import TodoFolderBanner from './TodoFolderBanner';
@@ -184,10 +183,16 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         titleInputRef.current?.focus();
       }, 50);
     };
+    const handleToggleFilterEvent = () => {
+      setIsFilterMenuOpen((prev) => !prev);
+      setIsAddMenuOpen(false);
+    };
 
     window.addEventListener('tide:new-todo', handleNewTodoEvent);
+    window.addEventListener('tide:toggle-todo-filter', handleToggleFilterEvent);
     return () => {
       window.removeEventListener('tide:new-todo', handleNewTodoEvent);
+      window.removeEventListener('tide:toggle-todo-filter', handleToggleFilterEvent);
     };
   }, []);
 
@@ -195,7 +200,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
   const [sortBy, setSortBy] = useState<SortOption>('deadline');
-  const [showFilters, setShowFilters] = useState(true);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [newFolderNameInput, setNewFolderNameInput] = useState('');
 
@@ -214,6 +218,10 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         setIsAddMenuOpen(false);
       }
       if (isFilterMenuOpen && filterMenuRef.current && !filterMenuRef.current.contains(target)) {
+        const targetEl = target as HTMLElement;
+        if (targetEl?.closest?.('button[aria-label*="ilter" i], [data-todo-filter], [data-action*="filter"]')) {
+          return;
+        }
         setIsFilterMenuOpen(false);
       }
     };
@@ -670,21 +678,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                     />
                   )}
 
-                  {/* Filter & Sort Card */}
-                  {showFilters && (
-                    <TodoFilterBar
-                      searchQuery={searchQuery} setSearchQuery={setSearchQuery}
-                      filterStatus={filterStatus} setFilterStatus={setFilterStatus}
-                      totalCount={totalCount} activeCycleOpenCount={activeCycleOpenCount}
-                      activeCycleInProgressCount={activeCycleInProgressCount}
-                      activeCycleCompletedCount={activeCycleCompletedCount} archivedCount={archivedCount}
-                      allFolders={allFolders} unfiledCount={unfiledCount}
-                      selectedFolder={selectedFolder} setSelectedFolder={setSelectedFolder}
-                      allTags={allTags} selectedTag={selectedTag} setSelectedTag={setSelectedTag}
-                      tasks={tasks} filterPriority={filterPriority} setFilterPriority={setFilterPriority}
-                      sortBy={sortBy} setSortBy={setSortBy}
-                    />
-                  )}
+
 
                   <TodoListSections
                     selectedFolder={selectedFolder}
@@ -718,22 +712,18 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         </div>
       )}
 
-      {/* Floating Action Buttons (FABs) & Sleek Popovers */}
+      {/* Filter Popover */}
       {editingTaskId === null && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex justify-center">
-          <div className="w-full max-w-2xl lg:max-w-3xl relative h-0">
-            <div className="pointer-events-auto absolute bottom-8 right-6 flex items-center gap-3">
-              {/* Filter FAB & Popover */}
-              <div ref={filterMenuRef} className="relative">
-                <AnimatePresence>
-                  {isFilterMenuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.92, y: 8 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.92, y: 8 }}
-                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                      className="absolute bottom-full right-[-4.25rem] sm:right-0 mb-3 w-[310px] sm:w-[340px] max-w-[calc(100vw-2.5rem)] max-h-[75vh] overflow-y-auto bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-xl border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] p-4 flex flex-col gap-4 z-50 text-xs text-gray-700 dark:text-gray-300"
-                    >
+        <AnimatePresence>
+          {isFilterMenuOpen && (
+            <motion.div
+              ref={filterMenuRef}
+              initial={{ opacity: 0, scale: 0.92, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 8 }}
+              transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed bottom-20 right-4 sm:right-6 z-50 w-[310px] sm:w-[340px] max-w-[calc(100vw-2.5rem)] max-h-[75vh] overflow-y-auto bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-xl border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] p-4 flex flex-col gap-4 text-xs text-gray-700 dark:text-gray-300"
+            >
                       {/* Header */}
                       <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-white/10">
                         <div className="flex items-center gap-2">
@@ -955,94 +945,9 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                           </div>
                         )}
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Filter Button */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsFilterMenuOpen((prev) => !prev);
-                    setIsAddMenuOpen(false);
-                  }}
-                  aria-label="Filter und Ansicht"
-                  aria-expanded={isFilterMenuOpen}
-                  className={`w-12 h-12 bg-white dark:bg-[#1f1f1f] text-gray-700 dark:text-gray-200 rounded-full flex items-center justify-center shadow-[0_8px_16px_rgba(0,0,0,0.08)] border border-gray-100 dark:border-white/10 transition-all active:scale-95 cursor-pointer relative ${
-                    isFilterMenuOpen ? 'ring-2 ring-blue-500' : ''
-                  }`}
-                >
-                  <SlidersHorizontal size={20} />
-                  {(filterPriority !== 'all' || selectedTag !== null || filterStatus !== 'all' || searchQuery.trim() !== '') && (
-                    <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-blue-500 rounded-full ring-2 ring-white dark:ring-[#1f1f1f]" />
-                  )}
-                </button>
-              </div>
-
-              {/* Add FAB & Popover */}
-              <div ref={addMenuRef} className="relative">
-                <AnimatePresence>
-                  {isAddMenuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.92, y: 8 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.92, y: 8 }}
-                      transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                      className="absolute bottom-full right-0 mb-3 w-56 p-1.5 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-xl border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] z-50 flex flex-col gap-1"
-                    >
-                      <button
-                        type="button"
-                        onClick={handleOpenCreateTask}
-                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-left text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors group cursor-pointer"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                          <Plus size={18} strokeWidth={2.5} />
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <span className="font-semibold text-gray-900 dark:text-white leading-tight">Aufgabe erstellen</span>
-                          <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate">Neue Aufgabe hinzufügen</span>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleOpenCreateFolder}
-                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-left text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors group cursor-pointer"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                          <FolderPlus size={18} />
-                        </div>
-                        <div className="flex flex-col min-w-0">
-                          <span className="font-semibold text-gray-900 dark:text-white leading-tight">Ordner erstellen</span>
-                          <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate">Neuen Ordner anlegen</span>
-                        </div>
-                      </button>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddMenuOpen((prev) => !prev);
-                    setIsFilterMenuOpen(false);
-                  }}
-                  aria-label="Erstellen"
-                  aria-expanded={isAddMenuOpen}
-                  className={`w-14 h-14 bg-gray-900 dark:bg-white hover:bg-black text-white dark:text-gray-900 rounded-full flex items-center justify-center shadow-[0_8px_20px_rgba(0,0,0,0.25)] transition-all active:scale-95 cursor-pointer ${
-                    isAddMenuOpen ? 'ring-2 ring-blue-500 ring-offset-2 dark:ring-offset-black' : ''
-                  }`}
-                >
-                  <Plus
-                    size={24}
-                    strokeWidth={2.5}
-                    className={`transition-transform duration-200 ${isAddMenuOpen ? 'rotate-45' : ''}`}
-                  />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       )}
 
       <TodoFolderModal

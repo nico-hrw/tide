@@ -28,9 +28,9 @@ export const PRIORITY_MAP: Record<string, NormalizedPriority> = {
 };
 
 export const PRIORITY_LABELS: Record<NormalizedPriority, string> = {
-  P1: 'P1 - Niedrig',
-  P2: 'P2 - Mittel',
-  P3: 'P3 - Hoch',
+  P1: '1 - Niedrig',
+  P2: '2 - Mittel',
+  P3: '3 - Hoch',
 };
 
 export const PRIORITY_CLASSES: Record<NormalizedPriority, string> = {
@@ -71,7 +71,7 @@ export function TodoPriorityBadge({ priority, className }: TodoPriorityBadgeProp
 
   return (
     <span className={combinedClassName}>
-      {normalized}
+      {normalized.replace('P', '')}
     </span>
   );
 }

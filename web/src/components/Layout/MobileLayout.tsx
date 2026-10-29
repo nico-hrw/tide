@@ -7,7 +7,7 @@ import {
   ChevronRight, ChevronLeft, ChevronDown, Plus, Search, Calendar as CalendarIcon,
   Trash2, GraduationCap, Clock, MapPin,
   X, PenLine, FolderPlus,
-  BookOpen, Coffee, RotateCcw, ListTodo,
+  BookOpen, Coffee, RotateCcw, ListTodo, SlidersHorizontal,
 } from 'lucide-react';
 import { isSameDay, format, startOfWeek, addDays, isAfter } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -1070,14 +1070,13 @@ export default function MobileLayout({
       </AnimatePresence>
 
       {/* ── Top Header with Greeting, Sidebar Menu, and Apple-style Date Wheel ── */}
-      {activeTab !== 'todos' && (
-        <div
-          className="shrink-0 z-20 sticky top-0"
-          style={{
-            paddingTop: 'max(12px, calc(env(safe-area-inset-top) + 4px))',
-            background: T.bg,
-          }}
-        >
+      <div
+        className="shrink-0 z-20 sticky top-0"
+        style={{
+          paddingTop: 'max(12px, calc(env(safe-area-inset-top) + 4px))',
+          background: T.bg,
+        }}
+      >
           {/* Row 1: Date & Greeting ("XX. Monat", "Guten Morgen/Mittag/Tag/Abend Name!") */}
           <div className="px-5 pt-1 pb-1.5 flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
@@ -1158,7 +1157,6 @@ export default function MobileLayout({
 
           <div className="h-px" style={{ background: T.brd }} />
         </div>
-      )}
 
       {/* ── Main content area ───────────────────────────── */}
       {activeTab === 'calendar' ? (
@@ -1641,19 +1639,19 @@ export default function MobileLayout({
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl font-bold text-[11px] sm:text-xs transition-all active:scale-95 shrink-0"
+                className="w-10 h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
                 style={{
                   background: isActive
-                    ? (theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)')
+                    ? (theme === 'dark' ? '#ffffff' : '#000000')
                     : 'transparent',
-                  color: isActive ? T.pri : T.mut,
-                  border: isActive
-                    ? `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)'}`
-                    : '1px solid transparent',
+                  color: isActive
+                    ? (theme === 'dark' ? '#000000' : '#ffffff')
+                    : T.mut,
+                  border: '1px solid transparent',
                 }}
+                title={tab.label}
               >
                 {tab.icon}
-                <span>{tab.label}</span>
               </button>
             );
           })}
@@ -1666,7 +1664,7 @@ export default function MobileLayout({
               setSearchQuery('');
               setIsSearchOpen(true);
             }}
-            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0"
+            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
             style={{
               background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
               color: T.sec,
@@ -1675,6 +1673,24 @@ export default function MobileLayout({
             title="Suchen"
           >
             <Search size={18} />
+          </button>
+
+          <button
+            onClick={() => {
+              if (activeTab !== 'todos') {
+                setActiveTab('todos');
+              }
+              window.dispatchEvent(new CustomEvent('tide:toggle-todo-filter'));
+            }}
+            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
+            style={{
+              background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+              color: T.sec,
+              border: `1px solid ${T.brd}`,
+            }}
+            title="Filter"
+          >
+            <SlidersHorizontal size={18} />
           </button>
 
           <button
@@ -1689,12 +1705,7 @@ export default function MobileLayout({
                 window.dispatchEvent(new CustomEvent('tide:new-todo'));
               }
             }}
-            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl text-white transition-all active:scale-95 shadow-md shrink-0"
-            style={{
-              background: 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 50%, #9333ea 100%)',
-              boxShadow: '0 4px 14px -2px rgba(126, 34, 206, 0.5), inset 0 1px 1px 0 rgba(255, 255, 255, 0.35)',
-              border: '1px solid rgba(216, 180, 254, 0.35)',
-            }}
+            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl bg-gray-900 dark:bg-white hover:bg-black text-white dark:text-gray-900 shadow-md transition-all active:scale-95 shrink-0 cursor-pointer"
             title={activeTab === 'calendar' ? 'Neuer Termin' : activeTab === 'notes' ? 'Neue Notiz' : 'Neue Aufgabe'}
           >
             <Plus size={20} strokeWidth={2.4} />

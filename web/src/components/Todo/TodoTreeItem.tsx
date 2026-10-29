@@ -71,6 +71,143 @@ function getTagColorClass(tag: string): string {
   return COLOR_PALETTE[idx];
 }
 
+interface SubtaskRowProps {
+  child: TaskItem;
+  onToggle: (task: TaskItem) => void;
+  onDelete: (id: string) => Promise<void> | void;
+}
+
+const SubtaskRow: React.FC<SubtaskRowProps> = ({ child, onToggle, onDelete }) => {
+  const [offset, setOffset] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const touchStartXRef = useRef(0);
+  const touchStartYRef = useRef(0);
+  const isSwipingRef = useRef(false);
+  const isVerticalScrollRef = useRef(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+    isSwipingRef.current = false;
+    isVerticalScrollRef.current = false;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isVerticalScrollRef.current) return;
+    const deltaX = e.touches[0].clientX - touchStartXRef.current;
+    const deltaY = e.touches[0].clientY - touchStartYRef.current;
+
+    if (!isSwipingRef.current && !isVerticalScrollRef.current) {
+      if (Math.abs(deltaY) > 8 && Math.abs(deltaY) > Math.abs(deltaX)) {
+        isVerticalScrollRef.current = true;
+        return;
+      }
+      if (Math.abs(deltaX) > 8 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        isSwipingRef.current = true;
+        setIsSwiping(true);
+      }
+    }
+
+    if (isSwipingRef.current) {
+      let currentOffset = deltaX;
+      if (currentOffset > 80) currentOffset = 80 + (currentOffset - 80) * 0.2;
+      if (currentOffset < -80) currentOffset = -80 + (currentOffset + 80) * 0.2;
+      setOffset(currentOffset);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!isSwipingRef.current) {
+      setOffset(0);
+      setIsSwiping(false);
+      return;
+    }
+    const currentOffset = offset;
+    setIsSwiping(false);
+    setOffset(0);
+    isSwipingRef.current = false;
+
+    if (currentOffset > 40) {
+      e.preventDefault();
+      onToggle(child);
+    } else if (currentOffset < -40) {
+      e.preventDefault();
+      void onDelete(child.id);
+    }
+  };
+
+  return (
+    <div className="relative overflow-hidden rounded-lg">
+      {/* Background action indicator */}
+      <div
+        className={`absolute inset-0 flex items-center justify-between px-3 rounded-lg pointer-events-none transition-colors ${
+          offset > 0 ? 'bg-emerald-500 text-white' : offset < 0 ? 'bg-rose-500 text-white' : 'bg-transparent'
+        }`}
+      >
+        <div
+          className={`flex items-center gap-1.5 text-xs font-semibold transition-opacity duration-150 ${
+            offset > 20 ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          <CheckCircle2 size={14} />
+          <span>{child.isCompleted ? 'Wiedereröffnen' : 'Erledigen'}</span>
+        </div>
+        <div
+          className={`flex items-center gap-1.5 text-xs font-semibold transition-opacity duration-150 ${
+            offset < -20 ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          <span>Löschen</span>
+          <Trash2 size={14} />
+        </div>
+      </div>
+
+      {/* Foreground row */}
+      <div
+        style={{
+          transform: `translateX(${offset}px)`,
+          transition: isSwiping ? 'none' : 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)',
+          touchAction: 'pan-y',
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-[#242424] border border-gray-100 dark:border-white/5 relative"
+      >
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <button
+            type="button"
+            onClick={() => onToggle(child)}
+            className="text-gray-400 hover:text-emerald-500 transition-colors shrink-0 cursor-pointer"
+            aria-label={child.isCompleted ? 'Als unvollständig markieren' : 'Als erledigt markieren'}
+          >
+            {child.isCompleted ? (
+              <CheckCircle2 size={16} className="text-emerald-500 fill-emerald-500/20" />
+            ) : (
+              <Circle size={16} />
+            )}
+          </button>
+          <span
+            className={`text-xs font-medium truncate ${
+              child.isCompleted ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'
+            }`}
+          >
+            {child.title}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => void onDelete(child.id)}
+          className="text-gray-400 hover:text-rose-500 transition-colors p-1 cursor-pointer shrink-0"
+          title="Unteraufgabe löschen"
+        >
+          <Trash2 size={13} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   task, depth = 0, isExpanded, editingTaskId, isCompleting = false, completingTaskIds,
   editDraft, setEditDraft, editNewTagInput, setEditNewTagInput,
@@ -218,9 +355,9 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
 
   return (
     <div className="flex flex-col w-full" style={{ paddingLeft: depth > 0 ? `${indentPx}px` : undefined }}>
-      <div className="relative overflow-hidden rounded-lg">
+      <div className="relative overflow-hidden rounded-xl sm:rounded-2xl">
         {/* Swipe action background indicators */}
-        <div className={`absolute inset-0 flex items-center justify-between px-5 rounded-lg pointer-events-none transition-colors ${swipeOffset > 0 ? 'bg-emerald-500 text-white' : swipeOffset < 0 ? 'bg-rose-500 text-white' : 'bg-transparent'}`}>
+        <div className={`absolute inset-0 my-1.5 flex items-center justify-between px-5 rounded-xl sm:rounded-2xl pointer-events-none transition-colors ${swipeOffset > 0 ? 'bg-emerald-500 text-white' : swipeOffset < 0 ? 'bg-rose-500 text-white' : 'bg-transparent'}`}>
           <div className={`flex items-center gap-2 font-bold text-xs transition-opacity duration-150 ${swipeOffset > 30 ? 'opacity-100' : 'opacity-0'}`}>
             <CheckCircle2 size={20} /><span>{isTaskCompleted ? 'Wiedereröffnen' : 'Erledigen'}</span>
           </div>
@@ -243,7 +380,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
               onClick={handleClick}
-              className="flex items-start gap-3 sm:gap-4 py-3.5 sm:py-4 border-b border-gray-200 dark:border-white/10 relative pr-2 sm:pr-3 cursor-pointer group hover:bg-gray-50/50 dark:hover:bg-white/[0.02] transition-colors rounded-lg"
+              className="flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 my-1.5 bg-white/90 dark:bg-[#181818]/90 backdrop-blur-xs border border-gray-200/80 dark:border-white/[0.08] hover:border-gray-300 dark:hover:border-white/20 rounded-xl sm:rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.03)] dark:shadow-none relative pr-3 sm:pr-4 cursor-pointer group transition-all"
             >
               {/* Left Date Column */}
               {parsedDate ? (
@@ -411,7 +548,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                     </div>
                   </div>
 
-                  {/* Priorität: P1 grün, P2 gelb, P3 rot */}
+                  {/* Priorität: 1 grün, 2 gelb, 3 rot */}
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
@@ -422,7 +559,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
                       }`}
                     >
-                      P1
+                      1
                     </button>
                     <button
                       type="button"
@@ -433,7 +570,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
                       }`}
                     >
-                      P2
+                      2
                     </button>
                     <button
                       type="button"
@@ -444,7 +581,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
                       }`}
                     >
-                      P3
+                      3
                     </button>
                   </div>
                 </div>
@@ -568,43 +705,15 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                   </button>
                 </div>
 
-                <div className="max-h-48 overflow-y-auto space-y-2 my-2 pr-1">
+                <div className="max-h-56 overflow-y-auto space-y-2 my-2 pr-1">
                   {task.children && task.children.length > 0 ? (
                     task.children.map((child) => (
-                      <div
+                      <SubtaskRow
                         key={child.id}
-                        className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-white/[0.04] border border-gray-100 dark:border-white/5"
-                      >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleTask(child)}
-                            className="text-gray-400 hover:text-emerald-500 transition-colors shrink-0 cursor-pointer"
-                            aria-label={child.isCompleted ? 'Als unvollständig markieren' : 'Als erledigt markieren'}
-                          >
-                            {child.isCompleted ? (
-                              <CheckCircle2 size={16} className="text-emerald-500 fill-emerald-500/20" />
-                            ) : (
-                              <Circle size={16} />
-                            )}
-                          </button>
-                          <span
-                            className={`text-xs font-medium truncate ${
-                              child.isCompleted ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'
-                            }`}
-                          >
-                            {child.title}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => void deleteTask(child.id)}
-                          className="text-gray-400 hover:text-rose-500 transition-colors p-1 cursor-pointer shrink-0"
-                          title="Unteraufgabe löschen"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
+                        child={child}
+                        onToggle={handleToggleTask}
+                        onDelete={deleteTask}
+                      />
                     ))
                   ) : (
                     <div className="text-xs text-gray-400 italic py-1">Keine Unteraufgaben vorhanden</div>
