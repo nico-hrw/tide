@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trash2, Plus,
-  X, Folder, Tag, Repeat, Check,
+  X, Folder, Tag, Repeat, Check, ArrowLeft, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
@@ -30,6 +30,7 @@ export interface TodoTreeItemProps {
   deleteTask: (id: string) => Promise<void> | void;
   onRowClick?: (task: TaskItem) => void; onSelectTask?: (task: TaskItem) => void;
   disableClickDebounce?: boolean; onFocusGroup?: (task: TaskWithChildren) => void;
+  parentDueDate?: string;
 }
 
 const MONTHS_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
@@ -80,10 +81,13 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   selectedTag = null, setSelectedTag, selectedFolder = null, setSelectedFolder, setViewMode,
   handleAddCustomTag, handleRemoveCustomTag, handleToggleTask, handleToggleInProgress,
   saveEditing, cancelEditing, deleteTask, onRowClick, onSelectTask, disableClickDebounce = false,
-  onFocusGroup,
+  onFocusGroup, parentDueDate,
 }) => {
   const addTask = useDataStore((s) => s.addTask);
   const updateTask = useDataStore((s) => s.updateTask);
+  const parentTask = useDataStore((s) => task.parentId ? s.tasks.find((t) => t.id === task.parentId) : undefined);
+  const effectiveParentDueDate = (parentDueDate || parentTask?.dueDate || parentTask?.scheduledDate || '').slice(0, 10);
+  const [isParentMinimized, setIsParentMinimized] = useState(false);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
@@ -209,28 +213,41 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
 
   const handleAddTag = (tag: string) => {
     handleAddCustomTag?.(tag);
-    if (!draft.tags.includes(tag)) setDraft((p) => ({ ...p, tags: [...p.tags, tag] }));
+    if (!draft.tags.includes(tag)) {
+      const nextTags = [...draft.tags, tag];
+      setDraft((p) => ({ ...p, tags: nextTags }));
+      updateTask(task.id, { tags: nextTags });
+    }
     setTagInput('');
   };
 
   const handleQuickDate = (option: 'today' | 'tomorrow' | 'none') => {
     if (option === 'none') {
       setDraft((p) => ({ ...p, dueDate: '' }));
+      updateTask(task.id, { dueDate: undefined, scheduledDate: undefined });
       return;
     }
     const target = option === 'today' ? new Date() : addDays(new Date(), 1);
-    setDraft((p) => ({ ...p, dueDate: format(target, 'yyyy-MM-dd') }));
+    let targetStr = format(target, 'yyyy-MM-dd');
+    if ((depth || 0) > 0 && effectiveParentDueDate && targetStr > effectiveParentDueDate) {
+      targetStr = effectiveParentDueDate;
+    }
+    setDraft((p) => ({ ...p, dueDate: targetStr }));
+    updateTask(task.id, { dueDate: targetStr, scheduledDate: targetStr });
   };
 
   const handleAddSubtask = async () => {
     const trimmed = newSubtaskTitle.trim();
     if (!trimmed) return;
+    const inheritedDate = draft.dueDate || task.dueDate || task.scheduledDate || undefined;
     await addTask({
       title: trimmed,
       parentId: task.id,
       folder: task.folder,
       tags: task.tags ? [...task.tags] : [],
       priority: (draft.priority || task.priority || 'low') as any,
+      dueDate: inheritedDate,
+      scheduledDate: inheritedDate,
       isCompleted: false,
       status: 'todo',
       order: task.children?.length || 0,
@@ -315,6 +332,21 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                 {/* Title Line */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleTask(task);
+                      }}
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all cursor-pointer ${
+                        isTaskCompleted
+                          ? 'bg-emerald-500 border-emerald-500 text-white'
+                          : 'border-gray-300 dark:border-white/20 hover:border-emerald-500'
+                      }`}
+                      title={isTaskCompleted ? "Als unerledigt markieren" : "Als erledigt markieren"}
+                    >
+                      {isTaskCompleted && <Check size={12} strokeWidth={3} />}
+                    </button>
                     <div className="shrink-0 flex items-center justify-center">
                       <TodoPriorityBadge priority={task.priority} />
                     </div>
@@ -392,27 +424,142 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
               onClick={(e) => e.stopPropagation()}
               className={`flex flex-col relative h-full flex-1 min-h-0 ${expanded ? 'mt-0 mb-0' : 'my-1.5'}`}
             >
-              {/* Sticky Top: Main Info Card & Unteraufgaben Header */}
+              {/* Sticky Top: Action Bar, Main Info Card & Unteraufgaben Header */}
               <div className="shrink-0 z-20 sticky top-0 flex flex-col">
+                {/* Action Bar (Top of expanded card) */}
+                <div className="flex items-center justify-between gap-2 mb-2 px-1 py-1 shrink-0">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (cancelEditing) cancelEditing();
+                        if (isControlledExpanded === undefined) setLocalExpanded(false);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer"
+                      title="Abbrechen"
+                    >
+                      <ArrowLeft size={14} />
+                      <span>Abbrechen</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (cancelEditing) cancelEditing();
+                        if (isControlledExpanded === undefined) setLocalExpanded(false);
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-xl hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                      title="Einklappen"
+                    >
+                      <ChevronUp size={16} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    {(!depth || depth < 1) && (
+                      <button
+                        type="button"
+                        onClick={() => setShowSubtaskInput(true)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors cursor-pointer"
+                        title="Teilaufgabe hinzufügen"
+                      >
+                        <Plus size={14} />
+                        <span>Teilaufgabe</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (cancelEditing) cancelEditing();
+                        if (isControlledExpanded === undefined) setLocalExpanded(false);
+                        void deleteTask(task.id);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors cursor-pointer"
+                      title="Aufgabe löschen"
+                    >
+                      <Trash2 size={14} />
+                      <span>Löschen</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (saveEditing) {
+                          saveEditing(task.id, draft);
+                        } else {
+                          updateTask(task.id, {
+                            title: draft.title.trim(),
+                            description: draft.description.trim() || undefined,
+                            priority: draft.priority,
+                            status: draft.status,
+                            dueDate: draft.dueDate || undefined,
+                            recurrence: draft.recurrence,
+                            recurrence_end: draft.recurrenceEnd || undefined,
+                            folder: draft.folder || undefined,
+                            tags: draft.tags,
+                            showInCalendar: draft.showInCalendar,
+                          });
+                        }
+                        if (isControlledExpanded === undefined) setLocalExpanded(false);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-xs"
+                      title="Speichern und schließen"
+                    >
+                      <Check size={14} strokeWidth={2.5} />
+                      <span>Fertig</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Main Info Card */}
                 <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-sm flex flex-col shrink-0 z-20">
-                  {depth && depth > 0 ? (
-                    <div className="mb-2">
+                  <div className="flex items-center justify-between mb-2">
+                    {depth && depth > 0 ? (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
                         Teilaufgabe
                       </span>
-                    </div>
-                  ) : null}
+                    ) : (
+                      <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                        {isParentMinimized ? 'Aufgabe minimiert' : 'Aufgabe bearbeiten'}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setIsParentMinimized((p) => !p)}
+                      className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                      title={isParentMinimized ? "Details anzeigen" : "Details minimieren"}
+                    >
+                      <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                        {isParentMinimized ? 'Details einblenden' : 'Minimieren'}
+                      </span>
+                      {isParentMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                    </button>
+                  </div>
 
                   {/* Title row with Priority selector */}
-                  <div className="flex items-center justify-between gap-3 border-b border-gray-200 dark:border-white/10 pb-2 mb-3">
+                  <div className={`flex items-center justify-between gap-3 ${isParentMinimized ? '' : 'border-b border-gray-200 dark:border-white/10 pb-2 mb-3'}`}>
                     <input
                       value={draft.title}
                       onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          if (draft.title.trim()) saveEditing?.(task.id, draft);
+                          if (draft.title.trim()) {
+                            if (saveEditing) {
+                              saveEditing(task.id, draft);
+                            } else {
+                              updateTask(task.id, {
+                                title: draft.title.trim(),
+                                description: draft.description.trim() || undefined,
+                                priority: draft.priority,
+                                status: draft.status,
+                                dueDate: draft.dueDate || undefined,
+                                recurrence: draft.recurrence,
+                                recurrence_end: draft.recurrenceEnd || undefined,
+                                folder: draft.folder || undefined,
+                                tags: draft.tags,
+                                showInCalendar: draft.showInCalendar,
+                              });
+                            }
+                          }
                           if (isControlledExpanded === undefined) setLocalExpanded(false);
                         } else if (e.key === 'Escape') {
                           cancelEditing?.();
@@ -425,179 +572,215 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         type="button"
-                        onClick={() => setDraft((p) => ({ ...p, priority: 'low' }))}
-                        className={`text-[13px] font-black px-2.5 py-1 rounded transition-all cursor-pointer ${
+                        onClick={() => {
+                          setDraft((p) => ({ ...p, priority: 'low' }));
+                          updateTask(task.id, { priority: 'low' });
+                        }}
+                        className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                           draft.priority === 'low'
                             ? 'bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
                             : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
                         }`}
                         title="Niedrige Priorität"
                       >
-                        ∨
+                        <ChevronDown size={14} strokeWidth={3.5} />
                       </button>
                       <button
                         type="button"
-                        onClick={() => setDraft((p) => ({ ...p, priority: 'medium' }))}
-                        className={`text-[13px] font-black px-2.5 py-1 rounded transition-all cursor-pointer ${
+                        onClick={() => {
+                          setDraft((p) => ({ ...p, priority: 'medium' }));
+                          updateTask(task.id, { priority: 'medium' });
+                        }}
+                        className={`px-2 py-1 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                           draft.priority === 'medium'
                             ? 'bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
                             : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
                         }`}
                         title="Mittlere Priorität"
                       >
-                        –
+                        <span className="leading-none text-base font-black">—</span>
                       </button>
                       <button
                         type="button"
-                        onClick={() => setDraft((p) => ({ ...p, priority: 'high' }))}
-                        className={`text-[13px] font-black px-2.5 py-1 rounded transition-all cursor-pointer ${
+                        onClick={() => {
+                          setDraft((p) => ({ ...p, priority: 'high' }));
+                          updateTask(task.id, { priority: 'high' });
+                        }}
+                        className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                           draft.priority === 'high'
                             ? 'bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
                             : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
                         }`}
                         title="Hohe Priorität"
                       >
-                        ∧
+                        <ChevronUp size={14} strokeWidth={3.5} />
                       </button>
                     </div>
                   </div>
 
                   {/* Properties Section */}
-                  <div className="flex flex-col gap-3">
-                    {/* Fälligkeit */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => handleQuickDate('today')}
-                        className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
-                          isDraftToday
-                            ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
-                            : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
-                        }`}
-                      >
-                        Heute
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickDate('tomorrow')}
-                        className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
-                          isDraftTomorrow
-                            ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
-                            : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
-                        }`}
-                      >
-                        Morgen
-                      </button>
-                      <div className="relative inline-flex items-center">
-                        <input
-                          type="date"
-                          value={draft.dueDate ? draft.dueDate.slice(0, 10) : ''}
-                          onChange={(e) => setDraft((p) => ({ ...p, dueDate: e.target.value }))}
-                          className="px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 rounded-lg border border-transparent focus:border-blue-500 focus:outline-none cursor-pointer"
-                          aria-label="Fälligkeitsdatum auswählen"
-                        />
-                        {draft.dueDate && (
-                          <button
-                            type="button"
-                            onClick={() => handleQuickDate('none')}
-                            className="ml-1 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
-                            title="Datum entfernen"
-                          >
-                            <X size={12} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Ordner & Wiederholung (2-column grid) */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1.5 min-w-0">
-                        <Folder size={14} className="text-gray-400 shrink-0" />
-                        <select
-                          value={draft.folder}
-                          onChange={(e) => setDraft((p) => ({ ...p, folder: e.target.value }))}
-                          className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer w-full truncate pr-1"
+                  {!isParentMinimized && (
+                    <div className="flex flex-col gap-3">
+                      {/* Fälligkeit */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => handleQuickDate('today')}
+                          className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                            isDraftToday
+                              ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
+                              : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
+                          }`}
                         >
-                          <option value="" className="bg-white dark:bg-[#1a1a1a]">Kein Ordner</option>
-                          {allFolders.map((f) => (
-                            <option key={f} value={f} className="bg-white dark:bg-[#1a1a1a]">{f}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1.5 min-w-0">
-                        <Repeat size={14} className="text-gray-400 shrink-0" />
-                        <select
-                          value={draft.recurrence}
-                          onChange={(e) => setDraft((p) => ({ ...p, recurrence: e.target.value as RecurrenceType }))}
-                          className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer w-full truncate pr-1"
+                          Heute
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleQuickDate('tomorrow')}
+                          className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                            isDraftTomorrow
+                              ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
+                              : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
+                          }`}
                         >
-                          {RECURRENCE_OPTIONS.map((o) => (
-                            <option key={o.value} value={o.value} className="bg-white dark:bg-[#1a1a1a]">{o.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Tags section - full width with comfortable padding */}
-                    <div className="w-full flex flex-wrap items-center gap-2 p-2.5 bg-gray-50 dark:bg-white/[0.04] rounded-xl border border-gray-100 dark:border-white/5">
-                      {draft.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${getTagColorClass(tag)}`}
-                        >
-                          <span>{tag}</span>
-                          <button
-                            type="button"
-                            onClick={() => setDraft((p) => ({ ...p, tags: p.tags.filter((t) => t !== tag) }))}
-                            className="hover:opacity-75 p-0.5 cursor-pointer"
-                            title={`Tag "${tag}" entfernen`}
-                          >
-                            <X size={12} />
-                          </button>
-                        </span>
-                      ))}
-                      <div className="inline-flex items-center gap-1.5 bg-white dark:bg-white/10 rounded-lg px-2.5 py-1 text-xs border border-gray-200/60 dark:border-white/10">
-                        <Tag size={13} className="text-gray-400" />
-                        <input
-                          type="text"
-                          value={tagInput}
-                          onChange={(e) => setTagInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              const t = tagInput.trim().replace(/^#/, '');
-                              if (t) handleAddTag(t);
-                            }
-                          }}
-                          placeholder="Tag hinzufügen..."
-                          className="w-28 bg-transparent text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
-                        />
-                        {tagInput.trim() && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const t = tagInput.trim().replace(/^#/, '');
-                              if (t) handleAddTag(t);
+                          Morgen
+                        </button>
+                        <div className="relative inline-flex items-center">
+                          <input
+                            type="date"
+                            value={draft.dueDate ? draft.dueDate.slice(0, 10) : ''}
+                            max={((depth || 0) > 0 && effectiveParentDueDate) ? effectiveParentDueDate : undefined}
+                            onChange={(e) => {
+                              let nextVal = e.target.value;
+                              if ((depth || 0) > 0 && effectiveParentDueDate && nextVal > effectiveParentDueDate) {
+                                nextVal = effectiveParentDueDate;
+                              }
+                              setDraft((p) => ({ ...p, dueDate: nextVal }));
+                              updateTask(task.id, { dueDate: nextVal || undefined, scheduledDate: nextVal || undefined });
                             }}
-                            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 p-0.5 cursor-pointer"
-                            title="Tag hinzufügen"
-                          >
-                            <Plus size={12} />
-                          </button>
-                        )}
+                            className="px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 rounded-lg border border-transparent focus:border-blue-500 focus:outline-none cursor-pointer"
+                            aria-label="Fälligkeitsdatum auswählen"
+                          />
+                          {draft.dueDate && (
+                            <button
+                              type="button"
+                              onClick={() => handleQuickDate('none')}
+                              className="ml-1 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                              title="Datum entfernen"
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Notes/Description textarea */}
-                    <textarea
-                      value={draft.description}
-                      onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
-                      placeholder="Optionale Notiz..."
-                      rows={1}
-                      className="w-full text-xs sm:text-sm bg-gray-50 dark:bg-white/[0.03] rounded-lg p-2.5 border border-gray-100 dark:border-white/5 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600 outline-none resize-none focus:border-gray-300 dark:focus:border-white/20 transition-colors"
-                    />
-                  </div>
+                      {/* Ordner & Wiederholung (2-column grid) */}
+                      {(!depth || depth < 1) && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1.5 min-w-0">
+                            <Folder size={14} className="text-gray-400 shrink-0" />
+                            <select
+                              value={draft.folder}
+                              onChange={(e) => {
+                                const nextFolder = e.target.value;
+                                setDraft((p) => ({ ...p, folder: nextFolder }));
+                                updateTask(task.id, { folder: nextFolder || undefined });
+                              }}
+                              className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer w-full truncate pr-1"
+                            >
+                              <option value="" className="bg-white dark:bg-[#1a1a1a]">Kein Ordner</option>
+                              {allFolders.map((f) => (
+                                <option key={f} value={f} className="bg-white dark:bg-[#1a1a1a]">{f}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1.5 min-w-0">
+                            <Repeat size={14} className="text-gray-400 shrink-0" />
+                            <select
+                              value={draft.recurrence}
+                              onChange={(e) => {
+                                const nextRecurrence = e.target.value as RecurrenceType;
+                                setDraft((p) => ({ ...p, recurrence: nextRecurrence }));
+                                updateTask(task.id, { recurrence: nextRecurrence });
+                              }}
+                              className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer w-full truncate pr-1"
+                            >
+                              {RECURRENCE_OPTIONS.map((o) => (
+                                <option key={o.value} value={o.value} className="bg-white dark:bg-[#1a1a1a]">{o.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tags section - full width with comfortable padding */}
+                      <div className="w-full flex flex-wrap items-center gap-2 p-2.5 bg-gray-50 dark:bg-white/[0.04] rounded-xl border border-gray-100 dark:border-white/5">
+                        {draft.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${getTagColorClass(tag)}`}
+                          >
+                            <span>{tag}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextTags = draft.tags.filter((t) => t !== tag);
+                                setDraft((p) => ({ ...p, tags: nextTags }));
+                                updateTask(task.id, { tags: nextTags });
+                              }}
+                              className="hover:opacity-75 p-0.5 cursor-pointer"
+                              title={`Tag "${tag}" entfernen`}
+                            >
+                              <X size={12} />
+                            </button>
+                          </span>
+                        ))}
+                        <div className="inline-flex items-center gap-1.5 bg-white dark:bg-white/10 rounded-lg px-2.5 py-1 text-xs border border-gray-200/60 dark:border-white/10">
+                          <Tag size={13} className="text-gray-400" />
+                          <input
+                            type="text"
+                            value={tagInput}
+                            onChange={(e) => setTagInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                const t = tagInput.trim().replace(/^#/, '');
+                                if (t) handleAddTag(t);
+                              }
+                            }}
+                            placeholder="Tag hinzufügen..."
+                            className="w-28 bg-transparent text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
+                          />
+                          {tagInput.trim() && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const t = tagInput.trim().replace(/^#/, '');
+                                if (t) handleAddTag(t);
+                              }}
+                              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 p-0.5 cursor-pointer"
+                              title="Tag hinzufügen"
+                            >
+                              <Plus size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Notes/Description textarea */}
+                      <textarea
+                        value={draft.description}
+                        onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
+                        onBlur={() => {
+                          updateTask(task.id, { description: draft.description.trim() || undefined });
+                        }}
+                        placeholder="Optionale Notiz..."
+                        rows={1}
+                        className="w-full text-xs sm:text-sm bg-gray-50 dark:bg-white/[0.03] rounded-lg p-2.5 border border-gray-100 dark:border-white/5 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600 outline-none resize-none focus:border-gray-300 dark:focus:border-white/20 transition-colors"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Raw Unteraufgaben Header */}
@@ -658,13 +841,21 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
 
               {/* Subtasks list - ONLY scrollable element */}
               {(!depth || depth < 1) && (
-                <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1 pb-28">
+                <div
+                  className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1 pb-28"
+                  onScroll={(e) => {
+                    const top = e.currentTarget.scrollTop;
+                    if (top > 25 && !isParentMinimized) setIsParentMinimized(true);
+                    else if (top <= 5 && isParentMinimized) setIsParentMinimized(false);
+                  }}
+                >
                   {task.children && task.children.length > 0 ? (
                     task.children.map((child) => (
                       <TodoTreeItem
                         key={child.id}
                         task={child as TaskWithChildren}
-                        depth={1}
+                        depth={(depth || 0) + 1}
+                        parentDueDate={draft.dueDate || task.dueDate || task.scheduledDate || undefined}
                         allTags={allTags}
                         customTags={customTags}
                         allFolders={allFolders}
@@ -691,9 +882,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                               tags: d.tags,
                               showInCalendar: d.showInCalendar,
                             });
-                          }
-                          if (saveEditing) {
-                            saveEditing(id, d);
                           }
                         }}
                         deleteTask={deleteTask}

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import { Star, Ban, Trash2, X, ChevronDown, Check, Clock } from "lucide-react";
 import { getEventGroupIds } from "../../lib/calendarUtils";
@@ -56,7 +57,7 @@ function ModernDropdown({
             </button>
 
             {open && (
-                <div className="absolute top-full mt-1 left-0 right-0 z-[120] bg-white dark:bg-[#222222] border border-gray-100 dark:border-white/10 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 max-h-48 overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-100">
+                <div className="absolute top-full mt-1 left-0 right-0 z-[1050] bg-white dark:bg-[#222222] border border-gray-100 dark:border-white/10 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 max-h-48 overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-100">
                     {options.map(opt => {
                         const isSelected = opt.value === value;
                         return (
@@ -292,11 +293,13 @@ export default function EventPopover({
     const existingTags = tags.filter(t => t.trim() !== '');
     const availableThemes = themes.filter(t => !selectedGroupIds.includes(t.id));
 
-    return (
+    if (typeof document === 'undefined') return null;
+
+    return createPortal(
         <div
             id="active-event-popover"
             ref={popoverRef}
-            className="fixed z-[100] w-[320px] bg-white dark:bg-[#1C1C1C] rounded-3xl shadow-2xl border border-gray-100 dark:border-white/10 p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150"
+            className="fixed z-[1000] w-[320px] bg-white dark:bg-[#1C1C1C] rounded-3xl shadow-2xl border border-gray-100 dark:border-white/10 p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150"
             style={{ top: `${pos.top}px`, left: `${pos.left}px` }}
         >
             {/* ── Header ── */}
@@ -685,6 +688,7 @@ export default function EventPopover({
                     </div>
                 </div>
             )}
-        </div>
+        </div>,
+        document.body
     );
 }

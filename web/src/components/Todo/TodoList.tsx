@@ -188,8 +188,10 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const addMenuRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
 
-  const cancelEditing = (_id?: string) => {
-    setEditingTaskId(null);
+  const cancelEditing = (id?: string) => {
+    if (!id || id === editingTaskId) {
+      setEditingTaskId(null);
+    }
   };
 
   const editingTaskIdRef = useRef<string | null>(editingTaskId);
@@ -198,7 +200,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const cancelEditingRef = useRef(cancelEditing);
   cancelEditingRef.current = cancelEditing;
 
-  const saveEditingRef = useRef<(id: string) => void>(() => {});
+  const saveEditingRef = useRef<(id: string, specificDraft?: TaskEditDraft) => void>(() => {});
 
   const deleteTaskRef = useRef(deleteTask);
   deleteTaskRef.current = deleteTask;
@@ -487,27 +489,33 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     setEditNewTagInput('');
   };
 
-  const saveEditing = (id: string) => {
-    if (!editDraft.title.trim()) return;
-    const folderVal = editDraft.folder.trim() || undefined;
-    const isCompleted = editDraft.status === 'completed';
+  const saveEditing = (id: string, specificDraft?: TaskEditDraft) => {
+    const draftToUse = specificDraft || editDraft;
+    if (!draftToUse.title.trim()) return;
+    const folderVal = draftToUse.folder ? draftToUse.folder.trim() || undefined : undefined;
+    const isCompleted = draftToUse.status === 'completed';
     updateTask(id, {
-      title: editDraft.title.trim(), description: editDraft.description.trim() || undefined,
-      priority: editDraft.priority,
-      status: editDraft.status,
+      title: draftToUse.title.trim(),
+      description: draftToUse.description ? draftToUse.description.trim() || undefined : undefined,
+      priority: draftToUse.priority,
+      status: draftToUse.status,
       isCompleted,
-      color: getPriorityColor(editDraft.priority, (editDraft as { color?: string }).color),
-      scheduledDate: editDraft.dueDate || undefined, dueDate: editDraft.dueDate || undefined,
-      recurrence: editDraft.recurrence, recurrence_rule: buildRecurrenceRule(editDraft.recurrence),
-      recurrence_end: editDraft.recurrence !== 'none' && editDraft.recurrenceEnd ? editDraft.recurrenceEnd : undefined,
+      color: getPriorityColor(draftToUse.priority, (draftToUse as { color?: string }).color),
+      scheduledDate: draftToUse.dueDate || undefined,
+      dueDate: draftToUse.dueDate || undefined,
+      recurrence: draftToUse.recurrence,
+      recurrence_rule: buildRecurrenceRule(draftToUse.recurrence),
+      recurrence_end: draftToUse.recurrence !== 'none' && draftToUse.recurrenceEnd ? draftToUse.recurrenceEnd : undefined,
       folder: folderVal,
-      tags: editDraft.tags,
-      showInCalendar: editDraft.showInCalendar,
+      tags: draftToUse.tags,
+      showInCalendar: draftToUse.showInCalendar,
     });
     if (folderVal && !createdFolders.includes(folderVal)) {
       handleCreateFolder(folderVal);
     }
-    setEditingTaskId(null);
+    if (id === editingTaskId) {
+      setEditingTaskId(null);
+    }
   };
   saveEditingRef.current = saveEditing;
 
@@ -607,6 +615,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     <TodoTreeItem disableClickDebounce
         task={task}
         isExpanded={editingTaskId === task.id}
+        editingTaskId={editingTaskId}
         isCompleting={completingTaskIds.has(task.id)}
         completingTaskIds={completingTaskIds}
         editDraft={editDraft}
@@ -634,7 +643,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   );
 
   return (
-    <div className={`w-full h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] relative overflow-hidden ${editingTaskId !== null ? 'pt-0 overflow-hidden' : ''} ${className || ''}`}>
+    <div className={`w-full h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] relative overflow-hidden ${className || ''}`}>
       <TodoListHeader
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -672,9 +681,9 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         </div>
       ) : (
         /* Center container */
-        <div className={`w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2 ${editingTaskId !== null ? 'h-full pt-0 overflow-hidden' : ''}`}>
+        <div className={`w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2 ${editingTaskId !== null ? 'h-full' : ''}`}>
           {/* Scrollable list container */}
-          <div className={`flex-1 ${editingTaskId !== null ? 'h-full overflow-hidden pt-0 gap-0 pb-2' : 'overflow-y-auto pt-1 sm:pt-2 gap-2 pb-16'} overflow-x-hidden px-3 sm:px-4 flex flex-col`}>
+          <div className={`flex-1 min-h-0 ${editingTaskId !== null ? 'h-full' : ''} overflow-y-auto overflow-x-hidden px-3 sm:px-4 pt-1 sm:pt-2 pb-16 flex flex-col gap-2`}>
             <AnimatePresence mode="wait" initial={false}>
               {focusedTask ? (
                 <motion.div

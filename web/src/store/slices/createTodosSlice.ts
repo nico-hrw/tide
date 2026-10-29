@@ -24,6 +24,19 @@ export function saveTasksToOfflineCache(tasks: TaskItem[]): void {
     }
 }
 
+function compactVaultPayload(rawPayload: Record<string, unknown>): Record<string, unknown> {
+    return Object.fromEntries(
+        Object.entries(rawPayload).filter(
+            ([, v]) =>
+                v !== undefined &&
+                v !== null &&
+                v !== '' &&
+                v !== false &&
+                !(Array.isArray(v) && v.length === 0)
+        )
+    );
+}
+
 export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
     tasks: loadCachedTasks(),
 
@@ -71,8 +84,8 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
 
         try {
             const cryptoLib = await import('@/lib/crypto');
-            // Include all fields (including scheduledDate) in the vault
-            const vaultPayload: Record<string, unknown> = {
+            // Include all fields (including scheduledDate) in the vault, compacted to fit RSA-OAEP limit
+            const rawPayload: Record<string, unknown> = {
                 title: newTask.title,
                 isCompleted: newTask.isCompleted,
                 status: newTask.status || (newTask.isCompleted ? 'completed' : 'todo'),
@@ -95,7 +108,15 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
                 parentId: newTask.parentId ?? null,
                 order: newTask.order ?? 0,
             };
-            const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, state.publicKey);
+            const vaultPayload = compactVaultPayload(rawPayload);
+
+            let securedMeta: string;
+            try {
+                securedMeta = await cryptoLib.encryptMetadata(vaultPayload, state.publicKey);
+            } catch (encryptErr) {
+                console.error('[addTask] Failed to encrypt task metadata with cryptoLib.encryptMetadata:', encryptErr);
+                return fallbackId;
+            }
 
             const res = await apiFetch('/api/v1/tasks', {
                 method: 'POST',
@@ -214,8 +235,8 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
 
         try {
             const cryptoLib = await import('@/lib/crypto');
-            // Explicitly include all persistent fields so scheduledDate survives reloads
-            const vaultPayload: Record<string, unknown> = {
+            // Explicitly include all persistent fields so scheduledDate survives reloads, compacted to fit RSA-OAEP limit
+            const rawPayload: Record<string, unknown> = {
                 title: mergedTask.title,
                 isCompleted: mergedTask.isCompleted,
                 status:
@@ -246,7 +267,15 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
                 parentId: (updates.parentId !== undefined ? updates.parentId : task?.parentId) ?? null,
                 order: (updates.order !== undefined ? updates.order : task?.order) ?? 0,
             };
-            const securedMeta = await cryptoLib.encryptMetadata(vaultPayload, publicKey);
+            const vaultPayload = compactVaultPayload(rawPayload);
+
+            let securedMeta: string;
+            try {
+                securedMeta = await cryptoLib.encryptMetadata(vaultPayload, publicKey);
+            } catch (encryptErr) {
+                console.error('[updateTask] Failed to encrypt task metadata with cryptoLib.encryptMetadata:', encryptErr);
+                return;
+            }
 
             const res = await apiFetch(`/api/v1/tasks/${id}`, {
                 method: 'PUT',

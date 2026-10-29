@@ -114,6 +114,8 @@ interface CalendarEvent {
     linkedTaskId?: string;
     recurrence_rule?: string;
     recurrence_end?: string;
+    metadata?: Record<string, unknown>;
+    version?: number;
 }
 
 
@@ -2008,9 +2010,11 @@ export default function Dashboard() {
         try {
             // Optimistic update
             useDataStore.getState().setEvents(useDataStore.getState().events.map(e => e.id === id ? { ...e, title: newTitle } as any : e));
+            useDataStore.getState().updateSpecificMetadataCache(id, { title: newTitle });
 
             const event = events.find(e => e.id === id);
             if (!event) return;
+            const targetFile = event;
             const meta = {
                 title: newTitle,
                 start: event.start,
@@ -2029,7 +2033,10 @@ export default function Dashboard() {
             await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ secured_meta: securedMeta })
+                body: JSON.stringify({
+                    secured_meta: securedMeta,
+                    metadata: { ...(targetFile?.metadata || {}), title: newTitle }
+                })
             });
         } catch (e) { console.error(e); }
     };
@@ -2176,7 +2183,10 @@ export default function Dashboard() {
                 
                 const v2Result = await encryptFileV2(contentString, publicKey);
                 
-                body.version = 2;
+                const existingFile = event || currentEvents.find(e => e.id === baseId) || useDataStore.getState().notes.find((n: any) => n.id === baseId);
+                if (typeof (existingFile as any)?.version === 'number') {
+                    body.version = (existingFile as any).version;
+                }
                 body.metadata = {
                     ...v2Result.metadata,
                     ...meta
@@ -2218,11 +2228,24 @@ export default function Dashboard() {
             }
 
             // 7. Fire network call
-            await apiFetch(`/api/v1/files/${baseId}`, {
+            const res = await apiFetch(`/api/v1/files/${baseId}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body)
             });
+            if (res.ok) {
+                try {
+                    const data = await res.json();
+                    if (typeof data?.version === 'number') {
+                        (event as any).version = data.version;
+                        useDataStore.setState((s: any) => ({
+                            events: s.events.map((e: any) => e.id === baseId ? { ...e, version: data.version } : e)
+                        }));
+                    }
+                } catch {
+                    // Ignore parse error
+                }
+            }
             // [FIX-4] Stamp save time to suppress SSE echo refetch
             if (typeof (window as any).__tideSaveTimestamp === 'function') {
                 (window as any).__tideSaveTimestamp();

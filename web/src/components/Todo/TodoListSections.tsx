@@ -50,8 +50,6 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
     ? 'In Arbeit'
     : null;
 
-  const editingIndex = tasksToRender.findIndex((t) => t.id === editingTaskId);
-
   return (
     <>
       {tasksToRender.length > 0 && sectionTitle && (
@@ -70,23 +68,22 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
 
       {/* Task Cards List */}
       <div className={`flex flex-col ${editingTaskId !== null ? 'gap-0 h-full flex-1 min-h-0' : 'gap-1.5'}`}>
-        <AnimatePresence mode="popLayout" initial={false}>
-          {tasksToRender.map((task, index) => {
+        <AnimatePresence initial={false}>
+          {tasksToRender.map((task) => {
             const isEditing = task.id === editingTaskId;
             const isOther = Boolean(editingTaskId && !isEditing);
-            const isAbove = editingIndex !== -1 && index < editingIndex;
-            const flyY = isAbove ? -350 : 350;
 
             const animateState = editingTaskId
               ? isEditing
                 ? { opacity: 1, y: 0, scale: 1, height: 'auto' as const, marginBottom: 0, display: 'block' }
                 : {
                     opacity: 0,
-                    y: flyY,
+                    scale: 0.98,
                     height: 0,
                     marginBottom: 0,
                     overflow: 'hidden' as const,
                     transitionEnd: { display: 'none' },
+                    transition: { duration: 0.15 },
                   }
               : { opacity: 1, y: 0, scale: 1, height: 'auto' as const, marginBottom: 0, display: 'block' };
 
@@ -101,11 +98,8 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                 animate={animateState}
                 exit={{
                   opacity: 0,
-                  x: -20,
-                  height: 0,
-                  marginBottom: 0,
-                  scale: 0.95,
-                  transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1] },
+                  scale: 0.98,
+                  transition: { duration: 0.15 },
                 }}
                 transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                 style={itemStyle}
