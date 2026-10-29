@@ -89,6 +89,49 @@ export function useCalendarScroll({
         }
     }, [onDateChange]);
 
+    // Update the visible date range in the global store
+    const updateVisibleRange = useCallback(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+
+        const dayCols = container.querySelectorAll('[data-day-col]');
+        const leftEdge = container.scrollLeft;
+        const rightEdge = container.scrollLeft + container.clientWidth;
+        const visibleDayStrs: string[] = [];
+
+        dayCols.forEach((el) => {
+            const htmlEl = el as HTMLElement;
+            const colLeft = htmlEl.offsetLeft;
+            const colRight = htmlEl.offsetLeft + htmlEl.offsetWidth;
+            if (colRight >= leftEdge && colLeft <= rightEdge) {
+                const dayStr = htmlEl.getAttribute('data-day-col');
+                if (dayStr) visibleDayStrs.push(dayStr);
+            }
+        });
+
+        if (visibleDayStrs.length > 0) {
+            const startIso = visibleDayStrs[0];
+            const endIso = visibleDayStrs[visibleDayStrs.length - 1];
+            useDataStore.getState().setVisibleCalendarRange({ start: startIso, end: endIso });
+        }
+    }, [scrollContainerRef]);
+
+    // Initial and layout effect to ensure visibleCalendarRange is set on mount / date change
+    useEffect(() => {
+        updateVisibleRange();
+        const t1 = setTimeout(updateVisibleRange, 100);
+        const t2 = setTimeout(updateVisibleRange, 300);
+        const t3 = setTimeout(updateVisibleRange, 600);
+
+        window.addEventListener('resize', updateVisibleRange);
+        return () => {
+            clearTimeout(t1);
+            clearTimeout(t2);
+            clearTimeout(t3);
+            window.removeEventListener('resize', updateVisibleRange);
+        };
+    }, [loadedWeeks, updateVisibleRange]);
+
     // Throttled scroll handler to persist state and trigger infinite loading
     const lastScrollCallRef = useRef(0);
     const onScroll = useCallback(() => {
@@ -127,6 +170,8 @@ export function useCalendarScroll({
             });
         }
 
+        updateVisibleRange();
+
         // Determine which week/day is in the center and update the month
         // Each week has 7 days. Total weeks = loadedWeeks.length.
         // We can find the current index of the week based on scroll percentage.
@@ -136,18 +181,8 @@ export function useCalendarScroll({
         let minDistance = Infinity;
 
         const dayCols = container.querySelectorAll('[data-day-col]');
-        const leftEdge = container.scrollLeft;
-        const rightEdge = container.scrollLeft + container.clientWidth;
-        const visibleDayStrs: string[] = [];
-
         dayCols.forEach((el) => {
             const htmlEl = el as HTMLElement;
-            const colLeft = htmlEl.offsetLeft;
-            const colRight = htmlEl.offsetLeft + htmlEl.offsetWidth;
-            if (colRight >= leftEdge && colLeft <= rightEdge) {
-                const dayStr = htmlEl.getAttribute('data-day-col');
-                if (dayStr) visibleDayStrs.push(dayStr);
-            }
             const colCenter = htmlEl.offsetLeft + (htmlEl.offsetWidth / 2);
             const dist = Math.abs(colCenter - centerScrollX);
             if (dist < minDistance) {
@@ -155,12 +190,6 @@ export function useCalendarScroll({
                 closestDayCol = htmlEl;
             }
         });
-
-        if (visibleDayStrs.length > 0) {
-            const startIso = visibleDayStrs[0];
-            const endIso = visibleDayStrs[visibleDayStrs.length - 1];
-            useDataStore.getState().setVisibleCalendarRange({ start: startIso, end: endIso });
-        }
 
         if (closestDayCol) {
             const dayStr = (closestDayCol as HTMLElement).getAttribute('data-day-col');
@@ -171,7 +200,7 @@ export function useCalendarScroll({
                 }
             }
         }
-    }, [onDateChange, date]);
+    }, [onDateChange, date, updateVisibleRange]);
 
     useEffect(() => {
         const container = scrollContainerRef.current;
@@ -329,6 +358,7 @@ export function useCalendarScroll({
                         const targetLeft = todayCol.offsetLeft - container.offsetWidth / 2 + todayCol.offsetWidth / 2;
                         container.scrollLeft = Math.max(0, targetLeft);
                         isPrependingRef.current = false;
+                        updateVisibleRange();
                         return;
                     }
                 }
@@ -336,6 +366,7 @@ export function useCalendarScroll({
                 const weekWidth = container.scrollWidth / 3;
                 container.scrollLeft = weekWidth;
                 isPrependingRef.current = false;
+                updateVisibleRange();
             } else {
                 // Prepend logic: find how much width was added
                 // Count columns in DOM
@@ -353,9 +384,12 @@ export function useCalendarScroll({
                     }
                 }
                 isPrependingRef.current = false;
+                updateVisibleRange();
             }
+        } else {
+            updateVisibleRange();
         }
-    }, [loadedWeeks]);
+    }, [loadedWeeks, date, updateVisibleRange]);
 
     return { todayButtonDir, todayAngle, handleScrollToToday };
 }

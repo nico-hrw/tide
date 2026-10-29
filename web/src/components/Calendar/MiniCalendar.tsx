@@ -75,7 +75,7 @@ export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, ev
                     else if (dx > 30) prevMonth();
                 }}
             >
-                <span className="text-[13px] font-semibold text-gray-800 dark:text-gray-100 cursor-ew-resize py-0.5" title="Wischen oder Scrollen zum Wechseln">
+                <span className="text-[13px] font-semibold text-neutral-800 dark:text-neutral-100 cursor-ew-resize py-0.5" title="Wischen oder Scrollen zum Wechseln">
                     {format(displayDate, "MMMM yyyy", { locale: de })}
                 </span>
                 <div className="flex gap-1">
@@ -84,14 +84,14 @@ export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, ev
                         className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
                         title="Vorheriger Monat"
                     >
-                        <ChevronLeft size={12} className="text-gray-500 dark:text-slate-400" />
+                        <ChevronLeft size={13} className="text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white" />
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); nextMonth(); }}
                         className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
                         title="Nächster Monat"
                     >
-                        <ChevronRight size={12} className="text-gray-500 dark:text-slate-400" />
+                        <ChevronRight size={13} className="text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white" />
                     </button>
                 </div>
             </div>
@@ -140,18 +140,35 @@ export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, ev
                         ? (dayIso >= visibleCalendarRange.start && dayIso <= visibleCalendarRange.end)
                         : false;
 
-                    let className = "text-[11px] w-7 h-7 flex flex-col items-center justify-center cursor-pointer transition-all relative mx-auto";
+                    const isStartOfVisible = isVisibleInGrid && (visibleCalendarRange?.start === dayIso || day.getDay() === 1);
+                    const isEndOfVisible = isVisibleInGrid && (visibleCalendarRange?.end === dayIso || day.getDay() === 0);
 
-                    if (!isCurrentMonth) {
-                        className += " text-neutral-400 dark:text-neutral-500 font-medium rounded-full hover:bg-black/5 dark:hover:bg-white/10";
-                    } else if (isDayToday) {
-                        className += " bg-blue-600 text-white font-bold rounded-full shadow-xs";
+                    const stripRounded = isStartOfVisible && isEndOfVisible
+                        ? "rounded-md"
+                        : isStartOfVisible
+                        ? "rounded-l-md rounded-r-none"
+                        : isEndOfVisible
+                        ? "rounded-r-md rounded-l-none"
+                        : "rounded-none";
+
+                    let className = "text-[11px] h-7 flex flex-col items-center justify-center cursor-pointer transition-all relative mx-auto";
+
+                    if (isDayToday) {
+                        className += " w-7 bg-blue-600 text-white font-bold rounded-full shadow-xs";
+                        if (isVisibleInGrid) {
+                            className += " ring-2 ring-purple-400/80 dark:ring-purple-300/80";
+                        }
                     } else if (isSelectedDay) {
-                        className += " bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold rounded-full ring-1.5 ring-blue-500/50";
+                        className += " w-7 bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold rounded-full ring-1.5 ring-blue-500/50";
                     } else if (isVisibleInGrid) {
-                        className += " bg-purple-500/15 dark:bg-purple-400/20 text-neutral-800 dark:text-neutral-100 font-medium rounded-md hover:bg-purple-500/25 dark:hover:bg-purple-400/30";
+                        className += ` w-full bg-purple-500/25 dark:bg-purple-500/35 text-purple-950 dark:text-purple-100 font-semibold ring-1 ring-purple-500/40 dark:ring-purple-400/50 hover:bg-purple-500/35 dark:hover:bg-purple-500/45 ${stripRounded}`;
+                        if (!isCurrentMonth) {
+                            className += " opacity-70";
+                        }
+                    } else if (!isCurrentMonth) {
+                        className += " w-7 text-neutral-400 dark:text-neutral-400 font-medium rounded-full hover:bg-black/5 dark:hover:bg-white/10";
                     } else {
-                        className += " text-neutral-800 dark:text-neutral-200 font-medium rounded-full hover:bg-black/5 dark:hover:bg-white/10";
+                        className += " w-7 text-neutral-800 dark:text-neutral-100 font-medium rounded-full hover:bg-black/5 dark:hover:bg-white/10";
                     }
 
                     return (

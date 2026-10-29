@@ -943,7 +943,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                 damping: 30,
                 mass: 0.9
             }}
-            className={`liquidGlass-wrapper text-zinc-100 ${positionClass} ${sizeClass}`}
+            className={`liquidGlass-wrapper dark text-zinc-100 ${positionClass} ${sizeClass}`}
         >
             {/* Layer 1: Distortion blur */}
             <div className="liquidGlass-effect" />
@@ -986,7 +986,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                                 default: { type: "spring", stiffness: 300, damping: 30 }
                             }}
                             layout="position"
-                            className="[&>div:first-child]:!p-2 [&>div:first-child]:!py-1 [&>div:first-child>div:nth-child(1)]:!mb-1 [&>div:first-child>div:nth-child(2)]:!mb-1 [&>div:first-child>div:nth-child(3)]:!mb-0.5 [&_.w-7]:!w-6 [&_.w-7]:!h-6"
+                            className="dark [&>div:first-child]:!p-2 [&>div:first-child]:!py-1 [&>div:first-child>div:nth-child(1)]:!mb-1 [&>div:first-child>div:nth-child(2)]:!mb-1 [&>div:first-child>div:nth-child(3)]:!mb-0.5 [&_.w-7]:!w-6 [&_.w-7]:!h-6"
                         >
                             <MiniCalendar
                                 selectedDate={selectedDate}
