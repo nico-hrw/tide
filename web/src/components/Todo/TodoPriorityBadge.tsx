@@ -1,4 +1,5 @@
 import React from 'react';
+import { ChevronUp, ChevronDown, Minus } from 'lucide-react';
 
 export type PriorityLevel = 'low' | 'medium' | 'high' | 'P1' | 'P2' | 'P3' | 1 | 2 | 3;
 
@@ -73,23 +74,23 @@ export function TodoPriorityBadge({ priority, className }: TodoPriorityBadgeProp
 
   if (normalized === 'P3') {
     return (
-      <span className={`text-red-500 dark:text-red-400 font-black text-xs leading-none select-none inline-block ${className || ''}`} title="Priorität: Hoch">
-        ▲
+      <span className={`text-red-500 dark:text-red-400 select-none inline-flex items-center justify-center ${className || ''}`} title="Priorität: Hoch">
+        <ChevronUp size={13} strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round" />
       </span>
     );
   }
 
   if (normalized === 'P2') {
     return (
-      <span className={`text-amber-500 dark:text-amber-400 font-black text-xs leading-none select-none inline-block ${className || ''}`} title="Priorität: Mittel">
-        —
+      <span className={`text-amber-500 dark:text-amber-400 select-none inline-flex items-center justify-center ${className || ''}`} title="Priorität: Mittel">
+        <Minus size={13} strokeWidth={3.2} strokeLinecap="round" />
       </span>
     );
   }
 
   return (
-    <span className={`text-emerald-500 dark:text-emerald-400 font-black text-xs leading-none select-none inline-block ${className || ''}`} title="Priorität: Niedrig">
-      ▼
+    <span className={`text-emerald-500 dark:text-emerald-400 select-none inline-flex items-center justify-center ${className || ''}`} title="Priorität: Niedrig">
+      <ChevronDown size={13} strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round" />
     </span>
   );
 }

@@ -83,7 +83,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     marginBottom: 0,
                     overflow: 'hidden' as const,
                     transitionEnd: { display: 'none' },
-                    transition: { duration: 0.15 },
+                    transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] as const },
                   }
               : { opacity: 1, y: 0, scale: 1, height: 'auto' as const, marginBottom: 0, display: 'block' };
 
@@ -96,11 +96,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                 key={task.id}
                 initial={{ opacity: 0, y: -8 }}
                 animate={animateState}
-                exit={{
-                  opacity: 0,
-                  scale: 0.98,
-                  transition: { duration: 0.15 },
-                }}
+                exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.25, ease: 'easeOut' } }}
                 transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                 style={itemStyle}
                 className={isEditing ? 'relative z-20 h-full flex-1 min-h-0 flex flex-col' : undefined}

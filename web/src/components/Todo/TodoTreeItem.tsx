@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trash2, Plus,
-  X, Folder, Tag, Repeat, Check, ArrowLeft, ChevronUp, ChevronDown,
+  X, Folder, Tag, Repeat, Check, ArrowLeft, ChevronUp, ChevronDown, Minus,
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
@@ -157,7 +157,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   const isTaskCompleted = task.isCompleted || isCompleting;
   const isOverdue = deadline?.status === 'overdue' && !isTaskCompleted;
   const isTodayDate = deadline?.status === 'today';
-  const isTodayActive = isTodayDate && !isTaskCompleted;
+  const isTodayActive = isTodayDate && !isTaskCompleted && (!depth || depth === 0);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (expanded) return;
@@ -309,7 +309,13 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                   </div>
                 ) : isTodayDate ? (
                   <div className="w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2">
-                    <span className={`text-[13px] font-bold leading-tight ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-white dark:text-black'}`}>
+                    <span className={`text-[13px] font-bold leading-tight ${
+                      isTaskCompleted
+                        ? 'text-gray-400 dark:text-gray-500'
+                        : isTodayActive
+                          ? 'text-white dark:text-black'
+                          : 'text-gray-900 dark:text-white'
+                    }`}>
                       Heute
                     </span>
                   </div>
@@ -338,7 +344,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                         e.stopPropagation();
                         handleToggleTask(task);
                       }}
-                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all cursor-pointer ${
+                      className={`w-5 h-5 rounded-full border-2 hidden [@media(hover:hover)_and_(pointer:fine)]:flex items-center justify-center shrink-0 transition-all cursor-pointer ${
                         isTaskCompleted
                           ? 'bg-emerald-500 border-emerald-500 text-white'
                           : 'border-gray-300 dark:border-white/20 hover:border-emerald-500'
@@ -424,91 +430,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
               onClick={(e) => e.stopPropagation()}
               className={`flex flex-col relative h-full flex-1 min-h-0 ${expanded ? 'mt-0 mb-0' : 'my-1.5'}`}
             >
-              {/* Sticky Top: Action Bar, Main Info Card & Unteraufgaben Header */}
+              {/* Sticky Top: Main Info Card & Unteraufgaben Header */}
               <div className="shrink-0 z-20 sticky top-0 flex flex-col">
-                {/* Action Bar (Top of expanded card) */}
-                <div className="flex items-center justify-between gap-2 mb-2 px-1 py-1 shrink-0">
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (cancelEditing) cancelEditing();
-                        if (isControlledExpanded === undefined) setLocalExpanded(false);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer"
-                      title="Abbrechen"
-                    >
-                      <ArrowLeft size={14} />
-                      <span>Abbrechen</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (cancelEditing) cancelEditing();
-                        if (isControlledExpanded === undefined) setLocalExpanded(false);
-                      }}
-                      className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-xl hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
-                      title="Einklappen"
-                    >
-                      <ChevronUp size={16} />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    {(!depth || depth < 1) && (
-                      <button
-                        type="button"
-                        onClick={() => setShowSubtaskInput(true)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors cursor-pointer"
-                        title="Teilaufgabe hinzufügen"
-                      >
-                        <Plus size={14} />
-                        <span>Teilaufgabe</span>
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (cancelEditing) cancelEditing();
-                        if (isControlledExpanded === undefined) setLocalExpanded(false);
-                        void deleteTask(task.id);
-                      }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors cursor-pointer"
-                      title="Aufgabe löschen"
-                    >
-                      <Trash2 size={14} />
-                      <span>Löschen</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (saveEditing) {
-                          saveEditing(task.id, draft);
-                        } else {
-                          updateTask(task.id, {
-                            title: draft.title.trim(),
-                            description: draft.description.trim() || undefined,
-                            priority: draft.priority,
-                            status: draft.status,
-                            dueDate: draft.dueDate || undefined,
-                            recurrence: draft.recurrence,
-                            recurrence_end: draft.recurrenceEnd || undefined,
-                            folder: draft.folder || undefined,
-                            tags: draft.tags,
-                            showInCalendar: draft.showInCalendar,
-                          });
-                        }
-                        if (isControlledExpanded === undefined) setLocalExpanded(false);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-colors cursor-pointer shadow-xs"
-                      title="Speichern und schließen"
-                    >
-                      <Check size={14} strokeWidth={2.5} />
-                      <span>Fertig</span>
-                    </button>
-                  </div>
-                </div>
-
                 {/* Main Info Card */}
                 <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-sm flex flex-col shrink-0 z-20">
                   <div className="flex items-center justify-between mb-2">
@@ -569,53 +492,64 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       placeholder="Titel der Aufgabe..."
                       className="text-lg font-bold text-gray-900 dark:text-white bg-transparent outline-none flex-1 min-w-0"
                     />
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    {isParentMinimized ? (
                       <button
                         type="button"
-                        onClick={() => {
-                          setDraft((p) => ({ ...p, priority: 'low' }));
-                          updateTask(task.id, { priority: 'low' });
-                        }}
-                        className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
-                          draft.priority === 'low'
-                            ? 'bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
-                            : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
-                        }`}
-                        title="Niedrige Priorität"
+                        onClick={() => setIsParentMinimized(false)}
+                        className="p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+                        title="Details einblenden"
                       >
-                        <ChevronDown size={14} strokeWidth={3.5} />
+                        <ChevronDown size={18} />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDraft((p) => ({ ...p, priority: 'medium' }));
-                          updateTask(task.id, { priority: 'medium' });
-                        }}
-                        className={`px-2 py-1 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center justify-center ${
-                          draft.priority === 'medium'
-                            ? 'bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
-                            : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
-                        }`}
-                        title="Mittlere Priorität"
-                      >
-                        <span className="leading-none text-base font-black">—</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDraft((p) => ({ ...p, priority: 'high' }));
-                          updateTask(task.id, { priority: 'high' });
-                        }}
-                        className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
-                          draft.priority === 'high'
-                            ? 'bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
-                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
-                        }`}
-                        title="Hohe Priorität"
-                      >
-                        <ChevronUp size={14} strokeWidth={3.5} />
-                      </button>
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDraft((p) => ({ ...p, priority: 'low' }));
+                            updateTask(task.id, { priority: 'low' });
+                          }}
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
+                            draft.priority === 'low'
+                              ? 'bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
+                              : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
+                          }`}
+                          title="Niedrige Priorität"
+                        >
+                          <ChevronDown size={14} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDraft((p) => ({ ...p, priority: 'medium' }));
+                            updateTask(task.id, { priority: 'medium' });
+                          }}
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
+                            draft.priority === 'medium'
+                              ? 'bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
+                              : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
+                          }`}
+                          title="Mittlere Priorität"
+                        >
+                          <Minus size={14} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDraft((p) => ({ ...p, priority: 'high' }));
+                            updateTask(task.id, { priority: 'high' });
+                          }}
+                          className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
+                            draft.priority === 'high'
+                              ? 'bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
+                              : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
+                          }`}
+                          title="Hohe Priorität"
+                        >
+                          <ChevronUp size={14} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Properties Section */}
@@ -842,11 +776,13 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
               {/* Subtasks list - ONLY scrollable element */}
               {(!depth || depth < 1) && (
                 <div
-                  className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1 pb-28"
+                  className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1 pb-6 sm:pb-8"
                   onScroll={(e) => {
                     const top = e.currentTarget.scrollTop;
-                    if (top > 25 && !isParentMinimized) setIsParentMinimized(true);
-                    else if (top <= 5 && isParentMinimized) setIsParentMinimized(false);
+                    if (top > 25 && !isParentMinimized) {
+                      setIsParentMinimized(true);
+                    }
+                    // Do NOT auto-unminimize on scroll up! User must tap to expand.
                   }}
                 >
                   {task.children && task.children.length > 0 ? (
@@ -876,6 +812,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                               priority: d.priority,
                               status: d.status,
                               dueDate: d.dueDate || undefined,
+                              scheduledDate: d.dueDate || undefined,
                               recurrence: d.recurrence,
                               recurrence_end: d.recurrenceEnd || undefined,
                               folder: d.folder || undefined,
@@ -893,6 +830,77 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                   )}
                 </div>
               )}
+
+              {/* Action Bar: Centered at Bottom on PC & iPad, No Duplicate on Mobile */}
+              <div className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-50 items-center gap-2 px-3 py-2 rounded-2xl bg-white/90 dark:bg-[#181818]/90 backdrop-blur-md border border-gray-200/80 dark:border-white/10 shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (cancelEditing) cancelEditing();
+                    if (isControlledExpanded === undefined) setLocalExpanded(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer"
+                  title="Abbrechen"
+                >
+                  <ArrowLeft size={14} />
+                  <span>Abbrechen</span>
+                </button>
+
+                {(!depth || depth < 1) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowSubtaskInput(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer"
+                    title="Teilaufgabe hinzufügen"
+                  >
+                    <Plus size={14} />
+                    <span>Teilaufgabe</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (cancelEditing) cancelEditing();
+                    if (isControlledExpanded === undefined) setLocalExpanded(false);
+                    void deleteTask(task.id);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                  title="Aufgabe löschen"
+                >
+                  <Trash2 size={14} />
+                  <span>Löschen</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (saveEditing) {
+                      saveEditing(task.id, draft);
+                    } else {
+                      updateTask(task.id, {
+                        title: draft.title.trim(),
+                        description: draft.description.trim() || undefined,
+                        scheduledDate: draft.dueDate || undefined,
+                        dueDate: draft.dueDate || undefined,
+                        priority: draft.priority,
+                        folder: draft.folder || undefined,
+                        tags: draft.tags,
+                        recurrence: draft.recurrence,
+                        recurrence_end: draft.recurrenceEnd || undefined,
+                        status: draft.status,
+                        showInCalendar: draft.showInCalendar,
+                      });
+                    }
+                    if (isControlledExpanded === undefined) setLocalExpanded(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-xl bg-gray-900 hover:bg-black text-white dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 transition-colors cursor-pointer shadow-xs"
+                  title="Speichern"
+                >
+                  <Check size={14} strokeWidth={2.5} />
+                  <span>Fertig</span>
+                </button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
