@@ -338,6 +338,201 @@ export const MobileNewEventSheet = ({
   );
 };
 
+export interface MobileEditEventSheetProps {
+  event: {
+    id: string;
+    title?: string;
+    start: Date | string;
+    end?: Date | string;
+    color?: string;
+    description?: string;
+  };
+  onSave: (id: string, start: Date, end: Date, meta: { title: string; color: string; description?: string }) => void;
+  onDismiss: () => void;
+}
+
+export const MobileEditEventSheet = ({
+  event,
+  onSave,
+  onDismiss,
+}: MobileEditEventSheetProps) => {
+  const initialStart = React.useMemo(() => {
+    try {
+      const d = new Date(event.start);
+      return isNaN(d.getTime()) ? new Date() : d;
+    } catch {
+      return new Date();
+    }
+  }, [event.start]);
+
+  const initialEnd = React.useMemo(() => {
+    try {
+      const d = event.end ? new Date(event.end) : new Date(initialStart.getTime() + 3_600_000);
+      return isNaN(d.getTime()) ? new Date(initialStart.getTime() + 3_600_000) : d;
+    } catch {
+      return new Date(initialStart.getTime() + 3_600_000);
+    }
+  }, [event.end, initialStart]);
+
+  const [title, setTitle] = useState(event.title || '');
+  const [dateStr, setDateStr] = useState(() => format(initialStart, 'yyyy-MM-dd'));
+  const [startTime, setStartTime] = useState(() => {
+    const h = initialStart.getHours();
+    const m = initialStart.getMinutes();
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  });
+  const [endTime, setEndTime] = useState(() => {
+    const h = initialEnd.getHours();
+    const m = initialEnd.getMinutes();
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  });
+  const [selectedColor, setSelectedColor] = useState(event.color || COLOR_OPTIONS[0]);
+  const [description, setDescription] = useState(event.description || '');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+
+    const [sH, sM] = startTime.split(':').map(Number);
+    const [eH, eM] = endTime.split(':').map(Number);
+
+    const start = new Date(dateStr);
+    start.setHours(isNaN(sH) ? 0 : sH, isNaN(sM) ? 0 : sM, 0, 0);
+
+    const end = new Date(dateStr);
+    end.setHours(isNaN(eH) ? 1 : eH, isNaN(eM) ? 0 : eM, 0, 0);
+    if (end <= start) {
+      end.setTime(start.getTime() + 3_600_000);
+    }
+
+    onSave(event.id, start, end, {
+      title: title.trim(),
+      color: selectedColor,
+      description: description.trim() || undefined,
+    });
+    onDismiss();
+  };
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[60]"
+        style={{ background: 'rgba(0,0,0,0.45)' }}
+        onClick={onDismiss}
+      />
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 32, stiffness: 320 }}
+        className="fixed left-0 right-0 z-[65] rounded-t-3xl overflow-hidden"
+        style={{
+          bottom: 0,
+          background: T.card,
+          border: `1px solid ${T.brd}`,
+          paddingBottom: 'max(28px, calc(env(safe-area-inset-bottom) + 16px))',
+        }}
+      >
+        <div className="flex justify-center pt-2.5 pb-1">
+          <div className="w-10 h-1 rounded-full" style={{ background: T.brd }} />
+        </div>
+        <form onSubmit={handleSubmit} className="px-5 pt-2 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="font-extrabold text-base" style={{ color: T.pri }}>Termin bearbeiten</span>
+            <button type="button" onClick={onDismiss} className="p-1.5 rounded-full" style={{ background: T.hov }}>
+              <X size={16} style={{ color: T.sec }} />
+            </button>
+          </div>
+
+          <input
+            autoFocus
+            required
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="Titel des Termins…"
+            className="w-full px-4 py-3 rounded-2xl text-sm font-semibold outline-none"
+            style={{ background: T.hov, border: `1.5px solid ${selectedColor}`, color: T.pri }}
+          />
+
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: T.mut }}>Datum</label>
+              <input
+                type="date"
+                value={dateStr}
+                onChange={e => setDateStr(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl text-xs font-semibold outline-none"
+                style={{ background: T.hov, border: `1px solid ${T.brd}`, color: T.pri }}
+              />
+            </div>
+            <div className="w-24">
+              <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: T.mut }}>Von</label>
+              <input
+                type="time"
+                value={startTime}
+                onChange={e => setStartTime(e.target.value)}
+                className="w-full px-2 py-2 rounded-xl text-xs font-semibold outline-none text-center"
+                style={{ background: T.hov, border: `1px solid ${T.brd}`, color: T.pri }}
+              />
+            </div>
+            <div className="w-24">
+              <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: T.mut }}>Bis</label>
+              <input
+                type="time"
+                value={endTime}
+                onChange={e => setEndTime(e.target.value)}
+                className="w-full px-2 py-2 rounded-xl text-xs font-semibold outline-none text-center"
+                style={{ background: T.hov, border: `1px solid ${T.brd}`, color: T.pri }}
+              />
+            </div>
+          </div>
+
+          {/* Color palette */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: T.mut }}>Farbe</label>
+            <div className="flex gap-2">
+              {COLOR_OPTIONS.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setSelectedColor(c)}
+                  className="w-7 h-7 rounded-full transition-transform"
+                  style={{
+                    background: c,
+                    outline: selectedColor === c ? '2.5px solid #fff' : 'none',
+                    boxShadow: selectedColor === c ? `0 0 0 4px ${c}66` : 'none',
+                    transform: selectedColor === c ? 'scale(1.15)' : 'scale(1)',
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            placeholder="Beschreibung / Notizen (optional)…"
+            rows={2}
+            className="w-full px-3 py-2 rounded-xl text-xs outline-none resize-none"
+            style={{ background: T.hov, border: `1px solid ${T.brd}`, color: T.pri }}
+          />
+
+          <button
+            type="submit"
+            className="w-full py-3 rounded-2xl text-sm font-bold shadow-md transition-opacity active:opacity-85 mt-1"
+            style={{ background: selectedColor, color: '#fff' }}
+          >
+            Änderungen speichern
+          </button>
+        </form>
+      </motion.div>
+    </>
+  );
+};
+
 export interface MobileContextMenuTarget {
   type: 'note' | 'folder';
   id: string;

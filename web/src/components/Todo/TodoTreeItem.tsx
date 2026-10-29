@@ -160,6 +160,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   const isTodayActive = isTodayDate && !isTaskCompleted && (!depth || depth === 0);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('input, textarea, select')) return;
     if (expanded) return;
     touchStartXRef.current = e.touches[0].clientX;
     touchStartYRef.current = e.touches[0].clientY;
@@ -221,10 +223,22 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
     setTagInput('');
   };
 
-  const handleQuickDate = (option: 'today' | 'tomorrow' | 'none') => {
+  const handleQuickDate = (option: 'now' | 'today' | 'tomorrow' | 'none') => {
     if (option === 'none') {
       setDraft((p) => ({ ...p, dueDate: '' }));
       updateTask(task.id, { dueDate: undefined, scheduledDate: undefined });
+      return;
+    }
+    if (option === 'now') {
+      const now = new Date();
+      let dateStr = format(now, 'yyyy-MM-dd');
+      const timeStr = format(now, 'HH:mm');
+      if ((depth || 0) > 0 && effectiveParentDueDate && dateStr > effectiveParentDueDate) {
+        dateStr = effectiveParentDueDate;
+      }
+      const targetStr = `${dateStr}T${timeStr}`;
+      setDraft((p) => ({ ...p, dueDate: targetStr }));
+      updateTask(task.id, { dueDate: targetStr, scheduledDate: targetStr });
       return;
     }
     const target = option === 'today' ? new Date() : addDays(new Date(), 1);
@@ -256,8 +270,21 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   };
 
   const draftDate = parseDateSafe(draft.dueDate);
-  const isDraftToday = draftDate ? deadline?.status === 'today' || format(draftDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') : false;
-  const isDraftTomorrow = draftDate ? format(draftDate, 'yyyy-MM-dd') === format(addDays(new Date(), 1), 'yyyy-MM-dd') : false;
+  const isDraftNow = Boolean(
+    draft.dueDate &&
+    draft.dueDate.includes('T') &&
+    draftDate &&
+    format(draftDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+  );
+  const isDraftToday = Boolean(
+    draftDate &&
+    !draft.dueDate?.includes('T') &&
+    (deadline?.status === 'today' || format(draftDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd'))
+  );
+  const isDraftTomorrow = Boolean(
+    draftDate &&
+    format(draftDate, 'yyyy-MM-dd') === format(addDays(new Date(), 1), 'yyyy-MM-dd')
+  );
 
   const indentPx = Math.max(0, Math.min((depth - 1) * 16, 48));
 
@@ -291,15 +318,17 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
               onTouchEnd={handleTouchEnd}
               onClick={handleClick}
               className={`flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 my-0.5 sm:my-1 backdrop-blur-xs rounded-xl sm:rounded-2xl relative pr-3 sm:pr-4 cursor-pointer group transition-all ${
-                isTodayActive
-                  ? 'bg-black text-white border border-black shadow-md dark:bg-white dark:text-black dark:border-white dark:shadow-md'
-                  : 'bg-white/90 dark:bg-[#181818]/90 text-gray-900 dark:text-gray-100 border border-gray-200/80 dark:border-white/[0.08] hover:border-gray-300 dark:hover:border-white/20 shadow-[0_1px_3px_rgba(0,0,0,0.03)] dark:shadow-none'
+                isTaskCompleted
+                  ? 'opacity-40 grayscale-[30%] bg-gray-50/50 dark:bg-white/[0.02] text-gray-500 dark:text-gray-400 border border-gray-200/60 dark:border-white/[0.06]'
+                  : isTodayActive
+                    ? 'bg-black text-white border border-black shadow-md dark:bg-white dark:text-black dark:border-white dark:shadow-md'
+                    : 'bg-white/90 dark:bg-[#181818]/90 text-gray-900 dark:text-gray-100 border border-gray-200/80 dark:border-white/[0.08] hover:border-gray-300 dark:hover:border-white/20 shadow-[0_1px_3px_rgba(0,0,0,0.03)] dark:shadow-none'
               }`}
             >
               {/* Left Date Column */}
               {parsedDate ? (
                 isOverdue ? (
-                  <div className="w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2">
+                  <div className={`w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2 ${isTaskCompleted ? 'opacity-50' : ''}`}>
                     <span className="text-[14px] font-bold text-red-500 leading-tight">
                       {format(parsedDate, 'd.')}
                     </span>
@@ -308,7 +337,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                     </span>
                   </div>
                 ) : isTodayDate ? (
-                  <div className="w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2">
+                  <div className={`w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2 ${isTaskCompleted ? 'opacity-50' : ''}`}>
                     <span className={`text-[13px] font-bold leading-tight ${
                       isTaskCompleted
                         ? 'text-gray-400 dark:text-gray-500'
@@ -320,7 +349,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                     </span>
                   </div>
                 ) : (
-                  <div className="w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2">
+                  <div className={`w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2 ${isTaskCompleted ? 'opacity-50' : ''}`}>
                     <span className={`text-[14px] font-bold leading-tight ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
                       {format(parsedDate, 'd.')}
                     </span>
@@ -353,7 +382,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                     >
                       {isTaskCompleted && <Check size={12} strokeWidth={3} />}
                     </button>
-                    <div className="shrink-0 flex items-center justify-center">
+                    <div className={`shrink-0 flex items-center justify-center ${isTaskCompleted ? 'opacity-50 grayscale' : ''}`}>
                       <TodoPriorityBadge priority={task.priority} />
                     </div>
                     <span
@@ -380,9 +409,13 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
 
                 {/* Sub-details Line */}
                 {Boolean((task.tags && task.tags.length > 0) || (task.folder && (!depth || depth < 1)) || (depth && depth > 0)) && (
-                  <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                  <div className={`flex flex-wrap items-center gap-2 mt-0.5 ${isTaskCompleted ? 'opacity-60' : ''}`}>
                     {Boolean(depth && depth > 0) && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        isTaskCompleted
+                          ? 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500'
+                          : 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'
+                      }`}>
                         Teilaufgabe
                       </span>
                     )}
@@ -394,7 +427,11 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           setViewMode?.('tasks');
                         }}
                         className={`text-[12px] font-medium cursor-pointer hover:underline ${
-                          isTodayActive ? 'text-gray-300 dark:text-gray-700' : 'text-gray-500 dark:text-gray-400'
+                          isTaskCompleted
+                            ? 'text-gray-400 dark:text-gray-500'
+                            : isTodayActive
+                              ? 'text-gray-300 dark:text-gray-700'
+                              : 'text-gray-500 dark:text-gray-400'
                         }`}
                         title={`Nach Ordner "${task.folder}" filtern`}
                       >
@@ -410,7 +447,11 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           setSelectedTag?.(selectedTag === tag ? null : tag);
                           setViewMode?.('tasks');
                         }}
-                        className={`text-[11px] px-1.5 py-0.5 rounded font-medium cursor-pointer transition-opacity hover:opacity-80 ${getTagColorClass(tag)}`}
+                        className={`text-[11px] px-1.5 py-0.5 rounded font-medium cursor-pointer transition-opacity hover:opacity-80 ${
+                          isTaskCompleted
+                            ? 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 grayscale'
+                            : getTagColorClass(tag)
+                        }`}
                         title={`Nach #${tag} filtern`}
                       >
                         {tag}
@@ -431,34 +472,54 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
               className={`flex flex-col relative h-full flex-1 min-h-0 ${expanded ? 'mt-0 mb-0' : 'my-1.5'}`}
             >
               {/* Sticky Top: Main Info Card & Unteraufgaben Header */}
-              <div className="shrink-0 z-20 sticky top-0 flex flex-col">
+              <div className={`shrink-0 z-20 ${(!depth || depth < 1) ? 'sticky top-0' : ''} flex flex-col`}>
                 {/* Main Info Card */}
-                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-sm flex flex-col shrink-0 z-20">
+                <div className={`p-4 sm:p-5 rounded-2xl border flex flex-col shrink-0 z-20 ${
+                  isTodayActive
+                    ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white shadow-md'
+                    : 'bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white border-gray-200 dark:border-white/10 shadow-sm'
+                }`}>
                   <div className="flex items-center justify-between mb-2">
                     {depth && depth > 0 ? (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
                         Teilaufgabe
                       </span>
                     ) : (
-                      <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                      <span className={`text-[11px] font-semibold uppercase tracking-wider ${
+                        isTodayActive ? 'text-white/60 dark:text-black/60' : 'text-gray-400 dark:text-gray-500'
+                      }`}>
                         {isParentMinimized ? 'Aufgabe minimiert' : 'Aufgabe bearbeiten'}
                       </span>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setIsParentMinimized((p) => !p)}
-                      className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer flex items-center gap-1 text-xs"
-                      title={isParentMinimized ? "Details anzeigen" : "Details minimieren"}
-                    >
-                      <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
-                        {isParentMinimized ? 'Details einblenden' : 'Minimieren'}
-                      </span>
-                      {isParentMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                    </button>
+                    {(!depth || depth < 1) && (
+                      <button
+                        type="button"
+                        onClick={() => setIsParentMinimized((p) => !p)}
+                        className={`p-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs ${
+                          isTodayActive
+                            ? 'text-white/80 hover:text-white dark:text-black/80 dark:hover:text-black hover:bg-white/10 dark:hover:bg-black/10'
+                            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10'
+                        }`}
+                        title={isParentMinimized ? "Details anzeigen" : "Details minimieren"}
+                      >
+                        <span className={`text-[11px] font-medium ${
+                          isTodayActive ? 'text-white/80 dark:text-black/80' : 'text-gray-500 dark:text-gray-400'
+                        }`}>
+                          {isParentMinimized ? 'Details einblenden' : 'Minimieren'}
+                        </span>
+                        {isParentMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                      </button>
+                    )}
                   </div>
 
                   {/* Title row with Priority selector */}
-                  <div className={`flex items-center justify-between gap-3 ${isParentMinimized ? '' : 'border-b border-gray-200 dark:border-white/10 pb-2 mb-3'}`}>
+                  <div className={`flex items-center justify-between gap-3 ${
+                    isParentMinimized
+                      ? ''
+                      : isTodayActive
+                        ? 'border-b border-white/20 dark:border-black/20 pb-2 mb-3'
+                        : 'border-b border-gray-200 dark:border-white/10 pb-2 mb-3'
+                  }`}>
                     <input
                       value={draft.title}
                       onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
@@ -490,18 +551,13 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                         }
                       }}
                       placeholder="Titel der Aufgabe..."
-                      className="text-lg font-bold text-gray-900 dark:text-white bg-transparent outline-none flex-1 min-w-0"
+                      className={`text-lg font-bold bg-transparent outline-none flex-1 min-w-0 ${
+                        isTodayActive
+                          ? 'text-white dark:text-black placeholder-white/40 dark:placeholder-black/40'
+                          : 'text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500'
+                      }`}
                     />
-                    {isParentMinimized ? (
-                      <button
-                        type="button"
-                        onClick={() => setIsParentMinimized(false)}
-                        className="p-1.5 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0"
-                        title="Details einblenden"
-                      >
-                        <ChevronDown size={18} />
-                      </button>
-                    ) : (
+                    {!isParentMinimized && (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <button
                           type="button"
@@ -511,8 +567,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           }}
                           className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                             draft.priority === 'low'
-                              ? 'bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
-                              : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
+                              ? `bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 ${isTodayActive ? 'ring-offset-black dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
+                              : isTodayActive
+                                ? 'bg-white/10 dark:bg-black/10 text-emerald-300 dark:text-emerald-700 hover:opacity-100 opacity-70'
+                                : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
                           }`}
                           title="Niedrige Priorität"
                         >
@@ -526,8 +584,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           }}
                           className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                             draft.priority === 'medium'
-                              ? 'bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
-                              : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
+                              ? `bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 ${isTodayActive ? 'ring-offset-black dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
+                              : isTodayActive
+                                ? 'bg-white/10 dark:bg-black/10 text-amber-300 dark:text-amber-700 hover:opacity-100 opacity-70'
+                                : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
                           }`}
                           title="Mittlere Priorität"
                         >
@@ -541,8 +601,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           }}
                           className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                             draft.priority === 'high'
-                              ? 'bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
-                              : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
+                              ? `bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 ${isTodayActive ? 'ring-offset-black dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
+                              : isTodayActive
+                                ? 'bg-white/10 dark:bg-black/10 text-rose-300 dark:text-rose-700 hover:opacity-100 opacity-70'
+                                : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
                           }`}
                           title="Hohe Priorität"
                         >
@@ -559,11 +621,30 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <button
                           type="button"
+                          onClick={() => handleQuickDate('now')}
+                          className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                            isTodayActive
+                              ? isDraftNow
+                                ? 'bg-white text-black dark:bg-black dark:text-white shadow-xs'
+                                : 'bg-white/15 text-white hover:bg-white/20 dark:bg-black/10 dark:text-black dark:hover:bg-black/15'
+                              : isDraftNow
+                                ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
+                                : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          Jetzt
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleQuickDate('today')}
                           className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
-                            isDraftToday
-                              ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
-                              : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
+                            isTodayActive
+                              ? isDraftToday
+                                ? 'bg-white text-black dark:bg-black dark:text-white shadow-xs'
+                                : 'bg-white/15 text-white hover:bg-white/20 dark:bg-black/10 dark:text-black dark:hover:bg-black/15'
+                              : isDraftToday
+                                ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
+                                : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
                           }`}
                         >
                           Heute
@@ -572,9 +653,13 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           type="button"
                           onClick={() => handleQuickDate('tomorrow')}
                           className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
-                            isDraftTomorrow
-                              ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
-                              : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
+                            isTodayActive
+                              ? isDraftTomorrow
+                                ? 'bg-white text-black dark:bg-black dark:text-white shadow-xs'
+                                : 'bg-white/15 text-white hover:bg-white/20 dark:bg-black/10 dark:text-black dark:hover:bg-black/15'
+                              : isDraftTomorrow
+                                ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
+                                : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
                           }`}
                         >
                           Morgen
@@ -589,18 +674,76 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                               if ((depth || 0) > 0 && effectiveParentDueDate && nextVal > effectiveParentDueDate) {
                                 nextVal = effectiveParentDueDate;
                               }
+                              if (nextVal && draft.dueDate && draft.dueDate.includes('T')) {
+                                const timePart = draft.dueDate.split('T')[1].slice(0, 5);
+                                nextVal = `${nextVal}T${timePart}`;
+                              }
                               setDraft((p) => ({ ...p, dueDate: nextVal }));
                               updateTask(task.id, { dueDate: nextVal || undefined, scheduledDate: nextVal || undefined });
                             }}
-                            className="px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 rounded-lg border border-transparent focus:border-blue-500 focus:outline-none cursor-pointer"
+                            className={`px-2 py-1 text-xs font-medium rounded-lg border focus:border-blue-500 focus:outline-none cursor-pointer ${
+                              isTodayActive
+                                ? 'bg-white/15 dark:bg-black/10 text-white dark:text-black border-transparent [color-scheme:dark] dark:[color-scheme:light]'
+                                : 'bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 border-transparent'
+                            }`}
                             aria-label="Fälligkeitsdatum auswählen"
                           />
                           {draft.dueDate && (
                             <button
                               type="button"
                               onClick={() => handleQuickDate('none')}
-                              className="ml-1 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                              className={`ml-1 p-0.5 cursor-pointer ${
+                                isTodayActive
+                                  ? 'text-white/60 hover:text-white dark:text-black/60 dark:hover:text-black'
+                                  : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+                              }`}
                               title="Datum entfernen"
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
+                        <div className="relative inline-flex items-center">
+                          <input
+                            type="time"
+                            value={draft.dueDate && draft.dueDate.includes('T') ? draft.dueDate.split('T')[1].slice(0, 5) : ''}
+                            onChange={(e) => {
+                              const timeVal = e.target.value;
+                              if (timeVal) {
+                                let datePart = draft.dueDate ? draft.dueDate.slice(0, 10) : format(new Date(), 'yyyy-MM-dd');
+                                if ((depth || 0) > 0 && effectiveParentDueDate && datePart > effectiveParentDueDate) {
+                                  datePart = effectiveParentDueDate;
+                                }
+                                const targetStr = `${datePart}T${timeVal}`;
+                                setDraft((p) => ({ ...p, dueDate: targetStr }));
+                                updateTask(task.id, { dueDate: targetStr, scheduledDate: targetStr });
+                              } else if (draft.dueDate && draft.dueDate.includes('T')) {
+                                const datePart = draft.dueDate.slice(0, 10);
+                                setDraft((p) => ({ ...p, dueDate: datePart }));
+                                updateTask(task.id, { dueDate: datePart, scheduledDate: datePart });
+                              }
+                            }}
+                            className={`px-2 py-1 text-xs font-medium rounded-lg border focus:border-blue-500 focus:outline-none cursor-pointer ${
+                              isTodayActive
+                                ? 'bg-white/15 dark:bg-black/10 text-white dark:text-black border-transparent [color-scheme:dark] dark:[color-scheme:light]'
+                                : 'bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 border-transparent'
+                            }`}
+                            aria-label="Fälligkeitszeit auswählen"
+                          />
+                          {draft.dueDate && draft.dueDate.includes('T') && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const datePart = draft.dueDate.slice(0, 10);
+                                setDraft((p) => ({ ...p, dueDate: datePart }));
+                                updateTask(task.id, { dueDate: datePart, scheduledDate: datePart });
+                              }}
+                              className={`ml-1 p-0.5 cursor-pointer ${
+                                isTodayActive
+                                  ? 'text-white/60 hover:text-white dark:text-black/60 dark:hover:text-black'
+                                  : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+                              }`}
+                              title="Uhrzeit entfernen"
                             >
                               <X size={12} />
                             </button>
@@ -611,8 +754,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       {/* Ordner & Wiederholung (2-column grid) */}
                       {(!depth || depth < 1) && (
                         <div className="grid grid-cols-2 gap-2">
-                          <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1.5 min-w-0">
-                            <Folder size={14} className="text-gray-400 shrink-0" />
+                          <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 min-w-0 ${
+                            isTodayActive ? 'bg-white/15 dark:bg-black/10' : 'bg-gray-100 dark:bg-white/10'
+                          }`}>
+                            <Folder size={14} className={isTodayActive ? 'text-white/60 dark:text-black/60 shrink-0' : 'text-gray-400 shrink-0'} />
                             <select
                               value={draft.folder}
                               onChange={(e) => {
@@ -620,17 +765,21 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                                 setDraft((p) => ({ ...p, folder: nextFolder }));
                                 updateTask(task.id, { folder: nextFolder || undefined });
                               }}
-                              className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer w-full truncate pr-1"
+                              className={`bg-transparent text-xs font-medium border-none focus:outline-none cursor-pointer w-full truncate pr-1 ${
+                                isTodayActive ? 'text-white dark:text-black' : 'text-gray-800 dark:text-gray-200'
+                              }`}
                             >
-                              <option value="" className="bg-white dark:bg-[#1a1a1a]">Kein Ordner</option>
+                              <option value="" className="bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white">Kein Ordner</option>
                               {allFolders.map((f) => (
-                                <option key={f} value={f} className="bg-white dark:bg-[#1a1a1a]">{f}</option>
+                                <option key={f} value={f} className="bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white">{f}</option>
                               ))}
                             </select>
                           </div>
 
-                          <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1.5 min-w-0">
-                            <Repeat size={14} className="text-gray-400 shrink-0" />
+                          <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 min-w-0 ${
+                            isTodayActive ? 'bg-white/15 dark:bg-black/10' : 'bg-gray-100 dark:bg-white/10'
+                          }`}>
+                            <Repeat size={14} className={isTodayActive ? 'text-white/60 dark:text-black/60 shrink-0' : 'text-gray-400 shrink-0'} />
                             <select
                               value={draft.recurrence}
                               onChange={(e) => {
@@ -638,10 +787,12 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                                 setDraft((p) => ({ ...p, recurrence: nextRecurrence }));
                                 updateTask(task.id, { recurrence: nextRecurrence });
                               }}
-                              className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer w-full truncate pr-1"
+                              className={`bg-transparent text-xs font-medium border-none focus:outline-none cursor-pointer w-full truncate pr-1 ${
+                                isTodayActive ? 'text-white dark:text-black' : 'text-gray-800 dark:text-gray-200'
+                              }`}
                             >
                               {RECURRENCE_OPTIONS.map((o) => (
-                                <option key={o.value} value={o.value} className="bg-white dark:bg-[#1a1a1a]">{o.label}</option>
+                                <option key={o.value} value={o.value} className="bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white">{o.label}</option>
                               ))}
                             </select>
                           </div>
@@ -649,7 +800,11 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       )}
 
                       {/* Tags section - full width with comfortable padding */}
-                      <div className="w-full flex flex-wrap items-center gap-2 p-2.5 bg-gray-50 dark:bg-white/[0.04] rounded-xl border border-gray-100 dark:border-white/5">
+                      <div className={`w-full flex flex-wrap items-center gap-2 p-2.5 rounded-xl border ${
+                        isTodayActive
+                          ? 'bg-white/10 dark:bg-black/5 border-white/10 dark:border-black/10'
+                          : 'bg-gray-50 dark:bg-white/[0.04] border-gray-100 dark:border-white/5'
+                      }`}>
                         {draft.tags.map((tag) => (
                           <span
                             key={tag}
@@ -670,8 +825,12 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                             </button>
                           </span>
                         ))}
-                        <div className="inline-flex items-center gap-1.5 bg-white dark:bg-white/10 rounded-lg px-2.5 py-1 text-xs border border-gray-200/60 dark:border-white/10">
-                          <Tag size={13} className="text-gray-400" />
+                        <div className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs border ${
+                          isTodayActive
+                            ? 'bg-white/15 dark:bg-black/10 border-white/20 dark:border-black/10'
+                            : 'bg-white dark:bg-white/10 border-gray-200/60 dark:border-white/10'
+                        }`}>
+                          <Tag size={13} className={isTodayActive ? 'text-white/60 dark:text-black/60' : 'text-gray-400'} />
                           <input
                             type="text"
                             value={tagInput}
@@ -684,7 +843,11 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                               }
                             }}
                             placeholder="Tag hinzufügen..."
-                            className="w-28 bg-transparent text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
+                            className={`w-28 bg-transparent text-xs focus:outline-none ${
+                              isTodayActive
+                                ? 'text-white dark:text-black placeholder-white/50 dark:placeholder-black/50'
+                                : 'text-gray-900 dark:text-white placeholder-gray-400'
+                            }`}
                           />
                           {tagInput.trim() && (
                             <button
@@ -693,7 +856,11 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                                 const t = tagInput.trim().replace(/^#/, '');
                                 if (t) handleAddTag(t);
                               }}
-                              className="text-blue-600 dark:text-blue-400 hover:text-blue-700 p-0.5 cursor-pointer"
+                              className={`p-0.5 cursor-pointer ${
+                                isTodayActive
+                                  ? 'text-white dark:text-black hover:opacity-80'
+                                  : 'text-blue-600 dark:text-blue-400 hover:text-blue-700'
+                              }`}
                               title="Tag hinzufügen"
                             >
                               <Plus size={12} />
@@ -711,7 +878,11 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                         }}
                         placeholder="Optionale Notiz..."
                         rows={1}
-                        className="w-full text-xs sm:text-sm bg-gray-50 dark:bg-white/[0.03] rounded-lg p-2.5 border border-gray-100 dark:border-white/5 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600 outline-none resize-none focus:border-gray-300 dark:focus:border-white/20 transition-colors"
+                        className={`w-full text-xs sm:text-sm rounded-lg p-2.5 border outline-none resize-none transition-colors ${
+                          isTodayActive
+                            ? 'bg-white/10 dark:bg-black/5 border-white/10 dark:border-black/10 text-white dark:text-black placeholder-white/40 dark:placeholder-black/40 focus:border-white/30 dark:focus:border-black/30'
+                            : 'bg-gray-50 dark:bg-white/[0.03] border-gray-100 dark:border-white/5 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600 focus:border-gray-300 dark:focus:border-white/20'
+                        }`}
                       />
                     </div>
                   )}

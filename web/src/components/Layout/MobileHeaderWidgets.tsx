@@ -1,6 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React from 'react';
+import { MobileSmartIsland, type CountdownEvent, type MobileSmartIslandProps } from './MobileSmartIsland';
+
+export { MobileSmartIsland };
+export type { CountdownEvent, MobileSmartIslandProps };
 
 const NIGHT_TEMPLATES: readonly string[] = [
   'Gute Nacht{name} – noch wach?', 'Späte Stunde{name}!', 'Schlaf gut{name}!',
@@ -77,105 +81,140 @@ export function formatGreeting(template: string, name: string): string {
   return template.split('{name}').join(replacement);
 }
 
-export interface CountdownEvent {
-  id: string;
-  title?: string;
-  start: string;
-  end?: string;
-  allDay?: boolean;
-  color?: string;
+export const NextEventCountdown = React.memo(function NextEventCountdown(props: MobileSmartIslandProps) {
+  return <MobileSmartIsland {...props} />;
+});
+
+interface ConfettiParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  color: string;
+  rotation: number;
+  rotationSpeed: number;
+  wobble: number;
+  wobbleSpeed: number;
+  opacity: number;
+  decay: number;
+  isCircle: boolean;
 }
 
-export const NextEventCountdown = React.memo(function NextEventCountdown({
-  events,
-  onTap,
-  className,
-}: {
-  events: CountdownEvent[];
-  onTap?: (eventId: string) => void;
-  className?: string;
-}) {
-  const [now, setNow] = useState<Date>(() => new Date());
+export function fireConfetti(originEl: HTMLElement): void {
+  if (typeof window === 'undefined') return;
 
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const rect = originEl.getBoundingClientRect();
+  const startX = rect.left + rect.width / 2;
+  const startY = rect.top;
 
-  const target = useMemo(() => {
-    if (!events || events.length === 0) return null;
-    const nowMs = now.getTime();
-    const nowYear = now.getFullYear();
-    const nowMonth = now.getMonth();
-    const nowDate = now.getDate();
+  const canvas = document.createElement('canvas');
+  canvas.style.position = 'fixed';
+  canvas.style.top = '0';
+  canvas.style.left = '0';
+  canvas.style.width = '100vw';
+  canvas.style.height = '100vh';
+  canvas.style.pointerEvents = 'none';
+  canvas.style.zIndex = '99999';
+  document.body.appendChild(canvas);
 
-    interface ParsedEvent {
-      event: CountdownEvent;
-      startMs: number;
-      endMs: number;
-      isToday: boolean;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    canvas.remove();
+    return;
+  }
+
+  const dpr = window.devicePixelRatio || 1;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  ctx.scale(dpr, dpr);
+
+  const colors = ['#A855F7', '#EC4899', '#6366F1', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4'];
+  const particles: ConfettiParticle[] = [];
+  const particleCount = 65;
+
+  for (let i = 0; i < particleCount; i++) {
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * (Math.PI * 0.45);
+    const speed = Math.random() * 8 + 7;
+    particles.push({
+      x: startX,
+      y: startY,
+      vx: Math.cos(angle) * speed + (Math.random() - 0.5) * 2,
+      vy: Math.sin(angle) * speed,
+      size: Math.random() * 6 + 6,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rotation: Math.random() * Math.PI * 2,
+      rotationSpeed: (Math.random() - 0.5) * 0.15,
+      wobble: Math.random() * Math.PI * 2,
+      wobbleSpeed: Math.random() * 0.08 + 0.04,
+      opacity: 1,
+      decay: Math.random() * 0.003 + 0.004,
+      isCircle: Math.random() < 0.2,
+    });
+  }
+
+  const gravity = 0.22;
+  const drag = 0.985;
+  let animationFrameId: number;
+
+  const step = () => {
+    ctx.clearRect(0, 0, width, height);
+
+    let activeCount = 0;
+
+    for (const p of particles) {
+      if (p.opacity <= 0 || p.y > height + 20) {
+        continue;
+      }
+
+      p.vx *= drag;
+      p.vy += gravity;
+      p.vy *= drag;
+
+      p.x += p.vx;
+      p.y += p.vy;
+
+      p.rotation += p.rotationSpeed;
+      p.wobble += p.wobbleSpeed;
+      p.opacity -= p.decay;
+
+      if (p.opacity <= 0 || p.y > height + 20) {
+        continue;
+      }
+
+      activeCount++;
+
+      const wobbleX = p.x;
+      const wobbleY = p.y;
+
+      ctx.save();
+      ctx.translate(wobbleX, wobbleY);
+      ctx.rotate(p.rotation);
+      ctx.scale(Math.cos(p.wobble), 1);
+      ctx.globalAlpha = Math.max(0, p.opacity);
+      ctx.fillStyle = p.color;
+
+      if (p.isCircle) {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+      }
+
+      ctx.restore();
     }
 
-    const parsed: ParsedEvent[] = [];
-    for (const e of events) {
-      if (e.allDay || !e.start) continue;
-      const s = new Date(e.start);
-      const startMs = s.getTime();
-      if (isNaN(startMs)) continue;
-      const endMs = e.end ? new Date(e.end).getTime() : startMs + 3600000;
-      const isToday = s.getFullYear() === nowYear && s.getMonth() === nowMonth && s.getDate() === nowDate;
-      parsed.push({ event: e, startMs, endMs, isToday });
+    if (activeCount === 0) {
+      cancelAnimationFrame(animationFrameId);
+      canvas.remove();
+      return;
     }
 
-    // 1. Active: start <= now && end > now (earliest start if multiple)
-    const active = parsed
-      .filter((p) => p.startMs <= nowMs && p.endMs > nowMs)
-      .sort((a, b) => a.startMs - b.startMs);
+    animationFrameId = requestAnimationFrame(step);
+  };
 
-    if (active.length > 0) {
-      return { event: active[0].event, isActive: true, startMs: active[0].startMs, endMs: active[0].endMs };
-    }
-
-    // 2. Next: if no active, first event with start > now today
-    const next = parsed
-      .filter((p) => p.isToday && p.startMs > nowMs)
-      .sort((a, b) => a.startMs - b.startMs);
-
-    if (next.length > 0) {
-      return { event: next[0].event, isActive: false, startMs: next[0].startMs, endMs: next[0].endMs };
-    }
-
-    return null;
-  }, [events, now]);
-
-  if (!target) return null;
-
-  const nowMs = now.getTime();
-  const diffSec = Math.max(
-    0,
-    Math.floor((target.isActive ? target.endMs - nowMs : target.startMs - nowMs) / 1000)
-  );
-
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  const h = Math.floor(diffSec / 3600);
-  const m = Math.floor((diffSec % 3600) / 60);
-  const formattedHoursMins = `${h}:${pad(m)}h`;
-
-  return (
-    <button
-      type="button"
-      onClick={() => onTap?.(target.event.id)}
-      className={`w-20 h-20 min-w-[76px] min-h-[76px] p-2 rounded-2xl flex flex-col justify-between items-start text-left bg-gray-900 text-white shadow-md shrink-0 transition-transform active:scale-95 ${className || ''}`}
-    >
-      <span className="text-xs font-bold text-white truncate max-w-full leading-tight">
-        {target.event.title || 'Termin'}
-      </span>
-      <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-none">
-        {target.isActive ? 'NOCH' : 'STARTET IN'}
-      </span>
-      <span className="text-2xl sm:text-[26px] font-black tracking-tight tabular-nums text-white leading-none">
-        {formattedHoursMins}
-      </span>
-    </button>
-  );
-});
+  animationFrameId = requestAnimationFrame(step);
+}

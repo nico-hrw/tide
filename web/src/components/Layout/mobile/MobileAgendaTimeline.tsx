@@ -4,6 +4,7 @@ import { de } from 'date-fns/locale';
 import {
   Calendar as CalendarIcon, Clock, ChevronDown, MapPin, PenLine, Trash2, Coffee, RotateCcw, Plus,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 const T = {
   bg: 'var(--background)', card: 'var(--sidebar-bg)', pri: 'var(--foreground)',
@@ -155,11 +156,21 @@ function TimelineEventItem({
             <p className="text-[11px] mt-0.5 line-clamp-1 leading-relaxed" style={{ color: info.isActive ? 'rgba(255,255,255,0.85)' : T.sec }}>{ev.description}</p>
           )}
         </button>
-        {isExpanded && (
-          <div className="px-3 pb-3 pt-1 border-t" style={{ borderColor: info.isActive ? 'rgba(255, 255, 255, 0.15)' : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }}>
-            <EventActions ev={ev} isActive={info.isActive} theme={theme} onDeleteEvent={onDeleteEvent} compact />
-          </div>
-        )}
+        <AnimatePresence>
+          {isExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="px-3 pb-3 pt-1 border-t" style={{ borderColor: info.isActive ? 'rgba(255, 255, 255, 0.15)' : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }}>
+                <EventActions ev={ev} isActive={info.isActive} theme={theme} onDeleteEvent={onDeleteEvent} compact />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -191,11 +202,21 @@ function TimelineEventItem({
           )}
         </div>
       </button>
-      {isExpanded && (
-        <div className="px-4 pb-3.5 pt-2 border-t ml-[82px] mr-3" style={{ borderColor: info.isActive ? 'rgba(255, 255, 255, 0.15)' : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }}>
-          <EventActions ev={ev} isActive={info.isActive} theme={theme} onDeleteEvent={onDeleteEvent} />
-        </div>
-      )}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-3.5 pt-2 border-t ml-[82px] mr-3" style={{ borderColor: info.isActive ? 'rgba(255, 255, 255, 0.15)' : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }}>
+              <EventActions ev={ev} isActive={info.isActive} theme={theme} onDeleteEvent={onDeleteEvent} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

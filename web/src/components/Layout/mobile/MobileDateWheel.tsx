@@ -269,7 +269,8 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
               ref={monthLabelRef}
               className="text-[11px] font-black tracking-wider uppercase"
               style={{
-                color: theme === 'dark' ? '#c084fc' : '#7e22ce',
+                color: theme === 'dark' ? '#ffffff' : '#000000',
+                fontWeight: 900,
               }}
             >
               {format(activeDate, 'MMMM yyyy', { locale: de })}
@@ -333,14 +334,11 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
                   className="text-[10px] uppercase tracking-wider"
                   style={{
                     color: isTodayDate
-                      ? (theme === 'dark' ? '#d8b4fe' : '#9333ea')
+                      ? (theme === 'dark' ? '#ffffff' : '#000000')
                       : isSelected
                       ? (theme === 'dark' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)')
                       : T.mut,
-                    fontWeight: isTodayDate ? 900 : 700,
-                    textShadow: isTodayDate
-                      ? (theme === 'dark' ? '0 0 8px rgba(216, 180, 254, 0.45)' : '0 0 6px rgba(147, 51, 234, 0.25)')
-                      : 'none',
+                    fontWeight: isTodayDate ? 800 : 700,
                   }}
                 >
                   {format(d, 'EEE', { locale: de })}
@@ -349,14 +347,11 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
                   className="text-lg leading-none mt-0.5"
                   style={{
                     color: isTodayDate
-                      ? (theme === 'dark' ? '#d8b4fe' : '#9333ea')
+                      ? (theme === 'dark' ? '#ffffff' : '#000000')
                       : isSelected
                       ? (theme === 'dark' ? '#ffffff' : '#09090b')
                       : (theme === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'),
                     fontWeight: isTodayDate ? 900 : (isSelected ? 900 : 700),
-                    textShadow: isTodayDate
-                      ? (theme === 'dark' ? '0 0 12px rgba(216, 180, 254, 0.5)' : '0 0 8px rgba(147, 51, 234, 0.3)')
-                      : 'none',
                   }}
                 >
                   {format(d, 'd')}
@@ -366,12 +361,12 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
           })}
         </div>
 
-        {/* Small rounded indicator triangle centered directly beneath the active date (Apple timer style, metallic purple) */}
+        {/* Small rounded indicator triangle centered directly beneath the active date (Apple timer style) */}
         <div className="flex justify-center pointer-events-none -mt-0.5 pb-0.5">
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
             <path
               d="M4.15 0.85C4.55 0.25 5.45 0.25 5.85 0.85L9.15 5.2C9.6 5.8 9.15 6 8.35 6H1.65C0.85 6 0.4 5.8 0.85 5.2L4.15 0.85Z"
-              fill="#a855f7"
+              fill={theme === 'dark' ? '#ffffff' : '#000000'}
             />
           </svg>
         </div>

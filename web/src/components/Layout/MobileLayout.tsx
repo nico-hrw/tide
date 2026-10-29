@@ -16,7 +16,7 @@ import MobileWeekGrid from './MobileWeekGrid';
 import { useDataStore } from '@/store/useDataStore';
 import dynamic from 'next/dynamic';
 import { parseGermanDate } from '@/lib/dateParser';
-import { pickGreetingTemplate, formatGreeting, NextEventCountdown } from './MobileHeaderWidgets';
+import { pickGreetingTemplate, formatGreeting, NextEventCountdown, fireConfetti } from './MobileHeaderWidgets';
 import TodoList from '../Todo/TodoList';
 import { isItemUnlocked, ItemSecuritySettings } from '@/lib/pinSecurity';
 import PinPromptModal from '@/components/Security/PinPromptModal';
@@ -26,6 +26,7 @@ import {
   OverlayShell,
   EventSheet,
   MobileNewEventSheet,
+  MobileEditEventSheet,
   MobileContextMenuSheet,
   MobileRenameModal,
 } from './mobile/MobileBottomSheets';
@@ -63,7 +64,8 @@ export interface MobileLayoutProps {
   activeNoteTitle: string;
   onNewEvent?: (date: Date, endDate?: Date, meta?: { title?: string; color?: string; description?: string }) => void;
   onEventClick?: (id: string) => void;
-  onEventUpdate?: (id: string, newStart: Date, newEnd: Date) => void;
+  onEventUpdate?: (id: string, newStart: Date, newEnd: Date, meta?: { title?: string; color?: string; description?: string }) => void;
+  onEventSave?: (id: string, updates: Record<string, unknown>) => void;
   onEventDelete?: (id: string) => void;
   onTaskComplete?: (id: string, completed: boolean) => void;
   socialHubElement?: React.ReactNode;
@@ -352,7 +354,7 @@ export default function MobileLayout({
   events, files, folders, onNoteSelect, onNewNote, onDeleteNote,
   onNewFolder, onNewFolderIn, onNoteRename,
   editorElement, activeNoteId, activeNoteTitle, onNewEvent,
-  onEventClick, onEventUpdate, onEventDelete, onTaskComplete,
+  onEventClick, onEventUpdate, onEventSave, onEventDelete, onTaskComplete,
   socialHubElement, userProfile,
 }: MobileLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -362,6 +364,7 @@ export default function MobileLayout({
   const [activeDate, setActiveDate] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
+  const [editingEvent, setEditingEvent] = useState<React.ComponentProps<typeof MobileEditEventSheet>['event'] | null>(null);
   const [contextMenu, setContextMenu] = useState<{ type: 'note' | 'folder'; id: string; title: string; parentId?: string | null } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
@@ -601,6 +604,21 @@ export default function MobileLayout({
 
     return expanded;
   }, [events, activeDate]);
+
+  useEffect(() => {
+    const handleEditEvent = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const id = customEvent.detail?.id;
+      if (!id) return;
+      const target = expandedEvents.find(ev => ev.id === id) || events.find(ev => ev.id === id);
+      if (target) {
+        setSelectedEvent(null);
+        setEditingEvent(target);
+      }
+    };
+    window.addEventListener('mobile_edit_event', handleEditEvent);
+    return () => window.removeEventListener('mobile_edit_event', handleEditEvent);
+  }, [expandedEvents, events]);
 
   const weekStart = useMemo(() => startOfWeek(activeDate, { weekStartsOn: 1 }), [activeDate]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
@@ -917,7 +935,7 @@ export default function MobileLayout({
             <motion.div key="search-back"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className={`fixed inset-0 w-full h-[100dvh] ${isEditingNote ? 'z-[55]' : 'z-30'}`}
-              style={{ background: 'rgba(0,0,0,0.32)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
+              style={{ background: 'rgba(0,0,0,0.5)' }}
               onClick={() => setIsSearchOpen(false)}
             />
 
@@ -930,10 +948,8 @@ export default function MobileLayout({
                 bottom: kbOffset,
                 maxHeight: kbOffset > 0 ? `calc(100dvh - ${kbOffset}px - 40px)` : '78vh',
                 background: theme === 'dark'
-                  ? 'rgba(15,23,42,0.92)'
-                  : 'rgba(255,255,255,0.88)',
-                backdropFilter: 'blur(24px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+                  ? 'rgba(28,28,28,0.98)'
+                  : 'rgba(255,255,255,0.98)',
                 borderTop: `1px solid ${T.brd}`,
                 boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
               }}
@@ -992,36 +1008,7 @@ export default function MobileLayout({
                   </div>
                 )}
 
-                {/* Stacked white action buttons */}
-                <div className="flex flex-col gap-2 shrink-0">
-                  <button
-                    onClick={() => {
-                      setIsSearchOpen(false);
-                      setActiveTab('todos');
-                      window.dispatchEvent(new CustomEvent('tide:new-todo', { detail: { title: searchQuery.trim() } }));
-                    }}
-                    className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98 bg-white text-gray-900 border border-gray-200/90 shadow-xs hover:bg-gray-50 dark:bg-[#1f1f1f] dark:text-white dark:border-white/10 dark:hover:bg-[#282828]"
-                  >
-                    <ListTodo size={16} className="shrink-0 text-blue-600 dark:text-blue-400" />
-                    <span className="flex-1">Neue Aufgabe{searchQuery.trim() ? ` · "${searchQuery.slice(0, 24)}"` : ''}</span>
-                  </button>
-                  <button
-                    onClick={() => { const t = searchQuery.trim() || undefined; setIsSearchOpen(false); onNewNote(t); setIsEditingNote(true); }}
-                    className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98 bg-white text-gray-900 border border-gray-200/90 shadow-xs hover:bg-gray-50 dark:bg-[#1f1f1f] dark:text-white dark:border-white/10 dark:hover:bg-[#282828]"
-                  >
-                    <PenLine size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
-                    <span className="flex-1">Neue Notiz{searchQuery.trim() ? ` · "${searchQuery.slice(0, 24)}"` : ''}</span>
-                  </button>
-                  <button
-                    onClick={() => { setIsSearchOpen(false); onNewEvent?.(parsedDate?.proposedStart ?? activeDate); }}
-                    className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98 bg-white text-gray-900 border border-gray-200/90 shadow-xs hover:bg-gray-50 dark:bg-[#1f1f1f] dark:text-white dark:border-white/10 dark:hover:bg-[#282828]"
-                  >
-                    <CalendarIcon size={16} className="shrink-0 text-indigo-600 dark:text-indigo-400" />
-                    <span className="flex-1">
-                      Neues Ereignis{parsedDate ? ` · ${format(parsedDate.proposedStart, 'd. MMM HH:mm', { locale: de })}` : ''}
-                    </span>
-                  </button>
-                </div>
+
               </div>
 
               {/* Bottom pinned search input */}
@@ -1046,8 +1033,51 @@ export default function MobileLayout({
         {selectedEvent && (
           <EventSheet key="evsheet" event={selectedEvent} now={now}
             onDelete={() => { onEventDelete?.(selectedEvent.id); setSelectedEvent(null); }}
-            onEdit={() => window.dispatchEvent(new CustomEvent('mobile_edit_event', { detail: { id: selectedEvent.id } }))}
+            onEdit={() => {
+              setEditingEvent(selectedEvent);
+              setSelectedEvent(null);
+            }}
             onDismiss={() => setSelectedEvent(null)} />
+        )}
+
+        {/* Edit Event Sheet */}
+        {editingEvent && (
+          <MobileEditEventSheet
+            key={`edit-${editingEvent.id}`}
+            event={editingEvent}
+            onSave={(id, start, end, meta) => {
+              if (onEventSave) {
+                onEventSave(id, {
+                  title: meta.title,
+                  start: start.toISOString(),
+                  end: end.toISOString(),
+                  color: meta.color,
+                  description: meta.description,
+                });
+              } else if (onEventUpdate) {
+                onEventUpdate(id, start, end, meta);
+              }
+              if (meta.title && meta.title !== editingEvent.title && onNoteRename) {
+                onNoteRename(id, meta.title);
+              }
+              useDataStore.setState(s => ({
+                events: s.events.map(e =>
+                  (e.id === id || (id.includes('_') && e.id === id.split('_')[0]))
+                    ? {
+                        ...e,
+                        title: meta.title,
+                        start: start.toISOString(),
+                        end: end.toISOString(),
+                        color: meta.color,
+                        description: meta.description,
+                      }
+                    : e
+                ),
+              }));
+              setEditingEvent(null);
+            }}
+            onDismiss={() => setEditingEvent(null)}
+          />
         )}
 
         {/* ── Context menu sheet (note / folder) ─────── */}
@@ -1113,10 +1143,43 @@ export default function MobileLayout({
                 {format(now, 'd. MMMM', { locale: de })}
               </p>
               <h1 className="text-[1.7rem] font-black tracking-tight line-clamp-2 leading-tight mt-0.5" style={{ color: T.pri }}>
-                {formatGreeting(greetingTemplate, displayName)}
+                {(() => {
+                  const trimmed = displayName?.trim();
+                  if (!trimmed || !greetingTemplate.includes('{name}')) {
+                    return formatGreeting(greetingTemplate, displayName);
+                  }
+                  const [prefix, ...rest] = greetingTemplate.split('{name}');
+                  const suffix = rest.join('{name}');
+                  return (
+                    <>
+                      {prefix}
+                      {prefix ? ', ' : ''}
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fireConfetti(e.currentTarget);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            fireConfetti(e.currentTarget);
+                          }
+                        }}
+                        className="cursor-pointer select-none active:scale-95 transition-transform inline-block"
+                        title="Konfetti"
+                      >
+                        {trimmed}
+                      </span>
+                      {suffix}
+                    </>
+                  );
+                })()}
               </h1>
             </div>
-            <NextEventCountdown events={expandedEvents} onTap={handleCountdownTap} />
+            <NextEventCountdown events={expandedEvents} onTap={handleCountdownTap} className="-mt-1.5" />
           </div>
 
           {/* Row 2: Apple-style Horizontal Date Wheel */}
@@ -1278,20 +1341,10 @@ export default function MobileLayout({
             </div>
             {/* Events for selected date */}
             <div className="flex-1 overflow-y-auto px-4 pb-4">
-              <div className="flex items-center justify-between py-2.5">
-                <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: T.accent }}>
+              <div className="flex items-center py-2.5">
+                <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: T.pri }}>
                   {format(activeDate, 'EEEE d. MMM', { locale: de }).toUpperCase()}
                 </span>
-                <button
-                  onClick={() => {
-                    setNewEventDefaultDate(activeDate);
-                    setIsNewEventSheetOpen(true);
-                  }}
-                  className="flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg"
-                  style={{ background: `${T.accent}14`, color: T.accent }}
-                >
-                  <Plus size={13} /> Termin
-                </button>
               </div>
               <div className="h-px mb-3" style={{ background: T.brd }} />
               {(() => {

@@ -222,6 +222,7 @@ export default function CalendarView({
 
     // --- Magic Link Navigation Support ---
     useLayoutEffect(() => {
+        if (typeof window !== 'undefined' && window.innerWidth < 768) return;
         if (editingEventId && scrollContainerRef.current) {
             const container = scrollContainerRef.current;
             // Wait for DOM to settle

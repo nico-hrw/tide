@@ -2302,18 +2302,42 @@ export default function Dashboard() {
             }
         }
 
+        const hasExplicitTime = (dateStr?: string): boolean => {
+            if (!dateStr) return false;
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) return false; // Date-only
+            if (dateStr.includes('T')) {
+                const timePart = dateStr.split('T')[1]?.trim();
+                return Boolean(timePart && timePart.length >= 4 && !timePart.startsWith('00:00:00.000Z'));
+            }
+            return false;
+        };
+
         tasksWithDueDate.forEach(async (t) => {
             if (syncingTaskIdsRef.current.has(t.id)) return;
 
             const existingEvent = events.find(e => (e as any).linkedTaskId === t.id);
 
+            let start: Date;
+            let end: Date;
+            let isAllDay: boolean;
+
+            if (!hasExplicitTime(t.dueDate)) {
+                const [y, m, d] = t.dueDate!.slice(0, 10).split('-').map(Number);
+                start = new Date(y, m - 1, d, 0, 0, 0);
+                end = new Date(y, m - 1, d, 23, 59, 59);
+                isAllDay = true;
+            } else {
+                start = new Date(t.dueDate!);
+                end = new Date(start.getTime() + 30 * 60 * 1000);
+                isAllDay = false;
+            }
+
+            if (isNaN(start.getTime())) return;
+
             if (!existingEvent) {
                 syncingTaskIdsRef.current.add(t.id);
                 try {
-                    const start = new Date(t.dueDate);
-                    if (isNaN(start.getTime())) return;
-                    const end = new Date(start.getTime() + 30 * 60 * 1000);
-                    await handleEventCreateRef.current(start, end, false, {
+                    await handleEventCreateRef.current(start, end, isAllDay, {
                         title: t.title,
                         is_task: true,
                         linkedTaskId: t.id,
@@ -2321,6 +2345,8 @@ export default function Dashboard() {
                         recurrence_rule: t.recurrence_rule,
                         recurrence_end: t.recurrence_end,
                         is_completed: t.isCompleted,
+                        allDay: isAllDay,
+                        isAllDay,
                     });
                 } finally {
                     setTimeout(() => {
@@ -2329,22 +2355,22 @@ export default function Dashboard() {
                 }
             } else {
                 const isTitleDiff = existingEvent.title !== t.title;
-                const isStartDiff = !isSameTime(existingEvent.start, t.dueDate);
+                const isStartDiff = isAllDay
+                    ? !isSameTime(existingEvent.start, start.toISOString())
+                    : !isSameTime(existingEvent.start, t.dueDate);
+                const isAllDayDiff = Boolean(existingEvent.allDay) !== isAllDay;
                 const isCompletedDiff = (existingEvent.is_completed ?? false) !== (t.isCompleted ?? false);
                 const isRecurrenceDiff = (existingEvent as any).recurrence_rule !== t.recurrence_rule;
 
-                if (isTitleDiff || isStartDiff || isCompletedDiff || isRecurrenceDiff) {
-                    const start = new Date(t.dueDate);
-                    const end = isNaN(start.getTime())
-                        ? new Date(Date.now() + 30 * 60 * 1000).toISOString()
-                        : new Date(start.getTime() + 30 * 60 * 1000).toISOString();
-
+                if (isTitleDiff || isStartDiff || isAllDayDiff || isCompletedDiff || isRecurrenceDiff) {
                     syncingTaskIdsRef.current.add(t.id);
                     try {
                         await handleEventSaveRef.current(existingEvent.id, {
                             title: t.title,
-                            start: t.dueDate,
-                            end,
+                            start: start.toISOString(),
+                            end: end.toISOString(),
+                            allDay: isAllDay,
+                            isAllDay,
                             is_completed: t.isCompleted,
                             recurrence_rule: t.recurrence_rule,
                             recurrence_end: t.recurrence_end,
@@ -2764,8 +2790,8 @@ export default function Dashboard() {
                     const end = endDate || new Date(date.getTime() + 3_600_000);
                     handleEventCreate(start, end, false, meta || { title: 'Neuer Termin' });
                 }}
-                onEventClick={(id: string) => {
-                    setActiveEventId(id);
+                onEventClick={(_id: string) => {
+                    // Guarded on mobile: desktop event popover must never be triggered
                 }}
                 onEventUpdate={(id: string, newStart: Date, newEnd: Date) => {
                     handleEventUpdate(id, newStart, newEnd);

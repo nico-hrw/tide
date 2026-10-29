@@ -102,6 +102,7 @@
 |-----------|------|------|
 | SmartIsland (root) | `web/src/components/SmartIsland.tsx` | Shell / entry component |
 | SmartIsland (ext) | `web/src/components/extensions/smart_island/SmartIsland.tsx` | Core island logic |
+| MobileSmartIsland | `web/src/components/Layout/MobileSmartIsland.tsx` | Mobile Dynamic Island widget: morphing dual-shape loading spinner, expandable alerts (messages & imminent <=15m events expanding smoothly to the left), and compact 80x80 countdown complication. |
 | EventSuggestionView | `web/src/components/extensions/smart_island/EventSuggestionView.tsx` | AI event suggestion UI |
 | useIslandStore | `web/src/components/extensions/smart_island/useIslandStore.tsx` | Island Zustand store |
 

@@ -23,6 +23,8 @@ export function CalendarEventPopoverHost({
     onClose,
     enabledExtensions,
 }: CalendarEventPopoverHostProps) {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) return null;
+
                     let event: CalendarEvent | undefined;
 
                     if (activePopover.id.includes('_')) {
