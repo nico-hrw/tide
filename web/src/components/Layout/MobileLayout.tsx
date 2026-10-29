@@ -932,15 +932,15 @@ export default function MobileLayout({
               </div>
 
               {/* Search input */}
-              <div className="flex items-center gap-3 mx-4 mb-3 px-4 py-3 rounded-2xl shrink-0"
-                style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', border: `1.5px solid ${T.accent}`, boxShadow: `0 0 0 3px ${T.accent}20` }}>
-                <Search size={16} style={{ color: T.accent, flexShrink: 0 }} />
+              <div className="flex items-center gap-3 mx-4 mb-3 px-4 py-3 rounded-2xl shrink-0 border border-black dark:border-white focus-within:ring-1 focus-within:ring-black dark:focus-within:ring-white"
+                style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}>
+                <Search size={16} className="shrink-0 text-gray-900 dark:text-white" />
                 <input autoFocus value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
                   placeholder="Suchen, Notiz oder Termin erfassen…"
-                  className="flex-1 bg-transparent outline-none text-sm" style={{ color: T.pri }} />
+                  className="flex-1 bg-transparent outline-none text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500" />
                 {searchQuery
-                  ? <button onClick={() => setSearchQuery('')}><X size={14} style={{ color: T.sec }} /></button>
-                  : <button onClick={() => setIsSearchOpen(false)} className="text-sm font-semibold" style={{ color: T.accent }}>Fertig</button>
+                  ? <button onClick={() => setSearchQuery('')}><X size={14} className="text-gray-500 dark:text-gray-400" /></button>
+                  : <button onClick={() => setIsSearchOpen(false)} className="text-sm font-semibold text-gray-900 dark:text-white">Fertig</button>
                 }
               </div>
 
@@ -973,26 +973,23 @@ export default function MobileLayout({
                     setActiveTab('todos');
                     window.dispatchEvent(new CustomEvent('tide:new-todo', { detail: { title: searchQuery.trim() } }));
                   }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98"
-                  style={{
-                    background: theme === 'dark' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(59, 130, 246, 0.08)',
-                    border: '1px solid rgba(59, 130, 246, 0.25)',
-                    color: theme === 'dark' ? '#60a5fa' : '#2563eb',
-                  }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98 bg-white text-gray-900 border border-gray-200/90 shadow-xs hover:bg-gray-50 dark:bg-[#1f1f1f] dark:text-white dark:border-white/10 dark:hover:bg-[#282828]"
                 >
-                  <ListTodo size={16} />
+                  <ListTodo size={16} className="shrink-0 text-blue-600 dark:text-blue-400" />
                   <span className="flex-1">Neue Aufgabe{searchQuery.trim() ? ` · "${searchQuery.slice(0, 24)}"` : ''}</span>
                 </button>
-                <button onClick={() => { const t = searchQuery.trim() || undefined; setIsSearchOpen(false); onNewNote(t); setIsEditingNote(true); }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left"
-                  style={{ background: '#22C55E14', border: '1px solid #22C55E30', color: '#22C55E' }}>
-                  <PenLine size={16} />
+                <button
+                  onClick={() => { const t = searchQuery.trim() || undefined; setIsSearchOpen(false); onNewNote(t); setIsEditingNote(true); }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98 bg-white text-gray-900 border border-gray-200/90 shadow-xs hover:bg-gray-50 dark:bg-[#1f1f1f] dark:text-white dark:border-white/10 dark:hover:bg-[#282828]"
+                >
+                  <PenLine size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
                   <span className="flex-1">Neue Notiz{searchQuery.trim() ? ` · "${searchQuery.slice(0, 24)}"` : ''}</span>
                 </button>
-                <button onClick={() => { setIsSearchOpen(false); onNewEvent?.(parsedDate?.proposedStart ?? activeDate); }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left"
-                  style={{ background: `${T.accent}14`, border: `1px solid ${T.accent}30`, color: T.accent }}>
-                  <CalendarIcon size={16} />
+                <button
+                  onClick={() => { setIsSearchOpen(false); onNewEvent?.(parsedDate?.proposedStart ?? activeDate); }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98 bg-white text-gray-900 border border-gray-200/90 shadow-xs hover:bg-gray-50 dark:bg-[#1f1f1f] dark:text-white dark:border-white/10 dark:hover:bg-[#282828]"
+                >
+                  <CalendarIcon size={16} className="shrink-0 text-indigo-600 dark:text-indigo-400" />
                   <span className="flex-1">
                     Neues Ereignis{parsedDate ? ` · ${format(parsedDate.proposedStart, 'd. MMM HH:mm', { locale: de })}` : ''}
                   </span>
@@ -1098,15 +1095,7 @@ export default function MobileLayout({
           <div className="px-5 pt-1 pb-1.5 flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 flex-wrap" style={{ color: T.mut }}>
-                {activeTab === 'calendar' ? (
-                  <span>
-                    {isSameDay(activeDate, now)
-                      ? format(now, 'd. MMMM', { locale: de })
-                      : format(activeDate, 'd. MMMM yyyy', { locale: de })}
-                  </span>
-                ) : (
-                  format(now, 'd. MMMM', { locale: de })
-                )}
+                {format(now, 'd. MMMM', { locale: de })}
               </p>
               <h1 className="text-[1.7rem] font-black tracking-tight line-clamp-2 leading-tight mt-0.5" style={{ color: T.pri }}>
                 {formatGreeting(greetingTemplate, displayName)}
@@ -1557,7 +1546,7 @@ export default function MobileLayout({
       ) : (
       /* ── Todos tab ── */
       <div
-        className="mobile-todos-container w-full h-full flex flex-col flex-1 min-h-0 relative max-w-full overflow-hidden"
+        className="mobile-todos-container w-full h-full flex flex-col flex-1 min-h-0 relative max-w-full overflow-hidden bg-[#f8f9fa] dark:bg-[#121212]"
         style={{ paddingBottom: 'max(64px, calc(56px + env(safe-area-inset-bottom)))' }}
       >
         <style>{`

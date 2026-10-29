@@ -582,7 +582,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   );
 
   return (
-    <div className={`w-full h-full flex flex-col bg-white dark:bg-[#0a0a0a] relative overflow-hidden ${className || ''}`}>
+    <div className={`w-full h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] relative overflow-hidden ${className || ''}`}>
       <TodoListHeader
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -598,6 +598,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         setDraft={setDraft}
         setIsCreateOpen={setIsCreateOpen}
         setIsFolderModalOpen={setIsFolderModalOpen}
+        hideProgress={editingTaskId !== null}
       />
 
 
@@ -621,7 +622,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         /* Center container */
         <div className="w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2">
           {/* Scrollable list container */}
-          <div className={`flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 pt-1 sm:pt-2 ${editingTaskId !== null ? 'pb-8' : 'pb-16'} flex flex-col gap-2`}>
+          <div className={`flex-1 ${editingTaskId !== null ? 'overflow-hidden pt-0' : 'overflow-y-auto pt-1 sm:pt-2'} overflow-x-hidden px-3 sm:px-4 ${editingTaskId !== null ? 'pb-8' : 'pb-16'} flex flex-col gap-2`}>
             <AnimatePresence mode="wait" initial={false}>
               {focusedTask ? (
                 <motion.div

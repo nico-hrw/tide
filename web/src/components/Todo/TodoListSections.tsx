@@ -50,6 +50,8 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
     ? 'In Arbeit'
     : null;
 
+  const editingIndex = tasksToRender.findIndex((t) => t.id === editingTaskId);
+
   return (
     <>
       {tasksToRender.length > 0 && sectionTitle && (
@@ -69,20 +71,23 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
       {/* Task Cards List */}
       <div className="flex flex-col gap-1.5">
         <AnimatePresence mode="popLayout" initial={false}>
-          {tasksToRender.map((task) => {
+          {tasksToRender.map((task, index) => {
             const isEditing = task.id === editingTaskId;
             const isOther = Boolean(editingTaskId && !isEditing);
+            const isAbove = editingIndex !== -1 && index < editingIndex;
+            const flyY = isAbove ? -350 : 350;
 
             const animateState = editingTaskId
               ? isEditing
-                ? { opacity: 1, scale: 1, height: 'auto' as const }
+                ? { opacity: 1, y: 0, scale: 1, height: 'auto' as const, display: 'block' }
                 : {
                     opacity: 0,
+                    y: flyY,
                     height: 0,
                     overflow: 'hidden' as const,
                     transitionEnd: { display: 'none' },
                   }
-              : { opacity: 1, scale: 1, height: 'auto' as const, display: 'block' };
+              : { opacity: 1, y: 0, scale: 1, height: 'auto' as const, display: 'block' };
 
             const itemStyle: React.CSSProperties | undefined = isOther
               ? { pointerEvents: 'none' }
@@ -91,7 +96,6 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
             return (
               <motion.div
                 key={task.id}
-                layout
                 initial={{ opacity: 0, y: -8 }}
                 animate={animateState}
                 exit={{
@@ -102,9 +106,9 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                   scale: 0.95,
                   transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1] },
                 }}
-                transition={{ duration: 0.15 }}
+                transition={{ type: 'spring', stiffness: 280, damping: 28, mass: 0.8 }}
                 style={itemStyle}
-                className={isEditing ? 'sticky top-0 z-20' : undefined}
+                className={isEditing ? 'relative z-20' : undefined}
               >
                 {renderTask(task as TaskWithChildren)}
               </motion.div>

@@ -97,8 +97,8 @@ function StatusBadges({ isActive, isNext, remStr, evEnd, evStart, startStr, durS
   if (isActive) {
     return (
       <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0" style={{ background: 'rgba(16, 185, 129, 0.22)', color: '#34d399' }}>
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1.5 shrink-0" style={{ background: theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)', color: theme === 'dark' ? '#f4f4f5' : '#18181b', border: theme === 'dark' ? '1px solid rgba(255, 255, 255, 0.16)' : '1px solid rgba(0, 0, 0, 0.1)' }}>
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
           Noch {remStr} · bis {format(evEnd, 'HH:mm')} Uhr
         </span>
         <span className="text-[10px] font-medium opacity-75 ml-auto shrink-0" style={{ color: '#ffffff' }}>{durStr}</span>
@@ -110,7 +110,7 @@ function StatusBadges({ isActive, isNext, remStr, evEnd, evStart, startStr, durS
       <div className="mt-1.5 flex items-center gap-2 flex-wrap">
         <span
           className="text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0"
-          style={{ background: 'linear-gradient(135deg, rgba(147, 51, 234, 0.18), rgba(168, 85, 247, 0.25))', color: theme === 'dark' ? '#d8b4fe' : '#7e22ce', border: '1px solid rgba(168, 85, 247, 0.3)' }}
+          style={{ background: theme === 'dark' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(59, 130, 246, 0.08)', color: theme === 'dark' ? '#93c5fd' : '#2563eb', border: theme === 'dark' ? '1px solid rgba(59, 130, 246, 0.22)' : '1px solid rgba(59, 130, 246, 0.18)' }}
         >
           <Clock size={11} /> Startet um {format(evStart, 'HH:mm')} Uhr (in {startStr})
         </span>

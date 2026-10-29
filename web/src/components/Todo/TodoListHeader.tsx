@@ -19,6 +19,7 @@ export interface TodoListHeaderProps {
   setDraft: React.Dispatch<React.SetStateAction<TaskCreateDraft>>;
   setIsCreateOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setIsFolderModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  hideProgress?: boolean;
 }
 
 export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
@@ -27,10 +28,17 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
     activeCycleCompletedCount,
     activeCycleOverdueCount,
     archivedCount,
+    hideProgress,
   } = props;
 
   return (
-    <div className="sticky top-0 z-30 px-4 sm:px-6 py-2.5 border-b border-gray-100 dark:border-white/10 bg-white/95 dark:bg-[#121212]/95 backdrop-blur-md">
+    <div
+      className={`sticky top-0 z-30 px-4 sm:px-6 ${
+        hideProgress
+          ? 'py-0 border-none'
+          : 'py-2.5'
+      } bg-[#f8f9fa]/90 dark:bg-[#121212]/90 backdrop-blur-md border-b border-gray-200 dark:border-white/10`}
+    >
       {/* Desktop & iPad Header */}
       <div className="hidden md:flex items-center justify-between pb-3">
         <div className="flex items-center gap-3">
@@ -45,34 +53,38 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
         </div>
       </div>
 
-      {/* Hairline 3px Progress Bar */}
-      <div className="w-full h-[3px] bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden flex">
-        <div
-          className="h-full bg-blue-500 transition-all duration-500 ease-out"
-          style={{ width: `${(activeCycleCompletedCount / Math.max(activeCycleTotal, 1)) * 100}%` }}
-        />
-        <div
-          className="h-full bg-red-500 transition-all duration-500 ease-out"
-          style={{ width: `${(activeCycleOverdueCount / Math.max(activeCycleTotal, 1)) * 100}%` }}
-        />
-      </div>
+      {!props.hideProgress && (
+        <>
+          {/* Hairline 3px Progress Bar */}
+          <div className="w-full h-[3px] bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden flex">
+            <div
+              className="h-full bg-blue-500 transition-all duration-500 ease-out"
+              style={{ width: `${(activeCycleCompletedCount / Math.max(activeCycleTotal, 1)) * 100}%` }}
+            />
+            <div
+              className="h-full bg-red-500 transition-all duration-500 ease-out"
+              style={{ width: `${(activeCycleOverdueCount / Math.max(activeCycleTotal, 1)) * 100}%` }}
+            />
+          </div>
 
-      {/* Counter text */}
-      <div className="flex items-center justify-between mt-1.5">
-        {archivedCount > 0 ? (
-          <span
-            className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 font-medium"
-            title={`${archivedCount} archivierte Aufgaben (> 7 Tage)`}
-          >
-            +{archivedCount} archiviert
-          </span>
-        ) : (
-          <span />
-        )}
-        <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 mt-1.5 text-right">
-          {activeCycleCompletedCount} von {activeCycleTotal} erledigt
-        </p>
-      </div>
+          {/* Counter text */}
+          <div className="flex items-center justify-between mt-1.5">
+            {archivedCount > 0 ? (
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 font-medium"
+                title={`${archivedCount} archivierte Aufgaben (> 7 Tage)`}
+              >
+                +{archivedCount} archiviert
+              </span>
+            ) : (
+              <span />
+            )}
+            <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 mt-1.5 text-right">
+              {activeCycleCompletedCount} von {activeCycleTotal} erledigt
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 };

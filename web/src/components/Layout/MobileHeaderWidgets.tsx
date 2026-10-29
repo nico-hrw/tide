@@ -165,7 +165,7 @@ export const NextEventCountdown = React.memo(function NextEventCountdown({
     <button
       type="button"
       onClick={() => onTap?.(target.event.id)}
-      className={`w-20 h-20 min-w-[76px] min-h-[76px] p-2.5 rounded-2xl flex flex-col justify-between items-start text-left bg-gray-900 text-white shadow-md shrink-0 transition-transform active:scale-95 ${className || ''}`}
+      className={`w-20 h-20 min-w-[76px] min-h-[76px] p-2 rounded-2xl flex flex-col justify-between items-start text-left bg-gray-900 text-white shadow-md shrink-0 transition-transform active:scale-95 ${className || ''}`}
     >
       <span className="text-xs font-bold text-white truncate max-w-full leading-tight">
         {target.event.title || 'Termin'}
@@ -173,7 +173,7 @@ export const NextEventCountdown = React.memo(function NextEventCountdown({
       <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-none">
         {target.isActive ? 'endet in' : 'startet in'}
       </span>
-      <span className="text-lg sm:text-xl font-black text-white leading-none">
+      <span className="text-2xl sm:text-[26px] font-black tracking-tight tabular-nums text-white leading-none">
         {formattedHoursMins}
       </span>
     </button>

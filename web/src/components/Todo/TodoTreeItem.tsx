@@ -4,7 +4,7 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2, Circle, Trash2, Plus,
-  X, Folder, Tag, Repeat, Check, ChevronRight,
+  X, Folder, Tag, Repeat, Check,
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
@@ -88,6 +88,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   const [isSwiping, setIsSwiping] = useState(false);
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
+  const totalCount = task.children?.length || 0;
+  const completedCount = task.children?.filter((c) => c.isCompleted).length || 0;
   const touchStartXRef = useRef(0);
   const touchStartYRef = useRef(0);
   const isSwipingRef = useRef(false);
@@ -221,8 +223,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   const indentPx = Math.max(0, Math.min((depth - 1) * 16, 48));
 
   return (
-    <div className="flex flex-col w-full" style={{ paddingLeft: indentPx > 0 ? `${indentPx}px` : undefined }}>
-      <div className={`relative ${!expanded ? 'overflow-hidden rounded-xl sm:rounded-2xl' : ''}`}>
+    <div className={`flex flex-col w-full ${expanded ? 'h-full flex-1 min-h-0' : ''}`} style={{ paddingLeft: indentPx > 0 ? `${indentPx}px` : undefined }}>
+      <div className={`relative ${expanded ? 'h-full flex-1 min-h-0 flex flex-col' : 'overflow-hidden rounded-xl sm:rounded-2xl'}`}>
         {/* Swipe action background indicators */}
         {!expanded && (
           <div className={`absolute inset-0 my-0.5 sm:my-1 flex items-center justify-between px-5 rounded-xl sm:rounded-2xl pointer-events-none transition-colors ${swipeOffset > 0 ? 'bg-emerald-500 text-white' : swipeOffset < 0 ? 'bg-rose-500 text-white' : 'bg-transparent'}`}>
@@ -288,32 +290,26 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
 
               {/* Right Content Column */}
               <div className="flex-1 flex flex-col gap-1 min-w-0">
-                {depth && depth > 0 ? (
-                  <div className="flex items-center gap-1.5 mb-1 text-[11px] font-bold text-gray-400 dark:text-gray-500">
-                    <span>Aufgabe</span>
-                    <ChevronRight size={11} className="text-gray-400" />
-                    <span className="text-blue-600 dark:text-blue-400 font-semibold px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950/40">Unteraufgabe</span>
-                  </div>
-                ) : null}
-
                 {/* Title Line */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleTask(task);
-                      }}
-                      className="text-gray-400 hover:text-emerald-500 transition-colors shrink-0 cursor-pointer"
-                      aria-label={isTaskCompleted ? 'Als unvollständig markieren' : 'Als erledigt markieren'}
-                    >
-                      {isTaskCompleted ? (
-                        <CheckCircle2 size={16} className="text-emerald-500 fill-emerald-500/20" />
-                      ) : (
-                        <Circle size={16} />
-                      )}
-                    </button>
+                    {(!depth || depth < 1) && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleTask(task);
+                        }}
+                        className="text-gray-400 hover:text-emerald-500 transition-colors shrink-0 cursor-pointer"
+                        aria-label={isTaskCompleted ? 'Als unvollständig markieren' : 'Als erledigt markieren'}
+                      >
+                        {isTaskCompleted ? (
+                          <CheckCircle2 size={16} className="text-emerald-500 fill-emerald-500/20" />
+                        ) : (
+                          <Circle size={16} />
+                        )}
+                      </button>
+                    )}
                     <div className="shrink-0 flex items-center justify-center">
                       <TodoPriorityBadge priority={task.priority} />
                     </div>
@@ -340,9 +336,13 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                 </div>
 
                 {/* Sub-details Line */}
-                {((task.tags && task.tags.length > 0) || task.folder) && (
-                  <div className="ml-[32px] sm:ml-[34px] flex flex-wrap items-center gap-2 mt-0.5">
-                    {task.folder && (
+                {((task.tags && task.tags.length > 0) || task.folder || (depth && depth > 0)) && (
+                  <div className={`${depth && depth > 0 ? '' : 'ml-[32px] sm:ml-[34px]'} flex flex-wrap items-center gap-2 mt-0.5`}>
+                    {depth && depth > 0 ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
+                        Teilaufgabe
+                      </span>
+                    ) : task.folder ? (
                       <span
                         onClick={(e) => {
                           e.stopPropagation();
@@ -356,7 +356,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       >
                         {task.folder}
                       </span>
-                    )}
+                    ) : null}
 
                     {task.tags?.map((tag) => (
                       <span
@@ -384,19 +384,21 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.18 }}
               onClick={(e) => e.stopPropagation()}
-              className="my-1.5 flex flex-col gap-2.5 relative"
+              className="my-1.5 flex flex-col relative h-full flex-1 min-h-0"
             >
-              {/* Main Info Card */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-sm flex flex-col">
-                {depth && depth > 0 ? (
-                  <div className="flex items-center gap-1.5 mb-2 text-[11px] font-bold text-gray-400 dark:text-gray-500">
-                    <span>Aufgabe</span>
-                    <ChevronRight size={11} className="text-gray-400" />
-                    <span className="text-blue-600 dark:text-blue-400 font-semibold px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950/40">Unteraufgabe</span>
-                  </div>
-                ) : null}
+              {/* Sticky Top: Main Info Card & Unteraufgaben Header */}
+              <div className="shrink-0 z-20 sticky top-0 flex flex-col">
+                {/* Main Info Card */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-sm flex flex-col shrink-0 z-20">
+                  {depth && depth > 0 ? (
+                    <div className="mb-2">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
+                        Teilaufgabe
+                      </span>
+                    </div>
+                  ) : null}
 
-                {/* Editable Title */}
+                  {/* Editable Title */}
                 <input
                   value={draft.title}
                   onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
@@ -601,141 +603,149 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                 </div>
               </div>
 
-              {/* Unteraufgaben section as its own clean block */}
+              {/* Raw Unteraufgaben Header */}
               {(!depth || depth < 1) && (
-                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-sm flex flex-col">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                      Unteraufgaben {task.children && task.children.length > 0 && `(${task.children.filter((c) => c.isCompleted).length}/${task.children.length})`}
-                    </span>
+                <div className="shrink-0 z-20">
+                  <div className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 px-1 pt-2">
+                    Unteraufgaben ({completedCount}/{totalCount})
                   </div>
-
-                  <div className="space-y-2 my-1">
-                    {task.children && task.children.length > 0 ? (
-                      task.children.map((child) => (
-                        <TodoTreeItem
-                          key={child.id}
-                          task={child as TaskWithChildren}
-                          depth={1}
-                          allTags={allTags}
-                          customTags={customTags}
-                          allFolders={allFolders}
-                          selectedTag={selectedTag}
-                          setSelectedTag={setSelectedTag}
-                          selectedFolder={selectedFolder}
-                          setSelectedFolder={setSelectedFolder}
-                          setViewMode={setViewMode}
-                          handleAddCustomTag={handleAddCustomTag}
-                          handleRemoveCustomTag={handleRemoveCustomTag}
-                          handleToggleTask={handleToggleTask}
-                          handleToggleInProgress={handleToggleInProgress}
-                          saveEditing={(id, d) => {
-                            if (d) {
-                              updateTask(id, {
-                                title: d.title,
-                                description: d.description,
-                                priority: d.priority,
-                                status: d.status,
-                                dueDate: d.dueDate || undefined,
-                                recurrence: d.recurrence,
-                                recurrence_end: d.recurrenceEnd || undefined,
-                                folder: d.folder || undefined,
-                                tags: d.tags,
-                                showInCalendar: d.showInCalendar,
-                              });
-                            }
-                            if (saveEditing) {
-                              saveEditing(id, d);
-                            }
-                          }}
-                          deleteTask={deleteTask}
-                          disableClickDebounce={disableClickDebounce}
-                        />
-                      ))
-                    ) : (
-                      <div className="text-xs text-gray-400 italic py-1">Keine Unteraufgaben vorhanden</div>
-                    )}
+                  <div className="w-full h-1 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden mt-1 mb-2">
+                    <div
+                      className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                      style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }}
+                    />
                   </div>
                 </div>
               )}
+            </div>
 
-              {/* Sticky bottom bar */}
-              <div className="sticky bottom-0 z-30 p-2.5 sm:p-3 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-md border border-gray-200 dark:border-white/10 rounded-2xl shadow-lg flex flex-col gap-2">
-                {(!depth || depth < 1) && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={newSubtaskTitle}
-                      onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          void handleAddSubtask();
+            {/* Subtasks list - ONLY scrollable element */}
+            {(!depth || depth < 1) && (
+              <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1 pb-44">
+                {task.children && task.children.length > 0 ? (
+                  task.children.map((child) => (
+                    <TodoTreeItem
+                      key={child.id}
+                      task={child as TaskWithChildren}
+                      depth={1}
+                      allTags={allTags}
+                      customTags={customTags}
+                      allFolders={allFolders}
+                      selectedTag={selectedTag}
+                      setSelectedTag={setSelectedTag}
+                      selectedFolder={selectedFolder}
+                      setSelectedFolder={setSelectedFolder}
+                      setViewMode={setViewMode}
+                      handleAddCustomTag={handleAddCustomTag}
+                      handleRemoveCustomTag={handleRemoveCustomTag}
+                      handleToggleTask={handleToggleTask}
+                      handleToggleInProgress={handleToggleInProgress}
+                      saveEditing={(id, d) => {
+                        if (d) {
+                          updateTask(id, {
+                            title: d.title,
+                            description: d.description,
+                            priority: d.priority,
+                            status: d.status,
+                            dueDate: d.dueDate || undefined,
+                            recurrence: d.recurrence,
+                            recurrence_end: d.recurrenceEnd || undefined,
+                            folder: d.folder || undefined,
+                            tags: d.tags,
+                            showInCalendar: d.showInCalendar,
+                          });
+                        }
+                        if (saveEditing) {
+                          saveEditing(id, d);
                         }
                       }}
-                      placeholder="Neue Unteraufgabe hinzufügen..."
-                      className="flex-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-white/10 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none border border-transparent focus:border-blue-500"
+                      deleteTask={deleteTask}
+                      disableClickDebounce={disableClickDebounce}
                     />
-                    <button
-                      type="button"
-                      onClick={() => void handleAddSubtask()}
-                      disabled={!newSubtaskTitle.trim()}
-                      className="p-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-black dark:hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
-                      title="Unteraufgabe hinzufügen"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
+                  ))
+                ) : (
+                  <div className="text-xs text-gray-400 italic py-2 px-1">Keine Unteraufgaben vorhanden</div>
                 )}
+              </div>
+            )}
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        cancelEditing?.();
-                        if (isControlledExpanded === undefined) setLocalExpanded(false);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <X size={14} />
-                      <span>Abbrechen</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
+            {/* Fixed Bottom Action Bar covering the navigation */}
+            <div className="fixed bottom-0 left-0 right-0 z-50 px-4 pt-2.5 pb-[max(14px,env(safe-area-inset-bottom))] bg-white/95 dark:bg-[#121212]/95 backdrop-blur-xl border-t border-gray-200/80 dark:border-white/10 shadow-2xl flex flex-col gap-2">
+              {(!depth || depth < 1) && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newSubtaskTitle}
+                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
                         e.preventDefault();
-                        void deleteTask(task.id);
-                      }}
-                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
-                      title="Aufgabe löschen"
-                      aria-label="Aufgabe löschen"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
+                        void handleAddSubtask();
+                      }
+                    }}
+                    placeholder="Neue Unteraufgabe hinzufügen..."
+                    className="flex-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-white/10 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none border border-transparent focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleAddSubtask()}
+                    disabled={!newSubtaskTitle.trim()}
+                    className="p-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-black dark:hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                    title="Unteraufgabe hinzufügen"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+              )}
 
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (draft.title.trim()) {
-                        saveEditing?.(task.id, draft);
-                      } else {
-                        cancelEditing?.();
-                      }
+                      cancelEditing?.();
                       if (isControlledExpanded === undefined) setLocalExpanded(false);
                     }}
-                    className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-semibold rounded-lg hover:bg-black dark:hover:bg-gray-100 transition-colors cursor-pointer shadow-xs"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 rounded-lg transition-colors cursor-pointer"
                   >
-                    <Check size={14} />
-                    <span>Fertig</span>
+                    <X size={14} />
+                    <span>Abbrechen</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      void deleteTask(task.id);
+                    }}
+                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                    title="Aufgabe löschen"
+                    aria-label="Aufgabe löschen"
+                  >
+                    <Trash2 size={16} />
                   </button>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (draft.title.trim()) {
+                      saveEditing?.(task.id, draft);
+                    } else {
+                      cancelEditing?.();
+                    }
+                    if (isControlledExpanded === undefined) setLocalExpanded(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-semibold rounded-lg hover:bg-black dark:hover:bg-gray-100 transition-colors cursor-pointer shadow-xs"
+                >
+                  <Check size={14} />
+                  <span>Fertig</span>
+                </button>
               </div>
-            </motion.div>
+            </div>
+          </motion.div>
           )}
         </AnimatePresence>
       </div>
