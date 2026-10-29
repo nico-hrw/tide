@@ -165,20 +165,15 @@ export const NextEventCountdown = React.memo(function NextEventCountdown({
     <button
       type="button"
       onClick={() => onTap?.(target.event.id)}
-      className={`bg-gray-900 text-white px-4 py-3 rounded-xl text-right shadow-[0_4px_10px_rgba(0,0,0,0.15)] flex flex-col justify-center shrink-0 transition-transform active:scale-95 ${className || ''}`}
+      className={`w-20 h-20 min-w-[76px] min-h-[76px] p-2 rounded-2xl flex flex-col justify-between items-start text-left bg-gray-900 text-white shadow-[0_4px_12px_rgba(0,0,0,0.18)] shrink-0 transition-transform active:scale-95 ${className || ''}`}
     >
-      <p className="text-base sm:text-lg font-bold text-white mb-0.5 leading-none truncate max-w-[140px] text-right">
-        {target.event.title || 'Termin'}
-      </p>
       {target.isActive ? (
-        <p className="text-[11px] font-medium text-gray-400 text-right">
-          endet in: {formattedHoursMins}
-        </p>
+        <span className="text-xs font-bold text-gray-300 uppercase tracking-wider leading-none">endet in</span>
       ) : (
-        <p className="text-[11px] font-medium text-gray-400 text-right">
-          in: {formattedHoursMins}
-        </p>
+        <span className="text-xs font-bold text-gray-300 uppercase tracking-wider leading-none">startet in</span>
       )}
+      <span className="text-base sm:text-lg font-black text-white leading-tight">{formattedHoursMins}</span>
+      <span className="text-[10px] font-medium text-gray-400 truncate max-w-full leading-tight">{target.event.title || 'Termin'}</span>
     </button>
   );
 });

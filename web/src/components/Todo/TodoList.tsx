@@ -187,12 +187,17 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       setIsFilterMenuOpen((prev) => !prev);
       setIsAddMenuOpen(false);
     };
+    const handleNewFolderEvent = () => {
+      setIsFolderModalOpen(true);
+    };
 
     window.addEventListener('tide:new-todo', handleNewTodoEvent);
     window.addEventListener('tide:toggle-todo-filter', handleToggleFilterEvent);
+    window.addEventListener('tide:new-todo-folder', handleNewFolderEvent);
     return () => {
       window.removeEventListener('tide:new-todo', handleNewTodoEvent);
       window.removeEventListener('tide:toggle-todo-filter', handleToggleFilterEvent);
+      window.removeEventListener('tide:new-todo-folder', handleNewFolderEvent);
     };
   }, []);
 
@@ -616,7 +621,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         /* Center container */
         <div className="w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2">
           {/* Scrollable list container */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 py-4 sm:py-6 flex flex-col gap-4 sm:gap-5 pb-28">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 pt-1 sm:pt-2 pb-16 flex flex-col gap-2">
             <AnimatePresence mode="wait" initial={false}>
               {focusedTask ? (
                 <motion.div

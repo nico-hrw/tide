@@ -374,6 +374,7 @@ export default function MobileLayout({
   const [newEventDefaultDate, setNewEventDefaultDate] = useState<Date>(new Date());
   const [isSharedFolderOpen, setIsSharedFolderOpen] = useState(true);
   const [pinPromptItem, setPinPromptItem] = useState<PinPromptTarget | null>(null);
+  const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
 
   useEffect(() => {
     const handlePromptPin = (e: Event) => {
@@ -904,7 +905,7 @@ export default function MobileLayout({
             <motion.div key="search-back"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className={`fixed inset-0 ${isEditingNote ? 'z-[55]' : 'z-30'}`}
-              style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }}
+              style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}
               onClick={() => setIsSearchOpen(false)}
             />
 
@@ -966,6 +967,22 @@ export default function MobileLayout({
 
               {/* Stacked action buttons */}
               <div className="mx-4 mb-3 flex flex-col gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    setIsSearchOpen(false);
+                    setActiveTab('todos');
+                    window.dispatchEvent(new CustomEvent('tide:new-todo', { detail: { title: searchQuery.trim() } }));
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98"
+                  style={{
+                    background: theme === 'dark' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(59, 130, 246, 0.08)',
+                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                    color: theme === 'dark' ? '#60a5fa' : '#2563eb',
+                  }}
+                >
+                  <ListTodo size={16} />
+                  <span className="flex-1">Neue Aufgabe{searchQuery.trim() ? ` · "${searchQuery.slice(0, 24)}"` : ''}</span>
+                </button>
                 <button onClick={() => { const t = searchQuery.trim() || undefined; setIsSearchOpen(false); onNewNote(t); setIsEditingNote(true); }}
                   className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left"
                   style={{ background: '#22C55E14', border: '1px solid #22C55E30', color: '#22C55E' }}>
@@ -1359,36 +1376,6 @@ export default function MobileLayout({
         {/* Notes header */}
         <div className="px-5 py-3 flex items-center justify-between">
           <span className="text-lg font-extrabold" style={{ color: T.pri }}>Notizen</span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => onNewFolder?.()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold active:opacity-70 transition-opacity"
-              style={{ background: T.hov, border: `1px solid ${T.brd}`, color: T.sec }}
-              title="Neuer Ordner"
-            >
-              <FolderPlus size={14} /> Ordner
-            </button>
-            <button
-              onClick={() => { onNewNote(); setIsEditingNote(true); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm active:opacity-80 transition-opacity"
-              style={{ background: T.accent }}
-            >
-              <Plus size={14} /> Neu
-            </button>
-          </div>
-        </div>
-        {/* Notes search */}
-        <div className="mx-4 mb-3 flex items-center gap-2 px-3 py-2 rounded-xl"
-          style={{ background: T.hov, border: `1px solid ${T.brd}` }}>
-          <Search size={14} style={{ color: T.sec }} />
-          <input
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Notiz suchen…"
-            className="flex-1 bg-transparent outline-none text-sm"
-            style={{ color: T.pri }}
-          />
-          {searchQuery && <button onClick={() => setSearchQuery('')}><X size={14} style={{ color: T.sec }} /></button>}
         </div>
         {/* Notes list */}
         <div className="flex-1 overflow-y-auto px-2">
@@ -1424,7 +1411,11 @@ export default function MobileLayout({
             const sharedIds = new Set(sharedNotes.map(f => f.id));
 
             const nonSharedFiles = files.filter(f => !sharedIds.has(f.id));
-            const recentFiles = nonSharedFiles.filter(f => f.type !== 'folder').slice(0, 3);
+            const recentFiles = nonSharedFiles
+              .filter(f => f.type !== 'folder')
+              .slice()
+              .sort((a, b) => new Date(b.updated_at || b.updatedAt || b.created_at || b.createdAt || 0).getTime() - new Date(a.updated_at || a.updatedAt || a.created_at || a.createdAt || 0).getTime())
+              .slice(0, 3);
             const recentIds = new Set(recentFiles.map(f => f.id));
             const rootFolders = folders.filter(f => !f.parent_id && !sharedIds.has(f.id));
             const rootNotes = nonSharedFiles.filter(f => !f.parent_id && f.type !== 'folder' && !recentIds.has(f.id));
@@ -1511,7 +1502,7 @@ export default function MobileLayout({
                 {/* Zuletzt */}
                 {recentFiles.length > 0 && (
                   <div>
-                    <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Zuletzt</p>
+                    <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Mach weiter wo du aufgehört hast</p>
                     <div className="space-y-0.5">
                       {recentFiles.map(f => (
                         <NoteRow
@@ -1579,8 +1570,8 @@ export default function MobileLayout({
       ) : (
       /* ── Todos tab ── */
       <div
-        className="mobile-todos-container w-full h-full flex flex-col flex-1 min-h-0 relative max-w-full overflow-hidden pb-24"
-        style={{ paddingBottom: 'max(96px, calc(80px + env(safe-area-inset-bottom)))' }}
+        className="mobile-todos-container w-full h-full flex flex-col flex-1 min-h-0 relative max-w-full overflow-hidden"
+        style={{ paddingBottom: 'max(68px, calc(60px + env(safe-area-inset-bottom)))' }}
       >
         <style>{`
           .mobile-todos-container .sticky.top-0 {
@@ -1638,7 +1629,10 @@ export default function MobileLayout({
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setIsPlusMenuOpen(false);
+                }}
                 className="w-10 h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
                 style={{
                   background: isActive
@@ -1666,9 +1660,9 @@ export default function MobileLayout({
             }}
             className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
             style={{
-              background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+              background: 'transparent',
               color: T.sec,
-              border: `1px solid ${T.brd}`,
+              border: 'none',
             }}
             title="Suchen"
           >
@@ -1684,32 +1678,102 @@ export default function MobileLayout({
             }}
             className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
             style={{
-              background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+              background: 'transparent',
               color: T.sec,
-              border: `1px solid ${T.brd}`,
+              border: 'none',
             }}
             title="Filter"
           >
             <SlidersHorizontal size={18} />
           </button>
 
-          <button
-            onClick={() => {
-              if (activeTab === 'calendar') {
-                setNewEventDefaultDate(activeDate);
-                setIsNewEventSheetOpen(true);
-              } else if (activeTab === 'notes') {
-                onNewNote();
-                setIsEditingNote(true);
-              } else if (activeTab === 'todos') {
-                window.dispatchEvent(new CustomEvent('tide:new-todo'));
-              }
-            }}
-            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl bg-gray-900 dark:bg-white hover:bg-black text-white dark:text-gray-900 shadow-md transition-all active:scale-95 shrink-0 cursor-pointer"
-            title={activeTab === 'calendar' ? 'Neuer Termin' : activeTab === 'notes' ? 'Neue Notiz' : 'Neue Aufgabe'}
-          >
-            <Plus size={20} strokeWidth={2.4} />
-          </button>
+          <div className="relative">
+            {isPlusMenuOpen && (activeTab === 'notes' || activeTab === 'todos') && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsPlusMenuOpen(false)}
+                />
+                <div
+                  className="absolute bottom-full right-0 mb-3 z-50 flex flex-col min-w-[170px] rounded-2xl p-1.5 shadow-xl backdrop-blur-xl border"
+                  style={{
+                    background: theme === 'dark' ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                    borderColor: T.brd,
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2)',
+                  }}
+                >
+                  {activeTab === 'notes' && (
+                    <>
+                      <button
+                        onClick={() => {
+                          onNewNote();
+                          setIsEditingNote(true);
+                          setIsPlusMenuOpen(false);
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-colors active:opacity-70"
+                        style={{ color: T.pri }}
+                      >
+                        <PenLine size={15} style={{ color: T.accent }} />
+                        <span>Notiz erstellen</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          onNewFolder?.();
+                          setIsPlusMenuOpen(false);
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-colors active:opacity-70"
+                        style={{ color: T.pri }}
+                      >
+                        <FolderPlus size={15} style={{ color: T.accent }} />
+                        <span>Ordner erstellen</span>
+                      </button>
+                    </>
+                  )}
+                  {activeTab === 'todos' && (
+                    <>
+                      <button
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('tide:new-todo'));
+                          setIsPlusMenuOpen(false);
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-colors active:opacity-70"
+                        style={{ color: T.pri }}
+                      >
+                        <ListTodo size={15} style={{ color: T.accent }} />
+                        <span>Aufgabe erstellen</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('tide:new-todo-folder'));
+                          setIsPlusMenuOpen(false);
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-colors active:opacity-70"
+                        style={{ color: T.pri }}
+                      >
+                        <FolderPlus size={15} style={{ color: T.accent }} />
+                        <span>Ordner erstellen</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+
+            <button
+              onClick={() => {
+                if (activeTab === 'calendar') {
+                  setNewEventDefaultDate(activeDate);
+                  setIsNewEventSheetOpen(true);
+                } else if (activeTab === 'notes' || activeTab === 'todos') {
+                  setIsPlusMenuOpen(prev => !prev);
+                }
+              }}
+              className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl bg-gray-900 dark:bg-white hover:bg-black text-white dark:text-gray-900 shadow-md transition-all active:scale-95 shrink-0 cursor-pointer"
+              title={activeTab === 'calendar' ? 'Neuer Termin' : 'Neues Element'}
+            >
+              <Plus size={20} strokeWidth={2.4} />
+            </button>
+          </div>
         </div>
       </div>
 

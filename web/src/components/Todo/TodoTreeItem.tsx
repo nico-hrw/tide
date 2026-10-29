@@ -4,7 +4,7 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2, Circle, Trash2, Plus,
-  X, GitFork, Folder, Tag, Repeat, Check,
+  X, Folder, Tag, Repeat, Check,
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
@@ -263,6 +263,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   const isTaskCompleted = task.isCompleted || isCompleting;
   const isOverdue = deadline?.status === 'overdue' && !isTaskCompleted;
   const isTodayDate = deadline?.status === 'today';
+  const isTodayActive = isTodayDate && !isTaskCompleted;
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (expanded) return;
@@ -355,16 +356,18 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
 
   return (
     <div className="flex flex-col w-full" style={{ paddingLeft: depth > 0 ? `${indentPx}px` : undefined }}>
-      <div className="relative overflow-hidden rounded-xl sm:rounded-2xl">
+      <div className={`relative ${!expanded ? 'overflow-hidden rounded-xl sm:rounded-2xl' : ''}`}>
         {/* Swipe action background indicators */}
-        <div className={`absolute inset-0 my-1.5 flex items-center justify-between px-5 rounded-xl sm:rounded-2xl pointer-events-none transition-colors ${swipeOffset > 0 ? 'bg-emerald-500 text-white' : swipeOffset < 0 ? 'bg-rose-500 text-white' : 'bg-transparent'}`}>
-          <div className={`flex items-center gap-2 font-bold text-xs transition-opacity duration-150 ${swipeOffset > 30 ? 'opacity-100' : 'opacity-0'}`}>
-            <CheckCircle2 size={20} /><span>{isTaskCompleted ? 'Wiedereröffnen' : 'Erledigen'}</span>
+        {!expanded && (
+          <div className={`absolute inset-0 my-0.5 sm:my-1 flex items-center justify-between px-5 rounded-xl sm:rounded-2xl pointer-events-none transition-colors ${swipeOffset > 0 ? 'bg-emerald-500 text-white' : swipeOffset < 0 ? 'bg-rose-500 text-white' : 'bg-transparent'}`}>
+            <div className={`flex items-center gap-2 font-bold text-xs transition-opacity duration-150 ${swipeOffset > 30 ? 'opacity-100' : 'opacity-0'}`}>
+              <CheckCircle2 size={20} /><span>{isTaskCompleted ? 'Wiedereröffnen' : 'Erledigen'}</span>
+            </div>
+            <div className={`flex items-center gap-2 font-bold text-xs transition-opacity duration-150 ${swipeOffset < -30 ? 'opacity-100' : 'opacity-0'}`}>
+              <span>Löschen</span><Trash2 size={20} />
+            </div>
           </div>
-          <div className={`flex items-center gap-2 font-bold text-xs transition-opacity duration-150 ${swipeOffset < -30 ? 'opacity-100' : 'opacity-0'}`}>
-            <span>Löschen</span><Trash2 size={20} />
-          </div>
-        </div>
+        )}
 
         {/* Item View / Options Panel */}
         <AnimatePresence mode="wait" initial={false}>
@@ -380,7 +383,11 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
               onClick={handleClick}
-              className="flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 my-1.5 bg-white/90 dark:bg-[#181818]/90 backdrop-blur-xs border border-gray-200/80 dark:border-white/[0.08] hover:border-gray-300 dark:hover:border-white/20 rounded-xl sm:rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.03)] dark:shadow-none relative pr-3 sm:pr-4 cursor-pointer group transition-all"
+              className={`flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 my-0.5 sm:my-1 backdrop-blur-xs rounded-xl sm:rounded-2xl relative pr-3 sm:pr-4 cursor-pointer group transition-all ${
+                isTodayActive
+                  ? 'bg-black text-white border border-black shadow-md dark:bg-white dark:text-black dark:border-white dark:shadow-md'
+                  : 'bg-white/90 dark:bg-[#181818]/90 text-gray-900 dark:text-gray-100 border border-gray-200/80 dark:border-white/[0.08] hover:border-gray-300 dark:hover:border-white/20 shadow-[0_1px_3px_rgba(0,0,0,0.03)] dark:shadow-none'
+              }`}
             >
               {/* Left Date Column */}
               {parsedDate ? (
@@ -395,7 +402,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                   </div>
                 ) : isTodayDate ? (
                   <div className="w-12 shrink-0 pt-0.5 text-left flex flex-col ml-1 sm:ml-2">
-                    <span className={`text-[13px] font-bold leading-tight ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
+                    <span className={`text-[13px] font-bold leading-tight ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-white dark:text-black'}`}>
                       Heute
                     </span>
                   </div>
@@ -422,8 +429,12 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       <TodoPriorityBadge priority={task.priority} />
                     </div>
                     <span
-                      className={`text-gray-900 dark:text-gray-100 font-medium text-[15px] leading-tight truncate ${
-                        isTaskCompleted ? 'line-through text-gray-400 dark:text-gray-500' : ''
+                      className={`font-medium text-[15px] leading-tight truncate ${
+                        isTaskCompleted
+                          ? 'line-through text-gray-400 dark:text-gray-500'
+                          : isTodayActive
+                            ? 'text-white dark:text-black'
+                            : 'text-gray-900 dark:text-gray-100'
                       }`}
                     >
                       {task.title}
@@ -449,7 +460,9 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           setSelectedFolder?.(selectedFolder === task.folder ? null : (task.folder || null));
                           setViewMode?.('tasks');
                         }}
-                        className="text-[12px] text-gray-500 dark:text-gray-400 font-medium cursor-pointer hover:underline"
+                        className={`text-[12px] font-medium cursor-pointer hover:underline ${
+                          isTodayActive ? 'text-gray-300 dark:text-gray-700' : 'text-gray-500 dark:text-gray-400'
+                        }`}
                         title={`Nach Ordner "${task.folder}" filtern`}
                       >
                         {task.folder}
@@ -482,230 +495,224 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.18 }}
               onClick={(e) => e.stopPropagation()}
-              className="p-4 sm:p-5 my-1.5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-sm flex flex-col relative overflow-hidden"
+              className="my-1.5 flex flex-col gap-2.5 relative"
             >
-              {/* Editable Title */}
-              <input
-                value={draft.title}
-                onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    if (draft.title.trim()) saveEditing?.(task.id, draft);
-                    if (isControlledExpanded === undefined) setLocalExpanded(false);
-                  }
-                }}
-                placeholder="Titel der Aufgabe..."
-                className="text-xl font-bold text-gray-900 dark:text-white bg-transparent outline-none w-full border-b border-gray-200 dark:border-white/10 pb-2 mb-4"
-              />
-
-              {/* Properties Section */}
-              <div className="flex flex-col gap-3.5">
-                {/* Row 1: Fälligkeit & Priorität */}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  {/* Fälligkeit */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={() => handleQuickDate('today')}
-                      className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
-                        isDraftToday
-                          ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
-                          : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
-                      }`}
-                    >
-                      Heute
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleQuickDate('tomorrow')}
-                      className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
-                        isDraftTomorrow
-                          ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
-                          : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
-                      }`}
-                    >
-                      Morgen
-                    </button>
-                    <div className="relative inline-flex items-center">
-                      <input
-                        type="date"
-                        value={draft.dueDate ? draft.dueDate.slice(0, 10) : ''}
-                        onChange={(e) => setDraft((p) => ({ ...p, dueDate: e.target.value }))}
-                        className="px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 rounded-lg border border-transparent focus:border-blue-500 focus:outline-none cursor-pointer"
-                        aria-label="Fälligkeitsdatum auswählen"
-                      />
-                      {draft.dueDate && (
-                        <button
-                          type="button"
-                          onClick={() => handleQuickDate('none')}
-                          className="ml-1 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
-                          title="Datum entfernen"
-                        >
-                          <X size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Priorität: 1 grün, 2 gelb, 3 rot */}
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setDraft((p) => ({ ...p, priority: 'low' }))}
-                      className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
-                        draft.priority === 'low'
-                          ? 'bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
-                          : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
-                      }`}
-                    >
-                      1
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDraft((p) => ({ ...p, priority: 'medium' }))}
-                      className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
-                        draft.priority === 'medium'
-                          ? 'bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
-                          : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
-                      }`}
-                    >
-                      2
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDraft((p) => ({ ...p, priority: 'high' }))}
-                      className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
-                        draft.priority === 'high'
-                          ? 'bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
-                          : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
-                      }`}
-                    >
-                      3
-                    </button>
-                  </div>
-                </div>
-
-                {/* Row 2: Ordner & Tags */}
-                <div className="flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1">
-                    <Folder size={14} className="text-gray-400 shrink-0" />
-                    <select
-                      value={draft.folder}
-                      onChange={(e) => setDraft((p) => ({ ...p, folder: e.target.value }))}
-                      className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer pr-1"
-                    >
-                      <option value="" className="bg-white dark:bg-[#1a1a1a]">Kein Ordner</option>
-                      {allFolders.map((f) => (
-                        <option key={f} value={f} className="bg-white dark:bg-[#1a1a1a]">{f}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-[200px]">
-                    {draft.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${getTagColorClass(tag)}`}
-                      >
-                        <span>{tag}</span>
-                        <button
-                          type="button"
-                          onClick={() => setDraft((p) => ({ ...p, tags: p.tags.filter((t) => t !== tag) }))}
-                          className="hover:opacity-75 p-0.5 cursor-pointer"
-                          title={`Tag "${tag}" entfernen`}
-                        >
-                          <X size={10} />
-                        </button>
-                      </span>
-                    ))}
-                    <div className="inline-flex items-center gap-1 bg-gray-100 dark:bg-white/10 rounded-lg px-2 py-1 text-xs">
-                      <Tag size={12} className="text-gray-400" />
-                      <input
-                        type="text"
-                        value={tagInput}
-                        onChange={(e) => setTagInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            const t = tagInput.trim().replace(/^#/, '');
-                            if (t) handleAddTag(t);
-                          }
-                        }}
-                        placeholder="Tag..."
-                        className="w-16 bg-transparent text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
-                      />
-                      {tagInput.trim() && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const t = tagInput.trim().replace(/^#/, '');
-                            if (t) handleAddTag(t);
-                          }}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 p-0.5 cursor-pointer"
-                          title="Tag hinzufügen"
-                        >
-                          <Plus size={11} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Description textarea */}
-                <textarea
-                  value={draft.description}
-                  onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
-                  placeholder="Optionale Notiz..."
-                  rows={2}
-                  className="w-full text-xs sm:text-sm bg-gray-50 dark:bg-white/[0.03] rounded-lg p-2.5 border border-gray-100 dark:border-white/5 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600 outline-none resize-none focus:border-gray-300 dark:focus:border-white/20 transition-colors"
+              {/* Main Info Card */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-sm flex flex-col">
+                {/* Editable Title */}
+                <input
+                  value={draft.title}
+                  onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (draft.title.trim()) saveEditing?.(task.id, draft);
+                      if (isControlledExpanded === undefined) setLocalExpanded(false);
+                    }
+                  }}
+                  placeholder="Titel der Aufgabe..."
+                  className="text-xl font-bold text-gray-900 dark:text-white bg-transparent outline-none w-full border-b border-gray-200 dark:border-white/10 pb-2 mb-4"
                 />
 
-                {/* Recurrence & Calendar options */}
-                <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
-                  <div className="flex items-center gap-1.5">
-                    <Repeat size={13} className="text-gray-400" />
-                    <select
-                      value={draft.recurrence}
-                      onChange={(e) => setDraft((p) => ({ ...p, recurrence: e.target.value as RecurrenceType }))}
-                      className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-white/10 rounded-lg text-gray-800 dark:text-gray-200 border border-transparent focus:border-blue-500 focus:outline-none cursor-pointer"
-                    >
-                      {RECURRENCE_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value} className="bg-white dark:bg-[#1a1a1a]">{o.label}</option>
-                      ))}
-                    </select>
+                {/* Properties Section */}
+                <div className="flex flex-col gap-3.5">
+                  {/* Row 1: Fälligkeit & Priorität */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    {/* Fälligkeit */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => handleQuickDate('today')}
+                        className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                          isDraftToday
+                            ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
+                            : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        Heute
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleQuickDate('tomorrow')}
+                        className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                          isDraftTomorrow
+                            ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
+                            : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        Morgen
+                      </button>
+                      <div className="relative inline-flex items-center">
+                        <input
+                          type="date"
+                          value={draft.dueDate ? draft.dueDate.slice(0, 10) : ''}
+                          onChange={(e) => setDraft((p) => ({ ...p, dueDate: e.target.value }))}
+                          className="px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 rounded-lg border border-transparent focus:border-blue-500 focus:outline-none cursor-pointer"
+                          aria-label="Fälligkeitsdatum auswählen"
+                        />
+                        {draft.dueDate && (
+                          <button
+                            type="button"
+                            onClick={() => handleQuickDate('none')}
+                            className="ml-1 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                            title="Datum entfernen"
+                          >
+                            <X size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Priorität: 1 grün, 2 gelb, 3 rot */}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setDraft((p) => ({ ...p, priority: 'low' }))}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
+                          draft.priority === 'low'
+                            ? 'bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
+                            : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
+                        }`}
+                      >
+                        1
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDraft((p) => ({ ...p, priority: 'medium' }))}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
+                          draft.priority === 'medium'
+                            ? 'bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
+                            : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
+                        }`}
+                      >
+                        2
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDraft((p) => ({ ...p, priority: 'high' }))}
+                        className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
+                          draft.priority === 'high'
+                            ? 'bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
+                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
+                        }`}
+                      >
+                        3
+                      </button>
+                    </div>
                   </div>
 
-                  <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={draft.showInCalendar}
-                      onChange={(e) => setDraft((p) => ({ ...p, showInCalendar: e.target.checked }))}
-                      className="rounded border-gray-300 dark:border-white/20 text-blue-600 focus:ring-blue-500 cursor-pointer h-3.5 w-3.5"
-                    />
-                    <span>Im Kalender anzeigen</span>
-                  </label>
+                  {/* Row 2: Ordner & Tags */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1">
+                      <Folder size={14} className="text-gray-400 shrink-0" />
+                      <select
+                        value={draft.folder}
+                        onChange={(e) => setDraft((p) => ({ ...p, folder: e.target.value }))}
+                        className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer pr-1"
+                      >
+                        <option value="" className="bg-white dark:bg-[#1a1a1a]">Kein Ordner</option>
+                        {allFolders.map((f) => (
+                          <option key={f} value={f} className="bg-white dark:bg-[#1a1a1a]">{f}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-[200px]">
+                      {draft.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${getTagColorClass(tag)}`}
+                        >
+                          <span>{tag}</span>
+                          <button
+                            type="button"
+                            onClick={() => setDraft((p) => ({ ...p, tags: p.tags.filter((t) => t !== tag) }))}
+                            className="hover:opacity-75 p-0.5 cursor-pointer"
+                            title={`Tag "${tag}" entfernen`}
+                          >
+                            <X size={10} />
+                          </button>
+                        </span>
+                      ))}
+                      <div className="inline-flex items-center gap-1 bg-gray-100 dark:bg-white/10 rounded-lg px-2 py-1 text-xs">
+                        <Tag size={12} className="text-gray-400" />
+                        <input
+                          type="text"
+                          value={tagInput}
+                          onChange={(e) => setTagInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const t = tagInput.trim().replace(/^#/, '');
+                              if (t) handleAddTag(t);
+                            }
+                          }}
+                          placeholder="Tag..."
+                          className="w-16 bg-transparent text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
+                        />
+                        {tagInput.trim() && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const t = tagInput.trim().replace(/^#/, '');
+                              if (t) handleAddTag(t);
+                            }}
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-700 p-0.5 cursor-pointer"
+                            title="Tag hinzufügen"
+                          >
+                            <Plus size={11} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Description textarea */}
+                  <textarea
+                    value={draft.description}
+                    onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
+                    placeholder="Optionale Notiz..."
+                    rows={2}
+                    className="w-full text-xs sm:text-sm bg-gray-50 dark:bg-white/[0.03] rounded-lg p-2.5 border border-gray-100 dark:border-white/5 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600 outline-none resize-none focus:border-gray-300 dark:focus:border-white/20 transition-colors"
+                  />
+
+                  {/* Recurrence & Calendar options */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center gap-1.5">
+                      <Repeat size={13} className="text-gray-400" />
+                      <select
+                        value={draft.recurrence}
+                        onChange={(e) => setDraft((p) => ({ ...p, recurrence: e.target.value as RecurrenceType }))}
+                        className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-white/10 rounded-lg text-gray-800 dark:text-gray-200 border border-transparent focus:border-blue-500 focus:outline-none cursor-pointer"
+                      >
+                        {RECURRENCE_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value} className="bg-white dark:bg-[#1a1a1a]">{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={draft.showInCalendar}
+                        onChange={(e) => setDraft((p) => ({ ...p, showInCalendar: e.target.checked }))}
+                        className="rounded border-gray-300 dark:border-white/20 text-blue-600 focus:ring-blue-500 cursor-pointer h-3.5 w-3.5"
+                      />
+                      <span>Im Kalender anzeigen</span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
-              {/* Scrollable Unteraufgaben list */}
-              <div className="flex flex-col mt-4">
+              {/* Unteraufgaben section as its own clean block */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-sm flex flex-col">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
                     Unteraufgaben {task.children && task.children.length > 0 && `(${task.children.filter((c) => c.isCompleted).length}/${task.children.length})`}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsSplitModalOpen(true)}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
-                    title="Mit KI in Unteraufgaben aufteilen"
-                  >
-                    <GitFork size={12} />
-                    <span>KI-Split</span>
-                  </button>
                 </div>
 
-                <div className="max-h-56 overflow-y-auto space-y-2 my-2 pr-1">
+                <div className="max-h-56 overflow-y-auto space-y-1.5 my-2 pr-1">
                   {task.children && task.children.length > 0 ? (
                     task.children.map((child) => (
                       <SubtaskRow
@@ -719,7 +726,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                     <div className="text-xs text-gray-400 italic py-1">Keine Unteraufgaben vorhanden</div>
                   )}
 
-                  {/* Inline input to quickly add a new subtask */}
+                  {/* Inline quick-add input for new subtasks */}
                   <div className="flex items-center gap-2 pt-1">
                     <input
                       type="text"
@@ -747,8 +754,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                 </div>
               </div>
 
-              {/* Static bottom bar pinned over navigation */}
-              <div className="sticky bottom-0 -mx-4 sm:-mx-5 -mb-4 sm:-mb-5 px-4 sm:px-5 py-3 bg-white/95 dark:bg-[#121212]/95 backdrop-blur border-t border-gray-200 dark:border-white/10 flex items-center justify-between z-30 mt-6">
+              {/* Sticky bottom bar */}
+              <div className="sticky bottom-0 px-4 sm:px-5 py-3 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur border border-gray-200 dark:border-white/10 rounded-2xl shadow-sm flex items-center justify-between z-30">
                 <div className="flex items-center gap-2">
                   <button
                     type="button"

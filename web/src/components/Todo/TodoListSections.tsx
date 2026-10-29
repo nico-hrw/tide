@@ -36,10 +36,6 @@ export interface TodoListSectionsProps {
 export const TodoListSections: React.FC<TodoListSectionsProps> = ({
   selectedFolder, setSelectedFolder, filterStatus, searchQuery, tasks, sortedTasks, tasksToRender, activeTasks, recentlyCompletedTasks, archivedTasks, archivedByTier, openTiers, showCompleted, showArchive, setShowCompleted, setShowArchive, setOpenTiers, setDraft, setIsCreateOpen, setSelectedTag, selectedTag, renderTask, editingTaskId,
 }) => {
-  const selectedIndex = editingTaskId
-    ? tasksToRender.findIndex((t) => t.id === editingTaskId)
-    : -1;
-
   const sectionTitle = searchQuery
     ? 'Suchergebnisse'
     : selectedTag
@@ -52,44 +48,45 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
     ? 'Archiv'
     : filterStatus === 'in_progress'
     ? 'In Arbeit'
-    : 'Heute';
+    : null;
 
   return (
     <>
-      {tasksToRender.length > 0 && (
+      {tasksToRender.length > 0 && sectionTitle && (
         <motion.h2
           animate={
             editingTaskId
-              ? { opacity: 0, y: -800, pointerEvents: 'none' as const }
-              : { opacity: 1, y: 0, pointerEvents: 'auto' as const }
+              ? { opacity: 0, height: 0, marginBottom: 0, overflow: 'hidden', pointerEvents: 'none' as const }
+              : { opacity: 1, height: 'auto', marginBottom: 12, pointerEvents: 'auto' as const }
           }
-          transition={{ type: 'spring', stiffness: 350, damping: 32 }}
-          className="text-lg font-bold text-gray-900 dark:text-white mb-3 mt-1"
+          transition={{ duration: 0.15 }}
+          className="text-lg font-bold text-gray-900 dark:text-white mt-1"
         >
           {sectionTitle}
         </motion.h2>
       )}
 
       {/* Task Cards List */}
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1.5">
         <AnimatePresence mode="popLayout" initial={false}>
-          {tasksToRender.map((task, idx) => {
-            let animateState: { y: number; opacity: number; scale: number };
-            let itemStyle: React.CSSProperties | undefined = undefined;
+          {tasksToRender.map((task) => {
+            const isEditing = task.id === editingTaskId;
+            const isOther = Boolean(editingTaskId && !isEditing);
 
-            if (editingTaskId) {
-              if (task.id === editingTaskId) {
-                animateState = { y: 0, opacity: 1, scale: 1 };
-              } else if (selectedIndex !== -1 && idx < selectedIndex) {
-                animateState = { y: -800, opacity: 0, scale: 0.95 };
-                itemStyle = { pointerEvents: 'none' };
-              } else {
-                animateState = { y: 800, opacity: 0, scale: 0.95 };
-                itemStyle = { pointerEvents: 'none' };
-              }
-            } else {
-              animateState = { y: 0, opacity: 1, scale: 1 };
-            }
+            const animateState = editingTaskId
+              ? isEditing
+                ? { opacity: 1, scale: 1, height: 'auto' as const }
+                : {
+                    opacity: 0,
+                    height: 0,
+                    overflow: 'hidden' as const,
+                    transitionEnd: { display: 'none' },
+                  }
+              : { opacity: 1, scale: 1, height: 'auto' as const, display: 'block' };
+
+            const itemStyle: React.CSSProperties | undefined = isOther
+              ? { pointerEvents: 'none' }
+              : undefined;
 
             return (
               <motion.div
@@ -105,13 +102,9 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                   scale: 0.95,
                   transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1] },
                 }}
-                transition={{
-                  type: 'spring',
-                  stiffness: 350,
-                  damping: 32,
-                }}
+                transition={{ duration: 0.15 }}
                 style={itemStyle}
-                className={task.id === editingTaskId ? 'sticky top-0 z-20' : undefined}
+                className={isEditing ? 'sticky top-0 z-20' : undefined}
               >
                 {renderTask(task as TaskWithChildren)}
               </motion.div>
@@ -123,10 +116,10 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
           <motion.div
             animate={
               editingTaskId
-                ? { opacity: 0, y: 800, pointerEvents: 'none' as const }
-                : { opacity: 1, y: 0, pointerEvents: 'auto' as const }
+                ? { opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' as const }
+                : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const }
             }
-            transition={{ type: 'spring', stiffness: 350, damping: 32 }}
+            transition={{ duration: 0.15 }}
             className="py-4 text-center text-xs text-gray-500 dark:text-gray-400 font-medium"
           >
             Alle offenen Aufgaben erledigt! 🎉
@@ -139,10 +132,10 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
             className="mt-2 pt-3 border-t border-gray-200 dark:border-white/10"
             animate={
               editingTaskId
-                ? { opacity: 0, y: 800, pointerEvents: 'none' as const }
-                : { opacity: 1, y: 0, pointerEvents: 'auto' as const }
+                ? { opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' as const }
+                : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const }
             }
-            transition={{ type: 'spring', stiffness: 350, damping: 32 }}
+            transition={{ duration: 0.15 }}
           >
             <button
               type="button"
@@ -206,10 +199,10 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
           <motion.div
             animate={
               editingTaskId
-                ? { opacity: 0, y: 800, pointerEvents: 'none' as const }
-                : { opacity: 1, y: 0, pointerEvents: 'auto' as const }
+                ? { opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' as const }
+                : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const }
             }
-            transition={{ type: 'spring', stiffness: 350, damping: 32 }}
+            transition={{ duration: 0.15 }}
             className="py-3 text-center text-xs text-gray-500 dark:text-gray-400 font-medium"
           >
             Keine Aufgaben in den letzten 7 Tagen erledigt. Ältere Aufgaben befinden sich im Archiv unten.
@@ -222,10 +215,10 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
             className="mt-3 pt-3 border-t border-gray-200 dark:border-white/10"
             animate={
               editingTaskId
-                ? { opacity: 0, y: 800, pointerEvents: 'none' as const }
-                : { opacity: 1, y: 0, pointerEvents: 'auto' as const }
+                ? { opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' as const }
+                : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const }
             }
-            transition={{ type: 'spring', stiffness: 350, damping: 32 }}
+            transition={{ duration: 0.15 }}
           >
                 <button
                   type="button"

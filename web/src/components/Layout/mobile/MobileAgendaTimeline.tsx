@@ -281,7 +281,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
           const gapH = Math.min(64, Math.max(30, Math.round(22 + Math.sqrt(gapMins) * 3.2)));
           return (
             <div className="w-full flex items-center my-1.5" style={{ minHeight: gapH }}>
-              <div className="w-[58px] shrink-0 text-right pr-2"><span className="text-[10px] font-medium" style={{ color: T.mut }}>{gapStr}</span></div>
+              <div className="w-[58px] shrink-0" />
               <div className="w-[24px] shrink-0 flex items-center justify-center">
                 <div className="w-0 border-l-[1.5px] border-dashed" style={{ height: Math.max(16, gapH - 12), borderColor: theme === 'dark' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.15)' }} />
               </div>
@@ -410,9 +410,6 @@ export const MobileAgendaTimeline = React.memo(function MobileAgendaTimeline({
                   <div className="flex items-center gap-3 py-2.5">
                     {item.isToday && (
                       <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shrink-0 text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 50%, #9333ea 100%)', boxShadow: '0 2px 8px rgba(126, 34, 206, 0.35)' }}>Heute</span>
-                    )}
-                    {item.date.getDate() === 1 && !item.isToday && (
-                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full shrink-0 text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)' }}>1. {format(item.date, 'MMMM', { locale: de })}</span>
                     )}
                     <span className="text-[11px] uppercase tracking-wider" style={{ color: item.isToday ? (theme === 'dark' ? '#d8b4fe' : '#7e22ce') : T.sec, fontWeight: item.isToday ? 900 : 700, textShadow: item.isToday ? (theme === 'dark' ? '0 0 10px rgba(168, 85, 247, 0.4)' : 'none') : 'none' }}>
                       {format(item.date, 'EEEE d. MMMM', { locale: de })}

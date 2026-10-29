@@ -294,7 +294,6 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
             const diff = Math.abs(getDayDiff(d, activeDate));
             const isSelected = diff === 0;
             const isTodayDate = isSameDay(d, now);
-            const isFirstDayOfMonth = d.getDate() === 1;
             const initialScale = isSelected ? 1.32 : diff === 1 ? 0.95 : diff === 2 ? 0.80 : 0.72;
             const initialOpacity = isSelected ? 1 : diff === 1 ? 0.75 : diff === 2 ? 0.50 : 0.35;
 
@@ -323,46 +322,29 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
                   height: 52,
                   transform: `scale(${initialScale})`,
                   opacity: initialOpacity,
-                  background: isFirstDayOfMonth
-                    ? (theme === 'dark' ? 'rgba(168, 85, 247, 0.08)' : 'rgba(147, 51, 234, 0.05)')
-                    : 'transparent',
-                  border: isFirstDayOfMonth
-                    ? `1px solid ${theme === 'dark' ? 'rgba(168, 85, 247, 0.25)' : 'rgba(147, 51, 234, 0.18)'}`
-                    : 'none',
+                  background: 'transparent',
+                  border: 'none',
                   color: isSelected
                     ? (theme === 'dark' ? '#ffffff' : '#09090b')
                     : (theme === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'),
                 }}
               >
-                {isFirstDayOfMonth ? (
-                  <span
-                    className="text-[8.5px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-full leading-tight"
-                    style={{
-                      background: 'linear-gradient(135deg, #7c3aed 0%, #3b82f6 100%)',
-                      color: '#ffffff',
-                      boxShadow: '0 1px 4px rgba(124, 58, 237, 0.35)',
-                    }}
-                  >
-                    {format(d, 'MMM', { locale: de }).replace('.', '')}
-                  </span>
-                ) : (
-                  <span
-                    className="text-[10px] uppercase tracking-wider"
-                    style={{
-                      color: isTodayDate
-                        ? (theme === 'dark' ? '#d8b4fe' : '#9333ea')
-                        : isSelected
-                        ? (theme === 'dark' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)')
-                        : T.mut,
-                      fontWeight: isTodayDate ? 900 : 700,
-                      textShadow: isTodayDate
-                        ? (theme === 'dark' ? '0 0 8px rgba(216, 180, 254, 0.45)' : '0 0 6px rgba(147, 51, 234, 0.25)')
-                        : 'none',
-                    }}
-                  >
-                    {format(d, 'EEE', { locale: de })}
-                  </span>
-                )}
+                <span
+                  className="text-[10px] uppercase tracking-wider"
+                  style={{
+                    color: isTodayDate
+                      ? (theme === 'dark' ? '#d8b4fe' : '#9333ea')
+                      : isSelected
+                      ? (theme === 'dark' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)')
+                      : T.mut,
+                    fontWeight: isTodayDate ? 900 : 700,
+                    textShadow: isTodayDate
+                      ? (theme === 'dark' ? '0 0 8px rgba(216, 180, 254, 0.45)' : '0 0 6px rgba(147, 51, 234, 0.25)')
+                      : 'none',
+                  }}
+                >
+                  {format(d, 'EEE', { locale: de })}
+                </span>
                 <span
                   className="text-lg leading-none mt-0.5"
                   style={{
