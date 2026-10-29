@@ -943,7 +943,7 @@ export default function MobileLayout({
             {/* Dimmed backdrop, dismisses on tap */}
             <motion.div key="search-back"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className={`fixed inset-0 w-full h-[100dvh] ${isEditingNote ? 'z-[55]' : 'z-30'}`}
+              className={`fixed inset-0 w-full h-[100dvh] ${isEditingNote ? 'z-[55]' : 'z-40'}`}
               style={{ background: 'rgba(0,0,0,0.5)' }}
               onClick={() => setIsSearchOpen(false)}
             />
@@ -952,7 +952,7 @@ export default function MobileLayout({
             <motion.div key="search"
               initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 32, stiffness: 320 }}
-              className={`fixed left-0 right-0 ${isEditingNote ? 'z-[60]' : 'z-40'} flex flex-col rounded-t-3xl overflow-hidden`}
+              className={`fixed left-0 right-0 ${isEditingNote ? 'z-[60]' : 'z-50'} flex flex-col rounded-t-3xl overflow-hidden`}
               style={{
                 bottom: kbOffset,
                 maxHeight: kbOffset > 0 ? `calc(100dvh - ${kbOffset}px - 40px)` : '78vh',
@@ -1628,7 +1628,7 @@ export default function MobileLayout({
       >
         <style>{`
           .mobile-todos-container .sticky.top-0 {
-            padding-top: max(16px, calc(env(safe-area-inset-top) + 8px)) !important;
+            padding-top: max(8px, calc(env(safe-area-inset-top) + 4px)) !important;
           }
           .mobile-todos-container .max-w-4xl,
           .mobile-todos-container .md\\:max-w-5xl {

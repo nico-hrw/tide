@@ -87,40 +87,40 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
         key: 'overdue',
         title: 'Überfällig',
         tasks: overdue,
-        badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20',
-        titleColor: 'text-rose-600 dark:text-rose-400',
+        badgeClass: 'text-gray-400 dark:text-zinc-500',
+        titleColor: 'text-gray-400 dark:text-zinc-500',
         icon: AlertCircle,
       },
       {
         key: 'today',
         title: 'Heute',
         tasks: todayTasks,
-        badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20',
-        titleColor: 'text-amber-600 dark:text-amber-400',
+        badgeClass: 'text-gray-400 dark:text-zinc-500',
+        titleColor: 'text-gray-400 dark:text-zinc-500',
         icon: Clock,
       },
       {
         key: 'tomorrow',
         title: 'Morgen',
         tasks: tomorrowTasks,
-        badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20',
-        titleColor: 'text-blue-600 dark:text-blue-400',
+        badgeClass: 'text-gray-400 dark:text-zinc-500',
+        titleColor: 'text-gray-400 dark:text-zinc-500',
         icon: Calendar,
       },
       {
         key: 'upcoming',
         title: 'Demnächst',
         tasks: upcoming,
-        badgeClass: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20',
-        titleColor: 'text-indigo-600 dark:text-indigo-400',
+        badgeClass: 'text-gray-400 dark:text-zinc-500',
+        titleColor: 'text-gray-400 dark:text-zinc-500',
         icon: Calendar,
       },
       {
         key: 'no_date',
         title: 'Ohne Datum',
         tasks: noDate,
-        badgeClass: 'bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 border border-gray-200/60 dark:border-white/10',
-        titleColor: 'text-gray-600 dark:text-gray-400',
+        badgeClass: 'text-gray-400 dark:text-zinc-500',
+        titleColor: 'text-gray-400 dark:text-zinc-500',
         icon: ListTodo,
       },
     ];
@@ -146,7 +146,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
         initial={{ opacity: 0, y: -8 }}
         animate={animateState}
         exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2, ease: 'easeOut' } }}
-        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        transition={isOther ? { duration: 0.05, ease: 'easeOut' } : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
         style={itemStyle}
         className={isEditing ? 'relative z-20 h-full flex-1 min-h-0 flex flex-col' : undefined}
       >
@@ -267,7 +267,6 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
           {dateSections.map((section) => {
             if (section.tasks.length === 0) return null;
             const isCollapsed = Boolean(collapsedSections[section.key]) && !section.tasks.some((t) => t.id === editingTaskId);
-            const SectionIcon = section.icon;
 
             return (
               <div key={section.key} className="flex flex-col">
@@ -281,23 +280,21 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                       : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const, marginBottom: 6 }
                   }
                   transition={{ duration: 0.2 }}
-                  className="flex items-center justify-between py-1 px-1 text-left rounded-lg hover:bg-gray-100/60 dark:hover:bg-white/5 transition-colors cursor-pointer select-none group"
+                  className="flex items-center gap-2 py-1 px-0.5 text-left w-full cursor-pointer select-none group"
                 >
-                  <div className="flex items-center gap-2">
-                    <ChevronRight
-                      size={15}
-                      className={`text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-200 transition-transform duration-200 ${
-                        !isCollapsed ? 'rotate-90' : ''
-                      }`}
-                    />
-                    <SectionIcon size={14} className={section.titleColor} />
-                    <span className={`text-xs font-bold uppercase tracking-wider ${section.titleColor}`}>
-                      {section.title}
-                    </span>
-                  </div>
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${section.badgeClass}`}>
+                  <ChevronRight
+                    size={13}
+                    className={`text-gray-400 dark:text-zinc-500 group-hover:text-gray-600 dark:group-hover:text-zinc-300 transition-transform duration-200 ${
+                      !isCollapsed ? 'rotate-90' : ''
+                    }`}
+                  />
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-zinc-500">
+                    {section.title}
+                  </span>
+                  <span className="text-[10px] font-medium text-gray-400 dark:text-zinc-500">
                     {section.tasks.length}
                   </span>
+                  <div className="h-px flex-1 bg-gray-200/60 dark:bg-white/10" />
                 </motion.button>
 
                 {/* Section Tasks */}

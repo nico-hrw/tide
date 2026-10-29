@@ -76,39 +76,12 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
   };
 
   return (
-    <div className={`w-full flex items-center gap-1.5 py-1 px-0.5 select-none ${className}`}>
-      {/* "Alle" Pill Button */}
-      <button
-        type="button"
-        onClick={() => onSelectDate(null)}
-        className={`shrink-0 h-[52px] px-3.5 rounded-2xl flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
-          selectedDate === null
-            ? 'bg-[#18181b] text-white dark:bg-white dark:text-[#09090b] font-bold shadow-xs'
-            : 'bg-white dark:bg-[#1a1a1a] text-gray-600 dark:text-gray-400 border border-gray-200/80 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/5'
-        }`}
-        title="Alle Aufgaben anzeigen"
-      >
-        <span className="text-[10px] font-medium uppercase tracking-wider opacity-70">
-          Filter
-        </span>
-        <span className="text-xs font-bold leading-tight">Alle</span>
-        <span
-          className={`w-1.5 h-1.5 rounded-full ${
-            selectedDate === null
-              ? 'bg-blue-500 dark:bg-blue-600'
-              : 'bg-transparent'
-          }`}
-        />
-      </button>
-
-      {/* Divider */}
-      <div className="h-7 w-px bg-gray-200/80 dark:bg-white/10 shrink-0 mx-0.5" />
-
+    <div className={`w-full flex items-center py-1 px-0.5 select-none ${className}`}>
       {/* Scrollable date strip */}
       <div
         ref={containerRef}
         onWheel={handleWheel}
-        className="flex-1 flex items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none py-1 scroll-smooth"
+        className="w-full flex items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none py-1 scroll-smooth"
       >
         {days.map((d) => {
           const dateKey = format(d, 'yyyy-MM-dd');
@@ -124,53 +97,31 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
               ref={isSelected ? selectedRef : isDateToday ? todayRef : undefined}
               type="button"
               onClick={() => onSelectDate(isSelected ? null : d)}
-              className={`shrink-0 min-w-[48px] h-[52px] px-2 rounded-2xl flex flex-col items-center justify-center gap-0.5 transition-all cursor-pointer ${
-                isSelected
-                  ? 'bg-blue-600 text-white dark:bg-blue-500 dark:text-white shadow-xs font-semibold'
-                  : isDateToday
-                  ? 'bg-blue-50/80 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 border border-blue-500/40 hover:bg-blue-100/60 dark:hover:bg-blue-900/40'
-                  : 'bg-white dark:bg-[#1a1a1a] text-gray-700 dark:text-gray-300 border border-gray-200/80 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/5'
-              }`}
+              className="shrink-0 rounded-xl bg-transparent hover:bg-gray-100/60 dark:hover:bg-white/5 border-none min-w-[38px] h-[52px] py-1 px-1 flex flex-col items-center justify-center gap-1 cursor-pointer transition-all"
               title={`${format(d, 'EEEE, d. MMMM yyyy', { locale: de })}${
                 hasTasks ? ` (${dayStat?.count} Aufgaben)` : ''
               }`}
             >
-              <span
-                className={`text-[10px] font-medium uppercase tracking-wider ${
-                  isSelected
-                    ? 'text-white/80'
-                    : isDateToday
-                    ? 'text-blue-600 dark:text-blue-400 font-bold'
-                    : 'text-gray-400 dark:text-gray-500'
-                }`}
-              >
+              <span className="text-[9px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                 {weekday}
               </span>
               <span
-                className={`${
-                  isDateToday
-                    ? 'text-[11px] font-extrabold tracking-tight'
-                    : 'text-sm font-bold'
-                } leading-tight ${
+                className={`w-7 h-7 flex items-center justify-center rounded-full text-xs transition-colors ${
                   isSelected
-                    ? 'text-white'
+                    ? 'bg-blue-600 text-white font-bold shadow-xs'
                     : isDateToday
-                    ? 'text-blue-600 dark:text-blue-400'
-                    : 'text-gray-900 dark:text-white'
+                    ? 'bg-red-500 text-white font-bold'
+                    : 'text-gray-800 dark:text-gray-200 font-medium'
                 }`}
               >
-                {isDateToday ? 'heute' : format(d, 'd')}
+                {format(d, 'd')}
               </span>
               <span
                 className={`w-1.5 h-1.5 rounded-full transition-colors ${
                   !hasTasks
                     ? 'bg-transparent'
-                    : isSelected
-                    ? 'bg-white'
                     : dayStat?.hasOverdue
                     ? 'bg-rose-500'
-                    : isDateToday
-                    ? 'bg-blue-600 dark:bg-blue-400'
                     : 'bg-blue-500'
                 }`}
               />

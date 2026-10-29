@@ -354,7 +354,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
 
           {/* All-day todos collapsible section */}
           {allDayTodos.length > 0 && (
-            <div className="w-full rounded-xl overflow-hidden transition-all" style={{ background: theme === 'dark' ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.05)', border: `1px solid ${theme === 'dark' ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.12)'}` }}>
+            <div className="w-full rounded-xl overflow-hidden transition-all" style={{ background: theme === 'dark' ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.05)', border: 'none' }}>
               <button
                 type="button"
                 onClick={() => setTodosOpen(p => !p)}
@@ -379,7 +379,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
               </button>
 
               {todosOpen && (
-                <div className="flex flex-col gap-1.5 px-2 pb-2.5 pt-0.5 border-t" style={{ borderColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
+                <div className="flex flex-col gap-1.5 px-2 pb-2.5 pt-0.5" style={{ border: 'none' }}>
                   {sortedAllDayTodos.map(ev => {
                     const task = ev.linkedTaskId ? tasks?.find(t => t.id === ev.linkedTaskId) : undefined;
                     const isSubtask = !!task?.parentId || !!ev.parent_id;

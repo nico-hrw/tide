@@ -717,7 +717,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         /* Center container */
         <div className={`w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2 ${editingTaskId !== null ? 'h-full' : ''}`}>
           {/* Scrollable list container */}
-          <div className={`flex-1 min-h-0 ${editingTaskId !== null ? 'h-full' : ''} overflow-y-auto overflow-x-hidden px-3 sm:px-4 pt-1 sm:pt-2 ${editingTaskId !== null ? 'pb-2 sm:pb-6' : 'pb-16'} flex flex-col gap-2`}>
+          <div className={`flex-1 min-h-0 ${editingTaskId !== null ? 'h-full' : ''} overflow-y-auto overflow-x-hidden px-3 sm:px-4 ${editingTaskId !== null ? 'pt-0 pb-2 sm:pb-6' : 'pt-1 sm:pt-2 pb-16'} flex flex-col gap-2`}>
             <AnimatePresence mode="wait" initial={false}>
               {focusedTask ? (
                 <motion.div

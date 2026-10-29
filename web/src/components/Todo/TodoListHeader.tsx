@@ -54,10 +54,10 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
 
   return (
     <div
-      className={`sticky top-0 z-30 ${
+      className={`sticky top-0 z-10 ${
         hideProgress
           ? 'hidden md:block px-4 sm:px-6 py-3.5 border-b border-gray-200 dark:border-white/10'
-          : 'px-4 sm:px-6 py-2.5 sm:py-3 border-b border-gray-200 dark:border-white/10'
+          : 'px-4 sm:px-6 py-1.5 sm:py-2 border-b border-gray-200 dark:border-white/10'
       } bg-[#f8f9fa]/90 dark:bg-[#121212]/90 backdrop-blur-md`}
     >
       {/* Desktop & iPad Header */}
@@ -146,7 +146,7 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
             ) : (
               <span />
             )}
-            <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 mt-1.5 text-right">
+            <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 text-right">
               {activeCycleCompletedCount} von {activeCycleTotal} erledigt
             </p>
           </div>

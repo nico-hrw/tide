@@ -202,6 +202,11 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   const imminentLabel =
     diffSec <= 60 ? "Gleich geht's los!" : `In ${imminentMinutes} Min!`;
 
+  // If in idle mode and nothing is active or upcoming today, hide completely
+  if (mode === 'idle' && !target) {
+    return null;
+  }
+
   return (
     <div className={`relative shrink-0 w-20 h-20 ${className || ''}`}>
       <motion.div

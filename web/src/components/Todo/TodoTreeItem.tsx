@@ -292,8 +292,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
   const indentPx = Math.max(0, Math.min((depth - 1) * 16, 48));
 
   return (
-    <div className={`flex flex-col w-full ${expanded ? 'h-full flex-1 min-h-0' : ''}`} style={{ paddingLeft: indentPx > 0 ? `${indentPx}px` : undefined }}>
-      <div className={`relative ${expanded ? 'h-full flex-1 min-h-0 flex flex-col' : 'overflow-hidden rounded-xl sm:rounded-2xl'}`}>
+    <div className={`flex flex-col w-full ${expanded && (!depth || depth === 0) ? 'h-full flex-1 min-h-0' : ''}`} style={{ paddingLeft: indentPx > 0 ? `${indentPx}px` : undefined }}>
+      <div className={`relative ${expanded && (!depth || depth === 0) ? 'h-full flex-1 min-h-0 flex flex-col' : expanded ? 'flex flex-col' : 'overflow-hidden rounded-xl sm:rounded-2xl'}`}>
         {/* Swipe action background indicators */}
         {!expanded && (
           <div className={`absolute inset-0 my-0.5 sm:my-1 flex items-center justify-between px-5 rounded-xl sm:rounded-2xl pointer-events-none transition-colors ${swipeOffset > 0 ? 'bg-emerald-500 text-white' : swipeOffset < 0 ? 'bg-rose-500 text-white' : 'bg-transparent'}`}>
@@ -324,7 +324,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                 isTaskCompleted
                   ? 'opacity-40 grayscale-[30%] bg-gray-50/50 dark:bg-white/[0.02] text-gray-500 dark:text-gray-400 border border-gray-200/60 dark:border-white/[0.06]'
                   : isTodayActive
-                    ? 'bg-[#18181b] text-white border border-[#18181b] shadow-md dark:bg-white dark:text-black dark:border-white dark:shadow-md'
+                    ? 'bg-[#27272a] text-white border border-[#27272a] shadow-md dark:bg-white dark:text-black dark:border-white dark:shadow-md'
                     : 'bg-white/90 dark:bg-[#181818]/90 text-gray-900 dark:text-gray-100 border border-gray-200/80 dark:border-white/[0.08] hover:border-gray-300 dark:hover:border-white/20 shadow-[0_1px_3px_rgba(0,0,0,0.03)] dark:shadow-none'
               }`}
             >
@@ -332,10 +332,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
               {parsedDate ? (
                 isOverdue ? (
                   <div className={`w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2 ${isTaskCompleted ? 'opacity-50' : ''}`}>
-                    <span className="text-[14px] font-bold text-red-500 leading-tight">
+                    <span className={`text-[14px] font-bold leading-tight ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-black dark:text-white'}`}>
                       {format(parsedDate, 'd.')}
                     </span>
-                    <span className="text-[10px] font-semibold text-red-400 uppercase tracking-widest">
+                    <span className={`text-[10px] font-semibold uppercase tracking-widest ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-black dark:text-white'}`}>
                       {MONTHS_DE[parsedDate.getMonth()].toUpperCase()}
                     </span>
                   </div>
@@ -346,17 +346,17 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         ? 'text-gray-400 dark:text-gray-500'
                         : isTodayActive
                           ? 'text-white dark:text-black'
-                          : 'text-gray-900 dark:text-white'
+                          : 'text-black dark:text-white'
                     }`}>
                       Heute
                     </span>
                   </div>
                 ) : (
                   <div className={`w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2 ${isTaskCompleted ? 'opacity-50' : ''}`}>
-                    <span className={`text-[14px] font-bold leading-tight ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'}`}>
+                    <span className={`text-[14px] font-bold leading-tight ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-black dark:text-white'}`}>
                       {format(parsedDate, 'd.')}
                     </span>
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-widest">
+                    <span className={`text-[10px] uppercase tracking-widest ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-black dark:text-white'}`}>
                       {MONTHS_DE[parsedDate.getMonth()]}
                     </span>
                   </div>
@@ -472,14 +472,14 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.18 }}
               onClick={(e) => e.stopPropagation()}
-              className={`flex flex-col relative h-full flex-1 min-h-0 ${expanded ? 'mt-0 mb-0' : 'my-1.5'}`}
+              className={`flex flex-col relative ${expanded && (!depth || depth === 0) ? 'h-full flex-1 min-h-0' : ''} ${expanded ? 'mt-0 mb-0' : 'my-1.5'}`}
             >
               {/* Sticky Top: Main Info Card & Unteraufgaben Header */}
               <div className={`shrink-0 z-20 ${(!depth || depth < 1) ? 'sticky top-0' : ''} flex flex-col`}>
                 {/* Main Info Card */}
                 <div className={`p-4 sm:p-5 rounded-2xl border flex flex-col shrink-0 z-20 ${
                   isTodayActive
-                    ? 'bg-[#18181b] text-white border border-[#18181b] dark:bg-white dark:text-black dark:border-white shadow-md'
+                    ? 'bg-[#27272a] text-white border border-[#27272a] dark:bg-white dark:text-black dark:border-white shadow-md'
                     : 'bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white border-gray-200 dark:border-white/10 shadow-sm'
                 }`}>
                   <div className="flex items-center justify-between mb-2">
@@ -494,7 +494,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         {isParentMinimized ? 'Aufgabe minimiert' : 'Aufgabe bearbeiten'}
                       </span>
                     )}
-                    {(!depth || depth < 1) && (
+                    {(!depth || depth < 1) ? (
                       <button
                         type="button"
                         onClick={() => setIsParentMinimized((p) => !p)}
@@ -511,6 +511,26 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           {isParentMinimized ? 'Details einblenden' : 'Minimieren'}
                         </span>
                         {isParentMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isControlledExpanded === undefined) setLocalExpanded(false);
+                        }}
+                        className={`p-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs ${
+                          isTodayActive
+                            ? 'text-white/80 hover:text-white dark:text-black/80 dark:hover:text-black hover:bg-white/10 dark:hover:bg-black/10'
+                            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10'
+                        }`}
+                        title="Zuklappen"
+                      >
+                        <span className={`text-[11px] font-medium ${
+                          isTodayActive ? 'text-white/80 dark:text-black/80' : 'text-gray-500 dark:text-gray-400'
+                        }`}>
+                          Zuklappen
+                        </span>
+                        <ChevronUp size={14} />
                       </button>
                     )}
                   </div>
@@ -570,7 +590,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           }}
                           className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                             draft.priority === 'low'
-                              ? `bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 ${isTodayActive ? 'ring-offset-[#18181b] dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
+                              ? `bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 ${isTodayActive ? 'ring-offset-[#27272a] dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
                               : isTodayActive
                                 ? 'bg-white/10 dark:bg-black/10 text-emerald-300 dark:text-emerald-700 hover:opacity-100 opacity-70'
                                 : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
@@ -587,7 +607,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           }}
                           className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                             draft.priority === 'medium'
-                              ? `bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 ${isTodayActive ? 'ring-offset-[#18181b] dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
+                              ? `bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 ${isTodayActive ? 'ring-offset-[#27272a] dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
                               : isTodayActive
                                 ? 'bg-white/10 dark:bg-black/10 text-amber-300 dark:text-amber-700 hover:opacity-100 opacity-70'
                                 : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
@@ -604,7 +624,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           }}
                           className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                             draft.priority === 'high'
-                              ? `bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 ${isTodayActive ? 'ring-offset-[#18181b] dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
+                              ? `bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 ${isTodayActive ? 'ring-offset-[#27272a] dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
                               : isTodayActive
                                 ? 'bg-white/10 dark:bg-black/10 text-rose-300 dark:text-rose-700 hover:opacity-100 opacity-70'
                                 : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
@@ -889,6 +909,52 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       />
                     </div>
                   )}
+
+                  {depth && depth > 0 && (
+                    <div className="flex items-center justify-end gap-2 mt-3 pt-2 border-t border-gray-100 dark:border-white/5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (cancelEditing) cancelEditing();
+                          if (isControlledExpanded === undefined) setLocalExpanded(false);
+                          void deleteTask(task.id);
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                        title="Löschen"
+                      >
+                        <Trash2 size={13} />
+                        <span>Löschen</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (saveEditing) {
+                            saveEditing(task.id, draft);
+                          } else {
+                            updateTask(task.id, {
+                              title: draft.title.trim(),
+                              description: draft.description.trim() || undefined,
+                              scheduledDate: draft.dueDate || undefined,
+                              dueDate: draft.dueDate || undefined,
+                              priority: draft.priority,
+                              folder: draft.folder || undefined,
+                              tags: draft.tags,
+                              recurrence: draft.recurrence,
+                              recurrence_end: draft.recurrenceEnd || undefined,
+                              status: draft.status,
+                              showInCalendar: draft.showInCalendar,
+                            });
+                          }
+                          if (isControlledExpanded === undefined) setLocalExpanded(false);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg bg-[#18181b] hover:bg-[#09090b] text-white dark:bg-white dark:text-[#09090b] dark:hover:bg-gray-100 transition-colors cursor-pointer"
+                        title="Zuklappen"
+                      >
+                        <ChevronUp size={13} />
+                        <span>Zuklappen</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Raw Unteraufgaben Header */}
@@ -1008,22 +1074,22 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                 </div>
               )}
 
-              {/* Action Bar: Centered at Bottom on PC & iPad, No Duplicate on Mobile */}
-              <div className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-50 items-center gap-2 px-3 py-2 rounded-2xl bg-white/90 dark:bg-[#181818]/90 backdrop-blur-md border border-gray-200/80 dark:border-white/10 shadow-xl">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (cancelEditing) cancelEditing();
-                    if (isControlledExpanded === undefined) setLocalExpanded(false);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer"
-                  title="Abbrechen"
-                >
-                  <ArrowLeft size={14} />
-                  <span>Abbrechen</span>
-                </button>
+              {/* Action Bar: Centered at Bottom on PC & iPad, No Duplicate on Mobile or Subtasks */}
+              {(!depth || depth < 1) && (
+                <div className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-50 items-center gap-2 px-3 py-2 rounded-2xl bg-white/90 dark:bg-[#181818]/90 backdrop-blur-md border border-gray-200/80 dark:border-white/10 shadow-xl">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (cancelEditing) cancelEditing();
+                      if (isControlledExpanded === undefined) setLocalExpanded(false);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer"
+                    title="Abbrechen"
+                  >
+                    <ArrowLeft size={14} />
+                    <span>Abbrechen</span>
+                  </button>
 
-                {(!depth || depth < 1) && (
                   <button
                     type="button"
                     onClick={() => setShowSubtaskInput(true)}
@@ -1033,51 +1099,51 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                     <Plus size={14} />
                     <span>Teilaufgabe</span>
                   </button>
-                )}
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (cancelEditing) cancelEditing();
-                    if (isControlledExpanded === undefined) setLocalExpanded(false);
-                    void deleteTask(task.id);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
-                  title="Aufgabe löschen"
-                >
-                  <Trash2 size={14} />
-                  <span>Löschen</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (cancelEditing) cancelEditing();
+                      if (isControlledExpanded === undefined) setLocalExpanded(false);
+                      void deleteTask(task.id);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                    title="Aufgabe löschen"
+                  >
+                    <Trash2 size={14} />
+                    <span>Löschen</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (saveEditing) {
-                      saveEditing(task.id, draft);
-                    } else {
-                      updateTask(task.id, {
-                        title: draft.title.trim(),
-                        description: draft.description.trim() || undefined,
-                        scheduledDate: draft.dueDate || undefined,
-                        dueDate: draft.dueDate || undefined,
-                        priority: draft.priority,
-                        folder: draft.folder || undefined,
-                        tags: draft.tags,
-                        recurrence: draft.recurrence,
-                        recurrence_end: draft.recurrenceEnd || undefined,
-                        status: draft.status,
-                        showInCalendar: draft.showInCalendar,
-                      });
-                    }
-                    if (isControlledExpanded === undefined) setLocalExpanded(false);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-xl bg-[#18181b] hover:bg-[#09090b] text-white dark:bg-white dark:text-[#09090b] dark:hover:bg-gray-100 transition-colors cursor-pointer shadow-xs"
-                  title="Speichern"
-                >
-                  <Check size={14} strokeWidth={2.5} />
-                  <span>Fertig</span>
-                </button>
-              </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (saveEditing) {
+                        saveEditing(task.id, draft);
+                      } else {
+                        updateTask(task.id, {
+                          title: draft.title.trim(),
+                          description: draft.description.trim() || undefined,
+                          scheduledDate: draft.dueDate || undefined,
+                          dueDate: draft.dueDate || undefined,
+                          priority: draft.priority,
+                          folder: draft.folder || undefined,
+                          tags: draft.tags,
+                          recurrence: draft.recurrence,
+                          recurrence_end: draft.recurrenceEnd || undefined,
+                          status: draft.status,
+                          showInCalendar: draft.showInCalendar,
+                        });
+                      }
+                      if (isControlledExpanded === undefined) setLocalExpanded(false);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-xl bg-[#18181b] hover:bg-[#09090b] text-white dark:bg-white dark:text-[#09090b] dark:hover:bg-gray-100 transition-colors cursor-pointer shadow-xs"
+                    title="Speichern"
+                  >
+                    <Check size={14} strokeWidth={2.5} />
+                    <span>Fertig</span>
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
