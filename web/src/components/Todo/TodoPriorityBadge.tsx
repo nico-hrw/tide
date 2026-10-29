@@ -73,14 +73,14 @@ export function TodoPriorityBadge({ priority, className }: TodoPriorityBadgeProp
 
   if (normalized === 'P3') {
     return (
-      <span className={`text-red-500 dark:text-red-400 font-black text-xs leading-none select-none ${className || ''}`} title="Priorität: Hoch">
+      <span className={`text-red-500 dark:text-red-400 font-black text-[13px] leading-none select-none inline-block ${className || ''}`} title="Priorität: Hoch">
         ∧
       </span>
     );
   }
 
   return (
-    <span className={`text-emerald-500 dark:text-emerald-400 font-black text-xs leading-none select-none ${className || ''}`} title="Priorität: Niedrig">
+    <span className={`text-emerald-500 dark:text-emerald-400 font-black text-[13px] leading-none select-none inline-block ${className || ''}`} title="Priorität: Niedrig">
       ∨
     </span>
   );

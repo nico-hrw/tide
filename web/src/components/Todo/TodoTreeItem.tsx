@@ -230,7 +230,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
       parentId: task.id,
       folder: task.folder,
       tags: task.tags ? [...task.tags] : [],
-      priority: 'low',
+      priority: (draft.priority || task.priority || 'low') as any,
       isCompleted: false,
       status: 'todo',
       order: task.children?.length || 0,
@@ -341,13 +341,14 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                 </div>
 
                 {/* Sub-details Line */}
-                {((task.tags && task.tags.length > 0) || task.folder || (depth && depth > 0)) && (
+                {Boolean((task.tags && task.tags.length > 0) || (task.folder && (!depth || depth < 1)) || (depth && depth > 0)) && (
                   <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                    {depth && depth > 0 ? (
+                    {Boolean(depth && depth > 0) && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
                         Teilaufgabe
                       </span>
-                    ) : task.folder ? (
+                    )}
+                    {Boolean(task.folder && (!depth || depth < 1)) && (
                       <span
                         onClick={(e) => {
                           e.stopPropagation();
@@ -361,7 +362,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       >
                         {task.folder}
                       </span>
-                    ) : null}
+                    )}
 
                     {task.tags?.map((tag) => (
                       <span
@@ -389,7 +390,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: 0.18 }}
               onClick={(e) => e.stopPropagation()}
-              className="my-1.5 flex flex-col relative h-full flex-1 min-h-0"
+              className={`flex flex-col relative h-full flex-1 min-h-0 ${expanded ? 'mt-0 mb-0' : 'my-1.5'}`}
             >
               {/* Sticky Top: Main Info Card & Unteraufgaben Header */}
               <div className="shrink-0 z-20 sticky top-0 flex flex-col">
@@ -425,7 +426,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       <button
                         type="button"
                         onClick={() => setDraft((p) => ({ ...p, priority: 'low' }))}
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
+                        className={`text-[13px] font-black px-2.5 py-1 rounded transition-all cursor-pointer ${
                           draft.priority === 'low'
                             ? 'bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
                             : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
@@ -437,19 +438,19 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       <button
                         type="button"
                         onClick={() => setDraft((p) => ({ ...p, priority: 'medium' }))}
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
+                        className={`text-[13px] font-black px-2.5 py-1 rounded transition-all cursor-pointer ${
                           draft.priority === 'medium'
                             ? 'bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
                             : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
                         }`}
                         title="Mittlere Priorität"
                       >
-                        2
+                        –
                       </button>
                       <button
                         type="button"
                         onClick={() => setDraft((p) => ({ ...p, priority: 'high' }))}
-                        className={`text-[11px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer ${
+                        className={`text-[13px] font-black px-2.5 py-1 rounded transition-all cursor-pointer ${
                           draft.priority === 'high'
                             ? 'bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 dark:ring-offset-[#1a1a1a] shadow-xs scale-105'
                             : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
@@ -606,14 +607,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       <span className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
                         Unteraufgaben ({completedCount}/{totalCount})
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setShowSubtaskInput((prev) => !prev)}
-                        className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        <Plus size={12} />
-                        <span>Hinzufügen</span>
-                      </button>
                     </div>
                     <div className="w-full h-2 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden mt-1.5 mb-2">
                       <div
@@ -665,7 +658,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
 
               {/* Subtasks list - ONLY scrollable element */}
               {(!depth || depth < 1) && (
-                <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1 pb-24">
+                <div className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1 pb-28">
                   {task.children && task.children.length > 0 ? (
                     task.children.map((child) => (
                       <TodoTreeItem

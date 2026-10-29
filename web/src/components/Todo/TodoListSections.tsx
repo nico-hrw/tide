@@ -34,7 +34,7 @@ export interface TodoListSectionsProps {
 }
 
 export const TodoListSections: React.FC<TodoListSectionsProps> = ({
-  selectedFolder, setSelectedFolder, filterStatus, searchQuery, tasks, sortedTasks, tasksToRender, activeTasks, recentlyCompletedTasks, archivedTasks, archivedByTier, openTiers, showCompleted, showArchive, setShowCompleted, setShowArchive, setOpenTiers, setDraft, setIsCreateOpen, setSelectedTag, selectedTag, renderTask, editingTaskId,
+  selectedFolder, setSelectedFolder, filterStatus, searchQuery, tasks, sortedTasks, tasksToRender, activeTasks, recentlyCompletedTasks, archivedTasks, archivedByTier, openTiers, showCompleted, showArchive, setShowCompleted, setShowArchive, setOpenTiers, setDraft, setIsCreateOpen, setSelectedTag, selectedTag, renderTask, editingTaskId = null,
 }) => {
   const sectionTitle = searchQuery
     ? 'Suchergebnisse'
@@ -61,7 +61,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
               ? { opacity: 0, height: 0, marginBottom: 0, overflow: 'hidden', pointerEvents: 'none' as const }
               : { opacity: 1, height: 'auto', marginBottom: 12, pointerEvents: 'auto' as const }
           }
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
           className="text-lg font-bold text-gray-900 dark:text-white mt-1"
         >
           {sectionTitle}
@@ -69,7 +69,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
       )}
 
       {/* Task Cards List */}
-      <div className="flex flex-col gap-1.5">
+      <div className={`flex flex-col ${editingTaskId !== null ? 'gap-0 h-full flex-1 min-h-0' : 'gap-1.5'}`}>
         <AnimatePresence mode="popLayout" initial={false}>
           {tasksToRender.map((task, index) => {
             const isEditing = task.id === editingTaskId;
@@ -79,15 +79,16 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
 
             const animateState = editingTaskId
               ? isEditing
-                ? { opacity: 1, y: 0, scale: 1, height: 'auto' as const, display: 'block' }
+                ? { opacity: 1, y: 0, scale: 1, height: 'auto' as const, marginBottom: 0, display: 'block' }
                 : {
                     opacity: 0,
                     y: flyY,
                     height: 0,
+                    marginBottom: 0,
                     overflow: 'hidden' as const,
                     transitionEnd: { display: 'none' },
                   }
-              : { opacity: 1, y: 0, scale: 1, height: 'auto' as const, display: 'block' };
+              : { opacity: 1, y: 0, scale: 1, height: 'auto' as const, marginBottom: 0, display: 'block' };
 
             const itemStyle: React.CSSProperties | undefined = isOther
               ? { pointerEvents: 'none' }
@@ -106,9 +107,9 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                   scale: 0.95,
                   transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1] },
                 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
                 style={itemStyle}
-                className={isEditing ? 'relative z-20' : undefined}
+                className={isEditing ? 'relative z-20 h-full flex-1 min-h-0 flex flex-col' : undefined}
               >
                 {renderTask(task as TaskWithChildren)}
               </motion.div>

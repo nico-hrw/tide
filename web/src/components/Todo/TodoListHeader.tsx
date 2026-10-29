@@ -33,11 +33,7 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
 
   return (
     <div
-      className={`sticky top-0 z-30 px-4 sm:px-6 ${
-        hideProgress
-          ? 'py-0 border-none'
-          : 'py-2.5'
-      } bg-[#f8f9fa]/90 dark:bg-[#121212]/90 backdrop-blur-md border-b border-gray-200 dark:border-white/10`}
+      className={`sticky top-0 z-30 ${hideProgress ? 'hidden md:flex py-0 border-none' : 'px-4 sm:px-6 py-2.5 border-b border-gray-200 dark:border-white/10'} bg-[#f8f9fa]/90 dark:bg-[#121212]/90 backdrop-blur-md`}
     >
       {/* Desktop & iPad Header */}
       <div className="hidden md:flex items-center justify-between pb-3">

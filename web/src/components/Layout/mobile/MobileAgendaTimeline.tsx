@@ -102,7 +102,7 @@ function StatusBadges({ isActive, isNext, remStr, evEnd, evStart, startStr, durS
           style={{ background: '#f97316', border: 'none' }}
         >
           <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-          Noch {remStr} · bis {format(evEnd, 'HH:mm')} Uhr
+          Noch {remStr}
         </span>
         <span className="text-[10px] font-medium opacity-75 ml-auto shrink-0" style={{ color: '#ffffff' }}>{durStr}</span>
       </div>
@@ -112,10 +112,10 @@ function StatusBadges({ isActive, isNext, remStr, evEnd, evStart, startStr, durS
     return (
       <div className="mt-1.5 flex items-center gap-2 flex-wrap">
         <span
-          className="text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0"
-          style={{ background: theme === 'dark' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(59, 130, 246, 0.08)', color: theme === 'dark' ? '#93c5fd' : '#2563eb', border: theme === 'dark' ? '1px solid rgba(59, 130, 246, 0.22)' : '1px solid rgba(59, 130, 246, 0.18)' }}
+          className="text-[10px] font-bold px-2.5 py-0.5 rounded-md flex items-center gap-1 shrink-0 text-white shadow-xs"
+          style={{ background: '#1d4ed8', color: '#ffffff', border: 'none' }}
         >
-          <Clock size={11} /> Startet in {startStr}
+          <Clock size={11} className="text-white" /> Startet in {startStr}
         </span>
         <span className="text-[10px] font-medium opacity-75 ml-auto shrink-0" style={{ color: T.mut }}>{durStr}</span>
       </div>

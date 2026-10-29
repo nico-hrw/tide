@@ -672,9 +672,9 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         </div>
       ) : (
         /* Center container */
-        <div className={`w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2 ${editingTaskId !== null ? 'pt-0 overflow-hidden' : ''}`}>
+        <div className={`w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2 ${editingTaskId !== null ? 'h-full pt-0 overflow-hidden' : ''}`}>
           {/* Scrollable list container */}
-          <div className={`flex-1 ${editingTaskId !== null ? 'overflow-hidden pt-0' : 'overflow-y-auto pt-1 sm:pt-2'} overflow-x-hidden px-3 sm:px-4 ${editingTaskId !== null ? 'pb-8' : 'pb-16'} flex flex-col gap-2`}>
+          <div className={`flex-1 ${editingTaskId !== null ? 'h-full overflow-hidden pt-0 gap-0 pb-2' : 'overflow-y-auto pt-1 sm:pt-2 gap-2 pb-16'} overflow-x-hidden px-3 sm:px-4 flex flex-col`}>
             <AnimatePresence mode="wait" initial={false}>
               {focusedTask ? (
                 <motion.div
@@ -715,7 +715,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                   animate={{ opacity: 1, x: 0, scale: 1 }}
                   exit={{ opacity: 0, x: -300, scale: 0.95, transition: { duration: 0.3 } }}
                   transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex flex-col gap-4 sm:gap-5"
+                  className={`flex flex-col ${editingTaskId !== null ? 'h-full flex-1 min-h-0 gap-0' : 'gap-4 sm:gap-5'}`}
                 >
                   <TodoFolderBanner
                     setViewMode={setViewMode}

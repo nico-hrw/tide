@@ -916,8 +916,8 @@ export default function MobileLayout({
             {/* Dimmed backdrop, dismisses on tap */}
             <motion.div key="search-back"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className={`fixed inset-0 ${isEditingNote ? 'z-[55]' : 'z-30'}`}
-              style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}
+              className={`fixed inset-0 w-full h-[100dvh] ${isEditingNote ? 'z-[55]' : 'z-30'}`}
+              style={{ background: 'rgba(0,0,0,0.32)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' }}
               onClick={() => setIsSearchOpen(false)}
             />
 
@@ -943,75 +943,11 @@ export default function MobileLayout({
                 <div className="w-10 h-1.5 rounded-full" style={{ background: T.brd }} />
               </div>
 
-              {/* Search input */}
-              <div className="flex items-center gap-3 mx-4 mb-3 px-4 py-3 rounded-2xl shrink-0 border border-black dark:border-white focus-within:ring-1 focus-within:ring-black dark:focus-within:ring-white"
-                style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}>
-                <Search size={16} className="shrink-0 text-gray-900 dark:text-white" />
-                <input autoFocus value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Suchen, Notiz oder Termin erfassen…"
-                  className="flex-1 bg-transparent outline-none text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500" />
-                {searchQuery
-                  ? <button onClick={() => setSearchQuery('')}><X size={14} className="text-gray-500 dark:text-gray-400" /></button>
-                  : <button onClick={() => setIsSearchOpen(false)} className="text-sm font-semibold text-gray-900 dark:text-white">Fertig</button>
-                }
-              </div>
-
-              {/* Date recognition hint */}
-              {parsedDate && (
-                <div className="mx-4 mb-2 shrink-0 px-4 py-2.5 rounded-2xl flex items-center gap-3"
-                  style={{ background: `${T.accent}12`, border: `1px solid ${T.accent}30` }}>
-                  <CalendarIcon size={14} style={{ color: T.accent, flexShrink: 0 }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold" style={{ color: T.accent }}>
-                      Termin erkannt: {format(parsedDate.proposedStart, 'EEE d. MMM, HH:mm', { locale: de })}
-                      {parsedDate.proposedEnd && ` – ${format(parsedDate.proposedEnd, 'HH:mm')}`}
-                    </p>
-                    {parsedDate.titleHint && <p className="text-xs truncate" style={{ color: T.sec }}>{parsedDate.titleHint}</p>}
-                  </div>
-                  <button
-                    onClick={() => { setIsSearchOpen(false); onNewEvent?.(parsedDate.proposedStart); }}
-                    className="text-xs font-bold px-3 py-1.5 rounded-xl shrink-0"
-                    style={{ background: T.accent, color: '#fff' }}>
-                    + Anlegen
-                  </button>
-                </div>
-              )}
-
-              {/* Stacked action buttons */}
-              <div className="mx-4 mb-3 flex flex-col gap-2 shrink-0">
-                <button
-                  onClick={() => {
-                    setIsSearchOpen(false);
-                    setActiveTab('todos');
-                    window.dispatchEvent(new CustomEvent('tide:new-todo', { detail: { title: searchQuery.trim() } }));
-                  }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98 bg-white text-gray-900 border border-gray-200/90 shadow-xs hover:bg-gray-50 dark:bg-[#1f1f1f] dark:text-white dark:border-white/10 dark:hover:bg-[#282828]"
-                >
-                  <ListTodo size={16} className="shrink-0 text-blue-600 dark:text-blue-400" />
-                  <span className="flex-1">Neue Aufgabe{searchQuery.trim() ? ` · "${searchQuery.slice(0, 24)}"` : ''}</span>
-                </button>
-                <button
-                  onClick={() => { const t = searchQuery.trim() || undefined; setIsSearchOpen(false); onNewNote(t); setIsEditingNote(true); }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98 bg-white text-gray-900 border border-gray-200/90 shadow-xs hover:bg-gray-50 dark:bg-[#1f1f1f] dark:text-white dark:border-white/10 dark:hover:bg-[#282828]"
-                >
-                  <PenLine size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
-                  <span className="flex-1">Neue Notiz{searchQuery.trim() ? ` · "${searchQuery.slice(0, 24)}"` : ''}</span>
-                </button>
-                <button
-                  onClick={() => { setIsSearchOpen(false); onNewEvent?.(parsedDate?.proposedStart ?? activeDate); }}
-                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98 bg-white text-gray-900 border border-gray-200/90 shadow-xs hover:bg-gray-50 dark:bg-[#1f1f1f] dark:text-white dark:border-white/10 dark:hover:bg-[#282828]"
-                >
-                  <CalendarIcon size={16} className="shrink-0 text-indigo-600 dark:text-indigo-400" />
-                  <span className="flex-1">
-                    Neues Ereignis{parsedDate ? ` · ${format(parsedDate.proposedStart, 'd. MMM HH:mm', { locale: de })}` : ''}
-                  </span>
-                </button>
-              </div>
-
-              {/* Results — ~3 items visible by default, scrollable for all */}
-              <div className="overflow-y-auto px-4 pb-6" style={{ overscrollBehavior: 'contain', maxHeight: 195, minHeight: 0 }}>
+              {/* Middle scrollable container */}
+              <div className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-2 min-h-0" style={{ overscrollBehavior: 'contain' }}>
+                {/* Search results */}
                 {searchResults.length > 0 ? (
-                  <>
+                  <div className="flex flex-col">
                     <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: T.mut }}>Ergebnisse</p>
                     {searchResults.map(r => (
                       <button key={r.id}
@@ -1030,10 +966,77 @@ export default function MobileLayout({
                         <ChevronRight size={13} style={{ color: T.mut }} />
                       </button>
                     ))}
-                  </>
+                  </div>
                 ) : searchQuery ? (
                   <p className="text-sm py-4 text-center" style={{ color: T.mut }}>Keine Ergebnisse für &ldquo;{searchQuery}&rdquo;</p>
                 ) : null}
+
+                {/* Date recognition hint */}
+                {parsedDate && (
+                  <div className="px-4 py-2.5 rounded-2xl flex items-center gap-3 shrink-0"
+                    style={{ background: `${T.accent}12`, border: `1px solid ${T.accent}30` }}>
+                    <CalendarIcon size={14} style={{ color: T.accent, flexShrink: 0 }} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold" style={{ color: T.accent }}>
+                        Termin erkannt: {format(parsedDate.proposedStart, 'EEE d. MMM, HH:mm', { locale: de })}
+                        {parsedDate.proposedEnd && ` – ${format(parsedDate.proposedEnd, 'HH:mm')}`}
+                      </p>
+                      {parsedDate.titleHint && <p className="text-xs truncate" style={{ color: T.sec }}>{parsedDate.titleHint}</p>}
+                    </div>
+                    <button
+                      onClick={() => { setIsSearchOpen(false); onNewEvent?.(parsedDate.proposedStart); }}
+                      className="text-xs font-bold px-3 py-1.5 rounded-xl shrink-0"
+                      style={{ background: T.accent, color: '#fff' }}>
+                      + Anlegen
+                    </button>
+                  </div>
+                )}
+
+                {/* Stacked white action buttons */}
+                <div className="flex flex-col gap-2 shrink-0">
+                  <button
+                    onClick={() => {
+                      setIsSearchOpen(false);
+                      setActiveTab('todos');
+                      window.dispatchEvent(new CustomEvent('tide:new-todo', { detail: { title: searchQuery.trim() } }));
+                    }}
+                    className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98 bg-white text-gray-900 border border-gray-200/90 shadow-xs hover:bg-gray-50 dark:bg-[#1f1f1f] dark:text-white dark:border-white/10 dark:hover:bg-[#282828]"
+                  >
+                    <ListTodo size={16} className="shrink-0 text-blue-600 dark:text-blue-400" />
+                    <span className="flex-1">Neue Aufgabe{searchQuery.trim() ? ` · "${searchQuery.slice(0, 24)}"` : ''}</span>
+                  </button>
+                  <button
+                    onClick={() => { const t = searchQuery.trim() || undefined; setIsSearchOpen(false); onNewNote(t); setIsEditingNote(true); }}
+                    className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98 bg-white text-gray-900 border border-gray-200/90 shadow-xs hover:bg-gray-50 dark:bg-[#1f1f1f] dark:text-white dark:border-white/10 dark:hover:bg-[#282828]"
+                  >
+                    <PenLine size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+                    <span className="flex-1">Neue Notiz{searchQuery.trim() ? ` · "${searchQuery.slice(0, 24)}"` : ''}</span>
+                  </button>
+                  <button
+                    onClick={() => { setIsSearchOpen(false); onNewEvent?.(parsedDate?.proposedStart ?? activeDate); }}
+                    className="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold w-full text-left transition-all active:scale-98 bg-white text-gray-900 border border-gray-200/90 shadow-xs hover:bg-gray-50 dark:bg-[#1f1f1f] dark:text-white dark:border-white/10 dark:hover:bg-[#282828]"
+                  >
+                    <CalendarIcon size={16} className="shrink-0 text-indigo-600 dark:text-indigo-400" />
+                    <span className="flex-1">
+                      Neues Ereignis{parsedDate ? ` · ${format(parsedDate.proposedStart, 'd. MMM HH:mm', { locale: de })}` : ''}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Bottom pinned search input */}
+              <div className="mx-4 mt-1 mb-3 pb-[max(8px,env(safe-area-inset-bottom))] shrink-0">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-black dark:border-white focus-within:ring-1 focus-within:ring-black dark:focus-within:ring-white"
+                  style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}>
+                  <Search size={16} className="shrink-0 text-gray-900 dark:text-white" />
+                  <input autoFocus value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Suchen, Notiz oder Termin erfassen…"
+                    className="flex-1 bg-transparent outline-none text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500" />
+                  {searchQuery
+                    ? <button onClick={() => setSearchQuery('')}><X size={14} className="text-gray-500 dark:text-gray-400" /></button>
+                    : <button onClick={() => setIsSearchOpen(false)} className="text-sm font-semibold text-gray-900 dark:text-white">Fertig</button>
+                  }
+                </div>
               </div>
             </motion.div>
           </>
