@@ -381,47 +381,32 @@ export const MobileAgendaTimeline = React.memo(function MobileAgendaTimeline({
   return (
     <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
       <div className="flex-1 overflow-y-auto pb-4 px-4 pt-2">
-        {groupedDayViewItems.map((item, idx) => {
-          const itemDate = item.kind === 'day' ? item.date : item.startDate;
-          const curM = format(itemDate, 'yyyy-MM');
-          const prev = idx > 0 ? groupedDayViewItems[idx - 1] : null;
-          const isNewMonth = idx === 0 || curM !== (prev ? format(prev.kind === 'day' ? prev.date : prev.startDate, 'yyyy-MM') : null);
-
-          return (
-            <React.Fragment key={item.kind === 'day' ? item.date.toISOString() : `empty-${item.startDate.toISOString()}-${item.endDate.toISOString()}`}>
-              {isNewMonth && (
-                <div className="sticky top-0 z-10 py-1 px-3 my-2 rounded-xl backdrop-blur-md flex items-center justify-between shadow-sm" style={{ background: theme === 'dark' ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255, 255, 255, 0.92)', border: `1px solid ${T.brd}` }}>
-                  <div className="flex items-center gap-1.5">
-                    <CalendarIcon size={12} style={{ color: theme === 'dark' ? '#c084fc' : '#7e22ce' }} />
-                    <span className="text-xs font-black uppercase tracking-wider" style={{ color: theme === 'dark' ? '#c084fc' : '#7e22ce' }}>{format(itemDate, 'MMMM yyyy', { locale: de })}</span>
-                  </div>
+        {groupedDayViewItems.map((item) => (
+          <React.Fragment key={item.kind === 'day' ? item.date.toISOString() : `empty-${item.startDate.toISOString()}-${item.endDate.toISOString()}`}>
+            {item.kind === 'empty-range' ? (
+              <div className="my-3 px-3.5 py-2.5 rounded-lg flex items-center justify-between text-xs" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', color: T.mut }}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <CalendarIcon size={13} style={{ opacity: 0.6, flexShrink: 0 }} />
+                  <span className="truncate">{format(item.startDate, 'EEE d. MMM', { locale: de })} – {format(item.endDate, 'EEE d. MMM', { locale: de })}</span>
+                  <span className="font-semibold shrink-0" style={{ color: T.sec }}>· {item.count} Tage frei</span>
                 </div>
-              )}
-              {item.kind === 'empty-range' ? (
-                <div className="my-3 px-3.5 py-2.5 rounded-lg flex items-center justify-between text-xs" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)', color: T.mut }}>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <CalendarIcon size={13} style={{ opacity: 0.6, flexShrink: 0 }} />
-                    <span className="truncate">{format(item.startDate, 'EEE d. MMM', { locale: de })} – {format(item.endDate, 'EEE d. MMM', { locale: de })}</span>
-                    <span className="font-semibold shrink-0" style={{ color: T.sec }}>· {item.count} Tage frei</span>
-                  </div>
+              </div>
+            ) : (
+              <div id={`day-${format(item.date, 'yyyy-MM-dd')}`} className="mb-4">
+                <div className="flex items-center gap-3 py-2.5">
+                  {item.isToday && (
+                    <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shrink-0 text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 50%, #9333ea 100%)', boxShadow: '0 2px 8px rgba(126, 34, 206, 0.35)' }}>Heute</span>
+                  )}
+                  <span className="text-[11px] uppercase tracking-wider" style={{ color: item.isToday ? (theme === 'dark' ? '#d8b4fe' : '#7e22ce') : T.sec, fontWeight: item.isToday ? 900 : 700, textShadow: item.isToday ? (theme === 'dark' ? '0 0 10px rgba(168, 85, 247, 0.4)' : 'none') : 'none' }}>
+                    {format(item.date, 'EEEE d. MMMM', { locale: de })}
+                  </span>
+                  <div className="flex-1 h-px" style={{ background: item.isToday ? 'linear-gradient(90deg, rgba(168, 85, 247, 0.5), transparent)' : T.brd }} />
                 </div>
-              ) : (
-                <div id={`day-${format(item.date, 'yyyy-MM-dd')}`} className="mb-4">
-                  <div className="flex items-center gap-3 py-2.5">
-                    {item.isToday && (
-                      <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shrink-0 text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 50%, #9333ea 100%)', boxShadow: '0 2px 8px rgba(126, 34, 206, 0.35)' }}>Heute</span>
-                    )}
-                    <span className="text-[11px] uppercase tracking-wider" style={{ color: item.isToday ? (theme === 'dark' ? '#d8b4fe' : '#7e22ce') : T.sec, fontWeight: item.isToday ? 900 : 700, textShadow: item.isToday ? (theme === 'dark' ? '0 0 10px rgba(168, 85, 247, 0.4)' : 'none') : 'none' }}>
-                      {format(item.date, 'EEEE d. MMMM', { locale: de })}
-                    </span>
-                    <div className="flex-1 h-px" style={{ background: item.isToday ? 'linear-gradient(90deg, rgba(168, 85, 247, 0.5), transparent)' : T.brd }} />
-                  </div>
-                  <DbTimelineDay day={item.date} dayEvs={item.events} allDayEvs={item.allDayEvents} isToday={item.isToday} now={now} theme={theme} onNewEvent={onNewEvent} onDeleteEvent={onDeleteEvent} />
-                </div>
-              )}
-            </React.Fragment>
-          );
-        })}
+                <DbTimelineDay day={item.date} dayEvs={item.events} allDayEvs={item.allDayEvents} isToday={item.isToday} now={now} theme={theme} onNewEvent={onNewEvent} onDeleteEvent={onDeleteEvent} />
+              </div>
+            )}
+          </React.Fragment>
+        ))}
         {dayViewSentinelRef && <div ref={dayViewSentinelRef} style={{ height: 1 }} />}
       </div>
 

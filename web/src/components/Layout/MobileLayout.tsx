@@ -367,7 +367,7 @@ export default function MobileLayout({
   const [renameValue, setRenameValue] = useState('');
   const [calViewMode, setCalViewMode] = useState<'day' | 'agenda' | 'week' | 'month'>('day');
   const [activeTab, setActiveTab] = useState<'calendar' | 'notes' | 'todos'>('calendar');
-  const [wheelVisibleMonth, setWheelVisibleMonth] = useState<string>(() => format(activeDate, 'MMMM yyyy', { locale: de }));
+  const [, setWheelVisibleMonth] = useState<string>(() => format(activeDate, 'MMMM yyyy', { locale: de }));
   const [dayViewDays, setDayViewDays] = useState<Date[]>([]);
   const dayViewSentinelRef = useRef<HTMLDivElement>(null);
   const [isNewEventSheetOpen, setIsNewEventSheetOpen] = useState(false);
@@ -1099,24 +1099,11 @@ export default function MobileLayout({
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 flex-wrap" style={{ color: T.mut }}>
                 {activeTab === 'calendar' ? (
-                  <>
-                    <span>
-                      {isSameDay(activeDate, now)
-                        ? format(now, 'd. MMMM', { locale: de })
-                        : format(activeDate, 'd. MMMM yyyy', { locale: de })}
-                    </span>
-                    {wheelVisibleMonth && wheelVisibleMonth !== format(isSameDay(activeDate, now) ? now : activeDate, 'MMMM yyyy', { locale: de }) && (
-                      <span
-                        className="text-[10px] px-1.5 py-0.5 rounded-full font-bold normal-case tracking-normal"
-                        style={{
-                          background: theme === 'dark' ? 'rgba(168, 85, 247, 0.25)' : 'rgba(147, 51, 234, 0.12)',
-                          color: theme === 'dark' ? '#d8b4fe' : '#7e22ce',
-                        }}
-                      >
-                        {wheelVisibleMonth}
-                      </span>
-                    )}
-                  </>
+                  <span>
+                    {isSameDay(activeDate, now)
+                      ? format(now, 'd. MMMM', { locale: de })
+                      : format(activeDate, 'd. MMMM yyyy', { locale: de })}
+                  </span>
                 ) : (
                   format(now, 'd. MMMM', { locale: de })
                 )}
@@ -1571,7 +1558,7 @@ export default function MobileLayout({
       /* ── Todos tab ── */
       <div
         className="mobile-todos-container w-full h-full flex flex-col flex-1 min-h-0 relative max-w-full overflow-hidden"
-        style={{ paddingBottom: 'max(68px, calc(60px + env(safe-area-inset-bottom)))' }}
+        style={{ paddingBottom: 'max(64px, calc(56px + env(safe-area-inset-bottom)))' }}
       >
         <style>{`
           .mobile-todos-container .sticky.top-0 {

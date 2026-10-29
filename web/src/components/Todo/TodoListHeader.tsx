@@ -31,6 +31,20 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
 
   return (
     <div className="sticky top-0 z-30 px-4 sm:px-6 py-2.5 border-b border-gray-100 dark:border-white/10 bg-white/95 dark:bg-[#121212]/95 backdrop-blur-md">
+      {/* Desktop & iPad Header */}
+      <div className="hidden md:flex items-center justify-between pb-3">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
+            Todos
+          </h1>
+          {props.selectedFolder && (
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-semibold">
+              {props.selectedFolder}
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Hairline 3px Progress Bar */}
       <div className="w-full h-[3px] bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden flex">
         <div

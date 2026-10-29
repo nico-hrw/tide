@@ -621,7 +621,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         /* Center container */
         <div className="w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2">
           {/* Scrollable list container */}
-          <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 pt-1 sm:pt-2 pb-16 flex flex-col gap-2">
+          <div className={`flex-1 overflow-y-auto overflow-x-hidden px-3 sm:px-4 pt-1 sm:pt-2 ${editingTaskId !== null ? 'pb-8' : 'pb-16'} flex flex-col gap-2`}>
             <AnimatePresence mode="wait" initial={false}>
               {focusedTask ? (
                 <motion.div
@@ -727,7 +727,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 8 }}
               transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-              className="fixed bottom-20 right-4 sm:right-6 z-50 w-[310px] sm:w-[340px] max-w-[calc(100vw-2.5rem)] max-h-[75vh] overflow-y-auto bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-xl border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] p-4 flex flex-col gap-4 text-xs text-gray-700 dark:text-gray-300"
+              className="fixed bottom-20 right-4 sm:right-6 md:bottom-22 md:right-8 z-50 w-[310px] sm:w-[340px] max-w-[calc(100vw-2.5rem)] max-h-[75vh] overflow-y-auto bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-xl border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] p-4 flex flex-col gap-4 text-xs text-gray-700 dark:text-gray-300"
             >
                       {/* Header */}
                       <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-white/10">
@@ -953,6 +953,71 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             </motion.div>
           )}
         </AnimatePresence>
+      )}
+
+      {/* Desktop & iPad Floating Action Buttons */}
+      {editingTaskId === null && (
+        <div className="hidden md:flex fixed bottom-8 right-8 z-40 items-center gap-3">
+          {/* Filter button */}
+          <button
+            type="button"
+            data-todo-filter
+            aria-label="Filter"
+            onClick={() => {
+              setIsFilterMenuOpen((prev) => !prev);
+              setIsAddMenuOpen(false);
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-md hover:bg-gray-50 dark:hover:bg-[#252528] text-gray-700 dark:text-gray-200 border border-gray-200/80 dark:border-white/10 rounded-xl shadow-lg transition-all active:scale-95 font-medium text-sm cursor-pointer select-none"
+          >
+            <SlidersHorizontal size={16} className="text-gray-500 dark:text-gray-400" />
+            <span>Filter</span>
+          </button>
+
+          {/* Plus button with popover */}
+          <div ref={addMenuRef} className="relative">
+            <AnimatePresence>
+              {isAddMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 8 }}
+                  transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+                  className="absolute bottom-full right-0 mb-3 w-48 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-xl border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-xl p-1.5 flex flex-col gap-1 z-50 text-xs"
+                >
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateTask}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-xl text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors font-medium cursor-pointer"
+                  >
+                    <Plus size={15} className="text-blue-500" />
+                    <span>Aufgabe erstellen</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateFolder}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-xl text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors font-medium cursor-pointer"
+                  >
+                    <FolderPlus size={15} className="text-purple-500" />
+                    <span>Ordner erstellen</span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <button
+              type="button"
+              aria-label="Aufgabe hinzufügen"
+              onClick={() => {
+                setIsAddMenuOpen((prev) => !prev);
+                setIsFilterMenuOpen(false);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-xl shadow-lg transition-all active:scale-95 font-medium text-sm cursor-pointer select-none"
+            >
+              <Plus size={18} />
+              <span>Aufgabe</span>
+            </button>
+          </div>
+        </div>
       )}
 
       <TodoFolderModal

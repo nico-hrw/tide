@@ -4,7 +4,7 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2, Circle, Trash2, Plus,
-  X, Folder, Tag, Repeat, Check,
+  X, Folder, Tag, Repeat, Check, ChevronRight,
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
@@ -71,142 +71,7 @@ function getTagColorClass(tag: string): string {
   return COLOR_PALETTE[idx];
 }
 
-interface SubtaskRowProps {
-  child: TaskItem;
-  onToggle: (task: TaskItem) => void;
-  onDelete: (id: string) => Promise<void> | void;
-}
 
-const SubtaskRow: React.FC<SubtaskRowProps> = ({ child, onToggle, onDelete }) => {
-  const [offset, setOffset] = useState(0);
-  const [isSwiping, setIsSwiping] = useState(false);
-  const touchStartXRef = useRef(0);
-  const touchStartYRef = useRef(0);
-  const isSwipingRef = useRef(false);
-  const isVerticalScrollRef = useRef(false);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartXRef.current = e.touches[0].clientX;
-    touchStartYRef.current = e.touches[0].clientY;
-    isSwipingRef.current = false;
-    isVerticalScrollRef.current = false;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (isVerticalScrollRef.current) return;
-    const deltaX = e.touches[0].clientX - touchStartXRef.current;
-    const deltaY = e.touches[0].clientY - touchStartYRef.current;
-
-    if (!isSwipingRef.current && !isVerticalScrollRef.current) {
-      if (Math.abs(deltaY) > 8 && Math.abs(deltaY) > Math.abs(deltaX)) {
-        isVerticalScrollRef.current = true;
-        return;
-      }
-      if (Math.abs(deltaX) > 8 && Math.abs(deltaX) > Math.abs(deltaY)) {
-        isSwipingRef.current = true;
-        setIsSwiping(true);
-      }
-    }
-
-    if (isSwipingRef.current) {
-      let currentOffset = deltaX;
-      if (currentOffset > 80) currentOffset = 80 + (currentOffset - 80) * 0.2;
-      if (currentOffset < -80) currentOffset = -80 + (currentOffset + 80) * 0.2;
-      setOffset(currentOffset);
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (!isSwipingRef.current) {
-      setOffset(0);
-      setIsSwiping(false);
-      return;
-    }
-    const currentOffset = offset;
-    setIsSwiping(false);
-    setOffset(0);
-    isSwipingRef.current = false;
-
-    if (currentOffset > 40) {
-      e.preventDefault();
-      onToggle(child);
-    } else if (currentOffset < -40) {
-      e.preventDefault();
-      void onDelete(child.id);
-    }
-  };
-
-  return (
-    <div className="relative overflow-hidden rounded-lg">
-      {/* Background action indicator */}
-      <div
-        className={`absolute inset-0 flex items-center justify-between px-3 rounded-lg pointer-events-none transition-colors ${
-          offset > 0 ? 'bg-emerald-500 text-white' : offset < 0 ? 'bg-rose-500 text-white' : 'bg-transparent'
-        }`}
-      >
-        <div
-          className={`flex items-center gap-1.5 text-xs font-semibold transition-opacity duration-150 ${
-            offset > 20 ? 'opacity-100' : 'opacity-0'
-          }`}
-        >
-          <CheckCircle2 size={14} />
-          <span>{child.isCompleted ? 'Wiedereröffnen' : 'Erledigen'}</span>
-        </div>
-        <div
-          className={`flex items-center gap-1.5 text-xs font-semibold transition-opacity duration-150 ${
-            offset < -20 ? 'opacity-100' : 'opacity-0'
-          }`}
-        >
-          <span>Löschen</span>
-          <Trash2 size={14} />
-        </div>
-      </div>
-
-      {/* Foreground row */}
-      <div
-        style={{
-          transform: `translateX(${offset}px)`,
-          transition: isSwiping ? 'none' : 'transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1)',
-          touchAction: 'pan-y',
-        }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-[#242424] border border-gray-100 dark:border-white/5 relative"
-      >
-        <div className="flex items-center gap-2 min-w-0 flex-1">
-          <button
-            type="button"
-            onClick={() => onToggle(child)}
-            className="text-gray-400 hover:text-emerald-500 transition-colors shrink-0 cursor-pointer"
-            aria-label={child.isCompleted ? 'Als unvollständig markieren' : 'Als erledigt markieren'}
-          >
-            {child.isCompleted ? (
-              <CheckCircle2 size={16} className="text-emerald-500 fill-emerald-500/20" />
-            ) : (
-              <Circle size={16} />
-            )}
-          </button>
-          <span
-            className={`text-xs font-medium truncate ${
-              child.isCompleted ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'
-            }`}
-          >
-            {child.title}
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={() => void onDelete(child.id)}
-          className="text-gray-400 hover:text-rose-500 transition-colors p-1 cursor-pointer shrink-0"
-          title="Unteraufgabe löschen"
-        >
-          <Trash2 size={13} />
-        </button>
-      </div>
-    </div>
-  );
-};
 
 export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   task, depth = 0, isExpanded, editingTaskId, isCompleting = false, completingTaskIds,
@@ -218,6 +83,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   onFocusGroup,
 }) => {
   const addTask = useDataStore((s) => s.addTask);
+  const updateTask = useDataStore((s) => s.updateTask);
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
@@ -352,10 +218,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   const isDraftToday = draftDate ? deadline?.status === 'today' || format(draftDate, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') : false;
   const isDraftTomorrow = draftDate ? format(draftDate, 'yyyy-MM-dd') === format(addDays(new Date(), 1), 'yyyy-MM-dd') : false;
 
-  const indentPx = Math.min(depth * 20, 80);
+  const indentPx = Math.max(0, Math.min((depth - 1) * 16, 48));
 
   return (
-    <div className="flex flex-col w-full" style={{ paddingLeft: depth > 0 ? `${indentPx}px` : undefined }}>
+    <div className="flex flex-col w-full" style={{ paddingLeft: indentPx > 0 ? `${indentPx}px` : undefined }}>
       <div className={`relative ${!expanded ? 'overflow-hidden rounded-xl sm:rounded-2xl' : ''}`}>
         {/* Swipe action background indicators */}
         {!expanded && (
@@ -422,9 +288,32 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
 
               {/* Right Content Column */}
               <div className="flex-1 flex flex-col gap-1 min-w-0">
+                {depth && depth > 0 ? (
+                  <div className="flex items-center gap-1.5 mb-1 text-[11px] font-bold text-gray-400 dark:text-gray-500">
+                    <span>Aufgabe</span>
+                    <ChevronRight size={11} className="text-gray-400" />
+                    <span className="text-blue-600 dark:text-blue-400 font-semibold px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950/40">Unteraufgabe</span>
+                  </div>
+                ) : null}
+
                 {/* Title Line */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleTask(task);
+                      }}
+                      className="text-gray-400 hover:text-emerald-500 transition-colors shrink-0 cursor-pointer"
+                      aria-label={isTaskCompleted ? 'Als unvollständig markieren' : 'Als erledigt markieren'}
+                    >
+                      {isTaskCompleted ? (
+                        <CheckCircle2 size={16} className="text-emerald-500 fill-emerald-500/20" />
+                      ) : (
+                        <Circle size={16} />
+                      )}
+                    </button>
                     <div className="shrink-0 flex items-center justify-center">
                       <TodoPriorityBadge priority={task.priority} />
                     </div>
@@ -499,6 +388,14 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
             >
               {/* Main Info Card */}
               <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-sm flex flex-col">
+                {depth && depth > 0 ? (
+                  <div className="flex items-center gap-1.5 mb-2 text-[11px] font-bold text-gray-400 dark:text-gray-500">
+                    <span>Aufgabe</span>
+                    <ChevronRight size={11} className="text-gray-400" />
+                    <span className="text-blue-600 dark:text-blue-400 font-semibold px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950/40">Unteraufgabe</span>
+                  </div>
+                ) : null}
+
                 {/* Editable Title */}
                 <input
                   value={draft.title}
@@ -511,19 +408,19 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                     }
                   }}
                   placeholder="Titel der Aufgabe..."
-                  className="text-xl font-bold text-gray-900 dark:text-white bg-transparent outline-none w-full border-b border-gray-200 dark:border-white/10 pb-2 mb-4"
+                  className="text-lg font-bold text-gray-900 dark:text-white bg-transparent outline-none w-full border-b border-gray-200 dark:border-white/10 pb-1.5 mb-3"
                 />
 
                 {/* Properties Section */}
-                <div className="flex flex-col gap-3.5">
-                  {/* Row 1: Fälligkeit & Priorität */}
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-col gap-3">
+                  {/* Row 2: Fälligkeit & Priorität */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
                     {/* Fälligkeit */}
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <button
                         type="button"
                         onClick={() => handleQuickDate('today')}
-                        className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                        className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
                           isDraftToday
                             ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
                             : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
@@ -534,7 +431,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       <button
                         type="button"
                         onClick={() => handleQuickDate('tomorrow')}
-                        className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
+                        className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
                           isDraftTomorrow
                             ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
                             : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
@@ -547,7 +444,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           type="date"
                           value={draft.dueDate ? draft.dueDate.slice(0, 10) : ''}
                           onChange={(e) => setDraft((p) => ({ ...p, dueDate: e.target.value }))}
-                          className="px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 rounded-lg border border-transparent focus:border-blue-500 focus:outline-none cursor-pointer"
+                          className="px-2 py-1 text-xs font-medium bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 rounded-lg border border-transparent focus:border-blue-500 focus:outline-none cursor-pointer"
                           aria-label="Fälligkeitsdatum auswählen"
                         />
                         {draft.dueDate && (
@@ -601,14 +498,14 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                     </div>
                   </div>
 
-                  {/* Row 2: Ordner & Tags */}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1">
+                  {/* Row 3: Ordner & Wiederholung (2-column grid) */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1.5 min-w-0">
                       <Folder size={14} className="text-gray-400 shrink-0" />
                       <select
                         value={draft.folder}
                         onChange={(e) => setDraft((p) => ({ ...p, folder: e.target.value }))}
-                        className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer pr-1"
+                        className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer w-full truncate pr-1"
                       >
                         <option value="" className="bg-white dark:bg-[#1a1a1a]">Kein Ordner</option>
                         {allFolders.map((f) => (
@@ -617,7 +514,23 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       </select>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-[200px]">
+                    <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-white/10 rounded-lg px-2.5 py-1.5 min-w-0">
+                      <Repeat size={14} className="text-gray-400 shrink-0" />
+                      <select
+                        value={draft.recurrence}
+                        onChange={(e) => setDraft((p) => ({ ...p, recurrence: e.target.value as RecurrenceType }))}
+                        className="bg-transparent text-xs font-medium text-gray-800 dark:text-gray-200 border-none focus:outline-none cursor-pointer w-full truncate pr-1"
+                      >
+                        {RECURRENCE_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value} className="bg-white dark:bg-[#1a1a1a]">{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Row 4: Tags & Im Kalender anzeigen */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
                       {draft.tags.map((tag) => (
                         <span
                           key={tag}
@@ -665,33 +578,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                         )}
                       </div>
                     </div>
-                  </div>
 
-                  {/* Description textarea */}
-                  <textarea
-                    value={draft.description}
-                    onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
-                    placeholder="Optionale Notiz..."
-                    rows={2}
-                    className="w-full text-xs sm:text-sm bg-gray-50 dark:bg-white/[0.03] rounded-lg p-2.5 border border-gray-100 dark:border-white/5 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600 outline-none resize-none focus:border-gray-300 dark:focus:border-white/20 transition-colors"
-                  />
-
-                  {/* Recurrence & Calendar options */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500 dark:text-gray-400">
-                    <div className="flex items-center gap-1.5">
-                      <Repeat size={13} className="text-gray-400" />
-                      <select
-                        value={draft.recurrence}
-                        onChange={(e) => setDraft((p) => ({ ...p, recurrence: e.target.value as RecurrenceType }))}
-                        className="px-2 py-0.5 text-xs font-medium bg-gray-100 dark:bg-white/10 rounded-lg text-gray-800 dark:text-gray-200 border border-transparent focus:border-blue-500 focus:outline-none cursor-pointer"
-                      >
-                        {RECURRENCE_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value} className="bg-white dark:bg-[#1a1a1a]">{o.label}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none">
+                    <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 cursor-pointer select-none shrink-0">
                       <input
                         type="checkbox"
                         checked={draft.showInCalendar}
@@ -701,33 +589,80 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       <span>Im Kalender anzeigen</span>
                     </label>
                   </div>
+
+                  {/* Row 5: Notes/Description textarea */}
+                  <textarea
+                    value={draft.description}
+                    onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
+                    placeholder="Optionale Notiz..."
+                    rows={1}
+                    className="w-full text-xs sm:text-sm bg-gray-50 dark:bg-white/[0.03] rounded-lg p-2.5 border border-gray-100 dark:border-white/5 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600 outline-none resize-none focus:border-gray-300 dark:focus:border-white/20 transition-colors"
+                  />
                 </div>
               </div>
 
               {/* Unteraufgaben section as its own clean block */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-sm flex flex-col">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                    Unteraufgaben {task.children && task.children.length > 0 && `(${task.children.filter((c) => c.isCompleted).length}/${task.children.length})`}
-                  </span>
+              {(!depth || depth < 1) && (
+                <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 shadow-sm flex flex-col">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                      Unteraufgaben {task.children && task.children.length > 0 && `(${task.children.filter((c) => c.isCompleted).length}/${task.children.length})`}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 my-1">
+                    {task.children && task.children.length > 0 ? (
+                      task.children.map((child) => (
+                        <TodoTreeItem
+                          key={child.id}
+                          task={child as TaskWithChildren}
+                          depth={1}
+                          allTags={allTags}
+                          customTags={customTags}
+                          allFolders={allFolders}
+                          selectedTag={selectedTag}
+                          setSelectedTag={setSelectedTag}
+                          selectedFolder={selectedFolder}
+                          setSelectedFolder={setSelectedFolder}
+                          setViewMode={setViewMode}
+                          handleAddCustomTag={handleAddCustomTag}
+                          handleRemoveCustomTag={handleRemoveCustomTag}
+                          handleToggleTask={handleToggleTask}
+                          handleToggleInProgress={handleToggleInProgress}
+                          saveEditing={(id, d) => {
+                            if (d) {
+                              updateTask(id, {
+                                title: d.title,
+                                description: d.description,
+                                priority: d.priority,
+                                status: d.status,
+                                dueDate: d.dueDate || undefined,
+                                recurrence: d.recurrence,
+                                recurrence_end: d.recurrenceEnd || undefined,
+                                folder: d.folder || undefined,
+                                tags: d.tags,
+                                showInCalendar: d.showInCalendar,
+                              });
+                            }
+                            if (saveEditing) {
+                              saveEditing(id, d);
+                            }
+                          }}
+                          deleteTask={deleteTask}
+                          disableClickDebounce={disableClickDebounce}
+                        />
+                      ))
+                    ) : (
+                      <div className="text-xs text-gray-400 italic py-1">Keine Unteraufgaben vorhanden</div>
+                    )}
+                  </div>
                 </div>
+              )}
 
-                <div className="max-h-56 overflow-y-auto space-y-1.5 my-2 pr-1">
-                  {task.children && task.children.length > 0 ? (
-                    task.children.map((child) => (
-                      <SubtaskRow
-                        key={child.id}
-                        child={child}
-                        onToggle={handleToggleTask}
-                        onDelete={deleteTask}
-                      />
-                    ))
-                  ) : (
-                    <div className="text-xs text-gray-400 italic py-1">Keine Unteraufgaben vorhanden</div>
-                  )}
-
-                  {/* Inline quick-add input for new subtasks */}
-                  <div className="flex items-center gap-2 pt-1">
+              {/* Sticky bottom bar */}
+              <div className="sticky bottom-0 z-30 p-2.5 sm:p-3 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-md border border-gray-200 dark:border-white/10 rounded-2xl shadow-lg flex flex-col gap-2">
+                {(!depth || depth < 1) && (
+                  <div className="flex items-center gap-2">
                     <input
                       type="text"
                       value={newSubtaskTitle}
@@ -751,55 +686,54 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                       <Plus size={14} />
                     </button>
                   </div>
-                </div>
-              </div>
+                )}
 
-              {/* Sticky bottom bar */}
-              <div className="sticky bottom-0 px-4 sm:px-5 py-3 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur border border-gray-200 dark:border-white/10 rounded-2xl shadow-sm flex items-center justify-between z-30">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        cancelEditing?.();
+                        if (isControlledExpanded === undefined) setLocalExpanded(false);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <X size={14} />
+                      <span>Abbrechen</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        void deleteTask(task.id);
+                      }}
+                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                      title="Aufgabe löschen"
+                      aria-label="Aufgabe löschen"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      cancelEditing?.();
+                      if (draft.title.trim()) {
+                        saveEditing?.(task.id, draft);
+                      } else {
+                        cancelEditing?.();
+                      }
                       if (isControlledExpanded === undefined) setLocalExpanded(false);
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 rounded-lg transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-semibold rounded-lg hover:bg-black dark:hover:bg-gray-100 transition-colors cursor-pointer shadow-xs"
                   >
-                    <X size={14} />
-                    <span>Abbrechen</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      void deleteTask(task.id);
-                    }}
-                    className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
-                    title="Aufgabe löschen"
-                    aria-label="Aufgabe löschen"
-                  >
-                    <Trash2 size={15} />
+                    <Check size={14} />
+                    <span>Fertig</span>
                   </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (draft.title.trim()) {
-                      saveEditing?.(task.id, draft);
-                    } else {
-                      cancelEditing?.();
-                    }
-                    if (isControlledExpanded === undefined) setLocalExpanded(false);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-xs font-semibold rounded-lg hover:bg-black dark:hover:bg-gray-100 transition-colors cursor-pointer shadow-xs"
-                >
-                  <Check size={14} />
-                  <span>Fertig</span>
-                </button>
               </div>
             </motion.div>
           )}
