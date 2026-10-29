@@ -31,7 +31,7 @@ export interface TodoFilterBarProps {
 }
 
 const ACTIVE_PILL_CLASS =
-  'whitespace-nowrap px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-full shadow-sm transition-transform active:scale-95 cursor-pointer dark:bg-white dark:text-gray-900';
+  'whitespace-nowrap px-4 py-1.5 bg-[#18181b] text-white text-sm font-medium rounded-full shadow-sm transition-transform active:scale-95 cursor-pointer dark:bg-white dark:text-[#09090b]';
 const INACTIVE_PILL_CLASS =
   'whitespace-nowrap px-4 py-1.5 bg-gray-50 text-gray-600 border border-gray-200 text-sm font-medium rounded-full hover:bg-gray-100 transition-colors cursor-pointer dark:bg-[#1a1a1a] dark:text-gray-300 dark:border-white/10 dark:hover:bg-white/5';
 

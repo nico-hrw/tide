@@ -2,9 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import {
-  Calendar as CalendarIcon, Clock, ChevronDown, MapPin, PenLine, Trash2, Coffee, RotateCcw, Plus,
+  Calendar as CalendarIcon, Clock, ChevronDown, MapPin, PenLine, Trash2, Coffee, RotateCcw, Plus, CheckSquare,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useDataStore } from '@/store/useDataStore';
 
 const T = {
   bg: 'var(--background)', card: 'var(--sidebar-bg)', pri: 'var(--foreground)',
@@ -230,6 +231,62 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
   day, dayEvs, allDayEvs, isToday, now, theme, onNewEvent, onDeleteEvent,
 }: DbTimelineDayProps) {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const [todosOpen, setTodosOpen] = useState(false);
+  const tasks = useDataStore(state => state.tasks);
+
+  const regularAllDay = useMemo(() => allDayEvs.filter(e => !e.is_task && !e.linkedTaskId), [allDayEvs]);
+  const allDayTodos = useMemo(() => allDayEvs.filter(e => e.is_task || e.linkedTaskId), [allDayEvs]);
+
+  const completedCount = useMemo(() => {
+    return allDayTodos.filter(e => {
+      const task = e.linkedTaskId ? tasks?.find(t => t.id === e.linkedTaskId) : undefined;
+      return task ? !!task.isCompleted : !!e.is_completed;
+    }).length;
+  }, [allDayTodos, tasks]);
+
+  type TimelineEventItemType = DbTimelineDayProps['allDayEvs'][number];
+
+  const sortedAllDayTodos = useMemo(() => {
+    const rootTodos: TimelineEventItemType[] = [];
+    const childrenMap = new Map<string, TimelineEventItemType[]>();
+
+    allDayTodos.forEach(e => {
+      const task = e.linkedTaskId ? tasks?.find(t => t.id === e.linkedTaskId) : undefined;
+      const parentId = task?.parentId || e.parent_id;
+      if (parentId) {
+        if (!childrenMap.has(parentId)) childrenMap.set(parentId, []);
+        childrenMap.get(parentId)!.push(e);
+      } else {
+        rootTodos.push(e);
+      }
+    });
+
+    const result: TimelineEventItemType[] = [];
+    const visited = new Set<string>();
+
+    rootTodos.forEach(root => {
+      result.push(root);
+      visited.add(root.id);
+      const taskId = root.linkedTaskId || root.id;
+      const children = (childrenMap.get(taskId) || []).concat(childrenMap.get(root.id) || []);
+      const uniqueChildren = Array.from(new Set(children));
+      uniqueChildren.forEach(child => {
+        if (!visited.has(child.id)) {
+          result.push(child);
+          visited.add(child.id);
+        }
+      });
+    });
+
+    allDayTodos.forEach(e => {
+      if (!visited.has(e.id)) {
+        result.push(e);
+        visited.add(e.id);
+      }
+    });
+
+    return result;
+  }, [allDayTodos, tasks]);
 
   const nextUpcomingId = useMemo(() => {
     if (!isToday) return null;
@@ -271,7 +328,8 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
     <div className="flex flex-col py-1">
       {allDayEvs.length > 0 && (
         <div className="flex flex-col gap-1.5 mb-2.5 w-full">
-          {allDayEvs.map(ev => {
+          {/* Regular all-day events */}
+          {regularAllDay.map(ev => {
             const isExp = expandedEventId === ev.id;
             return (
               <div key={`allday-${ev.id}`} className="w-full rounded-xl overflow-hidden transition-all" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#f4f4f5', border: 'none' }}>
@@ -293,6 +351,94 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
               </div>
             );
           })}
+
+          {/* All-day todos collapsible section */}
+          {allDayTodos.length > 0 && (
+            <div className="w-full rounded-xl overflow-hidden transition-all" style={{ background: theme === 'dark' ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.05)', border: `1px solid ${theme === 'dark' ? 'rgba(99, 102, 241, 0.18)' : 'rgba(99, 102, 241, 0.12)'}` }}>
+              <button
+                type="button"
+                onClick={() => setTodosOpen(p => !p)}
+                className="w-full flex items-center justify-between text-left px-3.5 py-2.5 active:scale-[0.99] transition-transform cursor-pointer select-none"
+                style={{ border: 'none', background: 'transparent' }}
+              >
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <CheckSquare size={14} className="text-indigo-500 shrink-0" />
+                  <span className="text-xs sm:text-sm font-bold truncate" style={{ color: T.pri }}>Todos</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1' }}>
+                    {completedCount}/{allDayTodos.length}
+                  </span>
+                </div>
+                <ChevronDown
+                  size={14}
+                  style={{
+                    color: T.mut,
+                    transform: todosOpen ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 0.2s ease'
+                  }}
+                />
+              </button>
+
+              {todosOpen && (
+                <div className="flex flex-col gap-1.5 px-2 pb-2.5 pt-0.5 border-t" style={{ borderColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
+                  {sortedAllDayTodos.map(ev => {
+                    const task = ev.linkedTaskId ? tasks?.find(t => t.id === ev.linkedTaskId) : undefined;
+                    const isSubtask = !!task?.parentId || !!ev.parent_id;
+                    const isCompleted = task ? !!task.isCompleted : !!ev.is_completed;
+                    const isExp = expandedEventId === ev.id;
+
+                    return (
+                      <div
+                        key={`allday-todo-${ev.id}`}
+                        className={`rounded-xl overflow-hidden transition-all ${isSubtask ? 'ml-4 border-l-2 border-indigo-500/40 pl-2.5' : 'w-full'}`}
+                        style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#f4f4f5', border: 'none' }}
+                      >
+                        <div className="w-full flex items-center justify-between text-left px-3.5 py-2.5">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (ev.linkedTaskId) {
+                                  useDataStore.getState().toggleTask(ev.linkedTaskId);
+                                }
+                              }}
+                              className={`w-4 h-4 rounded-[4px] border border-current flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-90 ${isCompleted ? 'opacity-40' : 'opacity-100'}`}
+                              style={{ borderColor: ev.color || T.accent, color: ev.color || T.accent }}
+                              title={isCompleted ? "Als unerledigt markieren" : "Als erledigt markieren"}
+                            >
+                              {isCompleted && (
+                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                              )}
+                            </button>
+                            <span className={`text-xs sm:text-sm font-bold truncate ${isCompleted ? 'line-through opacity-60' : ''}`} style={{ color: T.pri }}>
+                              {ev.title}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md" style={{ background: `${ev.color || T.accent}18`, color: ev.color || T.accent }}>Todo</span>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
+                              className="p-1 rounded active:scale-95 transition-transform cursor-pointer"
+                              style={{ border: 'none', background: 'transparent' }}
+                              title="Aktionen anzeigen"
+                            >
+                              <ChevronDown size={14} style={{ color: T.mut, transform: isExp ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
+                            </button>
+                          </div>
+                        </div>
+                        {isExp && (
+                          <div className="px-3.5 pb-3 pt-1 border-t" style={{ borderColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
+                            <EventActions ev={ev} isActive={false} theme={theme} onDeleteEvent={onDeleteEvent} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -392,6 +392,13 @@ export default function MobileLayout({
   }, []);
 
   useEffect(() => {
+    if (activeTab !== 'todos' && editingTodoId) {
+      setEditingTodoId(null);
+      window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit'));
+    }
+  }, [activeTab, editingTodoId]);
+
+  useEffect(() => {
     const handlePromptPin = (e: Event) => {
       const customEvent = e as CustomEvent;
       const detail = customEvent.detail;
@@ -450,6 +457,8 @@ export default function MobileLayout({
   const [greetingTemplate] = useState(() => pickGreetingTemplate(new Date()));
 
   const handleCountdownTap = useCallback((eventId: string) => {
+    setEditingTodoId(null);
+    window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit'));
     setActiveTab('calendar');
     setCalViewMode('day');
     setActiveDate(new Date());
@@ -1664,7 +1673,10 @@ export default function MobileLayout({
         {editingTodoId ? (
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button
-              onClick={() => window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit'))}
+              onClick={() => {
+                setEditingTodoId(null);
+                window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit'));
+              }}
               className="h-10 px-3 flex items-center gap-1.5 rounded-xl sm:rounded-2xl text-xs font-semibold transition-all active:scale-95 shrink-0 cursor-pointer"
               style={{
                 background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
@@ -1678,7 +1690,11 @@ export default function MobileLayout({
             </button>
 
             <button
-              onClick={() => window.dispatchEvent(new CustomEvent('tide:todo-delete', { detail: { id: editingTodoId } }))}
+              onClick={() => {
+                const idToDelete = editingTodoId;
+                setEditingTodoId(null);
+                window.dispatchEvent(new CustomEvent('tide:todo-delete', { detail: { id: idToDelete } }));
+              }}
               className="w-10 h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer hover:bg-rose-500/10"
               style={{
                 background: 'transparent',
@@ -1691,7 +1707,11 @@ export default function MobileLayout({
             </button>
 
             <button
-              onClick={() => window.dispatchEvent(new CustomEvent('tide:todo-save-edit', { detail: { id: editingTodoId } }))}
+              onClick={() => {
+                const idToSave = editingTodoId;
+                setEditingTodoId(null);
+                window.dispatchEvent(new CustomEvent('tide:todo-save-edit', { detail: { id: idToSave } }));
+              }}
               className="h-10 px-3 flex items-center gap-1.5 rounded-xl sm:rounded-2xl text-xs font-semibold transition-all active:scale-95 shrink-0 cursor-pointer"
               style={{
                 background: theme === 'dark' ? '#ffffff' : '#000000',

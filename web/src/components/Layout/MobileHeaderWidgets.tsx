@@ -101,8 +101,20 @@ interface ConfettiParticle {
   isCircle: boolean;
 }
 
+let activeConfettiCanvas: HTMLCanvasElement | null = null;
+let activeConfettiAnimId: number | null = null;
+
 export function fireConfetti(originEl: HTMLElement): void {
   if (typeof window === 'undefined') return;
+
+  if (activeConfettiAnimId !== null) {
+    cancelAnimationFrame(activeConfettiAnimId);
+    activeConfettiAnimId = null;
+  }
+  if (activeConfettiCanvas) {
+    activeConfettiCanvas.remove();
+    activeConfettiCanvas = null;
+  }
 
   const rect = originEl.getBoundingClientRect();
   const startX = rect.left + rect.width / 2;
@@ -116,11 +128,15 @@ export function fireConfetti(originEl: HTMLElement): void {
   canvas.style.height = '100vh';
   canvas.style.pointerEvents = 'none';
   canvas.style.zIndex = '99999';
+  canvas.style.willChange = 'transform';
+  canvas.style.transform = 'translateZ(0)';
   document.body.appendChild(canvas);
+  activeConfettiCanvas = canvas;
 
   const ctx = canvas.getContext('2d');
   if (!ctx) {
     canvas.remove();
+    if (activeConfettiCanvas === canvas) activeConfettiCanvas = null;
     return;
   }
 
@@ -133,7 +149,7 @@ export function fireConfetti(originEl: HTMLElement): void {
 
   const colors = ['#A855F7', '#EC4899', '#6366F1', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#06B6D4'];
   const particles: ConfettiParticle[] = [];
-  const particleCount = 65;
+  const particleCount = 38;
 
   for (let i = 0; i < particleCount; i++) {
     const angle = -Math.PI / 2 + (Math.random() - 0.5) * (Math.PI * 0.45);
@@ -150,14 +166,13 @@ export function fireConfetti(originEl: HTMLElement): void {
       wobble: Math.random() * Math.PI * 2,
       wobbleSpeed: Math.random() * 0.08 + 0.04,
       opacity: 1,
-      decay: Math.random() * 0.003 + 0.004,
+      decay: 0.016 + Math.random() * 0.008,
       isCircle: Math.random() < 0.2,
     });
   }
 
   const gravity = 0.22;
   const drag = 0.985;
-  let animationFrameId: number;
 
   const step = () => {
     ctx.clearRect(0, 0, width, height);
@@ -186,35 +201,33 @@ export function fireConfetti(originEl: HTMLElement): void {
 
       activeCount++;
 
-      const wobbleX = p.x;
-      const wobbleY = p.y;
-
-      ctx.save();
-      ctx.translate(wobbleX, wobbleY);
-      ctx.rotate(p.rotation);
-      ctx.scale(Math.cos(p.wobble), 1);
       ctx.globalAlpha = Math.max(0, p.opacity);
       ctx.fillStyle = p.color;
 
       if (p.isCircle) {
         ctx.beginPath();
-        ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, p.size / 2, 0, Math.PI * 2);
         ctx.fill();
       } else {
-        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+        const w = Math.max(1, p.size * Math.abs(Math.cos(p.wobble)));
+        ctx.fillRect(p.x - w / 2, p.y - p.size / 2, w, p.size);
       }
-
-      ctx.restore();
     }
 
     if (activeCount === 0) {
-      cancelAnimationFrame(animationFrameId);
+      if (activeConfettiAnimId !== null) {
+        cancelAnimationFrame(activeConfettiAnimId);
+        activeConfettiAnimId = null;
+      }
+      if (activeConfettiCanvas === canvas) {
+        activeConfettiCanvas = null;
+      }
       canvas.remove();
       return;
     }
 
-    animationFrameId = requestAnimationFrame(step);
+    activeConfettiAnimId = requestAnimationFrame(step);
   };
 
-  animationFrameId = requestAnimationFrame(step);
+  activeConfettiAnimId = requestAnimationFrame(step);
 }

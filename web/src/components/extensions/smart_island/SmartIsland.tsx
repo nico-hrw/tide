@@ -119,7 +119,7 @@ function TimelineView({ payload }: { payload?: Record<string, any> }) {
                         <div key={i} className="relative z-10 flex items-start gap-3">
                             {/* Dot on the timeline */}
                             <div className="mt-2.5 relative flex items-center justify-center shrink-0">
-                                <div className={`w-[6px] h-[6px] rounded-full z-10 ring-4 ring-white dark:ring-[#1E293B] ${isPast ? 'bg-gray-300 dark:bg-gray-600' : isNow ? 'bg-indigo-500 animate-pulse' : 'bg-indigo-300 dark:bg-indigo-600'}`} />
+                                <div className={`w-[6px] h-[6px] rounded-full z-10 ring-4 ring-[#18181b] dark:ring-[#09090b] ${isPast ? 'bg-gray-300 dark:bg-gray-600' : isNow ? 'bg-indigo-500 animate-pulse' : 'bg-indigo-300 dark:bg-indigo-600'}`} />
                             </div>
 
                             <div
@@ -279,7 +279,7 @@ const InteractiveCardView = ({ payload }: { payload: any }) => {
                     e.stopPropagation();
                     if (payload?.onAction) payload.onAction();
                 }}
-                className="w-full py-2.5 mt-1 rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-black dark:hover:bg-gray-100"
+                className="w-full py-2.5 mt-1 rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] hover:bg-[#09090b] dark:hover:bg-zinc-100"
             >
                 {isEvent ? (
                     <>
@@ -796,7 +796,7 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
                         animate={{ opacity: 1, height: 'auto', scale: 1 }}
                         exit={{ opacity: 0, height: 0, scale: 0.96 }}
                         transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                        className="flex flex-col gap-1.5 p-2 rounded-xl bg-zinc-900/60 border border-white/10 max-h-48 overflow-y-auto"
+                        className="flex flex-col gap-1.5 p-2 rounded-xl bg-[#18181b]/80 dark:bg-[#09090b]/85 border border-white/10 max-h-48 overflow-y-auto"
                     >
                         {searchItems.map((item, idx) => {
                             const isSelected = idx === selectedIndex;
@@ -943,7 +943,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                 damping: 30,
                 mass: 0.9
             }}
-            className={`liquidGlass-wrapper dark text-gray-800 dark:text-gray-100 ${positionClass} ${sizeClass}`}
+            className={`liquidGlass-wrapper text-zinc-100 ${positionClass} ${sizeClass}`}
         >
             {/* Layer 1: Distortion blur */}
             <div className="liquidGlass-effect" />

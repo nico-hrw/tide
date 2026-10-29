@@ -151,6 +151,12 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   const h = Math.floor(diffSec / 3600);
   const m = Math.floor((diffSec % 3600) / 60);
   const formattedHoursMins = `${h}:${pad(m)}h`;
+  const isUnderOneHour = Boolean(target && diffSec < 3600);
+  const formattedCountdown = target
+    ? isUnderOneHour
+      ? `${Math.max(1, Math.ceil(diffSec / 60))} Min`
+      : formattedHoursMins
+    : '0:00h';
 
   // Imminent event: starting in 15 minutes or less
   const isImminent = !target?.isActive && target !== null && diffSec > 0 && diffSec <= 900;
@@ -206,7 +212,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
         whileTap={{ scale: 0.97 }}
-        className={`absolute right-0 top-0 h-20 bg-gray-900/95 dark:bg-[#121215]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-xl text-white overflow-hidden ${
+        className={`absolute right-0 top-0 h-20 bg-[#18181b]/95 dark:bg-[#09090b]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-xl text-white overflow-hidden ${
           isExpanded ? 'w-[min(320px,calc(100vw-32px))] z-30' : 'w-20 z-20'
         }`}
       >
@@ -368,8 +374,12 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-none">
                 {target?.isActive ? 'NOCH' : (target ? 'STARTET IN' : 'HEUTE')}
               </span>
-              <span className="text-2xl sm:text-[26px] font-black tracking-tight tabular-nums text-white leading-none">
-                {target ? formattedHoursMins : '0:00h'}
+              <span
+                className={`${
+                  isUnderOneHour ? 'text-lg' : 'text-2xl sm:text-[26px]'
+                } font-black tracking-tight tabular-nums text-white leading-none whitespace-nowrap`}
+              >
+                {formattedCountdown}
               </span>
             </motion.div>
           )}

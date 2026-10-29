@@ -1,10 +1,15 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, ListTodo, ChevronRight, Archive, CheckCircle2, Timer } from 'lucide-react';
+import {
+  Plus, ListTodo, ChevronRight, Archive, CheckCircle2, Timer,
+  AlertCircle, Calendar, Clock,
+} from 'lucide-react';
+import { format, isToday, isBefore, startOfDay, addDays, isSameDay } from 'date-fns';
+import { de } from 'date-fns/locale';
 import { TaskItem } from '@/store/useDataStore';
-import { FilterStatus, ArchiveTier, ARCHIVE_TIER_CONFIG, TaskWithChildren } from './types';
+import { FilterStatus, ArchiveTier, ARCHIVE_TIER_CONFIG, TaskWithChildren, parseDateSafe } from './types';
 import { TaskCreateDraft } from './TodoCreateCard';
 
 export interface TodoListSectionsProps {
@@ -31,11 +36,124 @@ export interface TodoListSectionsProps {
   selectedTag: string | null;
   renderTask: (task: TaskWithChildren) => React.ReactNode;
   editingTaskId?: string | null;
+  selectedDateFilter?: Date | null;
+  setSelectedDateFilter?: (date: Date | null) => void;
 }
 
 export const TodoListSections: React.FC<TodoListSectionsProps> = ({
   selectedFolder, setSelectedFolder, filterStatus, searchQuery, tasks, sortedTasks, tasksToRender, activeTasks, recentlyCompletedTasks, archivedTasks, archivedByTier, openTiers, showCompleted, showArchive, setShowCompleted, setShowArchive, setOpenTiers, setDraft, setIsCreateOpen, setSelectedTag, selectedTag, renderTask, editingTaskId = null,
+  selectedDateFilter = null, setSelectedDateFilter,
 }) => {
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  const toggleSection = (key: string) => {
+    setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const isDateGroupedView = selectedDateFilter === null && filterStatus !== 'completed' && filterStatus !== 'archived';
+
+  const dateSections = useMemo(() => {
+    if (!isDateGroupedView) return [];
+    const today = startOfDay(new Date());
+    const tomorrow = startOfDay(addDays(today, 1));
+
+    const overdue: (TaskWithChildren | TaskItem)[] = [];
+    const todayTasks: (TaskWithChildren | TaskItem)[] = [];
+    const tomorrowTasks: (TaskWithChildren | TaskItem)[] = [];
+    const upcoming: (TaskWithChildren | TaskItem)[] = [];
+    const noDate: (TaskWithChildren | TaskItem)[] = [];
+
+    for (const task of tasksToRender) {
+      const rawDate = task.dueDate || task.scheduledDate;
+      const d = parseDateSafe(rawDate);
+      if (!d) {
+        noDate.push(task);
+        continue;
+      }
+      const day = startOfDay(d);
+      if (isBefore(day, today)) {
+        overdue.push(task);
+      } else if (isSameDay(day, today)) {
+        todayTasks.push(task);
+      } else if (isSameDay(day, tomorrow)) {
+        tomorrowTasks.push(task);
+      } else {
+        upcoming.push(task);
+      }
+    }
+
+    return [
+      {
+        key: 'overdue',
+        title: 'Überfällig',
+        tasks: overdue,
+        badgeClass: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20',
+        titleColor: 'text-rose-600 dark:text-rose-400',
+        icon: AlertCircle,
+      },
+      {
+        key: 'today',
+        title: 'Heute',
+        tasks: todayTasks,
+        badgeClass: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20',
+        titleColor: 'text-amber-600 dark:text-amber-400',
+        icon: Clock,
+      },
+      {
+        key: 'tomorrow',
+        title: 'Morgen',
+        tasks: tomorrowTasks,
+        badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20',
+        titleColor: 'text-blue-600 dark:text-blue-400',
+        icon: Calendar,
+      },
+      {
+        key: 'upcoming',
+        title: 'Demnächst',
+        tasks: upcoming,
+        badgeClass: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20',
+        titleColor: 'text-indigo-600 dark:text-indigo-400',
+        icon: Calendar,
+      },
+      {
+        key: 'no_date',
+        title: 'Ohne Datum',
+        tasks: noDate,
+        badgeClass: 'bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 border border-gray-200/60 dark:border-white/10',
+        titleColor: 'text-gray-600 dark:text-gray-400',
+        icon: ListTodo,
+      },
+    ];
+  }, [isDateGroupedView, tasksToRender]);
+
+  const renderTaskItem = (task: TaskWithChildren | TaskItem) => {
+    const isEditing = task.id === editingTaskId;
+    const isOther = Boolean(editingTaskId && !isEditing);
+
+    const animateState = editingTaskId
+      ? isEditing
+        ? { opacity: 1, y: 0, scale: 1, display: 'block' }
+        : { opacity: 0, display: 'none' }
+      : { opacity: 1, y: 0, scale: 1, display: 'block' };
+
+    const itemStyle: React.CSSProperties | undefined = isOther
+      ? { pointerEvents: 'none' }
+      : undefined;
+
+    return (
+      <motion.div
+        key={task.id}
+        initial={{ opacity: 0, y: -8 }}
+        animate={animateState}
+        exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2, ease: 'easeOut' } }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        style={itemStyle}
+        className={isEditing ? 'relative z-20 h-full flex-1 min-h-0 flex flex-col' : undefined}
+      >
+        {renderTask(task as TaskWithChildren)}
+      </motion.div>
+    );
+  };
   const sectionTitle = searchQuery
     ? 'Suchergebnisse'
     : selectedTag
@@ -68,44 +186,147 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
 
       {/* Task Cards List */}
       <div className={`flex flex-col ${editingTaskId !== null ? 'gap-0 h-full flex-1 min-h-0' : 'gap-1.5'}`}>
-        <AnimatePresence initial={false}>
-          {tasksToRender.map((task) => {
-            const isEditing = task.id === editingTaskId;
-            const isOther = Boolean(editingTaskId && !isEditing);
+        {selectedDateFilter !== null && (
+        <motion.div
+          animate={
+            editingTaskId
+              ? { opacity: 0, height: 0, marginBottom: 0, overflow: 'hidden', pointerEvents: 'none' as const }
+              : { opacity: 1, height: 'auto', marginBottom: 10, pointerEvents: 'auto' as const }
+          }
+          transition={{ duration: 0.3 }}
+          className="flex items-center justify-between mt-1 px-1"
+        >
+          <div className="flex items-center gap-2">
+            <Calendar size={18} className="text-blue-500" />
+            <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white capitalize">
+              {isToday(selectedDateFilter)
+                ? 'Heute'
+                : format(selectedDateFilter, 'EEEE, d. MMMM', { locale: de })}
+            </h2>
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-semibold">
+              {tasksToRender.length} {tasksToRender.length === 1 ? 'Aufgabe' : 'Aufgaben'}
+            </span>
+          </div>
+          {setSelectedDateFilter && (
+            <button
+              type="button"
+              onClick={() => setSelectedDateFilter(null)}
+              className="text-xs text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+            >
+              Alle Aufgaben anzeigen
+            </button>
+          )}
+        </motion.div>
+      )}
 
-            const animateState = editingTaskId
-              ? isEditing
-                ? { opacity: 1, y: 0, scale: 1, height: 'auto' as const, marginBottom: 0, display: 'block' }
-                : {
-                    opacity: 0,
-                    scale: 0.98,
-                    height: 0,
-                    marginBottom: 0,
-                    overflow: 'hidden' as const,
-                    transitionEnd: { display: 'none' },
-                    transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] as const },
-                  }
-              : { opacity: 1, y: 0, scale: 1, height: 'auto' as const, marginBottom: 0, display: 'block' };
+      {/* When a specific date is selected and there are no tasks for it */}
+      {selectedDateFilter !== null && tasksToRender.length === 0 && (
+        <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 rounded-2xl p-8 text-center flex flex-col items-center justify-center shadow-2xs my-2">
+          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-3">
+            <Calendar size={24} />
+          </div>
+          <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">
+            {isToday(selectedDateFilter) ? 'Keine Aufgaben für heute' : `Keine Aufgaben am ${format(selectedDateFilter, 'd. MMMM', { locale: de })}`}
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mb-4">
+            {isToday(selectedDateFilter)
+              ? 'Für heute sind aktuell keine Aufgaben geplant.'
+              : 'Für dieses Datum sind aktuell keine Aufgaben eingetragen.'}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setDraft((p) => ({
+                  ...p,
+                  dueDate: format(selectedDateFilter, 'yyyy-MM-dd'),
+                }));
+                setIsCreateOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs cursor-pointer"
+            >
+              <Plus size={14} />
+              <span>Aufgabe für diesen Tag erstellen</span>
+            </button>
+            {setSelectedDateFilter && (
+              <button
+                type="button"
+                onClick={() => setSelectedDateFilter(null)}
+                className="px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+              >
+                Alle anzeigen
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
-            const itemStyle: React.CSSProperties | undefined = isOther
-              ? { pointerEvents: 'none' }
-              : undefined;
+      {/* Task Cards List: Grouped by date if default view, or flat if date selected or completed */}
+      {isDateGroupedView ? (
+        <div className={`flex flex-col ${editingTaskId !== null ? 'gap-0 h-full flex-1 min-h-0' : 'gap-3.5 sm:gap-4'}`}>
+          {dateSections.map((section) => {
+            if (section.tasks.length === 0) return null;
+            const isCollapsed = Boolean(collapsedSections[section.key]) && !section.tasks.some((t) => t.id === editingTaskId);
+            const SectionIcon = section.icon;
 
             return (
-              <motion.div
-                key={task.id}
-                initial={{ opacity: 0, y: -8 }}
-                animate={animateState}
-                exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.25, ease: 'easeOut' } }}
-                transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-                style={itemStyle}
-                className={isEditing ? 'relative z-20 h-full flex-1 min-h-0 flex flex-col' : undefined}
-              >
-                {renderTask(task as TaskWithChildren)}
-              </motion.div>
+              <div key={section.key} className="flex flex-col">
+                {/* Collapsible Section Header */}
+                <motion.button
+                  type="button"
+                  onClick={() => toggleSection(section.key)}
+                  animate={
+                    editingTaskId
+                      ? { opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' as const, marginBottom: 0 }
+                      : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const, marginBottom: 6 }
+                  }
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center justify-between py-1 px-1 text-left rounded-lg hover:bg-gray-100/60 dark:hover:bg-white/5 transition-colors cursor-pointer select-none group"
+                >
+                  <div className="flex items-center gap-2">
+                    <ChevronRight
+                      size={15}
+                      className={`text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-200 transition-transform duration-200 ${
+                        !isCollapsed ? 'rotate-90' : ''
+                      }`}
+                    />
+                    <SectionIcon size={14} className={section.titleColor} />
+                    <span className={`text-xs font-bold uppercase tracking-wider ${section.titleColor}`}>
+                      {section.title}
+                    </span>
+                  </div>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${section.badgeClass}`}>
+                    {section.tasks.length}
+                  </span>
+                </motion.button>
+
+                {/* Section Tasks */}
+                <AnimatePresence initial={false}>
+                  {!isCollapsed && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeInOut' }}
+                      className={`flex flex-col ${editingTaskId !== null ? 'gap-0 h-full flex-1 min-h-0' : 'gap-1.5'}`}
+                    >
+                      <AnimatePresence initial={false}>
+                        {section.tasks.map(renderTaskItem)}
+                      </AnimatePresence>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             );
           })}
-        </AnimatePresence>
+        </div>
+      ) : (
+        <div className={`flex flex-col ${editingTaskId !== null ? 'gap-0 h-full flex-1 min-h-0' : 'gap-1.5'}`}>
+          <AnimatePresence initial={false}>
+            {tasksToRender.map(renderTaskItem)}
+          </AnimatePresence>
+        </div>
+      )}
 
         {filterStatus === 'all' && activeTasks.length === 0 && (recentlyCompletedTasks.length > 0 || archivedTasks.length > 0) && (
           <motion.div
@@ -327,7 +548,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
               </motion.div>
             )}
 
-            {sortedTasks.length === 0 && (
+            {sortedTasks.length === 0 && selectedDateFilter === null && (
               <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-12 text-center flex flex-col items-center justify-center shadow-2xs">
                 <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-3">
                   {filterStatus === 'completed' ? (

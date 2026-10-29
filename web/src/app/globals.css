@@ -469,14 +469,14 @@ body {
   display: flex;
   font-weight: 600;
   overflow: hidden;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 12px 28px -6px rgba(0, 0, 0, 0.35);
   transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, outline 0.2s ease;
-  outline: 1px solid rgba(0, 0, 0, 0.08);
+  outline: 1px solid rgba(255, 255, 255, 0.12);
   outline-offset: 0px;
 }
 
 .dark .liquidGlass-wrapper {
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.15);
   outline: 1px solid rgba(255, 255, 255, 0.15);
 }
 
@@ -501,11 +501,11 @@ body {
   z-index: 1;
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(24, 24, 27, 0.92);
 }
 
 .dark .liquidGlass-tint {
-  background: rgba(28, 28, 30, 0.92);
+  background: rgba(9, 9, 11, 0.95);
 }
 
 .liquidGlass-glow {
@@ -531,7 +531,7 @@ body {
   inset: 0;
   z-index: 2;
   overflow: hidden;
-  box-shadow: inset 2px 2px 1px 0 rgba(255, 255, 255, 0.4), inset -1px -1px 1px 1px rgba(255, 255, 255, 0.3);
+  box-shadow: inset 1px 1px 1px 0 rgba(255, 255, 255, 0.15), inset -1px -1px 1px 0 rgba(0, 0, 0, 0.4);
 }
 
 .dark .liquidGlass-shine {
@@ -541,7 +541,7 @@ body {
 .liquidGlass-text {
   position: relative;
   z-index: 10;
-  color: black;
+  color: #F8FAFC;
 }
 
 .dark .liquidGlass-text {

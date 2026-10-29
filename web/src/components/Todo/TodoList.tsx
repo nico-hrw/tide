@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, X, ListTodo, Folder, Inbox, ArrowLeft, Tag, FolderPlus,
@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import {
   format, isBefore, startOfDay, endOfDay, addDays, addWeeks, addMonths, addYears,
+  isToday, isTomorrow, isSameDay,
 } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
 import TodoFolderOverview, { FolderStat } from './TodoFolderOverview';
@@ -15,6 +16,7 @@ import TodoTreeItem from './TodoTreeItem';
 import TodoListHeader from './TodoListHeader';
 import TodoFolderBanner from './TodoFolderBanner';
 import TodoListSections from './TodoListSections';
+import TodoDateFilterStrip from './TodoDateFilterStrip';
 import TodoFolderModal from './TodoFolderModal';
 import TodoCreateCard, { TaskCreateDraft } from './TodoCreateCard';
 import TodoFocusedGroupView from './TodoFocusedGroupView';
@@ -178,6 +180,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
+  const [selectedDateFilter, setSelectedDateFilter] = useState<Date | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('deadline');
   const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
   const [newFolderNameInput, setNewFolderNameInput] = useState('');
@@ -212,6 +215,9 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     } else {
       window.dispatchEvent(new CustomEvent('tide:todo-editing-end'));
     }
+    return () => {
+      window.dispatchEvent(new CustomEvent('tide:todo-editing-end'));
+    };
   }, [editingTaskId]);
 
   useEffect(() => {
@@ -557,10 +563,14 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       if (filterStatus === 'completed' && (!t.isCompleted || archived)) return false;
       if (filterStatus === 'archived' && !archived) return false;
       if (filterPriority !== 'all' && getTaskPriority(t) !== filterPriority) return false;
+      if (selectedDateFilter !== null) {
+        const d = parseDateSafe(t.dueDate || t.scheduledDate);
+        if (!d || !isSameDay(d, selectedDateFilter)) return false;
+      }
       if (q && !matchesSearch(t)) return false;
       return true;
     });
-  }, [taskTree, selectedFolder, selectedTag, filterStatus, filterPriority, searchQuery]);
+  }, [taskTree, selectedFolder, selectedTag, filterStatus, filterPriority, searchQuery, selectedDateFilter]);
 
   const sortedTasks = useMemo(() => [...filteredTasks].sort((a, b) => {
     if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
@@ -611,7 +621,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     return { week, month, year };
   }, [archivedTasks]);
 
-  const renderTask = (task: TaskWithChildren) => (
+  const renderTask = useCallback((task: TaskWithChildren) => (
     <TodoTreeItem disableClickDebounce
         task={task}
         isExpanded={editingTaskId === task.id}
@@ -640,7 +650,31 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         onRowClick={handleRowClick}
         onFocusGroup={(groupTask) => setFocusedGroupId(groupTask.id)}
       />
-  );
+  ), [
+    editingTaskId,
+    completingTaskIds,
+    editDraft,
+    setEditDraft,
+    editNewTagInput,
+    setEditNewTagInput,
+    allTags,
+    customTags,
+    allFolders,
+    selectedTag,
+    setSelectedTag,
+    selectedFolder,
+    setSelectedFolder,
+    setViewMode,
+    handleAddCustomTag,
+    handleRemoveCustomTag,
+    handleToggleTask,
+    handleToggleInProgress,
+    saveEditing,
+    cancelEditing,
+    deleteTask,
+    handleRowClick,
+    setFocusedGroupId,
+  ]);
 
   return (
     <div className={`w-full h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] relative overflow-hidden ${className || ''}`}>
@@ -747,6 +781,15 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
 
 
+                  {/* Horizontal Date Scrollbar / Strip ("Datumsfilter") */}
+                  {editingTaskId === null && viewMode === 'tasks' && (
+                    <TodoDateFilterStrip
+                      selectedDate={selectedDateFilter}
+                      onSelectDate={setSelectedDateFilter}
+                      tasks={tasks}
+                    />
+                  )}
+
                   <TodoListSections
                     selectedFolder={selectedFolder}
                     setSelectedFolder={setSelectedFolder}
@@ -771,6 +814,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                     selectedTag={selectedTag}
                     renderTask={renderTask}
                     editingTaskId={editingTaskId}
+                    selectedDateFilter={selectedDateFilter}
+                    setSelectedDateFilter={setSelectedDateFilter}
                   />
                 </motion.div>
               )}
@@ -798,7 +843,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                           <span className="font-semibold text-sm text-gray-900 dark:text-white">Ansicht & Filter</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          {(filterPriority !== 'all' || selectedTag !== null || filterStatus !== 'all' || searchQuery.trim() !== '') && (
+                          {(filterPriority !== 'all' || selectedTag !== null || filterStatus !== 'all' || searchQuery.trim() !== '' || selectedDateFilter !== null) && (
                             <button
                               type="button"
                               onClick={() => {
@@ -806,6 +851,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                                 setSelectedTag(null);
                                 setFilterStatus('all');
                                 setSearchQuery('');
+                                setSelectedDateFilter(null);
                               }}
                               className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5 rounded cursor-pointer"
                             >
@@ -910,7 +956,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                               }}
                               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                                 filterStatus === item.id
-                                  ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-xs font-semibold'
+                                  ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
                                   : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
                               }`}
                             >
@@ -941,7 +987,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                               }}
                               className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                                 filterPriority === item.id
-                                  ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-xs font-semibold'
+                                  ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
                                   : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10'
                               }`}
                             >
@@ -986,7 +1032,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                               }}
                               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                                 selectedTag === null
-                                  ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 shadow-xs font-semibold'
+                                  ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
                                   : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
                               }`}
                             >
@@ -1011,6 +1057,72 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                             ))}
                           </div>
                         )}
+                      </div>
+
+                      {/* Filter nach Datum */}
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
+                          <span className="flex items-center gap-1">
+                            <Calendar size={12} />
+                            Datum
+                          </span>
+                          {selectedDateFilter && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedDateFilter(null);
+                                setIsFilterMenuOpen(false);
+                              }}
+                              className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                            >
+                              Zurücksetzen
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedDateFilter(null);
+                              setIsFilterMenuOpen(false);
+                            }}
+                            className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                              selectedDateFilter === null
+                                ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
+                                : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                            }`}
+                          >
+                            Alle
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedDateFilter(startOfDay(new Date()));
+                              setIsFilterMenuOpen(false);
+                            }}
+                            className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                              selectedDateFilter && isToday(selectedDateFilter)
+                                ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                                : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                            }`}
+                          >
+                            Heute
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedDateFilter(startOfDay(addDays(new Date(), 1)));
+                              setIsFilterMenuOpen(false);
+                            }}
+                            className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                              selectedDateFilter && isTomorrow(selectedDateFilter)
+                                ? 'bg-blue-600 text-white shadow-xs font-semibold'
+                                : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                            }`}
+                          >
+                            Morgen
+                          </button>
+                        </div>
                       </div>
             </motion.div>
           )}

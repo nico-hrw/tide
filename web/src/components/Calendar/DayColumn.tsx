@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { format, isSameDay, getHours, getMinutes } from "date-fns";
 import { useHighlight } from "@/components/HighlightContext";
 import { motion, useTransform, MotionValue, useMotionValue } from "framer-motion";
@@ -6,6 +6,7 @@ import { CalendarEventItem } from './CalendarEventItem';
 import { useDataStore } from "@/store/useDataStore";
 import { extractTimeFromText } from "@/lib/timeParser";
 import { getHolidayForDate } from "@/lib/holidays";
+import { CheckSquare, ChevronDown } from "lucide-react";
 
 interface CalendarEvent {
     id: string;
@@ -297,6 +298,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     }, []);
 
     const activeParentId = useDataStore(state => state.activeParentId);
+    const tasks = useDataStore(state => state.tasks);
+    const [todosExpanded, setTodosExpanded] = useState(false);
 
     const visibleEvents = useMemo(() => {
         const isEvent = (id: string) => allEvents.some(ev => ev.id === id);
@@ -312,6 +315,60 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     // Separate all-day events from timed events
     const allDayEvents = useMemo(() => visibleEvents.filter(e => e.allDay), [visibleEvents]);
     const timedEvents = useMemo(() => visibleEvents.filter(e => !e.allDay), [visibleEvents]);
+
+    const regularAllDayEvents = useMemo(() => allDayEvents.filter(e => !e.is_task && !e.linkedTaskId), [allDayEvents]);
+    const allDayTodos = useMemo(() => allDayEvents.filter(e => e.is_task || e.linkedTaskId), [allDayEvents]);
+
+    const completedCount = useMemo(() => {
+        return allDayTodos.filter(e => {
+            const task = e.linkedTaskId ? tasks?.find(t => t.id === e.linkedTaskId) : undefined;
+            return task ? !!task.isCompleted : !!e.is_completed;
+        }).length;
+    }, [allDayTodos, tasks]);
+
+    const sortedAllDayTodos = useMemo(() => {
+        const rootTodos: CalendarEvent[] = [];
+        const childrenMap = new Map<string, CalendarEvent[]>();
+
+        allDayTodos.forEach(e => {
+            const task = e.linkedTaskId ? tasks?.find(t => t.id === e.linkedTaskId) : undefined;
+            const parentId = task?.parentId || e.parent_id;
+            if (parentId) {
+                if (!childrenMap.has(parentId)) {
+                    childrenMap.set(parentId, []);
+                }
+                childrenMap.get(parentId)!.push(e);
+            } else {
+                rootTodos.push(e);
+            }
+        });
+
+        const result: CalendarEvent[] = [];
+        const visited = new Set<string>();
+
+        rootTodos.forEach(root => {
+            result.push(root);
+            visited.add(root.id);
+            const taskId = root.linkedTaskId || root.id;
+            const children = (childrenMap.get(taskId) || []).concat(childrenMap.get(root.id) || []);
+            const uniqueChildren = Array.from(new Set(children));
+            uniqueChildren.forEach(child => {
+                if (!visited.has(child.id)) {
+                    result.push(child);
+                    visited.add(child.id);
+                }
+            });
+        });
+
+        allDayTodos.forEach(e => {
+            if (!visited.has(e.id)) {
+                result.push(e);
+                visited.add(e.id);
+            }
+        });
+
+        return result;
+    }, [allDayTodos, tasks]);
 
     const calendarOverlapMode = useDataStore(s => s.calendarOverlapMode || 'stack');
     const calendarColorPalette = useDataStore(s => s.calendarColorPalette || 'modern-dark');
@@ -539,7 +596,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             {allDayEvents.length > 0 && (
                 <div className="sticky top-[50px] z-[65] w-full h-0 pointer-events-auto">
                     <div className="absolute top-0 left-0 right-0 w-[140px] md:w-[155px] lg:w-[185px] xl:w-[210px] bg-white/30 dark:bg-slate-900/40 backdrop-blur-2xl p-1 flex flex-col gap-1 border-b border-gray-200/60 dark:border-slate-800/60 rounded-b-xl">
-                        {allDayEvents.map(event => {
+                        {regularAllDayEvents.map(event => {
                             const theme = getEventTheme(event, calendarColorPalette);
                             const isHighlightedEvent = isHighlighted(event.id, 'event');
                             return (
@@ -614,6 +671,136 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                 </div>
                             );
                         })}
+
+                        {allDayTodos.length > 0 && (
+                            <div className="flex flex-col gap-1 w-full">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setTodosExpanded(prev => !prev);
+                                    }}
+                                    className="flex items-center justify-between w-full px-2 py-1 rounded bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer select-none border border-slate-200/60 dark:border-slate-700/60"
+                                >
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                        <CheckSquare size={12} className="text-indigo-500 shrink-0" />
+                                        <span className="truncate text-[11px]">Todos</span>
+                                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
+                                            {completedCount}/{allDayTodos.length}
+                                        </span>
+                                    </div>
+                                    <ChevronDown
+                                        size={12}
+                                        className={`shrink-0 transition-transform duration-200 ${todosExpanded ? 'rotate-180' : ''}`}
+                                    />
+                                </button>
+                                {todosExpanded && (
+                                    <div className="flex flex-col gap-1 w-full">
+                                        {sortedAllDayTodos.map(event => {
+                                            const task = event.linkedTaskId ? tasks?.find(t => t.id === event.linkedTaskId) : undefined;
+                                            const isSubtask = !!task?.parentId || !!event.parent_id;
+                                            const isCompleted = task ? !!task.isCompleted : !!event.is_completed;
+                                            const theme = getEventTheme(event, calendarColorPalette);
+                                            const isHighlightedEvent = isHighlighted(event.id, 'event');
+
+                                            return (
+                                                <div
+                                                    key={event.id}
+                                                    draggable={!readOnly}
+                                                    onDragStart={(e) => {
+                                                        if (readOnly) return;
+                                                        e.dataTransfer.setData("text/plain", event.id);
+                                                        e.dataTransfer.setData("tide/calendar-event", JSON.stringify(event));
+                                                        
+                                                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                                        const clone = (e.currentTarget as HTMLElement).cloneNode(true) as HTMLElement;
+                                                        clone.style.width = `${rect.width}px`;
+                                                        clone.style.height = `${rect.height}px`;
+                                                        clone.style.position = 'absolute';
+                                                        clone.style.top = '-9999px';
+                                                        clone.style.zIndex = '999999';
+                                                        clone.style.opacity = '0.9';
+                                                        document.body.appendChild(clone);
+                                                        e.dataTransfer.setDragImage(clone, e.clientX - rect.left, e.clientY - rect.top);
+                                                        setTimeout(() => document.body.removeChild(clone), 0);
+                                                    }}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (onEventClick) {
+                                                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                                            onEventClick(event, rect);
+                                                        }
+                                                    }}
+                                                    className={`
+                                                    group flex items-center justify-between relative overflow-hidden
+                                                    text-xs font-semibold px-2 py-1 rounded cursor-pointer transition-all
+                                                    ${isSubtask ? 'pl-4 ml-2 border-l-2 border-indigo-400/30 dark:border-indigo-500/30 w-[calc(100%-8px)]' : 'w-full'}
+                                                    ${isHighlightedEvent ? 'ring-2 ring-purple-500 ring-offset-1 dark:ring-offset-[#1A1A1A]' : 'opacity-90 hover:opacity-100'}
+                                                    ${event.is_cancelled ? 'opacity-40 line-through grayscale font-normal' : ''}
+                                                    ${isCompleted ? 'opacity-60' : ''}
+                                                `}
+                                                    style={{ 
+                                                        backgroundColor: event.is_cancelled ? '#94a3b8' : theme.bg, 
+                                                        color: theme.text, 
+                                                        border: `1px solid ${theme.border}` 
+                                                    }}
+                                                    title={event.title}
+                                                >
+                                                    {/* Shading Overlay Layer */}
+                                                    {event.shading && event.shading > 0 && (
+                                                        <div 
+                                                            className="absolute inset-0 pointer-events-none" 
+                                                            style={{ 
+                                                                backgroundColor: 
+                                                                    event.shading === 1 ? 'rgba(90, 90, 90, 0.2)' :
+                                                                    event.shading === 2 ? 'rgba(130, 130, 130, 0.4)' :
+                                                                    event.shading === 3 ? 'rgba(170, 170, 170, 0.6)' :
+                                                                    'rgba(210, 210, 210, 0.8)',
+                                                                mixBlendMode: 'saturation'
+                                                            }} 
+                                                        />
+                                                    )}
+                                                    <div className="flex items-center gap-1.5 min-w-0 flex-1 relative z-10">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (event.linkedTaskId) {
+                                                                    useDataStore.getState().toggleTask(event.linkedTaskId);
+                                                                } else if (onTaskToggle) {
+                                                                    onTaskToggle(event.id, isCompleted);
+                                                                }
+                                                            }}
+                                                            className={`w-3.5 h-3.5 rounded-[3px] border border-current flex-shrink-0 flex items-center justify-center cursor-pointer transition-all hover:scale-110 ${isCompleted ? 'opacity-60' : 'opacity-100'}`}
+                                                            style={{ borderColor: theme.text, color: theme.text }}
+                                                            title={isCompleted ? "Als unerledigt markieren" : "Als erledigt markieren"}
+                                                        >
+                                                            {isCompleted && (
+                                                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                            )}
+                                                        </button>
+                                                        <span className={`truncate pr-1 ${isCompleted ? 'line-through opacity-70' : ''}`}>{event.title}</span>
+                                                    </div>
+                                                    {onEventDelete && (
+                                                        <button
+                                                            onMouseDown={(e) => e.stopPropagation()}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onEventDelete(event.id);
+                                                            }}
+                                                            className="opacity-0 group-hover:opacity-100 p-0.5 rounded-full bg-rose-500/20 hover:bg-rose-500/40 text-rose-500 dark:text-rose-400 shrink-0 transition-opacity relative z-10"
+                                                            title="Delete"
+                                                        >
+                                                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

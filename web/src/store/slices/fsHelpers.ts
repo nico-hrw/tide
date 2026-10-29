@@ -114,6 +114,7 @@ export function reconcileTasksWithLocal(
         if (!local) return bt;
         return {
             ...bt,
+            ...(local.dueDate && !bt.dueDate ? { dueDate: local.dueDate } : {}),
             ...(local.scheduledDate && !bt.scheduledDate ? { scheduledDate: local.scheduledDate } : {}),
             ...(local.completed_dates && (!bt.completed_dates || local.completed_dates.length > bt.completed_dates.length) ? { completed_dates: local.completed_dates } : {}),
             ...(local.folder !== undefined && bt.folder === undefined ? { folder: local.folder } : {}),

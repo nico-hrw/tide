@@ -72,9 +72,11 @@ function getTagColorClass(tag: string): string {
   return COLOR_PALETTE[idx];
 }
 
+function cn(...classes: (string | boolean | undefined | null)[]) {
+  return classes.filter(Boolean).join(' ');
+}
 
-
-export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
+export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function TodoTreeItem({
   task, depth = 0, isExpanded, editingTaskId, isCompleting = false, completingTaskIds,
   editDraft, setEditDraft, editNewTagInput, setEditNewTagInput,
   allTags = [], customTags = [], allFolders = [],
@@ -82,7 +84,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   handleAddCustomTag, handleRemoveCustomTag, handleToggleTask, handleToggleInProgress,
   saveEditing, cancelEditing, deleteTask, onRowClick, onSelectTask, disableClickDebounce = false,
   onFocusGroup, parentDueDate,
-}) => {
+}) {
   const addTask = useDataStore((s) => s.addTask);
   const updateTask = useDataStore((s) => s.updateTask);
   const parentTask = useDataStore((s) => task.parentId ? s.tasks.find((t) => t.id === task.parentId) : undefined);
@@ -93,6 +95,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [showSubtaskInput, setShowSubtaskInput] = useState(false);
+  const [subtasksCollapsed, setSubtasksCollapsed] = useState(false);
   const subtaskInputRef = useRef<HTMLInputElement>(null);
   const totalCount = task.children?.length || 0;
   const completedCount = task.children?.filter((c) => c.isCompleted).length || 0;
@@ -236,7 +239,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
       if ((depth || 0) > 0 && effectiveParentDueDate && dateStr > effectiveParentDueDate) {
         dateStr = effectiveParentDueDate;
       }
-      const targetStr = `${dateStr}T${timeStr}`;
+      const targetStr = `${dateStr}T${timeStr}:00`;
       setDraft((p) => ({ ...p, dueDate: targetStr }));
       updateTask(task.id, { dueDate: targetStr, scheduledDate: targetStr });
       return;
@@ -321,7 +324,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                 isTaskCompleted
                   ? 'opacity-40 grayscale-[30%] bg-gray-50/50 dark:bg-white/[0.02] text-gray-500 dark:text-gray-400 border border-gray-200/60 dark:border-white/[0.06]'
                   : isTodayActive
-                    ? 'bg-black text-white border border-black shadow-md dark:bg-white dark:text-black dark:border-white dark:shadow-md'
+                    ? 'bg-[#18181b] text-white border border-[#18181b] shadow-md dark:bg-white dark:text-black dark:border-white dark:shadow-md'
                     : 'bg-white/90 dark:bg-[#181818]/90 text-gray-900 dark:text-gray-100 border border-gray-200/80 dark:border-white/[0.08] hover:border-gray-300 dark:hover:border-white/20 shadow-[0_1px_3px_rgba(0,0,0,0.03)] dark:shadow-none'
               }`}
             >
@@ -476,7 +479,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                 {/* Main Info Card */}
                 <div className={`p-4 sm:p-5 rounded-2xl border flex flex-col shrink-0 z-20 ${
                   isTodayActive
-                    ? 'bg-black text-white border-black dark:bg-white dark:text-black dark:border-white shadow-md'
+                    ? 'bg-[#18181b] text-white border border-[#18181b] dark:bg-white dark:text-black dark:border-white shadow-md'
                     : 'bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white border-gray-200 dark:border-white/10 shadow-sm'
                 }`}>
                   <div className="flex items-center justify-between mb-2">
@@ -567,7 +570,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           }}
                           className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                             draft.priority === 'low'
-                              ? `bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 ${isTodayActive ? 'ring-offset-black dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
+                              ? `bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 ${isTodayActive ? 'ring-offset-[#18181b] dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
                               : isTodayActive
                                 ? 'bg-white/10 dark:bg-black/10 text-emerald-300 dark:text-emerald-700 hover:opacity-100 opacity-70'
                                 : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
@@ -584,7 +587,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           }}
                           className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                             draft.priority === 'medium'
-                              ? `bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 ${isTodayActive ? 'ring-offset-black dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
+                              ? `bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 ${isTodayActive ? 'ring-offset-[#18181b] dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
                               : isTodayActive
                                 ? 'bg-white/10 dark:bg-black/10 text-amber-300 dark:text-amber-700 hover:opacity-100 opacity-70'
                                 : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
@@ -601,7 +604,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           }}
                           className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                             draft.priority === 'high'
-                              ? `bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 ${isTodayActive ? 'ring-offset-black dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
+                              ? `bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 ${isTodayActive ? 'ring-offset-[#18181b] dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
                               : isTodayActive
                                 ? 'bg-white/10 dark:bg-black/10 text-rose-300 dark:text-rose-700 hover:opacity-100 opacity-70'
                                 : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
@@ -891,11 +894,21 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                 {/* Raw Unteraufgaben Header */}
                 {(!depth || depth < 1) && (
                   <div className="shrink-0 z-20">
-                    <div className="flex items-center justify-between px-1 pt-2">
-                      <span className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                    <button
+                      type="button"
+                      onClick={() => setSubtasksCollapsed((prev) => !prev)}
+                      className="w-full flex items-center justify-between px-1 pt-2 cursor-pointer group select-none text-left"
+                    >
+                      <span className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">
                         Unteraufgaben ({completedCount}/{totalCount})
                       </span>
-                    </div>
+                      <ChevronDown
+                        className={cn(
+                          "w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200",
+                          subtasksCollapsed && "-rotate-90"
+                        )}
+                      />
+                    </button>
                     <div className="w-full h-2 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden mt-1.5 mb-2">
                       <div
                         className="h-full bg-blue-500 rounded-full transition-all duration-300"
@@ -925,7 +938,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                           type="button"
                           onClick={() => void handleAddSubtask()}
                           disabled={!newSubtaskTitle.trim()}
-                          className="p-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-black dark:hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                          className="p-1.5 bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] rounded-lg hover:bg-[#09090b] dark:hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                           title="Unteraufgabe hinzufügen"
                         >
                           <Plus size={14} />
@@ -945,16 +958,9 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
               </div>
 
               {/* Subtasks list - ONLY scrollable element */}
-              {(!depth || depth < 1) && (
+              {(!depth || depth < 1) && !subtasksCollapsed && (
                 <div
                   className="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1 pb-6 sm:pb-8"
-                  onScroll={(e) => {
-                    const top = e.currentTarget.scrollTop;
-                    if (top > 25 && !isParentMinimized) {
-                      setIsParentMinimized(true);
-                    }
-                    // Do NOT auto-unminimize on scroll up! User must tap to expand.
-                  }}
                 >
                   {task.children && task.children.length > 0 ? (
                     task.children.map((child) => (
@@ -1065,7 +1071,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
                     }
                     if (isControlledExpanded === undefined) setLocalExpanded(false);
                   }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-xl bg-gray-900 hover:bg-black text-white dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 transition-colors cursor-pointer shadow-xs"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-xl bg-[#18181b] hover:bg-[#09090b] text-white dark:bg-white dark:text-[#09090b] dark:hover:bg-gray-100 transition-colors cursor-pointer shadow-xs"
                   title="Speichern"
                 >
                   <Check size={14} strokeWidth={2.5} />
@@ -1080,6 +1086,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = ({
       <TodoSplitModal isOpen={isSplitModalOpen} onClose={() => setIsSplitModalOpen(false)} parentTask={task} />
     </div>
   );
-};
+});
 
 export default TodoTreeItem;

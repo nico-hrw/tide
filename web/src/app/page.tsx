@@ -2327,7 +2327,14 @@ export default function Dashboard() {
                 end = new Date(y, m - 1, d, 23, 59, 59);
                 isAllDay = true;
             } else {
-                start = new Date(t.dueDate!);
+                let dateStr = t.dueDate!;
+                if (dateStr.includes('T') && dateStr.split('T')[1].length === 5) {
+                    dateStr += ':00';
+                }
+                start = new Date(dateStr);
+                if (isNaN(start.getTime())) {
+                    start = new Date(t.dueDate!);
+                }
                 end = new Date(start.getTime() + 30 * 60 * 1000);
                 isAllDay = false;
             }
