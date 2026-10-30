@@ -118,7 +118,6 @@ async function persistIndex(
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                version: 2,
                 content_ciphertext: v2Result.content_ciphertext,
                 metadata: v2Result.metadata,
                 access_keys: accessKeysMap

@@ -51,7 +51,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
     // Global shortcut: Cmd+K / Ctrl+K
     useEffect(() => {
         const handleGlobalKeyDown = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+            if ((e.metaKey || e.ctrlKey) && e.key?.toLowerCase() === 'k') {
                 e.preventDefault();
                 if (isOpen) onClose();
                 else onOpen?.();

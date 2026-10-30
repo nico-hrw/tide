@@ -158,7 +158,9 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
             const content = editorContentRef.current ?? canvasNoteDataRef.current;
             if (content) {
                 const contentStr = typeof content === "string" ? content : JSON.stringify(content);
-                await uploadPublicFile(noteId, contentStr, fileNameRef.current, () => handleFileNotFound(noteId));
+                const isTargetActive = noteId === activeNoteIdRef.current;
+                const pubTitle = (isTargetActive && fileNameRef.current) ? fileNameRef.current : (curFile?.title || "Untitled");
+                await uploadPublicFile(noteId, contentStr, pubTitle, () => handleFileNotFound(noteId));
             }
             return;
         }
@@ -267,7 +269,8 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
 
             // Persist updated secured_meta if title/icon/tags changed
             const lastMeta = lastSavedMetaRef.current[noteId];
-            const currentTitle = fileNameRef.current || curFile?.title || "Untitled";
+            const isTargetActive = noteId === activeNoteIdRef.current;
+            const currentTitle = (isTargetActive && fileNameRef.current) ? fileNameRef.current : (curFile?.title || "Untitled");
             const currentIcon = curFile?.icon || curFile?.metadata?.icon;
             const currentTags = curFile?.tags || curFile?.metadata?.tags;
 
@@ -372,7 +375,9 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
         if (!fileId) return;
         if (visibility === "public") {
             const contentString = typeof _content === "string" ? _content : JSON.stringify(_content);
-            await uploadPublicFile(fileId, contentString, fileNameRef.current, () => handleFileNotFound(fileId));
+            const isTargetActive = fileId === activeNoteIdRef.current;
+            const targetTitle = (isTargetActive && fileNameRef.current) ? fileNameRef.current : (useDataStore.getState().notes.find((n: any) => n.id === fileId)?.title || "Untitled");
+            await uploadPublicFile(fileId, contentString, targetTitle, () => handleFileNotFound(fileId));
             return;
         }
         await triggerSave(fileId, fileKey);

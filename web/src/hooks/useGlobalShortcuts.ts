@@ -35,7 +35,8 @@ export function useGlobalShortcuts(
 
         const handleKeyDown = (e: KeyboardEvent) => {
             const isMod = e.metaKey || e.ctrlKey;
-            const key = e.key.toLowerCase();
+            const key = e.key?.toLowerCase();
+            if (!key) return;
 
             // Escape: Close modals
             if (e.key === 'Escape') {

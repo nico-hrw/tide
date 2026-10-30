@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Clock, GraduationCap, Copy, Download, X, Check, MoreHorizontal } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
@@ -130,6 +130,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
         enabled: isHistoryMode,
     });
 
+    const titleInputNoteIdRef = useRef<string | null>(null);
     const [internalHoveredElementId, setInternalHoveredElementId] = useState<string | null>(null);
     const [internalIsLinkingMode, setInternalIsLinkingMode] = useState(false);
     const [internalActiveLinkBlockId, setInternalActiveLinkBlockId] = useState<string | null>(null);
@@ -181,13 +182,15 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                         activeLinkBlockId={activeLinkBlockId}
                         onLinkingComplete={() => { setIsLinkingMode(false); setActiveLinkBlockId(null); }}
                         onInsertAnchor={(x, y) => {
-                            if (!editorInstance) return null;
+                            if (!editorInstance || editorInstance.isDestroyed || !editorInstance.commands) return null;
                             try {
                                 const pos = editorInstance.view.posAtCoords({ left: x, top: y });
                                 if (!pos) return null;
                                 const anchorId = crypto.randomUUID();
-                                editorInstance.commands.focus();
-                                editorInstance.chain().insertContentAt(pos.pos, { type: 'anchor', attrs: { anchorId } }).run();
+                                if (editorInstance && !editorInstance.isDestroyed && editorInstance.commands) {
+                                    editorInstance.commands.focus();
+                                    editorInstance.chain().insertContentAt(pos.pos, { type: 'anchor', attrs: { anchorId } }).run();
+                                }
                                 return anchorId;
                             } catch (e) { console.error("[Canvas] Failed to insert anchor", e); return null; }
                         }}
@@ -292,23 +295,36 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 type="text"
                                                 autoFocus
                                                 value={fileName}
-                                                readOnly={(files.find(f => f.id === activeNoteId) as any)?.permission === 'view'}
+                                                readOnly={(files.find(f => f.id === (titleInputNoteIdRef.current || activeNoteId)) as any)?.permission === 'view'}
+                                                onFocus={() => {
+                                                    titleInputNoteIdRef.current = activeNoteId || (!NON_EDITOR_TABS.has(activeTabId) ? activeTabId : null);
+                                                }}
                                                 onChange={(e) => {
-                                                    if ((files.find(f => f.id === activeNoteId) as any)?.permission === 'view') return;
+                                                    const targetId = titleInputNoteIdRef.current || activeNoteId || (!NON_EDITOR_TABS.has(activeTabId) ? activeTabId : null);
+                                                    if (!titleInputNoteIdRef.current) titleInputNoteIdRef.current = targetId;
+                                                    if ((files.find(f => f.id === targetId) as any)?.permission === 'view') return;
                                                     const newTitle = e.target.value;
                                                     setFileName(newTitle);
                                                     setSaveStatus('unsaved');
-                                                    if (activeNoteId) {
-                                                        useDataStore.getState().setNotes(useDataStore.getState().notes.map(f => f.id === activeNoteId ? { ...f, title: newTitle } as any : f));
-                                                        setOpenTabs?.(prev => prev.map(t => t.id === activeNoteId ? { ...t, title: newTitle } : t));
+                                                    if (targetId) {
+                                                        useDataStore.getState().setNotes(useDataStore.getState().notes.map(f => f.id === targetId ? { ...f, title: newTitle } as any : f));
+                                                        setOpenTabs?.(prev => prev.map(t => t.id === targetId ? { ...t, title: newTitle } : t));
                                                     }
                                                 }}
                                                 onBlur={(e) => {
-                                                    if ((files.find(f => f.id === activeNoteId) as any)?.permission === 'view') return;
-                                                    if (activeNoteId) submitRename(activeNoteId, e.target.value);
+                                                    const targetId = titleInputNoteIdRef.current || activeNoteId || (!NON_EDITOR_TABS.has(activeTabId) ? activeTabId : null);
+                                                    titleInputNoteIdRef.current = null;
+                                                    if (!targetId) return;
+                                                    if ((files.find(f => f.id === targetId) as any)?.permission === 'view') return;
+                                                    submitRename(targetId, e.target.value);
                                                 }}
                                                 onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); editorInstance?.commands.focus(); }
+                                                    if (e.key === 'Enter' || e.key === 'Tab') {
+                                                        e.preventDefault();
+                                                        if (editorInstance && !editorInstance.isDestroyed && editorInstance.commands) {
+                                                            editorInstance.commands.focus();
+                                                        }
+                                                    }
                                                 }}
                                                 placeholder={getTranslation(useDataStore.getState().language || 'de', 'common', 'newNote')}
                                                 className="text-4xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-700 pb-1 leading-normal overflow-visible flex-1"

@@ -110,9 +110,19 @@ type Client struct {
 	userID     string
 	yClientID  uint32
 	conn       *websocket.Conn
+	send       chan []byte
+	done       chan struct{}
+	closeOnce  sync.Once
 	permission string
 	pmu        sync.RWMutex
 	wmu        sync.Mutex
+}
+
+func (c *Client) close() {
+	c.closeOnce.Do(func() {
+		close(c.done)
+		c.conn.Close()
+	})
 }
 
 func (c *Client) getPermission() string {
@@ -150,7 +160,15 @@ func (c *Client) sendControl(payload any) error {
 	if err != nil {
 		return err
 	}
-	return c.writeMessage(websocket.BinaryMessage, frame)
+	select {
+	case <-c.done:
+		return nil
+	case c.send <- frame:
+		return nil
+	default:
+		log.Printf("[WebSocket] Dropping control frame for slow client %s in file %s", c.userID, c.fileID)
+		return nil
+	}
 }
 
 func (h *Hub) addClient(c *Client) {
@@ -191,10 +209,11 @@ func (h *Hub) broadcast(sender *Client, message []byte) {
 	h.mu.RUnlock()
 
 	for _, client := range clients {
-		err := client.writeMessage(websocket.BinaryMessage, message)
-		if err != nil {
-			log.Printf("[WebSocket] Error writing to client %s: %v", client.userID, err)
-			client.conn.Close()
+		select {
+		case <-client.done:
+		case client.send <- message:
+		default:
+			log.Printf("[WebSocket] Dropping slow client frame for user %s in file %s", client.userID, client.fileID)
 		}
 	}
 }
@@ -216,10 +235,11 @@ func (h *Hub) broadcastControl(fileID string, payload any) {
 	h.mu.RUnlock()
 
 	for _, client := range clients {
-		err := client.writeMessage(websocket.BinaryMessage, frame)
-		if err != nil {
-			log.Printf("[WebSocket] Error sending control frame to client %s: %v", client.userID, err)
-			client.conn.Close()
+		select {
+		case <-client.done:
+		case client.send <- frame:
+		default:
+			log.Printf("[WebSocket] Dropping control frame for slow client %s in file %s", client.userID, client.fileID)
 		}
 	}
 }
@@ -273,7 +293,7 @@ func (h *Hub) EnforcePermissionChange(fileID, targetUserID, newPermission string
 	for _, client := range targets {
 		if newPermission == "revoked" || newPermission == "" {
 			_ = client.sendControl(map[string]any{"action": "REVOKED"})
-			client.conn.Close()
+			client.close()
 			h.removeClient(client)
 			h.broadcastControl(fileID, map[string]any{
 				"action":    "PEER_LEFT",
@@ -297,16 +317,30 @@ func (h *Hub) BroadcastKeyRotation(fileID string, newKeyEpoch uint32) {
 	})
 }
 
-// writePump sends regular pings every 15 seconds to ensure connection liveness.
+// writePump handles outgoing messages and regular pings from the send queue.
 func (c *Client) writePump() {
 	ticker := time.NewTicker(15 * time.Second)
 	defer func() {
 		ticker.Stop()
-		c.conn.Close()
+		c.close()
 	}()
-	for range ticker.C {
-		if err := c.writeMessage(websocket.PingMessage, nil); err != nil {
+	for {
+		select {
+		case <-c.done:
 			return
+		case message, ok := <-c.send:
+			if !ok {
+				_ = c.writeMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+			if err := c.writeMessage(websocket.BinaryMessage, message); err != nil {
+				log.Printf("[WebSocket] Error writing to client %s: %v", c.userID, err)
+				return
+			}
+		case <-ticker.C:
+			if err := c.writeMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
 		}
 	}
 }
@@ -314,8 +348,8 @@ func (c *Client) writePump() {
 // readPump processes incoming WebSocket frames according to E2EE Contract 1.1.
 func (c *Client) readPump(h *FileHandler) {
 	defer func() {
+		c.close()
 		c.hub.removeClient(c)
-		c.conn.Close()
 		// Disconnect cleanup: immediately broadcast PEER_LEFT control frame (0ms ghost cursor removal)
 		c.hub.broadcastControl(c.fileID, map[string]any{
 			"action":    "PEER_LEFT",
@@ -488,6 +522,8 @@ func (h *FileHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
 		userID:     userID,
 		yClientID:  yClientID,
 		conn:       conn,
+		send:       make(chan []byte, 256),
+		done:       make(chan struct{}),
 		permission: file.Permission,
 	}
 

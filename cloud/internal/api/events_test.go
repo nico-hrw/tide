@@ -127,3 +127,46 @@ func TestBroker_PresenceEvents(t *testing.T) {
 		t.Fatal("timed out waiting for offline presence on chan1")
 	}
 }
+
+func TestHub_Broadcast_NonBlocking(t *testing.T) {
+	hub := &Hub{
+		rooms:     make(map[string]map[*Client]bool),
+		lastPulse: make(map[string]time.Time),
+	}
+
+	sender := &Client{fileID: "file-1", userID: "sender", send: make(chan []byte, 10), done: make(chan struct{})}
+	fastClient := &Client{fileID: "file-1", userID: "fast", send: make(chan []byte, 10), done: make(chan struct{})}
+	slowClient := &Client{fileID: "file-1", userID: "slow", send: make(chan []byte, 1), done: make(chan struct{})}
+
+	// Fill slow client's buffer
+	slowClient.send <- []byte("already-full")
+
+	hub.addClient(sender)
+	hub.addClient(fastClient)
+	hub.addClient(slowClient)
+
+	testMsg := []byte{FrameTypeCRDTUpdate, 0x01, 0x02, 0x03}
+
+	done := make(chan struct{})
+	go func() {
+		hub.broadcast(sender, testMsg)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// broadcast returned immediately without blocking on slowClient
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("hub.broadcast blocked on slow client!")
+	}
+
+	// fast client should have received the message
+	select {
+	case msg := <-fastClient.send:
+		if string(msg) != string(testMsg) {
+			t.Fatalf("fastClient received unexpected payload")
+		}
+	default:
+		t.Fatal("fastClient did not receive the broadcast message")
+	}
+}

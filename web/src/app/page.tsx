@@ -525,7 +525,7 @@ export default function Dashboard() {
                     }
                 } else {
                     const pos = useDataStore.getState().noteCaretPositions[newId];
-                    if (editorInstance) {
+                    if (editorInstance && !editorInstance.isDestroyed && editorInstance.commands) {
                         editorInstance.commands.focus(pos ? pos.from : 'end');
                     }
                 }

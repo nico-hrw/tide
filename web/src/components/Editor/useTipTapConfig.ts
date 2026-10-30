@@ -44,7 +44,7 @@ import { apiFetch } from '@/lib/api';
 import type { LinkTarget, UseTipTapConfigOptions } from './types';
 import { MentionNodeView } from './MentionNodeView';
 import { PLACELHODER_QUOTES, COLORS } from './editorConstants';
-import { isDocEmpty, getCleanDocContent, uint8ArrayToBase64 } from './editorUtils';
+import { isDocEmpty, getCleanDocContent } from './editorUtils';
 
 export { isDocEmpty, getCleanDocContent, PLACELHODER_QUOTES };
 
@@ -316,9 +316,7 @@ export function useTipTapConfig({
             if (isDocEmpty(content) && !isDocEmpty(initialContentRef.current) && !userHasTyped.current) return;
 
             if (onChangeRef.current) {
-                if (provider && ydoc) {
-                    onChangeRef.current(content, uint8ArrayToBase64(new Uint8Array(Y.encodeStateAsUpdate(ydoc))));
-                } else onChangeRef.current(content);
+                onChangeRef.current(content);
             }
 
             if (enabledExtensions.includes('references')) {
@@ -479,13 +477,10 @@ export function useTipTapConfig({
     }, [provider, ydoc, contentInit]);
 
     const loadIntoYjsFragment = (docJson: any) => {
-        if (!ydoc || !editor || editor.isDestroyed) return;
+        // In collaborative notes, server CRDT state (snapshot + WAL) is the SOLE authority.
+        // Never seed initial content into Yjs if provider is present.
+        if (provider || !ydoc || !editor || editor.isDestroyed) return;
         const activeFragment = ydoc.getXmlFragment('prosemirror');
-
-        // Do NOT run loadIntoYjsFragment if provider.synced is already true and activeFragment.length > 0
-        if (provider?.synced && activeFragment.length > 0) {
-            return;
-        }
 
         // Only seed if activeFragment is completely empty or contains only a single empty paragraph
         // AND ydoc has not received any remote updates / snapshot
@@ -503,7 +498,7 @@ export function useTipTapConfig({
                 prosemirrorToYXmlFragment(doc, activeFragment);
             }, 'initial-seed');
         } catch {
-            if (!provider && !editor.isDestroyed) {
+            if (!editor.isDestroyed) {
                 try {
                     editor.commands.setContent(docJson, { emitUpdate: false });
                 } catch (_) {}
@@ -530,18 +525,13 @@ export function useTipTapConfig({
         }
 
         if (provider) {
-            // BUG-09: Wait for Yjs sync before seeding. NEVER call setContent after sync!
+            // In collaborative mode, server CRDT state (snapshot + WAL) loaded via provider.bootstrap()
+            // is the sole authority. Once synced, mark initialized without calling loadIntoYjsFragment.
             if (isSynced) {
-                if (isFragmentEmpty(active) && !hasReceivedRemoteUpdatesRef.current && !(provider?.synced && active.length > 0)) {
-                    const seed = cleanInitial || initialContentRef.current;
-                    if (seed && !isDocEmpty(seed)) {
-                        loadIntoYjsFragment(seed);
-                    }
-                }
                 contentInit.current = true;
             }
         } else {
-            // Non-collaborative fallback (e.g. chat, calendar)
+            // Non-collaborative fallback (e.g. chat, calendar, offline/solo mode without provider)
             // If collaboration is expected for this tab, wait for provider rather than seeding prematurely!
             const isCollabExpected = Boolean(
                 activeTabId &&

@@ -53,6 +53,11 @@ export class YjsE2EEProvider {
     private reconnectAttempts: number = 0;
     private currentPathIndex: number = 0;
     private bootstrapPromise: Promise<void> | null = null;
+    private hasConnectedBefore: boolean = false;
+    private inboundQueue: any[] = [];
+    private isProcessingInbound: boolean = false;
+    private boundVisibilityChange: (() => void) | null = null;
+    private boundWindowFocus: (() => void) | null = null;
 
     private boundYdocUpdate: (update: Uint8Array, origin: any) => void;
     private boundAwarenessUpdate: (changed: { added: number[]; updated: number[]; removed: number[] }, origin: any) => void;
@@ -94,6 +99,22 @@ export class YjsE2EEProvider {
         };
         this.awareness.on('update', this.boundAwarenessUpdate);
 
+        // Handle Safari Tab Suspension & Liveness
+        if (typeof document !== 'undefined') {
+            this.boundVisibilityChange = () => {
+                if (document.visibilityState === 'visible') {
+                    this.checkLivenessAndReconnect();
+                }
+            };
+            document.addEventListener('visibilitychange', this.boundVisibilityChange);
+        }
+        if (typeof window !== 'undefined') {
+            this.boundWindowFocus = () => {
+                this.checkLivenessAndReconnect();
+            };
+            window.addEventListener('focus', this.boundWindowFocus);
+        }
+
         // Start bootstrap & websocket connection
         this.bootstrapPromise = this.bootstrap();
         this.connect();
@@ -127,81 +148,103 @@ export class YjsE2EEProvider {
      * Bootstrap CRDT state from server REST snapshot + WAL
      */
     public async bootstrap(): Promise<void> {
-        try {
-            let res = await apiFetch(`/api/files/${encodeURIComponent(this.noteId)}/crdt-state`);
-            if (!res.ok) {
-                res = await apiFetch(`/api/v1/files/${encodeURIComponent(this.noteId)}/crdt-state`);
-            }
-
-            if (!res.ok) {
-                console.warn(`[YjsE2EEProvider] CRDT bootstrap fetch returned HTTP ${res.status}`);
-                this.markSynced(true);
-                return;
-            }
-
-            const data = await res.json();
-            const snapIv = data.snapshot_iv || data.snapshotIv || data.snapshotIV;
-            const snapCiphertext = data.snapshot_ciphertext || data.snapshotCiphertext;
-            const keyEpoch = data.key_epoch || data.keyEpoch || this.keyEpoch || 1;
-            const snapshotSeqId = data.snapshot_seq_id || data.snapshotSeqId || 0;
-            const wal = Array.isArray(data.wal) ? data.wal : [];
-
-            this.keyEpoch = keyEpoch;
-            activeNoteStore.getState().setKeyEpoch(keyEpoch);
-
-            // 1. Decrypt snapshot if present
-            if (snapIv && snapCiphertext) {
-                try {
-                    const plaintextSnapshot = await decryptSnapshot(
-                        this.noteId,
-                        keyEpoch,
-                        snapIv,
-                        snapCiphertext,
-                        this.dek
-                    );
-                    Y.applyUpdate(this.ydoc, plaintextSnapshot, 'remote');
-                } catch (snapErr) {
-                    console.error('[YjsE2EEProvider] Failed to decrypt snapshot:', snapErr);
-                }
-            }
-
-            // 2. Decrypt WAL entries using decryptWSFrame
-            let maxSeqId = snapshotSeqId;
-            for (const entry of wal) {
-                try {
-                    const entryEpoch = entry.key_epoch || entry.keyEpoch || keyEpoch;
-                    const ivStr = entry.iv || entry.IV;
-                    const cipherStr = entry.ciphertext || entry.Ciphertext;
-                    const seqId = entry.seq_id || entry.seqId || 0;
-
-                    if (ivStr && cipherStr) {
-                        const ivBytes = base64ToArrayBuffer(ivStr);
-                        const cipherBytes = base64ToArrayBuffer(cipherStr);
-
-                        // Reconstruct binary WS frame: msgType(1B) || keyEpoch(4B) || IV(12B) || ciphertext
-                        const frame = new Uint8Array(1 + 4 + ivBytes.byteLength + cipherBytes.byteLength);
-                        const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
-                        view.setUint8(0, FRAME_TYPE_CRDT);
-                        view.setUint32(1, entryEpoch, false);
-                        frame.set(new Uint8Array(ivBytes), 5);
-                        frame.set(new Uint8Array(cipherBytes), 17);
-
-                        const { plaintext } = await decryptWSFrame(this.noteId, frame, this.dek);
-                        Y.applyUpdate(this.ydoc, plaintext, 'remote');
-                    }
-
-                    if (seqId > maxSeqId) maxSeqId = seqId;
-                } catch (walErr) {
-                    console.warn('[YjsE2EEProvider] Skipping unreadable WAL entry (key mismatch):', walErr);
-                }
-            }
-
-            activeNoteStore.getState().setLastCompactedSeqId(maxSeqId);
-            this.markSynced(true);
-        } catch (err) {
-            console.error('[YjsE2EEProvider] Bootstrap failed:', err);
-            this.markSynced(true);
+        if (this.destroyed) return;
+        if (this.bootstrapPromise) {
+            return this.bootstrapPromise;
         }
+
+        this.bootstrapPromise = (async () => {
+            try {
+                let res = await apiFetch(`/api/files/${encodeURIComponent(this.noteId)}/crdt-state`);
+                if (!res.ok) {
+                    res = await apiFetch(`/api/v1/files/${encodeURIComponent(this.noteId)}/crdt-state`);
+                }
+
+                if (!res.ok) {
+                    console.warn(`[YjsE2EEProvider] CRDT bootstrap fetch returned HTTP ${res.status}`);
+                    this.markSynced(true);
+                    return;
+                }
+
+                if (this.destroyed) return;
+
+                const data = await res.json();
+                const snapIv = data.snapshot_iv || data.snapshotIv || data.snapshotIV;
+                const snapCiphertext = data.snapshot_ciphertext || data.snapshotCiphertext;
+                const keyEpoch = data.key_epoch || data.keyEpoch || this.keyEpoch || 1;
+                const snapshotSeqId = data.snapshot_seq_id || data.snapshotSeqId || 0;
+                const wal = Array.isArray(data.wal) ? data.wal : [];
+
+                this.keyEpoch = keyEpoch;
+                activeNoteStore.getState().setKeyEpoch(keyEpoch);
+
+                // 1. Decrypt snapshot if present
+                if (snapIv && snapCiphertext && !this.destroyed) {
+                    try {
+                        const plaintextSnapshot = await decryptSnapshot(
+                            this.noteId,
+                            keyEpoch,
+                            snapIv,
+                            snapCiphertext,
+                            this.dek
+                        );
+                        if (!this.destroyed) {
+                            Y.applyUpdate(this.ydoc, plaintextSnapshot, 'remote');
+                        }
+                    } catch (snapErr) {
+                        console.error('[YjsE2EEProvider] Failed to decrypt snapshot:', snapErr);
+                    }
+                }
+
+                // 2. Decrypt WAL entries using decryptWSFrame
+                let maxSeqId = snapshotSeqId;
+                for (const entry of wal) {
+                    if (this.destroyed) break;
+                    try {
+                        const entryEpoch = entry.key_epoch || entry.keyEpoch || keyEpoch;
+                        const ivStr = entry.iv || entry.IV;
+                        const cipherStr = entry.ciphertext || entry.Ciphertext;
+                        const seqId = entry.seq_id || entry.seqId || 0;
+
+                        if (ivStr && cipherStr) {
+                            const ivBytes = base64ToArrayBuffer(ivStr);
+                            const cipherBytes = base64ToArrayBuffer(cipherStr);
+
+                            // Reconstruct binary WS frame: msgType(1B) || keyEpoch(4B) || IV(12B) || ciphertext
+                            const frame = new Uint8Array(1 + 4 + ivBytes.byteLength + cipherBytes.byteLength);
+                            const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+                            view.setUint8(0, FRAME_TYPE_CRDT);
+                            view.setUint32(1, entryEpoch, false);
+                            frame.set(new Uint8Array(ivBytes), 5);
+                            frame.set(new Uint8Array(cipherBytes), 17);
+
+                            const { plaintext } = await decryptWSFrame(this.noteId, frame, this.dek);
+                            if (!this.destroyed) {
+                                Y.applyUpdate(this.ydoc, plaintext, 'remote');
+                            }
+                        }
+
+                        if (seqId > maxSeqId) maxSeqId = seqId;
+                    } catch (walErr) {
+                        console.warn('[YjsE2EEProvider] Skipping unreadable WAL entry (key mismatch):', walErr);
+                    }
+                }
+
+                if (!this.destroyed) {
+                    activeNoteStore.getState().setLastCompactedSeqId(maxSeqId);
+                    this.markSynced(true);
+                }
+            } catch (err) {
+                console.error('[YjsE2EEProvider] Bootstrap failed:', err);
+                if (!this.destroyed) {
+                    this.markSynced(true);
+                }
+            } finally {
+                this.bootstrapPromise = null;
+            }
+        })();
+
+        return this.bootstrapPromise;
     }
 
     private markSynced(synced: boolean): void {
@@ -284,8 +327,21 @@ export class YjsE2EEProvider {
         return `${protocol}//${wsHost}${basePath}?yClientId=${encodeURIComponent(String(this.ydoc.clientID))}${tokenParam}`;
     }
 
-    private connect(): void {
+    public connect(): void {
         this.connectWebSocket();
+    }
+
+    public checkLivenessAndReconnect(): void {
+        if (this.destroyed) return;
+        if (!this.ws || this.ws.readyState === WebSocket.CLOSED || this.ws.readyState === WebSocket.CLOSING) {
+            if (this.reconnectTimer) {
+                clearTimeout(this.reconnectTimer);
+                this.reconnectTimer = null;
+            }
+            this.connect();
+        } else if (this.ws.readyState === WebSocket.OPEN) {
+            void this.bootstrap();
+        }
     }
 
     private connectWebSocket(): void {
@@ -301,6 +357,17 @@ export class YjsE2EEProvider {
         }
 
         try {
+            if (this.ws) {
+                try {
+                    this.ws.onopen = null;
+                    this.ws.onmessage = null;
+                    this.ws.onerror = null;
+                    this.ws.onclose = null;
+                    this.ws.close();
+                } catch {}
+                this.ws = null;
+            }
+
             this.ws = new WebSocket(wsEndpoint);
             this.ws.binaryType = 'arraybuffer';
 
@@ -308,6 +375,8 @@ export class YjsE2EEProvider {
                 if (this.destroyed) return;
                 this.connected = true;
                 this.wsconnected = true;
+                const isReconnect = this.hasConnectedBefore;
+                this.hasConnectedBefore = true;
                 this.reconnectAttempts = 0;
                 (window as Window & { __tideWsConnected?: boolean }).__tideWsConnected = true;
 
@@ -317,6 +386,11 @@ export class YjsE2EEProvider {
 
                 this.emit('status', { status: 'connected' });
                 this.options.onStatus?.({ status: 'connected' });
+
+                // Catch up on any updates committed while disconnected or Safari was backgrounded
+                if (isReconnect) {
+                    void this.bootstrap();
+                }
 
                 // Flush pending local updates
                 while (this.pendingUpdates.length > 0) {
@@ -346,9 +420,9 @@ export class YjsE2EEProvider {
                 }
             };
 
-            this.ws.onmessage = async (event: MessageEvent) => {
+            this.ws.onmessage = (event: MessageEvent) => {
                 if (this.destroyed) return;
-                await this.handleInboundMessage(event.data);
+                this.enqueueInboundMessage(event.data);
             };
 
             this.ws.onerror = (err) => {
@@ -393,6 +467,32 @@ export class YjsE2EEProvider {
             this.reconnectTimer = setTimeout(() => {
                 if (!this.destroyed) this.connectWebSocket();
             }, delay);
+        }
+    }
+
+    private enqueueInboundMessage(data: any): void {
+        if (this.destroyed) return;
+        this.inboundQueue.push(data);
+        void this.processInboundQueue();
+    }
+
+    private async processInboundQueue(): Promise<void> {
+        if (this.isProcessingInbound) return;
+        this.isProcessingInbound = true;
+        try {
+            while (this.inboundQueue.length > 0 && !this.destroyed) {
+                const data = this.inboundQueue.shift();
+                try {
+                    await this.handleInboundMessage(data);
+                } catch (err) {
+                    console.error('[YjsE2EEProvider] Error in inbound message processing:', err);
+                }
+            }
+        } finally {
+            this.isProcessingInbound = false;
+            if (this.inboundQueue.length > 0 && !this.destroyed) {
+                void this.processInboundQueue();
+            }
         }
     }
 
@@ -615,6 +715,15 @@ export class YjsE2EEProvider {
         this.ydoc.off('update', this.boundYdocUpdate);
         this.awareness.off('update', this.boundAwarenessUpdate);
 
+        if (typeof document !== 'undefined' && this.boundVisibilityChange) {
+            document.removeEventListener('visibilitychange', this.boundVisibilityChange);
+            this.boundVisibilityChange = null;
+        }
+        if (typeof window !== 'undefined' && this.boundWindowFocus) {
+            window.removeEventListener('focus', this.boundWindowFocus);
+            this.boundWindowFocus = null;
+        }
+
         if (this.ws) {
             this.ws.onmessage = null;
             this.ws.onerror = null;
@@ -634,6 +743,9 @@ export class YjsE2EEProvider {
         this.awareness.destroy();
         this.listeners.clear();
         this.pendingUpdates = [];
+        this.inboundQueue = [];
+        this.isProcessingInbound = false;
+        this.bootstrapPromise = null;
         this.connected = false;
         this.wsconnected = false;
     }

@@ -54,7 +54,6 @@ function CollaborativeEditor({
     const [ydoc, setYdoc] = useState(() => new Y.Doc());
     const [provider, setProvider] = useState<YjsE2EEProvider | null>(null);
     const contentInitialized = useRef(false);
-    const syncTimedOutRef = useRef(false);
     const [isSynced, setIsSynced] = useState(false);
     const userHasTypedRef = useRef(false);
 
@@ -78,7 +77,6 @@ function CollaborativeEditor({
             ydocRef.current = newDoc;
             setYdoc(newDoc);
             contentInitialized.current = false;
-            syncTimedOutRef.current = false;
             setIsSynced(false);
             userHasTypedRef.current = false;
         }
@@ -170,7 +168,6 @@ function CollaborativeEditor({
                 ydocRef.current.destroy();
                 setYdoc(newDoc);
                 contentInitialized.current = false;
-                syncTimedOutRef.current = false;
                 setIsSynced(false);
 
                 const newProvider = createProvider(activeDek, newDoc, false);
@@ -214,7 +211,6 @@ function CollaborativeEditor({
             }
             ydocRef.current.destroy();
             contentInitialized.current = false;
-            syncTimedOutRef.current = false;
             isTempKeyRef.current = false;
         };
     }, []);
@@ -222,21 +218,12 @@ function CollaborativeEditor({
     useEffect(() => {
         if (!provider) return;
 
-        let fallbackTimer: NodeJS.Timeout | null = null;
         const handleSync = (synced: boolean) => {
             setIsSynced(synced);
-            if (synced && fallbackTimer) {
-                clearTimeout(fallbackTimer);
-                fallbackTimer = null;
-            }
         };
         provider.on('sync', handleSync);
         if (provider.synced) {
             setIsSynced(true);
-        } else {
-            fallbackTimer = setTimeout(() => {
-                setIsSynced(true);
-            }, 3000);
         }
 
         const handleChange = () => {
@@ -250,7 +237,6 @@ function CollaborativeEditor({
         provider.awareness.on('change', handleChange);
 
         return () => {
-            if (fallbackTimer) clearTimeout(fallbackTimer);
             provider.off('sync', handleSync);
             provider.awareness.off('change', handleChange);
             setIsSynced(false);
