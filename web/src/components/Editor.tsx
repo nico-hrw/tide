@@ -36,12 +36,13 @@ export default function Editor(props: EditorProps) {
     return <CollaborativeEditor key={props.activeTabId || 'editor-default'} {...props} />;
 }
 
-function CollaborativeEditor({
-    initialContent, isShared = false, editable = true, onChange, onLinkClick,
-    onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady,
-    onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick,
-    onEventClick, onActiveUsersChange, userProfile, myId, dek, keyEpoch,
-}: EditorProps) {
+function CollaborativeEditor(props: EditorProps) {
+    const {
+        initialContent, isShared = false, editable = true, onChange, onLinkClick,
+        onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady,
+        onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick,
+        onEventClick, onActiveUsersChange, userProfile, myId, dek, keyEpoch,
+    } = props;
     const cleanInitial = useMemo(() => getCleanDocContent(initialContent), [initialContent]);
     const [pencilMode, setPencilMode] = useState<PencilInputMode>('text');
     const [activeInkTool, setActiveInkTool] = useState<InkToolType>('pen');
@@ -56,6 +57,19 @@ function CollaborativeEditor({
     const contentInitialized = useRef(false);
     const [isSynced, setIsSynced] = useState(false);
     const userHasTypedRef = useRef(false);
+
+    useEffect(() => {
+        useActiveNoteStore.getState().setActiveYDoc(ydoc);
+        (window as any).__tideActiveYDoc = ydoc;
+        return () => {
+            if (useActiveNoteStore.getState().activeYDoc === ydoc) {
+                useActiveNoteStore.getState().setActiveYDoc(null);
+            }
+            if ((window as any).__tideActiveYDoc === ydoc) {
+                (window as any).__tideActiveYDoc = null;
+            }
+        };
+    }, [ydoc]);
 
     const livePermission = useActiveNoteStore((s) => s.permission);
     const isEditable = editable && livePermission !== 'view';
@@ -280,20 +294,26 @@ function CollaborativeEditor({
     useEffect(() => {
         if (!editor) return;
         const handleRestore = (e: Event) => {
+            if (!editor || editor.isDestroyed) return;
             const content = (e as CustomEvent).detail;
             if (!content) return;
             try {
                 const jsonContent = typeof content === 'string' ? JSON.parse(content) : content;
                 const cleanJson = (jsonContent && jsonContent.__yjs) ? (({ __yjs, ...rest }) => rest)(jsonContent) : jsonContent;
-                if (provider) {
+                if (ydoc) {
                     const xmlFragment = ydoc.getXmlFragment('prosemirror');
                     ydoc.transact(() => {
                         while (xmlFragment.length > 0) xmlFragment.delete(0, 1);
-                        const doc = editor.schema.nodeFromJSON(cleanJson);
-                        const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
-                        // BUG-10 fix: NEVER mutate client ID to a static value!
-                        prosemirrorToYXmlFragment(doc, xmlFragment);
+                        try {
+                            const doc = editor.schema.nodeFromJSON(cleanJson);
+                            const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
+                            // BUG-10 fix: NEVER mutate client ID to a static value!
+                            prosemirrorToYXmlFragment(doc, xmlFragment);
+                        } catch (_) {
+                            // Fallback handled by setContent below
+                        }
                     });
+                    editor.commands.setContent(cleanJson, { emitUpdate: false });
                 } else {
                     editor.commands.setContent(cleanJson);
                 }
@@ -301,6 +321,8 @@ function CollaborativeEditor({
                 setInkStrokes(restoredStrokes);
                 setEditorInkStrokes(editor, restoredStrokes);
                 userHasTypedRef.current = true;
+                onChange?.(cleanJson);
+                (props as any)?.onContentChange?.(cleanJson);
             } catch (err) {
                 console.error('Failed to restore via Yjs/setContent:', err);
                 try {
@@ -310,6 +332,8 @@ function CollaborativeEditor({
                     setInkStrokes(fallbackStrokes);
                     setEditorInkStrokes(editor, fallbackStrokes);
                     userHasTypedRef.current = true;
+                    onChange?.(parsedFallback);
+                    (props as any)?.onContentChange?.(parsedFallback);
                 } catch (fallbackErr) {
                     console.error('Fallback setContent failed:', fallbackErr);
                 }
@@ -317,7 +341,7 @@ function CollaborativeEditor({
         };
         window.addEventListener('editor:restore-content', handleRestore);
         return () => window.removeEventListener('editor:restore-content', handleRestore);
-    }, [editor, ydoc, provider]);
+    }, [editor, ydoc, provider, onChange, props]);
 
     // Resize image & mention click hooks
     useEffect(() => {
@@ -497,7 +521,17 @@ function CollaborativeEditor({
         handleInkStrokesChange(remaining);
     }, [selectedStrokeIds, inkStrokes, handleInkStrokesChange]);
 
-    if (!editor) return null;
+    if (!editor) {
+        if (provider && !isSynced) {
+            return (
+                <div className="flex flex-col items-center justify-center min-h-[200px] text-muted-foreground/60 text-sm gap-2">
+                    <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    <span>Synchronisiere Notiz...</span>
+                </div>
+            );
+        }
+        return null;
+    }
 
     return (
         <div className="editor-container w-full max-w-full overflow-x-hidden relative">
@@ -544,7 +578,14 @@ function CollaborativeEditor({
                     }
                 }}
             >
-                <EditorContent editor={editor} className="w-full max-w-full" />
+                {provider && !isSynced ? (
+                    <div className="flex flex-col items-center justify-center min-h-[200px] text-muted-foreground/60 text-sm gap-2">
+                        <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                        <span>Synchronisiere Notiz...</span>
+                    </div>
+                ) : (
+                    <EditorContent editor={editor} className="w-full max-w-full" />
+                )}
                 <PencilInkLayer
                     strokes={inkStrokes}
                     onStrokesChange={handleInkStrokesChange}

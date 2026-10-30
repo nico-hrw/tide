@@ -168,12 +168,12 @@ export class YjsE2EEProvider {
 
                 if (this.destroyed) return;
 
-                const data = await res.json();
-                const snapIv = data.snapshot_iv || data.snapshotIv || data.snapshotIV;
-                const snapCiphertext = data.snapshot_ciphertext || data.snapshotCiphertext;
-                const keyEpoch = data.key_epoch || data.keyEpoch || this.keyEpoch || 1;
-                const snapshotSeqId = data.snapshot_seq_id || data.snapshotSeqId || 0;
-                const wal = Array.isArray(data.wal) ? data.wal : [];
+                const data = await res.json().catch(() => ({}));
+                const snapIv = data?.snapshot_iv || data?.snapshotIv || data?.snapshotIV;
+                const snapCiphertext = data?.snapshot_ciphertext || data?.snapshotCiphertext;
+                const keyEpoch = data?.key_epoch || data?.keyEpoch || this.keyEpoch || 1;
+                const snapshotSeqId = data?.snapshot_seq_id || data?.snapshotSeqId || 0;
+                const wal = Array.isArray(data?.wal) ? data.wal : [];
 
                 this.keyEpoch = keyEpoch;
                 activeNoteStore.getState().setKeyEpoch(keyEpoch);

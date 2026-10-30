@@ -368,6 +368,9 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                                     </button>
                                                                     <button
                                                                         onClick={() => {
+                                                                            setIsHistoryMode(false);
+                                                                            setShowBackups?.(false);
+                                                                            setActiveIndex(0);
                                                                             if (selectedContent) {
                                                                                 if (onRestoreBackup) {
                                                                                     onRestoreBackup(selectedContent);
@@ -379,9 +382,6 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                                                     }
                                                                                 }
                                                                             }
-                                                                            setIsHistoryMode(false);
-                                                                            setShowBackups?.(false);
-                                                                            setActiveIndex(0);
                                                                         }}
                                                                         className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors"
                                                                         title="Ausgewählten Stand speichern"
@@ -514,64 +514,69 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                         <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
                                             <span className="font-medium text-sm">Lade...</span>
                                         </div>
-                                    ) : isHistoryMode ? (
-                                        <div className="flex-1 min-w-0">
-                                            <NoteVersionDiffView
-                                                point={selectedPoint}
-                                                diffChanges={diffChanges}
-                                                isLoading={isBackupLoading}
-                                                error={backupError}
-                                            />
-                                        </div>
                                     ) : (
-                                        <Editor
-                                            key={activeTabId}
-                                            isShared={isShared}
-                                            initialContent={editorContent}
-                                            dek={activeFileKey}
-                                            keyEpoch={useActiveNoteStore.getState().keyEpoch || 1}
-                                            editable={(files.find(f => f.id === activeNoteId) as any)?.permission !== 'view'}
-                                            onEditorReady={handleEditorReady}
-                                            onChange={handleEditorChange}
-                                            onLinkClick={handleMagicLinkClick}
-                                            onForceSave={(json) => {
-                                                const cur = activeNoteId ? files.find(f => f.id === activeNoteId) : null;
-                                                if (cur && activeNoteId) {
-                                                    setSaveStatus("saving");
-                                                    performSave(json, activeNoteId, activeFileKey, cur.visibility)
-                                                        .then(() => setSaveStatus("saved"))
-                                                        .catch(() => setSaveStatus("unsaved"));
-                                                }
-                                            }}
-                                            onBlocksDeleted={handleBlocksDeleted}
-                                            onPopOut={(text, anchorBlockId) => {
-                                                canvasSidecar.addElement({
-                                                    id: crypto.randomUUID(),
-                                                    type: 'text-widget',
-                                                    anchorBlockId,
-                                                    offsetX: 24,
-                                                    offsetY: 0,
-                                                    content: text,
-                                                    backgroundColor: 'transparent',
-                                                } as TextWidgetElement);
-                                            }}
-                                            onConnectImage={(blockId) => setPendingBindBlockId(blockId)}
-                                            onBlockHover={setHoveredBlockId}
-                                            onAbortLinking={() => {
-                                                if (isLinkingMode) {
-                                                    setIsLinkingMode(false);
-                                                    setActiveLinkBlockId(null);
-                                                }
-                                            }}
-                                            onActiveUsersChange={(users) => {
-                                                const currentMyId = myId || useDataStore.getState().myId;
-                                                setActiveCollaborators(currentMyId ? users.filter(u => u.id !== currentMyId) : []);
-                                            }}
-                                            activeTabId={activeTabId}
-                                            onReturnToTab={(tabId) => setActiveTabId(tabId)}
-                                            userProfile={userProfile}
-                                            myId={myId}
-                                        />
+                                        <>
+                                            {isHistoryMode && (
+                                                <div className="flex-1 min-w-0">
+                                                    <NoteVersionDiffView
+                                                        point={selectedPoint}
+                                                        diffChanges={diffChanges}
+                                                        isLoading={isBackupLoading}
+                                                        error={backupError}
+                                                    />
+                                                </div>
+                                            )}
+                                            <div className={isHistoryMode ? 'hidden' : 'flex-1 min-w-0 flex flex-col'}>
+                                                <Editor
+                                                    key={activeTabId}
+                                                    isShared={isShared}
+                                                    initialContent={editorContent}
+                                                    dek={activeFileKey}
+                                                    keyEpoch={useActiveNoteStore.getState().keyEpoch || 1}
+                                                    editable={(files.find(f => f.id === activeNoteId) as any)?.permission !== 'view'}
+                                                    onEditorReady={handleEditorReady}
+                                                    onChange={handleEditorChange}
+                                                    onLinkClick={handleMagicLinkClick}
+                                                    onForceSave={(json) => {
+                                                        const cur = activeNoteId ? files.find(f => f.id === activeNoteId) : null;
+                                                        if (cur && activeNoteId) {
+                                                            setSaveStatus("saving");
+                                                            performSave(json, activeNoteId, activeFileKey, cur.visibility)
+                                                                .then(() => setSaveStatus("saved"))
+                                                                .catch(() => setSaveStatus("unsaved"));
+                                                        }
+                                                    }}
+                                                    onBlocksDeleted={handleBlocksDeleted}
+                                                    onPopOut={(text, anchorBlockId) => {
+                                                        canvasSidecar.addElement({
+                                                            id: crypto.randomUUID(),
+                                                            type: 'text-widget',
+                                                            anchorBlockId,
+                                                            offsetX: 24,
+                                                            offsetY: 0,
+                                                            content: text,
+                                                            backgroundColor: 'transparent',
+                                                        } as TextWidgetElement);
+                                                    }}
+                                                    onConnectImage={(blockId) => setPendingBindBlockId(blockId)}
+                                                    onBlockHover={setHoveredBlockId}
+                                                    onAbortLinking={() => {
+                                                        if (isLinkingMode) {
+                                                            setIsLinkingMode(false);
+                                                            setActiveLinkBlockId(null);
+                                                        }
+                                                    }}
+                                                    onActiveUsersChange={(users) => {
+                                                        const currentMyId = myId || useDataStore.getState().myId;
+                                                        setActiveCollaborators(currentMyId ? users.filter(u => u.id !== currentMyId) : []);
+                                                    }}
+                                                    activeTabId={activeTabId}
+                                                    onReturnToTab={(tabId) => setActiveTabId(tabId)}
+                                                    userProfile={userProfile}
+                                                    myId={myId}
+                                                />
+                                            </div>
+                                        </>
                                     );
                                 })()}
                             </div>

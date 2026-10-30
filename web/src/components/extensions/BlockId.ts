@@ -99,6 +99,16 @@ export const BlockId = Extension.create<BlockIdOptions>({
                     const docChanged = transactions.some((tr) => tr.docChanged);
                     if (!docChanged) return null;
 
+                    // If the document contains only a single empty paragraph, do not assign a UUID blockId
+                    // to an unedited blank default paragraph (prevents empty line prepended during CRDT sync)
+                    if (
+                        newState.doc.childCount === 1 &&
+                        newState.doc.firstChild?.isTextblock &&
+                        newState.doc.firstChild.content.size === 0
+                    ) {
+                        return null;
+                    }
+
                     const tr = newState.tr;
                     let modified = false;
                     const usedIds = new Set<string>();

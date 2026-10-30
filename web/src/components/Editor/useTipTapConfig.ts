@@ -209,7 +209,7 @@ export function useTipTapConfig({
 
     const extensions = useMemo(() => {
         const base = [
-            StarterKit.configure({ italic: false, bold: false, strike: false, undoRedo: (provider && ydoc) ? false : undefined }),
+            StarterKit.configure({ italic: false, bold: false, strike: false, undoRedo: (provider && ydoc && isSynced) ? false : undefined }),
             TaskList.configure({ HTMLAttributes: { class: 'not-prose pl-0' } }), TaskItem.configure({ nested: true }),
             SlashCommand.configure({ suggestion: slashCommandSuggestion }),
             TiptapItalic.extend({ addInputRules: () => [], addPasteRules: () => [] }).configure({ HTMLAttributes: { class: 'italic' } }),
@@ -241,8 +241,8 @@ export function useTipTapConfig({
             ReferenceMark, PencilInkExtension,
         ];
 
-        // Universal collaboration: remove isShared gate
-        if (provider && ydoc) {
+        // Universal collaboration: only register when provider, ydoc AND isSynced
+        if (provider && ydoc && isSynced) {
             base.push(Collaboration.configure({ document: ydoc, field: 'prosemirror' }), CollaborationCaret.configure({
                 provider,
                 user: provider.awareness?.getLocalState()?.user || { id: 'guest', name: 'Guest', color: '#ffcc00', seed: 'guest' },
@@ -261,7 +261,7 @@ export function useTipTapConfig({
         }
         if (enabledExtensions.includes('references')) base.push(ReferenceScannerMode, ReferenceAutopilotMode);
         return base;
-    }, [enabledExtensions, provider, ydoc]);
+    }, [enabledExtensions, provider, ydoc, isSynced]);
 
     const updateReferencePreviews = (editorInstance: any, activeId: string) => {
         if (!editorInstance || editorInstance.isDestroyed) return;
@@ -435,7 +435,7 @@ export function useTipTapConfig({
                 return files.length > 0;
             }
         }
-    }, [provider, ydoc, editable]);
+    }, [provider, ydoc, editable, isSynced]);
 
     useEffect(() => {
         if (!editor || editor.isDestroyed) return;
@@ -477,25 +477,19 @@ export function useTipTapConfig({
     }, [provider, ydoc, contentInit]);
 
     const loadIntoYjsFragment = (docJson: any) => {
-        // In collaborative notes, server CRDT state (snapshot + WAL) is the SOLE authority.
-        // Never seed initial content into Yjs if provider is present.
-        if (provider || !ydoc || !editor || editor.isDestroyed) return;
-        const activeFragment = ydoc.getXmlFragment('prosemirror');
-
-        // Only seed if activeFragment is completely empty or contains only a single empty paragraph
-        // AND ydoc has not received any remote updates / snapshot
-        if (!isFragmentEmpty(activeFragment) || hasReceivedRemoteUpdatesRef.current) {
-            return;
-        }
+        if (!ydoc || !editor || editor.isDestroyed) return;
+        const fragment = ydoc.getXmlFragment('prosemirror');
+        // If provider is present AND ydoc already has content from server snapshot/WAL, server is authority.
+        if (provider && fragment.length > 0) return;
 
         try {
             const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
             const doc = editor.schema.nodeFromJSON(docJson);
             ydoc.transact(() => {
-                while (activeFragment.length > 0) {
-                    activeFragment.delete(0, 1);
+                while (fragment.length > 0) {
+                    fragment.delete(0, 1);
                 }
-                prosemirrorToYXmlFragment(doc, activeFragment);
+                prosemirrorToYXmlFragment(doc, fragment);
             }, 'initial-seed');
         } catch {
             if (!editor.isDestroyed) {
@@ -510,24 +504,19 @@ export function useTipTapConfig({
         if (!editor || editor.isDestroyed || !ydoc) return;
         if (contentInit.current) return;
 
-        const active = ydoc.getXmlFragment('prosemirror');
-        // If Yjs already has content, mark initialized and NEVER call setContent(initialContent)
-        if (!isFragmentEmpty(active)) {
-            contentInit.current = true;
-            return;
-        }
-
-        const def = ydoc.getXmlFragment('default');
-        if (!isFragmentEmpty(def)) {
-            copyFragment(def, active, ydoc);
-            contentInit.current = true;
-            return;
-        }
-
         if (provider) {
-            // In collaborative mode, server CRDT state (snapshot + WAL) loaded via provider.bootstrap()
-            // is the sole authority. Once synced, mark initialized without calling loadIntoYjsFragment.
-            if (isSynced) {
+            // Wait until isSynced === true
+            if (!isSynced) return;
+
+            const fragment = ydoc.getXmlFragment('prosemirror');
+            if (fragment && fragment.length === 0) {
+                // Server had NO CRDT snapshot/WAL (solo/legacy/REST note).
+                if (cleanInitial && !isDocEmpty(cleanInitial)) {
+                    loadIntoYjsFragment(cleanInitial);
+                }
+                contentInit.current = true;
+            } else if (fragment && fragment.length > 0) {
+                // Server already had CRDT state.
                 contentInit.current = true;
             }
         } else {

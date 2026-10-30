@@ -2831,6 +2831,7 @@ export default function Dashboard() {
     };
 
     const handleRestoreBackup = (content: JSONContent | Record<string, unknown> | null) => {
+        if (!content) return;
         window.dispatchEvent(new CustomEvent('editor:restore-content', { detail: content }));
         setEditorContent(content);
         initialContentRef.current = content;

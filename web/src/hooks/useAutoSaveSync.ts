@@ -179,8 +179,22 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                 return;
             }
 
+            // Guard against wiping notes with empty Y.Doc when store or ref has content:
+            const xmlFrag = ydoc.getXmlFragment('prosemirror');
+            const currentContent = editorContentRef.current;
+            if (xmlFrag.length === 0 && currentContent && !isDocEmpty(currentContent)) {
+                console.warn(`[Compaction] Y.Doc is empty while editorContent has data for ${noteId}, aborting compaction to prevent data loss`);
+                if (noteId === activeNoteIdRef.current) setSaveStatus("saved");
+                return;
+            }
+
             // Encode Yjs state vector snapshot
             const stateBytes = Y.encodeStateAsUpdate(ydoc);
+            if (stateBytes.length <= 2 && currentContent && !isDocEmpty(currentContent)) {
+                console.warn(`[Compaction] stateBytes is trivial (${stateBytes.length} bytes) while editorContent has data for ${noteId}, skipping compaction`);
+                if (noteId === activeNoteIdRef.current) setSaveStatus("saved");
+                return;
+            }
 
             // Resolve DEK
             let activeDEK = activeFileKeyRef.current || options.activeFileKey || null;
@@ -373,6 +387,12 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
     // Deprecated legacy performSave kept as safe delegate to prevent caller errors
     const performSave = useCallback(async (_content: any, fileId: string, fileKey?: CryptoKey | null, visibility?: string) => {
         if (!fileId) return;
+        if (_content !== undefined && _content !== null) {
+            editorContentRef.current = _content;
+            setEditorContent(_content);
+            initialContentRef.current = _content;
+            userHasTypedRef.current = true;
+        }
         if (visibility === "public") {
             const contentString = typeof _content === "string" ? _content : JSON.stringify(_content);
             const isTargetActive = fileId === activeNoteIdRef.current;
@@ -380,8 +400,24 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
             await uploadPublicFile(fileId, contentString, targetTitle, () => handleFileNotFound(fileId));
             return;
         }
-        await triggerSave(fileId, fileKey);
-    }, [triggerSave, handleFileNotFound]);
+
+        const activeYDoc = options.ydoc || useActiveNoteStore.getState().activeYDoc || (window as any).__tideActiveYDoc;
+        if (!activeYDoc) {
+            console.warn(`[performSave] No active Y.Doc found for ${fileId}, skipping compaction to avoid empty snapshot overwrite`);
+            return;
+        }
+
+        // If _content is provided, ensure activeYDoc is not empty when _content is non-empty
+        const xmlFragment = activeYDoc.getXmlFragment('prosemirror');
+        const isYDocEmpty = xmlFragment.length === 0;
+        const hasContent = _content && !isDocEmpty(_content);
+        if (isYDocEmpty && hasContent) {
+            console.warn(`[performSave] activeYDoc is empty but _content has data for ${fileId}, skipping compaction until Y.Doc is hydrated`);
+            return;
+        }
+
+        await triggerSave(fileId, fileKey, _content);
+    }, [triggerSave, handleFileNotFound, options.ydoc, setEditorContent]);
 
     // Checkpoint Compaction triggers:
     // 1) Server COMPACT_REQUEST control frame / event

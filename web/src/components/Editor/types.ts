@@ -42,6 +42,7 @@ export interface UseTipTapConfigOptions {
     initialContent?: any;
     editable?: boolean;
     isShared?: boolean;
+    isSynced?: boolean;
     activeTabId?: string;
     provider?: any;
     ydoc?: any;
