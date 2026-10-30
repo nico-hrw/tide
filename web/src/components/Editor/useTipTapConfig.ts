@@ -49,9 +49,43 @@ import { isDocEmpty, getCleanDocContent, uint8ArrayToBase64 } from './editorUtil
 export { isDocEmpty, getCleanDocContent, PLACELHODER_QUOTES };
 
 function isFragmentEmpty(fragment: Y.XmlFragment): boolean {
-    if (fragment.length === 0) return true;
-    const str = fragment.length === 1 ? (fragment.get(0)?.toString() || '') : '';
-    return str.startsWith('<paragraph') && str.endsWith('></paragraph>');
+    if (!fragment || fragment.length === 0) return true;
+    if (fragment.length > 1) return false;
+    const firstNode = fragment.get(0) as any;
+    if (!firstNode) return true;
+
+    // Check if it's XmlText
+    if (firstNode instanceof Y.XmlText) {
+        return firstNode.toString().trim() === '';
+    }
+
+    // In Yjs, XmlElement has nodeName. If it's not a paragraph, it is non-empty content
+    const nodeName = firstNode.nodeName || (firstNode instanceof Y.XmlElement ? firstNode.nodeName : null);
+    if (nodeName && nodeName !== 'paragraph') {
+        return false;
+    }
+
+    // If it's an XmlElement
+    if (typeof firstNode.length === 'number') {
+        if (firstNode.length === 0) {
+            if (typeof firstNode.toString === 'function') {
+                const str = firstNode.toString().trim();
+                return str === '' || str === '<paragraph></paragraph>' || /^<paragraph[^>]*>\s*<\/paragraph>$/.test(str);
+            }
+            return true;
+        }
+        if (firstNode.length === 1) {
+            const child = firstNode.get ? firstNode.get(0) : null;
+            if (child && typeof child.toString === 'function') {
+                return child.toString().trim() === '';
+            }
+        }
+        // More than 1 child means it has non-empty text/nodes
+        return false;
+    }
+
+    const str = typeof firstNode.toString === 'function' ? firstNode.toString().trim() : '';
+    return str === '' || str === '<paragraph></paragraph>' || /^<paragraph[^>]*>\s*<\/paragraph>$/.test(str);
 }
 
 function copyFragment(src: Y.XmlFragment, dest: Y.XmlFragment, ydoc: Y.Doc) {
@@ -210,7 +244,19 @@ export function useTipTapConfig({
         // Universal collaboration: remove isShared gate
         if (provider && ydoc) {
             base.push(Collaboration.configure({ document: ydoc, field: 'prosemirror' }), CollaborationCaret.configure({
-                provider, user: provider.awareness?.getLocalState()?.user || { id: 'guest', name: 'Guest', color: '#ffcc00', seed: 'guest' },
+                provider,
+                user: provider.awareness?.getLocalState()?.user || { id: 'guest', name: 'Guest', color: '#ffcc00', seed: 'guest' },
+                render: (user: Record<string, any>) => {
+                    const cursor = document.createElement('span');
+                    cursor.classList.add('collaboration-carets__caret');
+                    cursor.setAttribute('style', `border-color: ${user.color || '#a855f7'}; pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important;`);
+                    const label = document.createElement('div');
+                    label.classList.add('collaboration-carets__label');
+                    label.setAttribute('style', `background-color: ${user.color || '#a855f7'}; pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important;`);
+                    label.insertBefore(document.createTextNode(user.name || 'User'), null);
+                    cursor.insertBefore(label, null);
+                    return cursor;
+                },
             }));
         }
         if (enabledExtensions.includes('references')) base.push(ReferenceScannerMode, ReferenceAutopilotMode);
@@ -260,7 +306,7 @@ export function useTipTapConfig({
 
     const editor = useEditor({
         extensions,
-        content: (provider && ydoc) ? undefined : ((cleanInitial && !isDocEmpty(cleanInitial)) ? cleanInitial : undefined),
+        content: ydoc ? undefined : ((cleanInitial && !isDocEmpty(cleanInitial)) ? cleanInitial : undefined),
         editable: canEdit,
         immediatelyRender: false,
         onUpdate: ({ editor, transaction }) => {
@@ -402,24 +448,60 @@ export function useTipTapConfig({
         } catch (_) {}
     }, [editor, canEdit]);
 
+    const hasReceivedRemoteUpdatesRef = useRef(false);
+    useEffect(() => {
+        if (!ydoc) return;
+        hasReceivedRemoteUpdatesRef.current = false;
+        const onDocUpdate = (_update: Uint8Array, origin: any) => {
+            if (origin === 'remote' || origin === 'server') {
+                hasReceivedRemoteUpdatesRef.current = true;
+            }
+        };
+        ydoc.on('update', onDocUpdate);
+        return () => {
+            ydoc.off('update', onDocUpdate);
+        };
+    }, [ydoc]);
+
     const prevProviderRef = useRef(provider);
     useEffect(() => {
         if (prevProviderRef.current !== provider) {
             prevProviderRef.current = provider;
             if (provider) {
-                contentInit.current = false;
+                const active = ydoc?.getXmlFragment('prosemirror');
+                if (active && !isFragmentEmpty(active)) {
+                    contentInit.current = true;
+                } else {
+                    contentInit.current = false;
+                }
             }
         }
-    }, [provider, contentInit]);
+    }, [provider, ydoc, contentInit]);
 
     const loadIntoYjsFragment = (docJson: any) => {
         if (!ydoc || !editor || editor.isDestroyed) return;
         const activeFragment = ydoc.getXmlFragment('prosemirror');
+
+        // Do NOT run loadIntoYjsFragment if provider.synced is already true and activeFragment.length > 0
+        if (provider?.synced && activeFragment.length > 0) {
+            return;
+        }
+
+        // Only seed if activeFragment is completely empty or contains only a single empty paragraph
+        // AND ydoc has not received any remote updates / snapshot
+        if (!isFragmentEmpty(activeFragment) || hasReceivedRemoteUpdatesRef.current) {
+            return;
+        }
+
         try {
             const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
             const doc = editor.schema.nodeFromJSON(docJson);
-            // BUG-10 FIX: NEVER mutate client ID to a static value!
-            prosemirrorToYXmlFragment(doc, activeFragment);
+            ydoc.transact(() => {
+                while (activeFragment.length > 0) {
+                    activeFragment.delete(0, 1);
+                }
+                prosemirrorToYXmlFragment(doc, activeFragment);
+            }, 'initial-seed');
         } catch {
             if (!provider && !editor.isDestroyed) {
                 try {
@@ -450,7 +532,7 @@ export function useTipTapConfig({
         if (provider) {
             // BUG-09: Wait for Yjs sync before seeding. NEVER call setContent after sync!
             if (isSynced) {
-                if (isFragmentEmpty(active)) {
+                if (isFragmentEmpty(active) && !hasReceivedRemoteUpdatesRef.current && !(provider?.synced && active.length > 0)) {
                     const seed = cleanInitial || initialContentRef.current;
                     if (seed && !isDocEmpty(seed)) {
                         loadIntoYjsFragment(seed);
@@ -459,13 +541,23 @@ export function useTipTapConfig({
                 contentInit.current = true;
             }
         } else {
-            const seed = cleanInitial || initialContentRef.current;
-            if (seed && !isDocEmpty(seed)) {
-                loadIntoYjsFragment(seed);
+            // Non-collaborative fallback (e.g. chat, calendar)
+            // If collaboration is expected for this tab, wait for provider rather than seeding prematurely!
+            const isCollabExpected = Boolean(
+                activeTabId &&
+                !activeTabId.startsWith('chat-') &&
+                !activeTabId.startsWith('profile:') &&
+                !['calendar', 'messages', 'social', 'ext_finance'].includes(activeTabId)
+            );
+            if (!isCollabExpected) {
+                const seed = cleanInitial || initialContentRef.current;
+                if (seed && !isDocEmpty(seed)) {
+                    loadIntoYjsFragment(seed);
+                }
+                contentInit.current = true;
             }
-            contentInit.current = true;
         }
-    }, [editor, cleanInitial, provider, isSynced, ydoc]);
+    }, [editor, cleanInitial, provider, isSynced, ydoc, activeTabId]);
 
     useEffect(() => {
         if (!editor || editor.isDestroyed || !cleanInitial || isDocEmpty(cleanInitial)) return;

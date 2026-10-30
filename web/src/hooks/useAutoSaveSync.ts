@@ -107,7 +107,11 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
     }, [activeNoteId, activeFileKey, editorContent, canvasNoteData, saveStatus, fileName]);
 
     useEffect(() => {
-        useActiveNoteStore.getState().setActiveDEK(activeFileKey ?? null);
+        if (activeFileKey instanceof CryptoKey) {
+            useActiveNoteStore.getState().setActiveDEK(activeFileKey);
+        } else if (activeFileKey === null) {
+            useActiveNoteStore.getState().setActiveDEK(null);
+        }
     }, [activeFileKey]);
 
     const handleFileNotFound = useCallback((fileId: string) => {
@@ -187,7 +191,9 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                         if (resolved?.dek) {
                             activeDEK = resolved.dek;
                             setActiveFileKey(activeDEK);
-                            useActiveNoteStore.getState().setActiveDEK(activeDEK);
+                            if (activeDEK instanceof CryptoKey) {
+                                useActiveNoteStore.getState().setActiveDEK(activeDEK);
+                            }
                         }
                     } catch (e) {
                         console.warn("[Compaction] Failed to resolve DEK:", e);
@@ -195,8 +201,8 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                 }
             }
 
-            if (!activeDEK) {
-                throw new Error(`[Compaction] Active DEK unavailable for note ${noteId}`);
+            if (!activeDEK || !(activeDEK instanceof CryptoKey)) {
+                return; // Skip compaction until real CryptoKey is loaded
             }
 
             const keyEpoch = useActiveNoteStore.getState().keyEpoch || 1;
@@ -354,7 +360,9 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
         if (fileKey && fileKey !== activeFileKeyRef.current) {
             setActiveFileKey(fileKey);
             activeFileKeyRef.current = fileKey;
-            useActiveNoteStore.getState().setActiveDEK(fileKey);
+            if (fileKey instanceof CryptoKey) {
+                useActiveNoteStore.getState().setActiveDEK(fileKey);
+            }
         }
         await triggerCompaction(noteId);
     }, [triggerCompaction, setActiveFileKey]);
@@ -476,7 +484,9 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
 
             if (fileKeyToUse) {
                 setActiveFileKey(fileKeyToUse);
-                useActiveNoteStore.getState().setActiveDEK(fileKeyToUse);
+                if (fileKeyToUse instanceof CryptoKey) {
+                    useActiveNoteStore.getState().setActiveDEK(fileKeyToUse);
+                }
             }
 
             if (title) {

@@ -72,7 +72,9 @@ export class YjsE2EEProvider {
 
         // Store active YDoc & DEK in activeNoteStore
         activeNoteStore.getState().setActiveYDoc(ydoc);
-        activeNoteStore.getState().setActiveDEK(dek);
+        if (dek instanceof CryptoKey) {
+            activeNoteStore.getState().setActiveDEK(dek);
+        }
         activeNoteStore.getState().setKeyEpoch(this.keyEpoch);
 
         // Listen for local ydoc updates and encrypt
@@ -253,8 +255,20 @@ export class YjsE2EEProvider {
             const hostname = window.location.hostname;
             if (hostname === 'localhost' || hostname === '127.0.0.1') {
                 wsHost = `${hostname}:8080`;
-            } else {
+            } else if (hostname === 'go-tide.app' || hostname.endsWith('.go-tide.app')) {
                 wsHost = window.location.host;
+            } else {
+                wsHost = `${hostname}:8080`;
+            }
+        }
+
+        // Remote client support (e.g. iPad or phone connecting to host machine via LAN IP)
+        if (typeof window !== 'undefined') {
+            const clientHostname = window.location.hostname;
+            if (clientHostname && clientHostname !== 'localhost' && clientHostname !== '127.0.0.1') {
+                wsHost = wsHost.replace(/^(localhost|127\.0\.0\.1)(:\d+)?/, (_, __, port) => {
+                    return `${clientHostname}${port || ':8080'}`;
+                });
             }
         }
 
@@ -314,16 +328,18 @@ export class YjsE2EEProvider {
 
                 // Send initial awareness state
                 try {
-                    const awarenessUpdate = encodeAwarenessUpdate(this.awareness, [this.ydoc.clientID]);
-                    const frame = await encryptWSFrame(
-                        this.noteId,
-                        FRAME_TYPE_AWARENESS,
-                        this.keyEpoch,
-                        this.dek,
-                        awarenessUpdate
-                    );
-                    if (this.ws?.readyState === WebSocket.OPEN) {
-                        this.ws.send(frame);
+                    if (this.dek instanceof CryptoKey) {
+                        const awarenessUpdate = encodeAwarenessUpdate(this.awareness, [this.ydoc.clientID]);
+                        const frame = await encryptWSFrame(
+                            this.noteId,
+                            FRAME_TYPE_AWARENESS,
+                            this.keyEpoch,
+                            this.dek,
+                            awarenessUpdate
+                        );
+                        if (this.ws?.readyState === WebSocket.OPEN) {
+                            this.ws.send(frame);
+                        }
                     }
                 } catch (awErr) {
                     console.error('[YjsE2EEProvider] Failed to send initial awareness:', awErr);
@@ -481,6 +497,10 @@ export class YjsE2EEProvider {
     }
 
     private async handleLocalDocUpdate(update: Uint8Array): Promise<void> {
+        if (!this.dek || !(this.dek instanceof CryptoKey)) {
+            return;
+        }
+
         // Enforce view role: non-view clients only
         const perm = activeNoteStore.getState().permission;
         if (perm === 'view') {
@@ -507,6 +527,10 @@ export class YjsE2EEProvider {
     }
 
     private async handleLocalAwarenessUpdate(changedClients: number[]): Promise<void> {
+        if (!this.dek || !(this.dek instanceof CryptoKey)) {
+            return; // Skip awareness encryption until real CryptoKey is set
+        }
+
         try {
             const update = encodeAwarenessUpdate(this.awareness, changedClients);
             const frame = await encryptWSFrame(
@@ -531,6 +555,7 @@ export class YjsE2EEProvider {
     public async compact(): Promise<void> {
         const perm = activeNoteStore.getState().permission;
         if (perm === 'view') return;
+        if (!this.dek || !(this.dek instanceof CryptoKey)) return;
 
         try {
             const yjsState = Y.encodeStateAsUpdate(this.ydoc);
@@ -542,7 +567,7 @@ export class YjsE2EEProvider {
             );
             const upToSeqId = activeNoteStore.getState().lastCompactedSeqId;
 
-            let res = await apiFetch(`/api/files/${encodeURIComponent(this.noteId)}/compact`, {
+            const res = await apiFetch(`/api/files/${encodeURIComponent(this.noteId)}/compact`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -570,6 +595,9 @@ export class YjsE2EEProvider {
     }
 
     public updateDEK(newDek: CryptoKey, newKeyEpoch?: number): void {
+        if (!newDek || !(newDek instanceof CryptoKey)) {
+            return;
+        }
         this.dek = newDek;
         if (newKeyEpoch !== undefined) {
             this.keyEpoch = newKeyEpoch;
@@ -593,12 +621,12 @@ export class YjsE2EEProvider {
             if (this.ws.readyState === WebSocket.CONNECTING) {
                 const socket = this.ws;
                 socket.onopen = () => {
-                    try { socket.close(); } catch (_) {}
+                    try { socket.close(); } catch {}
                 };
                 socket.onclose = null;
             } else {
                 this.ws.onclose = null;
-                try { this.ws.close(); } catch (_) {}
+                try { this.ws.close(); } catch {}
             }
             this.ws = null;
         }

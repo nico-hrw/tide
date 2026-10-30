@@ -30,19 +30,25 @@ export const useActiveNoteStore = create<ActiveNoteState>((set) => ({
     lastCompactedSeqId: 0,
 
     setActiveNote: (noteId: string | null, permission?: NotePermission, keyEpoch?: number, activeDEK?: CryptoKey | null) =>
-        set((state) => ({
-            activeNoteId: noteId,
-            currentNoteId: noteId,
-            permission: permission !== undefined ? permission : (noteId === null ? 'owner' : state.permission),
-            keyEpoch: keyEpoch !== undefined ? keyEpoch : (noteId === null ? 1 : state.keyEpoch),
-            activeDEK: activeDEK !== undefined ? activeDEK : (noteId === null ? null : state.activeDEK),
-        })),
+        set((state) => {
+            const validDEK = (typeof CryptoKey !== 'undefined' && activeDEK instanceof CryptoKey) ? activeDEK : null;
+            return {
+                activeNoteId: noteId,
+                currentNoteId: noteId,
+                permission: permission !== undefined ? permission : (noteId === null ? 'owner' : state.permission),
+                keyEpoch: keyEpoch !== undefined ? keyEpoch : (noteId === null ? 1 : state.keyEpoch),
+                activeDEK: activeDEK !== undefined ? validDEK : (noteId === null ? null : state.activeDEK),
+            };
+        }),
 
     setLivePermission: (permission: NotePermission) => set({ permission }),
 
     setKeyEpoch: (keyEpoch: number) => set({ keyEpoch }),
 
-    setActiveDEK: (activeDEK: CryptoKey | null) => set({ activeDEK }),
+    setActiveDEK: (activeDEK: CryptoKey | null) =>
+        set({
+            activeDEK: (typeof CryptoKey !== 'undefined' && activeDEK instanceof CryptoKey) ? activeDEK : null,
+        }),
 
     setActiveYDoc: (activeYDoc: Doc | null) => set({ activeYDoc }),
 

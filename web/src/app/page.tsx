@@ -47,6 +47,7 @@ import { CheckCircle2, Loader2, Plus, ChevronDown, ChevronRight, Share, Download
 import { useIslandStore } from '@/components/extensions/smart_island/useIslandStore';
 import { isSameDay } from 'date-fns';
 import { useDataStore, DataItem, TaskItem } from "@/store/useDataStore";
+import { useActiveNoteStore } from "@/store/activeNoteStore";
 import { useDragGhost } from "@/store/useDragGhost";
 import EventDragGhost from "@/components/Calendar/EventDragGhost";
 import CloudStatusBanner from "@/components/CloudStatusBanner";
@@ -2987,6 +2988,8 @@ export default function Dashboard() {
                                 key={activeTabId}
                                 isShared={isSharedNote}
                                 initialContent={editorContent}
+                                dek={activeFileKey}
+                                keyEpoch={useActiveNoteStore.getState().keyEpoch || 1}
                                 editable={(() => {
                                     const af = files.find(f => f.id === activeNoteId);
                                     return (af as any)?.permission !== 'view';

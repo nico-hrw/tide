@@ -846,62 +846,60 @@ span.task-mention-pill,
   background: #1E293B;
 }
 
-/* ─── Collaboration Cursors ──────────────────────────────────────────────── */
-.collaboration-cursor__caret {
-  border-left: 1px solid #0D0D0D;
-  border-right: 1px solid #0D0D0D;
-  margin-left: -1px;
-  margin-right: -1px;
-  pointer-events: none;
-  position: relative;
-  word-break: normal;
-}
-
 /* ─── Collaboration Carets & Realtime Cursors ────────────────────────────── */
 .ProseMirror-yjs-cursor,
-.collaboration-carets__cursor {
+.collaboration-carets__caret,
+.collaboration-cursor__caret {
   position: relative;
   margin-left: -1px;
   margin-right: -1px;
-  border-left: 2px solid #a855f7;
+  border-left: 2px solid currentColor;
   border-right: none;
   border-top: none;
   border-bottom: none;
   display: inline;
   word-break: normal;
-  pointer-events: none;
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
   z-index: 40;
 }
 
 .ProseMirror-yjs-cursor > div,
-.collaboration-carets__label {
+.collaboration-carets__label,
+.collaboration-cursor__label {
   position: absolute;
   top: -1.4em;
   left: -2px;
   font-size: 10px;
   font-weight: 600;
   line-height: 1.2;
-  user-select: none;
+  user-select: none !important;
+  -webkit-user-select: none !important;
   white-space: nowrap;
   color: #fff;
   padding: 2px 6px;
   border-radius: 4px;
   border-bottom-left-radius: 0;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-  pointer-events: none;
+  pointer-events: none !important;
   z-index: 50;
   animation: fadeIn 0.15s ease-out;
 }
 
 .collaboration-cursor__selection,
-.collaboration-carets__selection {
+.collaboration-carets__selection,
+.ProseMirror-yjs-selection {
   background-color: rgba(168, 85, 247, 0.15);
   border-radius: 2px;
   display: inline;
+  pointer-events: none !important;
+  user-select: none !important;
 }
 
 .dark .collaboration-cursor__selection,
-.dark .collaboration-carets__selection {
+.dark .collaboration-carets__selection,
+.dark .ProseMirror-yjs-selection {
   background-color: rgba(168, 85, 247, 0.25);
 }
 

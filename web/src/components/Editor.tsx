@@ -33,7 +33,7 @@ export default function Editor(props: EditorProps) {
         );
     }
 
-    return <CollaborativeEditor {...props} />;
+    return <CollaborativeEditor key={props.activeTabId || 'editor-default'} {...props} />;
 }
 
 function CollaborativeEditor({
@@ -61,7 +61,28 @@ function CollaborativeEditor({
     const livePermission = useActiveNoteStore((s) => s.permission);
     const isEditable = editable && livePermission !== 'view';
 
-    useEffect(() => { userHasTypedRef.current = false; }, [activeTabId, cleanInitial]);
+    useEffect(() => { userHasTypedRef.current = false; }, [activeTabId]);
+
+    const prevTabIdRef = useRef(activeTabId);
+    useEffect(() => {
+        if (prevTabIdRef.current !== activeTabId) {
+            prevTabIdRef.current = activeTabId;
+            if (providerRef.current) {
+                (window as any).__tideWsConnected = false;
+                providerRef.current.destroy();
+                providerRef.current = null;
+                setProvider(null);
+            }
+            ydocRef.current.destroy();
+            const newDoc = new Y.Doc();
+            ydocRef.current = newDoc;
+            setYdoc(newDoc);
+            contentInitialized.current = false;
+            syncTimedOutRef.current = false;
+            setIsSynced(false);
+            userHasTypedRef.current = false;
+        }
+    }, [activeTabId]);
 
     const isTempKeyRef = useRef(false);
     const providerRef = useRef<YjsE2EEProvider | null>(null);
@@ -128,6 +149,13 @@ function CollaborativeEditor({
         let tempKeyTimer: NodeJS.Timeout | null = null;
 
         if (activeDek) {
+            if (providerRef.current && providerRef.current.noteId !== activeTabId) {
+                (window as any).__tideWsConnected = false;
+                providerRef.current.destroy();
+                providerRef.current = null;
+                setProvider(null);
+            }
+
             if (!providerRef.current) {
                 const newProvider = createProvider(activeDek, ydocRef.current, false);
                 if (newProvider && !isCancelled) {
@@ -194,9 +222,22 @@ function CollaborativeEditor({
     useEffect(() => {
         if (!provider) return;
 
-        const handleSync = (synced: boolean) => setIsSynced(synced);
+        let fallbackTimer: NodeJS.Timeout | null = null;
+        const handleSync = (synced: boolean) => {
+            setIsSynced(synced);
+            if (synced && fallbackTimer) {
+                clearTimeout(fallbackTimer);
+                fallbackTimer = null;
+            }
+        };
         provider.on('sync', handleSync);
-        if (provider.synced) setIsSynced(true);
+        if (provider.synced) {
+            setIsSynced(true);
+        } else {
+            fallbackTimer = setTimeout(() => {
+                setIsSynced(true);
+            }, 3000);
+        }
 
         const handleChange = () => {
             if (onActiveUsersChange) {
@@ -209,6 +250,7 @@ function CollaborativeEditor({
         provider.awareness.on('change', handleChange);
 
         return () => {
+            if (fallbackTimer) clearTimeout(fallbackTimer);
             provider.off('sync', handleSync);
             provider.awareness.off('change', handleChange);
             setIsSynced(false);
