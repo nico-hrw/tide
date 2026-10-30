@@ -171,7 +171,7 @@ export function useTipTapConfig({
             color: userProfile?.color || color,
             seed: userProfile?.avatar_seed || userId,
         });
-    }, [provider, userProfile, myId]);
+    }, [provider, userProfile?.username, userProfile?.avatar_seed, myId]);
 
     const extensions = useMemo(() => {
         const base = [
@@ -218,6 +218,7 @@ export function useTipTapConfig({
     }, [enabledExtensions, provider, ydoc]);
 
     const updateReferencePreviews = (editorInstance: any, activeId: string) => {
+        if (!editorInstance || editorInstance.isDestroyed) return;
         const store = useReferenceStore.getState();
         const myRefs = store.references.filter(r => r.sourceNoteId === activeId);
         if (myRefs.length === 0) return;
@@ -263,7 +264,7 @@ export function useTipTapConfig({
         editable: canEdit,
         immediatelyRender: false,
         onUpdate: ({ editor, transaction }) => {
-            if (!transaction.docChanged || !contentInit.current) return;
+            if (!editor || editor.isDestroyed || !transaction.docChanged || !contentInit.current) return;
             if (setInkStrokes) setInkStrokes(getEditorInkStrokes(editor));
             const content = editor.getJSON();
             if (isDocEmpty(content) && !isDocEmpty(initialContentRef.current) && !userHasTyped.current) return;
@@ -285,10 +286,13 @@ export function useTipTapConfig({
             // Persistenz und Autosave laufen verschlüsselt über useDataStore und die Synchronisations-Pipeline.
         },
         onSelectionUpdate: ({ editor }) => {
+            if (!editor || editor.isDestroyed) return;
             const activeId = activeTabIdRef.current;
             if (activeId && !activeId.startsWith('chat-') && activeId !== 'calendar') {
-                const { from, to } = editor.state.selection;
-                useDataStore.getState().setNoteCaretPosition(activeId, { from, to });
+                try {
+                    const { from, to } = editor.state.selection;
+                    useDataStore.getState().setNoteCaretPosition(activeId, { from, to });
+                } catch (_) {}
             }
         },
         editorProps: {
@@ -391,9 +395,11 @@ export function useTipTapConfig({
 
     useEffect(() => {
         if (!editor || editor.isDestroyed) return;
-        if (editor.isEditable !== canEdit) {
-            editor.setEditable(canEdit);
-        }
+        try {
+            if (editor.isEditable !== canEdit) {
+                editor.setEditable(canEdit);
+            }
+        } catch (_) {}
     }, [editor, canEdit]);
 
     const prevProviderRef = useRef(provider);
@@ -407,7 +413,7 @@ export function useTipTapConfig({
     }, [provider, contentInit]);
 
     const loadIntoYjsFragment = (docJson: any) => {
-        if (!ydoc || !editor) return;
+        if (!ydoc || !editor || editor.isDestroyed) return;
         const activeFragment = ydoc.getXmlFragment('prosemirror');
         try {
             const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
@@ -415,14 +421,16 @@ export function useTipTapConfig({
             // BUG-10 FIX: NEVER mutate client ID to a static value!
             prosemirrorToYXmlFragment(doc, activeFragment);
         } catch {
-            if (!provider) {
-                editor.commands.setContent(docJson, { emitUpdate: false });
+            if (!provider && !editor.isDestroyed) {
+                try {
+                    editor.commands.setContent(docJson, { emitUpdate: false });
+                } catch (_) {}
             }
         }
     };
 
     useEffect(() => {
-        if (!editor || !ydoc) return;
+        if (!editor || editor.isDestroyed || !ydoc) return;
         if (contentInit.current) return;
 
         const active = ydoc.getXmlFragment('prosemirror');
@@ -462,10 +470,12 @@ export function useTipTapConfig({
     useEffect(() => {
         if (!editor || editor.isDestroyed || !cleanInitial || isDocEmpty(cleanInitial)) return;
         // Non-collaboration fallback only. NEVER overwrite collaborative document with setContent!
-        if (!ydoc && isDocEmpty(editor.getJSON())) {
-            editor.commands.setContent(cleanInitial, { emitUpdate: false });
-            contentInit.current = true;
-        }
+        try {
+            if (!ydoc && isDocEmpty(editor.getJSON())) {
+                editor.commands.setContent(cleanInitial, { emitUpdate: false });
+                contentInit.current = true;
+            }
+        } catch (_) {}
     }, [editor, cleanInitial, ydoc]);
 
     return { editor, cleanInitial, userHasTypedRef: userHasTyped, contentInitialized: contentInit };

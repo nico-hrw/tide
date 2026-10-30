@@ -2242,9 +2242,9 @@ export default function Dashboard() {
                 
                 const v2Result = await encryptFileV2(contentString, publicKey);
                 
-                const existingFile = event || currentEvents.find(e => e.id === baseId) || useDataStore.getState().notes.find((n: any) => n.id === baseId);
-                if (typeof (existingFile as any)?.version === 'number') {
-                    body.version = (existingFile as any).version;
+                const freshItem = useDataStore.getState().events.find((e: any) => e.id === baseId) || useDataStore.getState().notes.find((n: any) => n.id === baseId) || event;
+                if (typeof (freshItem as any)?.version === 'number') {
+                    body.version = (freshItem as any).version;
                 }
                 body.metadata = {
                     ...v2Result.metadata,
@@ -2286,6 +2286,11 @@ export default function Dashboard() {
                 body.completed_dates = updates.completed_dates;
             }
 
+            const freshItemBeforeSend = useDataStore.getState().events.find((e: any) => e.id === baseId) || useDataStore.getState().notes.find((n: any) => n.id === baseId) || event;
+            if (typeof (freshItemBeforeSend as any)?.version === 'number') {
+                body.version = (freshItemBeforeSend as any).version;
+            }
+
             // 7. Fire network call
             const res = await apiFetch(`/api/v1/files/${baseId}`, {
                 method: "PUT",
@@ -2322,8 +2327,8 @@ export default function Dashboard() {
                             }
                         }
                     }
-                } catch (conflictErr) {
-                    console.error("Conflict resolution failed in handleEventSave", conflictErr);
+                } catch {
+                    // Silently ignore conflict resolution errors
                 }
             } else if (res.ok) {
                 try {
@@ -2405,84 +2410,96 @@ export default function Dashboard() {
             return false;
         };
 
-        tasksWithDueDate.forEach(async (t) => {
-            if (syncingTaskIdsRef.current.has(t.id)) return;
+        let cancelled = false;
 
-            const existingEvent = events.find(e => (e as any).linkedTaskId === t.id);
+        const syncTasks = async () => {
+            for (const t of tasksWithDueDate) {
+                if (cancelled) break;
+                if (syncingTaskIdsRef.current.has(t.id)) continue;
 
-            let start: Date;
-            let end: Date;
-            let isAllDay: boolean;
+                const currentEvents = useDataStore.getState().events;
+                const existingEvent = currentEvents.find(e => (e as any).linkedTaskId === t.id) || events.find(e => (e as any).linkedTaskId === t.id);
 
-            if (!hasExplicitTime(t.dueDate)) {
-                const [y, m, d] = t.dueDate!.slice(0, 10).split('-').map(Number);
-                start = new Date(y, m - 1, d, 0, 0, 0);
-                end = new Date(y, m - 1, d, 23, 59, 59);
-                isAllDay = true;
-            } else {
-                let dateStr = t.dueDate!;
-                if (dateStr.includes('T') && dateStr.split('T')[1].length === 5) {
-                    dateStr += ':00';
+                let start: Date;
+                let end: Date;
+                let isAllDay: boolean;
+
+                if (!hasExplicitTime(t.dueDate)) {
+                    const [y, m, d] = t.dueDate!.slice(0, 10).split('-').map(Number);
+                    start = new Date(y, m - 1, d, 0, 0, 0);
+                    end = new Date(y, m - 1, d, 23, 59, 59);
+                    isAllDay = true;
+                } else {
+                    let dateStr = t.dueDate!;
+                    if (dateStr.includes('T') && dateStr.split('T')[1].length === 5) {
+                        dateStr += ':00';
+                    }
+                    start = new Date(dateStr);
+                    if (isNaN(start.getTime())) {
+                        start = new Date(t.dueDate!);
+                    }
+                    end = new Date(start.getTime() + 30 * 60 * 1000);
+                    isAllDay = false;
                 }
-                start = new Date(dateStr);
-                if (isNaN(start.getTime())) {
-                    start = new Date(t.dueDate!);
-                }
-                end = new Date(start.getTime() + 30 * 60 * 1000);
-                isAllDay = false;
-            }
 
-            if (isNaN(start.getTime())) return;
+                if (isNaN(start.getTime())) continue;
 
-            if (!existingEvent) {
-                syncingTaskIdsRef.current.add(t.id);
-                try {
-                    await handleEventCreateRef.current(start, end, isAllDay, {
-                        title: t.title,
-                        is_task: true,
-                        linkedTaskId: t.id,
-                        color: t.color || (t.folder && foldersMeta[t.folder]?.color ? getFolderColor(foldersMeta[t.folder]?.color).hex : undefined),
-                        recurrence_rule: t.recurrence_rule,
-                        recurrence_end: t.recurrence_end,
-                        is_completed: t.isCompleted,
-                        allDay: isAllDay,
-                        isAllDay,
-                    });
-                } finally {
-                    setTimeout(() => {
-                        syncingTaskIdsRef.current.delete(t.id);
-                    }, 500);
-                }
-            } else {
-                const isTitleDiff = existingEvent.title !== t.title;
-                const isStartDiff = isAllDay
-                    ? !isSameTime(existingEvent.start, start.toISOString())
-                    : !isSameTime(existingEvent.start, t.dueDate);
-                const isAllDayDiff = Boolean(existingEvent.allDay) !== isAllDay;
-                const isCompletedDiff = (existingEvent.is_completed ?? false) !== (t.isCompleted ?? false);
-                const isRecurrenceDiff = (existingEvent as any).recurrence_rule !== t.recurrence_rule;
-
-                if (isTitleDiff || isStartDiff || isAllDayDiff || isCompletedDiff || isRecurrenceDiff) {
+                if (!existingEvent) {
                     syncingTaskIdsRef.current.add(t.id);
                     try {
-                        await handleEventSaveRef.current(existingEvent.id, {
+                        await handleEventCreateRef.current(start, end, isAllDay, {
                             title: t.title,
-                            start: start.toISOString(),
-                            end: end.toISOString(),
-                            allDay: isAllDay,
-                            isAllDay,
-                            is_completed: t.isCompleted,
+                            is_task: true,
+                            linkedTaskId: t.id,
+                            color: t.color || (t.folder && foldersMeta[t.folder]?.color ? getFolderColor(foldersMeta[t.folder]?.color).hex : undefined),
                             recurrence_rule: t.recurrence_rule,
                             recurrence_end: t.recurrence_end,
+                            is_completed: t.isCompleted,
+                            allDay: isAllDay,
+                            isAllDay,
                         });
                     } finally {
                         setTimeout(() => {
                             syncingTaskIdsRef.current.delete(t.id);
                         }, 500);
                     }
+                } else {
+                    const isTitleDiff = existingEvent.title !== t.title;
+                    const isStartDiff = isAllDay
+                        ? !isSameTime(existingEvent.start, start.toISOString())
+                        : !isSameTime(existingEvent.start, t.dueDate);
+                    const isAllDayDiff = Boolean(existingEvent.allDay) !== isAllDay;
+                    const isCompletedDiff = (existingEvent.is_completed ?? false) !== (t.isCompleted ?? false);
+                    const isRecurrenceDiff = (existingEvent as any).recurrence_rule !== t.recurrence_rule;
+
+                    if (isTitleDiff || isStartDiff || isAllDayDiff || isCompletedDiff || isRecurrenceDiff) {
+                        syncingTaskIdsRef.current.add(t.id);
+                        try {
+                            await handleEventSaveRef.current(existingEvent.id, {
+                                title: t.title,
+                                start: start.toISOString(),
+                                end: end.toISOString(),
+                                allDay: isAllDay,
+                                isAllDay,
+                                is_completed: t.isCompleted,
+                                recurrence_rule: t.recurrence_rule,
+                                recurrence_end: t.recurrence_end,
+                            });
+                        } finally {
+                            setTimeout(() => {
+                                syncingTaskIdsRef.current.delete(t.id);
+                            }, 500);
+                        }
+                    }
                 }
             }
-        });
+        };
+
+        syncTasks();
+
+        return () => {
+            cancelled = true;
+        };
     }, [tasks, events, privateKey, publicKey, loadedDirectories]);
 
     switchTabRef.current = switchTab;

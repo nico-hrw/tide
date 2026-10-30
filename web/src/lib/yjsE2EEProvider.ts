@@ -171,7 +171,6 @@ export class YjsE2EEProvider {
                     const ivStr = entry.iv || entry.IV;
                     const cipherStr = entry.ciphertext || entry.Ciphertext;
                     const seqId = entry.seq_id || entry.seqId || 0;
-                    if (seqId > maxSeqId) maxSeqId = seqId;
 
                     if (ivStr && cipherStr) {
                         const ivBytes = base64ToArrayBuffer(ivStr);
@@ -188,8 +187,10 @@ export class YjsE2EEProvider {
                         const { plaintext } = await decryptWSFrame(this.noteId, frame, this.dek);
                         Y.applyUpdate(this.ydoc, plaintext, 'remote');
                     }
+
+                    if (seqId > maxSeqId) maxSeqId = seqId;
                 } catch (walErr) {
-                    console.error('[YjsE2EEProvider] Failed to decrypt WAL entry:', walErr);
+                    console.warn('[YjsE2EEProvider] Skipping unreadable WAL entry (key mismatch):', walErr);
                 }
             }
 
@@ -396,13 +397,21 @@ export class YjsE2EEProvider {
         try {
             switch (msgType) {
                 case FRAME_TYPE_CRDT: { // 0x01
-                    const { plaintext } = await decryptWSFrame(this.noteId, frame, this.dek);
-                    Y.applyUpdate(this.ydoc, plaintext, 'remote');
+                    try {
+                        const { plaintext } = await decryptWSFrame(this.noteId, frame, this.dek);
+                        Y.applyUpdate(this.ydoc, plaintext, 'remote');
+                    } catch (err) {
+                        console.warn('[YjsE2EEProvider] Failed to decrypt inbound CRDT frame (stale packet or key mismatch):', err);
+                    }
                     break;
                 }
                 case FRAME_TYPE_AWARENESS: { // 0x02
-                    const { plaintext } = await decryptWSFrame(this.noteId, frame, this.dek);
-                    applyAwarenessUpdate(this.awareness, plaintext, 'remote');
+                    try {
+                        const { plaintext } = await decryptWSFrame(this.noteId, frame, this.dek);
+                        applyAwarenessUpdate(this.awareness, plaintext, 'remote');
+                    } catch (err) {
+                        console.warn('[YjsE2EEProvider] Failed to decrypt inbound awareness frame (stale packet or key mismatch):', err);
+                    }
                     break;
                 }
                 case FRAME_TYPE_CONTROL: { // 0x03
@@ -415,7 +424,7 @@ export class YjsE2EEProvider {
                     console.warn(`[YjsE2EEProvider] Unknown frame type: 0x${msgType.toString(16)}`);
             }
         } catch (err) {
-            console.error('[YjsE2EEProvider] Inbound frame decryption/handling failed:', err);
+            console.warn('[YjsE2EEProvider] Inbound frame decryption/handling failed:', err);
         }
     }
 
@@ -579,13 +588,18 @@ export class YjsE2EEProvider {
         this.awareness.off('update', this.boundAwarenessUpdate);
 
         if (this.ws) {
-            this.ws.onopen = null;
             this.ws.onmessage = null;
             this.ws.onerror = null;
-            this.ws.onclose = null;
-            try {
-                this.ws.close();
-            } catch (_) {}
+            if (this.ws.readyState === WebSocket.CONNECTING) {
+                const socket = this.ws;
+                socket.onopen = () => {
+                    try { socket.close(); } catch (_) {}
+                };
+                socket.onclose = null;
+            } else {
+                this.ws.onclose = null;
+                try { this.ws.close(); } catch (_) {}
+            }
             this.ws = null;
         }
 

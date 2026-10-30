@@ -74,6 +74,9 @@ function CollaborativeEditor({
     const activeDek = dek || storeDEK || useActiveNoteStore.getState().activeDEK || null;
     const activeEpoch = keyEpoch || storeEpoch || useActiveNoteStore.getState().keyEpoch || 1;
 
+    const userProfileRef = useRef(userProfile);
+    userProfileRef.current = userProfile;
+
     const createProvider = useCallback((key: CryptoKey, docToUse: Y.Doc, isTemp: boolean) => {
         if (!activeTabId) return null;
 
@@ -91,9 +94,10 @@ function CollaborativeEditor({
         const hash = Array.from(userId).reduce((acc, char) => acc + char.charCodeAt(0), 0);
         const color = COLORS[hash % COLORS.length];
 
+        const profile = userProfileRef.current;
         e2eeProvider.awareness.setLocalStateField('user', {
-            name: userProfile?.username || 'User',
-            color, id: userId, seed: userProfile?.avatar_seed || userId,
+            name: profile?.username || 'User',
+            color, id: userId, seed: profile?.avatar_seed || userId,
         });
 
         (window as any).__tideWsConnected = e2eeProvider.wsconnected;
@@ -104,7 +108,7 @@ function CollaborativeEditor({
 
         isTempKeyRef.current = isTemp;
         return e2eeProvider;
-    }, [activeTabId, activeEpoch, myId, userProfile]);
+    }, [activeTabId, activeEpoch, myId]);
 
     useEffect(() => {
         if (!activeTabId || 
@@ -194,15 +198,6 @@ function CollaborativeEditor({
         provider.on('sync', handleSync);
         if (provider.synced) setIsSynced(true);
 
-        const userId = myId || useDataStore.getState().myId || 'anonymous';
-        const hash = Array.from(userId).reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const color = COLORS[hash % COLORS.length];
-        
-        provider.awareness.setLocalStateField('user', {
-            name: userProfile?.username || 'User',
-            color, id: userId, seed: userProfile?.avatar_seed || userId,
-        });
-
         const handleChange = () => {
             if (onActiveUsersChange) {
                 const states = Array.from(provider.awareness.getStates().values());
@@ -218,7 +213,19 @@ function CollaborativeEditor({
             provider.awareness.off('change', handleChange);
             setIsSynced(false);
         };
-    }, [provider, userProfile, myId, onActiveUsersChange]);
+    }, [provider, onActiveUsersChange]);
+
+    useEffect(() => {
+        if (!provider?.awareness) return;
+        const userId = myId || useDataStore.getState().myId || 'anonymous';
+        const hash = Array.from(userId).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const color = COLORS[hash % COLORS.length];
+
+        provider.awareness.setLocalStateField('user', {
+            name: userProfile?.username || 'User',
+            color, id: userId, seed: userProfile?.avatar_seed || userId,
+        });
+    }, [provider, userProfile?.username, userProfile?.avatar_seed, myId]);
 
     const onEventClickRef = useRef(onEventClick);
     useEffect(() => { onEventClickRef.current = onEventClick; }, [onEventClick]);
@@ -289,12 +296,15 @@ function CollaborativeEditor({
         if (!editor) return;
 
         const handleResizeImage = (e: CustomEvent) => {
+            if (!editor || editor.isDestroyed) return;
             const { src, width, height } = e.detail;
-            editor.view.state.doc.descendants((node, pos) => {
-                if (node.type.name === 'image' && node.attrs.src === src) {
-                    editor.chain().setNodeSelection(pos).updateAttributes('image', { width, height }).run();
-                }
-            });
+            try {
+                editor.state.doc.descendants((node, pos) => {
+                    if (node.type.name === 'image' && node.attrs.src === src) {
+                        editor.chain().setNodeSelection(pos).updateAttributes('image', { width, height }).run();
+                    }
+                });
+            } catch (_) {}
         };
         window.addEventListener('canvas:resize-tiptap-image', handleResizeImage as EventListener);
 
@@ -343,7 +353,11 @@ function CollaborativeEditor({
                     try { editor.commands.deleteRange(stored.range); } catch (e) { }
                 }
 
-                editor.view.dispatch(editor.state.tr);
+                try {
+                    if ((editor as any).editorView) {
+                        editor.view.dispatch(editor.state.tr);
+                    }
+                } catch (_) {}
                 if (onForceSave) onForceSave(editor.getJSON());
             }, 50);
         }
@@ -357,8 +371,15 @@ function CollaborativeEditor({
 
     // Pin System Hover Delegation
     useEffect(() => {
-        if (!editor?.view.dom || !onBlockHover) return;
-        const dom = editor.view.dom;
+        if (!editor || editor.isDestroyed || !onBlockHover) return;
+        let dom: HTMLElement | null = null;
+        try {
+            dom = (editor as any).editorView ? editor.view.dom : null;
+        } catch {
+            return;
+        }
+        if (!dom) return;
+
         const handleMouseMove = (e: MouseEvent) => {
             const target = e.target as HTMLElement;
             const block = target.closest('[data-block-id]');
@@ -473,21 +494,25 @@ function CollaborativeEditor({
                     if (!editor || !editable) return;
                     const target = e.target as HTMLElement;
                     if (target.classList.contains('ProseMirror')) {
-                        const lastChild = editor.view.dom.lastElementChild as HTMLElement;
-                        if (lastChild) {
-                            const rect = lastChild.getBoundingClientRect();
-                            if (e.clientY > rect.bottom + 20) {
-                                const diff = e.clientY - rect.bottom;
-                                const linesToAdd = Math.floor(diff / 28);
-                                if (linesToAdd > 0) {
-                                    let html = '';
-                                    for (let i = 0; i < linesToAdd; i++) html += '<p></p>';
-                                    editor.chain().focus('end').insertContent(html).run();
-                                } else {
-                                    editor.chain().focus('end').run();
+                        try {
+                            if ((editor as any).editorView && editor.view?.dom) {
+                                const lastChild = editor.view.dom.lastElementChild as HTMLElement;
+                                if (lastChild) {
+                                    const rect = lastChild.getBoundingClientRect();
+                                    if (e.clientY > rect.bottom + 20) {
+                                        const diff = e.clientY - rect.bottom;
+                                        const linesToAdd = Math.floor(diff / 28);
+                                        if (linesToAdd > 0) {
+                                            let html = '';
+                                            for (let i = 0; i < linesToAdd; i++) html += '<p></p>';
+                                            editor.chain().focus('end').insertContent(html).run();
+                                        } else {
+                                            editor.chain().focus('end').run();
+                                        }
+                                    }
                                 }
                             }
-                        }
+                        } catch (_) {}
                     }
                 }}
             >
