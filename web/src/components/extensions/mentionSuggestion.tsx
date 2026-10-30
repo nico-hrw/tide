@@ -44,6 +44,9 @@ type MentionSuggestionItem =
           color?: string;
           formattedDate?: string;
           isCompleted?: boolean;
+          priority?: string;
+          dueDate?: string;
+          scheduledDate?: string;
       };
 
 const MentionList = forwardRef((props: any, ref) => {
@@ -100,7 +103,17 @@ const MentionList = forwardRef((props: any, ref) => {
                 const rawTitle = props.query || itemQuery || (item.label && !item.label.startsWith('Create ') ? item.label : '') || 'New Todo';
                 const cleanTitle = rawTitle.replace(/^!+/, '').trim() || 'New Todo';
                 const newId = await useDataStore.getState().addTask({ title: cleanTitle, isCompleted: false });
-                props.command({ ...item, id: newId, label: cleanTitle, type: 'task', isGhost: false });
+                props.command({
+                    ...item,
+                    id: newId,
+                    label: cleanTitle,
+                    type: 'task',
+                    isGhost: false,
+                    isCompleted: false,
+                    priority: undefined,
+                    dueDate: undefined,
+                    color: undefined,
+                });
             } finally {
                 isCreatingRef.current = false;
             }
@@ -269,17 +282,28 @@ const MentionList = forwardRef((props: any, ref) => {
                                     </>
                                 ) : item.type === 'task' ? (
                                     <>
-                                        <CheckSquare size={14} className="text-blue-500 dark:text-blue-400 flex-shrink-0" />
+                                        <CheckSquare
+                                            size={14}
+                                            className="text-blue-500 dark:text-blue-400 flex-shrink-0"
+                                            style={item.color ? { color: item.color } : undefined}
+                                        />
                                         <div className="flex items-center justify-between min-w-0 flex-1 gap-1.5">
                                             <span className={`font-medium truncate ${item.isCompleted ? 'line-through text-gray-400 dark:text-gray-500' : ''}`}>
                                                 <span className="text-xs text-gray-400 dark:text-gray-500 font-normal mr-1.5 no-underline">Todo:</span>
                                                 {item.label || item.title}
                                             </span>
-                                            {item.isCompleted && (
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-green-500/10 text-green-600 dark:text-green-400 font-medium flex-shrink-0">
-                                                    Erledigt
-                                                </span>
-                                            )}
+                                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                {item.formattedDate && (
+                                                    <span className="text-[11px] text-gray-400 dark:text-gray-500 font-normal">
+                                                        {item.formattedDate}
+                                                    </span>
+                                                )}
+                                                {item.isCompleted && (
+                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-green-500/10 text-green-600 dark:text-green-400 font-medium flex-shrink-0">
+                                                        Erledigt
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </>
                                 ) : item.id === 'NEW_TASK' ? (
@@ -350,13 +374,41 @@ export default {
             return e.title.toLowerCase().includes(lowQuery);
         });
 
-        // 4.5 Search Matching for Tasks — only show UNSCHEDULED tasks here.
+        // 4.5 Search Matching for Tasks — all active (non-archived) tasks
         const tasks = state.tasks || [];
         const matchedTasks = tasks.filter((t: any) => {
             if (!t || !t.title) return false;
-            if (!t.title.toLowerCase().includes(lowQuery)) return false;
-            if (t.scheduledDate) return false;
-            return true;
+            if (t.isArchived) return false;
+            return t.title.toLowerCase().includes(lowQuery);
+        });
+
+        const MONTHS_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+        const formatTaskDate = (dateStr?: string) => {
+            try {
+                if (!dateStr) return '';
+                let d: Date;
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                    const [y, m, day] = dateStr.split('-').map(Number);
+                    d = new Date(y, m - 1, day);
+                } else {
+                    d = new Date(dateStr);
+                }
+                if (isNaN(d.getTime())) return '';
+                const shortDate = `${d.getDate()}. ${MONTHS_DE[d.getMonth()]}`;
+                if (dateStr.includes('T') && !dateStr.endsWith('T00:00:00') && !dateStr.endsWith('T00:00:00.000Z')) {
+                    return `${shortDate} ${format(d, 'HH:mm')}`;
+                }
+                return shortDate;
+            } catch {
+                return '';
+            }
+        };
+
+        matchedTasks.sort((a: any, b: any) => {
+            if (Boolean(a.isCompleted) !== Boolean(b.isCompleted)) {
+                return a.isCompleted ? 1 : -1;
+            }
+            return 0;
         });
 
         const taskIdSet = new Set(tasks.map((t: any) => t.id));
@@ -456,13 +508,22 @@ export default {
 
         const eventItems = formattedEventItems.slice(0, 6);
 
-        const taskItems = matchedTasks.slice(0, 3).map((t: any) => ({
-            id: t.id,
-            label: t.title || t.id,
-            type: 'task',
-            isGhost: false,
-            isCompleted: !!t.isCompleted,
-        }));
+        const taskItems = matchedTasks.slice(0, 3).map((t: any) => {
+            const taskDate = t.dueDate || t.scheduledDate;
+            return {
+                id: t.id,
+                title: t.title,
+                label: t.title || t.id,
+                type: 'task',
+                isGhost: false,
+                isCompleted: !!t.isCompleted,
+                priority: t.priority,
+                dueDate: taskDate,
+                scheduledDate: t.scheduledDate,
+                color: t.color,
+                formattedDate: formatTaskDate(taskDate),
+            };
+        });
 
         // 5. Return formatted
         return [
@@ -498,7 +559,14 @@ export default {
         } else if (props.type === 'task' || props.id === 'NEW_TASK') {
             editor.chain().focus().deleteRange(range).insertContent({
                 type: 'taskMention',
-                attrs: { id: props.id, label: props.label || props.query || 'New Todo' }
+                attrs: {
+                    id: props.id,
+                    label: props.label || props.query || 'New Todo',
+                    isCompleted: props.isCompleted,
+                    priority: props.priority,
+                    dueDate: props.dueDate,
+                    color: props.color,
+                }
             }).run();
         } else if (props.type === 'event') {
             editor.chain().focus().deleteRange(range).insertContent({

@@ -234,6 +234,27 @@ func (s *SQLiteStore) migrate() error {
 		last_used_at DATETIME,
 		FOREIGN KEY(user_id) REFERENCES users(id)
 	);
+
+	CREATE TABLE IF NOT EXISTS quicknotes (
+		slug TEXT PRIMARY KEY,
+		title TEXT NOT NULL DEFAULT 'Untitled Quicknote',
+		content TEXT NOT NULL DEFAULT '',
+		snapshot_iv BLOB,
+		snapshot_ciphertext BLOB,
+		snapshot_seq_id INTEGER DEFAULT 0,
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL
+	);
+
+	CREATE TABLE IF NOT EXISTS quicknote_wal (
+		seq_id INTEGER PRIMARY KEY AUTOINCREMENT,
+		slug TEXT NOT NULL,
+		key_epoch INTEGER NOT NULL DEFAULT 1,
+		iv BLOB NOT NULL,
+		ciphertext BLOB NOT NULL,
+		created_at INTEGER NOT NULL,
+		FOREIGN KEY(slug) REFERENCES quicknotes(slug) ON DELETE CASCADE
+	);
 	`
 	if _, err := s.DB.Exec(tables); err != nil {
 		return err
@@ -264,6 +285,7 @@ func (s *SQLiteStore) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_file_shares_user ON file_shares(user_id);
 	CREATE INDEX IF NOT EXISTS idx_messages_recipient_created ON messages(recipient_id, created_at);
 	CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
+	CREATE INDEX IF NOT EXISTS idx_quicknote_wal_slug ON quicknote_wal(slug, seq_id);
 	`
 	if _, err := s.DB.Exec(indices); err != nil {
 		return err
@@ -474,6 +496,32 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 				"ALTER TABLE files ADD COLUMN snapshot_seq_id INTEGER NOT NULL DEFAULT 0",
 				"ALTER TABLE files ADD COLUMN snapshot_iv BLOB",
 				"ALTER TABLE files ADD COLUMN content BLOB",
+			},
+		},
+		{
+			version: 7,
+			name:    "quicknotes_and_wal",
+			stmts: []string{
+				`CREATE TABLE IF NOT EXISTS quicknotes (
+					slug TEXT PRIMARY KEY,
+					title TEXT NOT NULL DEFAULT 'Untitled Quicknote',
+					content TEXT NOT NULL DEFAULT '',
+					snapshot_iv BLOB,
+					snapshot_ciphertext BLOB,
+					snapshot_seq_id INTEGER DEFAULT 0,
+					created_at DATETIME NOT NULL,
+					updated_at DATETIME NOT NULL
+				);`,
+				`CREATE TABLE IF NOT EXISTS quicknote_wal (
+					seq_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					slug TEXT NOT NULL,
+					key_epoch INTEGER NOT NULL DEFAULT 1,
+					iv BLOB NOT NULL,
+					ciphertext BLOB NOT NULL,
+					created_at INTEGER NOT NULL,
+					FOREIGN KEY(slug) REFERENCES quicknotes(slug) ON DELETE CASCADE
+				);`,
+				"CREATE INDEX IF NOT EXISTS idx_quicknote_wal_slug ON quicknote_wal(slug, seq_id);",
 			},
 		},
 	}
@@ -2620,3 +2668,198 @@ func (s *SQLiteStore) RevokeShareAndRotateKey(ctx context.Context, fileID, targe
 
 	return tx.Commit()
 }
+
+// --- Quicknote Models & Store Methods ---
+
+type Quicknote struct {
+	Slug               string    `json:"slug"`
+	Title              string    `json:"title"`
+	Content            string    `json:"content"`
+	SnapshotIV         []byte    `json:"-"`
+	SnapshotCiphertext []byte    `json:"-"`
+	SnapshotSeqID      int64     `json:"snapshot_seq_id"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+type QuicknoteWALEntry struct {
+	SeqID      int64  `json:"seq_id"`
+	Slug       string `json:"slug"`
+	KeyEpoch   uint32 `json:"key_epoch"`
+	IV         []byte `json:"iv"`
+	Ciphertext []byte `json:"ciphertext"`
+	CreatedAt  int64  `json:"created_at"`
+}
+
+// GetOrCreateQuicknote returns an existing quicknote by slug, or creates one if it does not exist.
+func (s *SQLiteStore) GetOrCreateQuicknote(ctx context.Context, slug string, defaultTitle string) (*Quicknote, error) {
+	if defaultTitle == "" {
+		defaultTitle = "Untitled Quicknote"
+	}
+	now := time.Now()
+	insertQuery := `
+		INSERT INTO quicknotes (slug, title, content, snapshot_seq_id, created_at, updated_at)
+		VALUES (?, ?, '', 0, ?, ?)
+		ON CONFLICT(slug) DO NOTHING
+	`
+	if _, err := s.DB.ExecContext(ctx, insertQuery, slug, defaultTitle, now, now); err != nil {
+		return nil, err
+	}
+
+	selectQuery := `
+		SELECT slug, title, content, snapshot_iv, snapshot_ciphertext, COALESCE(snapshot_seq_id, 0), created_at, updated_at
+		FROM quicknotes
+		WHERE slug = ?
+	`
+	var qn Quicknote
+	err := s.DB.QueryRowContext(ctx, selectQuery, slug).Scan(
+		&qn.Slug,
+		&qn.Title,
+		&qn.Content,
+		&qn.SnapshotIV,
+		&qn.SnapshotCiphertext,
+		&qn.SnapshotSeqID,
+		&qn.CreatedAt,
+		&qn.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &qn, nil
+}
+
+// SaveQuicknote updates the title, content, and updated_at timestamp for a quicknote.
+func (s *SQLiteStore) SaveQuicknote(ctx context.Context, slug, title, content string) error {
+	query := `
+		UPDATE quicknotes
+		SET title = ?, content = ?, updated_at = ?
+		WHERE slug = ?
+	`
+	res, err := s.DB.ExecContext(ctx, query, title, content, time.Now(), slug)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// GetQuicknoteCRDTState returns the quicknote snapshot information and all subsequent WAL entries.
+func (s *SQLiteStore) GetQuicknoteCRDTState(ctx context.Context, slug string) (*Quicknote, []QuicknoteWALEntry, error) {
+	selectQuery := `
+		SELECT slug, title, content, snapshot_iv, snapshot_ciphertext, COALESCE(snapshot_seq_id, 0), created_at, updated_at
+		FROM quicknotes
+		WHERE slug = ?
+	`
+	var qn Quicknote
+	err := s.readDB().QueryRowContext(ctx, selectQuery, slug).Scan(
+		&qn.Slug,
+		&qn.Title,
+		&qn.Content,
+		&qn.SnapshotIV,
+		&qn.SnapshotCiphertext,
+		&qn.SnapshotSeqID,
+		&qn.CreatedAt,
+		&qn.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil, ErrNotFound
+		}
+		return nil, nil, err
+	}
+
+	walQuery := `
+		SELECT seq_id, slug, key_epoch, iv, ciphertext, created_at
+		FROM quicknote_wal
+		WHERE slug = ? AND seq_id > ?
+		ORDER BY seq_id ASC
+	`
+	rows, err := s.readDB().QueryContext(ctx, walQuery, slug, qn.SnapshotSeqID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	entries := make([]QuicknoteWALEntry, 0)
+	for rows.Next() {
+		var entry QuicknoteWALEntry
+		if err := rows.Scan(
+			&entry.SeqID,
+			&entry.Slug,
+			&entry.KeyEpoch,
+			&entry.IV,
+			&entry.Ciphertext,
+			&entry.CreatedAt,
+		); err != nil {
+			return nil, nil, err
+		}
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	return &qn, entries, nil
+}
+
+// AppendQuicknoteWAL inserts a new WAL entry and returns the generated seq_id.
+func (s *SQLiteStore) AppendQuicknoteWAL(ctx context.Context, slug string, keyEpoch uint32, iv, ciphertext []byte) (int64, error) {
+	if keyEpoch == 0 {
+		keyEpoch = 1
+	}
+	query := `
+		INSERT INTO quicknote_wal (slug, key_epoch, iv, ciphertext, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`
+	res, err := s.DB.ExecContext(ctx, query, slug, keyEpoch, iv, ciphertext, time.Now().UnixMilli())
+	if err != nil {
+		return 0, err
+	}
+	seqID, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return seqID, nil
+}
+
+// CompactQuicknoteSnapshot updates the snapshot and prunes WAL entries up to upToSeqID.
+func (s *SQLiteStore) CompactQuicknoteSnapshot(ctx context.Context, slug string, iv, ciphertext []byte, upToSeqID int64) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := `
+		UPDATE quicknotes
+		SET snapshot_iv = ?, snapshot_ciphertext = ?, snapshot_seq_id = ?, updated_at = ?
+		WHERE slug = ?
+	`
+	res, err := tx.ExecContext(ctx, query, iv, ciphertext, upToSeqID, time.Now(), slug)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM quicknote_wal WHERE slug = ? AND seq_id <= ?", slug, upToSeqID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+

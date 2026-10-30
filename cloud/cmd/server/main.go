@@ -90,6 +90,7 @@ func main() {
 	authLimiter := api.NewIPRateLimiter(0.1, 5)
 	otpVerifyLimiter := api.NewIPRateLimiter(0.166, 5)
 	searchLimiter := api.NewIPRateLimiter(20.0/60.0, 20)
+	quicknoteLimiter := api.NewIPRateLimiter(5.0, 30) // 5 req/s, burst 30 to prevent spamming
 	fileHandler := api.NewFileHandler(sqliteStore, blobStore, broker)
 	linkHandler := api.NewLinkHandler(sqliteStore)
 	messageHandler := &api.MessageHandler{Store: sqliteStore, Broker: broker}
@@ -98,6 +99,7 @@ func main() {
 	profileHandler := &api.ProfileHandler{Store: sqliteStore}
 	extensionsHandler := api.NewExtensionsHandler(sqliteStore)
 	taskHandler := api.NewTaskHandler(sqliteStore)
+	quicknoteHandler := api.NewQuicknoteHandler(sqliteStore, api.GlobalHub)
 
 	tabsHandler := api.NewTabsHandler(sqliteStore)
 	apiTokenHandler := api.NewAPITokenHandler(sqliteStore)
@@ -219,6 +221,13 @@ func main() {
 	// CRDT & E2EE aliases for /api/ws/notes and /api/files
 	r.Get("/api/ws/notes/{fileID}", fileHandler.ServeWs)
 	r.Route("/api/files", fileHandler.RegisterRoutes)
+
+	// Quicknotes routes
+	r.Route("/api/v1/quicknotes", func(r chi.Router) {
+		r.Use(api.RateLimitMiddleware(quicknoteLimiter))
+		quicknoteHandler.RegisterRoutes(r)
+	})
+	r.Get("/api/ws/quicknotes/{slug}", quicknoteHandler.ServeWs)
 
 	// Start background cleanup worker for trashed files older than 1 week
 	go func() {

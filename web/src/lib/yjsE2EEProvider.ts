@@ -18,7 +18,7 @@ import {
     decryptSnapshot,
 } from './e2eeFraming';
 import { base64ToArrayBuffer } from './crypto';
-import { apiFetch } from './api';
+import { apiFetch, getApiBase } from './api';
 import { activeNoteStore, NotePermission } from '@/store/activeNoteStore';
 
 export interface YjsE2EEProviderOptions {
@@ -44,6 +44,7 @@ export class YjsE2EEProvider {
     public synced: boolean = false;
     public wsconnected: boolean = false;
     public connected: boolean = false;
+    public token?: string;
 
     private destroyed: boolean = false;
     private options: YjsE2EEProviderOptions;
@@ -73,6 +74,9 @@ export class YjsE2EEProvider {
         this.dek = dek;
         this.keyEpoch = options.keyEpoch || activeNoteStore.getState().keyEpoch || 1;
         this.options = options;
+        this.token = options.token ||
+            (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('tide_session_token') || undefined : undefined) ||
+            (typeof localStorage !== 'undefined' ? localStorage.getItem('tide_session_token') || undefined : undefined);
         this.awareness = options.awareness || new Awareness(ydoc);
 
         // Store active YDoc & DEK in activeNoteStore
@@ -155,9 +159,29 @@ export class YjsE2EEProvider {
 
         this.bootstrapPromise = (async () => {
             try {
-                let res = await apiFetch(`/api/files/${encodeURIComponent(this.noteId)}/crdt-state`);
-                if (!res.ok) {
-                    res = await apiFetch(`/api/v1/files/${encodeURIComponent(this.noteId)}/crdt-state`);
+                let res: Response;
+                if (this.noteId.startsWith('quicknote:')) {
+                    const slug = this.noteId.replace('quicknote:', '');
+                    const quicknoteUrl = `/api/v1/quicknotes/${encodeURIComponent(slug)}/crdt-state`;
+                    if (this.token) {
+                        res = await apiFetch(quicknoteUrl);
+                    } else {
+                        const base = getApiBase();
+                        let cleanEndpoint = quicknoteUrl.startsWith('/') ? quicknoteUrl : `/${quicknoteUrl}`;
+                        if (base.endsWith('/api') && cleanEndpoint.startsWith('/api/')) {
+                            cleanEndpoint = cleanEndpoint.slice(4);
+                        }
+                        const fullUrl = `${base}${cleanEndpoint}`;
+                        res = await fetch(fullUrl, {
+                            method: 'GET',
+                            headers: { 'Content-Type': 'application/json' },
+                        });
+                    }
+                } else {
+                    res = await apiFetch(`/api/files/${encodeURIComponent(this.noteId)}/crdt-state`);
+                    if (!res.ok) {
+                        res = await apiFetch(`/api/v1/files/${encodeURIComponent(this.noteId)}/crdt-state`);
+                    }
                 }
 
                 if (!res.ok) {
@@ -169,11 +193,11 @@ export class YjsE2EEProvider {
                 if (this.destroyed) return;
 
                 const data = await res.json().catch(() => ({}));
-                const snapIv = data?.snapshot_iv || data?.snapshotIv || data?.snapshotIV;
-                const snapCiphertext = data?.snapshot_ciphertext || data?.snapshotCiphertext;
-                const keyEpoch = data?.key_epoch || data?.keyEpoch || this.keyEpoch || 1;
-                const snapshotSeqId = data?.snapshot_seq_id || data?.snapshotSeqId || 0;
-                const wal = Array.isArray(data?.wal) ? data.wal : [];
+                const snapIv = data?.snapshot_iv || data?.snapshotIv || data?.snapshotIV || data?.snapshot?.iv || data?.snapshot?.IV;
+                const snapCiphertext = data?.snapshot_ciphertext || data?.snapshotCiphertext || data?.snapshot?.ciphertext || data?.snapshot?.Ciphertext;
+                const keyEpoch = data?.key_epoch || data?.keyEpoch || data?.snapshot?.key_epoch || data?.snapshot?.keyEpoch || this.keyEpoch || 1;
+                const snapshotSeqId = data?.snapshot_seq_id || data?.snapshotSeqId || data?.snapshot?.seq_id || data?.snapshot?.seqId || 0;
+                const wal = Array.isArray(data?.wal) ? data.wal : (Array.isArray(data?.WAL) ? data.WAL : []);
 
                 this.keyEpoch = keyEpoch;
                 activeNoteStore.getState().setKeyEpoch(keyEpoch);
@@ -258,7 +282,7 @@ export class YjsE2EEProvider {
             return this.options.url;
         }
 
-        const token = this.options.token ||
+        const token = this.token || this.options.token ||
             (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('tide_session_token') : null) ||
             (typeof localStorage !== 'undefined' ? localStorage.getItem('tide_session_token') : null) ||
             '';
@@ -313,6 +337,11 @@ export class YjsE2EEProvider {
                     return `${clientHostname}${port || ':8080'}`;
                 });
             }
+        }
+
+        if (this.noteId.startsWith('quicknote:')) {
+            const slug = this.noteId.replace('quicknote:', '');
+            return `${protocol}//${wsHost}/api/ws/quicknotes/${encodeURIComponent(slug)}?yClientId=${encodeURIComponent(this.ydoc.clientID)}${this.token ? '&token=' + encodeURIComponent(this.token) : ''}`;
         }
 
         const encodedNoteId = encodeURIComponent(this.noteId);
@@ -650,7 +679,7 @@ export class YjsE2EEProvider {
     }
 
     /**
-     * Performs WAL compaction by snapshotting current ydoc state and sending to /api/files/${noteId}/compact
+     * Performs WAL compaction by snapshotting current ydoc state and sending to /api/files/${noteId}/compact or /api/v1/quicknotes/${slug}/compact
      */
     public async compact(): Promise<void> {
         const perm = activeNoteStore.getState().permission;
@@ -666,6 +695,37 @@ export class YjsE2EEProvider {
                 yjsState
             );
             const upToSeqId = activeNoteStore.getState().lastCompactedSeqId;
+
+            if (this.noteId.startsWith('quicknote:')) {
+                const slug = this.noteId.replace('quicknote:', '');
+                const compactUrl = `/api/v1/quicknotes/${encodeURIComponent(slug)}/compact`;
+                const payload = JSON.stringify({
+                    upToSeqId,
+                    keyEpoch: this.keyEpoch,
+                    ivBase64,
+                    ciphertextBase64,
+                });
+                if (this.token) {
+                    await apiFetch(compactUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: payload,
+                    });
+                } else {
+                    const base = getApiBase();
+                    let cleanEndpoint = compactUrl.startsWith('/') ? compactUrl : `/${compactUrl}`;
+                    if (base.endsWith('/api') && cleanEndpoint.startsWith('/api/')) {
+                        cleanEndpoint = cleanEndpoint.slice(4);
+                    }
+                    const fullUrl = `${base}${cleanEndpoint}`;
+                    await fetch(fullUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: payload,
+                    });
+                }
+                return;
+            }
 
             const res = await apiFetch(`/api/files/${encodeURIComponent(this.noteId)}/compact`, {
                 method: 'POST',
@@ -692,6 +752,10 @@ export class YjsE2EEProvider {
         } catch (err) {
             console.error('[YjsE2EEProvider] Compaction failed:', err);
         }
+    }
+
+    public sendSnapshotCompact(): Promise<void> {
+        return this.compact();
     }
 
     public updateDEK(newDek: CryptoKey, newKeyEpoch?: number): void {
