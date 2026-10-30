@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { FolderInput, Check, Loader2, AlertCircle, X } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { Share2, FolderInput, Check, Loader2, AlertCircle, X } from 'lucide-react';
 import Editor from '@/components/Editor';
+import Avatar from '@/components/Profile/Avatar';
 import { deriveQuicknoteKey, fetchQuicknote, saveQuicknote, type QuicknoteData } from '@/lib/quicknotesApi';
 import { useDataStore } from '@/store/useDataStore';
 
@@ -14,8 +15,47 @@ interface ToastState {
     authLink?: string;
 }
 
+interface LinkedNoteItem {
+    id: string;
+    label: string;
+}
+
+function extractLinkedNotes(doc: unknown): LinkedNoteItem[] {
+    const results: LinkedNoteItem[] = [];
+    const seenIds = new Set<string>();
+
+    function traverse(node: unknown) {
+        if (!node || typeof node !== 'object') return;
+        const n = node as Record<string, unknown>;
+
+        if (n.type === 'mention' && n.attrs && typeof n.attrs === 'object') {
+            const attrs = n.attrs as Record<string, unknown>;
+            const type = attrs.type;
+            if (type === 'note' || !type) {
+                const id = typeof attrs.id === 'string' ? attrs.id : '';
+                const rawLabel = typeof attrs.label === 'string' ? attrs.label.trim() : '';
+                const label = rawLabel || id || 'Notiz';
+                if (id && !seenIds.has(id)) {
+                    seenIds.add(id);
+                    results.push({ id, label });
+                }
+            }
+        }
+
+        if (Array.isArray(n.content)) {
+            for (const child of n.content) {
+                traverse(child);
+            }
+        }
+    }
+
+    traverse(doc);
+    return results;
+}
+
 export default function QuicknotePage() {
     const params = useParams();
+    const router = useRouter();
     const rawSlug = typeof params?.slug === 'string'
         ? params.slug
         : Array.isArray(params?.slug)
@@ -29,6 +69,16 @@ export default function QuicknotePage() {
         }
     }, [rawSlug]);
 
+    const myId = useDataStore((s) => s.myId);
+    const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+
+    useEffect(() => {
+        const sessionToken = typeof window !== 'undefined'
+            ? (sessionStorage.getItem('tide_session_token') || localStorage.getItem('tide_session_token'))
+            : null;
+        setIsLoggedIn(Boolean(myId || sessionToken));
+    }, [myId]);
+
     const [loading, setLoading] = useState<boolean>(true);
     const [title, setTitle] = useState<string>('');
     const [content, setContent] = useState<unknown>(null);
@@ -37,11 +87,31 @@ export default function QuicknotePage() {
     const [copyStatus, setCopyStatus] = useState<'idle' | 'copying' | 'success'>('idle');
     const [toast, setToast] = useState<ToastState | null>(null);
 
+    const [copied, setCopied] = useState<boolean>(false);
+    const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const [profileMenuOpen, setProfileMenuOpen] = useState<boolean>(false);
+    const profileMenuRef = useRef<HTMLDivElement | null>(null);
+
     const titleRef = useRef<string>('');
     titleRef.current = title;
     const contentRef = useRef<unknown>(null);
     contentRef.current = content;
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Close profile floating menu on click outside
+    useEffect(() => {
+        if (!profileMenuOpen) return;
+        const handleClickOutside = (event: MouseEvent) => {
+            if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+                setProfileMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [profileMenuOpen]);
 
     const debouncedSave = useCallback((newContent: unknown, newTitle?: string) => {
         if (!slug) return;
@@ -74,6 +144,9 @@ export default function QuicknotePage() {
         return () => {
             if (saveTimerRef.current) {
                 clearTimeout(saveTimerRef.current);
+            }
+            if (copyTimeoutRef.current) {
+                clearTimeout(copyTimeoutRef.current);
             }
         };
     }, []);
@@ -132,16 +205,45 @@ export default function QuicknotePage() {
         };
     }, [slug]);
 
+    const linkedNotes = useMemo<LinkedNoteItem[]>(() => {
+        let parsed: unknown = content;
+        if (typeof content === 'string') {
+            try {
+                parsed = JSON.parse(content);
+            } catch {
+                parsed = null;
+            }
+        }
+        return extractLinkedNotes(parsed);
+    }, [content]);
+
+    const handleShare = async () => {
+        try {
+            if (typeof window !== 'undefined') {
+                await navigator.clipboard.writeText(window.location.href);
+                setCopied(true);
+                if (copyTimeoutRef.current) {
+                    clearTimeout(copyTimeoutRef.current);
+                }
+                copyTimeoutRef.current = setTimeout(() => {
+                    setCopied(false);
+                }, 2000);
+            }
+        } catch (err) {
+            console.error('Failed to copy share link:', err);
+        }
+    };
+
     const handleCopyToVault = async () => {
         if (copyStatus === 'copying') return;
 
-        const myId = useDataStore.getState().myId;
+        const currentMyId = useDataStore.getState().myId;
         const sessionToken = typeof window !== 'undefined'
             ? (sessionStorage.getItem('tide_session_token') || localStorage.getItem('tide_session_token'))
             : null;
-        const isLoggedIn = Boolean(myId || sessionToken);
+        const loggedIn = Boolean(currentMyId || sessionToken);
 
-        if (!isLoggedIn) {
+        if (!loggedIn) {
             setToast({
                 type: 'auth',
                 text: 'Melde dich an, um Notizen in deinem privaten Notizbuch zu speichern',
@@ -174,75 +276,68 @@ export default function QuicknotePage() {
     };
 
     return (
-        <div className="min-h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)]">
-            {/* Minimalist Top Bar */}
-            <header className="sticky top-0 z-30 w-full border-b border-[var(--border,var(--border-color))] bg-[var(--background)]/90 backdrop-blur-md px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                    {/* Tide branding/logo linking to / */}
-                    <Link
-                        href="/"
-                        className="flex items-center gap-2 group select-none text-[var(--foreground)] shrink-0"
-                        title="Zurück zu Tide"
-                    >
-                        <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm shadow-blue-500/20 group-hover:scale-105 transition-transform">
-                            <svg
-                                className="w-4 h-4 fill-none stroke-currentColor stroke-2"
-                                viewBox="0 0 24 24"
-                            >
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 15C6 15 7.5 9 10.5 9C13.5 9 15 15 18 15C20 15 21 12 21 12" />
-                            </svg>
-                        </div>
-                        <span className="font-bold text-base tracking-tight hidden xs:inline">Tide</span>
-                    </Link>
-
-                    <div className="h-4 w-px bg-[var(--border,var(--border-color))] shrink-0" />
-
-                    {/* Editable Quicknote Title */}
-                    <input
-                        type="text"
-                        value={title}
-                        onChange={(e) => handleTitleChange(e.target.value)}
-                        placeholder="Notiztitel..."
-                        aria-label="Quicknote Titel"
-                        className="bg-transparent border-b border-transparent hover:border-[var(--border,var(--border-color))] focus:border-blue-500 font-semibold text-sm sm:text-base text-[var(--foreground)] px-1.5 py-0.5 rounded outline-none transition-colors max-w-[150px] sm:max-w-xs md:max-w-md truncate"
-                    />
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                    {/* Live indicator badge */}
-                    <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 select-none">
-                        <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-                        </span>
-                        <span>Live synchronisiert</span>
+        <div className="min-h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)] relative">
+            {/* Left Directory Hierarchy (Baumstruktur mit Ästen) */}
+            <aside
+                aria-label="Notizhierarchie"
+                className="hidden xl:block fixed left-8 top-16 w-56 select-none z-20"
+            >
+                <Link
+                    href="/"
+                    className="inline-flex items-center gap-2 mb-6 group text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+                    title="Zurück zu Tide"
+                >
+                    <div className="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform">
+                        <svg
+                            className="w-3 h-3 fill-none stroke-currentColor stroke-2"
+                            viewBox="0 0 24 24"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 15C6 15 7.5 9 10.5 9C13.5 9 15 15 18 15C20 15 21 12 21 12" />
+                        </svg>
                     </div>
+                    <span className="font-semibold text-xs tracking-tight text-neutral-500 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-neutral-100 transition-colors">Tide</span>
+                </Link>
 
-                    {/* In mein Verzeichnis kopieren Button */}
-                    <button
-                        type="button"
-                        onClick={handleCopyToVault}
-                        disabled={copyStatus === 'copying'}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white shadow-sm transition-colors disabled:opacity-50 cursor-pointer select-none"
-                    >
-                        {copyStatus === 'copying' ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : copyStatus === 'success' ? (
-                            <Check className="w-4 h-4" />
-                        ) : (
-                            <FolderInput className="w-4 h-4" />
-                        )}
-                        <span className="hidden sm:inline">In mein Verzeichnis kopieren</span>
-                        <span className="inline sm:hidden">Kopieren</span>
-                    </button>
+                {/* Root item: Current note title */}
+                <div className="flex items-center gap-2 font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                    <span className="truncate" title={title.trim() || slug || 'Notiz'}>
+                        {title.trim() || slug || 'Notiz'}
+                    </span>
                 </div>
-            </header>
+
+                {/* Tree branches (Äste) */}
+                <div className="relative ml-2 pl-3.5 border-l-2 border-gray-300/80 dark:border-neutral-700/80 space-y-2 mt-2">
+                    {linkedNotes.length > 0 ? (
+                        linkedNotes.map((item) => (
+                            <div
+                                key={item.id}
+                                className="relative before:content-[''] before:absolute before:-left-3.5 before:top-3 before:w-3.5 before:h-px before:bg-gray-300/80 dark:before:bg-neutral-700/80 flex items-center gap-1.5"
+                            >
+                                <Link
+                                    href={`/notes/${encodeURIComponent(item.id)}`}
+                                    className="text-xs text-neutral-600 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400 truncate transition-colors py-0.5 inline-block max-w-full"
+                                    title={item.label}
+                                >
+                                    {item.label}
+                                </Link>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="relative before:content-[''] before:absolute before:-left-3.5 before:top-3 before:w-3.5 before:h-px before:bg-gray-300/80 dark:before:bg-neutral-700/80 flex items-center gap-1.5">
+                            <span className="text-[11px] text-gray-400 dark:text-neutral-500 italic select-none">
+                                Tippe @ um Notizen zu verlinken
+                            </span>
+                        </div>
+                    )}
+                </div>
+            </aside>
 
             {/* Notification / Toast Banner */}
             {toast && (
                 <aside
                     aria-label="Benachrichtigung"
-                    className="fixed bottom-6 right-6 z-50 max-w-md bg-[var(--card,var(--surface-card,#ffffff))] border border-[var(--border,var(--border-color,#e5e7eb))] text-[var(--foreground)] shadow-xl rounded-xl p-4 flex items-start gap-3"
+                    className="fixed bottom-20 right-6 z-50 max-w-md bg-[var(--card,var(--surface-card,#ffffff))] border border-[var(--border,var(--border-color,#e5e7eb))] text-[var(--foreground)] shadow-xl rounded-xl p-4 flex items-start gap-3"
                 >
                     {toast.type === 'auth' && (
                         <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
@@ -276,27 +371,96 @@ export default function QuicknotePage() {
             )}
 
             {/* Main Editor Body */}
-            <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 md:px-8 py-6">
+            <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 md:px-8 py-10 sm:py-16">
                 {loading ? (
                     <div className="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-slate-500 min-h-[50vh]">
                         <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-3" />
                         <span className="font-medium text-sm">Lade Quicknote...</span>
                     </div>
                 ) : (
-                    <Editor
-                        activeTabId={`quicknote:${slug}`}
-                        dek={quicknoteKey}
-                        keyEpoch={1}
-                        isShared={true}
-                        editable={true}
-                        initialContent={initialContent}
-                        onChange={(newContent: unknown) => {
-                            setContent(newContent);
-                            debouncedSave(newContent);
-                        }}
-                    />
+                    <>
+                        <input
+                            type="text"
+                            value={title}
+                            onChange={(e) => handleTitleChange(e.target.value)}
+                            placeholder="Notiztitel..."
+                            className="text-4xl sm:text-5xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-700 pb-2 leading-tight w-full mb-6 focus:ring-0"
+                        />
+                        <Editor
+                            activeTabId={`quicknote:${slug}`}
+                            dek={quicknoteKey}
+                            keyEpoch={1}
+                            isShared={true}
+                            editable={true}
+                            initialContent={initialContent}
+                            onLinkClick={({ id }) => router.push('/notes/' + encodeURIComponent(id))}
+                            onChange={(newContent: unknown) => {
+                                setContent(newContent);
+                                debouncedSave(newContent);
+                            }}
+                        />
+                    </>
                 )}
             </main>
+
+            {/* Bottom-Right Controls (Floating Actions) */}
+            <div className="fixed bottom-6 right-6 z-40 flex items-center gap-3">
+                {/* Share Button */}
+                <div className="relative">
+                    {copied && (
+                        <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 rounded-lg bg-gray-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-xs font-medium shadow-md whitespace-nowrap animate-in fade-in slide-in-from-bottom-1 duration-150 select-none pointer-events-none">
+                            Link kopiert! ✓
+                        </div>
+                    )}
+                    <button
+                        type="button"
+                        onClick={handleShare}
+                        className="w-11 h-11 rounded-full flex items-center justify-center bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 shadow-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-neutral-800 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                        title="Link teilen"
+                        aria-label="Link teilen"
+                    >
+                        <Share2 className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {/* Profile Circle (when logged in) */}
+                {isLoggedIn && (
+                    <div className="relative" ref={profileMenuRef}>
+                        <button
+                            type="button"
+                            onClick={() => setProfileMenuOpen((prev) => !prev)}
+                            className="w-11 h-11 rounded-full overflow-hidden shadow-lg border-2 border-white dark:border-neutral-800 hover:scale-105 active:scale-95 transition-transform flex items-center justify-center bg-gray-100 dark:bg-neutral-800 cursor-pointer"
+                            title="Profil & Optionen"
+                            aria-label="Profil und Optionen"
+                        >
+                            <Avatar seed={myId || 'user'} size={44} />
+                        </button>
+
+                        {profileMenuOpen && (
+                            <div className="absolute bottom-full right-0 mb-3 w-52 rounded-xl bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border border-gray-200 dark:border-neutral-800 shadow-xl py-1.5 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setProfileMenuOpen(false);
+                                        void handleCopyToVault();
+                                    }}
+                                    disabled={copyStatus === 'copying'}
+                                    className="w-full px-3.5 py-2.5 text-left text-sm flex items-center gap-2.5 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-50 cursor-pointer"
+                                >
+                                    {copyStatus === 'copying' ? (
+                                        <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" />
+                                    ) : copyStatus === 'success' ? (
+                                        <Check className="w-4 h-4 text-emerald-500 shrink-0" />
+                                    ) : (
+                                        <FolderInput className="w-4 h-4 text-gray-500 dark:text-gray-400 shrink-0" />
+                                    )}
+                                    <span className="font-medium">Für mich speichern</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

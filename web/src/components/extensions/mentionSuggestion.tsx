@@ -87,11 +87,22 @@ const MentionList = forwardRef((props: any, ref) => {
                 const cleanTitle = (props.query || itemQuery || item.label || 'Untitled')
                     .replace(/^!+/, '').trim() || 'Untitled';
 
-                // We immediately get the UUID so Tiptap can insert the node.
-                const newId = await useDataStore.getState().createNote(cleanTitle);
+                if (typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/')) {
+                    const childSlug = cleanTitle.toLowerCase().trim().replace(/[^a-z0-9äöüß_-]+/gi, '-').replace(/^-+|-+$/g, '') || ('note-' + Date.now().toString(36));
+                    try {
+                        const { saveQuicknote } = await import('@/lib/quicknotesApi');
+                        await saveQuicknote(childSlug, cleanTitle);
+                    } catch (err: unknown) {
+                        console.error('Failed to initialize quicknote:', err);
+                    }
+                    props.command({ id: childSlug, label: cleanTitle, type: 'note' });
+                } else {
+                    // We immediately get the UUID so Tiptap can insert the node.
+                    const newId = await useDataStore.getState().createNote(cleanTitle);
 
-                // Insert as a real (non-ghost) link immediately with correct title.
-                props.command({ ...item, id: newId, label: cleanTitle, isGhost: false });
+                    // Insert as a real (non-ghost) link immediately with correct title.
+                    props.command({ ...item, id: newId, label: cleanTitle, isGhost: false });
+                }
             } finally {
                 isCreatingRef.current = false;
             }
