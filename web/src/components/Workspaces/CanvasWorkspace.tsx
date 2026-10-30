@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { Clock, GraduationCap, Copy, Download, X, Check, MoreHorizontal } from 'lucide-react';
+import { Clock, GraduationCap, Copy, Download, X, Check, MoreHorizontal, UploadCloud } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 import { useDataStore } from '@/store/useDataStore';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
 import { getTranslation } from '@/lib/i18n';
@@ -106,12 +107,29 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     } = props;
 
     const [isHistoryMode, setIsHistoryMode] = useState<boolean>(false);
+    const [isDraggingEditorFile, setIsDraggingEditorFile] = useState(false);
 
     useEffect(() => {
         if (typeof showBackups === 'boolean') {
             setIsHistoryMode(showBackups);
         }
     }, [showBackups]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        if (!activeNoteId) {
+            (window as any).__tide_active_attachments = [];
+            return;
+        }
+        const noteAttachments = files
+            .filter(f => (f.parent_file_id === activeNoteId || f.parent_id === activeNoteId) && f.id !== activeNoteId)
+            .map(f => ({
+                id: f.id,
+                name: f.title || (f as any).name || 'File',
+                size: f.size || 0,
+            }));
+        (window as any).__tide_active_attachments = noteAttachments;
+    }, [activeNoteId, files]);
 
     const {
         points,
@@ -526,7 +544,77 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                     />
                                                 </div>
                                             )}
-                                            <div className={isHistoryMode ? 'hidden' : 'flex-1 min-w-0 flex flex-col'}>
+                                            <div
+                                                className={isHistoryMode ? 'hidden' : 'relative flex-1 min-w-0 flex flex-col'}
+                                                onDragOver={(e) => {
+                                                    if (e.dataTransfer?.types?.includes('Files')) {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setIsDraggingEditorFile(true);
+                                                    }
+                                                }}
+                                                onDragLeave={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                                                        setIsDraggingEditorFile(false);
+                                                    }
+                                                }}
+                                                onDrop={async (e) => {
+                                                    if (!e.dataTransfer?.files?.length || !activeNoteId) return;
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    setIsDraggingEditorFile(false);
+
+                                                    const droppedFiles = Array.from(e.dataTransfer.files);
+                                                    for (const file of droppedFiles) {
+                                                        try {
+                                                            const fileId = crypto.randomUUID();
+                                                            // 1. Create file record
+                                                            const createRes = await apiFetch('/api/v1/files', {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': 'application/json' },
+                                                                body: JSON.stringify({
+                                                                    id: fileId,
+                                                                    parent_id: activeNoteId,
+                                                                    parent_file_id: activeNoteId,
+                                                                    type: 'file',
+                                                                    title: file.name,
+                                                                    mime_type: file.type || 'application/octet-stream',
+                                                                    size: file.size,
+                                                                    visibility: 'private',
+                                                                }),
+                                                            });
+                                                            if (!createRes.ok) continue;
+
+                                                            // 2. Upload file blob
+                                                            const uploadRes = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}/upload?parent_file_id=${encodeURIComponent(activeNoteId)}`, {
+                                                                method: 'POST',
+                                                                headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                                                                body: file,
+                                                            });
+                                                            if (!uploadRes.ok) {
+                                                                const errData = await uploadRes.json().catch(() => null);
+                                                                if (uploadRes.status === 403 && errData?.error === 'storage_limit_exceeded') {
+                                                                    alert(errData.message || 'Speicherlimit von 250MB pro Notiz überschritten.');
+                                                                }
+                                                            }
+                                                        } catch (err) {
+                                                            console.error('Failed to upload file attachment:', err);
+                                                        }
+                                                    }
+                                                    // Refresh files list
+                                                    useDataStore.getState().fetchDirectory(activeNoteId, true);
+                                                }}
+                                            >
+                                                {isDraggingEditorFile && (
+                                                    <div className="absolute inset-0 z-50 pointer-events-none bg-blue-50/80 dark:bg-neutral-900/80 backdrop-blur-sm border-2 border-dashed border-blue-500 rounded-xl flex flex-col items-center justify-center gap-3">
+                                                        <UploadCloud className="w-10 h-10 text-blue-500 animate-bounce" />
+                                                        <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                                                            Dateien hier ablegen zum Anhängen an diese Notiz...
+                                                        </div>
+                                                    </div>
+                                                )}
                                                 <Editor
                                                     key={activeTabId}
                                                     isShared={isShared}

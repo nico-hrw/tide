@@ -256,6 +256,17 @@ func (s *SQLiteStore) migrate() error {
 		created_at INTEGER NOT NULL,
 		FOREIGN KEY(slug) REFERENCES quicknotes(slug) ON DELETE CASCADE
 	);
+
+	CREATE TABLE IF NOT EXISTS quicknote_files (
+		id TEXT PRIMARY KEY,
+		slug TEXT NOT NULL,
+		name TEXT NOT NULL,
+		mime_type TEXT,
+		size INTEGER NOT NULL,
+		blob_path TEXT NOT NULL,
+		created_at DATETIME NOT NULL,
+		FOREIGN KEY(slug) REFERENCES quicknotes(slug) ON DELETE CASCADE
+	);
 	`
 	if _, err := s.DB.Exec(tables); err != nil {
 		return err
@@ -288,6 +299,7 @@ func (s *SQLiteStore) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
 	CREATE INDEX IF NOT EXISTS idx_quicknote_wal_slug ON quicknote_wal(slug, seq_id);
 	CREATE INDEX IF NOT EXISTS idx_quicknotes_parent_slug ON quicknotes(parent_slug);
+	CREATE INDEX IF NOT EXISTS idx_quicknote_files_slug ON quicknote_files(slug);
 	`
 	if _, err := s.DB.Exec(indices); err != nil {
 		return err
@@ -532,6 +544,23 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 			stmts: []string{
 				"ALTER TABLE quicknotes ADD COLUMN parent_slug TEXT;",
 				"CREATE INDEX IF NOT EXISTS idx_quicknotes_parent_slug ON quicknotes(parent_slug);",
+			},
+		},
+		{
+			version: 9,
+			name:    "quicknote_files",
+			stmts: []string{
+				`CREATE TABLE IF NOT EXISTS quicknote_files (
+					id TEXT PRIMARY KEY,
+					slug TEXT NOT NULL,
+					name TEXT NOT NULL,
+					mime_type TEXT,
+					size INTEGER NOT NULL,
+					blob_path TEXT NOT NULL,
+					created_at DATETIME NOT NULL,
+					FOREIGN KEY(slug) REFERENCES quicknotes(slug) ON DELETE CASCADE
+				);`,
+				"CREATE INDEX IF NOT EXISTS idx_quicknote_files_slug ON quicknote_files(slug);",
 			},
 		},
 	}
@@ -2709,6 +2738,16 @@ type QuicknoteWALEntry struct {
 	CreatedAt  int64  `json:"created_at"`
 }
 
+type QuicknoteFile struct {
+	ID        string    `json:"id" db:"id"`
+	Slug      string    `json:"slug" db:"slug"`
+	Name      string    `json:"name" db:"name"`
+	MIMEType  string    `json:"mime_type" db:"mime_type"`
+	Size      int64     `json:"size" db:"size"`
+	BlobPath  string    `json:"blob_path" db:"blob_path"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
 // GetOrCreateQuicknote returns an existing quicknote by slug, or creates one if it does not exist.
 func (s *SQLiteStore) GetOrCreateQuicknote(ctx context.Context, slug string, defaultTitle string, parentSlug ...*string) (*Quicknote, error) {
 	if defaultTitle == "" {
@@ -2754,35 +2793,25 @@ func (s *SQLiteStore) GetOrCreateQuicknote(ctx context.Context, slug string, def
 	return &qn, nil
 }
 
-// SaveQuicknote updates the title, content, and updated_at timestamp for a quicknote.
+// SaveQuicknote creates or updates the title, content, and updated_at timestamp for a quicknote.
 func (s *SQLiteStore) SaveQuicknote(ctx context.Context, slug, title, content string, parentSlug ...*string) error {
-	var res sql.Result
-	var err error
-	now := time.Now()
+	var pSlug *string
 	if len(parentSlug) > 0 && parentSlug[0] != nil {
-		query := `
-			UPDATE quicknotes
-			SET title = ?, content = ?, parent_slug = ?, updated_at = ?
-			WHERE slug = ?
-		`
-		res, err = s.DB.ExecContext(ctx, query, title, content, *parentSlug[0], now, slug)
-	} else {
-		query := `
-			UPDATE quicknotes
-			SET title = ?, content = ?, updated_at = ?
-			WHERE slug = ?
-		`
-		res, err = s.DB.ExecContext(ctx, query, title, content, now, slug)
+		pSlug = parentSlug[0]
 	}
+	now := time.Now()
+	query := `
+		INSERT INTO quicknotes (slug, parent_slug, title, content, snapshot_seq_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 0, ?, ?)
+		ON CONFLICT(slug) DO UPDATE SET
+			title = excluded.title,
+			content = CASE WHEN excluded.content != '' THEN excluded.content ELSE quicknotes.content END,
+			parent_slug = COALESCE(excluded.parent_slug, quicknotes.parent_slug),
+			updated_at = excluded.updated_at
+	`
+	_, err := s.DB.ExecContext(ctx, query, slug, pSlug, title, content, now, now)
 	if err != nil {
-		return err
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return ErrNotFound
+		return fmt.Errorf("failed to save quicknote: %w", err)
 	}
 	return nil
 }
@@ -2971,4 +3000,112 @@ func (s *SQLiteStore) CompactQuicknoteSnapshot(ctx context.Context, slug string,
 
 	return tx.Commit()
 }
+
+// GetQuicknoteFiles returns all files associated with a quicknote, ordered by created_at ascending.
+func (s *SQLiteStore) GetQuicknoteFiles(ctx context.Context, slug string) ([]QuicknoteFile, error) {
+	query := `
+		SELECT id, slug, name, mime_type, size, blob_path, created_at
+		FROM quicknote_files
+		WHERE slug = ?
+		ORDER BY created_at ASC
+	`
+	rows, err := s.readDB().QueryContext(ctx, query, slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	files := make([]QuicknoteFile, 0)
+	for rows.Next() {
+		var f QuicknoteFile
+		var mimeType sql.NullString
+		if err := rows.Scan(
+			&f.ID,
+			&f.Slug,
+			&f.Name,
+			&mimeType,
+			&f.Size,
+			&f.BlobPath,
+			&f.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		f.MIMEType = mimeType.String
+		files = append(files, f)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return files, nil
+}
+
+// GetQuicknoteFile returns a specific file by quicknote slug and file ID.
+func (s *SQLiteStore) GetQuicknoteFile(ctx context.Context, slug string, fileID string) (*QuicknoteFile, error) {
+	query := `
+		SELECT id, slug, name, mime_type, size, blob_path, created_at
+		FROM quicknote_files
+		WHERE slug = ? AND id = ?
+	`
+	var f QuicknoteFile
+	var mimeType sql.NullString
+	err := s.readDB().QueryRowContext(ctx, query, slug, fileID).Scan(
+		&f.ID,
+		&f.Slug,
+		&f.Name,
+		&mimeType,
+		&f.Size,
+		&f.BlobPath,
+		&f.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, sql.ErrNoRows
+		}
+		return nil, err
+	}
+	f.MIMEType = mimeType.String
+	return &f, nil
+}
+
+// CreateQuicknoteFile inserts a new quicknote file record.
+func (s *SQLiteStore) CreateQuicknoteFile(ctx context.Context, file *QuicknoteFile) error {
+	query := `
+		INSERT INTO quicknote_files (id, slug, name, mime_type, size, blob_path, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`
+	_, err := s.DB.ExecContext(ctx, query,
+		file.ID,
+		file.Slug,
+		file.Name,
+		file.MIMEType,
+		file.Size,
+		file.BlobPath,
+		file.CreatedAt,
+	)
+	return err
+}
+
+// GetQuicknoteTotalStorage returns the total storage in bytes used by all files in a quicknote.
+func (s *SQLiteStore) GetQuicknoteTotalStorage(ctx context.Context, slug string) (int64, error) {
+	query := `SELECT COALESCE(SUM(size), 0) FROM quicknote_files WHERE slug = ?`
+	var total int64
+	err := s.readDB().QueryRowContext(ctx, query, slug).Scan(&total)
+	if err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+// GetFileTotalStorage returns the total storage in bytes used by child files of a parent file.
+func (s *SQLiteStore) GetFileTotalStorage(ctx context.Context, parentFileID string) (int64, error) {
+	query := `SELECT COALESCE(SUM(size), 0) FROM files WHERE parent_file_id = ?`
+	var total int64
+	err := s.readDB().QueryRowContext(ctx, query, parentFileID).Scan(&total)
+	if err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
 

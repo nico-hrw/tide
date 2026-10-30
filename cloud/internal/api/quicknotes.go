@@ -6,9 +6,12 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -28,18 +31,20 @@ var quicknoteUpgrader = websocket.Upgrader{
 
 // QuicknoteHandler provides HTTP endpoints and WebSocket collaboration for Quicknotes.
 type QuicknoteHandler struct {
-	store *store.SQLiteStore
-	hub   *Hub
+	store     *store.SQLiteStore
+	blobStore store.BlobStore
+	hub       *Hub
 }
 
 // NewQuicknoteHandler initializes a new QuicknoteHandler.
-func NewQuicknoteHandler(store *store.SQLiteStore, hub *Hub) *QuicknoteHandler {
+func NewQuicknoteHandler(store *store.SQLiteStore, blobStore store.BlobStore, hub *Hub) *QuicknoteHandler {
 	if hub == nil {
 		hub = GlobalHub
 	}
 	return &QuicknoteHandler{
-		store: store,
-		hub:   hub,
+		store:     store,
+		blobStore: blobStore,
+		hub:       hub,
 	}
 }
 
@@ -50,6 +55,9 @@ func (h *QuicknoteHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/{slug}/tree", h.GetTree)
 	r.Get("/{slug}/crdt-state", h.GetCRDTState)
 	r.Post("/{slug}/compact", h.Compact)
+	r.Get("/{slug}/files", h.GetQuicknoteFiles)
+	r.Post("/{slug}/files", h.UploadQuicknoteFile)
+	r.Get("/{slug}/files/{fileID}", h.DownloadQuicknoteFile)
 	r.Get("/{slug}/ws", h.ServeWs)
 	r.Get("/ws/{slug}", h.ServeWs)
 }
@@ -285,6 +293,158 @@ func (h *QuicknoteHandler) Compact(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// GetQuicknoteFiles lists all file attachments for a quicknote.
+func (h *QuicknoteHandler) GetQuicknoteFiles(w http.ResponseWriter, r *http.Request) {
+	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
+	if slug == "" {
+		http.Error(w, "slug is required", http.StatusBadRequest)
+		return
+	}
+
+	files, err := h.store.GetQuicknoteFiles(r.Context(), slug)
+	if err != nil {
+		http.Error(w, "Failed to get quicknote files: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if files == nil {
+		files = []store.QuicknoteFile{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(files)
+}
+
+// UploadQuicknoteFile handles file attachment uploads with a 250MB per-note quota check.
+func (h *QuicknoteHandler) UploadQuicknoteFile(w http.ResponseWriter, r *http.Request) {
+	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
+	if slug == "" {
+		http.Error(w, "slug is required", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := h.store.GetOrCreateQuicknote(r.Context(), slug, slug); err != nil {
+		http.Error(w, "Failed to initialize quicknote: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if h.blobStore == nil {
+		http.Error(w, "Blob storage not configured", http.StatusInternalServerError)
+		return
+	}
+
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		http.Error(w, "Invalid multipart form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Failed to read file from form: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	const maxStorage = 250 * 1024 * 1024 // 250MB
+	currentStorage, err := h.store.GetQuicknoteTotalStorage(r.Context(), slug)
+	if err != nil {
+		http.Error(w, "Failed to check current storage usage: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if currentStorage+header.Size > maxStorage {
+		token := r.Header.Get("X-Access-Token")
+		if token == "" {
+			token = r.FormValue("token")
+		}
+		if token == "" {
+			token = r.URL.Query().Get("token")
+		}
+		if token == "" {
+			authHeader := r.Header.Get("Authorization")
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				token = strings.TrimPrefix(authHeader, "Bearer ")
+			}
+		}
+
+		if !ValidateStorageExpandToken(r.Context(), h.store, token) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":   "storage_limit_exceeded",
+				"limit":   maxStorage,
+				"current": currentStorage,
+				"message": "Speicherlimit von 250MB pro Notiz überschritten. Bitte melde dich an oder gib ein Zugriffs-Token ein.",
+			})
+			return
+		}
+	}
+
+	fileID := uuid.New().String()
+	if err := h.blobStore.Put(r.Context(), fileID, file); err != nil {
+		http.Error(w, "Failed to store file: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	mimeType := header.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+
+	qf := &store.QuicknoteFile{
+		ID:        fileID,
+		Slug:      slug,
+		Name:      filepath.Base(header.Filename),
+		MIMEType:  mimeType,
+		Size:      header.Size,
+		BlobPath:  fileID,
+		CreatedAt: time.Now(),
+	}
+
+	if err := h.store.CreateQuicknoteFile(r.Context(), qf); err != nil {
+		_ = h.blobStore.Delete(r.Context(), fileID)
+		http.Error(w, "Failed to save file metadata: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(qf)
+}
+
+// DownloadQuicknoteFile retrieves a quicknote attachment by ID and streams the blob content.
+func (h *QuicknoteHandler) DownloadQuicknoteFile(w http.ResponseWriter, r *http.Request) {
+	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
+	fileID := strings.TrimSpace(chi.URLParam(r, "fileID"))
+	if slug == "" || fileID == "" {
+		http.Error(w, "slug and fileID are required", http.StatusBadRequest)
+		return
+	}
+
+	qf, err := h.store.GetQuicknoteFile(r.Context(), slug, fileID)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	if h.blobStore == nil {
+		http.Error(w, "Blob storage not configured", http.StatusInternalServerError)
+		return
+	}
+
+	rc, err := h.blobStore.Get(r.Context(), qf.BlobPath)
+	if err != nil {
+		http.Error(w, "File content not found", http.StatusNotFound)
+		return
+	}
+	defer rc.Close()
+
+	w.Header().Set("Content-Type", qf.MIMEType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filepath.Base(qf.Name)))
+	w.Header().Set("Content-Length", strconv.FormatInt(qf.Size, 10))
+	_, _ = io.Copy(w, rc)
 }
 
 // ServeWs upgrades HTTP to WebSocket and handles collaborative editing for quicknotes.

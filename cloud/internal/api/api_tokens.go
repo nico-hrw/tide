@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -15,12 +16,15 @@ import (
 	"github.com/nicoh/tide/internal/store"
 )
 
+const ScopeStorageExpand = "storage:expand"
+
 // SupportedScopes defines the valid scopes an API token can have
 var SupportedScopes = map[string]string{
-	"events:read":  "Termine abfragen (Leserechte)",
-	"events:write": "Termine erstellen & bearbeiten (Schreibrechte)",
-	"notes:read":   "Notizen abfragen (Leserechte)",
-	"notes:write":  "Notizen erstellen & bearbeiten (Schreibrechte)",
+	"events:read":    "Termine abfragen (Leserechte)",
+	"events:write":   "Termine erstellen & bearbeiten (Schreibrechte)",
+	"notes:read":     "Notizen abfragen (Leserechte)",
+	"notes:write":    "Notizen erstellen & bearbeiten (Schreibrechte)",
+	"storage:expand": "Upload-Speicher Erweiterung (>250MB)",
 }
 
 type APITokenHandler struct {
@@ -205,3 +209,35 @@ func (h *APITokenHandler) DeleteToken(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "Token revoked successfully"}`))
 }
+
+// ValidateStorageExpandToken checks if the given token string is a valid API token with the storage:expand scope.
+func ValidateStorageExpandToken(ctx context.Context, store *store.SQLiteStore, rawToken string) bool {
+	rawToken = strings.TrimSpace(rawToken)
+	if rawToken == "" {
+		return false
+	}
+	// Strip "Bearer " if present
+	if strings.HasPrefix(strings.ToLower(rawToken), "bearer ") {
+		rawToken = strings.TrimSpace(rawToken[7:])
+	}
+	// Compute SHA-256 hash of token
+	h := sha256.Sum256([]byte(rawToken))
+	tokenHash := hex.EncodeToString(h[:])
+
+	token, err := store.GetAPITokenByHash(ctx, tokenHash)
+	if err != nil || token == nil {
+		return false
+	}
+	// Check expiration
+	if token.ExpiresAt != nil && token.ExpiresAt.Before(time.Now()) {
+		return false
+	}
+	// Check scope
+	for _, sc := range token.Scopes {
+		if sc == ScopeStorageExpand || sc == "*" {
+			return true
+		}
+	}
+	return false
+}
+

@@ -34,6 +34,8 @@ import { ReferenceScannerMode, ReferenceAutopilotMode } from '../extensions/Refe
 import { PencilInkExtension, InkStroke, getEditorInkStrokes } from '../extensions/PencilInkExtension';
 import Collaboration from '@tiptap/extension-collaboration';
 import CollaborationCaret from '@tiptap/extension-collaboration-caret';
+import { createAvatar } from '@dicebear/core';
+import { notionists } from '@dicebear/collection';
 import * as Y from 'yjs';
 import type { WebsocketProvider } from 'y-websocket';
 import { useDataStore } from '@/store/useDataStore';
@@ -256,13 +258,28 @@ export function useTipTapConfig({
                     label.setAttribute('style', `background-color: ${user.color || '#a855f7'}; display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; color: white; white-space: nowrap; line-height: 1; pointer-events: none; user-select: none;`);
 
                     const seed = user.seed || user.id || 'guest';
-                    const avatarSrc = user.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+                    let avatarSrc = user.avatar;
+                    if (!avatarSrc || (!avatarSrc.startsWith('data:') && !avatarSrc.startsWith('blob:') && !avatarSrc.startsWith('/'))) {
+                        try {
+                            avatarSrc = createAvatar(notionists, {
+                                seed: seed || 'guest',
+                                backgroundColor: ['b6e3f4', 'c0aede', 'd1d4f9', 'ffd5dc', 'ffdfbf'],
+                                radius: 50,
+                                scale: 90,
+                            }).toDataUri();
+                        } catch {
+                            avatarSrc = '';
+                        }
+                    }
 
-                    const img = document.createElement('img');
-                    img.src = avatarSrc;
-                    img.alt = user.name || 'User';
-                    img.style.cssText = 'width: 13px; height: 13px; border-radius: 50%; object-fit: cover; flex-shrink: 0;';
-                    label.appendChild(img);
+                    if (avatarSrc) {
+                        const img = document.createElement('img');
+                        img.src = avatarSrc;
+                        img.alt = user.name || 'User';
+                        img.style.cssText = 'width: 13px; height: 13px; border-radius: 50%; object-fit: cover; flex-shrink: 0;';
+                        img.onerror = () => { img.style.display = 'none'; };
+                        label.appendChild(img);
+                    }
 
                     const nameSpan = document.createElement('span');
                     nameSpan.textContent = user.name || 'User';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { KeyRound, Plus, Trash2, Copy, Check, Shield, Calendar, FileText, AlertTriangle, Clock, Terminal } from 'lucide-react';
+import { KeyRound, Plus, Trash2, Copy, Check, Shield, Calendar, FileText, AlertTriangle, Clock, Terminal, HardDrive } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { apiFetch } from '@/lib/api';
 import { DT } from '@/lib/designTokens';
@@ -31,7 +31,7 @@ interface ScopeDefinition {
     labelEn: string;
     descDe: string;
     descEn: string;
-    type: 'events' | 'notes';
+    type: 'events' | 'notes' | 'storage';
     implemented: boolean;
 }
 
@@ -71,6 +71,15 @@ const SCOPE_DEFINITIONS: ScopeDefinition[] = [
         descEn: 'Allows creating and updating notes',
         type: 'notes',
         implemented: false,
+    },
+    {
+        key: 'storage:expand',
+        labelDe: 'Upload-Speicher Erweiterung (>250MB)',
+        labelEn: 'Upload Storage Extension (>250MB)',
+        descDe: 'Erlaubt das Hochladen großer Dateien und Anhänge über das 250MB-Limit pro Notiz',
+        descEn: 'Allows uploading large files and attachments beyond the 250MB per-note limit',
+        type: 'storage',
+        implemented: true,
     },
 ];
 
@@ -302,16 +311,25 @@ export const APIAccessSettings: React.FC = () => {
                                         <div className="flex items-center gap-1.5 flex-wrap">
                                             {token.scopes.map(scope => {
                                                 const isEvents = scope.startsWith('events:');
+                                                const isStorage = scope.startsWith('storage:');
                                                 return (
                                                     <span
                                                         key={scope}
                                                         className={`text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 ${
                                                             isEvents 
                                                                 ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 border border-blue-100 dark:border-blue-500/20'
+                                                                : isStorage
+                                                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
                                                                 : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300 border border-amber-100 dark:border-amber-500/20'
                                                         }`}
                                                     >
-                                                        {isEvents ? <Calendar className="w-2.5 h-2.5" /> : <FileText className="w-2.5 h-2.5" />}
+                                                        {isEvents ? (
+                                                            <Calendar className="w-2.5 h-2.5" />
+                                                        ) : isStorage ? (
+                                                            <HardDrive className="w-2.5 h-2.5" />
+                                                        ) : (
+                                                            <FileText className="w-2.5 h-2.5" />
+                                                        )}
                                                         {scope}
                                                     </span>
                                                 );

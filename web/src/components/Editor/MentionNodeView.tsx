@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { NodeViewWrapper } from '@tiptap/react';
-import { Calendar } from 'lucide-react';
+import { Calendar, Paperclip } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { formatEventTime } from './editorUtils';
 
@@ -15,11 +15,12 @@ export const MentionNodeView = ({ node }: any) => {
     const liveFile = useDataStore((s) => s.notes.find(f => f.id === id) || s.events.find(e => e.id === id)) as any;
     const title = liveFile?.title || label;
     const type = node.attrs.type || 'note';
+    const isFile = type === 'file';
     const start = node.attrs.start;
     const isCompleted = liveFile?.is_completed || false;
 
-    const isEvent = type === 'event' || !!useDataStore.getState().events?.find(e => e.id === id);
-    const ev = useDataStore.getState().events?.find(e => e.id === id);
+    const isEvent = !isFile && (type === 'event' || !!useDataStore.getState().events?.find(e => e.id === id));
+    const ev = !isFile ? useDataStore.getState().events?.find(e => e.id === id) : undefined;
     const eventMentionStyle = useDataStore((s) => s.eventMentionStyle) || useDataStore.getState().eventMentionStyle || 'blue';
     const eventMentionPreview = useDataStore((s) => s.eventMentionPreview) || useDataStore.getState().eventMentionPreview || 'hover';
 
@@ -40,7 +41,9 @@ export const MentionNodeView = ({ node }: any) => {
         verticalAlign: 'middle',
     };
 
-    if (isGhost) {
+    if (isFile) {
+        colorClass = 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800/50 dark:hover:bg-emerald-900/40';
+    } else if (isGhost) {
         colorClass = 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600 border-gray-200 dark:border-slate-600';
     } else if (isEvent) {
         if (eventMentionStyle === 'calendar' && (ev?.color || liveFile?.color)) {
@@ -68,6 +71,20 @@ export const MentionNodeView = ({ node }: any) => {
         };
     }
 
+    const handleClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (isFile) {
+            window.dispatchEvent(new CustomEvent('editor:mention-click', { detail: { id, title: label, type: 'file' } }));
+            return;
+        }
+        if (isEvent) {
+            window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id, start: ev?.start || start } }));
+            window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id, start: ev?.start || start } }));
+        }
+        window.dispatchEvent(new CustomEvent('editor:mention-click', { detail: { id, title, type: isEvent ? 'event' : type, start: ev?.start || start } }));
+    };
+
     return (
         <NodeViewWrapper
             as="span"
@@ -76,21 +93,18 @@ export const MentionNodeView = ({ node }: any) => {
             data-id={id}
             data-label={label}
             data-is-ghost={isGhost ? 'true' : 'false'}
-            data-type-link={isEvent ? 'event' : type}
+            data-type-link={isFile ? 'file' : (isEvent ? 'event' : type)}
             data-start={ev?.start || start || ''}
-            onClick={(e: React.MouseEvent) => {
-                e.stopPropagation();
-                e.preventDefault();
-                if (isEvent) {
-                    window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id, start: ev?.start || start } }));
-                    window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id, start: ev?.start || start } }));
-                }
-                window.dispatchEvent(new CustomEvent('editor:mention-click', { detail: { id, title, type: isEvent ? 'event' : type, start: ev?.start || start } }));
-            }}
+            onClick={handleClick}
             style={styleObj}
-            title={isEvent && eventMentionPreview === 'hover' && eventDateStr ? `${title} (${eventDateStr})` : undefined}
+            title={isFile ? 'Klicken zum Herunterladen' : (isEvent && eventMentionPreview === 'hover' && eventDateStr ? `${title} (${eventDateStr})` : undefined)}
         >
-            {isAlwaysBox ? (
+            {isFile ? (
+                <>
+                    <Paperclip className="w-3 h-3 shrink-0" />
+                    <span>{label}</span>
+                </>
+            ) : isAlwaysBox ? (
                 <>
                     <Calendar className="w-3.5 h-3.5 opacity-70 shrink-0" style={{ color: (eventMentionStyle === 'calendar' && (ev?.color || liveFile?.color)) ? (ev?.color || liveFile?.color) : undefined }} />
                     <span className="font-semibold text-xs truncate max-w-[160px]">{title}</span>

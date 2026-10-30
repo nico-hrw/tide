@@ -99,7 +99,7 @@ func main() {
 	profileHandler := &api.ProfileHandler{Store: sqliteStore}
 	extensionsHandler := api.NewExtensionsHandler(sqliteStore)
 	taskHandler := api.NewTaskHandler(sqliteStore)
-	quicknoteHandler := api.NewQuicknoteHandler(sqliteStore, api.GlobalHub)
+	quicknoteHandler := api.NewQuicknoteHandler(sqliteStore, blobStore, api.GlobalHub)
 
 	tabsHandler := api.NewTabsHandler(sqliteStore)
 	apiTokenHandler := api.NewAPITokenHandler(sqliteStore)

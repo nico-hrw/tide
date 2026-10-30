@@ -896,6 +896,13 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	parentFileID := ""
+	if file.ParentFileID != nil && *file.ParentFileID != "" {
+		parentFileID = *file.ParentFileID
+	} else if p := r.URL.Query().Get("parent_file_id"); p != "" {
+		parentFileID = p
+	}
+
 	canUpload := false
 	if file.OwnerID == userID {
 		canUpload = true
@@ -905,8 +912,8 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		if parentFile, err := h.Store.GetAccessibleFile(r.Context(), *file.ParentID, userID); err == nil && store.CanWrite(parentFile.Permission) {
 			canUpload = true
 		}
-	} else if p := r.URL.Query().Get("parent_file_id"); p != "" {
-		if parentFile, err := h.Store.GetAccessibleFile(r.Context(), p, userID); err == nil && store.CanWrite(parentFile.Permission) {
+	} else if parentFileID != "" {
+		if parentFile, err := h.Store.GetAccessibleFile(r.Context(), parentFileID, userID); err == nil && store.CanWrite(parentFile.Permission) {
 			canUpload = true
 		}
 	}
@@ -914,6 +921,38 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	if !canUpload {
 		http.Error(w, "Forbidden: write permission required to upload content", http.StatusForbidden)
 		return
+	}
+
+	const maxStorage = 250 * 1024 * 1024 // 250MB
+	if parentFileID != "" {
+		currentStorage, err := h.Store.GetFileTotalStorage(r.Context(), parentFileID)
+		if err == nil {
+			if file.ParentFileID != nil && *file.ParentFileID == parentFileID {
+				currentStorage -= file.Size
+				if currentStorage < 0 {
+					currentStorage = 0
+				}
+			}
+			incomingSize := r.ContentLength
+			if incomingSize > 0 && currentStorage+incomingSize > maxStorage {
+				// Check if user has storage:expand token
+				token := r.Header.Get("X-Access-Token")
+				if token == "" {
+					token = r.Header.Get("Authorization")
+				}
+				if !ValidateStorageExpandToken(r.Context(), h.Store, token) {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusForbidden)
+					_ = json.NewEncoder(w).Encode(map[string]interface{}{
+						"error":   "storage_limit_exceeded",
+						"limit":   maxStorage,
+						"current": currentStorage,
+						"message": "Speicherlimit von 250MB pro Notiz überschritten. Bitte melde dich an oder gib ein Zugriffs-Token ein.",
+					})
+					return
+				}
+			}
+		}
 	}
 
 	oldRc, blobErr := h.BlobStore.Get(r.Context(), id)
@@ -939,10 +978,16 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	// For now, just assume it's there.
 	path := id // logic in LocalBlobStore uses ID as filename
 	file.BlobPath = &path
+	if parentFileID != "" {
+		file.ParentFileID = &parentFileID
+	}
 	if file.ParentID == nil || *file.ParentID == "" {
-		if p := r.URL.Query().Get("parent_file_id"); p != "" {
-			file.ParentID = &p
+		if parentFileID != "" {
+			file.ParentID = &parentFileID
 		}
+	}
+	if r.ContentLength > 0 {
+		file.Size = r.ContentLength
 	}
 	h.Store.UpdateFile(r.Context(), file)
 

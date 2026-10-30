@@ -3,7 +3,8 @@ import tippy from 'tippy.js';
 import { useDataStore } from '@/store/useDataStore';
 import { useLinkStore } from '@/store/useLinkStore';
 import { forwardRef, useEffect, useImperativeHandle, useState, useRef } from 'react';
-import { FileText, Calendar as CalendarIcon, CheckSquare, Plus, ChevronRight, ArrowLeft } from 'lucide-react';
+import { FileText, Calendar as CalendarIcon, CheckSquare, Plus, ChevronRight, ArrowLeft, Paperclip } from 'lucide-react';
+import { getKnownQuicknotes, saveKnownQuicknote } from '@/lib/quicknotesApi';
 import { format } from 'date-fns';
 
 interface EventItem {
@@ -95,6 +96,7 @@ const MentionList = forwardRef((props: any, ref) => {
                             saveQuicknote: (slug: string, title: string, content?: string, parentSlug?: string) => Promise<void>;
                         };
                         await saveQuicknote(childSlug, cleanTitle, undefined, parentSlug);
+                        saveKnownQuicknote({ slug: childSlug, title: cleanTitle, parent_slug: parentSlug });
                     } catch (err: unknown) {
                         console.error('Failed to initialize quicknote:', err);
                     }
@@ -332,6 +334,7 @@ const MentionList = forwardRef((props: any, ref) => {
                                         {item.type && (
                                             <div className="flex-shrink-0 text-gray-400 dark:text-gray-500">
                                                 {item.type === 'note' && <FileText size={14} />}
+                                                {item.type === 'file' && <Paperclip size={14} />}
                                                 {item.type === 'action' && <Plus size={14} />}
                                             </div>
                                         )}
@@ -354,19 +357,54 @@ export default {
     items: ({ query }: { query: string }) => {
         const isQuicknote = typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/');
         if (isQuicknote) {
-            const currentSlug = window.location.pathname.replace('/notes/', '').split('/')[0];
-            void currentSlug;
-            const cleanQuery = query.trim();
+            const currentSlug = window.location.pathname.replace('/notes/', '').split('/')[0].split('?')[0];
+            const cleanQuery = query.trim().toLowerCase();
             const results: MentionSuggestionItem[] = [];
-            if (cleanQuery) {
+
+            // 1. Suggest known quicknotes (from tree / cache)
+            const knownNotes = getKnownQuicknotes();
+            const matchingNotes = knownNotes
+                .filter(n => n.slug !== currentSlug && (n.title.toLowerCase().includes(cleanQuery) || n.slug.toLowerCase().includes(cleanQuery)))
+                .slice(0, 5);
+
+            for (const n of matchingNotes) {
+                results.push({
+                    id: n.slug,
+                    label: n.title || n.slug,
+                    title: n.title || n.slug,
+                    type: 'note',
+                    isGhost: false,
+                });
+            }
+
+            // 2. Suggest active file attachments
+            const activeFiles: Array<{ id: string; name: string; size?: number }> =
+                (typeof window !== 'undefined' && (window as any).__tide_active_attachments) || [];
+            const matchingFiles = activeFiles
+                .filter(f => f.name.toLowerCase().includes(cleanQuery))
+                .slice(0, 5);
+
+            for (const f of matchingFiles) {
+                results.push({
+                    id: f.id,
+                    label: f.name,
+                    title: f.name,
+                    type: 'file',
+                    isGhost: false,
+                });
+            }
+
+            // 3. Option to create a new child quicknote
+            if (cleanQuery && !matchingNotes.some(n => n.title.toLowerCase() === cleanQuery)) {
                 results.push({
                     id: 'NEW',
-                    label: `Notiz '${cleanQuery}' erstellen`,
-                    query: cleanQuery,
+                    label: `Notiz '${query.trim()}' erstellen`,
+                    query: query.trim(),
                     type: 'action',
                     isGhost: false,
                 });
             }
+
             return results;
         }
 
@@ -533,6 +571,19 @@ export default {
             }
         }
 
+        const activeFiles: Array<{ id: string; name: string; size?: number }> =
+            (typeof window !== 'undefined' && (window as any).__tide_active_attachments) || [];
+        const fileItems = activeFiles
+            .filter(f => f.name.toLowerCase().includes(lowQuery))
+            .slice(0, 5)
+            .map(f => ({
+                id: f.id,
+                label: f.name,
+                title: f.name,
+                type: 'file',
+                isGhost: false,
+            }));
+
         const noteItems = matched
             .filter((f: any) => !taskIdSet.has(f.id))
             .slice(0, 5)
@@ -560,6 +611,7 @@ export default {
         // 5. Return formatted
         return [
             ...noteItems,
+            ...fileItems,
             ...eventItems,
             ...taskItems,
             { id: 'NEW', label: `Create File '${query}'`, query: query, type: 'action', isGhost: false },
@@ -576,6 +628,23 @@ export default {
             return;
         }
 
+        if (props.type === 'file') {
+            editor
+                .chain()
+                .focus()
+                .deleteRange(range)
+                .insertContent({
+                    type: 'mention',
+                    attrs: {
+                        id: props.id,
+                        label: props.label,
+                        type: 'file',
+                        isGhost: false,
+                    },
+                })
+                .run();
+            return;
+        }
         if (props.isGhost || props.id === 'GHOST') {
             editor.chain().focus().deleteRange(range).insertContent({
                 type: 'mention',

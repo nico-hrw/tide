@@ -382,6 +382,30 @@ function CollaborativeEditor(props: EditorProps) {
                 return;
             }
 
+            if (type === 'file') {
+                // Notify onLinkClick listener if provided
+                if (onLinkClickRef.current) {
+                    onLinkClickRef.current({ id, type: 'file', title });
+                }
+                // Also trigger file download directly
+                let downloadUrl = '';
+                if (typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/')) {
+                    const slug = window.location.pathname.replace('/notes/', '').split('/')[0].split('?')[0];
+                    downloadUrl = `/api/v1/quicknotes/${encodeURIComponent(slug)}/files/${encodeURIComponent(id)}`;
+                } else {
+                    downloadUrl = `/api/v1/files/${encodeURIComponent(id)}/download`;
+                }
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = title || 'attachment';
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                return;
+            }
+
             if (onLinkClickRef.current) onLinkClickRef.current({ id, type: 'file', title });
             useDataStore.getState().setActiveNoteId(id);
         };

@@ -31,7 +31,8 @@ func setupTestQuicknoteHandler(t *testing.T) (*QuicknoteHandler, *store.SQLiteSt
 		rooms:     make(map[string]map[*Client]bool),
 		lastPulse: make(map[string]time.Time),
 	}
-	h := NewQuicknoteHandler(s, hub)
+	blobStore := store.NewLocalBlobStore(t.TempDir())
+	h := NewQuicknoteHandler(s, blobStore, hub)
 	return h, s, hub
 }
 
