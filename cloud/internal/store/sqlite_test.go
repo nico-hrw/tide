@@ -926,3 +926,92 @@ func TestCRDT_WAL_And_GetAccessibleFile(t *testing.T) {
 		t.Errorf("expected empty WAL after key rotate, got %d entries", len(crdtStateRotated.WAL))
 	}
 }
+
+func TestQuicknoteTreeAndParentSlug(t *testing.T) {
+	tmpDir := t.TempDir()
+	store, err := NewSQLiteStore(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to create sqlite store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// 1. Create root note (parentSlug is nil)
+	root, err := store.GetOrCreateQuicknote(ctx, "root-note", "Root Note")
+	if err != nil {
+		t.Fatalf("failed to create root note: %v", err)
+	}
+	if root.ParentSlug != nil {
+		t.Fatalf("expected nil ParentSlug for root, got %v", *root.ParentSlug)
+	}
+
+	// 2. Create child notes with parentSlug pointing to root
+	rootSlug := "root-note"
+	child1, err := store.GetOrCreateQuicknote(ctx, "child-1", "Child 1", &rootSlug)
+	if err != nil {
+		t.Fatalf("failed to create child 1: %v", err)
+	}
+	if child1.ParentSlug == nil || *child1.ParentSlug != "root-note" {
+		t.Fatalf("expected child1 parent_slug root-note, got %v", child1.ParentSlug)
+	}
+
+	child2, err := store.GetOrCreateQuicknote(ctx, "child-2", "Child 2", &rootSlug)
+	if err != nil {
+		t.Fatalf("failed to create child 2: %v", err)
+	}
+	if child2.ParentSlug == nil || *child2.ParentSlug != "root-note" {
+		t.Fatalf("expected child2 parent_slug root-note, got %v", child2.ParentSlug)
+	}
+
+	// 3. Create grandchild with SaveQuicknote updating parent_slug
+	grandchildSlug := "grandchild"
+	gc, err := store.GetOrCreateQuicknote(ctx, grandchildSlug, "Grandchild")
+	if err != nil {
+		t.Fatalf("failed to create grandchild: %v", err)
+	}
+	if gc.ParentSlug != nil {
+		t.Fatalf("expected nil parentSlug initially for grandchild, got %v", gc.ParentSlug)
+	}
+
+	child1Slug := "child-1"
+	if err := store.SaveQuicknote(ctx, grandchildSlug, "Grandchild Title", "content", &child1Slug); err != nil {
+		t.Fatalf("failed to save quicknote with parentSlug: %v", err)
+	}
+
+	// Verify grandchild has updated parent_slug
+	gcUpdated, err := store.GetOrCreateQuicknote(ctx, grandchildSlug, "")
+	if err != nil {
+		t.Fatalf("failed to get grandchild: %v", err)
+	}
+	if gcUpdated.ParentSlug == nil || *gcUpdated.ParentSlug != "child-1" {
+		t.Fatalf("expected grandchild parent_slug child-1, got %v", gcUpdated.ParentSlug)
+	}
+
+	// 4. Query tree from child1
+	tree, err := store.GetQuicknoteTree(ctx, "child-1")
+	if err != nil {
+		t.Fatalf("GetQuicknoteTree failed: %v", err)
+	}
+
+	// Expect 4 nodes: root (depth 0), child-1 (depth 1), child-2 (depth 1), grandchild (depth 2)
+	if len(tree) != 4 {
+		t.Fatalf("expected 4 tree nodes, got %d: %+v", len(tree), tree)
+	}
+	if tree[0].Slug != "root-note" || tree[0].Depth != 0 {
+		t.Errorf("expected tree[0] to be root-note at depth 0, got %s at %d", tree[0].Slug, tree[0].Depth)
+	}
+	if tree[1].Depth != 1 || tree[2].Depth != 1 {
+		t.Errorf("expected depth 1 for tree[1] and tree[2], got %d and %d", tree[1].Depth, tree[2].Depth)
+	}
+	if tree[3].Slug != "grandchild" || tree[3].Depth != 2 {
+		t.Errorf("expected tree[3] to be grandchild at depth 2, got %s at %d", tree[3].Slug, tree[3].Depth)
+	}
+
+	// 5. Test non-existent note
+	_, err = store.GetQuicknoteTree(ctx, "non-existent")
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound for non-existent note, got %v", err)
+	}
+}
+

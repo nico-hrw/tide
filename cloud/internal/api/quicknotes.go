@@ -47,6 +47,7 @@ func NewQuicknoteHandler(store *store.SQLiteStore, hub *Hub) *QuicknoteHandler {
 func (h *QuicknoteHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/{slug}", h.GetQuicknote)
 	r.Put("/{slug}", h.SaveQuicknote)
+	r.Get("/{slug}/tree", h.GetTree)
 	r.Get("/{slug}/crdt-state", h.GetCRDTState)
 	r.Post("/{slug}/compact", h.Compact)
 	r.Get("/{slug}/ws", h.ServeWs)
@@ -55,11 +56,24 @@ func (h *QuicknoteHandler) RegisterRoutes(r chi.Router) {
 
 // QuicknoteResponse represents the JSON output for quicknote metadata & content.
 type QuicknoteResponse struct {
-	Slug      string    `json:"slug"`
-	Title     string    `json:"title"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Slug       string    `json:"slug"`
+	ParentSlug *string   `json:"parent_slug,omitempty"`
+	Title      string    `json:"title"`
+	Content    string    `json:"content"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// SaveQuicknoteRequest represents the JSON input for saving quicknote title, content & parent.
+type SaveQuicknoteRequest struct {
+	Title      string  `json:"title"`
+	Content    string  `json:"content"`
+	ParentSlug *string `json:"parent_slug,omitempty"`
+}
+
+// QuicknoteTreeResponse represents the JSON output for a quicknote hierarchy tree.
+type QuicknoteTreeResponse struct {
+	Tree []store.QuicknoteTreeNode `json:"tree"`
 }
 
 // GetQuicknote retrieves or lazily creates a quicknote by slug.
@@ -70,18 +84,24 @@ func (h *QuicknoteHandler) GetQuicknote(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	qn, err := h.store.GetOrCreateQuicknote(r.Context(), slug, slug)
+	var parentSlug *string
+	if p := strings.TrimSpace(r.URL.Query().Get("parent_slug")); p != "" {
+		parentSlug = &p
+	}
+
+	qn, err := h.store.GetOrCreateQuicknote(r.Context(), slug, slug, parentSlug)
 	if err != nil {
 		http.Error(w, "Failed to get quicknote: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	resp := QuicknoteResponse{
-		Slug:      qn.Slug,
-		Title:     qn.Title,
-		Content:   qn.Content,
-		CreatedAt: qn.CreatedAt,
-		UpdatedAt: qn.UpdatedAt,
+		Slug:       qn.Slug,
+		ParentSlug: qn.ParentSlug,
+		Title:      qn.Title,
+		Content:    qn.Content,
+		CreatedAt:  qn.CreatedAt,
+		UpdatedAt:  qn.UpdatedAt,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -96,16 +116,13 @@ func (h *QuicknoteHandler) SaveQuicknote(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var body struct {
-		Title   string `json:"title"`
-		Content string `json:"content"`
-	}
+	var body SaveQuicknoteRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if err := h.store.SaveQuicknote(r.Context(), slug, body.Title, body.Content); err != nil {
+	if err := h.store.SaveQuicknote(r.Context(), slug, body.Title, body.Content, body.ParentSlug); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			http.Error(w, "Quicknote not found", http.StatusNotFound)
 			return
@@ -116,6 +133,30 @@ func (h *QuicknoteHandler) SaveQuicknote(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// GetTree returns the hierarchical tree of quicknotes containing the specified slug.
+func (h *QuicknoteHandler) GetTree(w http.ResponseWriter, r *http.Request) {
+	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
+	if slug == "" {
+		http.Error(w, "slug is required", http.StatusBadRequest)
+		return
+	}
+
+	nodes, err := h.store.GetQuicknoteTree(r.Context(), slug)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get quicknote tree: " + err.Error()})
+		return
+	}
+
+	if nodes == nil {
+		nodes = []store.QuicknoteTreeNode{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(QuicknoteTreeResponse{Tree: nodes})
 }
 
 // QuicknoteSnapshotResponse represents the snapshot in CRDT state.

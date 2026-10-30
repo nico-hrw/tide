@@ -8,6 +8,13 @@ export interface QuicknoteData {
     updated_at: string;
 }
 
+export interface QuicknoteTreeNode {
+    slug: string;
+    parent_slug?: string;
+    title: string;
+    depth: number;
+}
+
 /**
  * Derives a deterministic AES-GCM 256-bit CryptoKey for a quicknote slug using Web Crypto API.
  */
@@ -55,10 +62,16 @@ export async function fetchQuicknote(slug: string): Promise<QuicknoteData> {
 /**
  * Saves quicknote title and optional content by slug.
  */
-export async function saveQuicknote(slug: string, title: string, content?: string): Promise<void> {
-    const payload: { title: string; content?: string } = {
+export async function saveQuicknote(
+    slug: string,
+    title: string,
+    content?: string,
+    parentSlug?: string
+): Promise<void> {
+    const payload: { title: string; content?: string; parent_slug?: string } = {
         title,
         content: content ?? '',
+        parent_slug: parentSlug,
     };
 
     const res = await apiFetch(`/api/v1/quicknotes/${encodeURIComponent(slug)}`, {
@@ -85,5 +98,16 @@ export async function saveQuicknote(slug: string, title: string, content?: strin
             // Keep fallback error message
         }
         throw new Error(errorMessage);
+    }
+}
+
+export async function fetchQuicknoteTree(slug: string): Promise<QuicknoteTreeNode[]> {
+    try {
+        const res = await apiFetch(`/api/v1/quicknotes/${encodeURIComponent(slug)}/tree`);
+        if (!res.ok) return [];
+        const data = (await res.json()) as { tree?: QuicknoteTreeNode[] };
+        return data.tree || [];
+    } catch {
+        return [];
     }
 }

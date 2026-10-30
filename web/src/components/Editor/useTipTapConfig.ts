@@ -250,11 +250,25 @@ export function useTipTapConfig({
                     const cursor = document.createElement('span');
                     cursor.classList.add('collaboration-carets__caret');
                     cursor.setAttribute('style', `border-color: ${user.color || '#a855f7'}; pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important;`);
+
                     const label = document.createElement('div');
                     label.classList.add('collaboration-carets__label');
-                    label.setAttribute('style', `background-color: ${user.color || '#a855f7'}; pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important;`);
-                    label.insertBefore(document.createTextNode(user.name || 'User'), null);
-                    cursor.insertBefore(label, null);
+                    label.setAttribute('style', `background-color: ${user.color || '#a855f7'}; display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; color: white; white-space: nowrap; line-height: 1; pointer-events: none; user-select: none;`);
+
+                    const seed = user.seed || user.id || 'guest';
+                    const avatarSrc = user.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(seed)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+
+                    const img = document.createElement('img');
+                    img.src = avatarSrc;
+                    img.alt = user.name || 'User';
+                    img.style.cssText = 'width: 13px; height: 13px; border-radius: 50%; object-fit: cover; flex-shrink: 0;';
+                    label.appendChild(img);
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = user.name || 'User';
+                    label.appendChild(nameSpan);
+
+                    cursor.appendChild(label);
                     return cursor;
                 },
             }));

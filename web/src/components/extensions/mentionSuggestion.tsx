@@ -88,10 +88,13 @@ const MentionList = forwardRef((props: any, ref) => {
                     .replace(/^!+/, '').trim() || 'Untitled';
 
                 if (typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/')) {
+                    const parentSlug = window.location.pathname.replace('/notes/', '').split('/')[0];
                     const childSlug = cleanTitle.toLowerCase().trim().replace(/[^a-z0-9äöüß_-]+/gi, '-').replace(/^-+|-+$/g, '') || ('note-' + Date.now().toString(36));
                     try {
-                        const { saveQuicknote } = await import('@/lib/quicknotesApi');
-                        await saveQuicknote(childSlug, cleanTitle);
+                        const { saveQuicknote } = (await import('@/lib/quicknotesApi')) as {
+                            saveQuicknote: (slug: string, title: string, content?: string, parentSlug?: string) => Promise<void>;
+                        };
+                        await saveQuicknote(childSlug, cleanTitle, undefined, parentSlug);
                     } catch (err: unknown) {
                         console.error('Failed to initialize quicknote:', err);
                     }
@@ -349,6 +352,24 @@ MentionList.displayName = 'MentionList';
 
 export default {
     items: ({ query }: { query: string }) => {
+        const isQuicknote = typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/');
+        if (isQuicknote) {
+            const currentSlug = window.location.pathname.replace('/notes/', '').split('/')[0];
+            void currentSlug;
+            const cleanQuery = query.trim();
+            const results: MentionSuggestionItem[] = [];
+            if (cleanQuery) {
+                results.push({
+                    id: 'NEW',
+                    label: `Notiz '${cleanQuery}' erstellen`,
+                    query: cleanQuery,
+                    type: 'action',
+                    isGhost: false,
+                });
+            }
+            return results;
+        }
+
         const state = useDataStore.getState();
         const files = state.notes || []; // App uses 'notes' for files
 
@@ -610,31 +631,35 @@ export default {
 
         return {
             onStart: (props: any) => {
-                // 1. Fetch all metadata for comprehensive discovery (Task 3)
-                useDataStore.getState().loadAllMetadata().catch(console.error);
+                const isQuicknote = typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/');
 
-                // 2. TRIGGER VISUAL MODE INSTANTLY (Task 4)
-                const startId = useDataStore.getState().activeNoteId;
-                useLinkStore.getState().setPendingLinkSource(startId);
-                useLinkStore.getState().setIsLinkingMode(true);
+                if (!isQuicknote) {
+                    // 1. Fetch all metadata for comprehensive discovery (Task 3)
+                    useDataStore.getState().loadAllMetadata().catch(console.error);
 
-                // Start Visual Highlight with SVG line support
-                const rect = props.clientRect?.();
-                if (rect && (window as any).startLinkSelection) {
-                    (window as any).startLinkSelection((target: any) => {
-                        // User clicked something in Sidebar or Calendar
-                        props.editor.chain().focus().deleteRange(props.range).insertContent({
-                            type: 'mention',
-                            attrs: { 
-                                id: target.id, 
-                                label: target.title || target.label, 
-                                isGhost: false,
-                                type: target.type,
-                                start: target.start 
-                            }
-                        }).run();
-                        useLinkStore.getState().setIsLinkingMode(false);
-                    }, { x: rect.left, y: rect.top });
+                    // 2. TRIGGER VISUAL MODE INSTANTLY (Task 4)
+                    const startId = useDataStore.getState().activeNoteId;
+                    useLinkStore.getState().setPendingLinkSource(startId);
+                    useLinkStore.getState().setIsLinkingMode(true);
+
+                    // Start Visual Highlight with SVG line support
+                    const rect = props.clientRect?.();
+                    if (rect && (window as any).startLinkSelection) {
+                        (window as any).startLinkSelection((target: any) => {
+                            // User clicked something in Sidebar or Calendar
+                            props.editor.chain().focus().deleteRange(props.range).insertContent({
+                                type: 'mention',
+                                attrs: { 
+                                    id: target.id, 
+                                    label: target.title || target.label, 
+                                    isGhost: false,
+                                    type: target.type,
+                                    start: target.start 
+                                }
+                            }).run();
+                            useLinkStore.getState().setIsLinkingMode(false);
+                        }, { x: rect.left, y: rect.top });
+                    }
                 }
 
                 component = new ReactRenderer(MentionList, {

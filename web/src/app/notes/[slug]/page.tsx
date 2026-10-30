@@ -6,7 +6,10 @@ import { useParams, useRouter } from 'next/navigation';
 import { Share2, FolderInput, Check, Loader2, AlertCircle, X } from 'lucide-react';
 import Editor from '@/components/Editor';
 import Avatar from '@/components/Profile/Avatar';
-import { deriveQuicknoteKey, fetchQuicknote, saveQuicknote, type QuicknoteData } from '@/lib/quicknotesApi';
+import {
+    deriveQuicknoteKey, fetchQuicknote, fetchQuicknoteTree, saveQuicknote,
+    type QuicknoteData, type QuicknoteTreeNode,
+} from '@/lib/quicknotesApi';
 import { useDataStore } from '@/store/useDataStore';
 
 interface ToastState {
@@ -22,61 +25,135 @@ interface LinkedNoteItem {
 
 function extractLinkedNotes(doc: unknown): LinkedNoteItem[] {
     const results: LinkedNoteItem[] = [];
-    const seenIds = new Set<string>();
-
+    const seen = new Set<string>();
     function traverse(node: unknown) {
         if (!node || typeof node !== 'object') return;
         const n = node as Record<string, unknown>;
-
         if (n.type === 'mention' && n.attrs && typeof n.attrs === 'object') {
             const attrs = n.attrs as Record<string, unknown>;
-            const type = attrs.type;
-            if (type === 'note' || !type) {
+            if (attrs.type === 'note' || !attrs.type) {
                 const id = typeof attrs.id === 'string' ? attrs.id : '';
-                const rawLabel = typeof attrs.label === 'string' ? attrs.label.trim() : '';
-                const label = rawLabel || id || 'Notiz';
-                if (id && !seenIds.has(id)) {
-                    seenIds.add(id);
-                    results.push({ id, label });
+                const label = typeof attrs.label === 'string' ? attrs.label.trim() : '';
+                if (id && !seen.has(id)) {
+                    seen.add(id);
+                    results.push({ id, label: label || id || 'Notiz' });
                 }
             }
         }
-
-        if (Array.isArray(n.content)) {
-            for (const child of n.content) {
-                traverse(child);
-            }
-        }
+        if (Array.isArray(n.content)) for (const child of n.content) traverse(child);
     }
-
     traverse(doc);
     return results;
+}
+
+interface TreeItem {
+    slug: string;
+    parent_slug?: string;
+    title: string;
+    depth: number;
+    children: TreeItem[];
+}
+
+function BranchCurve() {
+    return (
+        <svg className="w-3.5 h-5 text-gray-300/80 dark:text-neutral-700/80 absolute -left-3.5 top-0 pointer-events-none" viewBox="0 0 14 20" fill="none">
+            <path d="M 0 0 V 10 Q 0 16 6 16 H 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+    );
+}
+
+function buildTree(
+    nodes: QuicknoteTreeNode[],
+    currentSlug: string,
+    currentTitle: string,
+    pending: LinkedNoteItem[] = []
+): TreeItem | null {
+    if (nodes.length === 0 && !currentSlug) return null;
+    const map = new Map<string, TreeItem>();
+    for (const n of nodes) {
+        map.set(n.slug, {
+            slug: n.slug,
+            parent_slug: n.parent_slug || undefined,
+            title: n.slug === currentSlug && currentTitle.trim() ? currentTitle.trim() : (n.title || n.slug),
+            depth: n.depth,
+            children: [],
+        });
+    }
+    if (currentSlug && !map.has(currentSlug)) {
+        map.set(currentSlug, { slug: currentSlug, title: currentTitle.trim() || currentSlug, depth: 0, children: [] });
+    }
+    for (const p of pending) {
+        if (!map.has(p.id)) {
+            const parent = map.get(currentSlug);
+            map.set(p.id, {
+                slug: p.id,
+                parent_slug: currentSlug,
+                title: p.label || p.id,
+                depth: parent ? parent.depth + 1 : 1,
+                children: [],
+            });
+        }
+    }
+    let root: TreeItem | null = null;
+    for (const item of Array.from(map.values())) {
+        if (item.parent_slug && map.has(item.parent_slug) && item.parent_slug !== item.slug) {
+            const parent = map.get(item.parent_slug)!;
+            if (!parent.children.some((c) => c.slug === item.slug)) parent.children.push(item);
+        } else if (item.depth === 0 && !root) {
+            root = item;
+        }
+    }
+    return root || Array.from(map.values()).sort((a, b) => a.depth - b.depth)[0] || null;
+}
+
+function TreeNodeItemView({ node, activeSlug }: { node: TreeItem; activeSlug: string }) {
+    const isActive = node.slug === activeSlug;
+    return (
+        <div className="relative flex flex-col">
+            <div className="relative flex items-center min-h-[22px]">
+                <BranchCurve />
+                {isActive ? (
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-900 dark:text-gray-100 truncate py-0.5" title={node.title}>
+                        <span className="w-1 h-1 rounded-full bg-neutral-400 dark:bg-neutral-500 shrink-0" />
+                        <span className="truncate">{node.title}</span>
+                    </div>
+                ) : (
+                    <Link
+                        href={`/notes/${encodeURIComponent(node.slug)}`}
+                        className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 truncate transition-colors py-0.5 max-w-full"
+                        title={node.title}
+                    >
+                        <span className="truncate">{node.title}</span>
+                    </Link>
+                )}
+            </div>
+            {node.children.length > 0 && (
+                <div className="relative ml-3.5 pl-3.5 border-l border-gray-300/80 dark:border-neutral-700/80 space-y-1 mt-1">
+                    {node.children.map((child) => (
+                        <TreeNodeItemView key={child.slug} node={child} activeSlug={activeSlug} />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
 }
 
 export default function QuicknotePage() {
     const params = useParams();
     const router = useRouter();
-    const rawSlug = typeof params?.slug === 'string'
-        ? params.slug
-        : Array.isArray(params?.slug)
-            ? params.slug[0]
-            : '';
+    const rawSlug = typeof params?.slug === 'string' ? params.slug : Array.isArray(params?.slug) ? params.slug[0] : '';
     const slug = useMemo(() => {
-        try {
-            return decodeURIComponent(rawSlug || '');
-        } catch {
-            return rawSlug || '';
-        }
+        try { return decodeURIComponent(rawSlug || ''); } catch { return rawSlug || ''; }
     }, [rawSlug]);
 
     const myId = useDataStore((s) => s.myId);
     const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
     useEffect(() => {
-        const sessionToken = typeof window !== 'undefined'
+        const token = typeof window !== 'undefined'
             ? (sessionStorage.getItem('tide_session_token') || localStorage.getItem('tide_session_token'))
             : null;
-        setIsLoggedIn(Boolean(myId || sessionToken));
+        setIsLoggedIn(Boolean(myId || token));
     }, [myId]);
 
     const [loading, setLoading] = useState<boolean>(true);
@@ -86,10 +163,9 @@ export default function QuicknotePage() {
     const [quicknoteKey, setQuicknoteKey] = useState<CryptoKey | null>(null);
     const [copyStatus, setCopyStatus] = useState<'idle' | 'copying' | 'success'>('idle');
     const [toast, setToast] = useState<ToastState | null>(null);
-
+    const [treeNodes, setTreeNodes] = useState<QuicknoteTreeNode[]>([]);
     const [copied, setCopied] = useState<boolean>(false);
     const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
     const [profileMenuOpen, setProfileMenuOpen] = useState<boolean>(false);
     const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -99,34 +175,26 @@ export default function QuicknotePage() {
     contentRef.current = content;
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Close profile floating menu on click outside
     useEffect(() => {
         if (!profileMenuOpen) return;
-        const handleClickOutside = (event: MouseEvent) => {
-            if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
                 setProfileMenuOpen(false);
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [profileMenuOpen]);
 
     const debouncedSave = useCallback((newContent: unknown, newTitle?: string) => {
         if (!slug) return;
-        if (saveTimerRef.current) {
-            clearTimeout(saveTimerRef.current);
-        }
-
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
         const currentTitle = newTitle ?? titleRef.current ?? slug;
         contentRef.current = newContent;
 
         saveTimerRef.current = setTimeout(async () => {
             try {
-                const serialized = typeof newContent === 'string'
-                    ? newContent
-                    : JSON.stringify(newContent ?? '');
+                const serialized = typeof newContent === 'string' ? newContent : JSON.stringify(newContent ?? '');
                 await saveQuicknote(slug, currentTitle, serialized);
             } catch (err) {
                 console.error('Failed to auto-save quicknote:', err);
@@ -142,18 +210,13 @@ export default function QuicknotePage() {
 
     useEffect(() => {
         return () => {
-            if (saveTimerRef.current) {
-                clearTimeout(saveTimerRef.current);
-            }
-            if (copyTimeoutRef.current) {
-                clearTimeout(copyTimeoutRef.current);
-            }
+            if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+            if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
         };
     }, []);
 
     useEffect(() => {
         if (!slug) return;
-
         let isMounted = true;
         setLoading(true);
 
@@ -167,10 +230,8 @@ export default function QuicknotePage() {
                 try {
                     data = await fetchQuicknote(slug);
                 } catch {
-                    // Note might be new and not yet persisted
                     data = null;
                 }
-
                 if (!isMounted) return;
 
                 const loadedTitle = data?.title || slug;
@@ -185,24 +246,18 @@ export default function QuicknotePage() {
                         loadedContent = data.content;
                     }
                 }
-
                 setContent(loadedContent);
                 setInitialContent(loadedContent);
                 contentRef.current = loadedContent;
             } catch (err) {
                 console.error('Failed to initialize quicknote:', err);
             } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
+                if (isMounted) setLoading(false);
             }
         };
 
         void initNote();
-
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false; };
     }, [slug]);
 
     const linkedNotes = useMemo<LinkedNoteItem[]>(() => {
@@ -217,17 +272,45 @@ export default function QuicknotePage() {
         return extractLinkedNotes(parsed);
     }, [content]);
 
+    useEffect(() => {
+        if (!slug) return;
+        let isMounted = true;
+        const loadTree = async () => {
+            try {
+                const nodes = await fetchQuicknoteTree(slug);
+                if (isMounted && nodes.length > 0) setTreeNodes(nodes);
+            } catch (err) {
+                console.error('Failed to fetch quicknote tree:', err);
+            }
+        };
+        void loadTree();
+        return () => { isMounted = false; };
+    }, [slug]);
+
+    useEffect(() => {
+        if (!slug || linkedNotes.length === 0) return;
+        const knownSlugs = new Set(treeNodes.map((n) => n.slug));
+        if (linkedNotes.some((item) => !knownSlugs.has(item.id))) {
+            const timer = setTimeout(() => {
+                fetchQuicknoteTree(slug)
+                    .then((nodes) => { if (nodes.length > 0) setTreeNodes(nodes); })
+                    .catch(() => {});
+            }, 600);
+            return () => clearTimeout(timer);
+        }
+    }, [slug, linkedNotes, treeNodes]);
+
+    const rootNode = useMemo(() => {
+        return buildTree(treeNodes, slug, title, linkedNotes);
+    }, [treeNodes, slug, title, linkedNotes]);
+
     const handleShare = async () => {
         try {
             if (typeof window !== 'undefined') {
                 await navigator.clipboard.writeText(window.location.href);
                 setCopied(true);
-                if (copyTimeoutRef.current) {
-                    clearTimeout(copyTimeoutRef.current);
-                }
-                copyTimeoutRef.current = setTimeout(() => {
-                    setCopied(false);
-                }, 2000);
+                if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+                copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
             }
         } catch (err) {
             console.error('Failed to copy share link:', err);
@@ -236,14 +319,11 @@ export default function QuicknotePage() {
 
     const handleCopyToVault = async () => {
         if (copyStatus === 'copying') return;
-
         const currentMyId = useDataStore.getState().myId;
-        const sessionToken = typeof window !== 'undefined'
+        const token = typeof window !== 'undefined'
             ? (sessionStorage.getItem('tide_session_token') || localStorage.getItem('tide_session_token'))
             : null;
-        const loggedIn = Boolean(currentMyId || sessionToken);
-
-        if (!loggedIn) {
+        if (!currentMyId && !token) {
             setToast({
                 type: 'auth',
                 text: 'Melde dich an, um Notizen in deinem privaten Notizbuch zu speichern',
@@ -251,27 +331,17 @@ export default function QuicknotePage() {
             });
             return;
         }
-
         try {
             setCopyStatus('copying');
             const noteTitle = title.trim() || slug;
-            const currentContent = contentRef.current ?? content;
-            await useDataStore.getState().createNote(noteTitle, currentContent);
+            await useDataStore.getState().createNote(noteTitle, contentRef.current ?? content);
             setCopyStatus('success');
-            setToast({
-                type: 'success',
-                text: 'Notiz erfolgreich in dein persönliches Verzeichnis kopiert!',
-            });
-            setTimeout(() => {
-                setCopyStatus('idle');
-            }, 3000);
+            setToast({ type: 'success', text: 'Notiz erfolgreich in dein persönliches Verzeichnis kopiert!' });
+            setTimeout(() => setCopyStatus('idle'), 3000);
         } catch (err) {
             console.error('Failed to copy note to personal directory:', err);
             setCopyStatus('idle');
-            setToast({
-                type: 'error',
-                text: 'Fehler beim Kopieren der Notiz in dein Verzeichnis.',
-            });
+            setToast({ type: 'error', text: 'Fehler beim Kopieren der Notiz in dein Verzeichnis.' });
         }
     };
 
@@ -282,89 +352,57 @@ export default function QuicknotePage() {
                 aria-label="Notizhierarchie"
                 className="hidden xl:block fixed left-8 top-16 w-56 select-none z-20"
             >
-                <Link
-                    href="/"
-                    className="inline-flex items-center gap-2 mb-6 group text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
-                    title="Zurück zu Tide"
-                >
-                    <div className="w-5 h-5 rounded-md bg-blue-600 flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform">
-                        <svg
-                            className="w-3 h-3 fill-none stroke-currentColor stroke-2"
-                            viewBox="0 0 24 24"
-                        >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 15C6 15 7.5 9 10.5 9C13.5 9 15 15 18 15C20 15 21 12 21 12" />
-                        </svg>
-                    </div>
-                    <span className="font-semibold text-xs tracking-tight text-neutral-500 dark:text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-neutral-100 transition-colors">Tide</span>
-                </Link>
-
-                {/* Root item: Current note title */}
-                <div className="flex items-center gap-2 font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
-                    <span className="truncate" title={title.trim() || slug || 'Notiz'}>
-                        {title.trim() || slug || 'Notiz'}
-                    </span>
-                </div>
-
-                {/* Tree branches (Äste) */}
-                <div className="relative ml-2 pl-3.5 border-l-2 border-gray-300/80 dark:border-neutral-700/80 space-y-2 mt-2">
-                    {linkedNotes.length > 0 ? (
-                        linkedNotes.map((item) => (
-                            <div
-                                key={item.id}
-                                className="relative before:content-[''] before:absolute before:-left-3.5 before:top-3 before:w-3.5 before:h-px before:bg-gray-300/80 dark:before:bg-neutral-700/80 flex items-center gap-1.5"
-                            >
-                                <Link
-                                    href={`/notes/${encodeURIComponent(item.id)}`}
-                                    className="text-xs text-neutral-600 dark:text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400 truncate transition-colors py-0.5 inline-block max-w-full"
-                                    title={item.label}
-                                >
-                                    {item.label}
-                                </Link>
+                {rootNode && (
+                    <>
+                        {rootNode.slug === slug ? (
+                            <div className="flex items-center gap-2 font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">
+                                <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 shrink-0" />
+                                <span className="truncate" title={rootNode.title}>{rootNode.title}</span>
                             </div>
-                        ))
-                    ) : (
-                        <div className="relative before:content-[''] before:absolute before:-left-3.5 before:top-3 before:w-3.5 before:h-px before:bg-gray-300/80 dark:before:bg-neutral-700/80 flex items-center gap-1.5">
-                            <span className="text-[11px] text-gray-400 dark:text-neutral-500 italic select-none">
-                                Tippe @ um Notizen zu verlinken
-                            </span>
+                        ) : (
+                            <Link
+                                href={`/notes/${encodeURIComponent(rootNode.slug)}`}
+                                className="flex items-center gap-2 font-medium text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 truncate transition-colors group"
+                                title={rootNode.title}
+                            >
+                                <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600 shrink-0 group-hover:bg-neutral-500 transition-colors" />
+                                <span className="truncate">{rootNode.title}</span>
+                            </Link>
+                        )}
+
+                        <div className="relative ml-2 pl-3.5 border-l border-gray-300/80 dark:border-neutral-700/80 space-y-1 mt-2">
+                            {rootNode.children.length > 0 ? (
+                                rootNode.children.map((child) => (
+                                    <TreeNodeItemView key={child.slug} node={child} activeSlug={slug} />
+                                ))
+                            ) : (
+                                <div className="relative flex items-center min-h-[22px]">
+                                    <BranchCurve />
+                                    <span className="text-[11px] text-gray-400 dark:text-neutral-500 italic select-none">
+                                        Tippe @ um Notizen zu verlinken
+                                    </span>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
+                    </>
+                )}
             </aside>
 
             {/* Notification / Toast Banner */}
             {toast && (
-                <aside
-                    aria-label="Benachrichtigung"
-                    className="fixed bottom-20 right-6 z-50 max-w-md bg-[var(--card,var(--surface-card,#ffffff))] border border-[var(--border,var(--border-color,#e5e7eb))] text-[var(--foreground)] shadow-xl rounded-xl p-4 flex items-start gap-3"
-                >
-                    {toast.type === 'auth' && (
-                        <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                    )}
-                    {toast.type === 'success' && (
-                        <Check className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                    )}
-                    {toast.type === 'error' && (
-                        <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
-                    )}
+                <aside aria-label="Benachrichtigung" className="fixed bottom-20 right-6 z-50 max-w-md bg-[var(--card,var(--surface-card,#ffffff))] border border-[var(--border,var(--border-color,#e5e7eb))] text-[var(--foreground)] shadow-xl rounded-xl p-4 flex items-start gap-3">
+                    {toast.type === 'auth' && <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />}
+                    {toast.type === 'success' && <Check className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />}
+                    {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
                     <div className="flex-1 text-sm">
                         <p className="leading-snug">{toast.text}</p>
                         {toast.authLink && (
-                            <Link
-                                href={toast.authLink}
-                                className="inline-block mt-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-                            >
+                            <Link href={toast.authLink} className="inline-block mt-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">
                                 Jetzt anmelden &rarr;
                             </Link>
                         )}
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => setToast(null)}
-                        className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-0.5 rounded transition-colors"
-                        aria-label="Schließen"
-                    >
+                    <button type="button" onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-0.5 rounded transition-colors" aria-label="Schließen">
                         <X className="w-4 h-4" />
                     </button>
                 </aside>
@@ -408,7 +446,7 @@ export default function QuicknotePage() {
                 {/* Share Button */}
                 <div className="relative">
                     {copied && (
-                        <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 rounded-lg bg-gray-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-xs font-medium shadow-md whitespace-nowrap animate-in fade-in slide-in-from-bottom-1 duration-150 select-none pointer-events-none">
+                        <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 rounded-lg bg-gray-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-xs font-medium shadow-md whitespace-nowrap select-none pointer-events-none">
                             Link kopiert! ✓
                         </div>
                     )}
@@ -440,20 +478,11 @@ export default function QuicknotePage() {
                             <div className="absolute bottom-full right-0 mb-3 w-52 rounded-xl bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border border-gray-200 dark:border-neutral-800 shadow-xl py-1.5 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        setProfileMenuOpen(false);
-                                        void handleCopyToVault();
-                                    }}
+                                    onClick={() => { setProfileMenuOpen(false); void handleCopyToVault(); }}
                                     disabled={copyStatus === 'copying'}
                                     className="w-full px-3.5 py-2.5 text-left text-sm flex items-center gap-2.5 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-50 cursor-pointer"
                                 >
-                                    {copyStatus === 'copying' ? (
-                                        <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" />
-                                    ) : copyStatus === 'success' ? (
-                                        <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                                    ) : (
-                                        <FolderInput className="w-4 h-4 text-gray-500 dark:text-gray-400 shrink-0" />
-                                    )}
+                                    {copyStatus === 'copying' ? <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" /> : copyStatus === 'success' ? <Check className="w-4 h-4 text-emerald-500 shrink-0" /> : <FolderInput className="w-4 h-4 text-gray-500 dark:text-gray-400 shrink-0" />}
                                     <span className="font-medium">Für mich speichern</span>
                                 </button>
                             </div>

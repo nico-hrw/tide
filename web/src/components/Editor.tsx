@@ -115,6 +115,7 @@ function CollaborativeEditor(props: EditorProps) {
 
         const userId = myId || useDataStore.getState().myId || 'anonymous';
         const token = sessionStorage.getItem('tide_session_token') || localStorage.getItem('tide_session_token') || '';
+        const isLoggedIn = Boolean(token || (myId && myId !== 'anonymous') || useDataStore.getState().myId);
 
         const e2eeProvider = new YjsE2EEProvider(activeTabId, docToUse, key, {
             keyEpoch: activeEpoch,
@@ -129,8 +130,11 @@ function CollaborativeEditor(props: EditorProps) {
 
         const profile = userProfileRef.current;
         e2eeProvider.awareness.setLocalStateField('user', {
-            name: profile?.username || 'User',
-            color, id: userId, seed: profile?.avatar_seed || userId,
+            name: profile?.username || (isLoggedIn ? 'User' : 'Gast'),
+            color,
+            id: userId,
+            seed: profile?.avatar_seed || userId,
+            avatar: profile?.avatar_url || profile?.avatar,
         });
 
         (window as any).__tideWsConnected = e2eeProvider.wsconnected;
@@ -260,14 +264,19 @@ function CollaborativeEditor(props: EditorProps) {
     useEffect(() => {
         if (!provider?.awareness) return;
         const userId = myId || useDataStore.getState().myId || 'anonymous';
+        const token = typeof window !== 'undefined' ? (sessionStorage.getItem('tide_session_token') || localStorage.getItem('tide_session_token')) : '';
+        const isLoggedIn = Boolean(token || (myId && myId !== 'anonymous') || useDataStore.getState().myId);
         const hash = Array.from(userId).reduce((acc, char) => acc + char.charCodeAt(0), 0);
         const color = COLORS[hash % COLORS.length];
 
         provider.awareness.setLocalStateField('user', {
-            name: userProfile?.username || 'User',
-            color, id: userId, seed: userProfile?.avatar_seed || userId,
+            name: userProfile?.username || (isLoggedIn ? 'User' : 'Gast'),
+            color,
+            id: userId,
+            seed: userProfile?.avatar_seed || userId,
+            avatar: userProfile?.avatar_url || userProfile?.avatar,
         });
-    }, [provider, userProfile?.username, userProfile?.avatar_seed, myId]);
+    }, [provider, userProfile?.username, userProfile?.avatar_seed, userProfile?.avatar_url, userProfile?.avatar, myId]);
 
     const onEventClickRef = useRef(onEventClick);
     useEffect(() => { onEventClickRef.current = onEventClick; }, [onEventClick]);

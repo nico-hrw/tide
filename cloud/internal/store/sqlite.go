@@ -237,6 +237,7 @@ func (s *SQLiteStore) migrate() error {
 
 	CREATE TABLE IF NOT EXISTS quicknotes (
 		slug TEXT PRIMARY KEY,
+		parent_slug TEXT,
 		title TEXT NOT NULL DEFAULT 'Untitled Quicknote',
 		content TEXT NOT NULL DEFAULT '',
 		snapshot_iv BLOB,
@@ -286,6 +287,7 @@ func (s *SQLiteStore) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_messages_recipient_created ON messages(recipient_id, created_at);
 	CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
 	CREATE INDEX IF NOT EXISTS idx_quicknote_wal_slug ON quicknote_wal(slug, seq_id);
+	CREATE INDEX IF NOT EXISTS idx_quicknotes_parent_slug ON quicknotes(parent_slug);
 	`
 	if _, err := s.DB.Exec(indices); err != nil {
 		return err
@@ -522,6 +524,14 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 					FOREIGN KEY(slug) REFERENCES quicknotes(slug) ON DELETE CASCADE
 				);`,
 				"CREATE INDEX IF NOT EXISTS idx_quicknote_wal_slug ON quicknote_wal(slug, seq_id);",
+			},
+		},
+		{
+			version: 8,
+			name:    "quicknotes_parent_slug",
+			stmts: []string{
+				"ALTER TABLE quicknotes ADD COLUMN parent_slug TEXT;",
+				"CREATE INDEX IF NOT EXISTS idx_quicknotes_parent_slug ON quicknotes(parent_slug);",
 			},
 		},
 	}
@@ -2673,6 +2683,7 @@ func (s *SQLiteStore) RevokeShareAndRotateKey(ctx context.Context, fileID, targe
 
 type Quicknote struct {
 	Slug               string    `json:"slug"`
+	ParentSlug         *string   `json:"parent_slug,omitempty"`
 	Title              string    `json:"title"`
 	Content            string    `json:"content"`
 	SnapshotIV         []byte    `json:"-"`
@@ -2680,6 +2691,13 @@ type Quicknote struct {
 	SnapshotSeqID      int64     `json:"snapshot_seq_id"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+type QuicknoteTreeNode struct {
+	Slug       string  `json:"slug"`
+	ParentSlug *string `json:"parent_slug,omitempty"`
+	Title      string  `json:"title"`
+	Depth      int     `json:"depth"`
 }
 
 type QuicknoteWALEntry struct {
@@ -2692,28 +2710,33 @@ type QuicknoteWALEntry struct {
 }
 
 // GetOrCreateQuicknote returns an existing quicknote by slug, or creates one if it does not exist.
-func (s *SQLiteStore) GetOrCreateQuicknote(ctx context.Context, slug string, defaultTitle string) (*Quicknote, error) {
+func (s *SQLiteStore) GetOrCreateQuicknote(ctx context.Context, slug string, defaultTitle string, parentSlug ...*string) (*Quicknote, error) {
 	if defaultTitle == "" {
 		defaultTitle = "Untitled Quicknote"
 	}
+	var pSlug *string
+	if len(parentSlug) > 0 && parentSlug[0] != nil {
+		pSlug = parentSlug[0]
+	}
 	now := time.Now()
 	insertQuery := `
-		INSERT INTO quicknotes (slug, title, content, snapshot_seq_id, created_at, updated_at)
-		VALUES (?, ?, '', 0, ?, ?)
+		INSERT INTO quicknotes (slug, parent_slug, title, content, snapshot_seq_id, created_at, updated_at)
+		VALUES (?, ?, ?, '', 0, ?, ?)
 		ON CONFLICT(slug) DO NOTHING
 	`
-	if _, err := s.DB.ExecContext(ctx, insertQuery, slug, defaultTitle, now, now); err != nil {
+	if _, err := s.DB.ExecContext(ctx, insertQuery, slug, pSlug, defaultTitle, now, now); err != nil {
 		return nil, err
 	}
 
 	selectQuery := `
-		SELECT slug, title, content, snapshot_iv, snapshot_ciphertext, COALESCE(snapshot_seq_id, 0), created_at, updated_at
+		SELECT slug, parent_slug, title, content, snapshot_iv, snapshot_ciphertext, COALESCE(snapshot_seq_id, 0), created_at, updated_at
 		FROM quicknotes
 		WHERE slug = ?
 	`
 	var qn Quicknote
 	err := s.DB.QueryRowContext(ctx, selectQuery, slug).Scan(
 		&qn.Slug,
+		&qn.ParentSlug,
 		&qn.Title,
 		&qn.Content,
 		&qn.SnapshotIV,
@@ -2732,13 +2755,25 @@ func (s *SQLiteStore) GetOrCreateQuicknote(ctx context.Context, slug string, def
 }
 
 // SaveQuicknote updates the title, content, and updated_at timestamp for a quicknote.
-func (s *SQLiteStore) SaveQuicknote(ctx context.Context, slug, title, content string) error {
-	query := `
-		UPDATE quicknotes
-		SET title = ?, content = ?, updated_at = ?
-		WHERE slug = ?
-	`
-	res, err := s.DB.ExecContext(ctx, query, title, content, time.Now(), slug)
+func (s *SQLiteStore) SaveQuicknote(ctx context.Context, slug, title, content string, parentSlug ...*string) error {
+	var res sql.Result
+	var err error
+	now := time.Now()
+	if len(parentSlug) > 0 && parentSlug[0] != nil {
+		query := `
+			UPDATE quicknotes
+			SET title = ?, content = ?, parent_slug = ?, updated_at = ?
+			WHERE slug = ?
+		`
+		res, err = s.DB.ExecContext(ctx, query, title, content, *parentSlug[0], now, slug)
+	} else {
+		query := `
+			UPDATE quicknotes
+			SET title = ?, content = ?, updated_at = ?
+			WHERE slug = ?
+		`
+		res, err = s.DB.ExecContext(ctx, query, title, content, now, slug)
+	}
 	if err != nil {
 		return err
 	}
@@ -2752,16 +2787,90 @@ func (s *SQLiteStore) SaveQuicknote(ctx context.Context, slug, title, content st
 	return nil
 }
 
+// GetQuicknoteTree returns the hierarchical tree of quicknotes containing the given slug.
+func (s *SQLiteStore) GetQuicknoteTree(ctx context.Context, slug string) ([]QuicknoteTreeNode, error) {
+	query := `
+		WITH RECURSIVE
+		ancestors(slug, parent_slug, lvl) AS (
+			SELECT slug, parent_slug, 0
+			FROM quicknotes
+			WHERE slug = ?
+			UNION ALL
+			SELECT q.slug, q.parent_slug, a.lvl + 1
+			FROM quicknotes q
+			JOIN ancestors a ON q.slug = a.parent_slug
+			WHERE a.lvl < 100
+		),
+		root_node AS (
+			SELECT slug
+			FROM ancestors
+			WHERE parent_slug IS NULL OR parent_slug = ''
+			ORDER BY lvl DESC
+			LIMIT 1
+		),
+		tree(slug, parent_slug, title, depth, created_at) AS (
+			SELECT q.slug, q.parent_slug, q.title, 0, q.created_at
+			FROM quicknotes q
+			JOIN root_node r ON q.slug = r.slug
+			UNION ALL
+			SELECT c.slug, c.parent_slug, c.title, t.depth + 1, c.created_at
+			FROM quicknotes c
+			JOIN tree t ON c.parent_slug = t.slug
+			WHERE t.depth < 100
+		)
+		SELECT slug, parent_slug, title, depth
+		FROM tree
+		ORDER BY depth ASC, created_at ASC, title ASC;
+	`
+	rows, err := s.readDB().QueryContext(ctx, query, slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var nodes []QuicknoteTreeNode
+	for rows.Next() {
+		var n QuicknoteTreeNode
+		if err := rows.Scan(&n.Slug, &n.ParentSlug, &n.Title, &n.Depth); err != nil {
+			return nil, err
+		}
+		nodes = append(nodes, n)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if len(nodes) == 0 {
+		var n QuicknoteTreeNode
+		err := s.readDB().QueryRowContext(ctx, "SELECT slug, parent_slug, title FROM quicknotes WHERE slug = ?", slug).Scan(
+			&n.Slug,
+			&n.ParentSlug,
+			&n.Title,
+		)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, ErrNotFound
+			}
+			return nil, err
+		}
+		n.Depth = 0
+		return []QuicknoteTreeNode{n}, nil
+	}
+
+	return nodes, nil
+}
+
 // GetQuicknoteCRDTState returns the quicknote snapshot information and all subsequent WAL entries.
 func (s *SQLiteStore) GetQuicknoteCRDTState(ctx context.Context, slug string) (*Quicknote, []QuicknoteWALEntry, error) {
 	selectQuery := `
-		SELECT slug, title, content, snapshot_iv, snapshot_ciphertext, COALESCE(snapshot_seq_id, 0), created_at, updated_at
+		SELECT slug, parent_slug, title, content, snapshot_iv, snapshot_ciphertext, COALESCE(snapshot_seq_id, 0), created_at, updated_at
 		FROM quicknotes
 		WHERE slug = ?
 	`
 	var qn Quicknote
 	err := s.readDB().QueryRowContext(ctx, selectQuery, slug).Scan(
 		&qn.Slug,
+		&qn.ParentSlug,
 		&qn.Title,
 		&qn.Content,
 		&qn.SnapshotIV,
