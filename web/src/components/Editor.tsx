@@ -63,89 +63,136 @@ function CollaborativeEditor({
 
     useEffect(() => { userHasTypedRef.current = false; }, [activeTabId, cleanInitial]);
 
+    const isTempKeyRef = useRef(false);
+    const providerRef = useRef<YjsE2EEProvider | null>(null);
+    providerRef.current = provider;
+    const ydocRef = useRef<Y.Doc>(ydoc);
+    ydocRef.current = ydoc;
+
+    const storeDEK = useActiveNoteStore((s) => s.activeDEK);
+    const storeEpoch = useActiveNoteStore((s) => s.keyEpoch);
+    const activeDek = dek || storeDEK || useActiveNoteStore.getState().activeDEK || null;
+    const activeEpoch = keyEpoch || storeEpoch || useActiveNoteStore.getState().keyEpoch || 1;
+
+    const createProvider = useCallback((key: CryptoKey, docToUse: Y.Doc, isTemp: boolean) => {
+        if (!activeTabId) return null;
+
+        const userId = myId || useDataStore.getState().myId || 'anonymous';
+        const token = sessionStorage.getItem('tide_session_token') || localStorage.getItem('tide_session_token') || '';
+
+        const e2eeProvider = new YjsE2EEProvider(activeTabId, docToUse, key, {
+            keyEpoch: activeEpoch,
+            token,
+            onRoleChanged: (perm) => {
+                useActiveNoteStore.getState().setLivePermission(perm);
+            },
+        });
+
+        const hash = Array.from(userId).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+        const color = COLORS[hash % COLORS.length];
+
+        e2eeProvider.awareness.setLocalStateField('user', {
+            name: userProfile?.username || 'User',
+            color, id: userId, seed: userProfile?.avatar_seed || userId,
+        });
+
+        (window as any).__tideWsConnected = e2eeProvider.wsconnected;
+        const handleWsStatus = (event: { status: string }) => {
+            (window as any).__tideWsConnected = event.status === 'connected';
+        };
+        e2eeProvider.on('status', handleWsStatus);
+
+        isTempKeyRef.current = isTemp;
+        return e2eeProvider;
+    }, [activeTabId, activeEpoch, myId, userProfile]);
+
     useEffect(() => {
         if (!activeTabId || 
             activeTabId.startsWith('chat-') || 
             activeTabId.startsWith('profile:') || 
             ['calendar', 'messages', 'social', 'ext_finance'].includes(activeTabId)) {
-            setProvider(null);
+            if (providerRef.current) {
+                (window as any).__tideWsConnected = false;
+                providerRef.current.destroy();
+                providerRef.current = null;
+                setProvider(null);
+            }
             return;
         }
 
-        const doc = new Y.Doc();
-        setYdoc(doc);
-
-        const userId = myId || useDataStore.getState().myId || 'anonymous';
-        const token = sessionStorage.getItem('tide_session_token') || localStorage.getItem('tide_session_token') || '';
-
-        let activeDek = dek || useActiveNoteStore.getState().activeDEK;
-        let activeEpoch = keyEpoch || useActiveNoteStore.getState().keyEpoch || 1;
-        let e2eeProvider: YjsE2EEProvider | null = null;
         let isCancelled = false;
-
-        const initProvider = (key: CryptoKey) => {
-            if (isCancelled) return;
-            e2eeProvider = new YjsE2EEProvider(activeTabId, doc, key, {
-                keyEpoch: activeEpoch,
-                token,
-                onRoleChanged: (perm) => {
-                    useActiveNoteStore.getState().setLivePermission(perm);
-                },
-            });
-
-            const hash = Array.from(userId).reduce((acc, char) => acc + char.charCodeAt(0), 0);
-            const color = COLORS[hash % COLORS.length];
-
-            e2eeProvider.awareness.setLocalStateField('user', {
-                name: userProfile?.username || 'User',
-                color, id: userId, seed: userProfile?.avatar_seed || userId,
-            });
-
-            (window as any).__tideWsConnected = e2eeProvider.wsconnected;
-            const handleWsStatus = (event: { status: string }) => {
-                (window as any).__tideWsConnected = event.status === 'connected';
-            };
-            e2eeProvider.on('status', handleWsStatus);
-            setProvider(e2eeProvider);
-        };
+        let tempKeyTimer: NodeJS.Timeout | null = null;
 
         if (activeDek) {
-            initProvider(activeDek);
-        } else {
-            // Generate temporary AES-GCM key until real DEK is loaded, then provider updates via updateDEK
-            window.crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']).then((tempKey) => {
-                if (!e2eeProvider && !isCancelled) {
-                    initProvider(tempKey);
+            if (!providerRef.current) {
+                const newProvider = createProvider(activeDek, ydocRef.current, false);
+                if (newProvider && !isCancelled) {
+                    setProvider(newProvider);
                 }
-            }).catch(() => {});
+            } else if (isTempKeyRef.current) {
+                (window as any).__tideWsConnected = false;
+                providerRef.current.destroy();
+                providerRef.current = null;
+
+                const newDoc = new Y.Doc();
+                ydocRef.current.destroy();
+                setYdoc(newDoc);
+                contentInitialized.current = false;
+                syncTimedOutRef.current = false;
+                setIsSynced(false);
+
+                const newProvider = createProvider(activeDek, newDoc, false);
+                if (newProvider && !isCancelled) {
+                    setProvider(newProvider);
+                }
+            } else {
+                providerRef.current.updateDEK(activeDek, activeEpoch);
+            }
+        } else {
+            // Avoid creating temporary random keys while activeDek is loading.
+            // If activeDek does not arrive after 2500ms (fallback for offline/keyless), generate temp key.
+            if (!providerRef.current) {
+                tempKeyTimer = setTimeout(() => {
+                    if (isCancelled || providerRef.current || !activeTabId) return;
+                    window.crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt'])
+                        .then((tempKey) => {
+                            if (isCancelled || providerRef.current) return;
+                            const newProvider = createProvider(tempKey, ydocRef.current, true);
+                            if (newProvider && !isCancelled) {
+                                setProvider(newProvider);
+                            }
+                        })
+                        .catch(() => {});
+                }, 2500);
+            }
         }
 
         return () => {
             isCancelled = true;
-            if (e2eeProvider) {
+            if (tempKeyTimer) clearTimeout(tempKeyTimer);
+        };
+    }, [activeTabId, activeDek, activeEpoch, createProvider]);
+
+    useEffect(() => {
+        return () => {
+            if (providerRef.current) {
                 (window as any).__tideWsConnected = false;
-                e2eeProvider.destroy();
+                providerRef.current.destroy();
+                providerRef.current = null;
             }
-            doc.destroy();
+            ydocRef.current.destroy();
             contentInitialized.current = false;
             syncTimedOutRef.current = false;
+            isTempKeyRef.current = false;
         };
-    }, [activeTabId, myId, userProfile, dek, keyEpoch]);
-
-    // Update DEK on running provider if store receives decrypted DEK
-    const storeDEK = useActiveNoteStore((s) => s.activeDEK);
-    const storeEpoch = useActiveNoteStore((s) => s.keyEpoch);
-    useEffect(() => {
-        if (provider && storeDEK) {
-            provider.updateDEK(storeDEK, storeEpoch);
-        }
-    }, [provider, storeDEK, storeEpoch]);
+    }, []);
 
     useEffect(() => {
         if (!provider) return;
 
         const handleSync = (synced: boolean) => setIsSynced(synced);
         provider.on('sync', handleSync);
+        if (provider.synced) setIsSynced(true);
 
         const userId = myId || useDataStore.getState().myId || 'anonymous';
         const hash = Array.from(userId).reduce((acc, char) => acc + char.charCodeAt(0), 0);

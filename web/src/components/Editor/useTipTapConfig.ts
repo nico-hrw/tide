@@ -254,10 +254,13 @@ export function useTipTapConfig({
         if (changed) store.setReferences(newRefs);
     };
 
+    const livePermission = useActiveNoteStore((s) => s.permission);
+    const canEdit = editable && livePermission !== 'view';
+
     const editor = useEditor({
         extensions,
-        content: (cleanInitial && !isDocEmpty(cleanInitial)) ? cleanInitial : undefined,
-        editable,
+        content: (provider && ydoc) ? undefined : ((cleanInitial && !isDocEmpty(cleanInitial)) ? cleanInitial : undefined),
+        editable: canEdit,
         immediatelyRender: false,
         onUpdate: ({ editor, transaction }) => {
             if (!transaction.docChanged || !contentInit.current) return;
@@ -384,16 +387,24 @@ export function useTipTapConfig({
                 return files.length > 0;
             }
         }
-    });
+    }, [provider, ydoc, editable]);
 
-    const livePermission = useActiveNoteStore((s) => s.permission);
     useEffect(() => {
         if (!editor || editor.isDestroyed) return;
-        const canEdit = editable && livePermission !== 'view';
         if (editor.isEditable !== canEdit) {
             editor.setEditable(canEdit);
         }
-    }, [editor, editable, livePermission]);
+    }, [editor, canEdit]);
+
+    const prevProviderRef = useRef(provider);
+    useEffect(() => {
+        if (prevProviderRef.current !== provider) {
+            prevProviderRef.current = provider;
+            if (provider) {
+                contentInit.current = false;
+            }
+        }
+    }, [provider, contentInit]);
 
     const loadIntoYjsFragment = (docJson: any) => {
         if (!ydoc || !editor) return;

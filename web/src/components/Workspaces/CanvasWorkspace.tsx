@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Clock, GraduationCap, Copy, Download, X, Check, MoreHorizontal } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
+import { useActiveNoteStore } from '@/store/activeNoteStore';
 import { getTranslation } from '@/lib/i18n';
 import { tipTapToMarkdown } from '@/lib/bundleImportExport';
 import Avatar from '@/components/Profile/Avatar';
@@ -511,6 +512,8 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                             key={activeTabId}
                                             isShared={isShared}
                                             initialContent={editorContent}
+                                            dek={activeFileKey}
+                                            keyEpoch={useActiveNoteStore.getState().keyEpoch || 1}
                                             editable={(files.find(f => f.id === activeNoteId) as any)?.permission !== 'view'}
                                             onEditorReady={handleEditorReady}
                                             onChange={handleEditorChange}

@@ -106,6 +106,10 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
         fileNameRef.current = fileName;
     }, [activeNoteId, activeFileKey, editorContent, canvasNoteData, saveStatus, fileName]);
 
+    useEffect(() => {
+        useActiveNoteStore.getState().setActiveDEK(activeFileKey ?? null);
+    }, [activeFileKey]);
+
     const handleFileNotFound = useCallback((fileId: string) => {
         apiFetch("/api/v1/files/" + fileId, { method: "DELETE" }).catch(() => {});
         useDataStore.getState().setNotes(useDataStore.getState().notes.filter((n: any) => n.id !== fileId));
@@ -183,6 +187,7 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                         if (resolved?.dek) {
                             activeDEK = resolved.dek;
                             setActiveFileKey(activeDEK);
+                            useActiveNoteStore.getState().setActiveDEK(activeDEK);
                         }
                     } catch (e) {
                         console.warn("[Compaction] Failed to resolve DEK:", e);
@@ -349,6 +354,7 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
         if (fileKey && fileKey !== activeFileKeyRef.current) {
             setActiveFileKey(fileKey);
             activeFileKeyRef.current = fileKey;
+            useActiveNoteStore.getState().setActiveDEK(fileKey);
         }
         await triggerCompaction(noteId);
     }, [triggerCompaction, setActiveFileKey]);
@@ -406,6 +412,7 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
             if (activeNoteIdRef.current && unsavedNotesRef.current.has(activeNoteIdRef.current)) {
                 triggerCompaction(activeNoteIdRef.current);
             }
+            useActiveNoteStore.getState().setActiveDEK(null);
         };
     }, [triggerCompaction]);
 
@@ -413,10 +420,13 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
     useEffect(() => {
         const prev = prevNoteIdRef.current;
         prevNoteIdRef.current = activeNoteId ?? null;
-        if (!prev || prev === activeNoteId || !unsavedNotesRef.current.has(prev)) return;
+        if (prev !== activeNoteId) {
+            useActiveNoteStore.getState().setActiveDEK(null);
+            if (!prev || !unsavedNotesRef.current.has(prev)) return;
 
-        if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-        triggerCompaction(prev);
+            if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+            triggerCompaction(prev);
+        }
     }, [activeNoteId, triggerCompaction]);
 
     const loadNoteContent = useCallback(async (fileId: string, titleFn: string, passedFile?: any) => {
@@ -464,7 +474,10 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                 target, fileId, effectivePrivKey: effPrivKey, effectiveMyId: effMyId, onNotFound: () => handleFileNotFound(fileId)
             });
 
-            if (fileKeyToUse) setActiveFileKey(fileKeyToUse);
+            if (fileKeyToUse) {
+                setActiveFileKey(fileKeyToUse);
+                useActiveNoteStore.getState().setActiveDEK(fileKeyToUse);
+            }
 
             if (title) {
                 if (!title.includes("Locked Note")) {
