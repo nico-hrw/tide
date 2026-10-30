@@ -1312,7 +1312,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 	if recursive {
 		// Flat list of EVERYTHING accessible (Owned, Shared)
 		query := `
-			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta, 
+			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta, 
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(fs.permission, 'edit') as permission,
@@ -1326,7 +1326,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 				f.owner_id = ? 
 				OR fs.user_id = ?
 				OR COALESCE(f.visibility, 'private') = 'public'
-				OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL
+				OR json_extract(COALESCE(NULLIF(f.access_keys, ''), '{}'), '$."' || ? || '"') IS NOT NULL
 			) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL ` + typeFilter
 
 		args = append(args, viewerID, viewerID, viewerID)
@@ -1336,7 +1336,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 		rows, err = s.readDB().QueryContext(ctx, query, args...)
 	} else if parentID != nil {
 		query := `
-			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta, 
+			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta, 
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(fs.permission, 'edit') as permission,
@@ -1350,7 +1350,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 				f.owner_id = ? 
 				OR fs.user_id = ?
 				OR COALESCE(f.visibility, 'private') = 'public'
-				OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL
+				OR json_extract(COALESCE(NULLIF(f.access_keys, ''), '{}'), '$."' || ? || '"') IS NOT NULL
 			) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 		`
 		args = append(args, *parentID)
@@ -1364,7 +1364,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 		if filterType != nil && *filterType == "event" {
 			// Special case for Calendar: Fetch global events if type=event
 			query := `
-			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta,
+			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta,
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(fs.permission, 'edit') as permission,
@@ -1374,13 +1374,13 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
-			WHERE f.type = ? AND (f.owner_id = ? OR fs.user_id = ? OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
+			WHERE f.type = ? AND (f.owner_id = ? OR fs.user_id = ? OR json_extract(COALESCE(NULLIF(f.access_keys, ''), '{}'), '$."' || ? || '"') IS NOT NULL) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			`
 			rows, err = s.readDB().QueryContext(ctx, query, viewerID, *filterType, viewerID, viewerID, viewerID)
 		} else {
 			// Normal folder listing
 			query := `
-			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta,
+			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta,
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
 			       COALESCE(fs.permission, 'edit') as permission,
@@ -1392,7 +1392,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE ((f.owner_id = ? AND f.parent_id IS NULL)
 			OR fs.user_id = ?
-			OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL)
+			OR json_extract(COALESCE(NULLIF(f.access_keys, ''), '{}'), '$."' || ? || '"') IS NOT NULL)
 			AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			`
 			rows, err = s.readDB().QueryContext(ctx, query, viewerID, viewerID, viewerID, viewerID)
@@ -1405,7 +1405,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 	defer rows.Close()
 
 	results := make([]*db.File, 0)
-	var md, ak string
+	var md, ak, publicMetaStr string
 	for rows.Next() {
 		var f db.File
 		if err := rows.Scan(
@@ -1419,7 +1419,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			&f.UpdatedAt,
 			&f.BlobPath,
 			&f.Visibility,
-			&f.PublicMeta,
+			&publicMetaStr,
 			&f.SecuredMeta,
 			&f.ShareStatus,
 			&f.Permission,
@@ -1430,6 +1430,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 		); err != nil {
 			return nil, err
 		}
+		f.PublicMeta = json.RawMessage(publicMetaStr)
 		f.Metadata = json.RawMessage(md)
 		f.AccessKeys = json.RawMessage(ak)
 		if f.OwnerID == viewerID {

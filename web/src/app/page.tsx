@@ -968,7 +968,7 @@ export default function Dashboard() {
                 putPayload.version = (group as any).version;
             }
 
-            const res = await apiFetch(`/api/v1/files/${id}`, {
+            let res = await apiFetch(`/api/v1/files/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 // public_meta preserves isGroup in plaintext so fetchDirectory always finds it.
@@ -979,7 +979,32 @@ export default function Dashboard() {
             });
 
             let newVersion: number | undefined;
-            if (res.ok) {
+            if (res.status === 409) {
+                try {
+                    const conflictData = await res.json();
+                    if (typeof conflictData?.current_version === 'number') {
+                        newVersion = conflictData.current_version;
+                        putPayload.version = conflictData.current_version;
+                        const retryRes = await apiFetch(`/api/v1/files/${id}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(putPayload)
+                        });
+                        if (retryRes.ok) {
+                            try {
+                                const retryData = await retryRes.json();
+                                if (typeof retryData?.version === 'number') {
+                                    newVersion = retryData.version;
+                                }
+                            } catch {
+                                // Ignore parse error
+                            }
+                        }
+                    }
+                } catch (conflictErr) {
+                    console.error("Conflict resolution failed for group", conflictErr);
+                }
+            } else if (res.ok) {
                 try {
                     const data = await res.json();
                     if (typeof data?.version === 'number') {
@@ -1651,7 +1676,7 @@ export default function Dashboard() {
                         // V2: re-encrypt with fresh DEK, keep access_keys structure
                         const contentStr = contentBlob ? await contentBlob.text() : '';
                         const v2Result = await cryptoV2.encryptFileV2(contentStr || '', publicKey);
-                        updatePayload.version = 2;
+                        updatePayload.version = typeof (file as any)?.version === 'number' ? (file as any).version : 2;
                         updatePayload.access_keys = { [myId]: v2Result.encrypted_dek };
                         updatePayload.metadata = { ...v2Result.metadata, title: currentMeta.title };
                         updatePayload.secured_meta = await cryptoLib.encryptMetadata({ title: currentMeta.title }, publicKey);
@@ -1681,12 +1706,46 @@ export default function Dashboard() {
             }
 
             // 4. Update Main Metadata
-            const updateRes = await apiFetch(`/api/v1/files/${fileId}`, {
+            let updateRes = await apiFetch(`/api/v1/files/${fileId}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(updatePayload)
             });
-            if (!updateRes.ok) throw new Error("Failed to update visibility");
+            if (updateRes.status === 409) {
+                try {
+                    const conflictData = await updateRes.json();
+                    if (typeof conflictData?.current_version === 'number') {
+                        updatePayload.version = conflictData.current_version;
+                        useDataStore.setState((s: any) => ({
+                            notes: s.notes.map((f: any) => f.id === fileId ? { ...f, version: conflictData.current_version } : f)
+                        }));
+                        const retryRes = await apiFetch(`/api/v1/files/${fileId}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(updatePayload)
+                        });
+                        if (retryRes.ok) {
+                            updateRes = retryRes;
+                        }
+                    }
+                } catch (conflictErr) {
+                    console.error("Conflict resolution failed for visibility update", conflictErr);
+                }
+            }
+            if (updateRes.ok) {
+                try {
+                    const data = await updateRes.json();
+                    if (typeof data?.version === 'number') {
+                        useDataStore.setState((s: any) => ({
+                            notes: s.notes.map((f: any) => f.id === fileId ? { ...f, version: data.version } : f)
+                        }));
+                    }
+                } catch {
+                    // Ignore parse error
+                }
+            } else {
+                throw new Error("Failed to update visibility");
+            }
 
             // 5. If "Contacts" visibility, perform bulk share
             if (newVisibility === 'contacts') {
@@ -2233,13 +2292,47 @@ export default function Dashboard() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body)
             });
-            if (res.ok) {
+            if (res.status === 409) {
+                try {
+                    const conflictData = await res.json();
+                    if (typeof conflictData?.current_version === 'number') {
+                        (event as any).version = conflictData.current_version;
+                        useDataStore.setState((s: any) => ({
+                            events: s.events.map((e: any) => e.id === baseId ? { ...e, version: conflictData.current_version } : e),
+                            notes: s.notes.map((n: any) => n.id === baseId ? { ...n, version: conflictData.current_version } : n)
+                        }));
+                        body.version = conflictData.current_version;
+                        const retryRes = await apiFetch(`/api/v1/files/${baseId}`, {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(body)
+                        });
+                        if (retryRes.ok) {
+                            try {
+                                const retryData = await retryRes.json();
+                                if (typeof retryData?.version === 'number') {
+                                    (event as any).version = retryData.version;
+                                    useDataStore.setState((s: any) => ({
+                                        events: s.events.map((e: any) => e.id === baseId ? { ...e, version: retryData.version } : e),
+                                        notes: s.notes.map((n: any) => n.id === baseId ? { ...n, version: retryData.version } : n)
+                                    }));
+                                }
+                            } catch {
+                                // Ignore parse error
+                            }
+                        }
+                    }
+                } catch (conflictErr) {
+                    console.error("Conflict resolution failed in handleEventSave", conflictErr);
+                }
+            } else if (res.ok) {
                 try {
                     const data = await res.json();
                     if (typeof data?.version === 'number') {
                         (event as any).version = data.version;
                         useDataStore.setState((s: any) => ({
-                            events: s.events.map((e: any) => e.id === baseId ? { ...e, version: data.version } : e)
+                            events: s.events.map((e: any) => e.id === baseId ? { ...e, version: data.version } : e),
+                            notes: s.notes.map((n: any) => n.id === baseId ? { ...n, version: data.version } : n)
                         }));
                     }
                 } catch {

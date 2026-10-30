@@ -18,7 +18,7 @@ import {
     decryptSnapshot,
 } from './e2eeFraming';
 import { base64ToArrayBuffer } from './crypto';
-import { apiFetch, getApiBase } from './api';
+import { apiFetch } from './api';
 import { activeNoteStore, NotePermission } from '@/store/activeNoteStore';
 
 export interface YjsE2EEProviderOptions {
@@ -51,6 +51,7 @@ export class YjsE2EEProvider {
     private pendingUpdates: Uint8Array[] = [];
     private reconnectTimer: any = null;
     private reconnectAttempts: number = 0;
+    private currentPathIndex: number = 0;
     private bootstrapPromise: Promise<void> | null = null;
 
     private boundYdocUpdate: (update: Uint8Array, origin: any) => void;
@@ -206,25 +207,83 @@ export class YjsE2EEProvider {
         this.options.onSynced?.(synced);
     }
 
-    private connect(): void {
-        if (this.destroyed) return;
+    private resolveWsEndpoint(): string {
+        if (this.options.url) {
+            return this.options.url;
+        }
 
         const token = this.options.token ||
             (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('tide_session_token') : null) ||
             (typeof localStorage !== 'undefined' ? localStorage.getItem('tide_session_token') : null) ||
             '';
 
-        const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        let wsHost = typeof window !== 'undefined' ? window.location.host : 'localhost:8080';
-        const apiBase = getApiBase();
-        if (apiBase) {
+        const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+        let protocol: 'ws:' | 'wss:' = isHttps ? 'wss:' : 'ws:';
+        let wsHost = 'localhost:8080';
+
+        const envWsUrl = process.env.NEXT_PUBLIC_WS_URL;
+        const envApiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+        if (envWsUrl) {
             try {
-                wsHost = new URL(apiBase).host;
-            } catch (_) {}
+                const u = new URL(envWsUrl.includes('://') ? envWsUrl : `ws://${envWsUrl}`);
+                wsHost = u.host;
+                if (u.protocol === 'wss:' || isHttps) {
+                    protocol = 'wss:';
+                } else if (u.protocol === 'ws:') {
+                    protocol = 'ws:';
+                }
+            } catch {
+                wsHost = envWsUrl.replace(/^[a-zA-Z]+:\/\//, '').replace(/\/.*$/, '');
+            }
+        } else if (envApiUrl) {
+            try {
+                const u = new URL(envApiUrl.includes('://') ? envApiUrl : `http://${envApiUrl}`);
+                wsHost = u.host;
+                if (u.protocol === 'https:' || isHttps) {
+                    protocol = 'wss:';
+                } else {
+                    protocol = 'ws:';
+                }
+            } catch {
+                wsHost = envApiUrl.replace(/^[a-zA-Z]+:\/\//, '').replace(/\/.*$/, '');
+            }
+        } else if (typeof window !== 'undefined') {
+            const hostname = window.location.hostname;
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                wsHost = `${hostname}:8080`;
+            } else {
+                wsHost = window.location.host;
+            }
         }
 
-        const wsEndpoint = this.options.url ||
-            `${protocol}//${wsHost}/api/ws/notes/${encodeURIComponent(this.noteId)}?yClientId=${this.ydoc.clientID}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+        const encodedNoteId = encodeURIComponent(this.noteId);
+        const pathTemplates = [
+            `/api/ws/notes/${encodedNoteId}`,
+            `/api/files/${encodedNoteId}/ws`,
+            `/api/v1/files/${encodedNoteId}/ws`,
+        ];
+
+        const basePath = pathTemplates[this.currentPathIndex % pathTemplates.length];
+        const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
+        return `${protocol}//${wsHost}${basePath}?yClientId=${encodeURIComponent(String(this.ydoc.clientID))}${tokenParam}`;
+    }
+
+    private connect(): void {
+        this.connectWebSocket();
+    }
+
+    private connectWebSocket(): void {
+        if (this.destroyed) return;
+
+        const isDev = process.env.NODE_ENV !== 'production' ||
+            (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'));
+
+        const wsEndpoint = this.resolveWsEndpoint();
+
+        if (isDev) {
+            console.log(`[YjsE2EEProvider] Connecting (attempt ${this.reconnectAttempts + 1}, path index ${this.currentPathIndex}):`, wsEndpoint);
+        }
 
         try {
             this.ws = new WebSocket(wsEndpoint);
@@ -235,7 +294,12 @@ export class YjsE2EEProvider {
                 this.connected = true;
                 this.wsconnected = true;
                 this.reconnectAttempts = 0;
-                (window as any).__tideWsConnected = true;
+                (window as Window & { __tideWsConnected?: boolean }).__tideWsConnected = true;
+
+                if (isDev) {
+                    console.log('[YjsE2EEProvider] WebSocket connected successfully:', wsEndpoint);
+                }
+
                 this.emit('status', { status: 'connected' });
                 this.options.onStatus?.({ status: 'connected' });
 
@@ -271,26 +335,47 @@ export class YjsE2EEProvider {
             };
 
             this.ws.onerror = (err) => {
-                console.warn('[YjsE2EEProvider] WebSocket error:', err);
+                if (isDev) {
+                    console.warn('[YjsE2EEProvider] WebSocket error on endpoint:', wsEndpoint, err);
+                } else {
+                    console.warn('[YjsE2EEProvider] WebSocket error:', err);
+                }
             };
 
-            this.ws.onclose = () => {
+            this.ws.onclose = (event: CloseEvent) => {
                 if (this.destroyed) return;
+                const wasConnected = this.connected;
                 this.connected = false;
                 this.wsconnected = false;
-                (window as any).__tideWsConnected = false;
+                (window as Window & { __tideWsConnected?: boolean }).__tideWsConnected = false;
                 this.emit('status', { status: 'disconnected' });
                 this.options.onStatus?.({ status: 'disconnected' });
+
+                // If connection failed before opening (e.g. 404, refused, bad gateway) or dropped, cycle to next fallback path
+                if (!wasConnected || this.reconnectAttempts > 0) {
+                    this.currentPathIndex = (this.currentPathIndex + 1) % 3;
+                }
 
                 // Exponential backoff reconnect
                 const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 10000);
                 this.reconnectAttempts++;
+
+                if (isDev) {
+                    console.log(`[YjsE2EEProvider] WebSocket closed (code: ${event.code}, reason: "${event.reason || 'none'}"). Reconnecting in ${delay}ms... (next path index: ${this.currentPathIndex})`);
+                }
+
                 this.reconnectTimer = setTimeout(() => {
-                    if (!this.destroyed) this.connect();
+                    if (!this.destroyed) this.connectWebSocket();
                 }, delay);
             };
         } catch (err) {
             console.error('[YjsE2EEProvider] Failed to instantiate WebSocket:', err);
+            this.currentPathIndex = (this.currentPathIndex + 1) % 3;
+            const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 10000);
+            this.reconnectAttempts++;
+            this.reconnectTimer = setTimeout(() => {
+                if (!this.destroyed) this.connectWebSocket();
+            }, delay);
         }
     }
 
