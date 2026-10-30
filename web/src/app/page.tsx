@@ -1663,8 +1663,8 @@ export default function Dashboard() {
                         const fileKey = await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
                         const encrypted = await cryptoLib.encryptFile(contentBlob || new Blob([]), fileKey);
                         uploadBlob = encrypted.ciphertext;
-                        const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", fileKey);
-                        const metaPayload = { title: currentMeta.title, fileKey: fileKeyJwk, iv: encrypted.iv };
+                        const exportedV1Key = await window.crypto.subtle.exportKey("jwk", fileKey);
+                        const metaPayload = { title: currentMeta.title, fileKey: exportedV1Key, iv: encrypted.iv };
                         updatePayload.secured_meta = await cryptoLib.encryptMetadata(metaPayload, publicKey);
                         currentMeta = metaPayload;
                     }

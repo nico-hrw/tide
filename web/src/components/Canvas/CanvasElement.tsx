@@ -209,11 +209,6 @@ function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
         (async () => {
             try {
                 let fileKey: CryptoKey;
-                if (element.fileKeyJwk) {
-                    fileKey = await window.crypto.subtle.importKey(
-                        'jwk', element.fileKeyJwk as JsonWebKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']
-                    );
-                } else {
                     if (!privateKey) return;
                     const meta = await cryptoLib.decryptMetadata(element.encryptedKey, privateKey);
                     if (!meta || !meta.fileKey) {
@@ -222,7 +217,7 @@ function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
                     fileKey = await window.crypto.subtle.importKey(
                         'jwk', meta.fileKey as JsonWebKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']
                     );
-                }
+                
                 const res = await apiFetch(`/api/v1/files/${element.blobId}/download`);
                 if (!res.ok) {
                     const msg = `HTTP ${res.status} for blob ${element.blobId}`;
@@ -240,7 +235,7 @@ function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
             }
         })();
         return () => { cancelled = true; };
-    }, [element.blobId, element.encryptedKey, element.fileKeyJwk, element.iv, element.mimeType, userId, privateKey, imageBlobCache]);
+    }, [element.blobId, element.encryptedKey, element.iv, element.mimeType, userId, privateKey, imageBlobCache]);
 
     if (loading) return (
         <div style={{ width: element.width ?? 200, height: 120 }}

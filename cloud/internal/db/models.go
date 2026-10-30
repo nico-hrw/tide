@@ -67,6 +67,11 @@ type File struct {
 	Version     int             `json:"version" db:"version"`
 	Metadata    json.RawMessage `json:"metadata" db:"metadata"`
 	AccessKeys  json.RawMessage `json:"access_keys" db:"access_keys"`
+	ParentFileID  *string `json:"parent_file_id,omitempty" db:"parent_file_id"`
+	KeyEpoch      uint32  `json:"key_epoch" db:"key_epoch"`
+	SnapshotSeqID int64   `json:"snapshot_seq_id" db:"snapshot_seq_id"`
+	SnapshotIV    []byte  `json:"snapshot_iv,omitempty" db:"snapshot_iv"`
+	Content       []byte  `json:"content,omitempty" db:"content"`
 }
 
 // Task represents the tasks table for E2EE tasks

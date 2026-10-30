@@ -8,8 +8,11 @@ interface CanvasNoteItemBase {
     x: number;
     y: number;
     width: number;
+    height?: number;
     zIndex: number;
     rotation?: number;
+    color?: string;
+    strokeWidth?: number;
 }
 
 export interface CanvasTextItem extends CanvasNoteItemBase {
@@ -22,11 +25,11 @@ export interface CanvasTextItem extends CanvasNoteItemBase {
 export interface CanvasImageItem extends CanvasNoteItemBase {
     type: 'image';
     height?: number;
-    blobId: string;
-    encryptedKey: string;
-    fileKeyJwk?: any;
-    iv: string;
-    mimeType: string;
+    assetId: string;
+    blobId?: string;
+    encryptedKey?: string;
+    iv?: string;
+    mimeType?: string;
 }
 
 export type CanvasNoteItem = CanvasTextItem | CanvasImageItem;

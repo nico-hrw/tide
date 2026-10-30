@@ -216,6 +216,10 @@ func main() {
 		r.With(api.AuthMiddleware).Get("/events", broker.ServeHTTP)
 	})
 
+	// CRDT & E2EE aliases for /api/ws/notes and /api/files
+	r.Get("/api/ws/notes/{fileID}", fileHandler.ServeWs)
+	r.Route("/api/files", fileHandler.RegisterRoutes)
+
 	// Start background cleanup worker for trashed files older than 1 week
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)

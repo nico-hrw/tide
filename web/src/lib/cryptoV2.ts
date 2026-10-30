@@ -653,7 +653,7 @@ export async function testCryptoV2() {
             true,
             ["encrypt", "decrypt"]
         );
-        const fileKeyJwk = await window.crypto.subtle.exportKey("jwk", fileKey);
+        const legacyKeyJwk = await window.crypto.subtle.exportKey("jwk", fileKey);
         const v1Iv = window.crypto.getRandomValues(new Uint8Array(12));
         const v1IvBase64 = arrayBufferToBase64(v1Iv.buffer);
         const encText = await window.crypto.subtle.encrypt(
@@ -663,7 +663,7 @@ export async function testCryptoV2() {
         );
         const v1Blob = new Blob([encText]);
         const securedMeta = await encryptMetadata(
-            { title: "Legacy Note", fileKey: fileKeyJwk, iv: v1IvBase64 },
+            { title: "Legacy Note", fileKey: legacyKeyJwk, iv: v1IvBase64 },
             masterKeys.publicKey
         );
 

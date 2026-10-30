@@ -10,6 +10,45 @@ import (
 
 var ErrVersionConflict = errors.New("version conflict")
 
+type File = db.File
+
+type CRDTStateResponse struct {
+	SnapshotSeqID      int64      `json:"snapshot_seq_id"`
+	KeyEpoch           uint32     `json:"key_epoch"`
+	SnapshotIV         string     `json:"snapshot_iv,omitempty"`         // base64
+	SnapshotCiphertext string     `json:"snapshot_ciphertext,omitempty"` // base64
+	WAL                []WALEntry `json:"wal"`
+}
+
+type WALEntry struct {
+	SeqID      int64  `json:"seq_id"`
+	KeyEpoch   uint32 `json:"key_epoch"`
+	IV         string `json:"iv"`         // base64
+	Ciphertext string `json:"ciphertext"` // base64
+}
+
+func CanRead(perm string) bool {
+	switch perm {
+	case "owner", "share", "edit", "view":
+		return true
+	default:
+		return false
+	}
+}
+
+func CanWrite(perm string) bool {
+	switch perm {
+	case "owner", "share", "edit":
+		return true
+	default:
+		return false
+	}
+}
+
+func CanAdmin(perm string) bool {
+	return perm == "owner"
+}
+
 type Message struct {
 	ID          string    `json:"id"`
 	SenderID    string    `json:"sender_id"`
@@ -70,6 +109,13 @@ type Store interface {
 	RemoveShare(ctx context.Context, fileID, userID string) error
 	UpdateFileAccessKey(ctx context.Context, fileID, userID, wrappedKeyJSON string) error
 	RemoveFileAccessKey(ctx context.Context, fileID, userID string) error
+	RevokeShareAndRotateKey(ctx context.Context, fileID, targetUserID string, newKeyEpoch uint32, newAccessKeysJSON, newSecuredMeta string, snapshotIV, snapshotCiphertext []byte) error
+
+	// Yjs WAL & CRDT
+	AppendYjsWAL(ctx context.Context, fileID string, keyEpoch uint32, iv, ciphertext []byte) (int64, error)
+	GetCRDTState(ctx context.Context, fileID, userID string) (*CRDTStateResponse, error)
+	CompactYjsWAL(ctx context.Context, fileID string, upToSeqID int64, keyEpoch uint32, iv, ciphertext []byte) error
+	CountBlobReferencesExcluding(ctx context.Context, blobPath string, excludeFileIDs []string) (int, error)
 	// AcceptShare? Usually handled by UpdateFile or specific method.
 	// Check files.go AcceptShare handler implementation.
 

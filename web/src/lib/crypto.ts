@@ -416,3 +416,68 @@ export async function decryptMetadata(encryptedBase64: string, privateKey: Crypt
         return { title: "Locked Note (Decryption Failed)", isLocked: true };
     }
 }
+
+// 9. Rotate DEK and Wrap for Remaining Collaborators
+export async function generateAndWrapRotatedDEK(
+    remainingCollaboratorPublicKeys: Record<string, CryptoKey>
+): Promise<{ newDEK: CryptoKey; wrappedKeys: Record<string, { enc_dek: string; iv: string }> }> {
+    const newDEK = await generateFileKey();
+    const rawDek = await window.crypto.subtle.exportKey("raw", newDEK);
+
+    const wrappedKeys: Record<string, { enc_dek: string; iv: string }> = {};
+
+    for (const [userId, pubKey] of Object.entries(remainingCollaboratorPublicKeys)) {
+        if (!pubKey || !(pubKey instanceof CryptoKey)) {
+            continue;
+        }
+
+        const algorithmName = pubKey.algorithm.name;
+        if (algorithmName === "RSA-OAEP") {
+            const ciphertext = await window.crypto.subtle.encrypt(
+                { name: "RSA-OAEP" },
+                pubKey,
+                rawDek
+            );
+            wrappedKeys[userId] = {
+                enc_dek: arrayBufferToBase64(ciphertext),
+                iv: "",
+            };
+        } else if (algorithmName === "AES-GCM") {
+            const iv = window.crypto.getRandomValues(new Uint8Array(12));
+            const ciphertext = await window.crypto.subtle.encrypt(
+                { name: "AES-GCM", iv },
+                pubKey,
+                rawDek
+            );
+            wrappedKeys[userId] = {
+                enc_dek: arrayBufferToBase64(ciphertext),
+                iv: arrayBufferToBase64(iv.buffer as ArrayBuffer),
+            };
+        } else {
+            try {
+                const ciphertext = await window.crypto.subtle.encrypt(
+                    { name: algorithmName },
+                    pubKey,
+                    rawDek
+                );
+                wrappedKeys[userId] = {
+                    enc_dek: arrayBufferToBase64(ciphertext),
+                    iv: "",
+                };
+            } catch {
+                const iv = window.crypto.getRandomValues(new Uint8Array(12));
+                const ciphertext = await window.crypto.subtle.encrypt(
+                    { name: algorithmName, iv },
+                    pubKey,
+                    rawDek
+                );
+                wrappedKeys[userId] = {
+                    enc_dek: arrayBufferToBase64(ciphertext),
+                    iv: arrayBufferToBase64(iv.buffer as ArrayBuffer),
+                };
+            }
+        }
+    }
+
+    return { newDEK, wrappedKeys };
+}

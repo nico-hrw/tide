@@ -23,10 +23,11 @@ type FileHandler struct {
 	Store     *store.SQLiteStore
 	BlobStore store.BlobStore
 	Broker    *Broker
+	Hub       *Hub
 }
 
 func NewFileHandler(s *store.SQLiteStore, b store.BlobStore, broker *Broker) *FileHandler {
-	return &FileHandler{Store: s, BlobStore: b, Broker: broker}
+	return &FileHandler{Store: s, BlobStore: b, Broker: broker, Hub: GlobalHub}
 }
 
 func (h *FileHandler) RegisterRoutes(r chi.Router) {
@@ -58,6 +59,10 @@ func (h *FileHandler) RegisterRoutes(r chi.Router) {
 		r.Get("/{fileID}/backups/{slotName}", h.GetFileBackup)
 		r.Put("/{fileID}/backups/{slotName}", h.UpdateFileBackup)
 		r.Post("/{fileID}/restore", h.RestoreFile)
+
+		r.Get("/{fileID}/crdt-state", h.GetCRDTState)
+		r.Post("/{fileID}/compact", h.CompactYjsWAL)
+		r.Post("/{fileID}/revoke-and-rotate", h.RevokeAndRotate)
 
 		r.Put("/visibility", h.SetVisibility)
 		r.Post("/purge", h.PurgeFiles)
@@ -115,9 +120,15 @@ func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			for _, blobPath := range blobPaths {
-				refs, err := h.Store.CountBlobReferencesExcluding(r.Context(), blobPath, nil)
+				refs, err := h.Store.CountBlobReferencesExcluding(r.Context(), blobPath, []string{id})
 				if err == nil && refs == 0 && h.BlobStore != nil {
 					_ = h.BlobStore.Delete(r.Context(), blobPath)
+				}
+			}
+			if file.BlobPath != nil && *file.BlobPath != "" {
+				refs, err := h.Store.CountBlobReferencesExcluding(r.Context(), *file.BlobPath, []string{id})
+				if err == nil && refs == 0 && h.BlobStore != nil {
+					_ = h.BlobStore.Delete(r.Context(), *file.BlobPath)
 				}
 			}
 			h.broadcastToFileUsers(id, file.OwnerID, fmt.Sprintf(`{"type":"file_deleted","file_id":"%s"}`, id))
@@ -130,14 +141,43 @@ func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 			h.broadcastToFileUsers(id, file.OwnerID, fmt.Sprintf(`{"type":"file_deleted","file_id":"%s"}`, id))
 		}
 	} else {
-		// Not Owner (Collaborator): Remove Share (permanent leave)
-		if err := h.Store.RemoveShare(r.Context(), id, userID); err != nil {
-			if err == store.ErrNotFound {
-				http.Error(w, "Share not found", http.StatusNotFound)
+		// Check if user is an editor on parent note deleting a child asset
+		canDeleteChild := false
+		if file.ParentID != nil && *file.ParentID != "" {
+			if parentFile, err := h.Store.GetAccessibleFile(r.Context(), *file.ParentID, userID); err == nil && store.CanWrite(parentFile.Permission) {
+				canDeleteChild = true
+			}
+		}
+
+		if canDeleteChild {
+			blobPaths, _ := h.Store.GetFileBlobPaths(r.Context(), id)
+			if err := h.Store.DeleteFile(r.Context(), id); err != nil {
+				http.Error(w, "Failed to delete asset permanently", http.StatusInternalServerError)
 				return
 			}
-			http.Error(w, "Failed to remove share", http.StatusInternalServerError)
-			return
+			for _, blobPath := range blobPaths {
+				refs, err := h.Store.CountBlobReferencesExcluding(r.Context(), blobPath, []string{id})
+				if err == nil && refs == 0 && h.BlobStore != nil {
+					_ = h.BlobStore.Delete(r.Context(), blobPath)
+				}
+			}
+			if file.BlobPath != nil && *file.BlobPath != "" {
+				refs, err := h.Store.CountBlobReferencesExcluding(r.Context(), *file.BlobPath, []string{id})
+				if err == nil && refs == 0 && h.BlobStore != nil {
+					_ = h.BlobStore.Delete(r.Context(), *file.BlobPath)
+				}
+			}
+			h.broadcastToFileUsers(id, file.OwnerID, fmt.Sprintf(`{"type":"file_deleted","file_id":"%s"}`, id))
+		} else {
+			// Not Owner (Collaborator): Remove Share (permanent leave)
+			if err := h.Store.RemoveShare(r.Context(), id, userID); err != nil {
+				if err == store.ErrNotFound {
+					http.Error(w, "Share not found", http.StatusNotFound)
+					return
+				}
+				http.Error(w, "Failed to remove share", http.StatusInternalServerError)
+				return
+			}
 		}
 	}
 
@@ -461,6 +501,10 @@ func (h *FileHandler) UpdateSharePermissionEndpoint(w http.ResponseWriter, r *ht
 	eventData := fmt.Sprintf(`{"type":"file_updated","file_id":"%s"}`, fileID)
 	h.Broker.Broadcast(targetUserID, eventData)
 
+	if h.Hub != nil {
+		h.Hub.EnforcePermissionChange(fileID, targetUserID, req.Permission)
+	}
+
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "Permission updated"}`))
 }
@@ -498,6 +542,11 @@ func (h *FileHandler) RevokeShare(w http.ResponseWriter, r *http.Request) {
 
 	// Also remove the recipient's wrapped DEK from access_keys.
 	_ = h.Store.RemoveFileAccessKey(r.Context(), fileID, targetUserID)
+
+	if h.Hub != nil {
+		h.Hub.EnforcePermissionChange(fileID, targetUserID, "revoked")
+	}
+
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "Share revoked"}`))
 }
@@ -673,10 +722,16 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Inherit access_keys and visibility from parent if not explicitly provided
-	if req.ParentID != nil && *req.ParentID != "" && (req.AccessKeys == nil || len(req.AccessKeys) == 0 || string(req.AccessKeys) == "null" || string(req.AccessKeys) == "{}") {
-		if parentFile, err := h.Store.GetFile(r.Context(), *req.ParentID); err == nil {
+	if req.ParentID != nil && *req.ParentID != "" {
+		if parentFile, err := h.Store.GetAccessibleFile(r.Context(), *req.ParentID, ownerID); err == nil {
+			if !store.CanWrite(parentFile.Permission) {
+				http.Error(w, "Forbidden: write permission required on parent file", http.StatusForbidden)
+				return
+			}
 			file.Visibility = parentFile.Visibility
-			file.AccessKeys = parentFile.AccessKeys
+			if req.AccessKeys == nil || len(req.AccessKeys) == 0 || string(req.AccessKeys) == "null" || string(req.AccessKeys) == "{}" {
+				file.AccessKeys = parentFile.AccessKeys
+			}
 		}
 	}
 
@@ -832,13 +887,32 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	file, err := h.Store.GetFile(r.Context(), id)
+	file, err := h.Store.GetAccessibleFile(r.Context(), id, userID)
 	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
-		return
+		file, err = h.Store.GetFile(r.Context(), id)
+		if err != nil {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
 	}
-	if file.OwnerID != userID {
-		http.Error(w, "Forbidden: only the file owner can upload content", http.StatusForbidden)
+
+	canUpload := false
+	if file.OwnerID == userID {
+		canUpload = true
+	} else if store.CanWrite(file.Permission) {
+		canUpload = true
+	} else if file.ParentID != nil && *file.ParentID != "" {
+		if parentFile, err := h.Store.GetAccessibleFile(r.Context(), *file.ParentID, userID); err == nil && store.CanWrite(parentFile.Permission) {
+			canUpload = true
+		}
+	} else if p := r.URL.Query().Get("parent_file_id"); p != "" {
+		if parentFile, err := h.Store.GetAccessibleFile(r.Context(), p, userID); err == nil && store.CanWrite(parentFile.Permission) {
+			canUpload = true
+		}
+	}
+
+	if !canUpload {
+		http.Error(w, "Forbidden: write permission required to upload content", http.StatusForbidden)
 		return
 	}
 
@@ -865,6 +939,11 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	// For now, just assume it's there.
 	path := id // logic in LocalBlobStore uses ID as filename
 	file.BlobPath = &path
+	if file.ParentID == nil || *file.ParentID == "" {
+		if p := r.URL.Query().Get("parent_file_id"); p != "" {
+			file.ParentID = &p
+		}
+	}
 	h.Store.UpdateFile(r.Context(), file)
 
 	w.WriteHeader(http.StatusOK)
@@ -1146,9 +1225,14 @@ func (h *FileHandler) UpdateFileBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hasAccess, err := h.Store.UserHasFileAccess(r.Context(), userID, id)
-	if err != nil || !hasAccess {
-		http.Error(w, "Forbidden", http.StatusForbidden)
+	file, err := h.Store.GetAccessibleFile(r.Context(), id, userID)
+	if err != nil {
+		http.Error(w, "File not found or access denied", http.StatusNotFound)
+		return
+	}
+
+	if !store.CanWrite(file.Permission) {
+		http.Error(w, "Forbidden: write permission required", http.StatusForbidden)
 		return
 	}
 
@@ -1167,12 +1251,6 @@ func (h *FileHandler) UpdateFileBackup(w http.ResponseWriter, r *http.Request) {
 	var accessKeysBytes []byte
 	if req.AccessKeys != nil {
 		accessKeysBytes, _ = json.Marshal(req.AccessKeys)
-	}
-
-	file, err := h.Store.GetFile(r.Context(), id)
-	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
-		return
 	}
 
 	newB := &db.FileBackup{
@@ -1214,13 +1292,13 @@ func (h *FileHandler) RestoreFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, err := h.Store.GetFile(r.Context(), id)
+	file, err := h.Store.GetAccessibleFile(r.Context(), id, userID)
 	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
+		http.Error(w, "File not found or access denied", http.StatusNotFound)
 		return
 	}
 
-	if file.OwnerID != userID {
+	if !store.CanAdmin(file.Permission) {
 		http.Error(w, "Forbidden: only the owner can restore files", http.StatusForbidden)
 		return
 	}
@@ -1233,4 +1311,163 @@ func (h *FileHandler) RestoreFile(w http.ResponseWriter, r *http.Request) {
 	h.broadcastToFileUsers(id, file.OwnerID, fmt.Sprintf(`{"type":"file_created","file_id":"%s"}`, id))
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// --- CRDT Endpoints ---
+
+type CompactRequest struct {
+	UpToSeqID        int64  `json:"upToSeqId"`
+	KeyEpoch         uint32 `json:"keyEpoch"`
+	IVBase64         string `json:"ivBase64"`
+	CiphertextBase64 string `json:"ciphertextBase64"`
+}
+
+type RevokeAndRotateRequest struct {
+	TargetUserID   string          `json:"targetUserId"`
+	NewKeyEpoch    uint32          `json:"newKeyEpoch"`
+	NewAccessKeys  json.RawMessage `json:"newAccessKeys"`
+	NewSecuredMeta string          `json:"newSecuredMeta"`
+	Snapshot       struct {
+		IVBase64         string `json:"ivBase64"`
+		CiphertextBase64 string `json:"ciphertextBase64"`
+	} `json:"snapshot"`
+}
+
+func (h *FileHandler) GetCRDTState(w http.ResponseWriter, r *http.Request) {
+	fileID := chi.URLParam(r, "fileID")
+	if fileID == "" {
+		http.Error(w, "Missing file ID", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	state, err := h.Store.GetCRDTState(r.Context(), fileID, userID)
+	if err != nil {
+		if err == store.ErrNotFound {
+			http.Error(w, "File not found or access denied", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to get CRDT state: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(state)
+}
+
+func (h *FileHandler) CompactYjsWAL(w http.ResponseWriter, r *http.Request) {
+	fileID := chi.URLParam(r, "fileID")
+	if fileID == "" {
+		http.Error(w, "Missing file ID", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	file, err := h.Store.GetAccessibleFile(r.Context(), fileID, userID)
+	if err != nil {
+		http.Error(w, "File not found or access denied", http.StatusNotFound)
+		return
+	}
+
+	if !store.CanWrite(file.Permission) {
+		http.Error(w, "Forbidden: write permission required", http.StatusForbidden)
+		return
+	}
+
+	var req CompactRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	iv, err := base64.StdEncoding.DecodeString(req.IVBase64)
+	if err != nil {
+		http.Error(w, "Invalid ivBase64 encoding", http.StatusBadRequest)
+		return
+	}
+
+	ciphertext, err := base64.StdEncoding.DecodeString(req.CiphertextBase64)
+	if err != nil {
+		http.Error(w, "Invalid ciphertextBase64 encoding", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.Store.CompactYjsWAL(r.Context(), fileID, req.UpToSeqID, req.KeyEpoch, iv, ciphertext); err != nil {
+		http.Error(w, "Failed to compact Yjs WAL: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *FileHandler) RevokeAndRotate(w http.ResponseWriter, r *http.Request) {
+	fileID := chi.URLParam(r, "fileID")
+	if fileID == "" {
+		http.Error(w, "Missing file ID", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	file, err := h.Store.GetAccessibleFile(r.Context(), fileID, userID)
+	if err != nil {
+		http.Error(w, "File not found or access denied", http.StatusNotFound)
+		return
+	}
+
+	if !store.CanAdmin(file.Permission) {
+		http.Error(w, "Forbidden: admin permission required", http.StatusForbidden)
+		return
+	}
+
+	var req RevokeAndRotateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if req.TargetUserID == "" {
+		http.Error(w, "Missing targetUserId", http.StatusBadRequest)
+		return
+	}
+
+	iv, err := base64.StdEncoding.DecodeString(req.Snapshot.IVBase64)
+	if err != nil {
+		http.Error(w, "Invalid snapshot ivBase64 encoding", http.StatusBadRequest)
+		return
+	}
+
+	ciphertext, err := base64.StdEncoding.DecodeString(req.Snapshot.CiphertextBase64)
+	if err != nil {
+		http.Error(w, "Invalid snapshot ciphertextBase64 encoding", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.Store.RevokeShareAndRotateKey(r.Context(), fileID, req.TargetUserID, req.NewKeyEpoch, string(req.NewAccessKeys), req.NewSecuredMeta, iv, ciphertext); err != nil {
+		http.Error(w, "Failed to revoke share and rotate key: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if h.Hub != nil {
+		h.Hub.EnforcePermissionChange(fileID, req.TargetUserID, "revoked")
+		h.Hub.BroadcastKeyRotation(fileID, req.NewKeyEpoch)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"status":"ok"}`))
 }

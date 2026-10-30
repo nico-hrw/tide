@@ -38,9 +38,12 @@ import * as Y from 'yjs';
 import type { WebsocketProvider } from 'y-websocket';
 import { useDataStore } from '@/store/useDataStore';
 import { useReferenceStore } from '@/store/useReferenceStore';
+import { useActiveNoteStore } from '@/store/activeNoteStore';
+import { encryptAssetWithNewBEK } from '@/lib/assetCrypto';
+import { apiFetch } from '@/lib/api';
 import type { LinkTarget, UseTipTapConfigOptions } from './types';
 import { MentionNodeView } from './MentionNodeView';
-import { PLACELHODER_QUOTES } from './editorConstants';
+import { PLACELHODER_QUOTES, COLORS } from './editorConstants';
 import { isDocEmpty, getCleanDocContent, uint8ArrayToBase64 } from './editorUtils';
 
 export { isDocEmpty, getCleanDocContent, PLACELHODER_QUOTES };
@@ -60,6 +63,73 @@ function copyFragment(src: Y.XmlFragment, dest: Y.XmlFragment, ydoc: Y.Doc) {
     });
 }
 
+async function handleEncryptedImagePaste(
+    file: File,
+    noteId: string,
+    view: any,
+    ydoc?: Y.Doc | null
+) {
+    try {
+        const { encryptedBlob, bekBase64, ivBase64, mimeType } = await encryptAssetWithNewBEK(file);
+        const assetId = crypto.randomUUID();
+
+        let uploaded = false;
+        try {
+            const res = await apiFetch(`/api/files/${encodeURIComponent(noteId)}/attachments?parent_file_id=${encodeURIComponent(noteId)}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/octet-stream',
+                    'X-Asset-ID': assetId,
+                    'X-Mime-Type': mimeType,
+                },
+                body: encryptedBlob,
+            });
+            if (res.ok) uploaded = true;
+        } catch (_) {}
+
+        if (!uploaded) {
+            try {
+                const res = await apiFetch(`/api/v1/files/${encodeURIComponent(noteId)}/attachments?parent_file_id=${encodeURIComponent(noteId)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/octet-stream',
+                        'X-Asset-ID': assetId,
+                        'X-Mime-Type': mimeType,
+                    },
+                    body: encryptedBlob,
+                });
+                if (res.ok) uploaded = true;
+            } catch (_) {}
+        }
+
+        const effectiveDoc = ydoc || useActiveNoteStore.getState().activeYDoc;
+        if (effectiveDoc) {
+            const assetsMap = effectiveDoc.getMap<any>('assets');
+            assetsMap.set(assetId, {
+                assetId,
+                bekBase64,
+                ivBase64,
+                mimeType,
+            });
+        }
+
+        const objectUrl = URL.createObjectURL(file);
+        const { state } = view;
+        const imageType = state.schema.nodes.image;
+        if (imageType) {
+            const node = imageType.create({
+                src: objectUrl,
+                alt: file.name || 'Pasted image',
+                width: 300,
+            });
+            const tr = state.tr.insert(state.selection.from, node);
+            view.dispatch(tr);
+        }
+    } catch (err) {
+        console.error('[Editor] Encrypted image paste failed:', err);
+    }
+}
+
 export interface UseTipTapConfigProps extends UseTipTapConfigOptions {
     isSynced?: boolean;
     setInkStrokes?: (strokes: InkStroke[]) => void;
@@ -71,6 +141,7 @@ export function useTipTapConfig({
     initialContent, editable = true, isShared = false, provider, ydoc, isSynced = false,
     activeTabId, onBlocksDeleted, onChange, onLinkClick, onEventClick, setInkStrokes,
     userHasTypedRef: externalUserHasTypedRef, contentInitialized: externalContentInitialized,
+    userProfile, myId,
 }: UseTipTapConfigProps) {
     const internalUserHasTyped = useRef(false);
     const internalContentInit = useRef(false);
@@ -87,9 +158,24 @@ export function useTipTapConfig({
     const onBlocksDeletedRef = useRef(onBlocksDeleted); onBlocksDeletedRef.current = onBlocksDeleted;
     const referencePreviewTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+    // BUG-13: Reactive userProfile awareness sync
+    useEffect(() => {
+        if (!provider?.awareness) return;
+        const userId = myId || useDataStore.getState().myId || 'anonymous';
+        const hash = Array.from(userId).reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0);
+        const color = COLORS[hash % COLORS.length] || '#3b82f6';
+
+        provider.awareness.setLocalStateField('user', {
+            id: userId,
+            name: userProfile?.username || userProfile?.name || 'User',
+            color: userProfile?.color || color,
+            seed: userProfile?.avatar_seed || userId,
+        });
+    }, [provider, userProfile, myId]);
+
     const extensions = useMemo(() => {
         const base = [
-            StarterKit.configure({ italic: false, bold: false, strike: false, undoRedo: (provider && isShared) ? false : undefined }),
+            StarterKit.configure({ italic: false, bold: false, strike: false, undoRedo: (provider && ydoc) ? false : undefined }),
             TaskList.configure({ HTMLAttributes: { class: 'not-prose pl-0' } }), TaskItem.configure({ nested: true }),
             SlashCommand.configure({ suggestion: slashCommandSuggestion }),
             TiptapItalic.extend({ addInputRules: () => [], addPasteRules: () => [] }).configure({ HTMLAttributes: { class: 'italic' } }),
@@ -121,14 +207,15 @@ export function useTipTapConfig({
             ReferenceMark, PencilInkExtension,
         ];
 
-        if (provider && isShared && ydoc) {
+        // Universal collaboration: remove isShared gate
+        if (provider && ydoc) {
             base.push(Collaboration.configure({ document: ydoc, field: 'prosemirror' }), CollaborationCaret.configure({
-                provider, user: provider.awareness.getLocalState()?.user || { id: 'guest', name: 'Guest', color: '#ffcc00', seed: 'guest' },
+                provider, user: provider.awareness?.getLocalState()?.user || { id: 'guest', name: 'Guest', color: '#ffcc00', seed: 'guest' },
             }));
         }
         if (enabledExtensions.includes('references')) base.push(ReferenceScannerMode, ReferenceAutopilotMode);
         return base;
-    }, [enabledExtensions, provider, ydoc, isShared]);
+    }, [enabledExtensions, provider, ydoc]);
 
     const updateReferencePreviews = (editorInstance: any, activeId: string) => {
         const store = useReferenceStore.getState();
@@ -179,7 +266,7 @@ export function useTipTapConfig({
             if (isDocEmpty(content) && !isDocEmpty(initialContentRef.current) && !userHasTyped.current) return;
 
             if (onChangeRef.current) {
-                if (provider && isShared && ydoc) {
+                if (provider && ydoc) {
                     onChangeRef.current(content, uint8ArrayToBase64(new Uint8Array(Y.encodeStateAsUpdate(ydoc))));
                 } else onChangeRef.current(content);
             }
@@ -279,15 +366,34 @@ export function useTipTapConfig({
                 }
             },
             handlePaste: (view, event) => {
-                const isFile = (event.clipboardData?.files?.length ?? 0) > 0;
-                return isFile || Array.from(event.clipboardData?.items || []).some(item => item.type.startsWith('image/'));
+                const items = Array.from(event.clipboardData?.items || []);
+                const imageItem = items.find(item => item.type.startsWith('image/'));
+                const files = Array.from(event.clipboardData?.files || []);
+                const imageFile = imageItem ? imageItem.getAsFile() : files.find(f => f.type.startsWith('image/'));
+
+                if (imageFile) {
+                    event.preventDefault();
+                    userHasTyped.current = true;
+                    const noteId = activeTabIdRef.current;
+                    if (noteId) {
+                        void handleEncryptedImagePaste(imageFile, noteId, view, ydoc);
+                    }
+                    return true;
+                }
+
+                return files.length > 0;
             }
         }
     });
 
+    const livePermission = useActiveNoteStore((s) => s.permission);
     useEffect(() => {
-        if (editor && editable !== editor.isEditable) editor.setEditable(editable);
-    }, [editor, editable]);
+        if (!editor || editor.isDestroyed) return;
+        const canEdit = editable && livePermission !== 'view';
+        if (editor.isEditable !== canEdit) {
+            editor.setEditable(canEdit);
+        }
+    }, [editor, editable, livePermission]);
 
     const loadIntoYjsFragment = (docJson: any) => {
         if (!ydoc || !editor) return;
@@ -295,81 +401,61 @@ export function useTipTapConfig({
         try {
             const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
             const doc = editor.schema.nodeFromJSON(docJson);
-            const oldId = ydoc.clientID;
-            ydoc.clientID = 1;
+            // BUG-10 FIX: NEVER mutate client ID to a static value!
             prosemirrorToYXmlFragment(doc, activeFragment);
-            ydoc.clientID = oldId;
-        } catch { editor.commands.setContent(docJson, { emitUpdate: false }); }
+        } catch {
+            if (!provider) {
+                editor.commands.setContent(docJson, { emitUpdate: false });
+            }
+        }
     };
 
     useEffect(() => {
         if (!editor || !ydoc) return;
-        if (contentInit.current) {
-            if (isShared && provider && isFragmentEmpty(ydoc.getXmlFragment('prosemirror'))) {
-                const seed = cleanInitial || initialContentRef.current;
-                if (seed && !isDocEmpty(seed)) console.log('[Collaboration] re-seeding with cleanInitial.');
-                else return;
-            } else return;
+        if (contentInit.current) return;
+
+        const active = ydoc.getXmlFragment('prosemirror');
+        // If Yjs already has content, mark initialized and NEVER call setContent(initialContent)
+        if (!isFragmentEmpty(active)) {
+            contentInit.current = true;
+            return;
         }
 
-        const insertContentIntoYjs = (content: any) => {
-            if (!content) return;
-            try {
-                if (content.__yjs) {
-                    const bin = atob(content.__yjs);
-                    const bytes = new Uint8Array(bin.length);
-                    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-                    Y.applyUpdate(ydoc, bytes);
-                    const active = ydoc.getXmlFragment('prosemirror');
-                    if (!isFragmentEmpty(active)) return;
-                    const def = ydoc.getXmlFragment('default');
-                    if (!isFragmentEmpty(def)) { copyFragment(def, active, ydoc); return; }
+        const def = ydoc.getXmlFragment('default');
+        if (!isFragmentEmpty(def)) {
+            copyFragment(def, active, ydoc);
+            contentInit.current = true;
+            return;
+        }
+
+        if (provider) {
+            // BUG-09: Wait for Yjs sync before seeding. NEVER call setContent after sync!
+            if (isSynced) {
+                if (isFragmentEmpty(active)) {
+                    const seed = cleanInitial || initialContentRef.current;
+                    if (seed && !isDocEmpty(seed)) {
+                        loadIntoYjsFragment(seed);
+                    }
                 }
-                const xml = ydoc.getXmlFragment('prosemirror');
-                ydoc.transact(() => { while (xml.length > 0) xml.delete(0, 1); });
-                let j = typeof content === 'string' ? JSON.parse(content) : content;
-                if (j?.__yjs) { const { __yjs, ...clean } = j; j = clean; }
-                loadIntoYjsFragment(j);
-            } catch (e) {
-                console.error('[Collaboration] Failed to insert content into Yjs:', e);
-                editor.commands.setContent(content);
+                contentInit.current = true;
             }
-        };
-
-        const tryInit = (content: any) => {
-            const active = ydoc.getXmlFragment('prosemirror');
-            if (isFragmentEmpty(active)) {
-                const def = ydoc.getXmlFragment('default');
-                if (!isFragmentEmpty(def)) { copyFragment(def, active, ydoc); contentInit.current = true; return true; }
-            }
-            if (isFragmentEmpty(active) && content) {
-                insertContentIntoYjs(content); contentInit.current = true; return true;
-            } else if (!isFragmentEmpty(active)) {
-                contentInit.current = true; return true;
-            }
-            return false;
-        };
-
-        if (provider && isShared) {
-            const latest = cleanInitial || initialContentRef.current;
-            if (latest) tryInit(latest);
         } else {
-            if (cleanInitial && !isDocEmpty(cleanInitial) && isDocEmpty(editor.getJSON())) {
-                editor.commands.setContent(cleanInitial, { emitUpdate: false });
+            const seed = cleanInitial || initialContentRef.current;
+            if (seed && !isDocEmpty(seed)) {
+                loadIntoYjsFragment(seed);
             }
             contentInit.current = true;
         }
-    }, [editor, cleanInitial, provider, isSynced, isShared, ydoc]);
+    }, [editor, cleanInitial, provider, isSynced, ydoc]);
 
     useEffect(() => {
         if (!editor || editor.isDestroyed || !cleanInitial || isDocEmpty(cleanInitial)) return;
-        if (isDocEmpty(editor.getJSON())) {
-            if (provider && isShared && ydoc) {
-                if (ydoc.getXmlFragment('prosemirror').length === 0) loadIntoYjsFragment(cleanInitial);
-            } else editor.commands.setContent(cleanInitial, { emitUpdate: false });
+        // Non-collaboration fallback only. NEVER overwrite collaborative document with setContent!
+        if (!ydoc && isDocEmpty(editor.getJSON())) {
+            editor.commands.setContent(cleanInitial, { emitUpdate: false });
             contentInit.current = true;
         }
-    }, [editor, cleanInitial, provider, isShared, ydoc]);
+    }, [editor, cleanInitial, ydoc]);
 
     return { editor, cleanInitial, userHasTypedRef: userHasTyped, contentInitialized: contentInit };
 }

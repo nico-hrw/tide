@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { EditorContent } from '@tiptap/react';
 import * as Y from 'yjs';
-import { WebsocketProvider } from 'y-websocket';
+import { YjsE2EEProvider } from '@/lib/yjsE2EEProvider';
+import { useActiveNoteStore } from '@/store/activeNoteStore';
 
 import type { EditorProps } from './Editor/types';
 import { COLORS } from './Editor/editorConstants';
@@ -39,7 +40,7 @@ function CollaborativeEditor({
     initialContent, isShared = false, editable = true, onChange, onLinkClick,
     onForceSave, onPopOut, onBlocksDeleted, onConnectImage, onEditorReady,
     onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick,
-    onEventClick, onActiveUsersChange, userProfile, myId,
+    onEventClick, onActiveUsersChange, userProfile, myId, dek, keyEpoch,
 }: EditorProps) {
     const cleanInitial = useMemo(() => getCleanDocContent(initialContent), [initialContent]);
     const [pencilMode, setPencilMode] = useState<PencilInputMode>('text');
@@ -51,16 +52,19 @@ function CollaborativeEditor({
     const [inkUndoStack, setInkUndoStack] = useState<InkStroke[][]>([]);
     const [inkRedoStack, setInkRedoStack] = useState<InkStroke[][]>([]);
     const [ydoc, setYdoc] = useState(() => new Y.Doc());
-    const [provider, setProvider] = useState<WebsocketProvider | null>(null);
+    const [provider, setProvider] = useState<YjsE2EEProvider | null>(null);
     const contentInitialized = useRef(false);
     const syncTimedOutRef = useRef(false);
     const [isSynced, setIsSynced] = useState(false);
     const userHasTypedRef = useRef(false);
 
+    const livePermission = useActiveNoteStore((s) => s.permission);
+    const isEditable = editable && livePermission !== 'view';
+
     useEffect(() => { userHasTypedRef.current = false; }, [activeTabId, cleanInitial]);
 
     useEffect(() => {
-        if (!isShared || !activeTabId || 
+        if (!activeTabId || 
             activeTabId.startsWith('chat-') || 
             activeTabId.startsWith('profile:') || 
             ['calendar', 'messages', 'social', 'ext_finance'].includes(activeTabId)) {
@@ -73,42 +77,69 @@ function CollaborativeEditor({
 
         const userId = myId || useDataStore.getState().myId || 'anonymous';
         const token = sessionStorage.getItem('tide_session_token') || localStorage.getItem('tide_session_token') || '';
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-        let wsHost = window.location.host;
-        if (apiUrl) {
-            try { wsHost = new URL(apiUrl).host; } catch (e) {}
-        }
-        
-        const wsUrl = `${protocol}//${wsHost}/api/v1/files/${activeTabId}`;
-        const wsProvider = new WebsocketProvider(wsUrl, 'ws', doc, {
-            params: { user_id: userId, token }
-        });
 
-        const hash = Array.from(userId).reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const color = COLORS[hash % COLORS.length];
+        let activeDek = dek || useActiveNoteStore.getState().activeDEK;
+        let activeEpoch = keyEpoch || useActiveNoteStore.getState().keyEpoch || 1;
+        let e2eeProvider: YjsE2EEProvider | null = null;
+        let isCancelled = false;
 
-        wsProvider.awareness.setLocalStateField('user', {
-            name: userProfile?.username || 'User',
-            color, id: userId, seed: userProfile?.avatar_seed || userId,
-        });
+        const initProvider = (key: CryptoKey) => {
+            if (isCancelled) return;
+            e2eeProvider = new YjsE2EEProvider(activeTabId, doc, key, {
+                keyEpoch: activeEpoch,
+                token,
+                onRoleChanged: (perm) => {
+                    useActiveNoteStore.getState().setLivePermission(perm);
+                },
+            });
 
-        (window as any).__tideWsConnected = wsProvider.wsconnected;
-        const handleWsStatus = (event: { status: string }) => {
-            (window as any).__tideWsConnected = event.status === 'connected';
+            const hash = Array.from(userId).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            const color = COLORS[hash % COLORS.length];
+
+            e2eeProvider.awareness.setLocalStateField('user', {
+                name: userProfile?.username || 'User',
+                color, id: userId, seed: userProfile?.avatar_seed || userId,
+            });
+
+            (window as any).__tideWsConnected = e2eeProvider.wsconnected;
+            const handleWsStatus = (event: { status: string }) => {
+                (window as any).__tideWsConnected = event.status === 'connected';
+            };
+            e2eeProvider.on('status', handleWsStatus);
+            setProvider(e2eeProvider);
         };
-        wsProvider.on('status', handleWsStatus);
-        setProvider(wsProvider);
+
+        if (activeDek) {
+            initProvider(activeDek);
+        } else {
+            // Generate temporary AES-GCM key until real DEK is loaded, then provider updates via updateDEK
+            window.crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']).then((tempKey) => {
+                if (!e2eeProvider && !isCancelled) {
+                    initProvider(tempKey);
+                }
+            }).catch(() => {});
+        }
 
         return () => {
-            wsProvider.off('status', handleWsStatus);
-            (window as any).__tideWsConnected = false;
-            wsProvider.destroy();
+            isCancelled = true;
+            if (e2eeProvider) {
+                (window as any).__tideWsConnected = false;
+                e2eeProvider.destroy();
+            }
             doc.destroy();
             contentInitialized.current = false;
             syncTimedOutRef.current = false;
         };
-    }, [activeTabId, myId, isShared, userProfile]);
+    }, [activeTabId, myId, userProfile, dek, keyEpoch]);
+
+    // Update DEK on running provider if store receives decrypted DEK
+    const storeDEK = useActiveNoteStore((s) => s.activeDEK);
+    const storeEpoch = useActiveNoteStore((s) => s.keyEpoch);
+    useEffect(() => {
+        if (provider && storeDEK) {
+            provider.updateDEK(storeDEK, storeEpoch);
+        }
+    }, [provider, storeDEK, storeEpoch]);
 
     useEffect(() => {
         if (!provider) return;
@@ -148,9 +179,10 @@ function CollaborativeEditor({
     useEffect(() => { onLinkClickRef.current = onLinkClick; }, [onLinkClick]);
 
     const { editor } = useTipTapConfig({
-        initialContent, editable, isShared, provider, ydoc, isSynced,
+        initialContent, editable: isEditable, isShared, provider, ydoc, isSynced,
         activeTabId, onBlocksDeleted, onChange, onLinkClick, onFileClick,
         onEventClick, onForceSave, setInkStrokes, userHasTypedRef, contentInitialized,
+        userProfile, myId,
     });
 
     useEffect(() => {
@@ -171,16 +203,14 @@ function CollaborativeEditor({
             try {
                 const jsonContent = typeof content === 'string' ? JSON.parse(content) : content;
                 const cleanJson = (jsonContent && jsonContent.__yjs) ? (({ __yjs, ...rest }) => rest)(jsonContent) : jsonContent;
-                if (provider && isShared) {
+                if (provider) {
                     const xmlFragment = ydoc.getXmlFragment('prosemirror');
                     ydoc.transact(() => {
                         while (xmlFragment.length > 0) xmlFragment.delete(0, 1);
                         const doc = editor.schema.nodeFromJSON(cleanJson);
                         const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
-                        const oldClientId = ydoc.clientID;
-                        ydoc.clientID = 1;
+                        // BUG-10 fix: NEVER mutate client ID to a static value!
                         prosemirrorToYXmlFragment(doc, xmlFragment);
-                        ydoc.clientID = oldClientId;
                     });
                 } else {
                     editor.commands.setContent(cleanJson);
@@ -205,7 +235,7 @@ function CollaborativeEditor({
         };
         window.addEventListener('editor:restore-content', handleRestore);
         return () => window.removeEventListener('editor:restore-content', handleRestore);
-    }, [editor, ydoc, provider, isShared]);
+    }, [editor, ydoc, provider]);
 
     // Resize image & mention click hooks
     useEffect(() => {

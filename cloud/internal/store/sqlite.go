@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -454,6 +455,27 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 				"ALTER TABLE file_backups ADD COLUMN version INTEGER DEFAULT 1",
 			},
 		},
+		{
+			version: 6,
+			name:    "yjs_wal_and_crdt_fields",
+			stmts: []string{
+				`CREATE TABLE IF NOT EXISTS yjs_wal (
+					seq_id INTEGER PRIMARY KEY AUTOINCREMENT,
+					file_id TEXT NOT NULL,
+					key_epoch INTEGER NOT NULL,
+					iv BLOB NOT NULL,
+					ciphertext BLOB NOT NULL,
+					created_at INTEGER NOT NULL,
+					FOREIGN KEY(file_id) REFERENCES files(id) ON DELETE CASCADE
+				);`,
+				"CREATE INDEX IF NOT EXISTS idx_yjs_wal_file_seq ON yjs_wal(file_id, seq_id);",
+				"ALTER TABLE files ADD COLUMN parent_file_id TEXT REFERENCES files(id) ON DELETE CASCADE",
+				"ALTER TABLE files ADD COLUMN key_epoch INTEGER NOT NULL DEFAULT 1",
+				"ALTER TABLE files ADD COLUMN snapshot_seq_id INTEGER NOT NULL DEFAULT 0",
+				"ALTER TABLE files ADD COLUMN snapshot_iv BLOB",
+				"ALTER TABLE files ADD COLUMN content BLOB",
+			},
+		},
 	}
 
 	for _, m := range migrations {
@@ -667,8 +689,8 @@ func (s *SQLiteStore) UpdateUserEmail(ctx context.Context, id string, emailHash 
 func (s *SQLiteStore) CreateFile(ctx context.Context, file *db.File) error {
 	query := `
 		INSERT INTO files (id, owner_id, parent_id, type, mime_type, size, 
-created_at, updated_at, blob_path, visibility, public_meta, secured_meta, version, metadata, access_keys)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+created_at, updated_at, blob_path, visibility, public_meta, secured_meta, version, metadata, access_keys, parent_file_id, key_epoch, snapshot_seq_id, snapshot_iv, content)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	md := string(file.Metadata)
 	if md == "" {
@@ -677,6 +699,14 @@ created_at, updated_at, blob_path, visibility, public_meta, secured_meta, versio
 	ak := string(file.AccessKeys)
 	if ak == "" {
 		ak = "{}"
+	}
+	pm := string(file.PublicMeta)
+	if pm == "" {
+		pm = "{}"
+	}
+	epoch := file.KeyEpoch
+	if epoch == 0 {
+		epoch = 1
 	}
 	_, err := s.DB.ExecContext(ctx, query,
 		file.ID,
@@ -689,21 +719,28 @@ created_at, updated_at, blob_path, visibility, public_meta, secured_meta, versio
 		file.UpdatedAt,
 		file.BlobPath,
 		file.Visibility,
-		file.PublicMeta,
+		pm,
 		file.SecuredMeta,
 		file.Version,
 		md,
 		ak,
+		file.ParentFileID,
+		epoch,
+		file.SnapshotSeqID,
+		file.SnapshotIV,
+		file.Content,
 	)
 	return err
 }
 
 func (s *SQLiteStore) GetFile(ctx context.Context, id string) (*db.File, error) {
-	query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, COALESCE(visibility, 'private') as visibility, public_meta, COALESCE(secured_meta, x'') as secured_meta, COALESCE(version, 1) as version, COALESCE(NULLIF(metadata, ''), '{}') as metadata, COALESCE(NULLIF(access_keys, ''), '{}') as access_keys, 'owner' as permission FROM files WHERE id = ?`
+	query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, COALESCE(visibility, 'private') as visibility, COALESCE(NULLIF(public_meta, ''), '{}') as public_meta, COALESCE(secured_meta, x'') as secured_meta, COALESCE(version, 1) as version, COALESCE(NULLIF(metadata, ''), '{}') as metadata, COALESCE(NULLIF(access_keys, ''), '{}') as access_keys, 'owner' as permission, parent_file_id, COALESCE(key_epoch, 1) as key_epoch, COALESCE(snapshot_seq_id, 0) as snapshot_seq_id, snapshot_iv, content FROM files WHERE id = ?`
 	row := s.readDB().QueryRowContext(ctx, query, id)
 
 	var file db.File
-	var md, ak string
+	var md, ak, pm string
+	var parentFileID sql.NullString
+	var snapshotIV, content []byte
 	err := row.Scan(
 		&file.ID,
 		&file.OwnerID,
@@ -715,16 +752,27 @@ func (s *SQLiteStore) GetFile(ctx context.Context, id string) (*db.File, error) 
 		&file.UpdatedAt,
 		&file.BlobPath,
 		&file.Visibility,
-		&file.PublicMeta,
+		&pm,
 		&file.SecuredMeta,
 		&file.Version,
 		&md,
 		&ak,
 		&file.Permission,
+		&parentFileID,
+		&file.KeyEpoch,
+		&file.SnapshotSeqID,
+		&snapshotIV,
+		&content,
 	)
 	if err == nil {
 		file.Metadata = json.RawMessage(md)
 		file.AccessKeys = json.RawMessage(ak)
+		file.PublicMeta = json.RawMessage(pm)
+		if parentFileID.Valid {
+			file.ParentFileID = &parentFileID.String
+		}
+		file.SnapshotIV = snapshotIV
+		file.Content = content
 	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -770,27 +818,55 @@ func (s *SQLiteStore) UserHasFileAccess(ctx context.Context, userID, fileID stri
 // Crucially, it returns the viewable SecuredMeta (joining from shares if needed).
 func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID string) (*db.File, error) {
 	query := `
-		SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, f.public_meta,
-			   COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
-			   COALESCE(fs.status, 'owner') as share_status,
-			   COALESCE(fs.permission, 'owner') as permission,
-			   COALESCE(fs.can_reshare, 0) as can_reshare,
-			   COALESCE(f.version, 1) as version,
-			   COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
-			   COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
+		SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path,
+		       COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta,
+		       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
+		       CASE
+		           WHEN f.owner_id = ? OR (parent.owner_id IS NOT NULL AND parent.owner_id = ?) THEN 'owner'
+		           WHEN fs.status IS NOT NULL THEN fs.status
+		           WHEN pfs.status IS NOT NULL THEN pfs.status
+		           ELSE ''
+		       END as share_status,
+		       CASE
+		           WHEN f.owner_id = ? OR (parent.owner_id IS NOT NULL AND parent.owner_id = ?) THEN 'owner'
+		           WHEN fs.permission IS NOT NULL AND fs.permission != '' THEN fs.permission
+		           WHEN pfs.permission IS NOT NULL AND pfs.permission != '' THEN pfs.permission
+		           WHEN COALESCE(f.visibility, 'private') = 'public' THEN 'view'
+		           ELSE ''
+		       END as permission,
+		       CASE
+		           WHEN f.owner_id = ? OR (parent.owner_id IS NOT NULL AND parent.owner_id = ?) THEN 1
+		           WHEN fs.can_reshare IS NOT NULL THEN fs.can_reshare
+		           WHEN pfs.can_reshare IS NOT NULL THEN pfs.can_reshare
+		           ELSE 0
+		       END as can_reshare,
+		       COALESCE(f.version, 1) as version,
+		       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
+		       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys,
+		       f.parent_file_id,
+		       COALESCE(f.key_epoch, 1) as key_epoch,
+		       COALESCE(f.snapshot_seq_id, 0) as snapshot_seq_id,
+		       f.snapshot_iv,
+		       f.content
 		FROM files f
-		LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
-		WHERE f.id = ? AND (
-			f.owner_id = ? 
-			OR fs.user_id = ?
-			OR COALESCE(f.visibility, 'private') = 'public'
-			OR json_extract(f.access_keys, '$."' || ? || '"') IS NOT NULL
-		)
+		LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ? AND fs.status = 'accepted'
+		LEFT JOIN files parent ON f.parent_file_id = parent.id
+		LEFT JOIN file_shares pfs ON parent.id = pfs.file_id AND pfs.user_id = ? AND pfs.status = 'accepted'
+		WHERE f.id = ?
 	`
-	row := s.readDB().QueryRowContext(ctx, query, viewerID, id, viewerID, viewerID, viewerID)
+	row := s.readDB().QueryRowContext(ctx, query,
+		viewerID, viewerID,
+		viewerID, viewerID,
+		viewerID, viewerID,
+		viewerID,
+		viewerID,
+		id,
+	)
 
 	var f db.File
-	var md, ak string
+	var md, ak, pm string
+	var parentFileID sql.NullString
+	var snapshotIV, content []byte
 	err := row.Scan(
 		&f.ID,
 		&f.OwnerID,
@@ -802,7 +878,7 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 		&f.UpdatedAt,
 		&f.BlobPath,
 		&f.Visibility,
-		&f.PublicMeta,
+		&pm,
 		&f.SecuredMeta,
 		&f.ShareStatus,
 		&f.Permission,
@@ -810,19 +886,31 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 		&f.Version,
 		&md,
 		&ak,
+		&parentFileID,
+		&f.KeyEpoch,
+		&f.SnapshotSeqID,
+		&snapshotIV,
+		&content,
 	)
-	if err == nil {
-		f.Metadata = json.RawMessage(md)
-		f.AccessKeys = json.RawMessage(ak)
-		if f.OwnerID == viewerID {
-			f.CanReshare = true
-		}
-	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
+	}
+	if f.Permission == "" {
+		return nil, ErrNotFound
+	}
+	f.Metadata = json.RawMessage(md)
+	f.AccessKeys = json.RawMessage(ak)
+	f.PublicMeta = json.RawMessage(pm)
+	if parentFileID.Valid {
+		f.ParentFileID = &parentFileID.String
+	}
+	f.SnapshotIV = snapshotIV
+	f.Content = content
+	if f.OwnerID == viewerID {
+		f.CanReshare = true
 	}
 	return &f, nil
 }
@@ -831,7 +919,7 @@ func (s *SQLiteStore) UpdateFile(ctx context.Context, file *db.File) error {
 	query := `
 		UPDATE files
 		SET owner_id=?, parent_id=?, type=?, mime_type=?, size=?, updated_at=?, 
-blob_path=?, visibility=?, public_meta=?, secured_meta=?, version=?, metadata=?, access_keys=?
+blob_path=?, visibility=?, public_meta=?, secured_meta=?, version=?, metadata=?, access_keys=?, parent_file_id=?, key_epoch=?, snapshot_seq_id=?, snapshot_iv=?, content=?
 		WHERE id=?
 	`
 	md := string(file.Metadata)
@@ -842,6 +930,14 @@ blob_path=?, visibility=?, public_meta=?, secured_meta=?, version=?, metadata=?,
 	if ak == "" {
 		ak = "{}"
 	}
+	pm := string(file.PublicMeta)
+	if pm == "" {
+		pm = "{}"
+	}
+	epoch := file.KeyEpoch
+	if epoch == 0 {
+		epoch = 1
+	}
 	_, err := s.DB.ExecContext(ctx, query,
 		file.OwnerID,
 		file.ParentID,
@@ -851,11 +947,16 @@ blob_path=?, visibility=?, public_meta=?, secured_meta=?, version=?, metadata=?,
 		file.UpdatedAt,
 		file.BlobPath,
 		file.Visibility,
-		file.PublicMeta,
+		pm,
 		file.SecuredMeta,
 		file.Version,
 		md,
 		ak,
+		file.ParentFileID,
+		epoch,
+		file.SnapshotSeqID,
+		file.SnapshotIV,
+		file.Content,
 		file.ID,
 	)
 	return err
@@ -2354,4 +2455,167 @@ func (s *SQLiteStore) PurgeOldTrashedFiles(ctx context.Context, blobStore BlobSt
 		}
 	}
 	return nil
+}
+
+// --- Yjs WAL & CRDT State Methods ---
+
+// AppendYjsWAL appends an encrypted update to the WAL and returns its sequence ID.
+func (s *SQLiteStore) AppendYjsWAL(ctx context.Context, fileID string, keyEpoch uint32, iv, ciphertext []byte) (int64, error) {
+	query := `
+		INSERT INTO yjs_wal (file_id, key_epoch, iv, ciphertext, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`
+	res, err := s.DB.ExecContext(ctx, query, fileID, keyEpoch, iv, ciphertext, time.Now().UnixMilli())
+	if err != nil {
+		return 0, err
+	}
+	seqID, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	return seqID, nil
+}
+
+// GetCRDTState retrieves the latest snapshot and subsequent WAL entries for a file.
+func (s *SQLiteStore) GetCRDTState(ctx context.Context, fileID, userID string) (*CRDTStateResponse, error) {
+	file, err := s.GetAccessibleFile(ctx, fileID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !CanRead(file.Permission) {
+		return nil, ErrNotFound
+	}
+
+	var snapIVStr, snapCipherStr string
+	if len(file.SnapshotIV) > 0 {
+		snapIVStr = base64.StdEncoding.EncodeToString(file.SnapshotIV)
+	}
+	if len(file.Content) > 0 {
+		snapCipherStr = base64.StdEncoding.EncodeToString(file.Content)
+	}
+
+	epoch := file.KeyEpoch
+	if epoch == 0 {
+		epoch = 1
+	}
+
+	query := `
+		SELECT seq_id, key_epoch, iv, ciphertext
+		FROM yjs_wal
+		WHERE file_id = ? AND seq_id > ?
+		ORDER BY seq_id ASC
+	`
+	rows, err := s.readDB().QueryContext(ctx, query, fileID, file.SnapshotSeqID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	wal := make([]WALEntry, 0)
+	for rows.Next() {
+		var seqID int64
+		var keyEpoch uint32
+		var ivBytes, cipherBytes []byte
+		if err := rows.Scan(&seqID, &keyEpoch, &ivBytes, &cipherBytes); err != nil {
+			return nil, err
+		}
+		wal = append(wal, WALEntry{
+			SeqID:      seqID,
+			KeyEpoch:   keyEpoch,
+			IV:         base64.StdEncoding.EncodeToString(ivBytes),
+			Ciphertext: base64.StdEncoding.EncodeToString(cipherBytes),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return &CRDTStateResponse{
+		SnapshotSeqID:      file.SnapshotSeqID,
+		KeyEpoch:           epoch,
+		SnapshotIV:         snapIVStr,
+		SnapshotCiphertext: snapCipherStr,
+		WAL:                wal,
+	}, nil
+}
+
+// CompactYjsWAL atomically updates the file snapshot and prunes WAL entries up to upToSeqID.
+func (s *SQLiteStore) CompactYjsWAL(ctx context.Context, fileID string, upToSeqID int64, keyEpoch uint32, iv, ciphertext []byte) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	query := `
+		UPDATE files
+		SET snapshot_seq_id = ?, key_epoch = ?, snapshot_iv = ?, content = ?, updated_at = ?
+		WHERE id = ?
+	`
+	res, err := tx.ExecContext(ctx, query, upToSeqID, keyEpoch, iv, ciphertext, time.Now(), fileID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM yjs_wal WHERE file_id = ? AND seq_id <= ?", fileID, upToSeqID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// RevokeShareAndRotateKey revokes access for targetUserID, rotates the key epoch, updates access_keys, secured_meta, snapshot, and purges previous WAL entries.
+func (s *SQLiteStore) RevokeShareAndRotateKey(ctx context.Context, fileID, targetUserID string, newKeyEpoch uint32, newAccessKeysJSON, newSecuredMeta string, snapshotIV, snapshotCiphertext []byte) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if targetUserID != "" {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM file_shares WHERE file_id = ? AND user_id = ?", fileID, targetUserID); err != nil {
+			return err
+		}
+	}
+
+	ak := newAccessKeysJSON
+	if ak == "" {
+		ak = "{}"
+	}
+
+	query := `
+		UPDATE files
+		SET key_epoch = ?,
+		    access_keys = ?,
+		    secured_meta = CASE WHEN ? != '' THEN ? ELSE secured_meta END,
+		    snapshot_iv = ?,
+		    content = ?,
+		    snapshot_seq_id = 0,
+		    updated_at = ?
+		WHERE id = ?
+	`
+	res, err := tx.ExecContext(ctx, query, newKeyEpoch, ak, newSecuredMeta, []byte(newSecuredMeta), snapshotIV, snapshotCiphertext, time.Now(), fileID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM yjs_wal WHERE file_id = ?", fileID); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }

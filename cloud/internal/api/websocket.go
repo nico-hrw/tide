@@ -1,15 +1,28 @@
 package api
 
 import (
+	"context"
+	"encoding/binary"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
+)
+
+// Binary E2EE WebSocket Framing Protocol (Contract 1.1)
+const (
+	FrameTypeCRDTUpdate byte = 0x01
+	FrameTypeAwareness  byte = 0x02
+	FrameTypeControl    byte = 0x03
+	MinEncryptedFrameLen     = 1 + 4 + 12 + 16 // 33 Bytes: MsgType(1) + KeyEpoch(4) + IV(12) + GCMTag(16)
 )
 
 var upgrader = websocket.Upgrader{
@@ -31,14 +44,9 @@ func checkOrigin(r *http.Request) bool {
 
 	// 2. Default local development origins & production domains
 	trustedOrigins := []string{
-		"http://localhost:3000",
-		"http://localhost:5173",
-		"http://localhost:8080",
-		"http://127.0.0.1:3000",
-		"http://127.0.0.1:5173",
-		"http://127.0.0.1:8080",
-		"https://go-tide.app",
-		"https://www.go-tide.app",
+		"http://localhost:3000", "http://localhost:5173", "http://localhost:8080",
+		"http://127.0.0.1:3000", "http://127.0.0.1:5173", "http://127.0.0.1:8080",
+		"https://go-tide.app", "https://www.go-tide.app",
 	}
 	for _, trusted := range trustedOrigins {
 		if origin == trusted {
@@ -72,32 +80,77 @@ func checkOrigin(r *http.Request) bool {
 	return false
 }
 
-// Hub maintains the set of active clients per fileID and broadcasts messages to the clients.
+// Permission helpers matching store Contract 1.1
+func canRead(perm string) bool {
+	return perm == "owner" || perm == "share" || perm == "edit" || perm == "view"
+}
+
+func canWrite(perm string) bool {
+	return perm == "owner" || perm == "share" || perm == "edit"
+}
+
+// Hub maintains the set of active clients per fileID and coordinates broadcasts and live evictions.
+// BUG-07: room.history ring buffer has been completely removed to avoid update losses and memory exhaustion.
 type Hub struct {
 	// Registered clients by fileID
-	rooms   map[string]map[*Client]bool
-	history map[string][][]byte
-	mu      sync.RWMutex
+	rooms     map[string]map[*Client]bool
+	lastPulse map[string]time.Time
+	mu        sync.RWMutex
 }
 
 var GlobalHub = &Hub{
-	rooms:   make(map[string]map[*Client]bool),
-	history: make(map[string][][]byte),
+	rooms:     make(map[string]map[*Client]bool),
+	lastPulse: make(map[string]time.Time),
 }
 
 // Client is a middleman between the websocket connection and the hub.
 type Client struct {
-	hub    *Hub
-	fileID string
-	userID string
-	conn   *websocket.Conn
-	wmu    sync.Mutex
+	hub        *Hub
+	fileID     string
+	userID     string
+	yClientID  uint32
+	conn       *websocket.Conn
+	permission string
+	pmu        sync.RWMutex
+	wmu        sync.Mutex
+}
+
+func (c *Client) getPermission() string {
+	c.pmu.RLock()
+	defer c.pmu.RUnlock()
+	return c.permission
+}
+
+func (c *Client) setPermission(perm string) {
+	c.pmu.Lock()
+	defer c.pmu.Unlock()
+	c.permission = perm
 }
 
 func (c *Client) writeMessage(messageType int, data []byte) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
+	_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 	return c.conn.WriteMessage(messageType, data)
+}
+
+func makeControlFrame(payload any) ([]byte, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	frame := make([]byte, 1+len(data))
+	frame[0] = FrameTypeControl
+	copy(frame[1:], data)
+	return frame, nil
+}
+
+func (c *Client) sendControl(payload any) error {
+	frame, err := makeControlFrame(payload)
+	if err != nil {
+		return err
+	}
+	return c.writeMessage(websocket.BinaryMessage, frame)
 }
 
 func (h *Hub) addClient(c *Client) {
@@ -105,64 +158,266 @@ func (h *Hub) addClient(c *Client) {
 	defer h.mu.Unlock()
 	if h.rooms[c.fileID] == nil {
 		h.rooms[c.fileID] = make(map[*Client]bool)
-		h.history[c.fileID] = make([][]byte, 0)
 	}
 	h.rooms[c.fileID][c] = true
-	log.Printf("[WebSocket] Client joined room %s (Total in room: %d)", c.fileID, len(h.rooms[c.fileID]))
-
-	if len(h.history[c.fileID]) > 0 {
-		for _, msg := range h.history[c.fileID] {
-			_ = c.writeMessage(websocket.BinaryMessage, msg)
-		}
-	}
+	log.Printf("[WebSocket] Client %s (yClientId: %d) joined room %s (Total in room: %d)", c.userID, c.yClientID, c.fileID, len(h.rooms[c.fileID]))
 }
 
 func (h *Hub) removeClient(c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if _, ok := h.rooms[c.fileID]; ok {
-		delete(h.rooms[c.fileID], c)
-		if len(h.rooms[c.fileID]) == 0 {
+	if room, ok := h.rooms[c.fileID]; ok {
+		delete(room, c)
+		if len(room) == 0 {
 			delete(h.rooms, c.fileID)
-			delete(h.history, c.fileID)
+			delete(h.lastPulse, c.fileID)
 			log.Printf("[WebSocket] Room %s closed (empty)", c.fileID)
 		} else {
-			log.Printf("[WebSocket] Client left room %s (Remaining: %d)", c.fileID, len(h.rooms[c.fileID]))
+			log.Printf("[WebSocket] Client %s left room %s (Remaining: %d)", c.userID, c.fileID, len(room))
 		}
 	}
 }
 
+// broadcast sends binary data to all clients in the room except sender.
 func (h *Hub) broadcast(sender *Client, message []byte) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	if h.history[sender.fileID] != nil {
-		if len(h.history[sender.fileID]) >= 100 {
-			h.history[sender.fileID] = h.history[sender.fileID][1:]
-		}
-		msgCopy := make([]byte, len(message))
-		copy(msgCopy, message)
-		h.history[sender.fileID] = append(h.history[sender.fileID], msgCopy)
-	}
-
+	h.mu.RLock()
 	room := h.rooms[sender.fileID]
+	clients := make([]*Client, 0, len(room))
 	for client := range room {
 		if client != sender {
-			// Broadcast to everyone else in the room
-			err := client.writeMessage(websocket.BinaryMessage, message)
-			if err != nil {
-				log.Printf("[WebSocket] Error writing to client %s: %v", client.userID, err)
-				client.conn.Close()
-			}
+			clients = append(clients, client)
+		}
+	}
+	h.mu.RUnlock()
+
+	for _, client := range clients {
+		err := client.writeMessage(websocket.BinaryMessage, message)
+		if err != nil {
+			log.Printf("[WebSocket] Error writing to client %s: %v", client.userID, err)
+			client.conn.Close()
 		}
 	}
 }
 
+// broadcastControl broadcasts a FrameTypeControl (0x03) frame to all clients currently in fileID room.
+func (h *Hub) broadcastControl(fileID string, payload any) {
+	frame, err := makeControlFrame(payload)
+	if err != nil {
+		log.Printf("[WebSocket] Error creating control frame: %v", err)
+		return
+	}
+
+	h.mu.RLock()
+	room := h.rooms[fileID]
+	clients := make([]*Client, 0, len(room))
+	for client := range room {
+		clients = append(clients, client)
+	}
+	h.mu.RUnlock()
+
+	for _, client := range clients {
+		err := client.writeMessage(websocket.BinaryMessage, frame)
+		if err != nil {
+			log.Printf("[WebSocket] Error sending control frame to client %s: %v", client.userID, err)
+			client.conn.Close()
+		}
+	}
+}
+
+// triggerSSEPulse broadcasts NOTE_ACTIVITY_PULSE and NOTE_WAL_APPENDED via SSE, throttled to max 1x per 5 seconds per room.
+func (h *Hub) triggerSSEPulse(broker *Broker, fileID string) {
+	if broker == nil {
+		return
+	}
+	h.mu.Lock()
+	if h.lastPulse == nil {
+		h.lastPulse = make(map[string]time.Time)
+	}
+	last, ok := h.lastPulse[fileID]
+	now := time.Now()
+	if ok && now.Sub(last) < 5*time.Second {
+		h.mu.Unlock()
+		return
+	}
+	h.lastPulse[fileID] = now
+	h.mu.Unlock()
+
+	pulsePayload, _ := json.Marshal(map[string]any{
+		"type": "NOTE_ACTIVITY_PULSE",
+		"payload": map[string]any{
+			"file_id": fileID,
+		},
+	})
+	walPayload, _ := json.Marshal(map[string]any{
+		"type": "NOTE_WAL_APPENDED",
+		"payload": map[string]any{
+			"file_id": fileID,
+		},
+	})
+	broker.BroadcastAll(string(pulsePayload))
+	broker.BroadcastAll(string(walPayload))
+}
+
+// EnforcePermissionChange applies live role updates or instant evictions for a targeted user.
+func (h *Hub) EnforcePermissionChange(fileID, targetUserID, newPermission string) {
+	h.mu.RLock()
+	room := h.rooms[fileID]
+	var targets []*Client
+	for client := range room {
+		if client.userID == targetUserID {
+			targets = append(targets, client)
+		}
+	}
+	h.mu.RUnlock()
+
+	for _, client := range targets {
+		if newPermission == "revoked" || newPermission == "" {
+			_ = client.sendControl(map[string]any{"action": "REVOKED"})
+			client.conn.Close()
+			h.removeClient(client)
+			h.broadcastControl(fileID, map[string]any{
+				"action":    "PEER_LEFT",
+				"yClientId": client.yClientID,
+			})
+		} else {
+			client.setPermission(newPermission)
+			_ = client.sendControl(map[string]any{
+				"action":     "ROLE_CHANGED",
+				"permission": newPermission,
+			})
+		}
+	}
+}
+
+// BroadcastKeyRotation sends KEY_ROTATED control frame to all room participants.
+func (h *Hub) BroadcastKeyRotation(fileID string, newKeyEpoch uint32) {
+	h.broadcastControl(fileID, map[string]any{
+		"action":   "KEY_ROTATED",
+		"keyEpoch": newKeyEpoch,
+	})
+}
+
+// writePump sends regular pings every 15 seconds to ensure connection liveness.
+func (c *Client) writePump() {
+	ticker := time.NewTicker(15 * time.Second)
+	defer func() {
+		ticker.Stop()
+		c.conn.Close()
+	}()
+	for range ticker.C {
+		if err := c.writeMessage(websocket.PingMessage, nil); err != nil {
+			return
+		}
+	}
+}
+
+// readPump processes incoming WebSocket frames according to E2EE Contract 1.1.
+func (c *Client) readPump(h *FileHandler) {
+	defer func() {
+		c.hub.removeClient(c)
+		c.conn.Close()
+		// Disconnect cleanup: immediately broadcast PEER_LEFT control frame (0ms ghost cursor removal)
+		c.hub.broadcastControl(c.fileID, map[string]any{
+			"action":    "PEER_LEFT",
+			"yClientId": c.yClientID,
+		})
+	}()
+
+	c.conn.SetReadLimit(10 * 1024 * 1024) // 10MB frame limit
+	_ = c.conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	c.conn.SetPongHandler(func(string) error {
+		_ = c.conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+		return nil
+	})
+
+	for {
+		messageType, payload, err := c.conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("[WebSocket] Read error from user %s: %v", c.userID, err)
+			}
+			break
+		}
+
+		if messageType != websocket.BinaryMessage || len(payload) < 1 {
+			continue
+		}
+
+		msgType := payload[0]
+		switch msgType {
+		case FrameTypeCRDTUpdate: // 0x01
+			// 1. MinEncryptedFrameLen validation
+			if len(payload) < MinEncryptedFrameLen {
+				log.Printf("[WebSocket] Discarding short CRDT frame (len=%d) from user %s", len(payload), c.userID)
+				continue
+			}
+
+			// 2. BUG-01: Security gate - viewers cannot inject CRDT updates
+			if !canWrite(c.getPermission()) {
+				log.Printf("[WebSocket] Security violation: user %s with permission %q attempted CRDT update on file %s (discarded)", c.userID, c.getPermission(), c.fileID)
+				continue
+			}
+
+			// 3. Extract header fields
+			keyEpoch := binary.BigEndian.Uint32(payload[1:5])
+			iv := payload[5:17]
+			ciphertext := payload[17:]
+
+			// 4. BUG-08: Immediate SQLite WAL persistence
+			var seqID int64
+			if walAppender, ok := any(h.Store).(interface {
+				AppendYjsWAL(ctx context.Context, fileID string, keyEpoch uint32, iv, ciphertext []byte) (int64, error)
+			}); ok {
+				var walErr error
+				seqID, walErr = walAppender.AppendYjsWAL(context.Background(), c.fileID, keyEpoch, iv, ciphertext)
+				if walErr != nil {
+					log.Printf("[WebSocket] Failed to append Yjs WAL for file %s: %v", c.fileID, walErr)
+				}
+			}
+
+			// 5. Broadcast binary frame to all other room peers (BUG-07: room.history removed!)
+			c.hub.broadcast(c, payload)
+
+			// 6. Compact request check every 50 WAL entries
+			if seqID > 0 && seqID%50 == 0 {
+				_ = c.sendControl(map[string]any{
+					"action": "COMPACT_REQUEST",
+				})
+			}
+
+			// 7. Dispatch SSE pulse
+			c.hub.triggerSSEPulse(h.Broker, c.fileID)
+
+		case FrameTypeAwareness: // 0x02
+			if len(payload) < MinEncryptedFrameLen {
+				continue
+			}
+			// Allowed for all clients (including view). Relay in-memory only. Never persist to DB.
+			c.hub.broadcast(c, payload)
+
+		case FrameTypeControl: // 0x03
+			log.Printf("[WebSocket] Received control frame from user %s in file %s", c.userID, c.fileID)
+
+		default:
+			log.Printf("[WebSocket] Unknown frame type 0x%02x from user %s", msgType, c.userID)
+		}
+	}
+}
+
+// ServeWs upgrades HTTP connections to WebSockets and handles collaborative editing sessions.
 func (h *FileHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
 	fileID := chi.URLParam(r, "fileID")
 	if fileID == "" {
 		http.Error(w, "Missing file ID", http.StatusBadRequest)
 		return
+	}
+
+	// Parse yClientId from query parameter
+	var yClientID uint32
+	if yClientStr := r.URL.Query().Get("yClientId"); yClientStr != "" {
+		if val, err := strconv.ParseUint(yClientStr, 10, 32); err == nil {
+			yClientID = uint32(val)
+		}
 	}
 
 	var userID string
@@ -196,9 +451,9 @@ func (h *FileHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
 				})
 				if err == nil && token.Valid {
 					if claims, ok := token.Claims.(jwt.MapClaims); ok {
-						if sub, ok := claims["sub"].(string); ok && sub != "" {
+						if sub, okSub := claims["sub"].(string); okSub && sub != "" {
 							userID = sub
-						} else if uid, ok := claims["user_id"].(string); ok && uid != "" {
+						} else if uid, okUID := claims["user_id"].(string); okUID && uid != "" {
 							userID = uid
 						}
 					}
@@ -215,7 +470,8 @@ func (h *FileHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// [COLLAB-AUTH] Verify that user has access to this file
-	if _, err := h.Store.GetAccessibleFile(r.Context(), fileID, userID); err != nil {
+	file, err := h.Store.GetAccessibleFile(r.Context(), fileID, userID)
+	if err != nil || file == nil || !canRead(file.Permission) {
 		http.Error(w, "Forbidden: No access to file", http.StatusForbidden)
 		return
 	}
@@ -227,30 +483,16 @@ func (h *FileHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := &Client{
-		hub:    GlobalHub,
-		fileID: fileID,
-		userID: userID,
-		conn:   conn,
+		hub:        GlobalHub,
+		fileID:     fileID,
+		userID:     userID,
+		yClientID:  yClientID,
+		conn:       conn,
+		permission: file.Permission,
 	}
 
 	client.hub.addClient(client)
 
-	// Listen for messages
-	go func() {
-		defer func() {
-			client.hub.removeClient(client)
-			client.conn.Close()
-		}()
-		for {
-			_, message, err := client.conn.ReadMessage()
-			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					log.Printf("[WebSocket] Read error: %v", err)
-				}
-				break
-			}
-			// Yjs updates are binary, broadcast them directly to all other room members
-			client.hub.broadcast(client, message)
-		}
-	}()
+	go client.writePump()
+	go client.readPump(h)
 }

@@ -717,3 +717,212 @@ func TestBlobReferencesCount(t *testing.T) {
 		t.Fatalf("expected blobStore.Exists to return false after Delete")
 	}
 }
+
+func TestCRDT_WAL_And_GetAccessibleFile(t *testing.T) {
+	tempDir := t.TempDir()
+	store, err := NewSQLiteStore(tempDir)
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+
+	// Helpers verification
+	if !CanRead("owner") || !CanRead("share") || !CanRead("edit") || !CanRead("view") || CanRead("") || CanRead("none") {
+		t.Errorf("CanRead helper failed")
+	}
+	if !CanWrite("owner") || !CanWrite("share") || !CanWrite("edit") || CanWrite("view") || CanWrite("") {
+		t.Errorf("CanWrite helper failed")
+	}
+	if !CanAdmin("owner") || CanAdmin("edit") || CanAdmin("view") {
+		t.Errorf("CanAdmin helper failed")
+	}
+
+	// Create users
+	userA := &db.User{
+		ID:              uuid.New().String(),
+		EncryptedVault:  []byte("vaultA"),
+		EncryptedPepper: []byte("pepperA"),
+		PublicKey:       "pubkeyA",
+		CreatedAt:       time.Now(),
+	}
+	userB := &db.User{
+		ID:              uuid.New().String(),
+		EncryptedVault:  []byte("vaultB"),
+		EncryptedPepper: []byte("pepperB"),
+		PublicKey:       "pubkeyB",
+		CreatedAt:       time.Now(),
+	}
+	userC := &db.User{
+		ID:              uuid.New().String(),
+		EncryptedVault:  []byte("vaultC"),
+		EncryptedPepper: []byte("pepperC"),
+		PublicKey:       "pubkeyC",
+		CreatedAt:       time.Now(),
+	}
+	_ = store.CreateUser(ctx, userA)
+	_ = store.CreateUser(ctx, userB)
+	_ = store.CreateUser(ctx, userC)
+
+	// Create parent folder owned by userA
+	folder := &db.File{
+		ID:          uuid.New().String(),
+		OwnerID:     userA.ID,
+		Type:        db.FileTypeFolder,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		Visibility:  "private",
+		AccessKeys:  []byte("{}"),
+	}
+	if err := store.CreateFile(ctx, folder); err != nil {
+		t.Fatalf("failed to create folder: %v", err)
+	}
+
+	// Create child note with parent_file_id
+	childNote := &db.File{
+		ID:           uuid.New().String(),
+		OwnerID:      userA.ID,
+		ParentFileID: &folder.ID,
+		Type:         db.FileTypeNote,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+		Visibility:   "private",
+		KeyEpoch:     1,
+		AccessKeys:   []byte("{}"),
+	}
+	if err := store.CreateFile(ctx, childNote); err != nil {
+		t.Fatalf("failed to create child note: %v", err)
+	}
+
+	// 1. UserA (owner) access check
+	fileA, err := store.GetAccessibleFile(ctx, childNote.ID, userA.ID)
+	if err != nil {
+		t.Fatalf("owner access failed: %v", err)
+	}
+	if fileA.Permission != "owner" {
+		t.Errorf("expected permission owner, got %s", fileA.Permission)
+	}
+	if fileA.ParentFileID == nil || *fileA.ParentFileID != folder.ID {
+		t.Errorf("expected parent_file_id %s, got %v", folder.ID, fileA.ParentFileID)
+	}
+
+	// 2. UserB has no access -> ErrNotFound
+	_, err = store.GetAccessibleFile(ctx, childNote.ID, userB.ID)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound for userB, got %v", err)
+	}
+
+	// 3. Pending share for UserB -> Still rejected!
+	if err := store.ShareFileWithPermission(ctx, childNote.ID, userB.ID, []byte("meta"), "edit", false); err != nil {
+		t.Fatalf("ShareFileWithPermission failed: %v", err)
+	}
+	_, _ = store.DB.ExecContext(ctx, "UPDATE file_shares SET status = 'pending' WHERE file_id = ? AND user_id = ?", childNote.ID, userB.ID)
+	_, err = store.GetAccessibleFile(ctx, childNote.ID, userB.ID)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound for pending share, got %v", err)
+	}
+
+	// 4. Accept share for UserB -> Now edit access granted!
+	if err := store.AcceptShare(ctx, childNote.ID, userB.ID); err != nil {
+		t.Fatalf("AcceptShare failed: %v", err)
+	}
+	fileB, err := store.GetAccessibleFile(ctx, childNote.ID, userB.ID)
+	if err != nil {
+		t.Fatalf("accepted share access failed: %v", err)
+	}
+	if fileB.Permission != "edit" {
+		t.Errorf("expected permission edit, got %s", fileB.Permission)
+	}
+
+	// 5. Parent folder share for UserC -> UserC gains access to child note!
+	if err := store.ShareFileWithPermission(ctx, folder.ID, userC.ID, []byte("fmeta"), "view", false); err != nil {
+		t.Fatalf("Share folder failed: %v", err)
+	}
+	if err := store.AcceptShare(ctx, folder.ID, userC.ID); err != nil {
+		t.Fatalf("Accept folder share failed: %v", err)
+	}
+	fileC, err := store.GetAccessibleFile(ctx, childNote.ID, userC.ID)
+	if err != nil {
+		t.Fatalf("parent folder share access failed: %v", err)
+	}
+	if fileC.Permission != "view" {
+		t.Errorf("expected permission view via parent, got %s", fileC.Permission)
+	}
+
+	// 6. Test WAL Appending
+	seq1, err := store.AppendYjsWAL(ctx, childNote.ID, 1, []byte("iv1"), []byte("cipher1"))
+	if err != nil {
+		t.Fatalf("AppendYjsWAL seq1 failed: %v", err)
+	}
+	seq2, err := store.AppendYjsWAL(ctx, childNote.ID, 1, []byte("iv2"), []byte("cipher2"))
+	if err != nil {
+		t.Fatalf("AppendYjsWAL seq2 failed: %v", err)
+	}
+	if seq2 <= seq1 {
+		t.Errorf("expected seq2 > seq1, got seq1=%d, seq2=%d", seq1, seq2)
+	}
+
+	// 7. Test GetCRDTState
+	crdtState, err := store.GetCRDTState(ctx, childNote.ID, userA.ID)
+	if err != nil {
+		t.Fatalf("GetCRDTState failed: %v", err)
+	}
+	if crdtState.KeyEpoch != 1 {
+		t.Errorf("expected KeyEpoch 1, got %d", crdtState.KeyEpoch)
+	}
+	if len(crdtState.WAL) != 2 {
+		t.Fatalf("expected 2 WAL entries, got %d", len(crdtState.WAL))
+	}
+	if crdtState.WAL[0].SeqID != seq1 || crdtState.WAL[1].SeqID != seq2 {
+		t.Errorf("unexpected WAL entries: %+v", crdtState.WAL)
+	}
+
+	// 8. Test CompactYjsWAL up to seq1
+	if err := store.CompactYjsWAL(ctx, childNote.ID, seq1, 1, []byte("snap_iv"), []byte("snap_content")); err != nil {
+		t.Fatalf("CompactYjsWAL failed: %v", err)
+	}
+
+	crdtStateAfterCompact, err := store.GetCRDTState(ctx, childNote.ID, userA.ID)
+	if err != nil {
+		t.Fatalf("GetCRDTState after compact failed: %v", err)
+	}
+	if crdtStateAfterCompact.SnapshotSeqID != seq1 {
+		t.Errorf("expected SnapshotSeqID %d, got %d", seq1, crdtStateAfterCompact.SnapshotSeqID)
+	}
+	if len(crdtStateAfterCompact.WAL) != 1 || crdtStateAfterCompact.WAL[0].SeqID != seq2 {
+		t.Errorf("expected only seq2 in WAL after compact, got %+v", crdtStateAfterCompact.WAL)
+	}
+
+	// 9. Test RevokeShareAndRotateKey
+	err = store.RevokeShareAndRotateKey(ctx, childNote.ID, userB.ID, 2, `{"`+userA.ID+`":"wrappedKey"}`, "newSecuredMeta", []byte("snap_iv2"), []byte("snap_cipher2"))
+	if err != nil {
+		t.Fatalf("RevokeShareAndRotateKey failed: %v", err)
+	}
+
+	// UserB must no longer have access
+	_, err = store.GetAccessibleFile(ctx, childNote.ID, userB.ID)
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("expected ErrNotFound for revoked userB, got %v", err)
+	}
+
+	// File state should have epoch 2 and empty WAL
+	updatedFile, err := store.GetAccessibleFile(ctx, childNote.ID, userA.ID)
+	if err != nil {
+		t.Fatalf("GetAccessibleFile after rotate failed: %v", err)
+	}
+	if updatedFile.KeyEpoch != 2 {
+		t.Errorf("expected key epoch 2, got %d", updatedFile.KeyEpoch)
+	}
+
+	crdtStateRotated, err := store.GetCRDTState(ctx, childNote.ID, userA.ID)
+	if err != nil {
+		t.Fatalf("GetCRDTState after rotate failed: %v", err)
+	}
+	if crdtStateRotated.KeyEpoch != 2 {
+		t.Errorf("expected crdt KeyEpoch 2, got %d", crdtStateRotated.KeyEpoch)
+	}
+	if len(crdtStateRotated.WAL) != 0 {
+		t.Errorf("expected empty WAL after key rotate, got %d entries", len(crdtStateRotated.WAL))
+	}
+}

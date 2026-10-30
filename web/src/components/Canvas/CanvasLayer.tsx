@@ -1,11 +1,14 @@
 "use client";
 
 import { useRef, useCallback, useState, useEffect, useMemo, type ReactNode } from 'react';
+import * as Y from 'yjs';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import CanvasElementComponent from './CanvasElement';
-import { CanvasElement, ImageElement, TextWidgetElement } from '@/types/canvas';
+import { CanvasElement, ImageElement } from '@/types/canvas';
 import { apiFetch } from '@/lib/api';
 import * as cryptoLib from '@/lib/crypto';
+import { useActiveNoteStore } from '@/store/activeNoteStore';
+import type { OverlayStroke } from './useStyleFile';
 
 export interface CanvasLayerProps {
     children: ReactNode;
@@ -29,93 +32,85 @@ export interface CanvasLayerProps {
     isLinkingMode: boolean;
     activeLinkBlockId: string | null;
     onLinkingComplete: () => void;
+    ydoc?: Y.Doc | null;
+    yOverlay?: Y.Map<Y.Map<unknown>> | null;
+    isDrawingMode?: boolean;
+    activeDrawingTool?: 'pen' | 'marker' | 'eraser';
+    strokeColor?: string;
+    strokeSize?: number;
+}
+
+function pointsToSvgPath(points: Array<{ x: number; y: number }>, offsetX = 0, offsetY = 0): string {
+    if (!points || points.length === 0) return '';
+    const startX = points[0].x + offsetX;
+    const startY = points[0].y + offsetY;
+    if (points.length === 1) {
+        return `M ${startX.toFixed(2)} ${startY.toFixed(2)} L ${(startX + 0.1).toFixed(2)} ${(startY + 0.1).toFixed(2)}`;
+    }
+    let d = `M ${startX.toFixed(2)} ${startY.toFixed(2)}`;
+    for (let i = 1; i < points.length - 1; i++) {
+        const curr = points[i];
+        const next = points[i + 1];
+        const midX = (curr.x + next.x) / 2 + offsetX;
+        const midY = (curr.y + next.y) / 2 + offsetY;
+        d += ` Q ${(curr.x + offsetX).toFixed(2)} ${(curr.y + offsetY).toFixed(2)} ${midX.toFixed(2)} ${midY.toFixed(2)}`;
+    }
+    const last = points[points.length - 1];
+    return `${d} L ${(last.x + offsetX).toFixed(2)} ${(last.y + offsetY).toFixed(2)}`;
 }
 
 function isCircular(startId: string, targetId: string, elements: CanvasElement[]): boolean {
     let currentId = targetId;
     const visited = new Set<string>();
-
     while (currentId) {
         if (currentId === startId) return true;
-        if (visited.has(currentId)) break; // Safety break
+        if (visited.has(currentId)) break;
         visited.add(currentId);
-
         const el = elements.find(e => e.id === currentId);
-        if (el?.anchorBlockId) {
-            currentId = el.anchorBlockId;
-        } else {
-            break;
-        }
+        if (el?.anchorBlockId) currentId = el.anchorBlockId;
+        else break;
     }
     return false;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function detectIPadOrTablet(): boolean {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
     const ua = navigator.userAgent;
-    const isIPadUA =
-        /iPad/i.test(ua) ||
-        (Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 1) && /Macintosh/i.test(ua));
-    const isTouchTablet =
-        Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 0) &&
-        window.innerWidth >= 768 &&
-        !/iPhone|iPod/i.test(ua);
+    const isIPadUA = /iPad/i.test(ua) || (Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 1) && /Macintosh/i.test(ua));
+    const isTouchTablet = Boolean(navigator.maxTouchPoints && navigator.maxTouchPoints > 0) && window.innerWidth >= 768 && !/iPhone|iPod/i.test(ua);
     return isIPadUA || isTouchTablet;
 }
 
 function getAllDomBlockIds(): string[] {
-    return Array.from(document.querySelectorAll<HTMLElement>('[data-block-id]'))
-        .map(n => n.getAttribute('data-block-id')!).filter(Boolean);
+    return Array.from(document.querySelectorAll<HTMLElement>('[data-block-id]')).map(n => n.getAttribute('data-block-id')!).filter(Boolean);
 }
 
 function extractImageFiles(dt: DataTransfer): File[] {
-    return Array.from(dt.items ?? [])
-        .map(i => i.getAsFile()).filter((f): f is File => !!f && f.type.startsWith('image/'));
+    return Array.from(dt.items ?? []).map(i => i.getAsFile()).filter((f): f is File => !!f && f.type.startsWith('image/'));
 }
 
-/**
- * Compute offsets that preserve the element's visual position when binding to a new anchor.
- * NEW MODEL:
- *   offsetX = shell-relative horizontal (image always at same column, px from shell left)
- *   offsetY = anchor-relative vertical  (image tracks the paragraph up/down)
- */
-function computeRelativeOffset(
-    elementRect: DOMRect | null,
-    anchorBlockId: string,
-    shell: HTMLElement | null,
-): { offsetX: number; offsetY: number } {
+function computeRelativeOffset(elementRect: DOMRect | null, anchorBlockId: string, shell: HTMLElement | null): { offsetX: number; offsetY: number } {
     if (!elementRect || !shell) {
         const fallbackLeft = shell ? shell.getBoundingClientRect().width + 24 : 700;
         return { offsetX: fallbackLeft, offsetY: 0 };
     }
     const anchorEl = document.querySelector<HTMLElement>(`[data-block-id="${anchorBlockId}"], [data-element-id="${anchorBlockId}"], [data-anchor-id="${anchorBlockId}"]`);
     const sr = shell.getBoundingClientRect();
-    if (!anchorEl) {
-        return {
-            offsetX: Math.round(elementRect.left - sr.left),
-            offsetY: 0,
-        };
-    }
+    if (!anchorEl) return { offsetX: Math.round(elementRect.left - sr.left), offsetY: 0 };
     const ar = anchorEl.getBoundingClientRect();
     const isAnchor = anchorEl.hasAttribute('data-anchor-id');
     return {
-        offsetX: isAnchor
-            ? Math.round(elementRect.left - ar.left)
-            : Math.round(elementRect.left - sr.left),   // shell-relative column
+        offsetX: isAnchor ? Math.round(elementRect.left - ar.left) : Math.round(elementRect.left - sr.left),
         offsetY: Math.round(elementRect.top - ar.top),
     };
 }
 
-
-// ─── CanvasLayer ──────────────────────────────────────────────────────────────
-
 export default function CanvasLayer({
-    children, elements, isLoaded, publicKey, privateKey, userId, noteId,
+    children, elements, isLoaded: _isLoaded, publicKey, privateKey, userId, noteId,
     onElementMove, onElementAdd, onElementRemove, deletedBlockIds, onSaveAll,
     pendingBindBlockId, onBindingComplete, onUpdate, onInsertAnchor,
-    hoveredElementId, setHoveredElementId, isLinkingMode, activeLinkBlockId, onLinkingComplete,
+    hoveredElementId: _hoveredElementId, setHoveredElementId, isLinkingMode, activeLinkBlockId, onLinkingComplete,
+    ydoc: propYDoc, yOverlay: propYOverlay, isDrawingMode, activeDrawingTool, strokeColor, strokeSize,
 }: CanvasLayerProps) {
     const isSmallScreen = useMediaQuery('(max-width: 768px)');
     const [isTablet, setIsTablet] = useState<boolean>(() => detectIPadOrTablet());
@@ -130,82 +125,197 @@ export default function CanvasLayer({
         };
     }, []);
 
-    // Treat iPads/tablets as desktop canvas mode (enables dragging, resizing, rotation)
     const isMobile = isSmallScreen && !isTablet;
     const shellRef = useRef<HTMLDivElement>(null);
     const imageBlobCache = useRef(new Map<string, string>());
-    const [activeElementId] = useState<string | null>(null);
-
-    // When user right-clicks "Change anchor", we store (elementId, currentRect) here.
-    // As soon as pendingBindBlockId becomes a real block ID, we auto-bind this element.
     const rebindTarget = useRef<{ id: string; rect: DOMRect | null } | null>(null);
+
+    // ─── Yjs yOverlay Connection & Drawing Sync ───────────────────────────────
+    const storeDoc = useActiveNoteStore(s => s.activeYDoc);
+    const effectiveDoc = propYDoc || storeDoc;
+    const effectiveYOverlay = propYOverlay || (effectiveDoc ? effectiveDoc.getMap<Y.Map<unknown>>('overlay') : null);
+
+    const [overlayStrokes, setOverlayStrokes] = useState<OverlayStroke[]>([]);
+    const [currentDrawingStroke, setCurrentDrawingStroke] = useState<OverlayStroke | null>(null);
+    const isDrawingRef = useRef(false);
+
+    useEffect(() => {
+        if (!effectiveYOverlay) {
+            return;
+        }
+
+        const syncStrokes = () => {
+            const list: OverlayStroke[] = [];
+            effectiveYOverlay.forEach((val, key) => {
+                const item = val instanceof Y.Map ? (val.toJSON() as Record<string, unknown>) : (val as Record<string, unknown>);
+                if (item && Array.isArray(item.points)) {
+                    list.push({
+                        id: (typeof item.id === 'string' ? item.id : key),
+                        tool: (typeof item.tool === 'string' ? item.tool : 'pen'),
+                        color: (typeof item.color === 'string' ? item.color : '#111827'),
+                        size: (typeof item.size === 'number' ? item.size : 3),
+                        opacity: (typeof item.opacity === 'number' ? item.opacity : 1),
+                        points: item.points as Array<{ x: number; y: number; p?: number }>,
+                        ...item,
+                    } as OverlayStroke);
+                }
+            });
+            setOverlayStrokes(list);
+        };
+
+        effectiveYOverlay.observeDeep(syncStrokes);
+        syncStrokes();
+
+        return () => {
+            effectiveYOverlay.unobserveDeep(syncStrokes);
+        };
+    }, [effectiveYOverlay]);
+
+    useEffect(() => {
+        const handleAddStroke = (e: Event) => {
+            const stroke = (e as CustomEvent).detail as OverlayStroke;
+            if (!stroke || !effectiveYOverlay || !effectiveDoc) return;
+            const strokeMap = new Y.Map<unknown>();
+            for (const [k, v] of Object.entries(stroke)) strokeMap.set(k, v);
+            effectiveDoc.transact(() => {
+                effectiveYOverlay.set(stroke.id || crypto.randomUUID(), strokeMap);
+            });
+        };
+
+        const handleRemoveStroke = (e: Event) => {
+            const detail = (e as CustomEvent).detail as { id?: string } | undefined;
+            const id = detail?.id;
+            if (!id || !effectiveYOverlay || !effectiveDoc) return;
+            effectiveDoc.transact(() => {
+                effectiveYOverlay.delete(id);
+            });
+        };
+
+        const handleClearStrokes = () => {
+            if (!effectiveYOverlay || !effectiveDoc) return;
+            effectiveDoc.transact(() => {
+                effectiveYOverlay.forEach((val, key) => {
+                    const item = val instanceof Y.Map ? (val.toJSON() as Record<string, unknown>) : (val as Record<string, unknown>);
+                    if (item && Array.isArray(item.points)) effectiveYOverlay.delete(key);
+                });
+            });
+        };
+
+        window.addEventListener('canvas:stroke-add', handleAddStroke);
+        window.addEventListener('canvas:draw-stroke', handleAddStroke);
+        window.addEventListener('canvas:stroke-remove', handleRemoveStroke);
+        window.addEventListener('canvas:strokes-clear', handleClearStrokes);
+
+        return () => {
+            window.removeEventListener('canvas:stroke-add', handleAddStroke);
+            window.removeEventListener('canvas:draw-stroke', handleAddStroke);
+            window.removeEventListener('canvas:stroke-remove', handleRemoveStroke);
+            window.removeEventListener('canvas:strokes-clear', handleClearStrokes);
+        };
+    }, [effectiveYOverlay, effectiveDoc]);
+
+    const handlePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (!isDrawingMode || !effectiveYOverlay || !effectiveDoc) return;
+        const shell = shellRef.current;
+        if (!shell) return;
+        const rect = shell.getBoundingClientRect();
+        const x = Math.round(e.clientX - rect.left);
+        const y = Math.round(e.clientY - rect.top);
+        const p = e.pressure || 0.5;
+
+        isDrawingRef.current = true;
+        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+
+        const newStroke: OverlayStroke = {
+            id: crypto.randomUUID(),
+            tool: activeDrawingTool || 'pen',
+            color: strokeColor || '#111827',
+            size: strokeSize || 3,
+            opacity: activeDrawingTool === 'marker' ? 0.5 : 1,
+            points: [{ x, y, p }],
+        };
+        setCurrentDrawingStroke(newStroke);
+    }, [isDrawingMode, effectiveYOverlay, effectiveDoc, activeDrawingTool, strokeColor, strokeSize]);
+
+    const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (!isDrawingRef.current || !currentDrawingStroke) return;
+        const shell = shellRef.current;
+        if (!shell) return;
+        const rect = shell.getBoundingClientRect();
+        const x = Math.round(e.clientX - rect.left);
+        const y = Math.round(e.clientY - rect.top);
+        const p = e.pressure || 0.5;
+
+        setCurrentDrawingStroke(prev => prev ? {
+            ...prev,
+            points: [...prev.points, { x, y, p }],
+        } : null);
+    }, [currentDrawingStroke]);
+
+    const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+        if (!isDrawingRef.current) return;
+        isDrawingRef.current = false;
+        (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+
+        if (currentDrawingStroke && effectiveYOverlay && effectiveDoc) {
+            const strokeMap = new Y.Map<unknown>();
+            for (const [k, v] of Object.entries(currentDrawingStroke)) strokeMap.set(k, v);
+            effectiveDoc.transact(() => {
+                effectiveYOverlay.set(currentDrawingStroke.id, strokeMap);
+            });
+        }
+        setCurrentDrawingStroke(null);
+    }, [currentDrawingStroke, effectiveYOverlay, effectiveDoc]);
 
     // ── Binding mode ──────────────────────────────────────────────────────────
     const isBindingMode = !!pendingBindBlockId;
 
     const handleBind = useCallback(async (clickedId: string, clickedRect: DOMRect | null) => {
-        // CASE A: We are looking for an anchor (pending) and user clicked an element to BE the anchor
         if (pendingBindBlockId === '__pending_rebind__' && rebindTarget.current) {
-            // But usually the user clicks a block. If they clicked an image item, 
-            // the CanvasElement onClick calls this. 
-            // We interpret "clicked image B while rebindTarget is A" as "anchor A to B".
-            if (rebindTarget.current.id === clickedId) return; // avoid self-anchor
+            if (rebindTarget.current.id === clickedId) return;
             if (isCircular(rebindTarget.current.id, clickedId, elements)) {
                 alert("Circular dependency detected! An element cannot be anchored to its own descendants.");
                 rebindTarget.current = null;
                 onBindingComplete?.();
                 return;
             }
-
             const targetId = rebindTarget.current.id;
             const targetRect = rebindTarget.current.rect;
             const cur = elements.find(e => e.id === targetId);
             if (!cur) return;
-
             const { offsetX, offsetY } = computeRelativeOffset(targetRect, clickedId, shellRef.current);
-            const updated = { ...cur, anchorBlockId: clickedId, offsetX, offsetY };
-            await onSaveAll(elements.map(e => e.id === targetId ? updated : e));
+            await onSaveAll(elements.map(e => e.id === targetId ? { ...cur, anchorBlockId: clickedId, offsetX, offsetY } : e));
             rebindTarget.current = null;
             onBindingComplete?.();
             return;
         }
 
-        // Normal binding to a text block (handled via window events mostly)
         if (!pendingBindBlockId || pendingBindBlockId === '__pending_rebind__') {
-            // CASE C: Linking Mode (Pin click -> Image click)
             if (isLinkingMode && activeLinkBlockId) {
                 const { offsetX, offsetY } = computeRelativeOffset(clickedRect, activeLinkBlockId, shellRef.current);
                 const cur = elements.find(e => e.id === clickedId);
                 if (!cur) return;
-                const updated = { ...cur, anchorBlockId: activeLinkBlockId, offsetX, offsetY };
-                await onSaveAll(elements.map(e => e.id === clickedId ? updated : e));
+                await onSaveAll(elements.map(e => e.id === clickedId ? { ...cur, anchorBlockId: activeLinkBlockId, offsetX, offsetY } : e));
                 onLinkingComplete();
-                return;
             }
             return;
         }
         const cur = elements.find(e => e.id === clickedId);
         if (!cur) return;
         const { offsetX, offsetY } = computeRelativeOffset(clickedRect, pendingBindBlockId, shellRef.current);
-        const updated = { ...cur, anchorBlockId: pendingBindBlockId, offsetX, offsetY };
-        await onSaveAll(elements.map(e => e.id === clickedId ? updated : e));
+        await onSaveAll(elements.map(e => e.id === clickedId ? { ...cur, anchorBlockId: pendingBindBlockId, offsetX, offsetY } : e));
         rebindTarget.current = null;
         onBindingComplete?.();
     }, [pendingBindBlockId, elements, onSaveAll, onBindingComplete, isLinkingMode, activeLinkBlockId, onLinkingComplete]);
 
-    // Auto-bind via right-click flow:
-    // When pendingBindBlockId changes to a real block ID while rebindTarget is set, bind immediately.
     useEffect(() => {
-        if (!pendingBindBlockId || pendingBindBlockId === '__pending_rebind__') return;
-        if (!rebindTarget.current) return;
+        if (!pendingBindBlockId || pendingBindBlockId === '__pending_rebind__' || !rebindTarget.current) return;
         const { id, rect } = rebindTarget.current;
         handleBind(id, rect);
     }, [pendingBindBlockId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Right-click "Change anchor": store this element as the target and activate binding toast
     const handleRequestRebind = useCallback((elementId: string, elementRect: DOMRect | null) => {
         rebindTarget.current = { id: elementId, rect: elementRect };
-        // Tell page.tsx to enter binding mode (sets pendingBindBlockId = '__pending_rebind__')
         window.dispatchEvent(new CustomEvent('canvas:requestRebind', { detail: { elementId } }));
     }, []);
 
@@ -213,57 +323,41 @@ export default function CanvasLayer({
     useEffect(() => {
         if (!deletedBlockIds?.length) return;
         const removedSet = new Set(deletedBlockIds);
-        const hasOrphans = elements.some(el => el.anchorBlockId && removedSet.has(el.anchorBlockId));
-        if (!hasOrphans) return;
+        if (!elements.some(el => el.anchorBlockId && removedSet.has(el.anchorBlockId))) return;
 
         const survivingNodes = Array.from(document.querySelectorAll<HTMLElement>('[data-block-id]'));
         const shell = shellRef.current;
         const sr = shell?.getBoundingClientRect();
 
         const repaired = elements.map(el => {
-            if (!el.anchorBlockId || !removedSet.has(el.anchorBlockId)) {
-                return el;
-            }
-
+            if (!el.anchorBlockId || !removedSet.has(el.anchorBlockId)) return el;
             const elNode = document.querySelector<HTMLElement>(`[data-element-id="${el.id}"]`);
             const elRect = elNode?.getBoundingClientRect();
 
             if (survivingNodes.length > 0) {
                 let closestBlock = survivingNodes[0];
                 let minDistance = Infinity;
-
                 if (elRect) {
                     for (const node of survivingNodes) {
                         const nr = node.getBoundingClientRect();
                         const dist = Math.abs(nr.top - elRect.top);
-                        if (dist < minDistance) {
-                            minDistance = dist;
-                            closestBlock = node;
-                        }
+                        if (dist < minDistance) { minDistance = dist; closestBlock = node; }
                     }
                 }
-
                 const newAnchorId = closestBlock.getAttribute('data-block-id') || survivingNodes[0].getAttribute('data-block-id')!;
                 const br = closestBlock.getBoundingClientRect();
-                const newOffsetY = elRect ? Math.round(elRect.top - br.top) : el.offsetY;
-                const newOffsetX = elRect && sr ? Math.round(elRect.left - sr.left) : el.offsetX;
-
                 return {
                     ...el,
                     anchorBlockId: newAnchorId,
-                    offsetX: newOffsetX,
-                    offsetY: newOffsetY,
+                    offsetX: elRect && sr ? Math.round(elRect.left - sr.left) : el.offsetX,
+                    offsetY: elRect ? Math.round(elRect.top - br.top) : el.offsetY,
                 };
             }
-
-            // Fallback if no blocks survive: preserve visual position relative to shell
-            const fallbackOffsetY = elRect && sr ? Math.round(elRect.top - sr.top) : el.offsetY;
-            const fallbackOffsetX = elRect && sr ? Math.round(elRect.left - sr.left) : el.offsetX;
             return {
                 ...el,
                 anchorBlockId: '',
-                offsetX: fallbackOffsetX,
-                offsetY: fallbackOffsetY,
+                offsetX: elRect && sr ? Math.round(elRect.left - sr.left) : el.offsetX,
+                offsetY: elRect && sr ? Math.round(elRect.top - sr.top) : el.offsetY,
             };
         });
 
@@ -273,21 +367,15 @@ export default function CanvasLayer({
     // ── Image upload ──────────────────────────────────────────────────────────
     const uploadImage = useCallback(async (file: File, mouseX?: number, mouseY?: number) => {
         if (!publicKey || !userId) return;
-
         let initialAnchorId: string | null = null;
-        let initialOffsetX = 24;
-        let initialOffsetY = 0;
+        let initialOffsetX = 24, initialOffsetY = 0;
 
-        // Try to find the nearest block or insert a precise anchor
         if (mouseX !== undefined && mouseY !== undefined) {
-            // Priority: Precise Anchor
             const anchorId = onInsertAnchor?.(mouseX, mouseY);
             if (anchorId) {
                 initialAnchorId = anchorId;
-                initialOffsetX = 0; // Relative to anchor (centered/sticky)
-                initialOffsetY = 0;
+                initialOffsetX = 0;
             } else {
-                // Fallback: Block anchoring
                 const hit = document.elementFromPoint(mouseX, mouseY);
                 const block = hit?.closest('[data-block-id]');
                 if (block) {
@@ -316,9 +404,9 @@ export default function CanvasLayer({
         await onElementAdd(placeholder);
         try {
             const fileKey = await cryptoLib.generateFileKey();
-            const fileKeyJwk = await window.crypto.subtle.exportKey('jwk', fileKey);
+            const exportedKey = await window.crypto.subtle.exportKey('jwk', fileKey);
             const { iv, ciphertext } = await cryptoLib.encryptFile(file, fileKey);
-            const encryptedMeta = publicKey ? await cryptoLib.encryptMetadata({ title: `.canvas-img-${elementId}`, fileKey: fileKeyJwk, iv }, publicKey) : '';
+            const encryptedMeta = publicKey ? await cryptoLib.encryptMetadata({ title: `.canvas-img-${elementId}`, fileKey: exportedKey, iv }, publicKey) : '';
             const createRes = await apiFetch('/api/v1/files', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -339,15 +427,14 @@ export default function CanvasLayer({
                 id: crypto.randomUUID(), type: 'image',
                 anchorBlockId: initialAnchorId as string,
                 offsetX: initialOffsetX, offsetY: initialOffsetY,
-                blobId: newFile.id, encryptedKey: encryptedMeta, fileKeyJwk, iv, mimeType: file.type, width: 300,
+                blobId: newFile.id, encryptedKey: encryptedMeta, iv, mimeType: file.type, width: 300,
             } as ImageElement);
         } catch (err) {
             console.error('[Canvas] Image upload failed:', err);
             await onElementRemove(elementId);
         }
-    }, [publicKey, userId, noteId, onElementAdd, onElementRemove]);
+    }, [publicKey, userId, noteId, onElementAdd, onElementRemove, onInsertAnchor]);
 
-    // ── Drop & Paste ──────────────────────────────────────────────────────────
     const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         const images = extractImageFiles(e.dataTransfer);
@@ -370,7 +457,6 @@ export default function CanvasLayer({
         return () => window.removeEventListener('paste', handlePaste);
     }, [uploadImage]);
 
-    // ── Esc to cancel binding ─────────────────────────────────────────────────
     useEffect(() => {
         if (!isBindingMode) return;
         const onKey = (e: KeyboardEvent) => {
@@ -380,7 +466,6 @@ export default function CanvasLayer({
         return () => window.removeEventListener('keydown', onKey);
     }, [isBindingMode, onBindingComplete]);
 
-    // ── Mobile sort ───────────────────────────────────────────────────────────
     const mobileElements = useMemo(() => {
         if (!isMobile) return elements;
         const blockIds = getAllDomBlockIds();
@@ -390,7 +475,6 @@ export default function CanvasLayer({
         });
     }, [elements, isMobile]);
 
-    // ─── Render ───────────────────────────────────────────────────────────────
     const renderElements = isMobile ? mobileElements : elements;
     const bgElements = renderElements.filter(el => (el.zIndex ?? 0) < 0);
     const fgElements = renderElements.filter(el => (el.zIndex ?? 0) >= 0);
@@ -428,9 +512,48 @@ export default function CanvasLayer({
                 {children}
             </div>
 
-
             {/* Drawing Layer (Above Editor) */}
-            <div className="canvas-draw absolute inset-0 pointer-events-none z-20">
+            <div
+                className={`canvas-draw absolute inset-0 z-20 ${
+                    isDrawingMode ? 'pointer-events-auto' : 'pointer-events-none'
+                }`}
+                onPointerDown={isDrawingMode ? handlePointerDown : undefined}
+                onPointerMove={isDrawingMode ? handlePointerMove : undefined}
+                onPointerUp={isDrawingMode ? handlePointerUp : undefined}
+                onPointerCancel={isDrawingMode ? handlePointerUp : undefined}
+            >
+                <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none">
+                    {overlayStrokes.map(stroke => {
+                        const pathData = pointsToSvgPath(stroke.points);
+                        if (!pathData) return null;
+                        return (
+                            <path
+                                key={stroke.id}
+                                d={pathData}
+                                fill="none"
+                                stroke={stroke.color || '#111827'}
+                                strokeWidth={stroke.size || 3}
+                                strokeOpacity={stroke.opacity ?? 1}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                style={stroke.tool === 'marker' ? { mixBlendMode: 'multiply' } : undefined}
+                            />
+                        );
+                    })}
+                    {currentDrawingStroke && (
+                        <path
+                            d={pointsToSvgPath(currentDrawingStroke.points)}
+                            fill="none"
+                            stroke={currentDrawingStroke.color || '#111827'}
+                            strokeWidth={currentDrawingStroke.size || 3}
+                            strokeOpacity={currentDrawingStroke.opacity ?? 1}
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={currentDrawingStroke.tool === 'marker' ? { mixBlendMode: 'multiply' } : undefined}
+                        />
+                    )}
+                </svg>
+
                 {fgElements.map(el => (
                     <CanvasElementComponent
                         key={el.id}

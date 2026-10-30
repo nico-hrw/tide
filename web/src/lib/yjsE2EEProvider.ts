@@ -1,0 +1,513 @@
+// Yjs E2EE WebSocket Provider for Tide
+// Connects to /api/ws/notes/${noteId}?yClientId=${ydoc.clientID} with AES-GCM encrypted framing.
+
+import * as Y from 'yjs';
+import {
+    Awareness,
+    applyAwarenessUpdate,
+    encodeAwarenessUpdate,
+    removeAwarenessStates,
+} from 'y-protocols/awareness';
+import {
+    FRAME_TYPE_CRDT,
+    FRAME_TYPE_AWARENESS,
+    FRAME_TYPE_CONTROL,
+    encryptWSFrame,
+    decryptWSFrame,
+    encryptSnapshot,
+    decryptSnapshot,
+} from './e2eeFraming';
+import { base64ToArrayBuffer } from './crypto';
+import { apiFetch, getApiBase } from './api';
+import { activeNoteStore, NotePermission } from '@/store/activeNoteStore';
+
+export interface YjsE2EEProviderOptions {
+    keyEpoch?: number;
+    token?: string;
+    url?: string;
+    awareness?: Awareness;
+    onRoleChanged?: (permission: NotePermission) => void;
+    onRevoked?: () => void;
+    onKeyRotated?: (newKeyEpoch: number) => Promise<void> | void;
+    onCompactRequest?: () => Promise<void> | void;
+    onSynced?: (synced: boolean) => void;
+    onStatus?: (status: { status: 'connecting' | 'connected' | 'disconnected' }) => void;
+}
+
+export class YjsE2EEProvider {
+    public readonly noteId: string;
+    public readonly ydoc: Y.Doc;
+    public dek: CryptoKey;
+    public keyEpoch: number;
+    public readonly awareness: Awareness;
+    public ws: WebSocket | null = null;
+    public synced: boolean = false;
+    public wsconnected: boolean = false;
+    public connected: boolean = false;
+
+    private destroyed: boolean = false;
+    private options: YjsE2EEProviderOptions;
+    private listeners: Map<string, Set<(...args: any[]) => void>> = new Map();
+    private pendingUpdates: Uint8Array[] = [];
+    private reconnectTimer: any = null;
+    private reconnectAttempts: number = 0;
+    private bootstrapPromise: Promise<void> | null = null;
+
+    private boundYdocUpdate: (update: Uint8Array, origin: any) => void;
+    private boundAwarenessUpdate: (changed: { added: number[]; updated: number[]; removed: number[] }, origin: any) => void;
+
+    constructor(
+        noteId: string,
+        ydoc: Y.Doc,
+        dek: CryptoKey,
+        options: YjsE2EEProviderOptions = {}
+    ) {
+        this.noteId = noteId;
+        this.ydoc = ydoc;
+        this.dek = dek;
+        this.keyEpoch = options.keyEpoch || activeNoteStore.getState().keyEpoch || 1;
+        this.options = options;
+        this.awareness = options.awareness || new Awareness(ydoc);
+
+        // Store active YDoc & DEK in activeNoteStore
+        activeNoteStore.getState().setActiveYDoc(ydoc);
+        activeNoteStore.getState().setActiveDEK(dek);
+        activeNoteStore.getState().setKeyEpoch(this.keyEpoch);
+
+        // Listen for local ydoc updates and encrypt
+        this.boundYdocUpdate = (update: Uint8Array, origin: any) => {
+            if (origin === 'remote' || origin === 'server') return;
+            void this.handleLocalDocUpdate(update);
+        };
+        this.ydoc.on('update', this.boundYdocUpdate);
+
+        // Listen for local awareness updates and encrypt
+        this.boundAwarenessUpdate = ({ added, updated, removed }, origin: any) => {
+            if (origin === 'remote' || origin === 'server') return;
+            const changed = added.concat(updated, removed);
+            if (changed.length > 0) {
+                void this.handleLocalAwarenessUpdate(changed);
+            }
+        };
+        this.awareness.on('update', this.boundAwarenessUpdate);
+
+        // Start bootstrap & websocket connection
+        this.bootstrapPromise = this.bootstrap();
+        this.connect();
+    }
+
+    public on(event: string, fn: (...args: any[]) => void): void {
+        if (!this.listeners.has(event)) {
+            this.listeners.set(event, new Set());
+        }
+        this.listeners.get(event)!.add(fn);
+    }
+
+    public off(event: string, fn: (...args: any[]) => void): void {
+        this.listeners.get(event)?.delete(fn);
+    }
+
+    public emit(event: string, ...args: any[]): void {
+        const fns = this.listeners.get(event);
+        if (fns) {
+            for (const fn of fns) {
+                try {
+                    fn(...args);
+                } catch (e) {
+                    console.error(`[YjsE2EEProvider] Error in event listener '${event}':`, e);
+                }
+            }
+        }
+    }
+
+    /**
+     * Bootstrap CRDT state from server REST snapshot + WAL
+     */
+    public async bootstrap(): Promise<void> {
+        try {
+            let res = await apiFetch(`/api/files/${encodeURIComponent(this.noteId)}/crdt-state`);
+            if (!res.ok) {
+                res = await apiFetch(`/api/v1/files/${encodeURIComponent(this.noteId)}/crdt-state`);
+            }
+
+            if (!res.ok) {
+                console.warn(`[YjsE2EEProvider] CRDT bootstrap fetch returned HTTP ${res.status}`);
+                this.markSynced(true);
+                return;
+            }
+
+            const data = await res.json();
+            const snapIv = data.snapshot_iv || data.snapshotIv || data.snapshotIV;
+            const snapCiphertext = data.snapshot_ciphertext || data.snapshotCiphertext;
+            const keyEpoch = data.key_epoch || data.keyEpoch || this.keyEpoch || 1;
+            const snapshotSeqId = data.snapshot_seq_id || data.snapshotSeqId || 0;
+            const wal = Array.isArray(data.wal) ? data.wal : [];
+
+            this.keyEpoch = keyEpoch;
+            activeNoteStore.getState().setKeyEpoch(keyEpoch);
+
+            // 1. Decrypt snapshot if present
+            if (snapIv && snapCiphertext) {
+                try {
+                    const plaintextSnapshot = await decryptSnapshot(
+                        this.noteId,
+                        keyEpoch,
+                        snapIv,
+                        snapCiphertext,
+                        this.dek
+                    );
+                    Y.applyUpdate(this.ydoc, plaintextSnapshot, 'remote');
+                } catch (snapErr) {
+                    console.error('[YjsE2EEProvider] Failed to decrypt snapshot:', snapErr);
+                }
+            }
+
+            // 2. Decrypt WAL entries using decryptWSFrame
+            let maxSeqId = snapshotSeqId;
+            for (const entry of wal) {
+                try {
+                    const entryEpoch = entry.key_epoch || entry.keyEpoch || keyEpoch;
+                    const ivStr = entry.iv || entry.IV;
+                    const cipherStr = entry.ciphertext || entry.Ciphertext;
+                    const seqId = entry.seq_id || entry.seqId || 0;
+                    if (seqId > maxSeqId) maxSeqId = seqId;
+
+                    if (ivStr && cipherStr) {
+                        const ivBytes = base64ToArrayBuffer(ivStr);
+                        const cipherBytes = base64ToArrayBuffer(cipherStr);
+
+                        // Reconstruct binary WS frame: msgType(1B) || keyEpoch(4B) || IV(12B) || ciphertext
+                        const frame = new Uint8Array(1 + 4 + ivBytes.byteLength + cipherBytes.byteLength);
+                        const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
+                        view.setUint8(0, FRAME_TYPE_CRDT);
+                        view.setUint32(1, entryEpoch, false);
+                        frame.set(new Uint8Array(ivBytes), 5);
+                        frame.set(new Uint8Array(cipherBytes), 17);
+
+                        const { plaintext } = await decryptWSFrame(this.noteId, frame, this.dek);
+                        Y.applyUpdate(this.ydoc, plaintext, 'remote');
+                    }
+                } catch (walErr) {
+                    console.error('[YjsE2EEProvider] Failed to decrypt WAL entry:', walErr);
+                }
+            }
+
+            activeNoteStore.getState().setLastCompactedSeqId(maxSeqId);
+            this.markSynced(true);
+        } catch (err) {
+            console.error('[YjsE2EEProvider] Bootstrap failed:', err);
+            this.markSynced(true);
+        }
+    }
+
+    private markSynced(synced: boolean): void {
+        this.synced = synced;
+        this.emit('sync', synced);
+        this.options.onSynced?.(synced);
+    }
+
+    private connect(): void {
+        if (this.destroyed) return;
+
+        const token = this.options.token ||
+            (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('tide_session_token') : null) ||
+            (typeof localStorage !== 'undefined' ? localStorage.getItem('tide_session_token') : null) ||
+            '';
+
+        const protocol = typeof window !== 'undefined' && window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        let wsHost = typeof window !== 'undefined' ? window.location.host : 'localhost:8080';
+        const apiBase = getApiBase();
+        if (apiBase) {
+            try {
+                wsHost = new URL(apiBase).host;
+            } catch (_) {}
+        }
+
+        const wsEndpoint = this.options.url ||
+            `${protocol}//${wsHost}/api/ws/notes/${encodeURIComponent(this.noteId)}?yClientId=${this.ydoc.clientID}${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+
+        try {
+            this.ws = new WebSocket(wsEndpoint);
+            this.ws.binaryType = 'arraybuffer';
+
+            this.ws.onopen = async () => {
+                if (this.destroyed) return;
+                this.connected = true;
+                this.wsconnected = true;
+                this.reconnectAttempts = 0;
+                (window as any).__tideWsConnected = true;
+                this.emit('status', { status: 'connected' });
+                this.options.onStatus?.({ status: 'connected' });
+
+                // Flush pending local updates
+                while (this.pendingUpdates.length > 0) {
+                    const update = this.pendingUpdates.shift();
+                    if (update && this.ws?.readyState === WebSocket.OPEN) {
+                        this.ws.send(update);
+                    }
+                }
+
+                // Send initial awareness state
+                try {
+                    const awarenessUpdate = encodeAwarenessUpdate(this.awareness, [this.ydoc.clientID]);
+                    const frame = await encryptWSFrame(
+                        this.noteId,
+                        FRAME_TYPE_AWARENESS,
+                        this.keyEpoch,
+                        this.dek,
+                        awarenessUpdate
+                    );
+                    if (this.ws?.readyState === WebSocket.OPEN) {
+                        this.ws.send(frame);
+                    }
+                } catch (awErr) {
+                    console.error('[YjsE2EEProvider] Failed to send initial awareness:', awErr);
+                }
+            };
+
+            this.ws.onmessage = async (event: MessageEvent) => {
+                if (this.destroyed) return;
+                await this.handleInboundMessage(event.data);
+            };
+
+            this.ws.onerror = (err) => {
+                console.warn('[YjsE2EEProvider] WebSocket error:', err);
+            };
+
+            this.ws.onclose = () => {
+                if (this.destroyed) return;
+                this.connected = false;
+                this.wsconnected = false;
+                (window as any).__tideWsConnected = false;
+                this.emit('status', { status: 'disconnected' });
+                this.options.onStatus?.({ status: 'disconnected' });
+
+                // Exponential backoff reconnect
+                const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 10000);
+                this.reconnectAttempts++;
+                this.reconnectTimer = setTimeout(() => {
+                    if (!this.destroyed) this.connect();
+                }, delay);
+            };
+        } catch (err) {
+            console.error('[YjsE2EEProvider] Failed to instantiate WebSocket:', err);
+        }
+    }
+
+    private async handleInboundMessage(data: any): Promise<void> {
+        let rawBuffer: ArrayBuffer;
+        if (data instanceof ArrayBuffer) {
+            rawBuffer = data;
+        } else if (data instanceof Blob) {
+            rawBuffer = await data.arrayBuffer();
+        } else {
+            return;
+        }
+
+        const frame = new Uint8Array(rawBuffer);
+        if (frame.length === 0) return;
+        const msgType = frame[0];
+
+        try {
+            switch (msgType) {
+                case FRAME_TYPE_CRDT: { // 0x01
+                    const { plaintext } = await decryptWSFrame(this.noteId, frame, this.dek);
+                    Y.applyUpdate(this.ydoc, plaintext, 'remote');
+                    break;
+                }
+                case FRAME_TYPE_AWARENESS: { // 0x02
+                    const { plaintext } = await decryptWSFrame(this.noteId, frame, this.dek);
+                    applyAwarenessUpdate(this.awareness, plaintext, 'remote');
+                    break;
+                }
+                case FRAME_TYPE_CONTROL: { // 0x03
+                    const jsonStr = new TextDecoder().decode(frame.slice(1));
+                    const msg = JSON.parse(jsonStr);
+                    await this.handleControlMessage(msg);
+                    break;
+                }
+                default:
+                    console.warn(`[YjsE2EEProvider] Unknown frame type: 0x${msgType.toString(16)}`);
+            }
+        } catch (err) {
+            console.error('[YjsE2EEProvider] Inbound frame decryption/handling failed:', err);
+        }
+    }
+
+    private async handleControlMessage(msg: any): Promise<void> {
+        const action = msg?.action;
+        switch (action) {
+            case 'PEER_LEFT': {
+                if (typeof msg.yClientId === 'number') {
+                    // 0ms instant ghost cursor removal
+                    removeAwarenessStates(this.awareness, [msg.yClientId], 'server');
+                }
+                break;
+            }
+            case 'ROLE_CHANGED': {
+                const newPerm = msg.permission as NotePermission;
+                if (newPerm) {
+                    activeNoteStore.getState().setLivePermission(newPerm);
+                    this.emit('role_changed', newPerm);
+                    this.options.onRoleChanged?.(newPerm);
+                }
+                break;
+            }
+            case 'REVOKED': {
+                activeNoteStore.getState().setLivePermission('view');
+                this.emit('revoked');
+                this.options.onRevoked?.();
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('tide:access-revoked', { detail: { noteId: this.noteId } }));
+                }
+                break;
+            }
+            case 'KEY_ROTATED': {
+                const newEpoch = typeof msg.keyEpoch === 'number' ? msg.keyEpoch : this.keyEpoch + 1;
+                this.keyEpoch = newEpoch;
+                activeNoteStore.getState().setKeyEpoch(newEpoch);
+                this.emit('key_rotated', newEpoch);
+                if (this.options.onKeyRotated) {
+                    await this.options.onKeyRotated(newEpoch);
+                }
+                break;
+            }
+            case 'COMPACT_REQUEST': {
+                this.emit('compact_request');
+                if (this.options.onCompactRequest) {
+                    await this.options.onCompactRequest();
+                } else {
+                    await this.compact();
+                }
+                break;
+            }
+            default:
+                console.log('[YjsE2EEProvider] Received control message:', msg);
+        }
+    }
+
+    private async handleLocalDocUpdate(update: Uint8Array): Promise<void> {
+        // Enforce view role: non-view clients only
+        const perm = activeNoteStore.getState().permission;
+        if (perm === 'view') {
+            return;
+        }
+
+        try {
+            const frame = await encryptWSFrame(
+                this.noteId,
+                FRAME_TYPE_CRDT,
+                this.keyEpoch,
+                this.dek,
+                update
+            );
+
+            if (this.ws?.readyState === WebSocket.OPEN) {
+                this.ws.send(frame);
+            } else {
+                this.pendingUpdates.push(frame);
+            }
+        } catch (err) {
+            console.error('[YjsE2EEProvider] Failed to encrypt/send local doc update:', err);
+        }
+    }
+
+    private async handleLocalAwarenessUpdate(changedClients: number[]): Promise<void> {
+        try {
+            const update = encodeAwarenessUpdate(this.awareness, changedClients);
+            const frame = await encryptWSFrame(
+                this.noteId,
+                FRAME_TYPE_AWARENESS,
+                this.keyEpoch,
+                this.dek,
+                update
+            );
+
+            if (this.ws?.readyState === WebSocket.OPEN) {
+                this.ws.send(frame);
+            }
+        } catch (err) {
+            console.error('[YjsE2EEProvider] Failed to encrypt/send awareness update:', err);
+        }
+    }
+
+    /**
+     * Performs WAL compaction by snapshotting current ydoc state and sending to /api/files/${noteId}/compact
+     */
+    public async compact(): Promise<void> {
+        const perm = activeNoteStore.getState().permission;
+        if (perm === 'view') return;
+
+        try {
+            const yjsState = Y.encodeStateAsUpdate(this.ydoc);
+            const { ivBase64, ciphertextBase64 } = await encryptSnapshot(
+                this.noteId,
+                this.keyEpoch,
+                this.dek,
+                yjsState
+            );
+            const upToSeqId = activeNoteStore.getState().lastCompactedSeqId;
+
+            let res = await apiFetch(`/api/files/${encodeURIComponent(this.noteId)}/compact`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    upToSeqId,
+                    keyEpoch: this.keyEpoch,
+                    ivBase64,
+                    ciphertextBase64,
+                }),
+            });
+            if (!res.ok) {
+                await apiFetch(`/api/v1/files/${encodeURIComponent(this.noteId)}/compact`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        upToSeqId,
+                        keyEpoch: this.keyEpoch,
+                        ivBase64,
+                        ciphertextBase64,
+                    }),
+                });
+            }
+        } catch (err) {
+            console.error('[YjsE2EEProvider] Compaction failed:', err);
+        }
+    }
+
+    public updateDEK(newDek: CryptoKey, newKeyEpoch?: number): void {
+        this.dek = newDek;
+        if (newKeyEpoch !== undefined) {
+            this.keyEpoch = newKeyEpoch;
+            activeNoteStore.getState().setKeyEpoch(newKeyEpoch);
+        }
+        activeNoteStore.getState().setActiveDEK(newDek);
+    }
+
+    public destroy(): void {
+        this.destroyed = true;
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+        this.ydoc.off('update', this.boundYdocUpdate);
+        this.awareness.off('update', this.boundAwarenessUpdate);
+
+        if (this.ws) {
+            this.ws.onopen = null;
+            this.ws.onmessage = null;
+            this.ws.onerror = null;
+            this.ws.onclose = null;
+            try {
+                this.ws.close();
+            } catch (_) {}
+            this.ws = null;
+        }
+
+        this.awareness.destroy();
+        this.listeners.clear();
+        this.pendingUpdates = [];
+        this.connected = false;
+        this.wsconnected = false;
+    }
+}

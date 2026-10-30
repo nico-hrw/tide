@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from 'react';
 import { useDataStore } from '@/store/useDataStore';
+import { useActiveNoteStore } from '@/store/activeNoteStore';
+import { useCollaboratorsStore } from '@/store/collaboratorsStore';
 import { getApiBase, apiFetch } from '@/lib/api';
 import { useIslandStore } from '@/store/useIslandStore';
 import { useIslandSettingsStore } from '@/store/useIslandSettingsStore';
@@ -66,6 +68,16 @@ export function useRealtimeSync({
             eventSource.onmessage = async (event) => {
                 try {
                     const data = JSON.parse(event.data);
+
+                    // Active collaborators pulse
+                    if (data.type === 'NOTE_ACTIVITY_PULSE') {
+                        const pulseFileId = data.file_id || data.fileId;
+                        const activeUsers = data.active_users || data.activeUsers || [];
+                        if (pulseFileId && Array.isArray(activeUsers)) {
+                            useCollaboratorsStore.getState().setActiveUsersForNote(pulseFileId, activeUsers);
+                        }
+                        return;
+                    }
 
                     // Global notification dispatch and decryption for incoming chat messages & shares
                     if (data.type === 'new_message' && data.message) {
@@ -183,7 +195,20 @@ export function useRealtimeSync({
                         }
                     }
 
-                    if (['file_created', 'file_updated', 'file_deleted', 'file_shared'].includes(data.type)) {
+                    if (['file_created', 'file_updated', 'file_deleted', 'file_shared', 'NOTE_WAL_APPENDED', 'NOTE_META_UPDATED'].includes(data.type)) {
+                        const targetFileId = data.file_id || data.fileId || data.id;
+                        const currentActiveId = useActiveNoteStore.getState().activeNoteId || useDataStore.getState().activeNoteId || activeNoteId || null;
+
+                        // BUG-12: When receiving SSE events for the currently active note:
+                        // NEVER trigger reload_note, reloadFromRemote, or window reload!
+                        // Drop or ignore reload because CRDT Y.Doc over WebSocket handles live sync.
+                        if (targetFileId && currentActiveId && targetFileId === currentActiveId) {
+                            if (data.type === 'file_updated' || data.type === 'NOTE_WAL_APPENDED') {
+                                console.log(`[SSE] Ignored ${data.type} reload for active note ${targetFileId} (handled by CRDT Y.Doc)`);
+                                return;
+                            }
+                        }
+
                         const msSinceOwnSave = Date.now() - lastOwnSaveTime;
                         if (data.type === 'file_updated' && msSinceOwnSave < OWN_SAVE_COOLDOWN_MS) {
                             console.log(`[SSE] Suppressing own file_updated refetch (${msSinceOwnSave}ms since last save)`);
@@ -195,14 +220,48 @@ export function useRealtimeSync({
                             }, OWN_SAVE_COOLDOWN_MS - msSinceOwnSave);
                             return;
                         }
+
+                        // Optimistic metadata update for inactive notes without full reload
+                        if ((data.type === 'NOTE_META_UPDATED' || data.type === 'file_updated') && targetFileId && targetFileId !== currentActiveId) {
+                            const rawMeta: Record<string, unknown> = {
+                                ...((data.metadata as Record<string, unknown>) || (data.meta as Record<string, unknown>) || {})
+                            };
+                            if (data.title) rawMeta.title = data.title;
+                            if (Object.keys(rawMeta).length > 0) {
+                                useDataStore.getState().updateFile(targetFileId, rawMeta);
+                                useDataStore.getState().updateSpecificMetadataCache(targetFileId, rawMeta);
+                            }
+
+                            if (data.secured_meta) {
+                                const effectiveKey = privateKeyRef.current || useDataStore.getState().privateKey || null;
+                                if (effectiveKey) {
+                                    import('@/lib/crypto').then(async ({ decryptMetadata }) => {
+                                        try {
+                                            const meta = await decryptMetadata(data.secured_meta, effectiveKey, `sse-${targetFileId}`);
+                                            if (meta && !meta.isLocked) {
+                                                useDataStore.getState().updateFile(targetFileId, {
+                                                    ...meta,
+                                                    secured_meta: data.secured_meta,
+                                                });
+                                                useDataStore.getState().updateSpecificMetadataCache(targetFileId, meta);
+                                            }
+                                        } catch (err) {
+                                            console.warn('[SSE] Failed to decrypt secured_meta in background', err);
+                                        }
+                                    }).catch(() => {});
+                                }
+                            }
+                        }
+
                         // No forceRefresh: the metadataCache protects in-flight optimistic updates
                         // from being overwritten by server data that hasn't caught up yet.
                         useDataStore.setState({ loadedDirectories: new Set() });
                         import('@/lib/searchIndex').then(({ clearSearchIndexCache }) => clearSearchIndexCache());
 
-                        if (data.type === 'file_deleted' && data.file_id) {
+                        if (data.type === 'file_deleted' && (data.file_id || data.fileId)) {
+                            const delId = data.file_id || data.fileId;
                             useDataStore.setState(s => {
-                                const toRemove = new Set<string>([data.file_id]);
+                                const toRemove = new Set<string>([delId]);
                                 let sizeBefore = 0;
                                 do {
                                     sizeBefore = toRemove.size;
@@ -225,29 +284,7 @@ export function useRealtimeSync({
                             });
                         }
 
-                        const fetchPromise = useDataStore.getState().fetchDirectory(null) as Promise<void> | undefined;
-
-                        // If a file update arrives and we have a note open, reload its content
-                        // AFTER fetchDirectory finishes (so access_keys in store are fresh).
-                        if (data.type === 'file_updated') {
-                            const currentActiveId = useDataStore.getState().activeNoteId;
-                            const fileIdMatch = data.file_id ? data.file_id === currentActiveId : !!currentActiveId;
-                            if (fileIdMatch && currentActiveId) {
-                                const dispatch = () => {
-                                    const activeFile = [...useDataStore.getState().notes, ...useDataStore.getState().events].find((f: any) => f.id === currentActiveId) as any;
-                                    if (!activeFile) return;
-                                    // Never reload public files (unencrypted content, no DEK path)
-                                    if (activeFile.visibility === 'public') return;
-                                    // Never reload own non-shared notes — any file_updated is from our own save
-                                    const ak = activeFile.access_keys;
-                                    const akObj = ak ? (typeof ak === 'string' ? (() => { try { return JSON.parse(ak); } catch { return {}; } })() : ak) : {};
-                                    const isSharedWithOthers = Object.keys(akObj).length > 1 || activeFile.share_status === 'shared';
-                                    if (!isSharedWithOthers) return;
-                                    window.dispatchEvent(new CustomEvent('tide:sse_reload', { detail: { fileId: currentActiveId } }));
-                                };
-                                if (fetchPromise?.then) { fetchPromise.then(dispatch); } else { dispatch(); }
-                            }
-                        }
+                        void useDataStore.getState().fetchDirectory(null);
                     }
                 } catch (e) { console.error("SSE Parse Error", e); }
             };
@@ -296,24 +333,16 @@ export function useRealtimeSync({
         };
     }, [myId]);
 
-    // SSE content-reload: when another client updates a file we have open, silently update content
+    // SSE content-reload listener: dropped fallback reload to prevent BUG-12 state annihilation
     useEffect(() => {
         const handler = async (e: Event) => {
-            const fileId = (e as CustomEvent).detail.fileId;
-            if (fileId !== activeNoteId) return;
-
-            const wsConnected = typeof window !== 'undefined' && (window as any).__tideWsConnected === true;
-            if (wsConnected) {
-                // Since Collaboration handles syncing natively via Yjs and __yjs binary
-                // applying `setContent` will completely overwrite the editor, causing massive duplication.
-                // We just let the websocket handle it.
-                console.log('[SSE] Ignored tide:sse_reload because Collaboration natively handles it for file:', fileId);
+            const fileId = (e as CustomEvent)?.detail?.fileId;
+            const currentActive = useActiveNoteStore.getState().activeNoteId || useDataStore.getState().activeNoteId || activeNoteId;
+            if (fileId && fileId === currentActive) {
+                // BUG-12: CRDT Y.Doc over WebSocket handles live sync natively. Never trigger reload_note!
+                console.log('[SSE] Suppressing reload_note for active file (handled via CRDT Y.Doc):', fileId);
                 return;
             }
-
-            // Fallback: If Collaboration is not connected via WebSocket, trigger note reload
-            console.log('[SSE] WebSocket not connected or Collaboration inactive; triggering fallback reload for file:', fileId);
-            window.dispatchEvent(new CustomEvent('tide:reload_note', { detail: { fileId } }));
         };
         window.addEventListener('tide:sse_reload', handler as EventListener);
         return () => window.removeEventListener('tide:sse_reload', handler as EventListener);

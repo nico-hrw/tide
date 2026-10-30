@@ -15,6 +15,8 @@ export interface EditorProps {
     initialContent: any; // JSON
     isShared?: boolean;
     editable?: boolean;
+    dek?: CryptoKey | null;
+    keyEpoch?: number;
     onChange?: (content: any, yjsUpdateBase64?: string) => void;
     onLinkClick?: (target: LinkTarget) => void;
     onForceSave?: (content: any) => void;
@@ -43,6 +45,10 @@ export interface UseTipTapConfigOptions {
     activeTabId?: string;
     provider?: any;
     ydoc?: any;
+    dek?: CryptoKey | null;
+    keyEpoch?: number;
+    userProfile?: any;
+    myId?: string;
     onChange?: (content: any, yjsUpdateBase64?: string) => void;
     onForceSave?: (content: any) => void;
     onLinkClick?: (target: LinkTarget) => void;
