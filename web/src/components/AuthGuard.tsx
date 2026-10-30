@@ -33,7 +33,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         const checkAuth = async () => {
-            const isPublic = PUBLIC_PATHS.includes(pathname);
+            const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/notes/") || pathname.startsWith("/files/public/");
             if (isPublic) {
                 setAuthorized(true);
                 return;
@@ -69,7 +69,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     // Prevent flash of content
     if (!authorized) {
-        if (PUBLIC_PATHS.includes(pathname)) {
+        if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/notes/") || pathname.startsWith("/files/public/")) {
             return <>{children}</>;
         }
         return null;
