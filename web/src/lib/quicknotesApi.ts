@@ -234,3 +234,14 @@ export function getQuicknoteFileDownloadUrl(slug: string, fileId: string): strin
     return `/api/v1/quicknotes/${encodeURIComponent(slug)}/files/${encodeURIComponent(fileId)}`;
 }
 
+export async function deleteQuicknoteFile(slug: string, fileId: string): Promise<boolean> {
+    try {
+        const res = await apiFetch(`/api/v1/quicknotes/${encodeURIComponent(slug)}/files/${encodeURIComponent(fileId)}`, {
+            method: 'DELETE',
+        });
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+

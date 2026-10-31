@@ -42,7 +42,7 @@ export const MentionNodeView = ({ node }: any) => {
     };
 
     if (isFile) {
-        colorClass = 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-800/50 dark:hover:bg-emerald-900/40';
+        colorClass = 'bg-blue-50/80 text-blue-700 hover:bg-blue-100/90 border-blue-200/80 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800/40 dark:hover:bg-blue-900/40';
     } else if (isGhost) {
         colorClass = 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600 border-gray-200 dark:border-slate-600';
     } else if (isEvent) {

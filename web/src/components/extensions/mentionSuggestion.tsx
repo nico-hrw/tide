@@ -106,7 +106,7 @@ const MentionList = forwardRef((props: any, ref) => {
                     const newId = await useDataStore.getState().createNote(cleanTitle);
 
                     // Insert as a real (non-ghost) link immediately with correct title.
-                    props.command({ ...item, id: newId, label: cleanTitle, isGhost: false });
+                    props.command({ ...item, id: newId, label: cleanTitle, type: 'note', isGhost: false });
                 }
             } finally {
                 isCreatingRef.current = false;
@@ -655,7 +655,7 @@ export default {
             const label = props.label || props.query || 'Untitled';
             editor.chain().focus().deleteRange(range).insertContent({
                 type: 'mention',
-                attrs: { id: props.id, label: label, isGhost: false }
+                attrs: { id: props.id, label: label, type: 'note', isGhost: false }
             }).run();
         } else if (props.type === 'task' || props.id === 'NEW_TASK') {
             editor.chain().focus().deleteRange(range).insertContent({
@@ -687,7 +687,7 @@ export default {
                     id: props.id, 
                     label: props.label, 
                     isGhost: false,
-                    type: props.type,
+                    type: props.type === 'action' ? 'note' : (props.type || 'note'),
                     start: props.start 
                 }
             }).run();

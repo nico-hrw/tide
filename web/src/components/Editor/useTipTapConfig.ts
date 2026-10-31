@@ -43,6 +43,7 @@ import { useReferenceStore } from '@/store/useReferenceStore';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
 import { encryptAssetWithNewBEK } from '@/lib/assetCrypto';
 import { apiFetch } from '@/lib/api';
+import { uploadQuicknoteFile, getQuicknoteFileDownloadUrl } from '@/lib/quicknotesApi';
 import type { LinkTarget, UseTipTapConfigOptions } from './types';
 import { MentionNodeView } from './MentionNodeView';
 import { PLACELHODER_QUOTES, COLORS } from './editorConstants';
@@ -436,6 +437,42 @@ export function useTipTapConfig({
                         event.preventDefault(); return true;
                     } catch (e) { console.warn('[TextCollectorDrop] Failed to insert text', e); }
                 }
+
+                const isQuicknote = !!activeTabIdRef.current?.startsWith('quicknote:') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/'));
+                if (isQuicknote && event.dataTransfer?.files?.length) {
+                    const files = Array.from(event.dataTransfer.files);
+                    const imageFiles = files.filter(f => f.type.startsWith('image/'));
+                    if (imageFiles.length > 0) {
+                        const slug = (activeTabIdRef.current?.replace(/^quicknote:/, '') || (typeof window !== 'undefined' ? window.location.pathname.replace('/notes/', '').split('/')[0].split('?')[0] : '')).trim();
+                        if (slug) {
+                            event.preventDefault();
+                            const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+                            const dropPos = coords ? coords.pos : view.state.selection.from;
+                            imageFiles.forEach((file) => {
+                                uploadQuicknoteFile(slug, file)
+                                    .then((uploaded) => {
+                                        const downloadUrl = getQuicknoteFileDownloadUrl(slug, uploaded.id);
+                                        const imageType = view.state.schema.nodes.image || view.state.schema.nodes.resizableImage;
+                                        if (imageType) {
+                                            const node = imageType.create({
+                                                src: downloadUrl,
+                                                alt: file.name || 'Image',
+                                                width: 450,
+                                            });
+                                            const targetPos = Math.min(dropPos, view.state.doc.content.size);
+                                            const transaction = view.state.tr.insert(targetPos, node);
+                                            view.dispatch(transaction);
+                                        }
+                                    })
+                                    .catch((err) => {
+                                        console.error('Failed to upload dropped quicknote image:', err);
+                                    });
+                            });
+                            return true;
+                        }
+                    }
+                }
+
                 return (!moved && !!event.dataTransfer?.files?.length);
             },
             handleDOMEvents: {
@@ -456,6 +493,32 @@ export function useTipTapConfig({
                 if (imageFile) {
                     event.preventDefault();
                     userHasTyped.current = true;
+
+                    const isQuicknote = !!activeTabIdRef.current?.startsWith('quicknote:') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/'));
+                    if (isQuicknote) {
+                        const slug = (activeTabIdRef.current?.replace(/^quicknote:/, '') || (typeof window !== 'undefined' ? window.location.pathname.replace('/notes/', '').split('/')[0].split('?')[0] : '')).trim();
+                        if (slug) {
+                            uploadQuicknoteFile(slug, imageFile)
+                                .then((uploaded) => {
+                                    const downloadUrl = getQuicknoteFileDownloadUrl(slug, uploaded.id);
+                                    const imageType = view.state.schema.nodes.image || view.state.schema.nodes.resizableImage;
+                                    if (imageType) {
+                                        const node = imageType.create({
+                                            src: downloadUrl,
+                                            alt: imageFile.name || 'Image',
+                                            width: 450,
+                                        });
+                                        const transaction = view.state.tr.replaceSelectionWith(node);
+                                        view.dispatch(transaction);
+                                    }
+                                })
+                                .catch((err) => {
+                                    console.error('Failed to upload quicknote image:', err);
+                                });
+                            return true;
+                        }
+                    }
+
                     const noteId = activeTabIdRef.current;
                     if (noteId) {
                         void handleEncryptedImagePaste(imageFile, noteId, view, ydoc);

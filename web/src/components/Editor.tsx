@@ -406,7 +406,7 @@ function CollaborativeEditor(props: EditorProps) {
                 return;
             }
 
-            if (onLinkClickRef.current) onLinkClickRef.current({ id, type: 'file', title });
+            if (onLinkClickRef.current) onLinkClickRef.current({ id, type: type || 'note', title });
             useDataStore.getState().setActiveNoteId(id);
         };
         window.addEventListener('editor:mention-click', handleMentionClick as EventListener);

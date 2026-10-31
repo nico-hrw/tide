@@ -3086,6 +3086,23 @@ func (s *SQLiteStore) CreateQuicknoteFile(ctx context.Context, file *QuicknoteFi
 	return err
 }
 
+// DeleteQuicknoteFile deletes a quicknote file record by slug and file ID.
+func (s *SQLiteStore) DeleteQuicknoteFile(ctx context.Context, slug string, fileID string) error {
+	query := `DELETE FROM quicknote_files WHERE slug = ? AND id = ?`
+	res, err := s.DB.ExecContext(ctx, query, slug, fileID)
+	if err != nil {
+		return fmt.Errorf("failed to delete quicknote file: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 // GetQuicknoteTotalStorage returns the total storage in bytes used by all files in a quicknote.
 func (s *SQLiteStore) GetQuicknoteTotalStorage(ctx context.Context, slug string) (int64, error) {
 	query := `SELECT COALESCE(SUM(size), 0) FROM quicknote_files WHERE slug = ?`

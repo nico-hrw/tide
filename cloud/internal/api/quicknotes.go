@@ -58,6 +58,7 @@ func (h *QuicknoteHandler) RegisterRoutes(r chi.Router) {
 	r.Get("/{slug}/files", h.GetQuicknoteFiles)
 	r.Post("/{slug}/files", h.UploadQuicknoteFile)
 	r.Get("/{slug}/files/{fileID}", h.DownloadQuicknoteFile)
+	r.Delete("/{slug}/files/{fileID}", h.DeleteQuicknoteFile)
 	r.Get("/{slug}/ws", h.ServeWs)
 	r.Get("/ws/{slug}", h.ServeWs)
 }
@@ -441,10 +442,38 @@ func (h *QuicknoteHandler) DownloadQuicknoteFile(w http.ResponseWriter, r *http.
 	}
 	defer rc.Close()
 
+	disposition := "attachment"
+	if strings.HasPrefix(strings.ToLower(qf.MIMEType), "image/") || r.URL.Query().Get("inline") == "true" || r.URL.Query().Get("inline") == "1" {
+		disposition = "inline"
+	}
 	w.Header().Set("Content-Type", qf.MIMEType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filepath.Base(qf.Name)))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, filepath.Base(qf.Name)))
 	w.Header().Set("Content-Length", strconv.FormatInt(qf.Size, 10))
 	_, _ = io.Copy(w, rc)
+}
+
+// DeleteQuicknoteFile removes an attachment from database and blob storage.
+func (h *QuicknoteHandler) DeleteQuicknoteFile(w http.ResponseWriter, r *http.Request) {
+	slug := chi.URLParam(r, "slug")
+	fileID := chi.URLParam(r, "fileID")
+
+	qf, err := h.store.GetQuicknoteFile(r.Context(), slug, fileID)
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	if err := h.store.DeleteQuicknoteFile(r.Context(), slug, fileID); err != nil {
+		http.Error(w, "Failed to delete file", http.StatusInternalServerError)
+		return
+	}
+
+	// Delete blob from store
+	if h.blobStore != nil {
+		_ = h.blobStore.Delete(r.Context(), qf.BlobPath)
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ServeWs upgrades HTTP to WebSocket and handles collaborative editing for quicknotes.

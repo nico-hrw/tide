@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
     Share2, FolderInput, Check, Loader2, AlertCircle, X,
-    Paperclip, UploadCloud, Key, Download,
+    Paperclip, UploadCloud, Key, Download, Trash2,
 } from 'lucide-react';
 import Editor from '@/components/Editor';
 import Avatar from '@/components/Profile/Avatar';
 import {
     deriveQuicknoteKey, fetchQuicknote, fetchQuicknoteTree, saveQuicknote,
     fetchQuicknoteFiles, uploadQuicknoteFile, getQuicknoteFileDownloadUrl,
+    deleteQuicknoteFile,
     saveKnownQuicknote, saveKnownQuicknotes, StorageLimitError,
     type QuicknoteData, type QuicknoteTreeNode, type QuicknoteAttachment,
 } from '@/lib/quicknotesApi';
@@ -373,6 +374,25 @@ export default function QuicknotePage() {
         }
     }, [slug, loadAttachments]);
 
+    const handleDeleteAttachment = async (fileId: string) => {
+        try {
+            const ok = await deleteQuicknoteFile(slug, fileId);
+            if (ok) {
+                setAttachments(prev => prev.filter(f => f.id !== fileId));
+                if (typeof window !== 'undefined') {
+                    const win = window as unknown as { __tide_active_attachments?: QuicknoteAttachment[] };
+                    if (Array.isArray(win.__tide_active_attachments)) {
+                        win.__tide_active_attachments = win.__tide_active_attachments.filter(
+                            (f) => f.id !== fileId
+                        );
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Failed to delete attachment:', err);
+        }
+    };
+
     const rootNode = useMemo(() => {
         return buildTree(treeNodes, slug, title, linkedNotes);
     }, [treeNodes, slug, title, linkedNotes]);
@@ -518,26 +538,39 @@ export default function QuicknotePage() {
                     {attachments.length > 0 ? (
                         <div className="space-y-1 max-h-60 overflow-y-auto pr-1">
                             {attachments.map((att) => (
-                                <button
+                                <div
                                     key={att.id}
-                                    type="button"
-                                    onClick={() => window.open(getQuicknoteFileDownloadUrl(slug, att.id), '_blank')}
-                                    className="w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg text-xs text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-blue-600 dark:hover:text-blue-400 transition-colors text-left group"
-                                    title={`Herunterladen: ${att.name}`}
+                                    className="w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg text-xs text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors group"
                                 >
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                        <Paperclip className="w-3.5 h-3.5 text-neutral-400 group-hover:text-blue-500 shrink-0" />
-                                        <span className="truncate">{att.name}</span>
-                                    </div>
-                                    <div className="flex items-center gap-1 shrink-0 text-[10px] text-neutral-400">
-                                        <span>
-                                            {att.size < 1024 * 1024
-                                                ? `${Math.round(att.size / 1024)} KB`
-                                                : `${(att.size / (1024 * 1024)).toFixed(1)} MB`}
-                                        </span>
-                                        <Download className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500 transition-opacity" />
-                                    </div>
-                                </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => window.open(getQuicknoteFileDownloadUrl(slug, att.id), '_blank')}
+                                        className="flex-1 flex items-center justify-between gap-1.5 min-w-0 text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                                        title={`Herunterladen: ${att.name}`}
+                                    >
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            <Paperclip className="w-3.5 h-3.5 text-neutral-400 group-hover:text-blue-500 shrink-0" />
+                                            <span className="truncate">{att.name}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 shrink-0 text-[10px] text-neutral-400">
+                                            <span>
+                                                {att.size < 1024 * 1024
+                                                    ? `${Math.round(att.size / 1024)} KB`
+                                                    : `${(att.size / (1024 * 1024)).toFixed(1)} MB`}
+                                            </span>
+                                            <Download className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500 transition-opacity" />
+                                        </div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteAttachment(att.id); }}
+                                        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 text-neutral-400 dark:text-neutral-500 rounded transition-opacity shrink-0 cursor-pointer"
+                                        title="Löschen"
+                                        aria-label="Löschen"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                </div>
                             ))}
                         </div>
                     ) : (
