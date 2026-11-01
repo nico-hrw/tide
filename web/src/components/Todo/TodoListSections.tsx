@@ -269,7 +269,11 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
             const isCollapsed = Boolean(collapsedSections[section.key]) && !section.tasks.some((t) => t.id === editingTaskId);
 
             return (
-              <div key={section.key} className="flex flex-col">
+              <div
+                key={section.key}
+                id={section.key === 'today' ? 'todo-section-today' : undefined}
+                className="flex flex-col"
+              >
                 {/* Collapsible Section Header */}
                 <motion.button
                   type="button"

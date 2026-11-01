@@ -114,6 +114,22 @@ export default function DesktopDayView({
     const activeGroupIds = activeEvent ? getEventGroupIds(activeEvent) : [];
     const activeTheme = themes.find((t) => activeGroupIds.includes(t.id));
 
+    // Live status calculations for active event & day
+    const nowMs = currentTime.getTime();
+    const activeStartMs = activeEvent ? new Date(activeEvent.start).getTime() : 0;
+    const activeEndMs = activeEvent ? new Date(activeEvent.end).getTime() : 0;
+    const isActiveRunning = isTodayDay && !!activeEvent && !activeEvent.allDay && nowMs >= activeStartMs && nowMs < activeEndMs;
+    const isActiveUpcoming = isTodayDay && !!activeEvent && !activeEvent.allDay && activeStartMs > nowMs;
+    const activeRemainingMins = activeEvent ? Math.max(1, differenceInMinutes(new Date(activeEvent.end), currentTime)) : 0;
+    const activeStartsInMins = activeEvent ? Math.max(1, differenceInMinutes(new Date(activeEvent.start), currentTime)) : 0;
+
+    // Target event for the top Live Status widget: activeEvent (if live/upcoming) > currentEvent > upcomingEvent
+    const liveTargetEvent = (isActiveRunning || isActiveUpcoming) ? activeEvent : (currentEvent || upcomingEvent);
+    const isLiveRunning = liveTargetEvent && isTodayDay && !liveTargetEvent.allDay && nowMs >= new Date(liveTargetEvent.start).getTime() && nowMs < new Date(liveTargetEvent.end).getTime();
+    const isLiveUpcoming = liveTargetEvent && isTodayDay && !liveTargetEvent.allDay && new Date(liveTargetEvent.start).getTime() > nowMs;
+    const liveRemainingMins = liveTargetEvent ? Math.max(1, differenceInMinutes(new Date(liveTargetEvent.end), currentTime)) : 0;
+    const liveStartsInMins = liveTargetEvent ? Math.max(1, differenceInMinutes(new Date(liveTargetEvent.start), currentTime)) : 0;
+
     // Summary calculations
     const totalScheduledMinutes = dayEvents
         .filter((e) => !e.is_cancelled)
@@ -141,7 +157,7 @@ export default function DesktopDayView({
     return (
         <div className="flex-1 flex max-w-7xl mx-auto px-4 w-full gap-6 min-h-full py-4">
             {/* Left / Center Column (24h timeline grid and DayColumn) */}
-            <div className="flex-1 min-w-[420px] flex relative min-h-full">
+            <div className="flex-1 min-w-[300px] md:min-w-0 flex relative min-h-full">
                 {/* Time Column (Sticky Left) */}
                 <div className="w-[60px] flex-shrink-0 sticky left-0 z-[400] bg-white dark:bg-slate-950 border-r border-gray-100/80 dark:border-slate-900/50 h-fit min-h-full pb-[40px]">
                     <div className="h-[50px] border-b border-gray-100/80 dark:border-slate-900/50 sticky top-0 z-[410] bg-white dark:bg-slate-950" />
@@ -215,7 +231,7 @@ export default function DesktopDayView({
             </div>
 
             {/* Right Column (Sidebar) */}
-            <div className="hidden lg:flex w-80 xl:w-96 flex-col shrink-0 rounded-2xl bg-white/70 dark:bg-white/[0.04] border border-gray-200/80 dark:border-white/10 p-4 gap-4 sticky top-4 self-start max-h-[calc(100vh-140px)] overflow-y-auto">
+            <div className="hidden md:flex w-72 xl:w-80 flex-col shrink-0 rounded-2xl bg-white/70 dark:bg-white/[0.04] border border-gray-200/80 dark:border-white/10 p-4 gap-4 sticky top-4 self-start max-h-[calc(100vh-140px)] overflow-y-auto">
                 {/* 1. Live Status Header */}
                 <div className="flex flex-col gap-2 p-3.5 rounded-xl bg-gray-50/80 dark:bg-white/[0.03] border border-gray-200/60 dark:border-white/5">
                     <div className="flex items-center justify-between">
@@ -223,34 +239,25 @@ export default function DesktopDayView({
                             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
                             Live Status
                         </span>
-                        {isTodayDay && currentEvent ? (
+                        {isLiveRunning ? (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
-                                NOCH {Math.max(1, differenceInMinutes(new Date(currentEvent.end), currentTime))} MIN
+                                NOCH {liveRemainingMins} MIN
                             </span>
-                        ) : isTodayDay && upcomingEvent ? (
+                        ) : isLiveUpcoming ? (
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40">
-                                STARTET IN {Math.max(1, differenceInMinutes(new Date(upcomingEvent.start), currentTime))} MIN
+                                STARTET IN {liveStartsInMins} MIN
                             </span>
                         ) : null}
                     </div>
 
                     {isTodayDay ? (
-                        currentEvent ? (
+                        liveTargetEvent ? (
                             <div>
                                 <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
-                                    {currentEvent.title || "Aktueller Termin"}
+                                    {liveTargetEvent.title || (isLiveRunning ? "Aktueller Termin" : "Nächster Termin")}
                                 </h4>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    {format(new Date(currentEvent.start), "HH:mm")} – {format(new Date(currentEvent.end), "HH:mm")}
-                                </p>
-                            </div>
-                        ) : upcomingEvent ? (
-                            <div>
-                                <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
-                                    {upcomingEvent.title || "Nächster Termin"}
-                                </h4>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    Start um {format(new Date(upcomingEvent.start), "HH:mm")} Uhr
+                                    {format(new Date(liveTargetEvent.start), "HH:mm")} – {format(new Date(liveTargetEvent.end), "HH:mm")}
                                 </p>
                             </div>
                         ) : (
@@ -273,9 +280,21 @@ export default function DesktopDayView({
                 {/* 2. Event Details Card */}
                 <div className="flex flex-col gap-3 p-4 rounded-xl bg-white dark:bg-white/[0.03] border border-gray-200/80 dark:border-white/10 shadow-sm">
                     <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-white/5">
-                        <span className="text-[11px] font-bold tracking-wider text-gray-400 dark:text-gray-500 uppercase">
-                            Termindetails
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[11px] font-bold tracking-wider text-gray-400 dark:text-gray-500 uppercase">
+                                Termindetails
+                            </span>
+                            {isActiveRunning && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
+                                    NOCH {activeRemainingMins} MIN
+                                </span>
+                            )}
+                            {isActiveUpcoming && (
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-blue-100 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40">
+                                    STARTET IN {activeStartsInMins} MIN
+                                </span>
+                            )}
+                        </div>
                         {activeTheme && (
                             <span
                                 style={{
@@ -327,6 +346,19 @@ export default function DesktopDayView({
                             {activeEvent.description && (
                                 <div className="text-xs text-gray-600 dark:text-gray-300 bg-gray-50/70 dark:bg-white/[0.02] p-2.5 rounded-lg border border-gray-100 dark:border-white/5 whitespace-pre-wrap leading-relaxed">
                                     {activeEvent.description}
+                                </div>
+                            )}
+
+                            {activeEvent.tags && activeEvent.tags.filter((t) => t.trim() !== "").length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                    {activeEvent.tags.filter((t) => t.trim() !== "").map((tag, idx) => (
+                                        <span
+                                            key={idx}
+                                            className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 border border-gray-200/60 dark:border-white/5"
+                                        >
+                                            #{tag}
+                                        </span>
+                                    ))}
                                 </div>
                             )}
 

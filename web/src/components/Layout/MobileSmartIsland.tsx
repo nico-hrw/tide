@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Bell, X } from 'lucide-react';
+import { MessageSquare, Bell, X, RefreshCw, CloudOff } from 'lucide-react';
 import { useIslandStore } from '@/components/extensions/smart_island/useIslandStore';
 
 export interface CountdownEvent {
@@ -31,9 +31,52 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   const [now, setNow] = useState<Date>(() => new Date());
   const [dismissedImminentId, setDismissedImminentId] = useState<string | null>(null);
   const [isDemoLoading, setDemoLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isOffline, setIsOffline] = useState(() => {
+    if (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean') {
+      return !navigator.onLine;
+    }
+    return false;
+  });
 
   const demoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync and Network status listeners
+  useEffect(() => {
+    const handleSyncing = () => {
+      setIsSyncing(true);
+    };
+    const handleSynced = () => {
+      setIsSyncing(false);
+      setIsOffline(false);
+    };
+    const handleTideOffline = () => {
+      setIsOffline(true);
+      setIsSyncing(false);
+    };
+    const handleOnline = () => {
+      setIsOffline(false);
+    };
+    const handleOffline = () => {
+      setIsOffline(true);
+      setIsSyncing(false);
+    };
+
+    window.addEventListener('tide-syncing', handleSyncing);
+    window.addEventListener('tide-synced', handleSynced);
+    window.addEventListener('tide-offline', handleTideOffline);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('tide-syncing', handleSyncing);
+      window.removeEventListener('tide-synced', handleSynced);
+      window.removeEventListener('tide-offline', handleTideOffline);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // 1-second interval ticker for live countdown
   useEffect(() => {
@@ -163,10 +206,14 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   const isImminentDismissed = target?.event?.id ? dismissedImminentId === target.event.id : false;
 
   // Active mode resolution
-  type IslandMode = 'loading' | 'message' | 'imminent' | 'idle';
+  type IslandMode = 'loading' | 'syncing' | 'offline' | 'message' | 'imminent' | 'idle';
 
   let mode: IslandMode = 'idle';
-  if (
+  if (isOffline) {
+    mode = 'offline';
+  } else if (isSyncing) {
+    mode = 'syncing';
+  } else if (
     isLoading ||
     isDemoLoading ||
     state.current?.type === 'loading' ||
@@ -182,6 +229,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   }
 
   const isExpanded = mode === 'message' || mode === 'imminent';
+  const isPill = mode === 'syncing' || mode === 'offline';
 
   const senderName =
     typeof state.current?.payload?.senderName === 'string'
@@ -218,10 +266,56 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         onTouchMove={handleTouchMove}
         whileTap={{ scale: 0.97 }}
         className={`absolute right-0 top-0 h-20 bg-[#18181b]/95 dark:bg-[#09090b]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-xl text-white overflow-hidden ${
-          isExpanded ? 'w-[min(320px,calc(100vw-32px))] z-30' : 'w-20 z-20'
+          isExpanded ? 'w-[min(320px,calc(100vw-32px))] z-30' : isPill ? 'w-[min(210px,calc(100vw-32px))] z-30' : 'w-20 z-20'
         }`}
       >
         <AnimatePresence mode="wait">
+          {mode === 'syncing' && (
+            <motion.div
+              key="syncing"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.2 }}
+              className="w-full h-full px-3.5 py-2 flex items-center gap-2.5 select-none"
+            >
+              <div className="relative shrink-0 w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+              </div>
+              <div className="flex flex-col justify-center text-left min-w-0">
+                <span className="text-xs font-bold text-white truncate leading-tight">
+                  synchronisieren...
+                </span>
+                <span className="text-[10px] text-blue-300/80 font-medium truncate mt-0.5">
+                  Tide Cloud
+                </span>
+              </div>
+            </motion.div>
+          )}
+
+          {mode === 'offline' && (
+            <motion.div
+              key="offline"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.2 }}
+              className="w-full h-full px-3.5 py-2 flex items-center gap-2.5 select-none"
+            >
+              <div className="relative shrink-0 w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                <CloudOff className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="flex flex-col justify-center text-left min-w-0">
+                <span className="text-xs font-bold text-amber-400 truncate leading-tight">
+                  offline
+                </span>
+                <span className="text-[10px] text-white/60 font-medium truncate mt-0.5">
+                  Keine Verbindung
+                </span>
+              </div>
+            </motion.div>
+          )}
+
           {mode === 'loading' && (
             <motion.div
               key="loading"

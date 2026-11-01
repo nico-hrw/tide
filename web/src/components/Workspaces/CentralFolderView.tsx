@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Folder,
   FileText,
@@ -49,8 +49,26 @@ export function CentralFolderView({
   const [newFolderName, setNewFolderName] = useState('');
   const [newFolderColor, setNewFolderColor] = useState<string>(FOLDER_PALETTE[0].id);
   const [colorPickerFolderId, setColorPickerFolderId] = useState<string | null>(null);
+  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+  const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
   const [dragOverBreadcrumbId, setDragOverBreadcrumbId] = useState<string | null>(null);
+  const [customOrder, setCustomOrder] = useState<string[]>([]);
+
+  // Load persisted order for current folder
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = localStorage.getItem(`tide_folder_order_${currentFolderId || 'root'}`);
+      if (saved) {
+        setCustomOrder(JSON.parse(saved));
+      } else {
+        setCustomOrder([]);
+      }
+    } catch {
+      setCustomOrder([]);
+    }
+  }, [currentFolderId]);
 
   // Compute breadcrumbs path from root to current folder
   const breadcrumbs = useMemo(() => {
@@ -104,6 +122,45 @@ export function CentralFolderView({
     );
   }, [files, currentFolderId]);
 
+  // Sorted items based on user custom reorder
+  const sortedFolders = useMemo(() => {
+    if (customOrder.length === 0) return currentFolders;
+    return [...currentFolders].sort((a, b) => {
+      const idxA = customOrder.indexOf(a.id);
+      const idxB = customOrder.indexOf(b.id);
+      if (idxA === -1 && idxB === -1) return 0;
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    });
+  }, [currentFolders, customOrder]);
+
+  const sortedNotes = useMemo(() => {
+    if (customOrder.length === 0) return currentNotes;
+    return [...currentNotes].sort((a, b) => {
+      const idxA = customOrder.indexOf(a.id);
+      const idxB = customOrder.indexOf(b.id);
+      if (idxA === -1 && idxB === -1) return 0;
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    });
+  }, [currentNotes, customOrder]);
+
+  // Helper to prevent circular folder parenting
+  const isDescendant = (ancestorId: string, targetId: string | null): boolean => {
+    if (!targetId) return false;
+    let curr: string | null = targetId;
+    const visited = new Set<string>();
+    while (curr && !visited.has(curr)) {
+      if (curr === ancestorId) return true;
+      visited.add(curr);
+      const parent = files.find((f) => f.id === curr);
+      curr = parent?.parent_id || null;
+    }
+    return false;
+  };
+
   const handleCreateFolderSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = newFolderName.trim();
@@ -113,14 +170,51 @@ export function CentralFolderView({
     setShowNewFolderModal(false);
   };
 
+  const handleReorder = (sourceId: string, targetId: string) => {
+    setCustomOrder((prev) => {
+      const allIds = [
+        ...currentFolders.map((f) => f.id),
+        ...currentNotes.map((n) => n.id),
+      ];
+      const baseList = prev.length > 0 ? [...prev] : [...allIds];
+      for (const id of allIds) {
+        if (!baseList.includes(id)) baseList.push(id);
+      }
+      const sourceIdx = baseList.indexOf(sourceId);
+      const targetIdx = baseList.indexOf(targetId);
+      if (sourceIdx !== -1 && targetIdx !== -1) {
+        baseList.splice(sourceIdx, 1);
+        baseList.splice(targetIdx, 0, sourceId);
+      }
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(`tide_folder_order_${currentFolderId || 'root'}`, JSON.stringify(baseList));
+        } catch {}
+      }
+      return baseList;
+    });
+  };
+
   const handleDropOnFolder = async (e: React.DragEvent, targetId: string | null) => {
     e.preventDefault();
+    e.stopPropagation();
     setDragOverFolderId(null);
     setDragOverBreadcrumbId(null);
-    const fileId = e.dataTransfer.getData('text/plain');
-    if (fileId && fileId !== targetId) {
+    setDragOverItemId(null);
+    const fileId = e.dataTransfer.getData('text/plain') || draggedItemId;
+    if (fileId && fileId !== targetId && !isDescendant(fileId, targetId)) {
       await onMoveFile(fileId, targetId);
     }
+  };
+
+  const handleDropOnItem = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverItemId(null);
+    setDragOverFolderId(null);
+    const sourceId = e.dataTransfer.getData('text/plain') || draggedItemId;
+    if (!sourceId || sourceId === targetId) return;
+    handleReorder(sourceId, targetId);
   };
 
   const formatDate = (dateStr?: string) => {
@@ -208,47 +302,76 @@ export function CentralFolderView({
       {/* Main Workspace Body */}
       <div className="flex-1 overflow-y-auto p-6 space-y-8">
         {/* Folders Section */}
-        {currentFolders.length > 0 && (
+        {sortedFolders.length > 0 && (
           <div>
-            <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3 px-1">
-              Ordner ({currentFolders.length})
+            <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4 px-1">
+              Ordner ({sortedFolders.length})
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {currentFolders.map((folder) => {
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-y-7 gap-x-4 justify-items-center">
+              {sortedFolders.map((folder) => {
                 const colorDef = getFolderColor(folder.color);
                 const itemCount = files.filter(
                   (f) => f.parent_id === folder.id && f.type !== 'event'
                 ).length;
                 const isDragHover = dragOverFolderId === folder.id;
+                const isItemHover = dragOverItemId === folder.id;
                 const isColorPickerOpen = colorPickerFolderId === folder.id;
 
                 return (
                   <div
                     key={folder.id}
+                    draggable={true}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('text/plain', folder.id);
+                      e.dataTransfer.setData('tide/file-id', folder.id);
+                      e.dataTransfer.setData('tide/type', 'folder');
+                      setDraggedItemId(folder.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedItemId(null);
+                      setDragOverFolderId(null);
+                      setDragOverItemId(null);
+                    }}
                     onClick={() => setCurrentFolderId(folder.id)}
                     onDragOver={(e) => {
                       e.preventDefault();
+                      e.stopPropagation();
+                      const draggedId = draggedItemId;
+                      if (draggedId && (draggedId === folder.id || isDescendant(draggedId, folder.id))) {
+                        return;
+                      }
                       setDragOverFolderId(folder.id);
                     }}
                     onDragLeave={() => {
                       if (dragOverFolderId === folder.id) setDragOverFolderId(null);
                     }}
                     onDrop={(e) => handleDropOnFolder(e, folder.id)}
-                    className={`relative group rounded-2xl p-4 border transition-all cursor-pointer select-none flex flex-col justify-between min-h-[115px] ${
+                    className={`group relative flex flex-col items-center cursor-pointer select-none p-2 rounded-2xl transition-all ${
                       isDragHover
-                        ? 'border-blue-500 bg-blue-500/10 ring-2 ring-blue-500 shadow-md scale-[1.02]'
-                        : 'border-gray-200/80 dark:border-white/10 bg-white dark:bg-white/5 hover:border-gray-300 dark:hover:border-white/20 hover:shadow-sm'
+                        ? 'ring-2 ring-blue-500 bg-blue-500/10 scale-105 shadow-md'
+                        : isItemHover
+                        ? 'ring-2 ring-blue-400/80 bg-blue-400/10 scale-105'
+                        : 'hover:bg-gray-100/50 dark:hover:bg-white/5'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105"
-                        style={{ backgroundColor: `${colorDef.hex}20` }}
-                      >
-                        <Folder className="w-5 h-5" style={{ color: colorDef.hex }} />
-                      </div>
+                    <div className="relative flex flex-col items-center">
+                      <Folder
+                        className="w-16 h-16 transition-transform group-hover:scale-105"
+                        style={{ color: colorDef.hex, fill: `${colorDef.hex}26` }}
+                        strokeWidth={1.4}
+                      />
 
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {itemCount > 0 && (
+                        <span
+                          className="absolute bottom-1 right-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold text-white shadow-xs"
+                          style={{ backgroundColor: colorDef.hex }}
+                        >
+                          {itemCount}
+                        </span>
+                      )}
+
+                      {/* Floating Actions on Hover */}
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity absolute -top-1.5 -right-1.5 z-10 bg-white/95 dark:bg-slate-800/95 shadow-md rounded-full p-0.5 border border-gray-200/80 dark:border-white/10">
                         <button
                           type="button"
                           title="Farbe ändern"
@@ -256,7 +379,7 @@ export function CentralFolderView({
                             e.stopPropagation();
                             setColorPickerFolderId(isColorPickerOpen ? null : folder.id);
                           }}
-                          className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                          className="p-1 rounded-full text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                         >
                           <Palette className="w-3.5 h-3.5" />
                         </button>
@@ -268,7 +391,7 @@ export function CentralFolderView({
                               e.stopPropagation();
                               onDeleteFile(folder.id);
                             }}
-                            className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            className="p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -276,20 +399,27 @@ export function CentralFolderView({
                       </div>
                     </div>
 
-                    <div className="mt-3">
-                      <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">
-                        {folder.title || 'Unbenannter Ordner'}
-                      </h3>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                        {itemCount} {itemCount === 1 ? 'Element' : 'Elemente'}
-                      </p>
-                    </div>
+                    <span
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDragOverItemId(folder.id);
+                        setDragOverFolderId(null);
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverItemId === folder.id) setDragOverItemId(null);
+                      }}
+                      onDrop={(e) => handleDropOnItem(e, folder.id)}
+                      className="text-xs font-semibold text-center line-clamp-2 max-w-[100px] mt-2 text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
+                    >
+                      {folder.title || 'Unbenannter Ordner'}
+                    </span>
 
                     {/* Folder Color Picker Popover */}
                     {isColorPickerOpen && (
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute right-2 top-12 z-30 p-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 shadow-xl grid grid-cols-3 gap-1.5"
+                        className="absolute left-1/2 -translate-x-1/2 top-20 z-30 p-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 shadow-xl grid grid-cols-3 gap-1.5 w-28"
                       >
                         {FOLDER_PALETTE.map((pal) => (
                           <button
@@ -316,29 +446,52 @@ export function CentralFolderView({
         )}
 
         {/* Files / Notes Section */}
-        {currentNotes.length > 0 && (
+        {sortedNotes.length > 0 && (
           <div>
-            <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3 px-1">
-              Notizen & Dokumente ({currentNotes.length})
+            <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4 px-1">
+              Notizen & Dokumente ({sortedNotes.length})
             </h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {currentNotes.map((note) => {
-                const dateStr = formatDate(note.updated_at);
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-y-7 gap-x-4 justify-items-center">
+              {sortedNotes.map((note) => {
+                const isItemHover = dragOverItemId === note.id;
                 return (
                   <div
                     key={note.id}
-                    draggable
+                    draggable={true}
                     onDragStart={(e) => {
                       e.dataTransfer.setData('text/plain', note.id);
                       e.dataTransfer.setData('tide/file-id', note.id);
+                      e.dataTransfer.setData('tide/type', 'note');
+                      setDraggedItemId(note.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedItemId(null);
+                      setDragOverFolderId(null);
+                      setDragOverItemId(null);
                     }}
                     onClick={() => onFileSelect(note.id, note.title)}
-                    className="group rounded-2xl p-4 border border-gray-200/80 dark:border-white/10 bg-white dark:bg-white/5 hover:border-blue-400/60 dark:hover:border-blue-500/50 hover:shadow-sm transition-all cursor-grab active:cursor-grabbing select-none flex flex-col justify-between min-h-[110px]"
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragOverItemId(note.id);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverItemId === note.id) setDragOverItemId(null);
+                    }}
+                    onDrop={(e) => handleDropOnItem(e, note.id)}
+                    className={`group relative flex flex-col items-center cursor-pointer select-none p-2 rounded-2xl transition-all ${
+                      isItemHover
+                        ? 'ring-2 ring-blue-400/80 bg-blue-400/10 scale-105'
+                        : 'hover:bg-gray-100/50 dark:hover:bg-white/5'
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-600 dark:text-gray-300 group-hover:text-blue-500 transition-colors">
-                        <FileText className="w-4 h-4" />
-                      </div>
+                    <div className="relative flex flex-col items-center">
+                      <FileText
+                        className="w-14 h-16 text-slate-500 dark:text-slate-400 group-hover:text-blue-500 transition-all group-hover:scale-105"
+                        fill="currentColor"
+                        fillOpacity={0.06}
+                        strokeWidth={1.25}
+                      />
                       {onDeleteFile && (
                         <button
                           type="button"
@@ -347,21 +500,16 @@ export function CentralFolderView({
                             e.stopPropagation();
                             onDeleteFile(note.id);
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all absolute -top-1.5 -right-1.5 z-10 bg-white/95 dark:bg-slate-800/95 shadow-md border border-gray-200/80 dark:border-white/10"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
 
-                    <div className="mt-3">
-                      <h4 className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
-                        {note.title || 'Neue Notiz'}
-                      </h4>
-                      {dateStr && (
-                        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">{dateStr}</p>
-                      )}
-                    </div>
+                    <span className="text-xs font-semibold text-center line-clamp-2 max-w-[100px] mt-2 text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                      {note.title || 'Neue Notiz'}
+                    </span>
                   </div>
                 );
               })}

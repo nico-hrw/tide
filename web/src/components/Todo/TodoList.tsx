@@ -190,6 +190,31 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
   const addMenuRef = useRef<HTMLDivElement | null>(null);
   const filterMenuRef = useRef<HTMLDivElement | null>(null);
+  const listScrollRef = useRef<HTMLDivElement | null>(null);
+  const hasAutoScrolledToTodayRef = useRef(false);
+
+  // Auto-scroll to "Heute" section on mount / task load if no date filter is selected
+  useEffect(() => {
+    if (selectedDateFilter !== null) return;
+    if (hasAutoScrolledToTodayRef.current) return;
+    if (tasks.length === 0) return;
+    if (viewMode !== 'tasks') return;
+
+    const timer = setTimeout(() => {
+      const container = listScrollRef.current;
+      const todayEl = document.getElementById('todo-section-today');
+      if (container && todayEl) {
+        const targetScroll = todayEl.offsetTop - container.offsetTop;
+        container.scrollTo({
+          top: Math.max(0, targetScroll),
+          behavior: 'smooth',
+        });
+        hasAutoScrolledToTodayRef.current = true;
+      }
+    }, 120);
+
+    return () => clearTimeout(timer);
+  }, [tasks.length, selectedDateFilter, viewMode]);
 
   const cancelEditing = (id?: string) => {
     if (!id || id === editingTaskId) {
@@ -717,7 +742,10 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         /* Center container */
         <div className={`w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2 ${editingTaskId !== null ? 'h-full' : ''}`}>
           {/* Scrollable list container */}
-          <div className={`flex-1 min-h-0 ${editingTaskId !== null ? 'h-full' : ''} overflow-y-auto overflow-x-hidden px-3 sm:px-4 ${editingTaskId !== null ? 'pt-0 pb-2 sm:pb-6' : 'pt-1 sm:pt-2 pb-16'} flex flex-col gap-2`}>
+          <div
+            ref={listScrollRef}
+            className={`flex-1 min-h-0 ${editingTaskId !== null ? 'h-full' : ''} overflow-y-auto overflow-x-hidden px-3 sm:px-4 ${editingTaskId !== null ? 'pt-0 pb-2 sm:pb-6' : 'pt-1 sm:pt-2 pb-16'} flex flex-col gap-2`}
+          >
             <AnimatePresence mode="wait" initial={false}>
               {focusedTask ? (
                 <motion.div

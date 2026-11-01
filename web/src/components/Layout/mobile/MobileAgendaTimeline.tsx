@@ -149,14 +149,16 @@ function TimelineEventItem({
 
   const handleToggleTask = (e: React.MouseEvent) => {
     e.stopPropagation();
+    const nextCompleted = !isCompleted;
     if (ev.linkedTaskId) {
       useDataStore.getState().toggleTask(ev.linkedTaskId);
+      onTaskComplete?.(ev.id, nextCompleted);
     } else if (onTaskComplete) {
-      onTaskComplete(ev.id, !isCompleted);
+      onTaskComplete(ev.id, nextCompleted);
     } else {
       useDataStore.setState(s => ({
         events: s.events.map(e =>
-          e.id === ev.id ? { ...e, is_completed: !isCompleted } : e
+          e.id === ev.id ? { ...e, is_completed: nextCompleted } : e
         )
       }));
     }
@@ -455,8 +457,18 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                const nextCompleted = !isCompleted;
                                 if (ev.linkedTaskId) {
                                   useDataStore.getState().toggleTask(ev.linkedTaskId);
+                                  onTaskComplete?.(ev.id, nextCompleted);
+                                } else if (onTaskComplete) {
+                                  onTaskComplete(ev.id, nextCompleted);
+                                } else {
+                                  useDataStore.setState(s => ({
+                                    events: s.events.map(event =>
+                                      event.id === ev.id ? { ...event, is_completed: nextCompleted } : event
+                                    )
+                                  }));
                                 }
                               }}
                               className={`w-4 h-4 rounded-[4px] border border-current flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-90 ${isCompleted ? 'opacity-40' : 'opacity-100'}`}

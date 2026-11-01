@@ -7,7 +7,7 @@ import {
   ChevronRight, ChevronLeft, ChevronDown, Plus, Search, Calendar as CalendarIcon,
   Trash2, GraduationCap, Clock, MapPin,
   X, PenLine, FolderPlus,
-  BookOpen, Coffee, RotateCcw, ListTodo, SlidersHorizontal, Check,
+  BookOpen, Coffee, RotateCcw, ListTodo, SlidersHorizontal, Check, List, LayoutGrid,
 } from 'lucide-react';
 import { isSameDay, format, startOfWeek, addDays, isAfter } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -351,6 +351,303 @@ const FolderItem = React.memo(function FolderItem({
   );
 });
 
+interface NoteCardMetadata {
+  has_custom_password?: boolean;
+  security_settings?: ItemSecuritySettings;
+  [key: string]: unknown;
+}
+
+interface NoteCardItem {
+  id: string;
+  title?: string;
+  type?: string;
+  has_pin?: boolean;
+  is_locked?: boolean;
+  metadata?: NoteCardMetadata | null;
+  share_status?: string;
+  is_shared?: boolean;
+  parent_id?: string | null;
+}
+
+const NoteCard = React.memo(function NoteCard(props: {
+  file: NoteCardItem;
+  isActive?: boolean;
+  onOpen: () => void;
+  onContextMenu?: (file: NoteCardItem) => void;
+}) {
+  const { file, isActive, onOpen, onContextMenu } = props;
+  const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const movedRef = useRef(false);
+  const theme = useDataStore(s => s.theme);
+
+  const isLocked = Boolean(
+    file.has_pin ||
+    file.is_locked ||
+    file.metadata?.has_custom_password ||
+    file.metadata?.security_settings?.has_custom_password ||
+    (typeof file.title === 'string' && file.title.startsWith('#'))
+  );
+
+  const isCanvas = file.type === 'canvas';
+  const isShared = (file as any).share_status === 'shared' || (file as any).is_shared;
+
+  const displayTitle = (typeof file.title === 'string' && file.title.startsWith('#'))
+    ? file.title.slice(1).trim()
+    : (file.title || 'Untitled');
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`w-full flex flex-col items-center justify-center text-center p-3.5 rounded-2xl transition-all duration-150 cursor-pointer active:scale-95 border ${
+        isActive
+          ? 'ring-2 ring-blue-500 shadow-md'
+          : 'hover:shadow-sm'
+      }`}
+      style={{
+        background: isActive
+          ? (theme === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)')
+          : (theme === 'dark' ? 'rgba(255, 255, 255, 0.04)' : '#ffffff'),
+        borderColor: isActive ? '#3b82f6' : T.brd,
+        minHeight: 110,
+      }}
+      onTouchStart={() => {
+        movedRef.current = false;
+        holdRef.current = setTimeout(() => {
+          if (!movedRef.current) {
+            onContextMenu?.(file);
+          }
+        }, 420);
+      }}
+      onTouchMove={() => {
+        movedRef.current = true;
+        if (holdRef.current) {
+          clearTimeout(holdRef.current);
+          holdRef.current = null;
+        }
+      }}
+      onTouchEnd={() => {
+        if (holdRef.current) clearTimeout(holdRef.current);
+      }}
+    >
+      <div
+        className="relative mb-2 w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+        style={{
+          background: isCanvas
+            ? 'rgba(168, 85, 247, 0.12)'
+            : 'rgba(59, 130, 246, 0.12)',
+          color: isCanvas ? '#a855f7' : '#3b82f6',
+        }}
+      >
+        {isCanvas ? <Layout size={24} /> : <FileText size={24} />}
+        {isLocked && (
+          <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[2px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
+            <Lock size={10} className="text-amber-500" strokeWidth={2.5} />
+          </span>
+        )}
+      </div>
+
+      <span
+        className="text-xs font-bold line-clamp-2 max-w-full leading-tight"
+        style={{ color: isActive ? '#3b82f6' : T.pri }}
+      >
+        {displayTitle}
+      </span>
+
+      {isShared && (
+        <span className="mt-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+          Geteilt
+        </span>
+      )}
+    </button>
+  );
+});
+
+interface FolderCardItem {
+  id: string;
+  title?: string;
+  type?: string;
+  has_pin?: boolean;
+  is_locked?: boolean;
+  metadata?: NoteCardMetadata | null;
+  parent_id?: string | null;
+}
+
+const FolderCard = React.memo(function FolderCard({
+  folder,
+  allFiles,
+  onOpen,
+  activeNoteId,
+  onContextMenu,
+  onNoteContextMenu,
+  onPromptPin,
+}: {
+  folder: FolderCardItem;
+  allFiles: NoteCardItem[];
+  onOpen: (id: string, t: string) => void;
+  activeNoteId?: string | null;
+  onContextMenu?: (folder: FolderCardItem) => void;
+  onNoteContextMenu?: (file: NoteCardItem) => void;
+  onPromptPin?: (item: PinPromptTarget) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const movedRef = useRef(false);
+  const { loadedDirectories } = useDataStore();
+  const theme = useDataStore(s => s.theme);
+  const children = allFiles.filter(f => f.parent_id === folder.id);
+
+  const isLocked = Boolean(
+    folder.has_pin ||
+    folder.is_locked ||
+    folder.metadata?.has_custom_password ||
+    folder.metadata?.security_settings?.has_custom_password ||
+    (typeof folder.title === 'string' && folder.title.startsWith('#'))
+  );
+
+  const displayTitle = (typeof folder.title === 'string' && folder.title.startsWith('#'))
+    ? folder.title.slice(1).trim()
+    : (folder.title || 'Ordner');
+
+  const handleToggle = () => {
+    if (isLocked && !open && !isItemUnlocked(folder.id, (folder.metadata?.security_settings || folder.metadata) as ItemSecuritySettings | null | undefined)) {
+      const promptData: PinPromptTarget = {
+        id: folder.id,
+        title: folder.title || 'Ordner',
+        type: 'folder' as const,
+        metadata: folder.metadata || undefined,
+        onUnlocked: () => {
+          setOpen(true);
+          if (!loadedDirectories.has(folder.id)) {
+            useDataStore.getState().fetchDirectory(folder.id);
+          }
+        }
+      };
+      if (onPromptPin) {
+        onPromptPin(promptData);
+      } else {
+        window.dispatchEvent(new CustomEvent('tide:prompt-pin', { detail: promptData }));
+      }
+      return;
+    }
+
+    const nextOpen = !open;
+    setOpen(nextOpen);
+    if (nextOpen && !loadedDirectories.has(folder.id)) {
+      useDataStore.getState().fetchDirectory(folder.id);
+    }
+  };
+
+  if (open) {
+    return (
+      <div
+        className="col-span-2 rounded-2xl p-3 border transition-all"
+        style={{
+          background: theme === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
+          borderColor: T.brd,
+        }}
+      >
+        <div
+          onClick={handleToggle}
+          className="flex items-center justify-between pb-2 mb-2 border-b cursor-pointer select-none"
+          style={{ borderColor: T.brd }}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+              <FolderOpen size={16} />
+            </div>
+            <span className="text-xs font-bold truncate" style={{ color: T.pri }}>
+              {displayTitle}
+            </span>
+            <span className="text-[10px] font-semibold text-gray-400">
+              ({children.length})
+            </span>
+          </div>
+          <ChevronDown size={14} className="rotate-180 transition-transform" style={{ color: T.mut }} />
+        </div>
+
+        {children.length === 0 ? (
+          <p className="text-xs py-3 text-center" style={{ color: T.mut }}>
+            Ordner ist leer
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {children.map(child => (
+              child.type === 'folder' ? (
+                <FolderCard
+                  key={child.id}
+                  folder={child}
+                  allFiles={allFiles}
+                  onOpen={onOpen}
+                  activeNoteId={activeNoteId}
+                  onContextMenu={onContextMenu}
+                  onNoteContextMenu={onNoteContextMenu}
+                  onPromptPin={onPromptPin}
+                />
+              ) : (
+                <NoteCard
+                  key={child.id}
+                  file={child}
+                  isActive={activeNoteId === child.id}
+                  onOpen={() => onOpen(child.id, child.title || 'Untitled')}
+                  onContextMenu={onNoteContextMenu}
+                />
+              )
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleToggle}
+      className="col-span-1 w-full flex flex-col items-center justify-center text-center p-3.5 rounded-2xl transition-all duration-150 cursor-pointer active:scale-95 border hover:shadow-sm"
+      style={{
+        background: theme === 'dark' ? 'rgba(255, 255, 255, 0.04)' : '#ffffff',
+        borderColor: T.brd,
+        minHeight: 110,
+      }}
+      onTouchStart={() => {
+        movedRef.current = false;
+        holdRef.current = setTimeout(() => {
+          if (!movedRef.current) {
+            onContextMenu?.(folder);
+          }
+        }, 420);
+      }}
+      onTouchMove={() => {
+        movedRef.current = true;
+        if (holdRef.current) {
+          clearTimeout(holdRef.current);
+          holdRef.current = null;
+        }
+      }}
+      onTouchEnd={() => {
+        if (holdRef.current) clearTimeout(holdRef.current);
+      }}
+    >
+      <div className="relative mb-2 w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-amber-500/12 text-amber-500">
+        <Folder size={24} />
+        {isLocked && (
+          <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[2px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
+            <Lock size={10} className="text-amber-500" strokeWidth={2.5} />
+          </span>
+        )}
+      </div>
+
+      <span className="text-xs font-bold line-clamp-2 max-w-full leading-tight" style={{ color: T.pri }}>
+        {displayTitle}
+      </span>
+      <span className="text-[10px] font-medium text-gray-400 mt-0.5">
+        {children.length} {children.length === 1 ? 'Eintrag' : 'Einträge'}
+      </span>
+    </button>
+  );
+});
+
 export default function MobileLayout({
   events, files, folders, onNoteSelect, onNewNote, onDeleteNote,
   onNewFolder, onNewFolderIn, onNoteRename,
@@ -392,6 +689,7 @@ export default function MobileLayout({
   const [pinPromptItem, setPinPromptItem] = useState<PinPromptTarget | null>(null);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
+  const [notesViewMode, setNotesViewMode] = useState<'list' | 'grid'>('list');
 
   useEffect(() => {
     const handleStart = (e: any) => setEditingTodoId(e.detail?.id || 'active');
@@ -1073,7 +1371,7 @@ export default function MobileLayout({
         {/* Event detail sheet */}
         {selectedEvent && (
           <EventSheet
-            key="evsheet"
+            key={`evsheet-${selectedEvent.id}`}
             event={selectedEvent}
             now={now}
             onDelete={() => { onEventDelete?.(selectedEvent.id); setSelectedEvent(null); }}
@@ -1081,18 +1379,14 @@ export default function MobileLayout({
               setEditingEvent(selectedEvent);
               setSelectedEvent(null);
             }}
+            onTaskComplete={onTaskComplete}
             onToggleComplete={() => {
+              const nextCompleted = !selectedEvent.is_completed;
               if (selectedEvent.linkedTaskId) {
                 useDataStore.getState().toggleTask(selectedEvent.linkedTaskId);
-              } else if (onTaskComplete) {
-                onTaskComplete(selectedEvent.id, !selectedEvent.is_completed);
-              } else {
-                useDataStore.setState(s => ({
-                  events: s.events.map(e =>
-                    e.id === selectedEvent.id ? { ...e, is_completed: !e.is_completed } : e
-                  )
-                }));
               }
+              onTaskComplete?.(selectedEvent.id, nextCompleted);
+              setSelectedEvent((prev: typeof selectedEvent) => prev ? { ...prev, is_completed: nextCompleted } : null);
             }}
             onDismiss={() => setSelectedEvent(null)}
           />
@@ -1520,6 +1814,42 @@ export default function MobileLayout({
         {/* Notes header */}
         <div className="px-5 py-3 flex items-center justify-between">
           <span className="text-lg font-extrabold" style={{ color: T.pri }}>Notizen</span>
+          <div
+            className="flex items-center p-0.5 rounded-xl border"
+            style={{
+              background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+              borderColor: T.brd,
+            }}
+          >
+            <button
+              onClick={() => setNotesViewMode('list')}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer"
+              style={{
+                background: notesViewMode === 'list'
+                  ? (theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)')
+                  : 'transparent',
+                color: notesViewMode === 'list' ? T.pri : T.mut,
+              }}
+              title="Liste"
+            >
+              <List size={14} />
+              <span>Liste</span>
+            </button>
+            <button
+              onClick={() => setNotesViewMode('grid')}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer"
+              style={{
+                background: notesViewMode === 'grid'
+                  ? (theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)')
+                  : 'transparent',
+                color: notesViewMode === 'grid' ? T.pri : T.mut,
+              }}
+              title="Kacheln"
+            >
+              <LayoutGrid size={14} />
+              <span>Kacheln</span>
+            </button>
+          </div>
         </div>
         {/* Notes list */}
         <div className="flex-1 overflow-y-auto px-2">
@@ -1530,7 +1860,22 @@ export default function MobileLayout({
               : null;
 
             if (filteredFiles) {
-              return filteredFiles.length > 0 ? (
+              if (filteredFiles.length === 0) {
+                return <p className="text-sm py-8 text-center" style={{ color: T.mut }}>Keine Ergebnisse gefunden</p>;
+              }
+              return notesViewMode === 'grid' ? (
+                <div className="grid grid-cols-2 gap-2.5 p-1">
+                  {filteredFiles.map(f => (
+                    <NoteCard
+                      key={f.id}
+                      file={f}
+                      isActive={activeNoteId === f.id}
+                      onOpen={() => openNote(f.id, f.title || 'Untitled')}
+                      onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                    />
+                  ))}
+                </div>
+              ) : (
                 <div className="space-y-0.5">
                   {filteredFiles.map(f => (
                     <NoteRow
@@ -1543,8 +1888,6 @@ export default function MobileLayout({
                     />
                   ))}
                 </div>
-              ) : (
-                <p className="text-sm py-8 text-center" style={{ color: T.mut }}>Keine Ergebnisse gefunden</p>
               );
             }
 
@@ -1609,36 +1952,63 @@ export default function MobileLayout({
                       </span>
                     </button>
                     {isSharedFolderOpen && (
-                      <div className="relative mt-1 ml-3 pl-2.5 border-l border-violet-200/60 dark:border-violet-800/40 space-y-0.5">
-                        {sharedNotes.map(f => (
-                          f.type === 'folder' ? (
-                            <FolderItem
-                              key={f.id}
-                              folder={f}
-                              allFiles={files}
-                              onOpen={openNote}
-                              activeNoteId={activeNoteId}
-                              dragOverId={dragOverFolderId}
-                              onDragOver={setDragOverFolderId}
-                              onDragLeave={() => setDragOverFolderId(null)}
-                              onContextMenu={f => setContextMenu({ type: 'folder', id: f.id, title: f.title || 'Ordner', parentId: f.parent_id })}
-                              onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
-                              onNoteDragStart={handleNoteDragStart}
-                              isDragging={!!draggingNote}
-                              onPromptPin={setPinPromptItem}
-                            />
-                          ) : (
-                            <NoteRow
-                              key={f.id}
-                              file={f}
-                              isActive={activeNoteId === f.id}
-                              onOpen={() => openNote(f.id, f.title || 'Untitled')}
-                              onDragStart={handleNoteDragStart}
-                              onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
-                            />
-                          )
-                        ))}
-                      </div>
+                      notesViewMode === 'grid' ? (
+                        <div className="grid grid-cols-2 gap-2.5 p-1 mt-1">
+                          {sharedNotes.map(f => (
+                            f.type === 'folder' ? (
+                              <FolderCard
+                                key={f.id}
+                                folder={f}
+                                allFiles={files}
+                                onOpen={openNote}
+                                activeNoteId={activeNoteId}
+                                onContextMenu={f => setContextMenu({ type: 'folder', id: f.id, title: f.title || 'Ordner', parentId: f.parent_id })}
+                                onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                                onPromptPin={setPinPromptItem}
+                              />
+                            ) : (
+                              <NoteCard
+                                key={f.id}
+                                file={f}
+                                isActive={activeNoteId === f.id}
+                                onOpen={() => openNote(f.id, f.title || 'Untitled')}
+                                onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                              />
+                            )
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="relative mt-1 ml-3 pl-2.5 border-l border-violet-200/60 dark:border-violet-800/40 space-y-0.5">
+                          {sharedNotes.map(f => (
+                            f.type === 'folder' ? (
+                              <FolderItem
+                                key={f.id}
+                                folder={f}
+                                allFiles={files}
+                                onOpen={openNote}
+                                activeNoteId={activeNoteId}
+                                dragOverId={dragOverFolderId}
+                                onDragOver={setDragOverFolderId}
+                                onDragLeave={() => setDragOverFolderId(null)}
+                                onContextMenu={f => setContextMenu({ type: 'folder', id: f.id, title: f.title || 'Ordner', parentId: f.parent_id })}
+                                onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                                onNoteDragStart={handleNoteDragStart}
+                                isDragging={!!draggingNote}
+                                onPromptPin={setPinPromptItem}
+                              />
+                            ) : (
+                              <NoteRow
+                                key={f.id}
+                                file={f}
+                                isActive={activeNoteId === f.id}
+                                onOpen={() => openNote(f.id, f.title || 'Untitled')}
+                                onDragStart={handleNoteDragStart}
+                                onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                              />
+                            )
+                          ))}
+                        </div>
+                      )
                     )}
                   </div>
                 )}
@@ -1647,18 +2017,32 @@ export default function MobileLayout({
                 {recentFiles.length > 0 && (
                   <div>
                     <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Mach weiter wo du aufgehört hast</p>
-                    <div className="space-y-0.5">
-                      {recentFiles.map(f => (
-                        <NoteRow
-                          key={f.id}
-                          file={f}
-                          isActive={activeNoteId === f.id}
-                          onOpen={() => openNote(f.id, f.title || 'Untitled')}
-                          onDragStart={handleNoteDragStart}
-                          onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
-                        />
-                      ))}
-                    </div>
+                    {notesViewMode === 'grid' ? (
+                      <div className="grid grid-cols-2 gap-2.5 p-1">
+                        {recentFiles.map(f => (
+                          <NoteCard
+                            key={f.id}
+                            file={f}
+                            isActive={activeNoteId === f.id}
+                            onOpen={() => openNote(f.id, f.title || 'Untitled')}
+                            onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-0.5">
+                        {recentFiles.map(f => (
+                          <NoteRow
+                            key={f.id}
+                            file={f}
+                            isActive={activeNoteId === f.id}
+                            onOpen={() => openNote(f.id, f.title || 'Untitled')}
+                            onDragStart={handleNoteDragStart}
+                            onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1666,25 +2050,42 @@ export default function MobileLayout({
                 {rootFolders.length > 0 && (
                   <div>
                     <p className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Ordner</p>
-                    <div className="space-y-0.5">
-                      {rootFolders.map(folder => (
-                        <FolderItem
-                          key={folder.id}
-                          folder={folder}
-                          allFiles={files}
-                          onOpen={openNote}
-                          activeNoteId={activeNoteId}
-                          dragOverId={dragOverFolderId}
-                          onDragOver={setDragOverFolderId}
-                          onDragLeave={() => setDragOverFolderId(null)}
-                          onContextMenu={f => setContextMenu({ type: 'folder', id: f.id, title: f.title || 'Ordner', parentId: f.parent_id })}
-                          onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
-                          onNoteDragStart={handleNoteDragStart}
-                          isDragging={!!draggingNote}
-                          onPromptPin={setPinPromptItem}
-                        />
-                      ))}
-                    </div>
+                    {notesViewMode === 'grid' ? (
+                      <div className="grid grid-cols-2 gap-2.5 p-1">
+                        {rootFolders.map(folder => (
+                          <FolderCard
+                            key={folder.id}
+                            folder={folder}
+                            allFiles={files}
+                            onOpen={openNote}
+                            activeNoteId={activeNoteId}
+                            onContextMenu={f => setContextMenu({ type: 'folder', id: f.id, title: f.title || 'Ordner', parentId: f.parent_id })}
+                            onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                            onPromptPin={setPinPromptItem}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-0.5">
+                        {rootFolders.map(folder => (
+                          <FolderItem
+                            key={folder.id}
+                            folder={folder}
+                            allFiles={files}
+                            onOpen={openNote}
+                            activeNoteId={activeNoteId}
+                            dragOverId={dragOverFolderId}
+                            onDragOver={setDragOverFolderId}
+                            onDragLeave={() => setDragOverFolderId(null)}
+                            onContextMenu={f => setContextMenu({ type: 'folder', id: f.id, title: f.title || 'Ordner', parentId: f.parent_id })}
+                            onNoteContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                            onNoteDragStart={handleNoteDragStart}
+                            isDragging={!!draggingNote}
+                            onPromptPin={setPinPromptItem}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1692,18 +2093,32 @@ export default function MobileLayout({
                 {rootNotes.length > 0 && (
                   <div>
                     <p className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Alle Notizen</p>
-                    <div className="space-y-0.5">
-                      {rootNotes.map(f => (
-                        <NoteRow
-                          key={f.id}
-                          file={f}
-                          isActive={activeNoteId === f.id}
-                          onOpen={() => openNote(f.id, f.title || 'Untitled')}
-                          onDragStart={handleNoteDragStart}
-                          onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
-                        />
-                      ))}
-                    </div>
+                    {notesViewMode === 'grid' ? (
+                      <div className="grid grid-cols-2 gap-2.5 p-1">
+                        {rootNotes.map(f => (
+                          <NoteCard
+                            key={f.id}
+                            file={f}
+                            isActive={activeNoteId === f.id}
+                            onOpen={() => openNote(f.id, f.title || 'Untitled')}
+                            onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-0.5">
+                        {rootNotes.map(f => (
+                          <NoteRow
+                            key={f.id}
+                            file={f}
+                            isActive={activeNoteId === f.id}
+                            onOpen={() => openNote(f.id, f.title || 'Untitled')}
+                            onDragStart={handleNoteDragStart}
+                            onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

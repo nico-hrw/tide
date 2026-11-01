@@ -11,6 +11,7 @@ import ChatPanel from "@/components/Chat/ChatPanel";
 import Sidebar from "@/components/Layout/Sidebar";
 import TabList, { Tab } from "@/components/Layout/TabList";
 import CalendarView from "@/components/Calendar/CalendarView";
+import type { CalendarViewMode } from "@/components/Calendar/types";
 import WeekView from "@/components/Calendar/WeekView";
 import { ItemSecuritySettings } from "@/lib/pinSecurity";
 import ThemeItem from "@/components/Settings/ThemeItem";
@@ -240,6 +241,18 @@ export default function Dashboard() {
 
     // Calendar & Event State
     const [calendarDate, setCalendarDate] = useState(new Date());
+    const [calendarViewMode, setCalendarViewMode] = useState<CalendarViewMode>('week');
+
+    const filteredCalendarEvents = useMemo(() => {
+        return events.map(e => {
+            const parent = files?.find(f => f.id === e.parent_id);
+            return { ...e, effect: parent?.effect || 'none' };
+        }).filter(e => {
+            const gIds = getEventGroupIds(e);
+            if (gIds.length === 0) return !hiddenThemeIds.includes('general-theme');
+            return gIds.some(gid => !hiddenThemeIds.includes(gid));
+        });
+    }, [events, files, hiddenThemeIds]);
 
     const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
     const [scheduleInitialStart, setScheduleInitialStart] = useState<Date | null>(null);
@@ -2986,11 +2999,7 @@ export default function Dashboard() {
                     handleDeleteEvent(id);
                 }}
                 onTaskComplete={(id: string, completed: boolean) => {
-                    useDataStore.setState((s: any) => ({
-                        events: s.events.map((e: any) =>
-                            e.id === id ? { ...e, is_completed: completed } : e
-                        )
-                    }));
+                    handleEventSave(id, { is_completed: completed });
                 }}
                 socialHubElement={
                     <SocialHub
@@ -3226,7 +3235,7 @@ export default function Dashboard() {
                     }} */
                 >
                     {/* Unscheduled Tasks Panel — bottom-right corner floating card, only when calendar is active */}
-                    {activeTabId === 'calendar' && (!enabledExtensions || enabledExtensions.includes('todos')) && (() => {
+                    {activeTabId === 'calendar' && (!enabledExtensions || enabledExtensions.includes('todos')) && calendarViewMode !== 'month' && calendarViewMode !== 'continuous' && (() => {
                         const foldersMeta = loadTodoFoldersMeta();
                         const visibleUnscheduled = (tasks || []).filter(
                             t => !t.isCompleted && !t.dueDate && !t.scheduledDate && isTaskVisibleInCalendar(t, foldersMeta)
@@ -3404,14 +3413,9 @@ export default function Dashboard() {
                         }
                     `}</style>
                     <CalendarView
-                        events={events.map(e => {
-                            const parent = files?.find(f => f.id === e.parent_id);
-                            return { ...e, effect: parent?.effect || 'none' };
-                        }).filter(e => {
-                            const gIds = getEventGroupIds(e);
-                            if (gIds.length === 0) return !hiddenThemeIds.includes('general-theme');
-                            return gIds.some(gid => !hiddenThemeIds.includes(gid));
-                        })}
+                        events={filteredCalendarEvents}
+                        viewMode={calendarViewMode}
+                        onViewModeChange={setCalendarViewMode}
                         onEventCreate={handleEventCreate}
                         onEventUpdate={handleEventUpdate}
                         onEventDelete={handleDeleteEvent}

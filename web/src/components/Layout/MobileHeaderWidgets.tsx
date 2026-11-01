@@ -153,7 +153,7 @@ export function fireConfetti(originEl: HTMLElement): void {
 
   for (let i = 0; i < particleCount; i++) {
     const angle = -Math.PI / 2 + (Math.random() - 0.5) * (Math.PI * 0.45);
-    const speed = Math.random() * 8 + 7;
+    const speed = Math.random() * 3.5 + 2.5;
     particles.push({
       x: startX,
       y: startY,
@@ -166,13 +166,13 @@ export function fireConfetti(originEl: HTMLElement): void {
       wobble: Math.random() * Math.PI * 2,
       wobbleSpeed: Math.random() * 0.08 + 0.04,
       opacity: 1,
-      decay: 0.016 + Math.random() * 0.008,
+      decay: 0.003 + Math.random() * 0.002,
       isCircle: Math.random() < 0.2,
     });
   }
 
-  const gravity = 0.22;
-  const drag = 0.985;
+  const gravity = 0.08;
+  const drag = 0.96;
 
   const step = () => {
     ctx.clearRect(0, 0, width, height);

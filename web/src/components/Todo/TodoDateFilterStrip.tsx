@@ -21,19 +21,18 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
   className = '',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const todayRef = useRef<HTMLButtonElement>(null);
-  const selectedRef = useRef<HTMLButtonElement>(null);
-
   const today = useMemo(() => startOfDay(new Date()), []);
   const [scrolledCenterDate, setScrolledCenterDate] = useState<Date>(today);
+  const rafId = useRef<number | null>(null);
+  const hasMountedRef = useRef(false);
 
   // Generous range around today; expands dynamically if selectedDate is outside
   const days = useMemo(() => {
-    let startOffset = -14;
-    let endOffset = 45;
+    let startOffset = -30;
+    let endOffset = 60;
     if (selectedDate) {
       const diff = Math.round((startOfDay(selectedDate).getTime() - today.getTime()) / 86400000);
-      if (diff < startOffset) startOffset = diff - 7;
+      if (diff < startOffset) startOffset = diff - 14;
       if (diff > endOffset) endOffset = diff + 14;
     }
     const count = endOffset - startOffset + 1;
@@ -59,30 +58,14 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
     return map;
   }, [tasks, today]);
 
-  // Center selected date or today smoothly
-  useEffect(() => {
-    const container = containerRef.current;
-    const target = selectedDate ? selectedRef.current : todayRef.current;
-    if (container && target) {
-      const scrollPos =
-        target.offsetLeft -
-        container.offsetLeft -
-        container.clientWidth / 2 +
-        target.clientWidth / 2;
-      container.scrollTo({
-        left: Math.max(0, scrollPos),
-        behavior: 'smooth',
-      });
-    }
-  }, [selectedDate]);
-
-  // Track live visible month as user scrolls
-  const handleScroll = useCallback(() => {
+  // Dynamic cosine bell curve magnifier (matching MobileDateWheel.tsx)
+  const updateMagnifier = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const children = container.children;
+    const radius = 110; // lens influence radius in px
 
     let closestChild: HTMLElement | null = null;
     let minDistance = Infinity;
@@ -99,6 +82,18 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
         minDistance = dist;
         closestChild = child;
       }
+
+      if (dist < radius) {
+        // Cosine bell curve: 1 at exact center, 0 at edge
+        const curve = (Math.cos((dist / radius) * Math.PI) + 1) / 2;
+        const scale = 0.72 + curve * 0.60; // 0.72 to 1.32 (largest zoom)
+        const opacity = 0.35 + curve * 0.65; // 0.35 to 1.00
+        child.style.transform = `scale(${scale.toFixed(3)})`;
+        child.style.opacity = opacity.toFixed(3);
+      } else {
+        child.style.transform = 'scale(0.72)';
+        child.style.opacity = '0.35';
+      }
     }
 
     if (closestChild) {
@@ -107,16 +102,94 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
         const parts = dateStr.split('-').map(Number);
         const d = new Date(parts[0], parts[1] - 1, parts[2]);
         if (!isNaN(d.getTime())) {
-          setScrolledCenterDate(d);
+          setScrolledCenterDate((prev) => (isSameDay(prev, d) ? prev : d));
         }
       }
     }
   }, []);
 
+  const handleScroll = useCallback(() => {
+    if (rafId.current) cancelAnimationFrame(rafId.current);
+    rafId.current = requestAnimationFrame(updateMagnifier);
+  }, [updateMagnifier]);
+
+  useEffect(() => {
+    return () => {
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+    };
+  }, []);
+
+  // Center selected date or today smoothly
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const targetDate = selectedDate || today;
+    const targetKey = format(targetDate, 'yyyy-MM-dd');
+
+    const centerElement = (smooth: boolean) => {
+      const target = container.querySelector(`[data-date="${targetKey}"]`) as HTMLElement;
+      if (target) {
+        const scrollPos =
+          target.offsetLeft -
+          container.clientWidth / 2 +
+          target.clientWidth / 2;
+
+        if (smooth) {
+          container.scrollTo({
+            left: Math.max(0, scrollPos),
+            behavior: 'smooth',
+          });
+          setTimeout(updateMagnifier, 320);
+        } else {
+          container.scrollLeft = Math.max(0, scrollPos);
+          requestAnimationFrame(updateMagnifier);
+        }
+      }
+    };
+
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      const t = setTimeout(() => {
+        centerElement(false);
+      }, 50);
+      return () => clearTimeout(t);
+    } else {
+      centerElement(true);
+    }
+  }, [selectedDate, today, updateMagnifier]);
+
+  // Window resize re-centering / magnifier recalculation
+  useEffect(() => {
+    const onResize = () => {
+      updateMagnifier();
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [updateMagnifier]);
+
   // Support horizontal mouse wheel scrolling
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     if (e.deltaY !== 0 && containerRef.current) {
       containerRef.current.scrollLeft += e.deltaY;
+    }
+  };
+
+  const handleDateClick = (d: Date) => {
+    const isSelected = selectedDate !== null && isSameDay(d, selectedDate);
+    const nextDate = isSelected ? null : d;
+    onSelectDate(nextDate);
+
+    const targetDate = nextDate || today;
+    const targetKey = format(targetDate, 'yyyy-MM-dd');
+    const container = containerRef.current;
+    if (container) {
+      const el = container.querySelector(`[data-date="${targetKey}"]`) as HTMLElement;
+      if (el) {
+        const targetScroll = el.offsetLeft - container.clientWidth / 2 + el.offsetWidth / 2;
+        container.scrollTo({ left: Math.max(0, targetScroll), behavior: 'smooth' });
+        setTimeout(updateMagnifier, 320);
+      }
     }
   };
 
@@ -128,18 +201,20 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
       onSelectDate(today);
     } else {
       const container = containerRef.current;
-      const target = todayRef.current;
-      if (container && target) {
-        const scrollPos =
-          target.offsetLeft -
-          container.offsetLeft -
-          container.clientWidth / 2 +
-          target.clientWidth / 2;
-        container.scrollTo({
-          left: Math.max(0, scrollPos),
-          behavior: 'smooth',
-        });
-        setScrolledCenterDate(today);
+      if (container) {
+        const target = container.querySelector(`[data-date="${format(today, 'yyyy-MM-dd')}"]`) as HTMLElement;
+        if (target) {
+          const scrollPos =
+            target.offsetLeft -
+            container.clientWidth / 2 +
+            target.clientWidth / 2;
+          container.scrollTo({
+            left: Math.max(0, scrollPos),
+            behavior: 'smooth',
+          });
+          setScrolledCenterDate(today);
+          setTimeout(updateMagnifier, 320);
+        }
       }
     }
   };
@@ -180,96 +255,92 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
         )}
       </div>
 
-      {/* Scrollable date strip */}
-      <div
-        ref={containerRef}
-        onScroll={handleScroll}
-        onWheel={handleWheel}
-        className="w-full flex items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none py-1 scroll-smooth"
-        style={{ WebkitOverflowScrolling: 'touch' }}
-      >
-        {days.map((d) => {
-          const dateKey = format(d, 'yyyy-MM-dd');
-          const isSelected = selectedDate !== null && isSameDay(d, selectedDate);
-          const isDateToday = isToday(d);
-          const dayStat = daysWithTasks.get(dateKey);
-          const hasTasks = Boolean(dayStat && dayStat.count > 0);
-          const weekday = format(d, 'EEE', { locale: de });
+      <div className="relative w-full">
+        {/* Scrollable date strip */}
+        <div
+          ref={containerRef}
+          onScroll={handleScroll}
+          onWheel={handleWheel}
+          className="w-full flex items-center gap-1 overflow-x-auto no-scrollbar scrollbar-none py-1 select-none"
+          style={{
+            WebkitOverflowScrolling: 'touch',
+            paddingLeft: 'calc(50% - 22px)',
+            paddingRight: 'calc(50% - 22px)',
+          }}
+        >
+          {days.map((d) => {
+            const dateKey = format(d, 'yyyy-MM-dd');
+            const isSelected = selectedDate !== null && isSameDay(d, selectedDate);
+            const isDateToday = isToday(d);
+            const isActive = isSelected || (selectedDate === null && isSameDay(d, activeDate));
+            const dayStat = daysWithTasks.get(dateKey);
+            const hasTasks = Boolean(dayStat && dayStat.count > 0);
+            const weekday = format(d, 'EEE', { locale: de });
 
-          return (
-            <div
-              key={dateKey}
-              data-date={dateKey}
-              className="flex flex-col items-center shrink-0"
-            >
+            const diffDays = Math.abs(
+              Math.round((startOfDay(d).getTime() - startOfDay(activeDate).getTime()) / 86400000)
+            );
+            const initialScale = diffDays === 0 ? 1.32 : diffDays === 1 ? 0.95 : diffDays === 2 ? 0.80 : 0.72;
+            const initialOpacity = diffDays === 0 ? 1 : diffDays === 1 ? 0.75 : diffDays === 2 ? 0.50 : 0.35;
+
+            return (
               <button
-                ref={isSelected ? selectedRef : isDateToday ? todayRef : undefined}
+                key={dateKey}
+                data-date={dateKey}
                 type="button"
-                onClick={() => onSelectDate(isSelected ? null : d)}
-                className={`w-[44px] h-[52px] rounded-2xl flex flex-col items-center justify-center transition-all cursor-pointer select-none active:scale-95 ${
-                  isSelected
-                    ? 'bg-zinc-900 text-white dark:bg-white dark:text-zinc-950 shadow-sm font-black'
-                    : isDateToday
-                    ? 'bg-blue-50/80 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100/60 dark:hover:bg-blue-900/40 border border-blue-500/20 dark:border-blue-500/30'
-                    : 'bg-transparent hover:bg-gray-100 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
-                }`}
+                onClick={() => handleDateClick(d)}
+                className="w-[44px] h-[52px] flex flex-col items-center justify-center shrink-0 rounded-2xl bg-transparent border-0 cursor-pointer select-none transition-transform"
+                style={{
+                  transform: `scale(${initialScale})`,
+                  opacity: initialOpacity,
+                }}
                 title={`${format(d, 'EEEE, d. MMMM yyyy', { locale: de })}${
                   hasTasks ? ` (${dayStat?.count} Aufgabe${dayStat?.count === 1 ? '' : 'n'})` : ''
                 }`}
               >
                 <span
-                  className={`text-[10px] font-bold uppercase tracking-wider ${
-                    isSelected
-                      ? 'text-white/80 dark:text-zinc-950/70'
-                      : isDateToday
-                      ? 'text-blue-600 dark:text-blue-400 font-extrabold'
-                      : 'text-gray-400 dark:text-gray-500'
+                  className={`text-[10px] uppercase tracking-wider ${
+                    isActive || isDateToday
+                      ? 'text-black dark:text-white font-black'
+                      : 'text-zinc-700 dark:text-zinc-300 font-bold'
                   }`}
                 >
                   {weekday}
                 </span>
                 <span
-                  className={`text-lg font-black leading-none mt-0.5 ${
-                    isSelected
-                      ? 'text-white dark:text-zinc-950'
-                      : isDateToday
-                      ? 'text-blue-600 dark:text-blue-400'
-                      : 'text-gray-900 dark:text-gray-100'
+                  className={`text-lg leading-none mt-0.5 ${
+                    isActive || isDateToday
+                      ? 'text-black dark:text-white font-black'
+                      : 'text-zinc-700 dark:text-zinc-300 font-bold'
                   }`}
                 >
                   {format(d, 'd')}
                 </span>
 
-                {/* Subtle dot or badge underneath the day number for days with tasks */}
+                {/* Task dot underneath day number (transparent placeholder when no tasks so height is uniform) */}
                 <span
                   className={`w-1.5 h-1.5 rounded-full mt-1 transition-colors ${
                     !hasTasks
                       ? 'bg-transparent'
-                      : isSelected
-                      ? 'bg-white dark:bg-zinc-950'
                       : dayStat?.hasOverdue
                       ? 'bg-rose-500'
                       : 'bg-blue-500'
                   }`}
                 />
               </button>
+            );
+          })}
+        </div>
 
-              {/* Subtle indicator triangle SVG underneath the active/selected pill */}
-              <div className="h-1.5 flex items-center justify-center -mt-0.5 pointer-events-none">
-                {isSelected ? (
-                  <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
-                    <path
-                      d="M4.15 0.85C4.55 0.25 5.45 0.25 5.85 0.85L9.15 5.2C9.6 5.8 9.15 6 8.35 6H1.65C0.85 6 0.4 5.8 0.85 5.2L4.15 0.85Z"
-                      className="fill-zinc-900 dark:fill-white"
-                    />
-                  </svg>
-                ) : (
-                  <div className="w-2.5 h-1.5" />
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {/* Small centered indicator triangle SVG underneath the active date */}
+        <div className="flex justify-center pointer-events-none -mt-0.5 pb-0.5">
+          <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
+            <path
+              d="M4.15 0.85C4.55 0.25 5.45 0.25 5.85 0.85L9.15 5.2C9.6 5.8 9.15 6 8.35 6H1.65C0.85 6 0.4 5.8 0.85 5.2L4.15 0.85Z"
+              className="fill-zinc-900 dark:fill-white"
+            />
+          </svg>
+        </div>
       </div>
     </div>
   );

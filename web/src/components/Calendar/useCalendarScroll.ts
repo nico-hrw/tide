@@ -66,7 +66,7 @@ export function useCalendarScroll({
         container.addEventListener('scroll', check, { passive: true });
         const t = setTimeout(check, 300);
         return () => { container.removeEventListener('scroll', check); clearTimeout(t); };
-    }, [loadedWeeks]);
+    }, [loadedWeeks, scrollContainerRef.current]);
 
     const handleScrollToToday = useCallback(() => {
         const now = new Date();
@@ -307,7 +307,7 @@ export function useCalendarScroll({
             window.removeEventListener('mousedown', globalClickHandler);
             window.removeEventListener('touchend', globalTouchHandler);
         };
-    }, [onScroll, activePopover]);
+    }, [onScroll, activePopover, scrollContainerRef.current]);
 
     // Custom 2D Scroll Handler (Bypasses Browser Axis Locking)
     useEffect(() => {
@@ -317,26 +317,40 @@ export function useCalendarScroll({
         const handleWheel = (e: WheelEvent) => {
             if (e.ctrlKey || e.metaKey) return; // Allow zooming
 
-            // UNCONDITIONALLY prevent default to completely disable Chrome/Windows scroll rails 
-            // the moment the gesture starts.
-            e.preventDefault();
+            // Don't intercept if wheel event originated inside a nested popover or modal
+            const popoverEl = document.getElementById('active-event-popover');
+            if (popoverEl && e.target && popoverEl.contains(e.target as Node)) {
+                return;
+            }
 
-            // Directly apply the raw trackpad deltas for true 2D diagonal panning
+            // Directly check if container is horizontally scrollable (e.g. week view)
             const scrollableX = container.scrollWidth > container.clientWidth;
             const scrollableY = container.scrollHeight > container.clientHeight;
 
+            // Only intercept when container has horizontal overflow AND the gesture involves horizontal panning.
+            // When user is doing natural vertical scrolling or when in a single-column view (e.g. Day View),
+            // do not preventDefault to preserve natural browser scrolling and momentum.
+            const isHorizontalPanning = scrollableX && (Math.abs(e.deltaX) > 0 || e.shiftKey);
+            if (!isHorizontalPanning) {
+                return;
+            }
+
+            e.preventDefault();
+
             if (scrollableX || scrollableY) {
-                // By preventing default, we stop the browser's native axis locking logic.
-                // We then manually apply the deltas to create a true 2D scroll experience.
-                container.scrollLeft += e.deltaX;
-                container.scrollTop += e.deltaY;
+                container.scrollLeft += e.shiftKey ? e.deltaY : e.deltaX;
+                if (!e.shiftKey) {
+                    container.scrollTop += e.deltaY;
+                }
             }
         };
 
         // passive: false is required to call preventDefault
         container.addEventListener('wheel', handleWheel, { passive: false });
-        return () => container.removeEventListener('wheel', handleWheel);
-    }, []);
+        return () => {
+            container.removeEventListener('wheel', handleWheel);
+        };
+    }, [scrollContainerRef.current, loadedWeeks]);
 
     // Adjust Scroll Position for Prepending
     useLayoutEffect(() => {

@@ -59,8 +59,8 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({
 
             <div className="p-6 bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl mb-6 flex items-center justify-between gap-4">
                 <div className="flex-1 pr-4">
-                    <h4 className="text-sm font-bold text-gray-900 dark:text-white">GoodNotes-Ordneransicht nutzen</h4>
-                    <p className="text-xs text-gray-500 mt-1">Zeigt Ordner und Notizen übersichtlich auf der Startseite im GoodNotes-Stil an (Standard auf dem iPad).</p>
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-white">Tablet-Mode nutzen</h4>
+                    <p className="text-xs text-gray-500 mt-1">Zeigt Ordner und Notizen übersichtlich auf der Startseite im Tablet-Modus an (Standard auf dem iPad).</p>
                 </div>
                 <button
                     type="button"

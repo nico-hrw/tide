@@ -67,6 +67,7 @@ export interface EventSheetProps {
   onEdit?: () => void;
   onDismiss: () => void;
   onToggleComplete?: () => void;
+  onTaskComplete?: (id: string, completed: boolean) => void;
 }
 
 export const EventSheet = ({
@@ -76,6 +77,7 @@ export const EventSheet = ({
   onEdit,
   onDismiss,
   onToggleComplete,
+  onTaskComplete,
 }: EventSheetProps) => {
   const start = new Date(event.start);
   const end = event.end ? new Date(event.end) : start;
@@ -85,17 +87,25 @@ export const EventSheet = ({
   const isTask = !!(event.is_task || event.linkedTaskId);
   const tasks = useDataStore(state => state.tasks);
   const linkedTask = event.linkedTaskId ? tasks?.find(t => t.id === event.linkedTaskId) : undefined;
-  const isCompleted = linkedTask ? !!linkedTask.isCompleted : !!event.is_completed;
+  const [localCompleted, setLocalCompleted] = useState<boolean | null>(null);
+  const isCompleted = localCompleted !== null ? localCompleted : (linkedTask ? !!linkedTask.isCompleted : !!event.is_completed);
 
   const handleToggleComplete = () => {
+    const nextCompleted = !isCompleted;
+    setLocalCompleted(nextCompleted);
+    if (event.linkedTaskId) {
+      useDataStore.getState().toggleTask(event.linkedTaskId);
+    }
+    if (onTaskComplete) {
+      onTaskComplete(event.id, nextCompleted);
+    }
     if (onToggleComplete) {
       onToggleComplete();
-    } else if (event.linkedTaskId) {
-      useDataStore.getState().toggleTask(event.linkedTaskId);
-    } else {
+    }
+    if (!onTaskComplete && !onToggleComplete && !event.linkedTaskId) {
       useDataStore.setState(s => ({
         events: s.events.map(e =>
-          e.id === event.id ? { ...e, is_completed: !isCompleted } : e
+          e.id === event.id ? { ...e, is_completed: nextCompleted } : e
         )
       }));
     }
