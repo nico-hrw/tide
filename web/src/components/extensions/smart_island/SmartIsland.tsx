@@ -301,6 +301,7 @@ interface SmartIslandProps {
     selectedDate?: Date;
     onSelect?: (date: Date) => void;
     userName?: string;
+    compact?: boolean;
 }
 
 const EventPreviewView = ({ payload }: { payload: any }) => {
@@ -899,7 +900,7 @@ const registeredPlugins: Record<string, React.FC<{ payload: any }>> = {
     'text_collector': TextCollectorView,
 };
 
-export default function SmartIsland({ selectedDate, onSelect, userName }: SmartIslandProps) {
+export default function SmartIsland({ selectedDate, onSelect, userName, compact = false }: SmartIslandProps) {
     const { state, setDailySummaryMode } = useIslandStore();
     const storeEvents = useDataStore(s => s.events);
     const expandOnNotification = useIslandSettingsStore(s => s.expandOnNotification);
@@ -911,6 +912,51 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
             try { return isSameDay(new Date(e.start), today); } catch { return false; }
         }).map((e: any) => ({ title: e.title, start: e.start, end: e.end, description: e.description, is_all_day: e.is_all_day }));
     }, [storeEvents]);
+
+    // Active or upcoming event for compact pill in Good-Notes mode
+    const activeOrUpcomingEvent = useMemo(() => {
+        if (!compact) return null;
+        const now = new Date();
+        const today = new Date();
+        const todayEvs = (storeEvents || []).filter((e: any) => {
+            try { return isSameDay(new Date(e.start), today); } catch { return false; }
+        });
+
+        const activeMeeting = todayEvs.find((e: any) => {
+            try {
+                if (e.is_all_day) return false;
+                const s = new Date(e.start);
+                const en = new Date(e.end);
+                return s <= now && en > now;
+            } catch { return false; }
+        });
+
+        if (activeMeeting) {
+            return {
+                title: activeMeeting.title,
+                start: activeMeeting.start,
+                isOngoing: true,
+            };
+        }
+
+        const upcoming = todayEvs
+            .filter((e: any) => {
+                try {
+                    return new Date(e.start) > now;
+                } catch { return false; }
+            })
+            .sort((a: any, b: any) => new Date(a.start).getTime() - new Date(b.start).getTime())[0];
+
+        if (upcoming) {
+            return {
+                title: upcoming.title,
+                start: upcoming.start,
+                isOngoing: false,
+            };
+        }
+
+        return null;
+    }, [compact, storeEvents]);
 
     const isCentered = !!state.dailySummaryMode && state.dailySummaryMode !== 'morning';
 
@@ -930,7 +976,9 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                                 ? 'p-4 rounded-xl w-full'
                                 : state.current?.type === 'message'
                                     ? (expandOnNotification ? 'p-3 rounded-xl w-full sm:w-[26rem] md:w-[28rem] shadow-2xl' : 'p-3 rounded-xl w-full')
-                                    : 'py-1.5 px-2 rounded-xl w-full';
+                                    : compact
+                                        ? 'py-2 px-3.5 rounded-full w-auto'
+                                        : 'py-1.5 px-2 rounded-xl w-full';
 
     const positionClass = 'relative';
 
@@ -976,27 +1024,72 @@ export default function SmartIsland({ selectedDate, onSelect, userName }: SmartI
                             />
                         </motion.div>
                     ) : !state.current ? (
-                        <motion.div
-                            key="default-calendar"
-                            initial={{ opacity: 0, scale: 0.96 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.96 }}
-                            transition={{
-                                opacity: { delay: 0.1, duration: 0.15 },
-                                default: { type: "spring", stiffness: 300, damping: 30 }
-                            }}
-                            layout="position"
-                            className="dark [&>div:first-child]:!p-2 [&>div:first-child]:!py-1 [&>div:first-child>div:nth-child(1)]:!mb-1 [&>div:first-child>div:nth-child(2)]:!mb-1 [&>div:first-child>div:nth-child(3)]:!mb-0.5 [&_.w-7]:!w-6 [&_.w-7]:!h-6"
-                        >
-                            <MiniCalendar
-                                selectedDate={selectedDate}
-                                onSelect={(date) => {
-                                    onSelect?.(date);
+                        compact ? (
+                            <motion.div
+                                key="compact-pill"
+                                initial={{ opacity: 0, scale: 0.95 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                transition={{
+                                    opacity: { delay: 0.05, duration: 0.15 },
+                                    default: { type: "spring", stiffness: 300, damping: 30 }
                                 }}
-                            />
-                            {/* In-Meeting progress bar below calendar */}
-                            <InMeetingBar events={todayEvents} />
-                        </motion.div>
+                                layout="position"
+                                className="flex items-center gap-2 select-none text-xs font-medium text-zinc-100 cursor-pointer"
+                                onClick={() => onSelect?.(selectedDate || new Date())}
+                            >
+                                <div className="flex items-center gap-1.5 text-zinc-200 font-semibold shrink-0">
+                                    <CalendarIcon className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                                    <span>
+                                        {format(selectedDate || new Date(), 'EEE, d. MMM', { locale: de })}
+                                    </span>
+                                </div>
+                                {activeOrUpcomingEvent ? (
+                                    <>
+                                        <span className="text-zinc-600 dark:text-zinc-500">|</span>
+                                        <div className="flex items-center gap-1.5 min-w-0 max-w-[11rem]">
+                                            <span
+                                                className={`w-2 h-2 rounded-full shrink-0 ${
+                                                    activeOrUpcomingEvent.isOngoing
+                                                        ? 'bg-emerald-400 animate-pulse'
+                                                        : 'bg-indigo-400'
+                                                }`}
+                                            />
+                                            <span className="truncate text-zinc-200">
+                                                {activeOrUpcomingEvent.title}
+                                            </span>
+                                            <span className="text-[10px] text-zinc-400 shrink-0">
+                                                {format(new Date(activeOrUpcomingEvent.start), 'HH:mm')}
+                                            </span>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/80 shrink-0" title="Keine anstehenden Termine" />
+                                )}
+                            </motion.div>
+                        ) : (
+                            <motion.div
+                                key="default-calendar"
+                                initial={{ opacity: 0, scale: 0.96 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.96 }}
+                                transition={{
+                                    opacity: { delay: 0.1, duration: 0.15 },
+                                    default: { type: "spring", stiffness: 300, damping: 30 }
+                                }}
+                                layout="position"
+                                className="dark [&>div:first-child]:!p-2 [&>div:first-child]:!py-1 [&>div:first-child>div:nth-child(1)]:!mb-1 [&>div:first-child>div:nth-child(2)]:!mb-1 [&>div:first-child>div:nth-child(3)]:!mb-0.5 [&_.w-7]:!w-6 [&_.w-7]:!h-6"
+                            >
+                                <MiniCalendar
+                                    selectedDate={selectedDate}
+                                    onSelect={(date) => {
+                                        onSelect?.(date);
+                                    }}
+                                />
+                                {/* In-Meeting progress bar below calendar */}
+                                <InMeetingBar events={todayEvents} />
+                            </motion.div>
+                        )
                     ) : (
                         <motion.div
                             key={state.current.id}

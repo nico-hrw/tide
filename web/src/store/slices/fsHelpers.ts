@@ -120,12 +120,13 @@ export async function decryptTasks(
                     isArchived: meta.isArchived as boolean | undefined,
                     parentId: (meta.parentId as string | null) ?? null,
                     order: (meta.order as number) ?? 0,
-                } as TaskItem);
+                    synced: true,
+                } as unknown as TaskItem);
             } else {
-                loadedTasks.push({ id: t.id, title: 'Locked Task (Decrypting...)', isCompleted: false, status: 'todo', isLocked: true } as unknown as TaskItem);
+                loadedTasks.push({ id: t.id, title: 'Locked Task (Decrypting...)', isCompleted: false, status: 'todo', isLocked: true, synced: true } as unknown as TaskItem);
             }
         } catch {
-            loadedTasks.push({ id: t.id, title: 'Locked Task (Decrypting...)', isCompleted: false, status: 'todo', isLocked: true } as unknown as TaskItem);
+            loadedTasks.push({ id: t.id, title: 'Locked Task (Decrypting...)', isCompleted: false, status: 'todo', isLocked: true, synced: true } as unknown as TaskItem);
         }
     }
     return loadedTasks;
@@ -143,7 +144,7 @@ export function reconcileTasksWithLocal(
         if (deletedIds.has(bt.id)) continue;
         const local = localMap.get(bt.id);
         if (!local) {
-            reconciled.push(bt);
+            reconciled.push({ ...bt, synced: true } as TaskItem);
             continue;
         }
 
@@ -154,6 +155,28 @@ export function reconcileTasksWithLocal(
 
         const hasBothTimestamps = !isNaN(localTime) && !isNaN(btTime);
         const isLocalNewer = hasBothTimestamps ? localTime > btTime : !isNaN(localTime);
+
+        // Ensure that if a task's isCompleted is true in local or remote,
+        // the most recent update timestamp or completed state is preserved reliably.
+        const resolvedCompleted = hasBothTimestamps
+            ? (isLocalNewer ? (local.isCompleted ?? bt.isCompleted) : (bt.isCompleted ?? local.isCompleted))
+            : Boolean(local.isCompleted || bt.isCompleted);
+
+        const resolvedCompletedAt = resolvedCompleted
+            ? (isLocalNewer
+                ? (local.completedAt || bt.completedAt || localUpdatedAt || btUpdatedAt)
+                : (bt.completedAt || local.completedAt || btUpdatedAt || localUpdatedAt))
+            : undefined;
+
+        const resolvedStatus: TaskItem['status'] = resolvedCompleted
+            ? 'completed'
+            : (isLocalNewer
+                ? (local.status && local.status !== 'completed' ? local.status : bt.status && bt.status !== 'completed' ? bt.status : 'todo')
+                : (bt.status && bt.status !== 'completed' ? bt.status : local.status && local.status !== 'completed' ? local.status : 'todo'));
+
+        const resolvedUpdatedAt = (!isNaN(localTime) && !isNaN(btTime))
+            ? (localTime >= btTime ? localUpdatedAt : btUpdatedAt)
+            : (localUpdatedAt || btUpdatedAt);
 
         if (isLocalNewer) {
             reconciled.push({
@@ -171,17 +194,18 @@ export function reconcileTasksWithLocal(
                 recurrence_rule: local.recurrence_rule !== undefined ? local.recurrence_rule : bt.recurrence_rule,
                 recurrence_end: local.recurrence_end !== undefined ? local.recurrence_end : bt.recurrence_end,
                 showInCalendar: local.showInCalendar !== undefined ? local.showInCalendar : bt.showInCalendar,
-                status: local.status !== undefined ? local.status : bt.status,
-                isCompleted: local.isCompleted !== undefined ? local.isCompleted : bt.isCompleted,
-                completedAt: local.completedAt !== undefined ? local.completedAt : bt.completedAt,
-                updatedAt: localUpdatedAt || btUpdatedAt,
+                status: resolvedStatus,
+                isCompleted: resolvedCompleted,
+                completedAt: resolvedCompletedAt,
+                updatedAt: resolvedUpdatedAt,
                 isArchived: local.isArchived !== undefined ? local.isArchived : bt.isArchived,
                 parentId: local.parentId !== undefined ? local.parentId : bt.parentId,
                 order: local.order !== undefined ? local.order : bt.order,
                 completed_dates: local.completed_dates !== undefined ? local.completed_dates : bt.completed_dates,
                 createdAt: local.createdAt || bt.createdAt,
                 linkedNoteId: local.linkedNoteId !== undefined ? local.linkedNoteId : bt.linkedNoteId,
-            });
+                synced: true,
+            } as TaskItem);
         } else {
             reconciled.push({
                 ...local,
@@ -198,10 +222,10 @@ export function reconcileTasksWithLocal(
                 recurrence_rule: bt.recurrence_rule !== undefined ? bt.recurrence_rule : local.recurrence_rule,
                 recurrence_end: bt.recurrence_end !== undefined ? bt.recurrence_end : local.recurrence_end,
                 showInCalendar: bt.showInCalendar !== undefined ? bt.showInCalendar : (local.showInCalendar ?? true),
-                status: bt.status !== undefined ? bt.status : local.status,
-                isCompleted: bt.isCompleted !== undefined ? bt.isCompleted : local.isCompleted,
-                completedAt: bt.completedAt !== undefined ? bt.completedAt : local.completedAt,
-                updatedAt: btUpdatedAt || localUpdatedAt,
+                status: resolvedStatus,
+                isCompleted: resolvedCompleted,
+                completedAt: resolvedCompletedAt,
+                updatedAt: resolvedUpdatedAt,
                 isArchived: bt.isArchived !== undefined ? bt.isArchived : local.isArchived,
                 parentId: bt.parentId !== undefined ? bt.parentId : local.parentId,
                 order: bt.order !== undefined ? bt.order : local.order,
@@ -210,12 +234,20 @@ export function reconcileTasksWithLocal(
                     : (bt.completed_dates ?? local.completed_dates),
                 createdAt: bt.createdAt || local.createdAt,
                 linkedNoteId: bt.linkedNoteId !== undefined ? bt.linkedNoteId : local.linkedNoteId,
-            });
+                synced: true,
+            } as TaskItem);
         }
     }
 
     const backendIds = new Set(loadedTasks.map(t => t.id));
-    const localOnly = currentTasks.filter(t => !backendIds.has(t.id) && !deletedIds.has(t.id));
+    const localOnly = currentTasks.filter(t => {
+        if (backendIds.has(t.id) || deletedIds.has(t.id)) return false;
+        // Fix zombie task resurrection bug:
+        // When syncing with backend (loadedTasks), if a task exists in local cache but is NOT present in loadedTasks,
+        // do NOT automatically treat it as a new "local-only" task if it already had a backend record or was previously synced.
+        // Only keep genuinely unsynced local offline tasks (!t.synced or explicit offline draft marker).
+        return (t as any).synced === false || (t as any).isOfflineDraft === true || (t as any).isDraft === true;
+    });
     return localOnly.length > 0 ? [...reconciled, ...localOnly] : reconciled;
 }
 

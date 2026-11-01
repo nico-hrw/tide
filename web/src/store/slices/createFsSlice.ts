@@ -253,24 +253,24 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                     }),
                 ];
 
-                const mergedEvents = [
-                    ...s.events.filter(e => {
-                        if (newEventIds.has(e.id)) return false;
-                        const eventParent = e.parent_id === null ? 'root' : e.parent_id;
-                        if (eventParent === dirKey) return false;
-                        return true;
-                    }),
-                    ...visibleEvents.map(ve => {
-                        const existing = s.events.find(e => e.id === ve.id);
-                        if (existing) {
-                            return {
-                                ...ve,
-                                title: ve.title && ve.title !== 'Untitled' && !ve.title.includes('Locked Note') ? ve.title : existing.title,
-                            };
-                        }
-                        return ve;
-                    }),
-                ];
+                const eventMap = new Map(s.events.map(e => [e.id, e]));
+                visibleEvents.forEach(ve => {
+                    const existing = eventMap.get(ve.id);
+                    if (existing) {
+                        const mergedTitle =
+                            ve.title && ve.title !== 'Untitled' && !ve.title.includes('Locked Note')
+                                ? ve.title
+                                : existing.title;
+                        eventMap.set(ve.id, {
+                            ...existing,
+                            ...ve,
+                            title: mergedTitle,
+                        });
+                    } else {
+                        eventMap.set(ve.id, ve);
+                    }
+                });
+                const mergedEvents = Array.from(eventMap.values());
 
                 const mergedCache = mergeMetadataCache(s.metadataCache, newMetaCache);
 

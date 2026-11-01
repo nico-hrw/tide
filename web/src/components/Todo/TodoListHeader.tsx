@@ -6,8 +6,8 @@ import { TaskItem } from '@/store/useDataStore';
 import { TaskCreateDraft } from './TodoCreateCard';
 
 export interface TodoListHeaderProps {
-  viewMode: 'tasks' | 'timeline' | 'folders';
-  setViewMode: (mode: 'tasks' | 'timeline' | 'folders') => void;
+  viewMode: 'tasks' | 'folders';
+  setViewMode: (mode: 'tasks' | 'folders') => void;
   selectedFolder: string | null;
   activeCycleTotal: number;
   activeCycleCompletedCount: number;
@@ -132,17 +132,6 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
             </button>
             <button
               type="button"
-              onClick={() => props.setViewMode('timeline')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                props.viewMode === 'timeline'
-                  ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              Timeline
-            </button>
-            <button
-              type="button"
               onClick={() => props.setViewMode('folders')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                 props.viewMode === 'folders'
@@ -186,17 +175,6 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
               }`}
             >
               Liste
-            </button>
-            <button
-              type="button"
-              onClick={() => props.setViewMode('timeline')}
-              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
-                props.viewMode === 'timeline'
-                  ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
-                  : 'text-gray-600 dark:text-gray-400'
-              }`}
-            >
-              Timeline
             </button>
             <button
               type="button"

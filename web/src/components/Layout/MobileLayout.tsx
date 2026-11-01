@@ -74,6 +74,7 @@ export interface MobileLayoutProps {
     avatar_salt?: string; bio?: string; title?: string;
     id?: string; user_id?: string;
   } | null;
+  themes?: Array<{ id: string; title: string; color?: string; effect?: string }>;
 }
 
 const NoteRow = React.memo(function NoteRow(props: {
@@ -355,8 +356,20 @@ export default function MobileLayout({
   onNewFolder, onNewFolderIn, onNoteRename,
   editorElement, activeNoteId, activeNoteTitle, onNewEvent,
   onEventClick, onEventUpdate, onEventSave, onEventDelete, onTaskComplete,
-  socialHubElement, userProfile,
+  socialHubElement, userProfile, themes,
 }: MobileLayoutProps) {
+  const resolvedThemes = useMemo(() => {
+    if (themes && themes.length > 0) return themes;
+    return (files || [])
+      .filter((f: any) => f.type === 'folder' && f.isGroup)
+      .map((g: any) => ({
+        id: g.id,
+        title: g.title || 'Gruppe',
+        color: g.color,
+        effect: g.effect,
+      }));
+  }, [themes, files]);
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isEditingNote, setIsEditingNote] = useState(false);
@@ -1059,13 +1072,30 @@ export default function MobileLayout({
 
         {/* Event detail sheet */}
         {selectedEvent && (
-          <EventSheet key="evsheet" event={selectedEvent} now={now}
+          <EventSheet
+            key="evsheet"
+            event={selectedEvent}
+            now={now}
             onDelete={() => { onEventDelete?.(selectedEvent.id); setSelectedEvent(null); }}
             onEdit={() => {
               setEditingEvent(selectedEvent);
               setSelectedEvent(null);
             }}
-            onDismiss={() => setSelectedEvent(null)} />
+            onToggleComplete={() => {
+              if (selectedEvent.linkedTaskId) {
+                useDataStore.getState().toggleTask(selectedEvent.linkedTaskId);
+              } else if (onTaskComplete) {
+                onTaskComplete(selectedEvent.id, !selectedEvent.is_completed);
+              } else {
+                useDataStore.setState(s => ({
+                  events: s.events.map(e =>
+                    e.id === selectedEvent.id ? { ...e, is_completed: !e.is_completed } : e
+                  )
+                }));
+              }
+            }}
+            onDismiss={() => setSelectedEvent(null)}
+          />
         )}
 
         {/* Edit Event Sheet */}
@@ -1073,6 +1103,7 @@ export default function MobileLayout({
           <MobileEditEventSheet
             key={`edit-${editingEvent.id}`}
             event={editingEvent}
+            themes={resolvedThemes}
             onSave={(id, start, end, meta) => {
               if (onEventSave) {
                 onEventSave(id, {
@@ -1081,6 +1112,11 @@ export default function MobileLayout({
                   end: end.toISOString(),
                   color: meta.color,
                   description: meta.description,
+                  parent_id: meta.parent_id,
+                  groupIds: meta.groupIds,
+                  recurrence_rule: meta.recurrence_rule,
+                  recurrence_end: meta.recurrence_end,
+                  recurrence: meta.recurrence,
                 });
               } else if (onEventUpdate) {
                 onEventUpdate(id, start, end, meta);
@@ -1098,6 +1134,11 @@ export default function MobileLayout({
                         end: end.toISOString(),
                         color: meta.color,
                         description: meta.description,
+                        parent_id: meta.parent_id,
+                        groupIds: meta.groupIds,
+                        recurrence_rule: meta.recurrence_rule,
+                        recurrence_end: meta.recurrence_end,
+                        recurrence: meta.recurrence,
                       }
                     : e
                 ),
@@ -1413,6 +1454,7 @@ export default function MobileLayout({
                     onNewEvent={date => { setNewEventDefaultDate(date); setIsNewEventSheetOpen(true); }}
                     onDeleteEvent={onEventDelete}
                     onEditEvent={ev => { setSelectedEvent(null); setEditingEvent(ev); }}
+                    onTaskComplete={onTaskComplete}
                   />
                 );
               })()}
@@ -1446,6 +1488,7 @@ export default function MobileLayout({
                     }}
                     onDeleteEvent={onEventDelete}
                     onEditEvent={ev => { setSelectedEvent(null); setEditingEvent(ev); }}
+                    onTaskComplete={onTaskComplete}
                   />
                 );
               })()}
@@ -1466,6 +1509,7 @@ export default function MobileLayout({
             }}
             onDeleteEvent={onEventDelete}
             onEditEvent={ev => { setSelectedEvent(null); setEditingEvent(ev); }}
+            onTaskComplete={onTaskComplete}
             dayViewSentinelRef={dayViewSentinelRef}
           />
         )}
@@ -1696,6 +1740,7 @@ export default function MobileLayout({
         {isNewEventSheetOpen && (
           <MobileNewEventSheet
             initialDate={newEventDefaultDate}
+            themes={resolvedThemes}
             onSave={(start, end, meta) => {
               onNewEvent?.(start, end, meta);
             }}

@@ -1313,6 +1313,7 @@ export default function Dashboard() {
                 // ---------------------------
 
                 setKeys(privKey, pubKey, userId);
+                fetchDirectory(null);
                 setMyId(userId);
                 setUserEmail(email);
                 // Set a quick initial profile from stored data
@@ -1411,7 +1412,7 @@ export default function Dashboard() {
         };
 
         restoreSession();
-    }, [router, setKeys]);
+    }, [router, setKeys, fetchDirectory]);
 
     // ...
 
@@ -1427,7 +1428,7 @@ export default function Dashboard() {
     useEffect(() => {
         if (privateKey && publicKey && myId) {
             setKeys(privateKey, publicKey, myId);
-            fetchDirectory(null, true); // Force initial fetch of root to ensure UI update
+
         }
     }, [privateKey, publicKey, myId, setKeys, fetchDirectory]);
 
@@ -3169,11 +3170,12 @@ export default function Dashboard() {
 
             {/* Floating Smart Island in Folder Mode */}
             {navigationMode === 'folders' && enabledExtensions?.includes('smart_island') && (
-                <div className="fixed bottom-4 left-4 z-40 w-64 max-w-[calc(100vw-2rem)] pointer-events-auto shadow-xl">
+                <div className="fixed bottom-4 left-4 z-40 w-auto max-w-xs pointer-events-auto">
                     <SmartIsland
                         selectedDate={calendarDate}
                         onSelect={handleDateSelect}
                         userName={userProfile?.username}
+                        compact={true}
                     />
                 </div>
             )}

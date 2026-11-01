@@ -13,9 +13,11 @@ import {
   Search,
   Plus,
   ChevronRight,
+  CheckSquare,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { useDataStore } from '@/store/useDataStore';
 import { T } from './mobileTheme';
 
 export interface OverlayShellProps {
@@ -64,6 +66,7 @@ export interface EventSheetProps {
   onDelete: () => void;
   onEdit?: () => void;
   onDismiss: () => void;
+  onToggleComplete?: () => void;
 }
 
 export const EventSheet = ({
@@ -72,11 +75,32 @@ export const EventSheet = ({
   onDelete,
   onEdit,
   onDismiss,
+  onToggleComplete,
 }: EventSheetProps) => {
   const start = new Date(event.start);
   const end = event.end ? new Date(event.end) : start;
   const isPast = end < now;
   const isActive = start <= now && now < end;
+
+  const isTask = !!(event.is_task || event.linkedTaskId);
+  const tasks = useDataStore(state => state.tasks);
+  const linkedTask = event.linkedTaskId ? tasks?.find(t => t.id === event.linkedTaskId) : undefined;
+  const isCompleted = linkedTask ? !!linkedTask.isCompleted : !!event.is_completed;
+
+  const handleToggleComplete = () => {
+    if (onToggleComplete) {
+      onToggleComplete();
+    } else if (event.linkedTaskId) {
+      useDataStore.getState().toggleTask(event.linkedTaskId);
+    } else {
+      useDataStore.setState(s => ({
+        events: s.events.map(e =>
+          e.id === event.id ? { ...e, is_completed: !isCompleted } : e
+        )
+      }));
+    }
+  };
+
   return (
     <motion.div
       initial={{ y: '100%' }}
@@ -102,7 +126,7 @@ export const EventSheet = ({
             style={{ background: event.color || T.accent }}
           />
           <div>
-            <p className="text-base font-bold" style={{ color: T.pri }}>
+            <p className={`text-base font-bold ${isCompleted ? 'line-through opacity-60' : ''}`} style={{ color: T.pri }}>
               {event.title}
             </p>
             <p className="text-sm mt-0.5" style={{ color: T.sec }}>
@@ -132,7 +156,20 @@ export const EventSheet = ({
             {event.description}
           </p>
         )}
-        <div className="flex gap-3">
+        <div className="flex gap-2.5 flex-wrap">
+          {isTask && (
+            <button
+              onClick={handleToggleComplete}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all active:scale-95"
+              style={{
+                background: isCompleted ? 'rgba(16, 185, 129, 0.15)' : `${T.accent}14`,
+                color: isCompleted ? '#10b981' : T.accent,
+              }}
+            >
+              <CheckSquare size={15} />
+              {isCompleted ? 'Erledigt' : 'Als erledigt markieren'}
+            </button>
+          )}
           <button
             onClick={() => {
               onEdit?.();
@@ -159,24 +196,52 @@ export const EventSheet = ({
 };
 
 export const COLOR_OPTIONS = [
-  '#3B82F6', // Blue
-  '#10B981', // Emerald
-  '#8B5CF6', // Purple
-  '#F59E0B', // Amber
-  '#F43F5E', // Rose
-  '#06B6D4', // Cyan
+  '#ef4444',
+  '#f97316',
+  '#f59e0b',
+  '#10b981',
+  '#06b6d4',
+  '#3b82f6',
+  '#6366f1',
+  '#8b5cf6',
+  '#d946ef',
+  '#ec4899',
+  '#64748b',
+];
+
+export const RECURRENCE_OPTIONS: Array<{ value: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'; label: string }> = [
+  { value: 'none', label: 'Nie' },
+  { value: 'daily', label: 'Täglich' },
+  { value: 'weekly', label: 'Wöchentlich' },
+  { value: 'monthly', label: 'Monatlich' },
+  { value: 'yearly', label: 'Jährlich' },
 ];
 
 export interface MobileNewEventSheetProps {
   initialDate: Date;
-  onSave: (start: Date, end: Date, meta: { title: string; color: string; description?: string }) => void;
+  onSave: (
+    start: Date,
+    end: Date,
+    meta: {
+      title: string;
+      color: string;
+      description?: string;
+      parent_id?: string | null;
+      groupIds?: string[];
+      recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+      recurrence_rule?: string;
+      recurrence_end?: string;
+    }
+  ) => void;
   onDismiss: () => void;
+  themes?: Array<{ id: string; title: string; color?: string; effect?: string }>;
 }
 
 export const MobileNewEventSheet = ({
   initialDate,
   onSave,
   onDismiss,
+  themes,
 }: MobileNewEventSheetProps) => {
   const [title, setTitle] = useState('');
   const [dateStr, setDateStr] = useState(() => format(initialDate, 'yyyy-MM-dd'));
@@ -190,7 +255,10 @@ export const MobileNewEventSheet = ({
     const m = Math.floor(initialDate.getMinutes() / 15) * 15;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   });
-  const [selectedColor, setSelectedColor] = useState(COLOR_OPTIONS[0]);
+  const [selectedColor, setSelectedColor] = useState(COLOR_OPTIONS[5]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [recurrenceFreq, setRecurrenceFreq] = useState<'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'>('none');
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<string>('');
   const [description, setDescription] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -209,10 +277,18 @@ export const MobileNewEventSheet = ({
       end.setTime(start.getTime() + 3_600_000);
     }
 
+    const recurrenceRule = recurrenceFreq !== 'none' ? `FREQ=${recurrenceFreq.toUpperCase()}` : undefined;
+    const recurrenceEnd = recurrenceFreq !== 'none' && recurrenceEndDate ? new Date(recurrenceEndDate).toISOString() : undefined;
+
     onSave(start, end, {
       title: title.trim(),
       color: selectedColor,
       description: description.trim() || undefined,
+      parent_id: selectedGroupId || null,
+      groupIds: selectedGroupId ? [selectedGroupId] : [],
+      recurrence: recurrenceFreq !== 'none' ? recurrenceFreq : undefined,
+      recurrence_rule: recurrenceRule,
+      recurrence_end: recurrenceEnd,
     });
     onDismiss();
   };
@@ -232,18 +308,19 @@ export const MobileNewEventSheet = ({
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 32, stiffness: 320 }}
-        className="fixed left-0 right-0 z-[65] rounded-t-3xl overflow-hidden"
+        className="fixed left-0 right-0 z-[65] rounded-t-3xl overflow-hidden flex flex-col"
         style={{
           bottom: 0,
           background: T.card,
           border: `1px solid ${T.brd}`,
+          maxHeight: '88vh',
           paddingBottom: 'max(28px, calc(env(safe-area-inset-bottom) + 16px))',
         }}
       >
-        <div className="flex justify-center pt-2.5 pb-1">
+        <div className="flex justify-center pt-2.5 pb-1 shrink-0">
           <div className="w-10 h-1 rounded-full" style={{ background: T.brd }} />
         </div>
-        <form onSubmit={handleSubmit} className="px-5 pt-2 flex flex-col gap-3">
+        <form onSubmit={handleSubmit} className="px-5 pt-2 flex flex-col gap-3 overflow-y-auto min-h-0 flex-1">
           <div className="flex items-center justify-between">
             <span className="font-extrabold text-base" style={{ color: T.pri }}>Neuer Termin</span>
             <button type="button" onClick={onDismiss} className="p-1.5 rounded-full" style={{ background: T.hov }}>
@@ -294,16 +371,70 @@ export const MobileNewEventSheet = ({
             </div>
           </div>
 
+          {/* Groups / Themes selector */}
+          {themes && themes.length > 0 && (
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: T.mut }}>Gruppe / Kategorie</label>
+              <div className="flex items-center gap-1.5 overflow-x-auto py-1" style={{ scrollbarWidth: 'none' }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedGroupId(null)}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer"
+                  style={{
+                    background: selectedGroupId === null ? T.hov : 'transparent',
+                    border: `1.5px solid ${selectedGroupId === null ? T.accent : T.brd}`,
+                    color: selectedGroupId === null ? T.accent : T.sec,
+                  }}
+                >
+                  Keine
+                </button>
+                {themes.map(t => {
+                  const isSelected = selectedGroupId === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedGroupId(null);
+                        } else {
+                          setSelectedGroupId(t.id);
+                          if (t.color) {
+                            setSelectedColor(t.color);
+                          }
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer"
+                      style={{
+                        background: isSelected ? `${t.color || T.accent}22` : T.hov,
+                        border: `1.5px solid ${isSelected ? (t.color || T.accent) : T.brd}`,
+                        color: isSelected ? (t.color || T.accent) : T.pri,
+                      }}
+                    >
+                      {t.color && (
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ background: t.color }}
+                        />
+                      )}
+                      <span>{t.title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Color palette */}
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: T.mut }}>Farbe</label>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2 overflow-x-auto py-1.5 px-0.5" style={{ scrollbarWidth: 'none' }}>
               {COLOR_OPTIONS.map(c => (
                 <button
                   key={c}
                   type="button"
                   onClick={() => setSelectedColor(c)}
-                  className="w-7 h-7 rounded-full transition-transform"
+                  className="w-7 h-7 rounded-full shrink-0 transition-transform cursor-pointer"
                   style={{
                     background: c,
                     outline: selectedColor === c ? '2.5px solid #fff' : 'none',
@@ -313,6 +444,56 @@ export const MobileNewEventSheet = ({
                 />
               ))}
             </div>
+          </div>
+
+          {/* Recurrence controls */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: T.mut }}>Wiederholung</label>
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1" style={{ scrollbarWidth: 'none' }}>
+              {RECURRENCE_OPTIONS.map(opt => {
+                const isSelected = recurrenceFreq === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setRecurrenceFreq(opt.value)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-all cursor-pointer"
+                    style={{
+                      background: isSelected ? `${T.accent}20` : T.hov,
+                      border: `1.5px solid ${isSelected ? T.accent : T.brd}`,
+                      color: isSelected ? T.accent : T.pri,
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            {recurrenceFreq !== 'none' && (
+              <div className="mt-2 flex items-center gap-2">
+                <label className="text-xs font-medium shrink-0" style={{ color: T.sec }}>
+                  Endet am:
+                </label>
+                <input
+                  type="date"
+                  value={recurrenceEndDate}
+                  onChange={e => setRecurrenceEndDate(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-semibold outline-none"
+                  style={{ background: T.hov, border: `1px solid ${T.brd}`, color: T.pri }}
+                />
+                {recurrenceEndDate && (
+                  <button
+                    type="button"
+                    onClick={() => setRecurrenceEndDate('')}
+                    className="p-1 rounded-full text-xs font-semibold"
+                    style={{ color: T.mut }}
+                    title="Kein Enddatum"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <textarea
@@ -326,7 +507,7 @@ export const MobileNewEventSheet = ({
 
           <button
             type="submit"
-            className="w-full py-3 rounded-2xl text-sm font-bold shadow-md transition-opacity active:opacity-85 mt-1"
+            className="w-full py-3 rounded-2xl text-sm font-bold shadow-md transition-opacity active:opacity-85 mt-1 shrink-0"
             style={{ background: selectedColor, color: '#fff' }}
           >
             Termin anlegen
@@ -345,15 +526,39 @@ export interface MobileEditEventSheetProps {
     end?: Date | string;
     color?: string;
     description?: string;
+    parent_id?: string | null;
+    groupIds?: string[];
+    recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+    recurrence_rule?: string;
+    recurrence_end?: string;
+    is_task?: boolean;
+    linkedTaskId?: string;
+    is_completed?: boolean;
   };
-  onSave: (id: string, start: Date, end: Date, meta: { title: string; color: string; description?: string }) => void;
+  onSave: (
+    id: string,
+    start: Date,
+    end: Date,
+    meta: {
+      title: string;
+      color: string;
+      description?: string;
+      parent_id?: string | null;
+      groupIds?: string[];
+      recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+      recurrence_rule?: string;
+      recurrence_end?: string;
+    }
+  ) => void;
   onDismiss: () => void;
+  themes?: Array<{ id: string; title: string; color?: string; effect?: string }>;
 }
 
 export const MobileEditEventSheet = ({
   event,
   onSave,
   onDismiss,
+  themes,
 }: MobileEditEventSheetProps) => {
   const initialStart = React.useMemo(() => {
     try {
@@ -385,8 +590,35 @@ export const MobileEditEventSheet = ({
     const m = initialEnd.getMinutes();
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   });
-  const [selectedColor, setSelectedColor] = useState(event.color || COLOR_OPTIONS[0]);
+  const [selectedColor, setSelectedColor] = useState(event.color || COLOR_OPTIONS[5]);
   const [description, setDescription] = useState(event.description || '');
+
+  const initialGroupId = (event.groupIds && event.groupIds[0]) || event.parent_id || null;
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(initialGroupId);
+
+  const parseInitialFreq = (): 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly' => {
+    if (event.recurrence && ['none', 'daily', 'weekly', 'monthly', 'yearly'].includes(event.recurrence)) {
+      return event.recurrence as any;
+    }
+    if (event.recurrence_rule) {
+      const match = event.recurrence_rule.match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)/i);
+      if (match) {
+        return match[1].toLowerCase() as any;
+      }
+    }
+    return 'none';
+  };
+  const [recurrenceFreq, setRecurrenceFreq] = useState<'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'>(parseInitialFreq);
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<string>(() => {
+    if (event.recurrence_end) {
+      try {
+        return format(new Date(event.recurrence_end), 'yyyy-MM-dd');
+      } catch {
+        return event.recurrence_end;
+      }
+    }
+    return '';
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -404,10 +636,18 @@ export const MobileEditEventSheet = ({
       end.setTime(start.getTime() + 3_600_000);
     }
 
+    const recurrenceRule = recurrenceFreq !== 'none' ? `FREQ=${recurrenceFreq.toUpperCase()}` : 'none';
+    const recurrenceEnd = recurrenceFreq !== 'none' && recurrenceEndDate ? new Date(recurrenceEndDate).toISOString() : '';
+
     onSave(event.id, start, end, {
       title: title.trim(),
       color: selectedColor,
       description: description.trim() || undefined,
+      parent_id: selectedGroupId || null,
+      groupIds: selectedGroupId ? [selectedGroupId] : [],
+      recurrence: recurrenceFreq !== 'none' ? recurrenceFreq : 'none',
+      recurrence_rule: recurrenceRule,
+      recurrence_end: recurrenceEnd,
     });
     onDismiss();
   };
@@ -432,18 +672,19 @@ export const MobileEditEventSheet = ({
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'spring', damping: 32, stiffness: 320 }}
-        className="fixed left-0 right-0 z-[65] rounded-t-3xl overflow-hidden"
+        className="fixed left-0 right-0 z-[65] rounded-t-3xl overflow-hidden flex flex-col"
         style={{
           bottom: 0,
           background: T.card,
           border: `1px solid ${T.brd}`,
+          maxHeight: '88vh',
           paddingBottom: 'max(28px, calc(env(safe-area-inset-bottom) + 16px))',
         }}
       >
-        <div className="flex justify-center pt-2.5 pb-1">
+        <div className="flex justify-center pt-2.5 pb-1 shrink-0">
           <div className="w-10 h-1 rounded-full" style={{ background: T.brd }} />
         </div>
-        <form onSubmit={handleSubmit} className="px-5 pt-2 flex flex-col gap-3">
+        <form onSubmit={handleSubmit} className="px-5 pt-2 flex flex-col gap-3 overflow-y-auto min-h-0 flex-1">
           <div className="flex items-center justify-between">
             <span className="font-extrabold text-base" style={{ color: T.pri }}>Termin bearbeiten</span>
             <button type="button" onClick={onDismiss} className="p-1.5 rounded-full" style={{ background: T.hov }}>
@@ -494,16 +735,70 @@ export const MobileEditEventSheet = ({
             </div>
           </div>
 
+          {/* Groups / Themes selector */}
+          {themes && themes.length > 0 && (
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: T.mut }}>Gruppe / Kategorie</label>
+              <div className="flex items-center gap-1.5 overflow-x-auto py-1" style={{ scrollbarWidth: 'none' }}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedGroupId(null)}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer"
+                  style={{
+                    background: selectedGroupId === null ? T.hov : 'transparent',
+                    border: `1.5px solid ${selectedGroupId === null ? T.accent : T.brd}`,
+                    color: selectedGroupId === null ? T.accent : T.sec,
+                  }}
+                >
+                  Keine
+                </button>
+                {themes.map(t => {
+                  const isSelected = selectedGroupId === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedGroupId(null);
+                        } else {
+                          setSelectedGroupId(t.id);
+                          if (t.color) {
+                            setSelectedColor(t.color);
+                          }
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all cursor-pointer"
+                      style={{
+                        background: isSelected ? `${t.color || T.accent}22` : T.hov,
+                        border: `1.5px solid ${isSelected ? (t.color || T.accent) : T.brd}`,
+                        color: isSelected ? (t.color || T.accent) : T.pri,
+                      }}
+                    >
+                      {t.color && (
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ background: t.color }}
+                        />
+                      )}
+                      <span>{t.title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Color palette */}
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: T.mut }}>Farbe</label>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2 overflow-x-auto py-1.5 px-0.5" style={{ scrollbarWidth: 'none' }}>
               {COLOR_OPTIONS.map(c => (
                 <button
                   key={c}
                   type="button"
                   onClick={() => setSelectedColor(c)}
-                  className="w-7 h-7 rounded-full transition-transform"
+                  className="w-7 h-7 rounded-full shrink-0 transition-transform cursor-pointer"
                   style={{
                     background: c,
                     outline: selectedColor === c ? '2.5px solid #fff' : 'none',
@@ -513,6 +808,56 @@ export const MobileEditEventSheet = ({
                 />
               ))}
             </div>
+          </div>
+
+          {/* Recurrence controls */}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: T.mut }}>Wiederholung</label>
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1" style={{ scrollbarWidth: 'none' }}>
+              {RECURRENCE_OPTIONS.map(opt => {
+                const isSelected = recurrenceFreq === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setRecurrenceFreq(opt.value)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0 transition-all cursor-pointer"
+                    style={{
+                      background: isSelected ? `${T.accent}20` : T.hov,
+                      border: `1.5px solid ${isSelected ? T.accent : T.brd}`,
+                      color: isSelected ? T.accent : T.pri,
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            {recurrenceFreq !== 'none' && (
+              <div className="mt-2 flex items-center gap-2">
+                <label className="text-xs font-medium shrink-0" style={{ color: T.sec }}>
+                  Endet am:
+                </label>
+                <input
+                  type="date"
+                  value={recurrenceEndDate}
+                  onChange={e => setRecurrenceEndDate(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-semibold outline-none"
+                  style={{ background: T.hov, border: `1px solid ${T.brd}`, color: T.pri }}
+                />
+                {recurrenceEndDate && (
+                  <button
+                    type="button"
+                    onClick={() => setRecurrenceEndDate('')}
+                    className="p-1 rounded-full text-xs font-semibold"
+                    style={{ color: T.mut }}
+                    title="Kein Enddatum"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <textarea
@@ -526,7 +871,7 @@ export const MobileEditEventSheet = ({
 
           <button
             type="submit"
-            className="w-full py-3 rounded-2xl text-sm font-bold shadow-md transition-opacity active:opacity-85 mt-1"
+            className="w-full py-3 rounded-2xl text-sm font-bold shadow-md transition-opacity active:opacity-85 mt-1 shrink-0"
             style={{ background: selectedColor, color: '#fff' }}
           >
             Änderungen speichern

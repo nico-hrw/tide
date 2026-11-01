@@ -134,13 +134,33 @@ function StatusBadges({ isActive, isNext, remStr, evEnd, evStart, startStr, durS
 }
 
 function TimelineEventItem({
-  ev, now, isToday, isEven, nextUpcomingId, theme, isExpanded, onToggleExpand, onDeleteEvent, onEditEvent, isParallel = false, style,
+  ev, now, isToday, isEven, nextUpcomingId, theme, isExpanded, onToggleExpand, onDeleteEvent, onEditEvent, onTaskComplete, isParallel = false, style,
 }: {
   ev: any; now: Date; isToday: boolean; isEven: boolean; nextUpcomingId: string | null; theme: string;
-  isExpanded: boolean; onToggleExpand: () => void; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; isParallel?: boolean; style?: React.CSSProperties;
+  isExpanded: boolean; onToggleExpand: () => void; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; onTaskComplete?: (id: string, completed: boolean) => void; isParallel?: boolean; style?: React.CSSProperties;
 }) {
   const info = getEvInfo(ev, now, isToday, nextUpcomingId);
   const pHeight = Math.max(54, Math.min(180, 44 + info.durM * 0.6));
+
+  const isTask = !!(ev.is_task || ev.linkedTaskId);
+  const tasks = useDataStore(state => state.tasks);
+  const linkedTask = ev.linkedTaskId ? tasks?.find(t => t.id === ev.linkedTaskId) : undefined;
+  const isCompleted = linkedTask ? !!linkedTask.isCompleted : !!ev.is_completed;
+
+  const handleToggleTask = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (ev.linkedTaskId) {
+      useDataStore.getState().toggleTask(ev.linkedTaskId);
+    } else if (onTaskComplete) {
+      onTaskComplete(ev.id, !isCompleted);
+    } else {
+      useDataStore.setState(s => ({
+        events: s.events.map(e =>
+          e.id === ev.id ? { ...e, is_completed: !isCompleted } : e
+        )
+      }));
+    }
+  };
 
   if (isParallel) {
     return (
@@ -156,8 +176,22 @@ function TimelineEventItem({
             </div>
           </div>
           <div className="flex items-start gap-1.5 min-w-0 w-full mb-1">
-            <div className={`w-2.5 h-2.5 rounded-full shrink-0 mt-0.5 ${info.isActive ? 'animate-pulse' : ''}`} style={{ background: info.color }} />
-            <span className="text-xs sm:text-sm font-bold line-clamp-2 flex-1 leading-snug" style={{ color: info.isActive ? '#ffffff' : T.pri }}>{ev.title}</span>
+            {isTask ? (
+              <button
+                type="button"
+                onClick={handleToggleTask}
+                className={`w-3.5 h-3.5 mt-0.5 rounded-[4px] border border-current shrink-0 flex items-center justify-center cursor-pointer transition-all active:scale-90 z-20 ${isCompleted ? 'opacity-40' : 'opacity-100'}`}
+                style={{ borderColor: info.isActive ? '#ffffff' : info.color, color: info.isActive ? '#ffffff' : info.color }}
+                title={isCompleted ? "Als unerledigt markieren" : "Als erledigt markieren"}
+              >
+                {isCompleted && (
+                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                )}
+              </button>
+            ) : (
+              <div className={`w-2.5 h-2.5 rounded-full shrink-0 mt-0.5 ${info.isActive ? 'animate-pulse' : ''}`} style={{ background: info.color }} />
+            )}
+            <span className={`text-xs sm:text-sm font-bold line-clamp-2 flex-1 leading-snug ${isCompleted ? 'line-through opacity-60' : ''}`} style={{ color: info.isActive ? '#ffffff' : T.pri }}>{ev.title}</span>
           </div>
           <StatusBadges {...info} theme={theme} />
           {!isExpanded && ev.description && (
@@ -196,7 +230,22 @@ function TimelineEventItem({
         </div>
         <div className="flex-1 py-3 pr-3 min-w-0 flex flex-col justify-start">
           <div className="flex items-center justify-between gap-1.5 w-full">
-            <span className={`font-bold truncate flex-1 min-w-0 ${info.isActive ? 'text-sm' : 'text-[13px]'}`} style={{ color: info.isActive ? '#ffffff' : T.pri }}>{ev.title}</span>
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              {isTask && (
+                <button
+                  type="button"
+                  onClick={handleToggleTask}
+                  className={`w-3.5 h-3.5 rounded-[4px] border border-current shrink-0 flex items-center justify-center cursor-pointer transition-all active:scale-90 z-20 ${isCompleted ? 'opacity-40' : 'opacity-100'}`}
+                  style={{ borderColor: info.isActive ? '#ffffff' : info.color, color: info.isActive ? '#ffffff' : info.color }}
+                  title={isCompleted ? "Als unerledigt markieren" : "Als erledigt markieren"}
+                >
+                  {isCompleted && (
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  )}
+                </button>
+              )}
+              <span className={`font-bold truncate flex-1 min-w-0 ${info.isActive ? 'text-sm' : 'text-[13px]'} ${isCompleted ? 'line-through opacity-60' : ''}`} style={{ color: info.isActive ? '#ffffff' : T.pri }}>{ev.title}</span>
+            </div>
             <div className="flex items-center gap-1.5 shrink-0 ml-1">
               {!info.isActive && !info.isNext && (
                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)', color: T.mut }}>{info.durStr}</span>
@@ -232,11 +281,11 @@ function TimelineEventItem({
 export interface DbTimelineDayProps {
   day: Date; dayEvs: any[]; allDayEvs: any[]; isToday: boolean; now: Date;
   theme: string; onSelectEvent?: (ev: any) => void; onNewEvent?: (date: Date) => void; onDeleteEvent?: (id: string) => void;
-  onEditEvent?: (ev: any) => void;
+  onEditEvent?: (ev: any) => void; onTaskComplete?: (id: string, completed: boolean) => void;
 }
 
 export const DbTimelineDay = React.memo(function DbTimelineDay({
-  day, dayEvs, allDayEvs, isToday, now, theme, onNewEvent, onDeleteEvent, onEditEvent,
+  day, dayEvs, allDayEvs, isToday, now, theme, onNewEvent, onDeleteEvent, onEditEvent, onTaskComplete,
 }: DbTimelineDayProps) {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const [todosOpen, setTodosOpen] = useState(false);
@@ -480,7 +529,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
               <TimelineEventItem
                 ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
                 theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
-                onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent}
+                onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete}
               />
             </React.Fragment>
           );
@@ -502,7 +551,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
                         <TimelineEventItem
                           key={ev.id} ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
                           theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
-                          onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} isParallel style={{ marginTop, minHeight: height }}
+                          onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} isParallel style={{ marginTop, minHeight: height }}
                         />
                       );
                     })}
@@ -548,14 +597,14 @@ export function getGroupedDayViewItems(dayViewDays: Date[], events: any[], now: 
 export interface MobileAgendaTimelineProps {
   dayViewDays: Date[]; events: any[]; now: Date; theme: string;
   onNewEvent?: (date: Date) => void; onDeleteEvent?: (id: string) => void; onSelectEvent?: (ev: any) => void;
-  onEditEvent?: (ev: any) => void;
+  onEditEvent?: (ev: any) => void; onTaskComplete?: (id: string, completed: boolean) => void;
   dayViewSentinelRef?: React.RefObject<HTMLDivElement | null>;
   onSelectDate?: (date: Date) => void;
   onTodayClick?: () => void;
 }
 
 export const MobileAgendaTimeline = React.memo(function MobileAgendaTimeline({
-  dayViewDays, events, now, theme, onNewEvent, onDeleteEvent, onEditEvent, dayViewSentinelRef,
+  dayViewDays, events, now, theme, onNewEvent, onDeleteEvent, onEditEvent, onTaskComplete, dayViewSentinelRef,
   onSelectDate, onTodayClick,
 }: MobileAgendaTimelineProps) {
   const groupedDayViewItems = useMemo(() => getGroupedDayViewItems(dayViewDays, events, now), [dayViewDays, events, now]);
@@ -584,7 +633,7 @@ export const MobileAgendaTimeline = React.memo(function MobileAgendaTimeline({
                   </span>
                   <div className="flex-1 h-px" style={{ background: item.isToday ? 'linear-gradient(90deg, rgba(168, 85, 247, 0.5), transparent)' : T.brd }} />
                 </div>
-                <DbTimelineDay day={item.date} dayEvs={item.events} allDayEvs={item.allDayEvents} isToday={item.isToday} now={now} theme={theme} onNewEvent={onNewEvent} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} />
+                <DbTimelineDay day={item.date} dayEvs={item.events} allDayEvs={item.allDayEvents} isToday={item.isToday} now={now} theme={theme} onNewEvent={onNewEvent} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} />
               </div>
             )}
           </React.Fragment>
