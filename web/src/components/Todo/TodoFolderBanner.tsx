@@ -4,7 +4,7 @@ import React from 'react';
 import { X, Folder, Inbox, ArrowLeft } from 'lucide-react';
 
 export interface TodoFolderBannerProps {
-  setViewMode: (mode: 'tasks' | 'folders') => void;
+  setViewMode: (mode: 'tasks' | 'timeline' | 'folders') => void;
   selectedFolder: string | null;
   setSelectedFolder: (folder: string | null) => void;
   selectedFolderActiveCount: number;

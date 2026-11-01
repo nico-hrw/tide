@@ -6,8 +6,8 @@ import { TaskItem } from '@/store/useDataStore';
 import { TaskCreateDraft } from './TodoCreateCard';
 
 export interface TodoListHeaderProps {
-  viewMode: 'tasks' | 'folders';
-  setViewMode: (mode: 'tasks' | 'folders') => void;
+  viewMode: 'tasks' | 'timeline' | 'folders';
+  setViewMode: (mode: 'tasks' | 'timeline' | 'folders') => void;
   selectedFolder: string | null;
   activeCycleTotal: number;
   activeCycleCompletedCount: number;
@@ -108,7 +108,7 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
           )}
         </div>
 
-        {hideProgress && (
+        {hideProgress ? (
           <button
             type="button"
             onClick={handleBack}
@@ -117,8 +117,101 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
             <ArrowLeft size={14} />
             <span>Zurück</span>
           </button>
+        ) : (
+          <div className="inline-flex items-center p-1 bg-gray-200/70 dark:bg-white/10 rounded-xl">
+            <button
+              type="button"
+              onClick={() => props.setViewMode('tasks')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                props.viewMode === 'tasks'
+                  ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Liste
+            </button>
+            <button
+              type="button"
+              onClick={() => props.setViewMode('timeline')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                props.viewMode === 'timeline'
+                  ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Timeline
+            </button>
+            <button
+              type="button"
+              onClick={() => props.setViewMode('folders')}
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                props.viewMode === 'folders'
+                  ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              Ordner
+            </button>
+          </div>
         )}
       </div>
+
+      {/* Mobile Segmented Pill Row */}
+      {!hideProgress && (
+        <div className="flex md:hidden items-center justify-between pt-0.5 pb-2">
+          <div className="flex items-center gap-2">
+            {showBackButton && (
+              <button
+                type="button"
+                onClick={handleBack}
+                className="p-1 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white cursor-pointer shrink-0"
+                title="Zurück zur Übersicht"
+                aria-label="Zurück zur Übersicht"
+              >
+                <ArrowLeft size={18} />
+              </button>
+            )}
+            <h1 className="text-xl font-black tracking-tight text-gray-900 dark:text-white">
+              Todos
+            </h1>
+          </div>
+          <div className="inline-flex items-center p-0.5 bg-gray-200/70 dark:bg-white/10 rounded-xl">
+            <button
+              type="button"
+              onClick={() => props.setViewMode('tasks')}
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
+                props.viewMode === 'tasks'
+                  ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400'
+              }`}
+            >
+              Liste
+            </button>
+            <button
+              type="button"
+              onClick={() => props.setViewMode('timeline')}
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
+                props.viewMode === 'timeline'
+                  ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400'
+              }`}
+            >
+              Timeline
+            </button>
+            <button
+              type="button"
+              onClick={() => props.setViewMode('folders')}
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
+                props.viewMode === 'folders'
+                  ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
+                  : 'text-gray-600 dark:text-gray-400'
+              }`}
+            >
+              Ordner
+            </button>
+          </div>
+        </div>
+      )}
 
       {!hideProgress && (
         <>

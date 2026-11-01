@@ -23,7 +23,7 @@ export interface TodoTreeItemProps {
   allTags?: string[]; customTags?: string[]; allFolders?: string[];
   selectedTag?: string | null; setSelectedTag?: (tag: string | null) => void;
   selectedFolder?: string | null; setSelectedFolder?: (folder: string | null) => void;
-  setViewMode?: (mode: 'tasks' | 'folders') => void;
+  setViewMode?: (mode: 'tasks' | 'timeline' | 'folders') => void;
   handleAddCustomTag?: (tag: string) => void; handleRemoveCustomTag?: (tag: string) => void;
   handleToggleTask: (task: TaskItem) => void; handleToggleInProgress: (task: TaskItem) => void;
   saveEditing?: (id: string, draft?: TaskEditDraft) => void; cancelEditing?: () => void;

@@ -44,7 +44,13 @@ export default function CalendarView({
     const [internalViewMode, setInternalViewMode] = useState<CalendarViewMode>(viewModeProp || 'week');
     const viewMode = viewModeProp ?? internalViewMode;
 
+    const prevViewModeRef = useRef(viewMode);
+    const hasInitializedScroll = useRef(false);
+
     const handleViewModeChange = (mode: CalendarViewMode) => {
+        if (mode === 'week' && viewMode !== 'week') {
+            hasInitializedScroll.current = false;
+        }
         setInternalViewMode(mode);
         onViewModeChange?.(mode);
     };
@@ -222,6 +228,19 @@ export default function CalendarView({
         const timer = setTimeout(() => {
             const currentStart = startOfWeek(date, { weekStartsOn: 1 });
 
+            if (prevViewModeRef.current !== 'week' && viewMode === 'week') {
+                hasInitializedScroll.current = false;
+                setLoadedWeeks([
+                    subWeeks(currentStart, 1),
+                    currentStart,
+                    addWeeks(currentStart, 1)
+                ]);
+                isPrependingRef.current = true;
+                prevViewModeRef.current = viewMode;
+                return;
+            }
+            prevViewModeRef.current = viewMode;
+
             if (viewMode === 'month') {
                 const mStart = startOfWeek(startOfMonth(date), { weekStartsOn: 1 });
                 const weeks: Date[] = [];
@@ -278,10 +297,8 @@ export default function CalendarView({
     }, []);
 
     // --- Initial Scroll ---
-    const hasInitializedScroll = useRef(false);
-
     useEffect(() => {
-        if (loadedWeeks.length > 0 && !hasInitializedScroll.current && scrollContainerRef.current) {
+        if (viewMode === 'week' && loadedWeeks.length > 0 && !hasInitializedScroll.current && scrollContainerRef.current) {
             const container = scrollContainerRef.current;
 
             // Always default to scrolling to current day and time to keep UX snappy
@@ -305,7 +322,7 @@ export default function CalendarView({
 
             hasInitializedScroll.current = true;
         }
-    }, [loadedWeeks]);
+    }, [loadedWeeks, viewMode]);
 
     // --- Magic Link Navigation Support ---
     useLayoutEffect(() => {
@@ -404,42 +421,42 @@ export default function CalendarView({
             >
                 {/* Toolbar — position:relative + zIndex:500 creates a stacking context above
                     all sticky calendar elements (time col z-[160], day headers z-[150]). */}
-                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-transparent border-b border-gray-200/60 dark:border-white/10" style={{ position: 'relative', zIndex: 500 }}>
-                    {/* Left: Date navigation + Title */}
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-0.5 bg-gray-100/80 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 rounded-lg p-0.5">
+                <div className="flex flex-col bg-transparent border-b border-gray-200/60 dark:border-white/10" style={{ position: 'relative', zIndex: 500 }}>
+                    {/* Row 1 (Main Controls) */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                        {/* Left: Date navigation + Title */}
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-0.5 bg-gray-100/80 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 rounded-lg p-0.5">
+                                <button
+                                    onClick={handlePrev}
+                                    className="p-1 hover:bg-white dark:hover:bg-white/10 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-md transition-colors"
+                                    title="Zurück"
+                                >
+                                    <ChevronLeft size={16} />
+                                </button>
+                                <button
+                                    onClick={handleNext}
+                                    className="p-1 hover:bg-white dark:hover:bg-white/10 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-md transition-colors"
+                                    title="Weiter"
+                                >
+                                    <ChevronRight size={16} />
+                                </button>
+                            </div>
                             <button
-                                onClick={handlePrev}
-                                className="p-1 hover:bg-white dark:hover:bg-white/10 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-md transition-colors"
-                                title="Zurück"
+                                onClick={handleToday}
+                                className="px-2.5 py-1 text-xs font-bold rounded-lg border border-gray-200/80 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 transition-colors"
+                                title="Zu heute springen"
                             >
-                                <ChevronLeft size={16} />
+                                Heute
                             </button>
-                            <button
-                                onClick={handleNext}
-                                className="p-1 hover:bg-white dark:hover:bg-white/10 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-md transition-colors"
-                                title="Weiter"
-                            >
-                                <ChevronRight size={16} />
-                            </button>
+                            <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-[#1F2937] dark:text-[#E2E8F0] tracking-tight ml-1">
+                                {viewMode === 'day' 
+                                    ? format(date, "EEEE, d. MMMM yyyy", { locale: de }) 
+                                    : format(date, "MMMM yyyy", { locale: de })}
+                            </h2>
                         </div>
-                        <button
-                            onClick={handleToday}
-                            className="px-2.5 py-1 text-xs font-bold rounded-lg border border-gray-200/80 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 transition-colors"
-                            title="Zu heute springen"
-                        >
-                            Heute
-                        </button>
-                        <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-[#1F2937] dark:text-[#E2E8F0] tracking-tight ml-1">
-                            {viewMode === 'day' 
-                                ? format(date, "EEEE, d. MMMM yyyy", { locale: de }) 
-                                : format(date, "MMMM yyyy", { locale: de })}
-                        </h2>
-                    </div>
 
-                    {/* Right: View Mode switcher + Theme pills */}
-                    <div className="flex items-center gap-3">
-                        {/* View Mode Switcher Pills */}
+                        {/* Right: View Mode switcher pills */}
                         <div className="flex items-center gap-1 bg-gray-100/70 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 p-1 rounded-xl">
                             {([
                                 { id: 'day' as const, label: 'Tag' },
@@ -463,28 +480,33 @@ export default function CalendarView({
                                 );
                             })}
                         </div>
+                    </div>
 
-                        {/* Theme pills */}
-                        <div className="hidden lg:flex items-center gap-1.5">
-                            <span 
-                                onClick={() => setSelectedGroupId(null)}
-                                className={`px-3 py-1 text-xs font-bold rounded-full shadow-sm cursor-pointer hover:opacity-90 transition-all flex items-center gap-1 ${!selectedGroupId ? 'bg-black dark:bg-white text-white dark:text-black' : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300'}`}
+                    {/* Row 2 (Categories & Themes) */}
+                    <div className="flex items-center gap-1.5 px-4 py-2 border-t border-gray-200/40 dark:border-white/5 overflow-x-auto scrollbar-none">
+                        <button 
+                            type="button"
+                            onClick={() => setSelectedGroupId(null)}
+                            className={`px-3 py-1 text-xs font-bold rounded-full shadow-sm cursor-pointer hover:opacity-90 transition-all flex items-center gap-1 shrink-0 ${!selectedGroupId ? 'bg-black dark:bg-white text-white dark:text-black' : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300'}`}
+                        >
+                            {!selectedGroupId && (
+                                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            )}
+                            All
+                        </button>
+                        {themes.map(group => (
+                            <button 
+                                type="button"
+                                key={group.id}
+                                onClick={() => setSelectedGroupId(group.id)}
+                                className={`px-3 py-1 text-xs font-semibold rounded-full cursor-pointer transition-all shrink-0 flex items-center gap-1.5 ${selectedGroupId === group.id ? 'bg-black dark:bg-white text-white dark:text-black font-bold shadow-sm' : 'bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300'}`}
                             >
-                                {!selectedGroupId && (
-                                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                {group.color && (
+                                    <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
                                 )}
-                                All
-                            </span>
-                            {themes.map(group => (
-                                <span 
-                                    key={group.id}
-                                    onClick={() => setSelectedGroupId(group.id)}
-                                    className={`px-3 py-1 text-xs font-semibold rounded-full cursor-pointer transition-all ${selectedGroupId === group.id ? 'bg-black dark:bg-white text-white dark:text-black font-bold shadow-sm' : 'bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300'}`}
-                                >
-                                    {group.title}
-                                </span>
-                            ))}
-                        </div>
+                                {group.title}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
@@ -558,6 +580,7 @@ export default function CalendarView({
                             creationEndYMV={creationEndYMV}
                             cursorX={cursorX}
                             cursorY={cursorY}
+                            themes={themes}
                         />
                     </div>
                 )}

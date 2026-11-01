@@ -9,7 +9,7 @@ import {
     isSameMonth,
     isToday,
 } from "date-fns";
-import { Plus, CheckSquare } from "lucide-react";
+import { Plus, CheckSquare, Square } from "lucide-react";
 import { getHolidayForDate } from "@/lib/holidays";
 import { getEventGroupIds } from "@/lib/calendarUtils";
 import type { CalendarEvent } from "./types";
@@ -20,6 +20,7 @@ interface DesktopMonthViewProps {
     onDayClick: (date: Date) => void;
     onEventClick: (event: CalendarEvent, rect: DOMRect) => void;
     onEventCreate?: (start: Date, end: Date, isAllDay?: boolean, extraMeta?: Record<string, unknown>) => Promise<string | null>;
+    onTaskToggle?: (id: string, isCompleted: boolean) => void;
     themes?: { id: string; title: string; effect?: string; color?: string }[];
 }
 
@@ -31,6 +32,7 @@ export default function DesktopMonthView({
     onDayClick,
     onEventClick,
     onEventCreate,
+    onTaskToggle,
     themes = [],
 }: DesktopMonthViewProps) {
     const monthStart = startOfMonth(currentDate);
@@ -78,8 +80,14 @@ export default function DesktopMonthView({
                     const allDay = eventsByDay.allDayMap.get(dayKey) || [];
                     const allEventsForDay = [...allDay, ...timed];
 
-                    const visibleEvents = allEventsForDay.slice(0, 3);
-                    const hiddenCount = allEventsForDay.length - visibleEvents.length;
+                    const tasks = allEventsForDay.filter((e) => e.is_task);
+                    const regularEvents = allEventsForDay.filter((e) => !e.is_task);
+                    const hasTasks = tasks.length > 0;
+                    const allCompleted = hasTasks && tasks.every((t) => t.is_completed);
+
+                    const maxRegular = hasTasks ? 2 : 3;
+                    const visibleRegularEvents = regularEvents.slice(0, maxRegular);
+                    const hiddenCount = regularEvents.length - visibleRegularEvents.length;
 
                     return (
                         <div
@@ -126,7 +134,47 @@ export default function DesktopMonthView({
 
                             {/* Event Pills */}
                             <div className="flex-1 flex flex-col gap-1 overflow-hidden">
-                                {visibleEvents.map((ev) => {
+                                {hasTasks && (
+                                    <div
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onDayClick(day);
+                                        }}
+                                        className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-gray-100/80 dark:bg-white/10 hover:brightness-95 dark:hover:brightness-110 shadow-xs ${
+                                            allCompleted
+                                                ? "border-emerald-500 text-gray-500 dark:text-gray-400"
+                                                : "border-blue-500 text-gray-800 dark:text-gray-200"
+                                        }`}
+                                        title={`Todos: ${tasks.length}`}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (onTaskToggle) {
+                                                    tasks.forEach((t) => onTaskToggle(t.id, !allCompleted));
+                                                }
+                                            }}
+                                            className="shrink-0 p-0.5 -m-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors flex items-center justify-center"
+                                            title={allCompleted ? "Todos als unerledigt markieren" : "Alle Todos als erledigt markieren"}
+                                        >
+                                            {allCompleted ? (
+                                                <CheckSquare size={11} className="text-emerald-500 dark:text-emerald-400 shrink-0" />
+                                            ) : (
+                                                <Square size={11} className="text-blue-500 dark:text-blue-400 shrink-0" />
+                                            )}
+                                        </button>
+                                        <span
+                                            className={`truncate ${
+                                                allCompleted ? "line-through opacity-60" : ""
+                                            }`}
+                                        >
+                                            Todos: {tasks.length}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {visibleRegularEvents.map((ev) => {
                                     const isCompleted = !!ev.is_completed;
                                     const isCancelled = !!ev.is_cancelled;
                                     const groupIds = getEventGroupIds(ev);
@@ -149,14 +197,6 @@ export default function DesktopMonthView({
                                             } ${isCompleted ? "opacity-60" : ""}`}
                                             title={`${ev.title}${isTimed ? ` (${format(new Date(ev.start), "HH:mm")})` : ""}`}
                                         >
-                                            {ev.is_task && (
-                                                <CheckSquare
-                                                    size={11}
-                                                    className={`shrink-0 ${
-                                                        isCompleted ? "text-green-500" : "text-gray-400"
-                                                    }`}
-                                                />
-                                            )}
                                             {isTimed && (
                                                 <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 shrink-0">
                                                     {format(new Date(ev.start), "HH:mm")}

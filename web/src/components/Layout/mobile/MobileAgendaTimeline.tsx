@@ -550,10 +550,13 @@ export interface MobileAgendaTimelineProps {
   onNewEvent?: (date: Date) => void; onDeleteEvent?: (id: string) => void; onSelectEvent?: (ev: any) => void;
   onEditEvent?: (ev: any) => void;
   dayViewSentinelRef?: React.RefObject<HTMLDivElement | null>;
+  onSelectDate?: (date: Date) => void;
+  onTodayClick?: () => void;
 }
 
 export const MobileAgendaTimeline = React.memo(function MobileAgendaTimeline({
   dayViewDays, events, now, theme, onNewEvent, onDeleteEvent, onEditEvent, dayViewSentinelRef,
+  onSelectDate, onTodayClick,
 }: MobileAgendaTimelineProps) {
   const groupedDayViewItems = useMemo(() => getGroupedDayViewItems(dayViewDays, events, now), [dayViewDays, events, now]);
 
@@ -590,8 +593,18 @@ export const MobileAgendaTimeline = React.memo(function MobileAgendaTimeline({
       </div>
 
       <button
-        onClick={() => { const el = document.getElementById(`day-${format(now, 'yyyy-MM-dd')}`); el?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
-        className="absolute bottom-4 right-4 z-30 flex items-center gap-1.5 px-3.5 py-2 rounded-full shadow-lg active:scale-95 transition-all text-white"
+        onClick={() => {
+          if (onTodayClick) {
+            onTodayClick();
+          } else if (onSelectDate) {
+            onSelectDate(now);
+          }
+          requestAnimationFrame(() => {
+            const el = document.getElementById(`day-${format(now, 'yyyy-MM-dd')}`);
+            el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        }}
+        className="absolute bottom-4 right-4 z-30 flex items-center gap-1.5 px-3.5 py-2 rounded-full shadow-lg active:scale-95 transition-all text-white cursor-pointer"
         style={{
           background: 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 50%, #9333ea 100%)',
           boxShadow: '0 4px 14px -2px rgba(126, 34, 206, 0.5), inset 0 1px 1px 0 rgba(255, 255, 255, 0.35)',

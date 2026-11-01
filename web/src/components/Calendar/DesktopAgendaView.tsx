@@ -168,7 +168,7 @@ export default function DesktopAgendaView({
                                                 <div className="flex items-center gap-3.5 min-w-0 flex-1">
                                                     <div
                                                         style={{ backgroundColor: eventColor }}
-                                                        className="w-1.5 h-10 rounded-full shrink-0"
+                                                        className="w-1.5 self-stretch rounded-full shrink-0 min-h-[40px]"
                                                     />
 
                                                     {/* Time Box */}
@@ -230,8 +230,14 @@ export default function DesktopAgendaView({
                                                             style={{
                                                                 borderColor: matchedTheme.color || "rgba(0,0,0,0.1)",
                                                             }}
-                                                            className="px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-gray-300"
+                                                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-gray-300"
                                                         >
+                                                            {matchedTheme.color && (
+                                                                <span
+                                                                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                                                                    style={{ backgroundColor: matchedTheme.color }}
+                                                                />
+                                                            )}
                                                             {matchedTheme.title}
                                                         </span>
                                                     )}

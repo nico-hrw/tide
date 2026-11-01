@@ -35,7 +35,8 @@ const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEdi
 import MobileLayout from "@/components/Layout/MobileLayout";
 import { Clock, Settings, LogOut, Users, Trash2, GraduationCap, Copy, ListTodo, GripVertical } from 'lucide-react';
 import Avatar from "@/components/Profile/Avatar";
-import SmartIsland from "@/components/SmartIsland";
+import CalendarCaptureIsland from "@/components/SmartIsland";
+import SmartIsland from "@/components/extensions/smart_island/SmartIsland";
 import { tipTapToMarkdown } from "@/lib/bundleImportExport";
 import TrashPanel from "@/components/TrashPanel";
 
@@ -212,6 +213,7 @@ export default function Dashboard() {
         isSettingsModalOpen, setSettingsModalOpen,
         navigationMode
     } = useDataStore();
+    const shouldShowSidebar = isSidebarOpen && navigationMode !== 'folders';
     const deleteTask = useDataStore(s => s.deleteTask);
     const updateTask = useDataStore(s => s.updateTask);
     const toggleTask = useDataStore(s => s.toggleTask);
@@ -723,7 +725,7 @@ export default function Dashboard() {
         if (!isRestored || !files || files.length === 0) return;
         setOpenTabs(prev => {
             const next = prev.filter(tab => {
-                if (tab.id === 'calendar' || tab.id === 'messages' || tab.id.startsWith('ext_') || tab.id.startsWith('chat-') || tab.id.startsWith('profile:')) return true;
+                if (tab.id === 'calendar' || tab.id === 'folders' || tab.id === 'todos' || tab.id === 'messages' || tab.id.startsWith('ext_') || tab.id.startsWith('chat-') || tab.id.startsWith('profile:') || tab.type !== 'file') return true;
                 return files.some(f => f.id === tab.id);
             });
             return next.length !== prev.length ? next : prev;
@@ -2928,7 +2930,7 @@ export default function Dashboard() {
             {/* Global drag ghost — rendered via Portal so it sits above sidebar/calendar/editor */}
             <EventDragGhost />
             <div className="hidden md:block">
-            <SmartIsland
+            <CalendarCaptureIsland
                 onConfirm={(parsedData, text) => {
                     const now = new Date();
                     const startMins = parsedData.startMins !== null ? parsedData.startMins : (now.getHours() * 60 + now.getMinutes());
@@ -3111,9 +3113,9 @@ export default function Dashboard() {
 
             {/* Left Sidebar Panel */}
             <div
-                style={{ width: isSidebarOpen ? `${sidebarWidth}px` : '0px' }}
+                style={{ width: shouldShowSidebar ? `${sidebarWidth}px` : '0px' }}
                 className={`hidden md:flex flex-col h-full bg-[var(--sidebar-bg)] border-r border-[var(--border-color)] shrink-0 z-[100] transition-[width,opacity] duration-300 ease-in-out relative ${
-                    isSidebarOpen
+                    shouldShowSidebar
                         ? 'opacity-100 overflow-visible'
                         : 'opacity-0 border-r-0 pointer-events-none overflow-hidden'
                 }`}
@@ -3156,7 +3158,7 @@ export default function Dashboard() {
                         onToggleTodos={handleToggleTodos}
                     />
                 </div>
-                {isSidebarOpen && (
+                {shouldShowSidebar && (
                     <div
                         onMouseDown={startSidebarDrag}
                         className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500/30 active:bg-indigo-500/50 transition-colors z-20"
@@ -3164,6 +3166,17 @@ export default function Dashboard() {
                     />
                 )}
             </div>
+
+            {/* Floating Smart Island in Folder Mode */}
+            {navigationMode === 'folders' && enabledExtensions?.includes('smart_island') && (
+                <div className="fixed bottom-4 left-4 z-40 w-64 max-w-[calc(100vw-2rem)] pointer-events-auto shadow-xl">
+                    <SmartIsland
+                        selectedDate={calendarDate}
+                        onSelect={handleDateSelect}
+                        userName={userProfile?.username}
+                    />
+                </div>
+            )}
 
             {/* Right: Workspace */}
             <div className={`hidden md:flex flex-1 flex-col min-w-0 bg-[var(--background)] relative overflow-hidden`}>

@@ -55,7 +55,7 @@ export default function Sidebar({
     isTodosActive,
     onToggleTodos,
 }: SidebarProps) {
-    const { orderedNoteIds, setOrderedNoteIds } = useDataStore();
+    const { orderedNoteIds, setOrderedNoteIds, navigationMode } = useDataStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const scrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -365,38 +365,40 @@ export default function Sidebar({
 
             {/* Bottom spacer — reserves height for the absolutely-positioned Smart Island.
                 Needs to be >= island height (≈250px) + bottom-6 margin (24px). */}
-            <div className="flex-shrink-0 h-[220px]" />
+            {navigationMode !== 'folders' && <div className="flex-shrink-0 h-[220px]" />}
 
             {/* Smart Island — absolutely positioned, extends beyond sidebar */}
-            <div className="absolute bottom-4 left-4 z-[500] flex flex-col gap-2 w-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] pointer-events-none [&>*]:pointer-events-auto">
-                {(!enabledExtensions || enabledExtensions.includes('todos')) && (
-                    <div className={`flex items-center justify-start px-1 transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
-                        <button
-                            onClick={() => onToggleTodos ? onToggleTodos() : onOpenTodos?.()}
-                            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                                isTodosActive || activeTabId === 'todos'
-                                    ? 'bg-blue-600 text-white shadow-md'
-                                    : 'border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 shadow-sm'
-                            }`}
-                            title="Todos"
-                        >
-                            <ListTodo size={18} />
-                        </button>
-                    </div>
-                )}
+            {navigationMode !== 'folders' && (
+                <div className="absolute bottom-4 left-4 z-[500] flex flex-col gap-2 w-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] pointer-events-none [&>*]:pointer-events-auto">
+                    {(!enabledExtensions || enabledExtensions.includes('todos')) && (
+                        <div className={`flex items-center justify-start px-1 transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
+                            <button
+                                onClick={() => onToggleTodos ? onToggleTodos() : onOpenTodos?.()}
+                                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                                    isTodosActive || activeTabId === 'todos'
+                                        ? 'bg-blue-600 text-white shadow-md'
+                                        : 'border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 shadow-sm'
+                                }`}
+                                title="Todos"
+                            >
+                                <ListTodo size={18} />
+                            </button>
+                        </div>
+                    )}
 
-                {enabledExtensions?.includes('smart_island') ? (
-                    <SmartIsland
-                        selectedDate={selectedDate || new Date()}
-                        onSelect={(date: Date) => onDateSelect && onDateSelect(date)}
-                        userName={effectiveUserName}
-                    />
-                ) : (
-                    <div className="px-2 pb-2">
-                        <MiniCalendar selectedDate={selectedDate} onSelect={onDateSelect} />
-                    </div>
-                )}
-            </div>
+                    {enabledExtensions?.includes('smart_island') ? (
+                        <SmartIsland
+                            selectedDate={selectedDate || new Date()}
+                            onSelect={(date: Date) => onDateSelect && onDateSelect(date)}
+                            userName={effectiveUserName}
+                        />
+                    ) : (
+                        <div className="px-2 pb-2">
+                            <MiniCalendar selectedDate={selectedDate} onSelect={onDateSelect} />
+                        </div>
+                    )}
+                </div>
+            )}
 
             <SidebarContextMenu
                 files={files}

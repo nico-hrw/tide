@@ -468,6 +468,24 @@ export default function MobileLayout({
     }, 150);
   }, [setActiveTab, setCalViewMode, setActiveDate]);
 
+  const handleGoToToday = useCallback(() => {
+    const today = new Date();
+    setActiveDate(today);
+
+    // Ensure dayViewDays includes today; if outside range, regenerate centered around today
+    setDayViewDays(prev => {
+      const hasToday = prev.some(d => isSameDay(d, today));
+      if (hasToday) return prev;
+      const ws = startOfWeek(today, { weekStartsOn: 1 });
+      return Array.from({ length: 30 }, (_, i) => addDays(ws, i));
+    });
+
+    setTimeout(() => {
+      const el = document.getElementById(`day-${format(today, 'yyyy-MM-dd')}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  }, []);
+
   const displayName = userProfile?.username || (typeof window !== 'undefined' ? sessionStorage.getItem('tide_user_name') : null) || (userProfile?.email || '').split('@')[0] || '';
   const viewModesRef = useRef<HTMLDivElement>(null);
   const weekTouchX = useRef<number | null>(null);
@@ -1199,9 +1217,14 @@ export default function MobileLayout({
               onSelectDate={d => {
                 setActiveDate(d);
                 if (calViewMode === 'agenda') {
-                  requestAnimationFrame(() => {
-                    document.getElementById(`day-${format(d, 'yyyy-MM-dd')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  setDayViewDays(prev => {
+                    if (prev.some(day => isSameDay(day, d))) return prev;
+                    const ws = startOfWeek(d, { weekStartsOn: 1 });
+                    return Array.from({ length: 30 }, (_, i) => addDays(ws, i));
                   });
+                  setTimeout(() => {
+                    document.getElementById(`day-${format(d, 'yyyy-MM-dd')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 60);
                 }
               }}
               now={now}
@@ -1212,27 +1235,44 @@ export default function MobileLayout({
 
           {/* Row 3: View mode selector — compact pills */}
           {activeTab === 'calendar' && (
-            <div className="flex items-center gap-1 px-4 pb-2 pt-0.5">
-              {(['day', 'agenda', 'week', 'month'] as const).map(mode => {
-                const labels: Record<string, string> = { day: 'Tag', agenda: 'Fortlaufend', week: 'Woche', month: 'Monat' };
-                const isAct = calViewMode === mode;
-                return (
-                  <button
-                    key={mode}
-                    id={`btn-view-${mode}`}
-                    onClick={() => setCalViewMode(mode)}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all active:scale-95"
-                    style={{
-                      background: isAct
-                        ? (theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)')
-                        : 'transparent',
-                      color: isAct ? T.pri : T.mut,
-                    }}
-                  >
-                    {labels[mode]}
-                  </button>
-                );
-              })}
+            <div className="flex items-center justify-between gap-1 px-4 pb-2 pt-0.5">
+              <div className="flex items-center gap-1">
+                {(['day', 'agenda', 'week', 'month'] as const).map(mode => {
+                  const labels: Record<string, string> = { day: 'Tag', agenda: 'Fortlaufend', week: 'Woche', month: 'Monat' };
+                  const isAct = calViewMode === mode;
+                  return (
+                    <button
+                      key={mode}
+                      id={`btn-view-${mode}`}
+                      onClick={() => setCalViewMode(mode)}
+                      className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all active:scale-95 cursor-pointer"
+                      style={{
+                        background: isAct
+                          ? (theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)')
+                          : 'transparent',
+                        color: isAct ? T.pri : T.mut,
+                      }}
+                    >
+                      {labels[mode]}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={handleGoToToday}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95 shrink-0 cursor-pointer"
+                style={{
+                  background: isSameDay(activeDate, now)
+                    ? (theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)')
+                    : 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 100%)',
+                  color: isSameDay(activeDate, now) ? T.mut : '#ffffff',
+                  boxShadow: isSameDay(activeDate, now) ? 'none' : '0 2px 6px rgba(126, 34, 206, 0.3)',
+                }}
+                title="Zum heutigen Tag springen"
+              >
+                <RotateCcw size={11} />
+                <span>Heute</span>
+              </button>
             </div>
           )}
 
@@ -1418,6 +1458,8 @@ export default function MobileLayout({
             events={expandedEvents}
             now={now}
             theme={theme}
+            onSelectDate={setActiveDate}
+            onTodayClick={handleGoToToday}
             onNewEvent={date => {
               setNewEventDefaultDate(date);
               setIsNewEventSheetOpen(true);

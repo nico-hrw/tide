@@ -8,9 +8,10 @@ import {
 } from 'lucide-react';
 import {
   format, isBefore, startOfDay, endOfDay, addDays, addWeeks, addMonths, addYears,
-  isToday, isTomorrow, isSameDay,
+  isToday, isTomorrow, isSameDay, startOfWeek,
 } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
+import { MobileAgendaTimeline } from '../Layout/mobile/MobileAgendaTimeline';
 import TodoFolderOverview, { FolderStat } from './TodoFolderOverview';
 import TodoTreeItem from './TodoTreeItem';
 import TodoListHeader from './TodoListHeader';
@@ -37,8 +38,113 @@ export {
 
 export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask }) => {
   const { tasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useDataStore();
+  const theme = useDataStore((s) => s.theme);
 
-  const [viewMode, setViewMode] = useState<'tasks' | 'folders'>('tasks');
+  const [viewMode, setViewMode] = useState<'tasks' | 'timeline' | 'folders'>('tasks');
+
+  const [timelineNow, setTimelineNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setTimelineNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const [timelineDays, setTimelineDays] = useState<Date[]>(() => {
+    const ws = startOfWeek(new Date(), { weekStartsOn: 1 });
+    return Array.from({ length: 30 }, (_, i) => addDays(ws, i));
+  });
+  const timelineSentinelRef = useRef<HTMLDivElement>(null);
+  const [unscheduledOpen, setUnscheduledOpen] = useState(false);
+
+  useEffect(() => {
+    if (viewMode !== 'timeline') return;
+    const el = timelineSentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        setTimelineDays(prev => {
+          const last = prev[prev.length - 1];
+          if (!last) return prev;
+          return [...prev, ...Array.from({ length: 14 }, (_, i) => addDays(last, i + 1))];
+        });
+      }
+    }, { threshold: 0.1 });
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [viewMode]);
+
+  const handleTimelineTodayClick = useCallback(() => {
+    const today = new Date();
+    setTimelineDays(prev => {
+      if (prev.some(d => isSameDay(d, today))) return prev;
+      const ws = startOfWeek(today, { weekStartsOn: 1 });
+      return Array.from({ length: 30 }, (_, i) => addDays(ws, i));
+    });
+    setTimeout(() => {
+      const el = document.getElementById(`day-${format(today, 'yyyy-MM-dd')}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  }, []);
+
+  interface TimelineTaskEvent {
+    id: string;
+    title: string;
+    start: string;
+    end: string;
+    allDay: boolean;
+    color: string;
+    description?: string;
+    is_task: boolean;
+    linkedTaskId: string;
+    is_completed: boolean;
+    parent_id?: string | null;
+  }
+
+  const timelineEvents = useMemo(() => {
+    const list: TimelineTaskEvent[] = [];
+    tasks.forEach(t => {
+      const dateStr = t.dueDate || t.scheduledDate;
+      if (!dateStr) return;
+
+      let start: Date;
+      let end: Date;
+      let isAllDay: boolean;
+
+      const hasTime = dateStr.includes('T') && !dateStr.endsWith('T00:00:00.000Z') && !dateStr.endsWith('T00:00:00');
+      if (!hasTime) {
+        const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number);
+        if (isNaN(y) || isNaN(m) || isNaN(d)) return;
+        start = new Date(y, m - 1, d, 0, 0, 0);
+        end = new Date(y, m - 1, d, 23, 59, 59);
+        isAllDay = true;
+      } else {
+        start = new Date(dateStr);
+        if (isNaN(start.getTime())) return;
+        end = new Date(start.getTime() + 30 * 60 * 1000);
+        isAllDay = false;
+      }
+
+      const priorityColor = t.priority === 'high' ? '#ef4444' : t.priority === 'low' ? '#3b82f6' : '#f59e0b';
+
+      list.push({
+        id: t.id,
+        title: t.title,
+        start: start.toISOString(),
+        end: end.toISOString(),
+        allDay: isAllDay,
+        color: t.color || priorityColor,
+        description: t.description,
+        is_task: true,
+        linkedTaskId: t.id,
+        is_completed: t.isCompleted,
+        parent_id: t.parentId,
+      });
+    });
+    return list;
+  }, [tasks]);
+
+  const unscheduledTasks = useMemo(() => {
+    return tasks.filter(t => !t.dueDate && !t.scheduledDate && !t.isCompleted);
+  }, [tasks]);
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
   const [createdFolders, setCreatedFolders] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -713,6 +819,113 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             onAssignTaskFolder={(taskId, folderName) => updateTask(taskId, { folder: folderName || undefined })}
           />
         </div>
+      ) : viewMode === 'timeline' ? (
+        <div className="w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2">
+          {/* Task Creation Form Card (Collapsed by default) */}
+          {isCreateOpen && (
+            <div className="px-3 pt-2">
+              <TodoCreateCard
+                draft={draft} setDraft={setDraft} titleInputRef={titleInputRef}
+                newTagInput={newTagInput} setNewTagInput={setNewTagInput}
+                allTags={allTags} customTags={customTags} allFolders={allFolders}
+                isSubmitting={isSubmitting} handleAddTask={handleAddTask}
+                handleAddCustomTag={handleAddCustomTag} handleRemoveCustomTag={handleRemoveCustomTag}
+                onClose={() => setIsCreateOpen(false)}
+              />
+            </div>
+          )}
+
+          {/* Unscheduled Tasks Section */}
+          {unscheduledTasks.length > 0 && (
+            <div className="mx-3 mt-2 rounded-xl border border-gray-200/80 dark:border-white/10 bg-white/60 dark:bg-white/5 overflow-hidden transition-all shrink-0">
+              <button
+                type="button"
+                onClick={() => setUnscheduledOpen(p => !p)}
+                className="w-full flex items-center justify-between px-3.5 py-2.5 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100/50 dark:hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Clock size={14} className="text-amber-500" />
+                  <span>Ohne Datum ({unscheduledTasks.length})</span>
+                </div>
+                <ChevronRight
+                  size={14}
+                  className={`text-gray-400 transition-transform duration-200 ${unscheduledOpen ? 'rotate-90' : ''}`}
+                />
+              </button>
+              {unscheduledOpen && (
+                <div className="px-3 pb-3 pt-1 flex flex-col gap-1.5 border-t border-gray-100 dark:border-white/5 max-h-48 overflow-y-auto">
+                  {unscheduledTasks.map(t => (
+                    <div
+                      key={t.id}
+                      className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleTask(t.id)}
+                          className="w-4 h-4 rounded border border-gray-300 dark:border-gray-600 flex items-center justify-center shrink-0 cursor-pointer hover:border-blue-500"
+                        />
+                        <span className="text-xs truncate text-gray-800 dark:text-gray-200">{t.title}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDraft({
+                            title: t.title,
+                            description: t.description || '',
+                            priority: t.priority || 'medium',
+                            dueDate: format(new Date(), 'yyyy-MM-dd'),
+                            recurrence: 'none',
+                            recurrenceEnd: '',
+                            folder: t.folder || '',
+                            tags: t.tags || [],
+                            showInCalendar: true,
+                          });
+                          setIsCreateOpen(true);
+                        }}
+                        className="text-[10px] font-medium px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer shrink-0"
+                      >
+                        Planen
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Calendar-style timeline */}
+          <div className="flex-1 min-h-0 relative overflow-hidden flex flex-col">
+            <MobileAgendaTimeline
+              dayViewDays={timelineDays}
+              events={timelineEvents}
+              now={timelineNow}
+              theme={theme}
+              onNewEvent={(date) => {
+                setDraft(p => ({
+                  ...p,
+                  dueDate: format(date, 'yyyy-MM-dd'),
+                }));
+                setIsCreateOpen(true);
+                setTimeout(() => titleInputRef.current?.focus(), 50);
+              }}
+              onDeleteEvent={(id) => deleteTask(id)}
+              onEditEvent={(ev) => setEditingTaskId(ev.id)}
+              dayViewSentinelRef={timelineSentinelRef}
+              onTodayClick={handleTimelineTodayClick}
+              onSelectDate={(d) => {
+                setTimelineDays(prev => {
+                  if (prev.some(day => isSameDay(day, d))) return prev;
+                  const ws = startOfWeek(d, { weekStartsOn: 1 });
+                  return Array.from({ length: 30 }, (_, i) => addDays(ws, i));
+                });
+                setTimeout(() => {
+                  document.getElementById(`day-${format(d, 'yyyy-MM-dd')}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 60);
+              }}
+            />
+          </div>
+        </div>
       ) : (
         /* Center container */
         <div className={`w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2 ${editingTaskId !== null ? 'h-full' : ''}`}>
@@ -895,21 +1108,36 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                         <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
                           Ansicht
                         </div>
-                        <div className="grid grid-cols-2 gap-1.5 bg-gray-100 dark:bg-white/5 p-1 rounded-xl border border-gray-200/60 dark:border-white/10">
+                        <div className="grid grid-cols-3 gap-1.5 bg-gray-100 dark:bg-white/5 p-1 rounded-xl border border-gray-200/60 dark:border-white/10">
                           <button
                             type="button"
                             onClick={() => {
                               setViewMode('tasks');
                               setIsFilterMenuOpen(false);
                             }}
-                            className={`flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                               viewMode === 'tasks'
                                 ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
                                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                             }`}
                           >
                             <ListTodo size={14} />
-                            <span>Aufgabenliste</span>
+                            <span>Liste</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setViewMode('timeline');
+                              setIsFilterMenuOpen(false);
+                            }}
+                            className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                              viewMode === 'timeline'
+                                ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
+                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                            }`}
+                          >
+                            <Clock size={14} />
+                            <span>Timeline</span>
                           </button>
                           <button
                             type="button"
@@ -917,16 +1145,16 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                               setViewMode('folders');
                               setIsFilterMenuOpen(false);
                             }}
-                            className={`flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                               viewMode === 'folders'
                                 ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
                                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                             }`}
                           >
                             <Folder size={14} />
-                            <span>Ordnerliste</span>
+                            <span>Ordner</span>
                             {allFolders.length > 0 && (
-                              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-semibold">
+                              <span className="px-1 py-0.2 rounded-full text-[9px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-semibold">
                                 {allFolders.length}
                               </span>
                             )}
