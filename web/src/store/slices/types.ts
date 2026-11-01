@@ -30,6 +30,7 @@ export interface TaskItem {
     isArchived?: boolean;
     parentId?: string | null;
     order?: number;
+    updatedAt?: string;
 }
 
 export interface SmartIslandState {

@@ -51,6 +51,7 @@ func (h *TaskHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 type CreateTaskRequest struct {
+	ID             string `json:"id,omitempty"`
 	EncryptedVault []byte `json:"encrypted_vault"`
 }
 
@@ -67,8 +68,13 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	taskID := req.ID
+	if taskID == "" {
+		taskID = uuid.New().String()
+	}
+
 	task := &db.Task{
-		ID:             uuid.New().String(),
+		ID:             taskID,
 		UserID:         userID,
 		EncryptedVault: req.EncryptedVault,
 		CreatedAt:      time.Now(),

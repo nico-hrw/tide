@@ -136,7 +136,6 @@ export const EventSheet = ({
           <button
             onClick={() => {
               onEdit?.();
-              onDismiss();
             }}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
             style={{ background: `${T.accent}14`, color: T.accent }}
@@ -414,16 +413,21 @@ export const MobileEditEventSheet = ({
   };
 
   return (
-    <>
+    <div className="fixed inset-0 z-[65] pointer-events-auto">
       <motion.div
+        key="edit-sheet-backdrop"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[60]"
         style={{ background: 'rgba(0,0,0,0.45)' }}
-        onClick={onDismiss}
+        onClick={(e) => {
+          e.stopPropagation();
+          onDismiss();
+        }}
       />
       <motion.div
+        key="edit-sheet-content"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -529,7 +533,7 @@ export const MobileEditEventSheet = ({
           </button>
         </form>
       </motion.div>
-    </>
+    </div>
   );
 };
 

@@ -24,6 +24,7 @@ import { useHighlight } from '../HighlightContext';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
 import Avatar from '../Profile/Avatar';
 import { useSocialStore } from '@/store/useSocialStore';
+import { useDataStore } from '@/store/useDataStore';
 import DT from '@/lib/designTokens';
 
 export interface Tab {
@@ -90,6 +91,7 @@ export default function TabList({
     const pendingRequests = useSocialStore(s => s.pendingRequests);
     const myStatus = useSocialStore(s => s.myStatus);
     const setMyStatus = useSocialStore(s => s.setMyStatus);
+    const navigationMode = useDataStore(s => s.navigationMode);
     const scrollRef = useRef<HTMLDivElement>(null);
     const [isPluginMenuOpen, setIsPluginMenuOpen] = useState(false);
     const pluginMenuRef = useRef<HTMLDivElement>(null);
@@ -144,7 +146,7 @@ export default function TabList({
             case 'chat': return 'Chat';
             case 'profile': return 'Profil';
             case 'trash': return 'Papierkorb';
-            case 'folders': return 'Ordner';
+            case 'folders': return 'Notizen';
             case 'file':
             default:
                 return 'Neue Notiz';
@@ -157,7 +159,7 @@ export default function TabList({
         >
             {/* Zone 1: Left balanced zone (Sidebar toggle) */}
             <div className="flex items-center justify-start gap-2 flex-1 min-w-0 shrink-0">
-                {onToggleSidebar && (
+                {navigationMode !== 'folders' && onToggleSidebar && (
                     <button
                         type="button"
                         onClick={onToggleSidebar}
@@ -237,19 +239,21 @@ export default function TabList({
                                             )}
 
                                             {/* Close Button */}
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onTabClose(e, tab.id);
-                                                }}
-                                                style={{ borderRadius: DT.radiusSm }}
-                                                className={`p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all shrink-0
-                                                    ${isActive ? 'opacity-70 hover:opacity-100 hover:bg-gray-100 dark:hover:bg-slate-800' : 'opacity-0 group-hover:opacity-100 hover:bg-gray-300/50 dark:hover:bg-slate-800'}
-                                                `}
-                                                title="Tab schließen"
-                                            >
-                                                <X size={12} strokeWidth={2.5} />
-                                            </button>
+                                            {!(tab.id === 'calendar' || tab.type === 'calendar' || (navigationMode === 'folders' && (tab.id === 'folders' || tab.type === 'folders'))) && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onTabClose(e, tab.id);
+                                                    }}
+                                                    style={{ borderRadius: DT.radiusSm }}
+                                                    className={`p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all shrink-0
+                                                        ${isActive ? 'opacity-70 hover:opacity-100 hover:bg-gray-100 dark:hover:bg-slate-800' : 'opacity-0 group-hover:opacity-100 hover:bg-gray-300/50 dark:hover:bg-slate-800'}
+                                                    `}
+                                                    title="Tab schließen"
+                                                >
+                                                    <X size={12} strokeWidth={2.5} />
+                                                </button>
+                                            )}
                                         </div>
                                     </Reorder.Item>
                                 );

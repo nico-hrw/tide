@@ -43,7 +43,7 @@ import { useJobPlannerStore } from "@/store/useJobPlannerStore";
 import { useStyleFile } from "@/components/Canvas/useStyleFile";
 import { TextWidgetElement } from "@/types/canvas";
 import { useHighlight } from "@/components/HighlightContext";
-import { CheckCircle2, Loader2, Plus, ChevronDown, ChevronRight, Share, Download, Check } from 'lucide-react';
+import { CheckCircle2, Loader2, Plus, ChevronDown, ChevronRight, Share, Download, Check, ExternalLink } from 'lucide-react';
 import { useIslandStore } from '@/components/extensions/smart_island/useIslandStore';
 import { isSameDay } from 'date-fns';
 import { useDataStore, DataItem, TaskItem } from "@/store/useDataStore";
@@ -110,6 +110,7 @@ interface CalendarEvent {
     parent_id?: string | null;
     effect?: string;
     allDay?: boolean;
+    isAllDay?: boolean;
     is_task?: boolean;
     is_completed?: boolean;
     linkedTaskId?: string;
@@ -123,6 +124,13 @@ interface CalendarEvent {
 const isSameTime = (d1?: string, d2?: string) => {
     if (!d1 && !d2) return true;
     if (!d1 || !d2) return false;
+    const isD1DateOnly = /^\d{4}-\d{2}-\d{2}$/.test(d1.trim());
+    const isD2DateOnly = /^\d{4}-\d{2}-\d{2}$/.test(d2.trim());
+    if (isD1DateOnly || isD2DateOnly) {
+        const k1 = isD1DateOnly ? d1.trim() : format(new Date(d1), 'yyyy-MM-dd');
+        const k2 = isD2DateOnly ? d2.trim() : format(new Date(d2), 'yyyy-MM-dd');
+        return k1 === k2;
+    }
     const t1 = new Date(d1).getTime();
     const t2 = new Date(d2).getTime();
     return !isNaN(t1) && !isNaN(t2) && Math.abs(t1 - t2) < 60000;
@@ -157,7 +165,17 @@ export default function Dashboard() {
     const [status, setStatus] = useState<"loading" | "ready">("loading");
 
     // UI & Navigation State
-    const [openTabs, setOpenTabs] = useState<Tab[]>([{ id: 'calendar', title: 'Calendar', type: 'calendar' }]);
+    const [openTabs, setOpenTabs] = useState<Tab[]>(() => {
+        const initial: Tab[] = [{ id: 'calendar', title: 'Calendar', type: 'calendar' }];
+        if (typeof window !== 'undefined') {
+            try {
+                if (localStorage.getItem('tide_navigation_mode') === 'folders') {
+                    initial.push({ id: 'folders', title: 'Notizen', type: 'folders' });
+                }
+            } catch {}
+        }
+        return initial;
+    });
     const [activeTabId, setActiveTabId] = useState<string>('calendar');
     const [isSharingDisabled, setIsSharingDisabled] = useState(false);
     const {
@@ -191,7 +209,8 @@ export default function Dashboard() {
         loadedDirectories,
         enabledExtensions, setEnabledExtensions,
         noteLayout, setNoteLayout,
-        isSettingsModalOpen, setSettingsModalOpen
+        isSettingsModalOpen, setSettingsModalOpen,
+        navigationMode
     } = useDataStore();
     const deleteTask = useDataStore(s => s.deleteTask);
     const updateTask = useDataStore(s => s.updateTask);
@@ -259,6 +278,23 @@ export default function Dashboard() {
     const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
 
     // Extensions State
+    // Keep 'folders' tab permanently present when in folders navigation mode
+    useEffect(() => {
+        if (navigationMode === 'folders') {
+            setOpenTabs(prev => {
+                if (prev.some(t => t.id === 'folders')) return prev;
+                const calendarIdx = prev.findIndex(t => t.id === 'calendar');
+                const foldersTab: Tab = { id: 'folders', title: 'Notizen', type: 'folders' };
+                if (calendarIdx !== -1) {
+                    const next = [...prev];
+                    next.splice(calendarIdx + 1, 0, foldersTab);
+                    return next;
+                }
+                return [...prev, foldersTab];
+            });
+        }
+    }, [navigationMode]);
+
     const { push: islandPush, setIdlePayload, clearAll: islandClearAll } = useIslandStore();
 
     // Layout Options
@@ -1313,6 +1349,15 @@ export default function Dashboard() {
                     try {
                         const parsed = JSON.parse(savedTabs);
                         if (Array.isArray(parsed) && parsed.length > 0) {
+                            if (localStorage.getItem('tide_navigation_mode') === 'folders' && !parsed.some((t: { id?: string }) => t?.id === 'folders')) {
+                                const calIdx = parsed.findIndex((t: { id?: string }) => t?.id === 'calendar');
+                                const fTab = { id: 'folders', title: 'Notizen', type: 'folders' };
+                                if (calIdx !== -1) {
+                                    parsed.splice(calIdx + 1, 0, fTab);
+                                } else {
+                                    parsed.push(fTab);
+                                }
+                            }
                             setOpenTabs(parsed);
                             const validActive = parsed.find((t: any) => t.id === savedActiveId);
                             const activeIdToSet = validActive ? validActive.id : parsed[0].id;
@@ -2200,8 +2245,11 @@ export default function Dashboard() {
                 if (linkedTask) {
                     const taskUpdates: Partial<TaskItem> = {};
                     if (updates.start !== undefined && !isSameTime(linkedTask.dueDate, updates.start)) {
-                        taskUpdates.dueDate = updates.start;
-                        taskUpdates.scheduledDate = updates.start;
+                        const newDueDate = (updates.isAllDay || event.isAllDay)
+                            ? format(new Date(updates.start || event.start), 'yyyy-MM-dd')
+                            : (updates.start || event.start);
+                        taskUpdates.dueDate = newDueDate;
+                        taskUpdates.scheduledDate = newDueDate;
                     }
                     if (updates.is_completed !== undefined && linkedTask.isCompleted !== updates.is_completed) {
                         taskUpdates.isCompleted = updates.is_completed;
@@ -2376,37 +2424,47 @@ export default function Dashboard() {
         const foldersMeta = loadTodoFoldersMeta();
         const tasksWithDueDate = (tasks || []).filter(t => t.dueDate && isTaskVisibleInCalendar(t, foldersMeta));
 
-        // Remove any existing calendar events for tasks that have showInCalendar explicitly disabled
-        const hiddenTaskIds = new Set((tasks || []).filter(t => !isTaskVisibleInCalendar(t, foldersMeta)).map(t => t.id));
-        if (hiddenTaskIds.size > 0) {
-            const eventsToRemove = events.filter(e => (e as any).linkedTaskId && hiddenTaskIds.has((e as any).linkedTaskId));
-            if (eventsToRemove.length > 0) {
-                const removeIds = new Set(eventsToRemove.map(e => e.id));
-                useDataStore.getState().setEvents(useDataStore.getState().events.filter(ev => !removeIds.has(ev.id)));
-                eventsToRemove.forEach(async (e) => {
-                    const linkedId = (e as any).linkedTaskId;
-                    if (linkedId) syncingTaskIdsRef.current.add(linkedId);
-                    try {
-                        await apiFetch(`/api/v1/files/${e.id}`, { method: "DELETE" });
-                    } catch (err) {
-                        console.error("Failed to delete hidden task event", err);
-                    } finally {
-                        if (linkedId) {
-                            setTimeout(() => {
-                                syncingTaskIdsRef.current.delete(linkedId);
-                            }, 500);
-                        }
+        // Remove calendar events whose linkedTaskId either does not exist in tasks at all (orphaned),
+        // has no dueDate, or has showInCalendar explicitly disabled.
+        const taskMap = new Map((tasks || []).map(t => [t.id, t]));
+        const eventsToRemove = events.filter(e => {
+            const linkedId = (e as any).linkedTaskId;
+            if (!linkedId) return false;
+            const t = taskMap.get(linkedId);
+            if (!t) return true; // orphaned task
+            if (!t.dueDate) return true; // task has no dueDate
+            if (!isTaskVisibleInCalendar(t, foldersMeta)) return true; // hidden
+            return false;
+        });
+
+        if (eventsToRemove.length > 0) {
+            const removeIds = new Set(eventsToRemove.map(e => e.id));
+            useDataStore.getState().setEvents(useDataStore.getState().events.filter(ev => !removeIds.has(ev.id)));
+            eventsToRemove.forEach(async (e) => {
+                const linkedId = (e as any).linkedTaskId;
+                if (linkedId) syncingTaskIdsRef.current.add(linkedId);
+                try {
+                    await apiFetch(`/api/v1/files/${e.id}`, { method: "DELETE" });
+                } catch (err) {
+                    console.error("Failed to delete orphaned or hidden task event", err);
+                } finally {
+                    if (linkedId) {
+                        setTimeout(() => {
+                            syncingTaskIdsRef.current.delete(linkedId);
+                        }, 500);
                     }
-                });
-            }
+                }
+            });
         }
 
         const hasExplicitTime = (dateStr?: string): boolean => {
             if (!dateStr) return false;
-            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) return false; // Date-only
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) return false;
             if (dateStr.includes('T')) {
-                const timePart = dateStr.split('T')[1]?.trim();
-                return Boolean(timePart && timePart.length >= 4 && !timePart.startsWith('00:00:00.000Z'));
+                const d = new Date(dateStr);
+                if (isNaN(d.getTime())) return false;
+                // If minutes and hours in local time are 0:00 (or 23:59:59), treat as all-day date
+                return !(d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0);
             }
             return false;
         };
@@ -2689,7 +2747,7 @@ export default function Dashboard() {
 
     const handleTabSelect = (id: string, type: Tab['type']) => {
         if (id === 'folders' || type === 'folders') {
-            switchTab('folders', 'folders', 'Ordner');
+            switchTab('folders', 'folders', 'Notizen');
             return;
         }
         if (id === 'todos' || type === 'todos') {
@@ -2709,6 +2767,7 @@ export default function Dashboard() {
 
     const handleTabClose = (e: React.MouseEvent | null, id: string) => {
         if (e) e.stopPropagation();
+        if (id === 'calendar' || id === 'folders') return;
 
         const currentIndex = openTabs.findIndex(t => t.id === id);
         const filtered = openTabs.filter(t => t.id !== id);
@@ -2912,9 +2971,14 @@ export default function Dashboard() {
                 onEventClick={(_id: string) => {
                     // Guarded on mobile: desktop event popover must never be triggered
                 }}
-                onEventUpdate={(id: string, newStart: Date, newEnd: Date) => {
-                    handleEventUpdate(id, newStart, newEnd);
+                onEventUpdate={(id: string, newStart: Date, newEnd: Date, meta?: { title?: string; color?: string; description?: string }) => {
+                    if (meta) {
+                        handleEventSave(id, { ...meta, start: newStart.toISOString(), end: newEnd.toISOString() });
+                    } else {
+                        handleEventUpdate(id, newStart, newEnd);
+                    }
                 }}
+                onEventSave={handleEventSave}
                 onEventDelete={(id: string) => {
                     handleDeleteEvent(id);
                 }}
@@ -3113,7 +3177,7 @@ export default function Dashboard() {
                     onTabClose={handleTabClose}
                     onTabsReorder={setOpenTabs}
                     onNewTab={() => handleNewNote()}
-                    onOpenFolders={() => switchTab('folders', 'folders', 'Ordner')}
+                    onOpenFolders={() => switchTab('folders', 'folders', 'Notizen')}
                     userProfile={userProfile}
                     myId={myId}
                     isAvatarMenuOpen={isAvatarMenuOpen}
@@ -3397,11 +3461,11 @@ export default function Dashboard() {
                 
                 {/* Central Folder View for iPad / Tablet and Folders Tab */}
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${
-                    activeTabId === 'folders' || (isTablet && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))
+                    activeTabId === 'folders' || ((isTablet || navigationMode === 'folders') && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))
                         ? 'block'
                         : 'hidden'
                 }`}>
-                    {(activeTabId === 'folders' || (isTablet && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))) && (
+                    {(activeTabId === 'folders' || ((isTablet || navigationMode === 'folders') && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))) && (
                         <CentralFolderView
                             files={files}
                             onFileSelect={(id, title) => handleFileSelect(id, title)}

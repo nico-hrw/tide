@@ -503,7 +503,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                             } else if (onEventDrop) {
                                 onEventDrop(existingLinkedEvent.id, newStart, newEnd);
                             }
-                            useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString(), dueDate: newStart.toISOString() });
+                            useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString(), dueDate: format(baseDate, 'yyyy-MM-dd') });
                             return;
                         }
                         
@@ -518,7 +518,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                             });
                         }
                         
-                        useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString(), dueDate: newStart.toISOString() });
+                        useDataStore.getState().updateTask(draggedTask.id, { scheduledDate: newStart.toISOString(), dueDate: format(baseDate, 'yyyy-MM-dd') });
                         return;
                     }
 

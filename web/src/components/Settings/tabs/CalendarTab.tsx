@@ -212,7 +212,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="flex flex-col gap-6">
                 <div className="space-y-6">
                     <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
                         <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">Color Palette</h4>
@@ -242,7 +242,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
                     <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
                         <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">Event Arrangement</h4>
                         <p className="text-xs text-gray-500 mb-3">Decide how overlapping events are displayed.</p>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <OptionCard id="stack" label="Side-by-Side" desc="Equal split width" active={overlap === 'stack'} onClick={setCalendarOverlapMode} />
                             <OptionCard id="overlap" label="Overlap / Stacking" desc="Layered cards" active={overlap === 'overlap'} onClick={setCalendarOverlapMode} />
                         </div>
@@ -251,7 +251,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
                     <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
                         <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">Darstellung von Terminen in Notizen</h4>
                         <p className="text-xs text-gray-500 mb-3">Wähle, ob Termine in Notizen im einheitlichen Blau oder in der jeweiligen Kalenderfarbe hervorgehoben werden.</p>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <OptionCard id="blue" label="Blau" desc="Einheitlicher blauer Stil" active={eventMentionStyle === 'blue'} onClick={setEventMentionStyle} />
                             <OptionCard id="calendar" label="Kalenderfarbe" desc="Farbe der jeweiligen Kategorie" active={eventMentionStyle === 'calendar'} onClick={setEventMentionStyle} />
                         </div>
@@ -260,7 +260,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
                     <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
                         <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">Vorschau anzeigen</h4>
                         <p className="text-xs text-gray-500 mb-3">Steuert die Terminvorschau: &apos;Immer&apos; bettet einen Terminkasten ein, &apos;Hovern&apos; zeigt einen Tooltip beim Überfahren, &apos;Aus&apos; zeigt nur den Textlink.</p>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <OptionCard id="always" label="Immer" desc="Terminkasten" active={eventMentionPreview === 'always'} onClick={setEventMentionPreview} />
                             <OptionCard id="hover" label="Hovern" desc="Tooltip beim Überfahren" active={eventMentionPreview === 'hover'} onClick={setEventMentionPreview} />
                             <OptionCard id="off" label="Aus" desc="Nur Textlink" active={eventMentionPreview === 'off'} onClick={setEventMentionPreview} />
@@ -325,7 +325,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
             </div>
 
             <div className="pt-6 border-t border-gray-100 dark:border-white/5">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                     <div>
                         <h3 className="text-sm font-bold text-gray-900 dark:text-white">Calendar Groups</h3>
                         <p className="text-xs text-gray-500 mt-0.5">Manage event categories and styles.</p>
@@ -336,13 +336,13 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
                             value={newGroupName}
                             onChange={(e) => setNewGroupName(e.target.value)}
                             placeholder="New group name..."
-                            className="bg-white dark:bg-black/40 text-xs text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 transition-colors rounded-[8px] px-3 py-1.5 w-40"
+                            className="bg-white dark:bg-black/40 text-xs text-gray-900 dark:text-white outline-none border border-gray-200 dark:border-white/10 focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 transition-colors rounded-[8px] px-3 py-1.5 w-40 max-w-full"
                             onKeyDown={(e) => e.key === 'Enter' && handleCreateGroupLocal()}
                         />
                         <button
                             type="button"
                             onClick={handleCreateGroupLocal}
-                            className="p-1.5 bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] transition-colors cursor-pointer"
+                            className="p-1.5 bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] transition-colors cursor-pointer shrink-0"
                             title="Create Group"
                         >
                             <Plus size={14} />
@@ -350,7 +350,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[220px] overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[220px] overflow-y-auto pr-1">
                     {groups.map((group) => (
                         <GroupItem
                             key={group.id}

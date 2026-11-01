@@ -23,6 +23,8 @@ export interface CalendarEvent {
     tags?: string[];
 }
 
+export type CalendarViewMode = 'day' | 'week' | 'month' | 'continuous';
+
 export interface CalendarViewProps {
     events: CalendarEvent[];
     onEventCreate: (start: Date, end: Date, isAllDay?: boolean, extraMeta?: any) => Promise<string | null>;
@@ -35,6 +37,8 @@ export interface CalendarViewProps {
     editingEventId?: string | null;
     date: Date; // Initial View Date
     onDateChange: (date: Date) => void;
+    viewMode?: CalendarViewMode;
+    onViewModeChange?: (mode: CalendarViewMode) => void;
     themes?: { id: string; title: string; effect?: string; color?: string }[];
     onScheduleApply?: (events: ScheduleEventData[], theme: string, options?: { color?: string, effect?: string }) => Promise<void>;
     onCreateEventGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;

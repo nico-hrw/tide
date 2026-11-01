@@ -24,7 +24,34 @@ export interface DecryptedFileResult {
     skipped?: boolean;
 }
 
-export const deletedTaskIds = new Set<string>();
+function initDeletedTaskIds(): Set<string> {
+    if (typeof window === 'undefined') return new Set<string>();
+    try {
+        const stored = localStorage.getItem('tide_deleted_task_ids');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed)) {
+                return new Set<string>(parsed);
+            }
+        }
+    } catch {
+        // Fallback to empty Set
+    }
+    return new Set<string>();
+}
+
+export const deletedTaskIds = initDeletedTaskIds();
+
+export function recordDeletedTaskId(id: string): void {
+    deletedTaskIds.add(id);
+    if (typeof window !== 'undefined') {
+        try {
+            localStorage.setItem('tide_deleted_task_ids', JSON.stringify([...deletedTaskIds]));
+        } catch (e) {
+            console.warn('Failed to save deleted task IDs to storage', e);
+        }
+    }
+}
 
 function loadFromStorage<T>(key: string): T[] {
     if (typeof window === 'undefined') return [];
@@ -89,6 +116,7 @@ export async function decryptTasks(
                     showInCalendar: meta.showInCalendar !== undefined ? (meta.showInCalendar as boolean) : true,
                     createdAt: meta.createdAt as string | undefined,
                     completedAt: meta.completedAt as string | undefined,
+                    updatedAt: meta.updatedAt as string | undefined,
                     isArchived: meta.isArchived as boolean | undefined,
                     parentId: (meta.parentId as string | null) ?? null,
                     order: (meta.order as number) ?? 0,
@@ -109,26 +137,82 @@ export function reconcileTasksWithLocal(
     deletedIds: Set<string> = deletedTaskIds
 ): TaskItem[] {
     const localMap = new Map(currentTasks.map(t => [t.id, t]));
-    const reconciled = loadedTasks.map(bt => {
+    const reconciled: TaskItem[] = [];
+
+    for (const bt of loadedTasks) {
+        if (deletedIds.has(bt.id)) continue;
         const local = localMap.get(bt.id);
-        if (!local) return bt;
-        return {
-            ...bt,
-            ...(local.dueDate && !bt.dueDate ? { dueDate: local.dueDate } : {}),
-            ...(local.scheduledDate && !bt.scheduledDate ? { scheduledDate: local.scheduledDate } : {}),
-            ...(local.completed_dates && (!bt.completed_dates || local.completed_dates.length > bt.completed_dates.length) ? { completed_dates: local.completed_dates } : {}),
-            ...(local.folder !== undefined && bt.folder === undefined ? { folder: local.folder } : {}),
-            ...(local.tags !== undefined && bt.tags === undefined ? { tags: local.tags } : {}),
-            ...(local.showInCalendar !== undefined && local.showInCalendar !== bt.showInCalendar ? { showInCalendar: local.showInCalendar } : {}),
-            ...(local.status !== undefined && local.status !== bt.status ? { status: local.status, isCompleted: local.isCompleted, completedAt: local.completedAt } : {}),
-            ...(local.isCompleted !== bt.isCompleted ? { isCompleted: local.isCompleted } : {}),
-            ...(local.completedAt !== bt.completedAt && local.isCompleted ? { completedAt: local.completedAt } : {}),
-            ...(local.createdAt && !bt.createdAt ? { createdAt: local.createdAt } : {}),
-            ...(local.isArchived !== undefined && local.isArchived !== bt.isArchived ? { isArchived: local.isArchived } : {}),
-            ...(local.parentId !== undefined && local.parentId !== bt.parentId ? { parentId: local.parentId } : {}),
-            ...(local.order !== undefined && local.order !== bt.order ? { order: local.order } : {}),
-        };
-    });
+        if (!local) {
+            reconciled.push(bt);
+            continue;
+        }
+
+        const localUpdatedAt = local.updatedAt;
+        const btUpdatedAt = bt.updatedAt;
+        const localTime = localUpdatedAt ? new Date(localUpdatedAt).getTime() : NaN;
+        const btTime = btUpdatedAt ? new Date(btUpdatedAt).getTime() : NaN;
+
+        const hasBothTimestamps = !isNaN(localTime) && !isNaN(btTime);
+        const isLocalNewer = hasBothTimestamps ? localTime > btTime : !isNaN(localTime);
+
+        if (isLocalNewer) {
+            reconciled.push({
+                ...bt,
+                ...local,
+                title: local.title ?? bt.title,
+                description: local.description !== undefined ? local.description : bt.description,
+                color: local.color !== undefined ? local.color : bt.color,
+                priority: local.priority !== undefined ? local.priority : bt.priority,
+                folder: local.folder !== undefined ? local.folder : bt.folder,
+                tags: local.tags !== undefined ? local.tags : bt.tags,
+                dueDate: local.dueDate, // Never allow stale bt.dueDate to overwrite local edit or clear
+                scheduledDate: local.scheduledDate !== undefined ? local.scheduledDate : bt.scheduledDate,
+                recurrence: local.recurrence !== undefined ? local.recurrence : bt.recurrence,
+                recurrence_rule: local.recurrence_rule !== undefined ? local.recurrence_rule : bt.recurrence_rule,
+                recurrence_end: local.recurrence_end !== undefined ? local.recurrence_end : bt.recurrence_end,
+                showInCalendar: local.showInCalendar !== undefined ? local.showInCalendar : bt.showInCalendar,
+                status: local.status !== undefined ? local.status : bt.status,
+                isCompleted: local.isCompleted !== undefined ? local.isCompleted : bt.isCompleted,
+                completedAt: local.completedAt !== undefined ? local.completedAt : bt.completedAt,
+                updatedAt: localUpdatedAt || btUpdatedAt,
+                isArchived: local.isArchived !== undefined ? local.isArchived : bt.isArchived,
+                parentId: local.parentId !== undefined ? local.parentId : bt.parentId,
+                order: local.order !== undefined ? local.order : bt.order,
+                completed_dates: local.completed_dates !== undefined ? local.completed_dates : bt.completed_dates,
+                createdAt: local.createdAt || bt.createdAt,
+                linkedNoteId: local.linkedNoteId !== undefined ? local.linkedNoteId : bt.linkedNoteId,
+            });
+        } else {
+            reconciled.push({
+                ...local,
+                ...bt,
+                title: bt.title ?? local.title,
+                description: bt.description !== undefined ? bt.description : local.description,
+                color: bt.color !== undefined ? bt.color : local.color,
+                priority: bt.priority !== undefined ? bt.priority : local.priority,
+                folder: bt.folder !== undefined ? bt.folder : local.folder,
+                tags: (bt.tags !== undefined && bt.tags.length > 0) ? bt.tags : (local.tags ?? bt.tags),
+                dueDate: bt.dueDate !== undefined ? bt.dueDate : local.dueDate,
+                scheduledDate: bt.scheduledDate !== undefined ? bt.scheduledDate : local.scheduledDate,
+                recurrence: bt.recurrence !== undefined ? bt.recurrence : local.recurrence,
+                recurrence_rule: bt.recurrence_rule !== undefined ? bt.recurrence_rule : local.recurrence_rule,
+                recurrence_end: bt.recurrence_end !== undefined ? bt.recurrence_end : local.recurrence_end,
+                showInCalendar: bt.showInCalendar !== undefined ? bt.showInCalendar : (local.showInCalendar ?? true),
+                status: bt.status !== undefined ? bt.status : local.status,
+                isCompleted: bt.isCompleted !== undefined ? bt.isCompleted : local.isCompleted,
+                completedAt: bt.completedAt !== undefined ? bt.completedAt : local.completedAt,
+                updatedAt: btUpdatedAt || localUpdatedAt,
+                isArchived: bt.isArchived !== undefined ? bt.isArchived : local.isArchived,
+                parentId: bt.parentId !== undefined ? bt.parentId : local.parentId,
+                order: bt.order !== undefined ? bt.order : local.order,
+                completed_dates: (local.completed_dates && (!bt.completed_dates || local.completed_dates.length > bt.completed_dates.length))
+                    ? local.completed_dates
+                    : (bt.completed_dates ?? local.completed_dates),
+                createdAt: bt.createdAt || local.createdAt,
+                linkedNoteId: bt.linkedNoteId !== undefined ? bt.linkedNoteId : local.linkedNoteId,
+            });
+        }
+    }
 
     const backendIds = new Set(loadedTasks.map(t => t.id));
     const localOnly = currentTasks.filter(t => !backendIds.has(t.id) && !deletedIds.has(t.id));

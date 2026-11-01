@@ -10,9 +10,10 @@ export interface MiniCalendarProps {
     onSelect?: (date: Date) => void;
     onMonthChange?: (date: Date) => void;
     events?: Array<{ start: string; color?: string; allDay?: boolean }>;
+    hideVisibleRangeHighlight?: boolean;
 }
 
-export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, events }: MiniCalendarProps) {
+export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, events, hideVisibleRangeHighlight }: MiniCalendarProps) {
     const [currentDateInternal, setCurrentDateInternal] = useState(new Date());
     const touchStartX = useRef<number | null>(null);
     const touchGridX = useRef<number | null>(null);
@@ -136,7 +137,7 @@ export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, ev
                     });
                     const hasEvents = dayEvents.length > 0;
 
-                    const isVisibleInGrid = isInCalendar && visibleCalendarRange
+                    const isVisibleInGrid = !hideVisibleRangeHighlight && isInCalendar && visibleCalendarRange
                         ? (dayIso >= visibleCalendarRange.start && dayIso <= visibleCalendarRange.end)
                         : false;
 

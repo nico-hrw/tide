@@ -1,8 +1,8 @@
 import { apiFetch } from '@/lib/api';
 import type { DataStoreSlice, TaskItem, TodosSlice } from './types';
-import { deletedTaskIds } from './fsHelpers';
+import { deletedTaskIds, recordDeletedTaskId } from './fsHelpers';
 
-export { deletedTaskIds };
+export { deletedTaskIds, recordDeletedTaskId };
 
 export function loadCachedTasks(): TaskItem[] {
     if (typeof window === 'undefined') return [];
@@ -31,7 +31,6 @@ function compactVaultPayload(rawPayload: Record<string, unknown>): Record<string
                 v !== undefined &&
                 v !== null &&
                 v !== '' &&
-                v !== false &&
                 !(Array.isArray(v) && v.length === 0)
         )
     );
@@ -59,6 +58,7 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
                 ? taskDraft.isCompleted
                 : initialStatus === 'completed';
         const createdAt = taskDraft.createdAt || new Date().toISOString();
+        const updatedAt = new Date().toISOString();
         const completedAt =
             taskDraft.completedAt !== undefined
                 ? taskDraft.completedAt
@@ -75,6 +75,7 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
             status: initialStatus,
             createdAt,
             completedAt,
+            updatedAt,
         };
         const nextTasks = [...state.tasks, newTask];
         set({ tasks: nextTasks });
@@ -104,6 +105,7 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
                 showInCalendar: newTask.showInCalendar !== undefined ? newTask.showInCalendar : true,
                 createdAt: newTask.createdAt,
                 completedAt: newTask.completedAt,
+                updatedAt: newTask.updatedAt,
                 isArchived: newTask.isArchived,
                 parentId: newTask.parentId ?? null,
                 order: newTask.order ?? 0,
@@ -122,6 +124,7 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    id: fallbackId,
                     encrypted_vault: securedMeta,
                 }),
             });
@@ -185,6 +188,7 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
             }
         }
 
+        const now = new Date().toISOString();
         const mergedUpdates: Partial<TaskItem> = {
             ...updates,
             parentId: updates.parentId !== undefined ? updates.parentId : (task.parentId ?? null),
@@ -193,6 +197,7 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
             isCompleted: resolvedCompleted,
             ...(resolvedStatus !== undefined ? { status: resolvedStatus } : {}),
             completedAt: resolvedCompletedAt,
+            updatedAt: now,
         };
 
         // 1. Optimistic local update immediately
@@ -207,6 +212,7 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
             showInCalendar: resolvedShowInCalendar,
             status: resolvedStatus,
             completedAt: resolvedCompletedAt,
+            updatedAt: now,
         };
 
         // 3. Resolve publicKey — prefer store, fall back to sessionStorage
@@ -263,6 +269,7 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
                     mergedTask.showInCalendar !== undefined ? mergedTask.showInCalendar : true,
                 createdAt: mergedTask.createdAt,
                 completedAt: mergedTask.completedAt,
+                updatedAt: mergedTask.updatedAt,
                 isArchived: mergedTask.isArchived,
                 parentId: (updates.parentId !== undefined ? updates.parentId : task?.parentId) ?? null,
                 order: (updates.order !== undefined ? updates.order : task?.order) ?? 0,
@@ -286,34 +293,8 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
             });
             if (!res.ok) {
                 if (res.status === 404) {
-                    if (deletedTaskIds.has(id)) {
-                        return;
-                    }
-                    // Task doesn't exist in backend yet (optimistic ID was never persisted).
-                    // Create it via POST and reconcile the ID.
-                    console.warn('[updateTask] Task not found in backend (404) — creating via POST');
-                    const createRes = await apiFetch('/api/v1/tasks', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            encrypted_vault: securedMeta,
-                        }),
-                    });
-                    if (createRes.ok) {
-                        const created = (await createRes.json()) as { id?: string };
-                        const newId = created.id;
-                        if (newId && newId !== id) {
-                            // Reconcile local ID with the new backend ID
-                            const reconciled: TaskItem[] = get().tasks.map((t) =>
-                                t.id === id ? { ...t, id: newId } : t
-                            );
-                            set({ tasks: reconciled });
-                            saveTasksToOfflineCache(reconciled);
-                            console.log('[updateTask] ID reconciled:', id, '->', newId);
-                        }
-                    } else {
-                        console.error('[updateTask] POST fallback also failed:', createRes.status);
-                    }
+                    console.warn('[updateTask] Task not found in backend (404) — removing locally:', id);
+                    get().deleteTask(id);
                 } else {
                     console.error('[updateTask] API returned non-OK status:', res.status);
                 }
@@ -384,11 +365,22 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
     },
 
     deleteTask: async (id) => {
-        deletedTaskIds.add(id);
+        recordDeletedTaskId(id);
         // Optimistic removal
         const nextTasks = get().tasks.filter((t) => t.id !== id);
         set({ tasks: nextTasks });
         saveTasksToOfflineCache(nextTasks);
+
+        const linkedEvents = (get().events || []).filter((e) => (e as any).linkedTaskId === id);
+        if (linkedEvents.length > 0) {
+            set({ events: (get().events || []).filter((e) => (e as any).linkedTaskId !== id) });
+            for (const event of linkedEvents) {
+                apiFetch(`/api/v1/files/${event.id}`, { method: 'DELETE' }).catch((err) => {
+                    console.warn('[deleteTask] Failed to delete linked calendar event:', event.id, err);
+                });
+            }
+        }
+
         try {
             await apiFetch(`/api/v1/tasks/${id}`, { method: 'DELETE' });
         } catch (e) {

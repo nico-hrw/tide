@@ -46,7 +46,7 @@ export const SyncCloudTab: React.FC<SyncCloudTabProps> = ({ view = 'all' }) => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="p-4 rounded-xl border border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-black/20 text-center">
                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Web Client</div>
                     <div className="font-mono text-sm font-bold text-gray-900 dark:text-white">v1.2.0-alpha</div>

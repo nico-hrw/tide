@@ -409,7 +409,7 @@ export default function DebugPluginSettings() {
                     {isDe ? 'Batch-Aktionen & Reparatur' : 'Batch Actions & Repair'}
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                     <button
                         type="button"
                         onClick={purgeGhostNotes}
@@ -514,8 +514,8 @@ export default function DebugPluginSettings() {
                 </div>
 
                 <div className="border border-gray-200/80 dark:border-white/10 rounded-xl overflow-hidden bg-white dark:bg-black/40">
-                    <div className="max-h-80 overflow-y-auto">
-                        <table className="w-full text-left text-xs border-collapse">
+                    <div className="max-h-80 overflow-y-auto overflow-x-auto">
+                        <table className="w-full min-w-[620px] text-left text-xs border-collapse">
                             <thead className="sticky top-0 bg-gray-50 dark:bg-zinc-900 border-b border-gray-200 dark:border-white/10 z-10 text-gray-500 dark:text-gray-400 font-bold uppercase tracking-wider text-[10px]">
                                 <tr>
                                     <th className="py-2.5 px-3">Titel</th>

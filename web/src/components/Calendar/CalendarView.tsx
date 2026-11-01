@@ -2,19 +2,23 @@ import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import type { ComponentProps } from "react";
 import DayColumn from "@/components/Calendar/DayColumn";
 import "@/app/calendar/calendar.css";
-import { format, startOfWeek, addWeeks, subWeeks, getMinutes, getHours } from "date-fns";
-import { ArrowRight } from "lucide-react";
+import { format, startOfWeek, addWeeks, subWeeks, getMinutes, getHours, addDays, subDays, addMonths, subMonths, startOfMonth } from "date-fns";
+import { de } from "date-fns/locale";
+import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { SearchIndexEntry } from "@/lib/searchIndex";
 import Fuse from "fuse.js";
 import { useHighlight } from "@/components/HighlightContext";
 import { ScheduleModal } from './ScheduleModal';
 import { CalendarWeekTimeGrid } from './CalendarWeekTimeGrid';
+import DesktopMonthView from './DesktopMonthView';
+import DesktopAgendaView from './DesktopAgendaView';
+import DesktopDayView from './DesktopDayView';
 import { CalendarProjectionLayer } from './CalendarProjectionLayer';
 import { CalendarEventPopoverHost } from './CalendarEventPopoverHost';
 import { useCalendarDragResize } from './useCalendarDragResize';
 import { useCalendarScroll } from './useCalendarScroll';
 import { useEventsByDay } from './useEventsByDay';
-import type { ActivePopover, CalendarViewProps } from './types';
+import type { ActivePopover, CalendarViewProps, CalendarViewMode } from './types';
 
 export default function CalendarView({
     events,
@@ -28,6 +32,8 @@ export default function CalendarView({
     editingEventId = null,
     date,
     onDateChange,
+    viewMode: viewModeProp,
+    onViewModeChange,
     themes = [],
     onScheduleApply,
     onCreateEventGroup,
@@ -35,6 +41,46 @@ export default function CalendarView({
     onOpenScheduleThemes,
 }: CalendarViewProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const [internalViewMode, setInternalViewMode] = useState<CalendarViewMode>(viewModeProp || 'week');
+    const viewMode = viewModeProp ?? internalViewMode;
+
+    const handleViewModeChange = (mode: CalendarViewMode) => {
+        setInternalViewMode(mode);
+        onViewModeChange?.(mode);
+    };
+
+    const handlePrev = () => {
+        if (viewMode === 'day') {
+            onDateChange(subDays(date, 1));
+        } else if (viewMode === 'week') {
+            onDateChange(subWeeks(date, 1));
+        } else if (viewMode === 'month') {
+            onDateChange(subMonths(date, 1));
+        } else if (viewMode === 'continuous') {
+            onDateChange(subWeeks(date, 1));
+        }
+    };
+
+    const handleNext = () => {
+        if (viewMode === 'day') {
+            onDateChange(addDays(date, 1));
+        } else if (viewMode === 'week') {
+            onDateChange(addWeeks(date, 1));
+        } else if (viewMode === 'month') {
+            onDateChange(addMonths(date, 1));
+        } else if (viewMode === 'continuous') {
+            onDateChange(addWeeks(date, 1));
+        }
+    };
+
+    const handleToday = () => {
+        const today = new Date();
+        onDateChange(today);
+        if (viewMode === 'week') {
+            handleScrollToToday();
+        }
+    };
+
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
     const [isGroupsSidebarOpen, setIsGroupsSidebarOpen] = useState(false);
 
@@ -45,7 +91,14 @@ export default function CalendarView({
 
     // Filter events based on selected groups/themesHighlight();
 
-    const [loadedWeeks, setLoadedWeeks] = useState<Date[]>([]);
+    const [loadedWeeks, setLoadedWeeks] = useState<Date[]>(() => {
+        const currentStart = startOfWeek(date, { weekStartsOn: 1 });
+        return [
+            subWeeks(currentStart, 1),
+            currentStart,
+            addWeeks(currentStart, 1)
+        ];
+    });
     const [currentTime, setCurrentTime] = useState(new Date());
 
     const [searchQuery, setSearchQuery] = useState("");
@@ -164,25 +217,59 @@ export default function CalendarView({
         }
     }, [activePopover]);
 
-    // Initialize with current, prev, and next week
+    // Initialize with weeks appropriate for the active view mode
     useEffect(() => {
-        const currentStart = startOfWeek(date, { weekStartsOn: 1 });
-        // Only reset if the new date is outside our currently loaded range
-        if (loadedWeeks.length > 0) {
-            const firstWeek = loadedWeeks[0];
-            const lastWeek = loadedWeeks[loadedWeeks.length - 1];
-            if (currentStart >= firstWeek && currentStart <= lastWeek) {
-                return; // Date is already in view, no need to reset
+        const timer = setTimeout(() => {
+            const currentStart = startOfWeek(date, { weekStartsOn: 1 });
+
+            if (viewMode === 'month') {
+                const mStart = startOfWeek(startOfMonth(date), { weekStartsOn: 1 });
+                const weeks: Date[] = [];
+                for (let i = 0; i < 6; i++) {
+                    weeks.push(addWeeks(mStart, i));
+                }
+                setLoadedWeeks(weeks);
+                return;
             }
+
+            if (viewMode === 'continuous') {
+                const cStart = subWeeks(currentStart, 1);
+                const weeks: Date[] = [];
+                for (let i = 0; i < 8; i++) {
+                    weeks.push(addWeeks(cStart, i));
+                }
+                setLoadedWeeks(weeks);
+                return;
+            }
+
+            // Only reset if the new date is outside our currently loaded range
+            if (loadedWeeks.length > 0) {
+                const firstWeek = loadedWeeks[0];
+                const lastWeek = loadedWeeks[loadedWeeks.length - 1];
+                if (currentStart >= firstWeek && currentStart <= lastWeek) {
+                    return; // Date is already in view, no need to reset
+                }
+            }
+            
+            setLoadedWeeks([
+                subWeeks(currentStart, 1),
+                currentStart,
+                addWeeks(currentStart, 1)
+            ]);
+            isPrependingRef.current = true; // Force initial scroll center
+        }, 0);
+        return () => clearTimeout(timer);
+    }, [date, viewMode, loadedWeeks]);
+
+    // Initial scroll for day view
+    useEffect(() => {
+        if (viewMode === 'day' && scrollContainerRef.current) {
+            const container = scrollContainerRef.current;
+            const nowMinutes = getHours(new Date()) * 60 + getMinutes(new Date());
+            const targetScrollY = Math.max(0, nowMinutes - 120);
+            container.scrollTop = targetScrollY;
         }
-        
-        setLoadedWeeks([
-            subWeeks(currentStart, 1),
-            currentStart,
-            addWeeks(currentStart, 1)
-        ]);
-        isPrependingRef.current = true; // Force initial scroll center
-    }, [date, loadedWeeks]);
+    }, [viewMode, date]);
 
     // Auto-update current time
     useEffect(() => {
@@ -317,12 +404,68 @@ export default function CalendarView({
             >
                 {/* Toolbar — position:relative + zIndex:500 creates a stacking context above
                     all sticky calendar elements (time col z-[160], day headers z-[150]). */}
-                <div className="flex items-center justify-between px-4 py-3 bg-transparent" style={{ position: 'relative', zIndex: 500 }}>
-                    <div className="flex items-center gap-6">
-                        <h2 className="text-xl font-extrabold text-[#1F2937] dark:text-[#E2E8F0] tracking-tight">
-                            {format(date, "MMMM yyyy")}
+                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-transparent border-b border-gray-200/60 dark:border-white/10" style={{ position: 'relative', zIndex: 500 }}>
+                    {/* Left: Date navigation + Title */}
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-0.5 bg-gray-100/80 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 rounded-lg p-0.5">
+                            <button
+                                onClick={handlePrev}
+                                className="p-1 hover:bg-white dark:hover:bg-white/10 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-md transition-colors"
+                                title="Zurück"
+                            >
+                                <ChevronLeft size={16} />
+                            </button>
+                            <button
+                                onClick={handleNext}
+                                className="p-1 hover:bg-white dark:hover:bg-white/10 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-md transition-colors"
+                                title="Weiter"
+                            >
+                                <ChevronRight size={16} />
+                            </button>
+                        </div>
+                        <button
+                            onClick={handleToday}
+                            className="px-2.5 py-1 text-xs font-bold rounded-lg border border-gray-200/80 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 transition-colors"
+                            title="Zu heute springen"
+                        >
+                            Heute
+                        </button>
+                        <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-[#1F2937] dark:text-[#E2E8F0] tracking-tight ml-1">
+                            {viewMode === 'day' 
+                                ? format(date, "EEEE, d. MMMM yyyy", { locale: de }) 
+                                : format(date, "MMMM yyyy", { locale: de })}
                         </h2>
-                        <div className="hidden sm:flex items-center gap-1.5">
+                    </div>
+
+                    {/* Right: View Mode switcher + Theme pills */}
+                    <div className="flex items-center gap-3">
+                        {/* View Mode Switcher Pills */}
+                        <div className="flex items-center gap-1 bg-gray-100/70 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 p-1 rounded-xl">
+                            {([
+                                { id: 'day' as const, label: 'Tag' },
+                                { id: 'week' as const, label: 'Woche' },
+                                { id: 'month' as const, label: 'Monat' },
+                                { id: 'continuous' as const, label: 'Fortlaufend' },
+                            ]).map((mode) => {
+                                const isActive = viewMode === mode.id;
+                                return (
+                                    <button
+                                        key={mode.id}
+                                        onClick={() => handleViewModeChange(mode.id)}
+                                        className={`px-2.5 py-1 text-xs rounded-lg transition-all ${
+                                            isActive
+                                                ? "bg-black dark:bg-white text-white dark:text-black font-bold shadow-sm"
+                                                : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 font-medium"
+                                        }`}
+                                    >
+                                        {mode.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Theme pills */}
+                        <div className="hidden lg:flex items-center gap-1.5">
                             <span 
                                 onClick={() => setSelectedGroupId(null)}
                                 className={`px-3 py-1 text-xs font-bold rounded-full shadow-sm cursor-pointer hover:opacity-90 transition-all flex items-center gap-1 ${!selectedGroupId ? 'bg-black dark:bg-white text-white dark:text-black' : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300'}`}
@@ -345,41 +488,113 @@ export default function CalendarView({
                     </div>
                 </div>
 
-                {/* Main Scroll Area */}
-                <div
-                    ref={scrollContainerRef}
-                    className={`flex-1 relative flex trackpad-scroll-free transition-all duration-300 ${isSpeedTraveling ? 'blur-[1.5px] brightness-105' : ''}`}
-                    style={{ touchAction: 'pan-x pan-y', overscrollBehavior: 'none' }}
-                >
-                    <CalendarWeekTimeGrid
-                        loadedWeeks={loadedWeeks}
+                {/* Main View Area */}
+                {viewMode === 'week' && (
+                    <div
+                        ref={scrollContainerRef}
+                        className={`flex-1 relative flex trackpad-scroll-free transition-all duration-300 ${isSpeedTraveling ? 'blur-[1.5px] brightness-105' : ''}`}
+                        style={{ touchAction: 'pan-x pan-y', overscrollBehavior: 'none' }}
+                    >
+                        <CalendarWeekTimeGrid
+                            loadedWeeks={loadedWeeks}
+                            eventsByDay={eventsByDay}
+                            events={events}
+                            currentTime={currentTime}
+                            gridDaysRef={gridDaysRef}
+                            isPreciseMode={isPreciseMode}
+                            isPreciseModeRef={isPreciseModeRef}
+                            onDayEventClick={handleDayEventClick}
+                            onEventCreate={onEventCreate}
+                            onEventUpdate={onEventUpdate}
+                            onEventRename={onEventRename}
+                            onEventDelete={onEventDelete}
+                            onEventSave={onEventSave}
+                            onEventShare={onEventShare}
+                            onGridMouseDown={handleGridMouseDown}
+                            onEventMouseDown={handleEventMouseDown}
+                            onResizeMouseDown={handleResizeMouseDown}
+                            draggingId={draggingId}
+                            dragState={dragState}
+                            creationDrag={creationDrag}
+                            resizingId={resizingId}
+                            resizeDragState={resizeDragState}
+                            resizeHeightMV={resizeHeightMV}
+                            creationEndYMV={creationEndYMV}
+                            cursorX={cursorX}
+                            cursorY={cursorY}
+                        />
+                    </div>
+                )}
+
+                {viewMode === 'day' && (
+                    <div
+                        ref={scrollContainerRef}
+                        className="flex-1 relative flex overflow-y-auto overflow-x-hidden trackpad-scroll-free transition-all duration-300"
+                        style={{ touchAction: 'pan-y' }}
+                    >
+                        <DesktopDayView
+                            day={date}
+                            eventsByDay={eventsByDay}
+                            events={events}
+                            currentTime={currentTime}
+                            gridDaysRef={gridDaysRef}
+                            isPreciseMode={isPreciseMode}
+                            onDayEventClick={handleDayEventClick}
+                            onEventCreate={onEventCreate}
+                            onEventUpdate={onEventUpdate}
+                            onEventRename={onEventRename}
+                            onEventDelete={onEventDelete}
+                            onEventSave={onEventSave}
+                            onEventShare={onEventShare}
+                            onGridMouseDown={handleGridMouseDown}
+                            onEventMouseDown={handleEventMouseDown}
+                            onResizeMouseDown={handleResizeMouseDown}
+                            draggingId={draggingId}
+                            dragState={dragState}
+                            creationDrag={creationDrag}
+                            resizingId={resizingId}
+                            resizeDragState={resizeDragState}
+                            resizeHeightMV={resizeHeightMV}
+                            creationEndYMV={creationEndYMV}
+                            cursorX={cursorX}
+                            cursorY={cursorY}
+                        />
+                    </div>
+                )}
+
+                {viewMode === 'month' && (
+                    <DesktopMonthView
+                        currentDate={date}
                         eventsByDay={eventsByDay}
-                        events={events}
-                        currentTime={currentTime}
-                        gridDaysRef={gridDaysRef}
-                        isPreciseMode={isPreciseMode}
-                        isPreciseModeRef={isPreciseModeRef}
-                        onDayEventClick={handleDayEventClick}
+                        onDayClick={(clickedDay) => {
+                            onDateChange(clickedDay);
+                            handleViewModeChange('day');
+                        }}
+                        onEventClick={(clickedEvent, rect) => {
+                            lastPopoverOpenTimeRef.current = Date.now();
+                            setActivePopover({ id: clickedEvent.id, rect });
+                        }}
                         onEventCreate={onEventCreate}
-                        onEventUpdate={onEventUpdate}
-                        onEventRename={onEventRename}
-                        onEventDelete={onEventDelete}
-                        onEventSave={onEventSave}
-                        onEventShare={onEventShare}
-                        onGridMouseDown={handleGridMouseDown}
-                        onEventMouseDown={handleEventMouseDown}
-                        onResizeMouseDown={handleResizeMouseDown}
-                        draggingId={draggingId}
-                        dragState={dragState}
-                        creationDrag={creationDrag}
-                        resizingId={resizingId}
-                        resizeDragState={resizeDragState}
-                        resizeHeightMV={resizeHeightMV}
-                        creationEndYMV={creationEndYMV}
-                        cursorX={cursorX}
-                        cursorY={cursorY}
+                        themes={themes}
                     />
-                </div >
+                )}
+
+                {viewMode === 'continuous' && (
+                    <DesktopAgendaView
+                        currentDate={date}
+                        eventsByDay={eventsByDay}
+                        onEventClick={(clickedEvent, rect) => {
+                            lastPopoverOpenTimeRef.current = Date.now();
+                            setActivePopover({ id: clickedEvent.id, rect });
+                        }}
+                        onEventCreate={onEventCreate}
+                        onEventDelete={onEventDelete}
+                        onTaskToggle={(id, currentIsCompleted) => {
+                            if (onEventSave) onEventSave(id, { is_completed: !currentIsCompleted });
+                        }}
+                        themes={themes}
+                    />
+                )}
 
                 {/* Visual Projection Layer (Precise Mode) */}
                 {isPreciseMode && (draggingId || creationDrag || resizingId) && (
@@ -425,8 +640,8 @@ export default function CalendarView({
 
 
 
-            {/* Directional Today Button — appears at edge when today is off-screen */}
-            {todayButtonDir !== 'hidden' && (
+            {/* Directional Today Button — appears at edge when today is off-screen (week view only) */}
+            {todayButtonDir !== 'hidden' && viewMode === 'week' && (
                 <div
                     className={`pointer-events-none absolute top-1/2 -translate-y-1/2 ${todayButtonDir === 'left' ? 'left-[68px]' : 'right-4'}`}
                     style={{ zIndex: 490 }}

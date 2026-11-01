@@ -709,7 +709,8 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
                       {/* Top resize handle — hidden for continuations and tiny pills */}
                       {!isContinuation && handleH > 0 && (
                         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: handleH, zIndex: 2, borderRadius: '7px 7px 0 0', touchAction: 'none' }}
-                          onTouchStart={e => evTouchStart(e, ev.id, 'resize-top', colIdx)}>
+                          onTouchStart={e => evTouchStart(e, ev.id, 'resize-top', colIdx)}
+                          onClick={e => { e.stopPropagation(); setSelectedId(isSelected ? null : ev.id); onEventTap(ev.id); }}>
                           <div style={{ width: 12, height: 1, background: 'rgba(255,255,255,0.35)', borderRadius: 1, margin: `${Math.max(3, handleH - 5)}px auto 0` }} />
                         </div>
                       )}
@@ -730,7 +731,8 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
                       {/* Bottom resize handle — hidden for continued events and tiny pills */}
                       {!isContinued && handleH > 0 && (
                         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: handleH, zIndex: 2, borderRadius: '0 0 7px 7px', touchAction: 'none', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 3 }}
-                          onTouchStart={e => evTouchStart(e, ev.id, 'resize-bottom', colIdx)}>
+                          onTouchStart={e => evTouchStart(e, ev.id, 'resize-bottom', colIdx)}
+                          onClick={e => { e.stopPropagation(); setSelectedId(isSelected ? null : ev.id); onEventTap(ev.id); }}>
                           <div style={{ width: 12, height: 1, background: 'rgba(255,255,255,0.35)', borderRadius: 1 }} />
                         </div>
                       )}

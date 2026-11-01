@@ -639,6 +639,7 @@ export default function MobileLayout({
     const wEnd   = new Date(weekDays[6]); wEnd.setHours(23, 59, 59, 999);
     return expandedEvents.filter(e => {
       if (!e.allDay) return false;
+      if (e.is_task || e.linkedTaskId) return false;
       try { const s = new Date(e.start); const en = e.end ? new Date(e.end) : s; return s <= wEnd && en >= wStart; }
       catch { return false; }
     });
@@ -1346,6 +1347,7 @@ export default function MobileLayout({
                 events={expandedEvents}
                 onSelect={d => { setActiveDate(d); }}
                 onMonthChange={d => { setActiveDate(d); }}
+                hideVisibleRangeHighlight={true}
               />
             </div>
             {/* Events for selected date */}
@@ -1370,6 +1372,7 @@ export default function MobileLayout({
                     theme={theme}
                     onNewEvent={date => { setNewEventDefaultDate(date); setIsNewEventSheetOpen(true); }}
                     onDeleteEvent={onEventDelete}
+                    onEditEvent={ev => { setSelectedEvent(null); setEditingEvent(ev); }}
                   />
                 );
               })()}
@@ -1402,6 +1405,7 @@ export default function MobileLayout({
                       setIsNewEventSheetOpen(true);
                     }}
                     onDeleteEvent={onEventDelete}
+                    onEditEvent={ev => { setSelectedEvent(null); setEditingEvent(ev); }}
                   />
                 );
               })()}
@@ -1419,6 +1423,7 @@ export default function MobileLayout({
               setIsNewEventSheetOpen(true);
             }}
             onDeleteEvent={onEventDelete}
+            onEditEvent={ev => { setSelectedEvent(null); setEditingEvent(ev); }}
             dayViewSentinelRef={dayViewSentinelRef}
           />
         )}

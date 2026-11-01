@@ -62,7 +62,7 @@ function getCardStyle(isActive: boolean, isEven: boolean, theme: string, extra?:
   };
 }
 
-function EventActions({ ev, isActive, theme, onDeleteEvent, compact }: { ev: any; isActive: boolean; theme: string; onDeleteEvent?: (id: string) => void; compact?: boolean }) {
+function EventActions({ ev, isActive, theme, onDeleteEvent, onEditEvent, compact }: { ev: any; isActive: boolean; theme: string; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; compact?: boolean }) {
   return (
     <>
       {ev.location && (
@@ -75,7 +75,14 @@ function EventActions({ ev, isActive, theme, onDeleteEvent, compact }: { ev: any
       )}
       <div className="flex items-center gap-1.5 pt-1">
         <button
-          onClick={e => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('mobile_edit_event', { detail: { id: ev.id } })); }}
+          onClick={e => {
+            e.stopPropagation();
+            if (onEditEvent) {
+              onEditEvent(ev);
+            } else {
+              window.dispatchEvent(new CustomEvent('mobile_edit_event', { detail: { id: ev.id } }));
+            }
+          }}
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-semibold active:scale-95 transition-transform ${compact ? 'text-[11px]' : 'text-xs'}`}
           style={{ background: isActive ? 'rgba(255, 255, 255, 0.2)' : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)', color: isActive ? '#ffffff' : T.pri }}
         >
@@ -127,10 +134,10 @@ function StatusBadges({ isActive, isNext, remStr, evEnd, evStart, startStr, durS
 }
 
 function TimelineEventItem({
-  ev, now, isToday, isEven, nextUpcomingId, theme, isExpanded, onToggleExpand, onDeleteEvent, isParallel = false, style,
+  ev, now, isToday, isEven, nextUpcomingId, theme, isExpanded, onToggleExpand, onDeleteEvent, onEditEvent, isParallel = false, style,
 }: {
   ev: any; now: Date; isToday: boolean; isEven: boolean; nextUpcomingId: string | null; theme: string;
-  isExpanded: boolean; onToggleExpand: () => void; onDeleteEvent?: (id: string) => void; isParallel?: boolean; style?: React.CSSProperties;
+  isExpanded: boolean; onToggleExpand: () => void; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; isParallel?: boolean; style?: React.CSSProperties;
 }) {
   const info = getEvInfo(ev, now, isToday, nextUpcomingId);
   const pHeight = Math.max(54, Math.min(180, 44 + info.durM * 0.6));
@@ -167,7 +174,7 @@ function TimelineEventItem({
               className="overflow-hidden"
             >
               <div className="px-3 pb-3 pt-1 border-t" style={{ borderColor: info.isActive ? 'rgba(255, 255, 255, 0.15)' : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }}>
-                <EventActions ev={ev} isActive={info.isActive} theme={theme} onDeleteEvent={onDeleteEvent} compact />
+                <EventActions ev={ev} isActive={info.isActive} theme={theme} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} compact />
               </div>
             </motion.div>
           )}
@@ -213,7 +220,7 @@ function TimelineEventItem({
             className="overflow-hidden"
           >
             <div className="px-4 pb-3.5 pt-2 border-t ml-[82px] mr-3" style={{ borderColor: info.isActive ? 'rgba(255, 255, 255, 0.15)' : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }}>
-              <EventActions ev={ev} isActive={info.isActive} theme={theme} onDeleteEvent={onDeleteEvent} />
+              <EventActions ev={ev} isActive={info.isActive} theme={theme} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} />
             </div>
           </motion.div>
         )}
@@ -225,10 +232,11 @@ function TimelineEventItem({
 export interface DbTimelineDayProps {
   day: Date; dayEvs: any[]; allDayEvs: any[]; isToday: boolean; now: Date;
   theme: string; onSelectEvent?: (ev: any) => void; onNewEvent?: (date: Date) => void; onDeleteEvent?: (id: string) => void;
+  onEditEvent?: (ev: any) => void;
 }
 
 export const DbTimelineDay = React.memo(function DbTimelineDay({
-  day, dayEvs, allDayEvs, isToday, now, theme, onNewEvent, onDeleteEvent,
+  day, dayEvs, allDayEvs, isToday, now, theme, onNewEvent, onDeleteEvent, onEditEvent,
 }: DbTimelineDayProps) {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const [todosOpen, setTodosOpen] = useState(false);
@@ -345,7 +353,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
                 </button>
                 {isExp && (
                   <div className="px-3.5 pb-3 pt-1 border-t" style={{ borderColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
-                    <EventActions ev={ev} isActive={false} theme={theme} onDeleteEvent={onDeleteEvent} />
+                    <EventActions ev={ev} isActive={false} theme={theme} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} />
                   </div>
                 )}
               </div>
@@ -429,7 +437,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
                         </div>
                         {isExp && (
                           <div className="px-3.5 pb-3 pt-1 border-t" style={{ borderColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
-                            <EventActions ev={ev} isActive={false} theme={theme} onDeleteEvent={onDeleteEvent} />
+                            <EventActions ev={ev} isActive={false} theme={theme} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} />
                           </div>
                         )}
                       </div>
@@ -472,7 +480,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
               <TimelineEventItem
                 ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
                 theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
-                onDeleteEvent={onDeleteEvent}
+                onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent}
               />
             </React.Fragment>
           );
@@ -494,7 +502,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
                         <TimelineEventItem
                           key={ev.id} ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
                           theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
-                          onDeleteEvent={onDeleteEvent} isParallel style={{ marginTop, minHeight: height }}
+                          onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} isParallel style={{ marginTop, minHeight: height }}
                         />
                       );
                     })}
@@ -540,11 +548,12 @@ export function getGroupedDayViewItems(dayViewDays: Date[], events: any[], now: 
 export interface MobileAgendaTimelineProps {
   dayViewDays: Date[]; events: any[]; now: Date; theme: string;
   onNewEvent?: (date: Date) => void; onDeleteEvent?: (id: string) => void; onSelectEvent?: (ev: any) => void;
+  onEditEvent?: (ev: any) => void;
   dayViewSentinelRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export const MobileAgendaTimeline = React.memo(function MobileAgendaTimeline({
-  dayViewDays, events, now, theme, onNewEvent, onDeleteEvent, dayViewSentinelRef,
+  dayViewDays, events, now, theme, onNewEvent, onDeleteEvent, onEditEvent, dayViewSentinelRef,
 }: MobileAgendaTimelineProps) {
   const groupedDayViewItems = useMemo(() => getGroupedDayViewItems(dayViewDays, events, now), [dayViewDays, events, now]);
 
@@ -572,7 +581,7 @@ export const MobileAgendaTimeline = React.memo(function MobileAgendaTimeline({
                   </span>
                   <div className="flex-1 h-px" style={{ background: item.isToday ? 'linear-gradient(90deg, rgba(168, 85, 247, 0.5), transparent)' : T.brd }} />
                 </div>
-                <DbTimelineDay day={item.date} dayEvs={item.events} allDayEvs={item.allDayEvents} isToday={item.isToday} now={now} theme={theme} onNewEvent={onNewEvent} onDeleteEvent={onDeleteEvent} />
+                <DbTimelineDay day={item.date} dayEvs={item.events} allDayEvs={item.allDayEvents} isToday={item.isToday} now={now} theme={theme} onNewEvent={onNewEvent} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} />
               </div>
             )}
           </React.Fragment>
