@@ -25,6 +25,11 @@ var SupportedScopes = map[string]string{
 	"notes:read":     "Notizen abfragen (Leserechte)",
 	"notes:write":    "Notizen erstellen & bearbeiten (Schreibrechte)",
 	"storage:expand": "Upload-Speicher Erweiterung (>250MB)",
+	"todos:read":     "Aufgaben abfragen & filtern (Leserechte)",
+	"todos:write":    "Aufgaben verwalten (Erstellen, Bearbeiten, Löschen)",
+	"todos:create":   "Aufgaben erstellen",
+	"todos:edit":     "Aufgaben bearbeiten & Status ändern",
+	"todos:delete":   "Aufgaben löschen",
 }
 
 type APITokenHandler struct {
@@ -72,6 +77,11 @@ func (h *APITokenHandler) ListScopes(w http.ResponseWriter, r *http.Request) {
 		{Key: "events:write", Description: SupportedScopes["events:write"], Implemented: false},
 		{Key: "notes:read", Description: SupportedScopes["notes:read"], Implemented: false},
 		{Key: "notes:write", Description: SupportedScopes["notes:write"], Implemented: false},
+		{Key: "todos:read", Description: SupportedScopes["todos:read"], Implemented: true},
+		{Key: "todos:write", Description: SupportedScopes["todos:write"], Implemented: true},
+		{Key: "todos:create", Description: SupportedScopes["todos:create"], Implemented: true},
+		{Key: "todos:edit", Description: SupportedScopes["todos:edit"], Implemented: true},
+		{Key: "todos:delete", Description: SupportedScopes["todos:delete"], Implemented: true},
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
     Share2, FolderInput, Check, Loader2, AlertCircle, X,
-    Paperclip, UploadCloud, Download, Trash2,
+    Paperclip, UploadCloud, Download, Trash2, Plus,
 } from 'lucide-react';
 import Editor from '@/components/Editor';
 import Avatar from '@/components/Profile/Avatar';
@@ -181,6 +181,7 @@ export default function QuicknotePage() {
     const [attachments, setAttachments] = useState<QuicknoteAttachment[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const loadAttachments = useCallback(async () => {
         if (!slug) return;
@@ -365,6 +366,13 @@ export default function QuicknotePage() {
         }
     }, [slug, loadAttachments]);
 
+    const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            void handleUpload(Array.from(e.target.files));
+        }
+        e.target.value = '';
+    };
+
     const handleDeleteAttachment = async (fileId: string) => {
         try {
             const ok = await deleteQuicknoteFile(slug, fileId);
@@ -452,6 +460,14 @@ export default function QuicknotePage() {
                 if (files.length > 0) void handleUpload(files);
             }}
         >
+            {/* Hidden file input for mobile, tablet & click upload */}
+            <input
+                type="file"
+                ref={fileInputRef}
+                multiple
+                onChange={handleFileInputChange}
+                className="hidden"
+            />
             {/* Visual drop overlay */}
             {isDragging && (
                 <div className="fixed inset-4 z-50 backdrop-blur-sm bg-blue-50/80 dark:bg-neutral-900/80 border-2 border-dashed border-blue-500 rounded-2xl flex flex-col items-center justify-center pointer-events-none animate-in fade-in duration-150">
@@ -502,10 +518,22 @@ export default function QuicknotePage() {
                 {/* Outline: Files / Attachments */}
                 <div className="mt-8 pt-4 border-t border-gray-200/80 dark:border-neutral-800/80">
                     <div className="flex items-center justify-between mb-2">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 flex items-center gap-1.5">
-                            Dateien ({attachments.length})
-                            {isUploading && <Loader2 className="w-3 h-3 animate-spin text-blue-500" />}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 flex items-center gap-1.5">
+                                Dateien ({attachments.length})
+                                {isUploading && <Loader2 className="w-3 h-3 animate-spin text-blue-500" />}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isUploading}
+                                className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-0.5 transition-colors cursor-pointer disabled:opacity-50"
+                                title="Datei hinzufügen"
+                            >
+                                <Plus className="w-3 h-3" />
+                                <span>Datei hinzufügen</span>
+                            </button>
+                        </div>
                         <div className="flex items-center gap-1.5">
                             <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                                 {(attachments.reduce((acc, f) => acc + f.size, 0) / (1024 * 1024)).toFixed(1)} MB / 250 MB
@@ -552,9 +580,14 @@ export default function QuicknotePage() {
                             ))}
                         </div>
                     ) : (
-                        <p className="text-[11px] text-neutral-400 dark:text-neutral-500 italic">
-                            Dateien hierher ziehen zum Teilen
-                        </p>
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-full text-left py-2 px-2.5 rounded-lg border border-dashed border-gray-300 dark:border-neutral-700 hover:border-blue-500 dark:hover:border-blue-400 text-[11px] text-neutral-400 dark:text-neutral-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1.5 cursor-pointer"
+                        >
+                            <Paperclip className="w-3 h-3" />
+                            <span>Dateien hier ablegen oder klicken</span>
+                        </button>
                     )}
                 </div>
             </aside>
@@ -620,6 +653,18 @@ export default function QuicknotePage() {
 
             {/* Bottom-Right Controls (Floating Actions) */}
             <div className="fixed bottom-6 right-6 z-40 flex items-center gap-3">
+                {/* Mobile / Tablet Upload Button */}
+                <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="xl:hidden w-11 h-11 rounded-full flex items-center justify-center bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 shadow-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-neutral-800 hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                    title="Datei hinzufügen"
+                    aria-label="Datei hinzufügen"
+                >
+                    {isUploading ? <Loader2 className="w-5 h-5 animate-spin text-blue-500" /> : <Paperclip className="w-5 h-5" />}
+                </button>
+
                 {/* Share Button */}
                 <div className="relative">
                     {copied && (

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Bell, X, RefreshCw, CloudOff } from 'lucide-react';
+import { MessageSquare, Bell, X, RefreshCw, CloudOff, Calendar as CalendarIcon } from 'lucide-react';
 import { useIslandStore } from '@/components/extensions/smart_island/useIslandStore';
 
 export interface CountdownEvent {
@@ -13,11 +13,16 @@ export interface CountdownEvent {
   allDay?: boolean;
   color?: string;
   is_completed?: boolean;
+  is_all_day?: boolean;
+  is_task?: boolean;
+  isCompleted?: boolean;
+  completed_dates?: string[];
 }
 
 export interface MobileSmartIslandProps {
-  events: CountdownEvent[];
+  events?: CountdownEvent[];
   onTap?: (eventId: string) => void;
+  onEventClick?: (eventId: string) => void;
   className?: string;
   isLoading?: boolean;
 }
@@ -29,8 +34,9 @@ const islandContentTransition = {
 };
 
 export const MobileSmartIsland = React.memo(function MobileSmartIsland({
-  events,
+  events = [],
   onTap,
+  onEventClick,
   className,
   isLoading = false,
 }: MobileSmartIslandProps) {
@@ -48,6 +54,26 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
 
   const demoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTap = useCallback((eventId?: string) => {
+    if (!eventId) return;
+    if (onEventClick) {
+      onEventClick(eventId);
+    } else if (onTap) {
+      onTap(eventId);
+    }
+  }, [onEventClick, onTap]);
+
+  // Offline recovery: 8-second auto-check with navigator.onLine
+  useEffect(() => {
+    if (!isOffline) return;
+    const interval = setInterval(() => {
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        setIsOffline(false);
+      }
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [isOffline]);
 
   // Sync and Network status listeners
   useEffect(() => {
@@ -72,6 +98,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
 
     window.addEventListener('tide-syncing', handleSyncing);
     window.addEventListener('tide-synced', handleSynced);
+    window.addEventListener('tide-online', handleOnline);
     window.addEventListener('tide-offline', handleTideOffline);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -79,10 +106,21 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
     return () => {
       window.removeEventListener('tide-syncing', handleSyncing);
       window.removeEventListener('tide-synced', handleSynced);
+      window.removeEventListener('tide-online', handleOnline);
       window.removeEventListener('tide-offline', handleTideOffline);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
+  }, []);
+
+  const handleOfflineRetry = useCallback(() => {
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      setIsOffline(false);
+    } else if (typeof window !== 'undefined') {
+      fetch('/api/health', { method: 'HEAD', cache: 'no-store' })
+        .then(() => setIsOffline(false))
+        .catch(() => {});
+    }
   }, []);
 
   // 1-second interval ticker for live countdown
@@ -129,25 +167,31 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
     }
   }, []);
 
-  // Target event calculation (active or next upcoming today)
-  const target = useMemo(() => {
-    if (!events || events.length === 0) return null;
+  // Target event calculation (active or next upcoming today) + tomorrow's first event
+  const { target, tomorrowFirstEvent } = useMemo(() => {
+    if (!events || events.length === 0) return { target: null, tomorrowFirstEvent: null };
     const nowMs = now.getTime();
     const nowYear = now.getFullYear();
     const nowMonth = now.getMonth();
     const nowDate = now.getDate();
+
+    const tomorrow = new Date(nowYear, nowMonth, nowDate + 1);
+    const tYear = tomorrow.getFullYear();
+    const tMonth = tomorrow.getMonth();
+    const tDate = tomorrow.getDate();
 
     interface ParsedEvent {
       event: CountdownEvent;
       startMs: number;
       endMs: number;
       isToday: boolean;
+      isTomorrow: boolean;
     }
 
     const parsed: ParsedEvent[] = [];
     for (const e of events) {
-      if (e.allDay || (e as any).is_all_day || (e as any).is_task) continue;
-      if (e.is_completed || (e as any).isCompleted || (e as any).completed_dates?.length) continue;
+      if (e.allDay || e.is_all_day || e.is_task) continue;
+      if (e.is_completed || e.isCompleted || (e.completed_dates && e.completed_dates.length > 0)) continue;
       if (!e.start) continue;
       const s = new Date(e.start);
       const startMs = s.getTime();
@@ -157,7 +201,11 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         s.getFullYear() === nowYear &&
         s.getMonth() === nowMonth &&
         s.getDate() === nowDate;
-      parsed.push({ event: e, startMs, endMs, isToday });
+      const isTomorrow =
+        s.getFullYear() === tYear &&
+        s.getMonth() === tMonth &&
+        s.getDate() === tDate;
+      parsed.push({ event: e, startMs, endMs, isToday, isTomorrow });
     }
 
     // 1. Active: start <= now && end > now (earliest start if multiple)
@@ -165,30 +213,36 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
       .filter((p) => p.startMs <= nowMs && p.endMs > nowMs)
       .sort((a, b) => a.startMs - b.startMs);
 
+    let foundTarget: { event: CountdownEvent; isActive: boolean; startMs: number; endMs: number } | null = null;
     if (active.length > 0) {
-      return {
+      foundTarget = {
         event: active[0].event,
         isActive: true,
         startMs: active[0].startMs,
         endMs: active[0].endMs,
       };
+    } else {
+      // 2. Next: if no active, first event with start > now today
+      const next = parsed
+        .filter((p) => p.isToday && p.startMs > nowMs)
+        .sort((a, b) => a.startMs - b.startMs);
+      if (next.length > 0) {
+        foundTarget = {
+          event: next[0].event,
+          isActive: false,
+          startMs: next[0].startMs,
+          endMs: next[0].endMs,
+        };
+      }
     }
 
-    // 2. Next: if no active, first event with start > now today
-    const next = parsed
-      .filter((p) => p.isToday && p.startMs > nowMs)
+    // Tomorrow's first event if no target today
+    const tomorrowEvents = parsed
+      .filter((p) => p.isTomorrow)
       .sort((a, b) => a.startMs - b.startMs);
+    const firstTomorrow = tomorrowEvents[0]?.event || null;
 
-    if (next.length > 0) {
-      return {
-        event: next[0].event,
-        isActive: false,
-        startMs: next[0].startMs,
-        endMs: next[0].endMs,
-      };
-    }
-
-    return null;
+    return { target: foundTarget, tomorrowFirstEvent: firstTomorrow };
   }, [events, now]);
 
   const nowMs = now.getTime();
@@ -209,6 +263,38 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
       ? `${Math.max(1, Math.ceil(diffSec / 60))} Min`
       : formattedHoursMins
     : '0:00h';
+
+  // Progress for active meeting
+  const progressPercent = useMemo(() => {
+    if (!target?.isActive) return 0;
+    const total = target.endMs - target.startMs;
+    if (total <= 0) return 100;
+    const elapsed = nowMs - target.startMs;
+    return Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
+  }, [target, nowMs]);
+
+  // Formatted time interval (e.g. 14:00 – 15:30)
+  const timeInterval = useMemo(() => {
+    if (!target) return '';
+    const formatHHmm = (ms: number) => {
+      const d = new Date(ms);
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+    return `${formatHHmm(target.startMs)} – ${formatHHmm(target.endMs)}`;
+  }, [target]);
+
+  // Date for idle widget (e.g. "Mo., 2. Nov.")
+  const todayDateStr = useMemo(() => {
+    const days = ['So.', 'Mo.', 'Di.', 'Mi.', 'Do.', 'Fr.', 'Sa.'];
+    const months = ['Jan.', 'Feb.', 'Mär.', 'Apr.', 'Mai', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
+    return `${days[now.getDay()]}, ${now.getDate()}. ${months[now.getMonth()]}`;
+  }, [now]);
+
+  const tomorrowTimeStr = useMemo(() => {
+    if (!tomorrowFirstEvent?.start) return '';
+    const d = new Date(tomorrowFirstEvent.start);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }, [tomorrowFirstEvent]);
 
   // Imminent event: starting in 15 minutes or less
   const isImminent = !target?.isActive && target !== null && diffSec > 0 && diffSec <= 900;
@@ -269,16 +355,11 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   const imminentLabel =
     diffSec <= 60 ? "Gleich geht's los!" : `In ${imminentMinutes} Min!`;
 
-  // If in idle mode and nothing is active or upcoming today, hide completely
-  if (mode === 'idle' && !target) {
-    return null;
-  }
-
   return (
     <div className={`relative shrink-0 w-20 h-20 ${className || ''}`}>
       <motion.div
         layout
-        transition={{ type: 'spring', stiffness: 420, damping: 26, mass: 0.8 }}
+        transition={{ type: 'spring', stiffness: 350, damping: 28, mass: 0.8 }}
         onDoubleClick={triggerDemoLoading}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
@@ -286,10 +367,10 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         whileTap={{ scale: 0.97 }}
         className={`h-20 bg-[#18181b]/95 dark:bg-[#09090b]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-xl text-white overflow-hidden ${
           isExpanded
-            ? 'fixed top-[max(12px,calc(env(safe-area-inset-top)+4px))] inset-x-3 w-auto z-50'
+            ? 'fixed top-[max(12px,calc(env(safe-area-inset-top)+4px))] inset-x-3 sm:w-[380px] sm:right-6 sm:inset-x-auto sm:top-14 w-auto z-50 rounded-2xl'
             : isPill
-              ? 'fixed top-[max(12px,calc(env(safe-area-inset-top)+4px))] right-3 w-[min(240px,calc(100vw-24px))] z-50'
-              : 'absolute right-0 top-0 w-20 z-20'
+              ? 'fixed top-[max(12px,calc(env(safe-area-inset-top)+4px))] right-3 sm:right-6 sm:top-14 w-[min(240px,calc(100vw-24px))] z-50 rounded-2xl'
+              : 'absolute right-0 top-0 w-20 z-20 rounded-2xl'
         }`}
       >
         <AnimatePresence mode="wait">
@@ -323,7 +404,9 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               transition={islandContentTransition}
-              className="w-full h-full px-3.5 py-2 flex items-center gap-2.5 select-none"
+              onClick={handleOfflineRetry}
+              className="w-full h-full px-3.5 py-2 flex items-center gap-2.5 select-none cursor-pointer hover:bg-white/5 active:scale-95 transition-all"
+              title="Klicken zum Wiederverbinden"
             >
               <div className="relative shrink-0 w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
                 <CloudOff className="w-4 h-4 text-amber-400" />
@@ -333,7 +416,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
                   offline
                 </span>
                 <span className="text-[10px] text-white/60 font-medium truncate mt-0.5">
-                  Keine Verbindung
+                  Keine Verbindung (Retry)
                 </span>
               </div>
             </motion.div>
@@ -438,11 +521,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
               exit={{ opacity: 0, x: 12 }}
               transition={islandContentTransition}
               className="w-full h-full px-3 py-2 flex items-center gap-2.5 cursor-pointer select-none"
-              onClick={() => {
-                if (target?.event?.id) {
-                  onTap?.(target.event.id);
-                }
-              }}
+              onClick={() => handleTap(target?.event?.id)}
             >
               <div className="relative shrink-0 w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
                 <Bell className="w-5 h-5 animate-bounce" />
@@ -476,33 +555,101 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
             </motion.div>
           )}
 
-          {mode === 'idle' && (
+          {mode === 'idle' && target && (
             <motion.div
-              key="idle"
+              key="idle-target"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={islandContentTransition}
+              className="w-full h-full p-2 flex flex-col justify-between items-start text-left select-none cursor-pointer"
+              onClick={() => handleTap(target.event.id)}
+            >
+              <div className="w-full min-w-0">
+                <div className="flex items-center justify-between gap-1 w-full">
+                  <span className="text-[11px] font-bold text-white truncate leading-tight flex-1">
+                    {target.event.title || 'Termin'}
+                  </span>
+                  <span
+                    className={`shrink-0 w-1.5 h-1.5 rounded-full ${
+                      target.isActive ? 'bg-emerald-400 animate-pulse' : 'bg-indigo-400'
+                    }`}
+                  />
+                </div>
+                <div className="text-[9px] font-medium text-white/60 font-mono tracking-tight mt-0.5 truncate">
+                  {timeInterval}
+                </div>
+              </div>
+
+              <div className="w-full">
+                <div className="flex items-center justify-between gap-1">
+                  <span
+                    className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
+                      target.isActive
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : 'bg-indigo-500/20 text-indigo-300'
+                    }`}
+                  >
+                    {target.isActive ? 'NOCH' : 'IN'} {formattedCountdown}
+                  </span>
+                </div>
+                {target.isActive && (
+                  <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mt-1.5">
+                    <div
+                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-1000 ease-linear"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {mode === 'idle' && !target && (
+            <motion.div
+              key="idle-empty"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={islandContentTransition}
               className="w-full h-full p-2 flex flex-col justify-between items-start text-left select-none cursor-pointer"
               onClick={() => {
-                if (target?.event?.id) {
-                  onTap?.(target.event.id);
+                if (tomorrowFirstEvent?.id) {
+                  handleTap(tomorrowFirstEvent.id);
                 }
               }}
             >
-              <span className="text-xs font-bold text-white truncate max-w-full leading-tight">
-                {target?.event.title || 'Frei'}
-              </span>
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-none">
-                {target?.isActive ? 'NOCH' : (target ? 'STARTET IN' : 'HEUTE')}
-              </span>
-              <span
-                className={`${
-                  isUnderOneHour ? 'text-lg' : 'text-2xl sm:text-[26px]'
-                } font-black tracking-tight tabular-nums text-white leading-none whitespace-nowrap`}
-              >
-                {formattedCountdown}
-              </span>
+              <div className="w-full min-w-0">
+                <div className="flex items-center gap-1 text-white/70">
+                  <CalendarIcon className="w-3 h-3 text-indigo-400 shrink-0" />
+                  <span className="text-[10px] font-semibold tracking-tight text-white/90 truncate">
+                    {todayDateStr}
+                  </span>
+                </div>
+              </div>
+
+              <div className="w-full min-w-0">
+                {tomorrowFirstEvent ? (
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[8px] font-bold uppercase tracking-wider text-indigo-300/80 leading-none">
+                      Morgen {tomorrowTimeStr}
+                    </span>
+                    <span className="text-[10px] font-medium text-white/90 truncate mt-0.5 leading-tight">
+                      {tomorrowFirstEvent.title || 'Termin'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-0.5">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 text-[9px] font-semibold w-fit">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                      Keine Termine
+                    </span>
+                    <span className="text-[9px] text-white/50 font-medium pl-0.5">
+                      Heute frei
+                    </span>
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

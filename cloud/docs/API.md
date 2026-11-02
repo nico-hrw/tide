@@ -117,12 +117,12 @@ Token management for user account access delegation. Requires user session JWT (
 | Method | Route | Description |
 |--------|-------|-------------|
 | `GET`    | `/api-tokens` | List all created personal access tokens (metadata & prefix only) |
-| `POST`   | `/api-tokens` | Create a new token with specific scopes (`events:read`, `events:write`, `notes:read`, `notes:write`) and expiry |
+| `POST`   | `/api-tokens` | Create a new token with specific scopes (`events:read`, `events:write`, `notes:read`, `notes:write`, `todos:*`) and expiry |
 | `DELETE` | `/api-tokens/{tokenID}` | Revoke/delete an API token |
 | `GET`    | `/api-tokens/scopes` | List all available scopes and their implementation status |
 
-### 12. External Integration API (`/api/v1/external`)
-Dedicated endpoints for external tools, automation scripts, and calendar clients using Personal Access Tokens (`Authorization: Bearer tide_pat_...` or `X-API-Key: tide_pat_...`).
+### 12. External Integration API & Todos (`/api/v1/external`, `/api/v1/todos`)
+Dedicated endpoints for external tools, automation scripts, and calendar/todo clients using Personal Access Tokens (`Authorization: Bearer tide_pat_...` or `X-API-Key: tide_pat_...`). For full documentation, query parameter specifications, and curl examples, see [docs/API_TODOS.md](../../docs/API_TODOS.md).
 
 | Method | Route | Required Scope | Description |
 |--------|-------|----------------|-------------|
@@ -130,3 +130,8 @@ Dedicated endpoints for external tools, automation scripts, and calendar clients
 | `GET` | `/external/events/{id}` | `events:read` | Retrieve details for a single calendar event by ID |
 | `GET` | `/external/notes` | `notes:read` | *(Planned)* List notes (returns 501 Not Implemented) |
 | `GET` | `/external/notes/{id}` | `notes:read` | *(Planned)* Retrieve note content (returns 501 Not Implemented) |
+| `GET` | `/todos` / `/external/todos` | `todos:read` or `todos:write` | Query & filter todos by `date`, `prio`, `tag`, `description`, `overdue`, `status`, `completed` |
+| `POST` | `/todos` / `/external/todos` | `todos:create` or `todos:write` | Create a new todo |
+| `GET` | `/todos/{id}` / `/external/todos/{id}` | `todos:read` or `todos:write` | Retrieve single todo by ID |
+| `PUT` / `PATCH` | `/todos/{id}` / `/external/todos/{id}` | `todos:edit` or `todos:write` | Update todo fields or toggle completion |
+| `DELETE` | `/todos/{id}` / `/external/todos/{id}` | `todos:delete` or `todos:write` | Delete todo by ID |

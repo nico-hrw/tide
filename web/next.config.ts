@@ -37,6 +37,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   experimental: {
     proxyClientMaxBodySize: '250mb',
+    proxyTimeout: 300_000,
   },
   turbopack: {},
   webpack: (config, { dev }) => {

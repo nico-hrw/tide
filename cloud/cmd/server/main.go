@@ -104,6 +104,7 @@ func main() {
 	tabsHandler := api.NewTabsHandler(sqliteStore)
 	apiTokenHandler := api.NewAPITokenHandler(sqliteStore)
 	externalHandler := api.NewExternalHandler(sqliteStore)
+	todosHandler := api.NewTodosHandler(sqliteStore)
 
 	// 3. Setup Router
 	r := chi.NewRouter()
@@ -162,7 +163,7 @@ func main() {
 
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, Authorization, X-Requested-With, Accept, Origin, Cache-Control")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-Access-Token, X-API-Key")
 			w.Header().Set("Access-Control-Max-Age", "3600")
 
 			if r.Method == "OPTIONS" {
@@ -211,6 +212,7 @@ func main() {
 		r.With(api.AuthMiddleware).Post("/user/heartbeat", presenceHandler.Heartbeat)
 		r.Route("/tabs", tabsHandler.RegisterRoutes)
 		r.Route("/tasks", taskHandler.RegisterRoutes)
+		r.Route("/todos", todosHandler.RegisterRoutes)
 		r.Route("/api-tokens", apiTokenHandler.RegisterRoutes)
 		r.Route("/external", externalHandler.RegisterRoutes)
 

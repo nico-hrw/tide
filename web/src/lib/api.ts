@@ -122,6 +122,12 @@ export async function apiFetch(url: string, options: RequestInit & { _isSyncRepl
             throw err;
         }
 
+        // Do not catch network errors and silently push FormData or file uploads into offline syncQueue
+        const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+        if (isFormData || (url.includes('/files') && (isFormData || cleanEndpoint.includes('/quicknotes/')))) {
+            throw err;
+        }
+
         // Otherwise, enqueue the mutation to syncQueue and return an optimistic synthetic OK response!
         if (typeof window !== 'undefined') {
             try {

@@ -12,10 +12,10 @@ import {
   FolderPlus,
   Home,
   Check,
-  CheckSquare,
-  ListTodo
+  CheckSquare
 } from 'lucide-react';
 import { FOLDER_PALETTE, getFolderColor } from '../../lib/folderColors';
+import { MobileSmartIsland, type CountdownEvent } from '../Layout/MobileSmartIsland';
 
 export interface CentralFolderItem {
   id: string;
@@ -29,6 +29,7 @@ export interface CentralFolderItem {
 
 export interface CentralFolderViewProps {
   files: CentralFolderItem[];
+  events?: CountdownEvent[];
   onFileSelect: (id: string, title: string) => void;
   onCreateFolder: (name: string, color?: string, parentId?: string | null) => Promise<void> | void;
   onCreateNote: (folderId?: string | null) => Promise<void> | void;
@@ -36,10 +37,12 @@ export interface CentralFolderViewProps {
   onUpdateFolderColor: (folderId: string, color: string) => Promise<void> | void;
   onDeleteFile?: (id: string) => void;
   onOpenTodos?: () => void;
+  onEventClick?: (eventId: string) => void;
 }
 
 export function CentralFolderView({
   files,
+  events,
   onFileSelect,
   onCreateFolder,
   onCreateNote,
@@ -47,6 +50,7 @@ export function CentralFolderView({
   onUpdateFolderColor,
   onDeleteFile,
   onOpenTodos,
+  onEventClick,
 }: CentralFolderViewProps) {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
@@ -280,6 +284,14 @@ export function CentralFolderView({
               );
             })}
           </div>
+        </div>
+
+        {/* Smart Island in Header */}
+        <div className="flex items-center justify-center shrink-0">
+          <MobileSmartIsland
+            events={events}
+            onEventClick={onEventClick}
+          />
         </div>
 
         {/* Action Buttons */}

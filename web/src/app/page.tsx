@@ -37,7 +37,6 @@ import MobileLayout from "@/components/Layout/MobileLayout";
 import { Clock, Settings, LogOut, Users, Trash2, GraduationCap, Copy, ListTodo, GripVertical } from 'lucide-react';
 import Avatar from "@/components/Profile/Avatar";
 import CalendarCaptureIsland from "@/components/SmartIsland";
-import SmartIsland from "@/components/extensions/smart_island/SmartIsland";
 import { tipTapToMarkdown } from "@/lib/bundleImportExport";
 import TrashPanel from "@/components/TrashPanel";
 
@@ -293,7 +292,7 @@ export default function Dashboard() {
     const [hoveredBlockId, setHoveredBlockId] = useState<string | null>(null);
 
     // Extensions State
-    // Keep 'folders' tab permanently present when in folders navigation mode
+    // Keep 'folders' tab permanently present when in folders navigation mode, remove when in sidebar mode
     useEffect(() => {
         if (navigationMode === 'folders') {
             setOpenTabs(prev => {
@@ -306,6 +305,14 @@ export default function Dashboard() {
                     return next;
                 }
                 return [...prev, foldersTab];
+            });
+        } else if (navigationMode === 'sidebar') {
+            setOpenTabs(prev => prev.filter(t => t.id !== 'folders'));
+            setActiveTabId(currentActive => {
+                if (currentActive === 'folders') {
+                    return 'calendar';
+                }
+                return currentActive;
             });
         }
     }, [navigationMode]);
@@ -1386,15 +1393,21 @@ export default function Dashboard() {
 
                 if (savedTabs) {
                     try {
-                        const parsed = JSON.parse(savedTabs);
+                        let parsed = JSON.parse(savedTabs);
                         if (Array.isArray(parsed) && parsed.length > 0) {
-                            if (localStorage.getItem('tide_navigation_mode') === 'folders' && !parsed.some((t: { id?: string }) => t?.id === 'folders')) {
+                            const navMode = localStorage.getItem('tide_navigation_mode');
+                            if (navMode === 'folders' && !parsed.some((t: { id?: string }) => t?.id === 'folders')) {
                                 const calIdx = parsed.findIndex((t: { id?: string }) => t?.id === 'calendar');
                                 const fTab = { id: 'folders', title: 'Notizen', type: 'folders' };
                                 if (calIdx !== -1) {
                                     parsed.splice(calIdx + 1, 0, fTab);
                                 } else {
                                     parsed.push(fTab);
+                                }
+                            } else if (navMode === 'sidebar') {
+                                parsed = parsed.filter((t: { id?: string }) => t?.id !== 'folders');
+                                if (parsed.length === 0) {
+                                    parsed.push({ id: 'calendar', title: 'Calendar', type: 'calendar' });
                                 }
                             }
                             setOpenTabs(parsed);
@@ -2806,7 +2819,7 @@ export default function Dashboard() {
 
     const handleTabClose = (e: React.MouseEvent | null, id: string) => {
         if (e) e.stopPropagation();
-        if (id === 'calendar' || id === 'folders') return;
+        if (id === 'calendar' || (navigationMode === 'folders' && id === 'folders')) return;
 
         const currentIndex = openTabs.findIndex(t => t.id === id);
         const filtered = openTabs.filter(t => t.id !== id);
@@ -3200,35 +3213,6 @@ export default function Dashboard() {
                 )}
             </div>
 
-            {/* Floating Smart Island in Folder Mode */}
-            {navigationMode === 'folders' && (
-                <div className="fixed bottom-4 left-4 z-40 flex flex-col gap-2 w-auto max-w-xs pointer-events-auto">
-                    {(!enabledExtensions || enabledExtensions.includes('todos')) && (
-                        <div className="flex items-center justify-start px-1">
-                            <button
-                                onClick={handleToggleTodos}
-                                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                                    activeTabId === 'todos'
-                                        ? 'bg-blue-600 text-white shadow-md'
-                                        : 'border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 shadow-sm'
-                                }`}
-                                title="Todos"
-                            >
-                                <ListTodo size={18} />
-                            </button>
-                        </div>
-                    )}
-                    {enabledExtensions?.includes('smart_island') && (
-                        <SmartIsland
-                            selectedDate={calendarDate}
-                            onSelect={handleDateSelect}
-                            userName={userProfile?.username}
-                            compact={true}
-                        />
-                    )}
-                </div>
-            )}
-
             {/* Right: Workspace */}
             <div className={`hidden md:flex flex-1 flex-col min-w-0 bg-[var(--background)] relative overflow-hidden`}>
                 {/* Horizontal Browser Tab Bar */}
@@ -3527,13 +3511,22 @@ export default function Dashboard() {
                 
                 {/* Central Folder View for iPad / Tablet and Folders Tab */}
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${
-                    activeTabId === 'folders' || ((isTablet || navigationMode === 'folders') && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))
+                    activeTabId === 'folders' || (navigationMode === 'folders' && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))
                         ? 'block'
                         : 'hidden'
                 }`}>
-                    {(activeTabId === 'folders' || ((isTablet || navigationMode === 'folders') && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))) && (
+                    {(activeTabId === 'folders' || (navigationMode === 'folders' && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))) && (
                         <CentralFolderView
                             files={files}
+                            events={events}
+                            onEventClick={(id) => {
+                                const ev = events.find(e => e.id === id);
+                                if (ev?.start) {
+                                    handleDateSelect(new Date(ev.start));
+                                } else {
+                                    handleDateSelect(new Date());
+                                }
+                            }}
                             onFileSelect={(id, title) => handleFileSelect(id, title)}
                             onCreateFolder={handleCreateFolderCentral}
                             onCreateNote={(folderId) => handleNewNote(folderId)}

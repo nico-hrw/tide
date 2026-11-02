@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { KeyRound, Plus, Trash2, Copy, Check, Shield, Calendar, FileText, AlertTriangle, Clock, Terminal, HardDrive } from 'lucide-react';
+import { KeyRound, Plus, Trash2, Copy, Check, Shield, Calendar, FileText, AlertTriangle, Clock, Terminal, HardDrive, CheckSquare } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { apiFetch } from '@/lib/api';
 import { DT } from '@/lib/designTokens';
@@ -31,7 +31,7 @@ interface ScopeDefinition {
     labelEn: string;
     descDe: string;
     descEn: string;
-    type: 'events' | 'notes' | 'storage';
+    type: 'events' | 'notes' | 'storage' | 'todos';
     implemented: boolean;
 }
 
@@ -79,6 +79,51 @@ const SCOPE_DEFINITIONS: ScopeDefinition[] = [
         descDe: 'Erlaubt das Hochladen großer Dateien und Anhänge über das 250MB-Limit pro Notiz',
         descEn: 'Allows uploading large files and attachments beyond the 250MB per-note limit',
         type: 'storage',
+        implemented: true,
+    },
+    {
+        key: 'todos:read',
+        labelDe: 'Aufgaben abfragen',
+        labelEn: 'Read Todos',
+        descDe: 'Erlaubt das Abfragen und Filtern von Aufgaben',
+        descEn: 'Allows querying and filtering todos',
+        type: 'todos',
+        implemented: true,
+    },
+    {
+        key: 'todos:write',
+        labelDe: 'Aufgaben voll verwalten',
+        labelEn: 'Manage Todos',
+        descDe: 'Erlaubt das Erstellen, Ändern und Löschen von Aufgaben',
+        descEn: 'Allows creating, modifying and deleting todos',
+        type: 'todos',
+        implemented: true,
+    },
+    {
+        key: 'todos:create',
+        labelDe: 'Aufgaben erstellen',
+        labelEn: 'Create Todos',
+        descDe: 'Erlaubt das Anlegen neuer Aufgaben',
+        descEn: 'Allows creating new todos',
+        type: 'todos',
+        implemented: true,
+    },
+    {
+        key: 'todos:edit',
+        labelDe: 'Aufgaben bearbeiten',
+        labelEn: 'Edit Todos',
+        descDe: 'Erlaubt das Bearbeiten von Aufgaben & Statusänderungen',
+        descEn: 'Allows updating todos and changing status',
+        type: 'todos',
+        implemented: true,
+    },
+    {
+        key: 'todos:delete',
+        labelDe: 'Aufgaben löschen',
+        labelEn: 'Delete Todos',
+        descDe: 'Erlaubt das Löschen von Aufgaben',
+        descEn: 'Allows deleting todos',
+        type: 'todos',
         implemented: true,
     },
 ];
@@ -312,6 +357,7 @@ export const APIAccessSettings: React.FC = () => {
                                             {token.scopes.map(scope => {
                                                 const isEvents = scope.startsWith('events:');
                                                 const isStorage = scope.startsWith('storage:');
+                                                const isTodos = scope.startsWith('todos:');
                                                 return (
                                                     <span
                                                         key={scope}
@@ -320,6 +366,8 @@ export const APIAccessSettings: React.FC = () => {
                                                                 ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 border border-blue-100 dark:border-blue-500/20'
                                                                 : isStorage
                                                                 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                                                : isTodos
+                                                                ? 'bg-purple-50 text-purple-700 dark:bg-purple-500/10 dark:text-purple-300 border border-purple-100 dark:border-purple-500/20'
                                                                 : 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300 border border-amber-100 dark:border-amber-500/20'
                                                         }`}
                                                     >
@@ -327,6 +375,8 @@ export const APIAccessSettings: React.FC = () => {
                                                             <Calendar className="w-2.5 h-2.5" />
                                                         ) : isStorage ? (
                                                             <HardDrive className="w-2.5 h-2.5" />
+                                                        ) : isTodos ? (
+                                                            <CheckSquare className="w-2.5 h-2.5" />
                                                         ) : (
                                                             <FileText className="w-2.5 h-2.5" />
                                                         )}

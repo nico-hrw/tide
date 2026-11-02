@@ -69,7 +69,16 @@ function getInitialLanguage(): AppLanguage {
 function getInitialNavigationMode(): NavigationMode {
     if (typeof window === 'undefined') return 'sidebar';
     const stored = localStorage.getItem('tide_navigation_mode');
-    return stored === 'folders' ? 'folders' : 'sidebar';
+    if (stored === 'folders') return 'folders';
+    if (stored === 'sidebar') return 'sidebar';
+
+    const isTouch = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+    const isPad = /iPad|Macintosh/i.test(navigator.userAgent) && isTouch;
+    const w = window.innerWidth;
+    if (isPad || (w >= 768 && w <= 1180 && isTouch)) {
+        return 'folders';
+    }
+    return 'sidebar';
 }
 
 function getInitialPaperPattern(): PaperPattern {

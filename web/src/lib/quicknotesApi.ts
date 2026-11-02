@@ -213,10 +213,21 @@ export async function uploadQuicknoteFile(slug: string, file: File, token?: stri
     });
 
     if (!res.ok) {
+        if (res.status === 413) {
+            throw new Error('Datei überschreitet das Upload-Limit (HTTP 413).');
+        }
+
         let errBody: { error?: string; message?: string; limit?: number; current?: number } | null = null;
+        let rawText = '';
         try {
-            errBody = (await res.json()) as { error?: string; message?: string; limit?: number; current?: number };
+            const clone = res.clone();
+            try {
+                errBody = (await clone.json()) as { error?: string; message?: string; limit?: number; current?: number };
+            } catch {
+                rawText = (await res.text()).trim();
+            }
         } catch {}
+
         if (res.status === 403 && errBody?.error === 'storage_limit_exceeded') {
             throw new StorageLimitError(
                 errBody.message || 'Speicherlimit von 250MB pro Notiz überschritten.',
@@ -224,7 +235,9 @@ export async function uploadQuicknoteFile(slug: string, file: File, token?: stri
                 errBody.current || 0
             );
         }
-        throw new Error(errBody?.message || `Upload failed with status ${res.status}`);
+
+        const parsedMsg = errBody?.message || errBody?.error || rawText;
+        throw new Error(parsedMsg || `Upload failed with status ${res.status}`);
     }
 
     return (await res.json()) as QuicknoteAttachment;

@@ -267,6 +267,24 @@ func (s *SQLiteStore) migrate() error {
 		created_at DATETIME NOT NULL,
 		FOREIGN KEY(slug) REFERENCES quicknotes(slug) ON DELETE CASCADE
 	);
+
+	CREATE TABLE IF NOT EXISTS todos (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL,
+		title TEXT NOT NULL,
+		description TEXT DEFAULT '',
+		status TEXT DEFAULT 'todo',
+		priority TEXT DEFAULT 'medium',
+		due_date TEXT DEFAULT '',
+		scheduled_date TEXT DEFAULT '',
+		tags TEXT DEFAULT '[]',
+		color TEXT DEFAULT '',
+		is_completed INTEGER DEFAULT 0,
+		completed_at DATETIME,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id)
+	);
 	`
 	if _, err := s.DB.Exec(tables); err != nil {
 		return err
@@ -300,6 +318,11 @@ func (s *SQLiteStore) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_quicknote_wal_slug ON quicknote_wal(slug, seq_id);
 	CREATE INDEX IF NOT EXISTS idx_quicknotes_parent_slug ON quicknotes(parent_slug);
 	CREATE INDEX IF NOT EXISTS idx_quicknote_files_slug ON quicknote_files(slug);
+	CREATE INDEX IF NOT EXISTS idx_todos_user ON todos(user_id);
+	CREATE INDEX IF NOT EXISTS idx_todos_due_date ON todos(due_date);
+	CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
+	CREATE INDEX IF NOT EXISTS idx_todos_priority ON todos(priority);
+	CREATE INDEX IF NOT EXISTS idx_todos_created ON todos(created_at);
 	`
 	if _, err := s.DB.Exec(indices); err != nil {
 		return err
@@ -561,6 +584,34 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 					FOREIGN KEY(slug) REFERENCES quicknotes(slug) ON DELETE CASCADE
 				);`,
 				"CREATE INDEX IF NOT EXISTS idx_quicknote_files_slug ON quicknote_files(slug);",
+			},
+		},
+		{
+			version: 10,
+			name:    "todos_api_table",
+			stmts: []string{
+				`CREATE TABLE IF NOT EXISTS todos (
+					id TEXT PRIMARY KEY,
+					user_id TEXT NOT NULL,
+					title TEXT NOT NULL,
+					description TEXT DEFAULT '',
+					status TEXT DEFAULT 'todo',
+					priority TEXT DEFAULT 'medium',
+					due_date TEXT DEFAULT '',
+					scheduled_date TEXT DEFAULT '',
+					tags TEXT DEFAULT '[]',
+					color TEXT DEFAULT '',
+					is_completed INTEGER DEFAULT 0,
+					completed_at DATETIME,
+					created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+					updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+					FOREIGN KEY (user_id) REFERENCES users(id)
+				);`,
+				"CREATE INDEX IF NOT EXISTS idx_todos_user ON todos(user_id);",
+				"CREATE INDEX IF NOT EXISTS idx_todos_due_date ON todos(due_date);",
+				"CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);",
+				"CREATE INDEX IF NOT EXISTS idx_todos_priority ON todos(priority);",
+				"CREATE INDEX IF NOT EXISTS idx_todos_created ON todos(created_at);",
 			},
 		},
 	}

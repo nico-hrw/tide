@@ -131,6 +131,10 @@ func (h *ExternalHandler) RegisterRoutes(r chi.Router) {
 		r.Get("/notes", h.ListNotesStub)
 		r.Get("/notes/{id}", h.GetNoteStub)
 	})
+
+	// Todos endpoints
+	todosHandler := NewTodosHandler(h.Store)
+	r.Route("/todos", todosHandler.RegisterRoutes)
 }
 
 func (h *ExternalHandler) ListEvents(w http.ResponseWriter, r *http.Request) {

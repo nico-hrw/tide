@@ -83,6 +83,25 @@ type Task struct {
 	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
 }
 
+// Todo represents a todo item for external and REST API access.
+type Todo struct {
+	ID            string     `json:"id" db:"id"`
+	UserID        string     `json:"user_id" db:"user_id"`
+	Title         string     `json:"title" db:"title"`
+	Description   string     `json:"description" db:"description"`
+	Status        string     `json:"status" db:"status"`
+	Priority      string     `json:"priority" db:"priority"`
+	DueDate       string     `json:"due_date" db:"due_date"`
+	ScheduledDate string     `json:"scheduled_date" db:"scheduled_date"`
+	Tags          []string   `json:"tags" db:"tags"`
+	Color         string     `json:"color" db:"color"`
+	IsCompleted   bool       `json:"is_completed" db:"is_completed"`
+	CompletedAt   *time.Time `json:"completed_at,omitempty" db:"completed_at"`
+	IsOverdue     bool       `json:"is_overdue"`
+	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
+}
+
 // DB defines the interface for database operations.
 type DB interface {
 	CreateUser(ctx context.Context, user *User) error
