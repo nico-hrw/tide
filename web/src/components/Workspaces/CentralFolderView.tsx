@@ -11,7 +11,9 @@ import {
   Trash2,
   FolderPlus,
   Home,
-  Check
+  Check,
+  CheckSquare,
+  ListTodo
 } from 'lucide-react';
 import { FOLDER_PALETTE, getFolderColor } from '../../lib/folderColors';
 
@@ -33,6 +35,7 @@ export interface CentralFolderViewProps {
   onMoveFile: (fileId: string, targetFolderId: string | null) => Promise<void> | void;
   onUpdateFolderColor: (folderId: string, color: string) => Promise<void> | void;
   onDeleteFile?: (id: string) => void;
+  onOpenTodos?: () => void;
 }
 
 export function CentralFolderView({
@@ -43,6 +46,7 @@ export function CentralFolderView({
   onMoveFile,
   onUpdateFolderColor,
   onDeleteFile,
+  onOpenTodos,
 }: CentralFolderViewProps) {
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
@@ -280,6 +284,17 @@ export function CentralFolderView({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 shrink-0">
+          {onOpenTodos && (
+            <button
+              type="button"
+              onClick={onOpenTodos}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 dark:hover:bg-emerald-500/30 transition-all shadow-xs"
+              title="Aufgaben / Todos öffnen"
+            >
+              <CheckSquare className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Aufgaben</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowNewFolderModal(true)}

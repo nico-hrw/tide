@@ -307,6 +307,7 @@ export async function decryptAndNormalizeFileItem(
                 title: (typeof cached.title === 'string' && cached.title) || (typeof file.title === 'string' && file.title) || 'Untitled',
                 isGroup: (cached.isGroup as boolean | undefined) || ((file.public_meta as Record<string, unknown> | undefined)?.isGroup as boolean | undefined) || undefined,
                 parent_id: (file.parent_id as string | null) || null,
+                color: (typeof cached.color === 'string' && cached.color) || (typeof file.metadata?.color === 'string' ? file.metadata.color : undefined) || (file.color as string | undefined),
             };
             return {
                 item: normalizedCached,
@@ -349,6 +350,7 @@ export async function decryptAndNormalizeFileItem(
         };
     } else {
         if (file.metadata && typeof file.metadata.title === 'string') metaData.title = file.metadata.title;
+        if (file.metadata && typeof file.metadata.color === 'string') metaData.color = file.metadata.color;
 
         const existing = existingItems.find(x => x.id === file.id);
         if (existing && typeof existing.title === 'string' && !existing.title.includes('Locked Note') && existing.title !== 'Untitled') {
@@ -364,6 +366,9 @@ export async function decryptAndNormalizeFileItem(
                 const meta = await cryptoLib.decryptMetadata(file.secured_meta, privateKey, `${cachePrefix}-${file.id}`);
                 if (!meta.isLocked) {
                     metaData = { ...metaData, ...meta, title: meta.title || metaData.title || 'Untitled', isLocked: false };
+                    if (file.metadata && typeof file.metadata.color === 'string') {
+                        metaData.color = file.metadata.color;
+                    }
                 } else if (metaData.title && typeof metaData.title === 'string' && !metaData.title.includes('Locked Note')) {
                     metaData.isLocked = true;
                 } else if (file.type !== 'folder') {
@@ -376,12 +381,19 @@ export async function decryptAndNormalizeFileItem(
             const meta = await cryptoLib.decryptMetadata(file.secured_meta, privateKey, `${cachePrefix}-${file.id}`);
             if (!meta.isLocked) {
                 metaData = { ...meta, title: meta.title || 'Untitled', isLocked: false };
+                if (file.metadata && typeof file.metadata.color === 'string') {
+                    metaData.color = file.metadata.color;
+                }
             } else if (metaData.title && typeof metaData.title === 'string' && !metaData.title.includes('Locked Note') && metaData.title !== 'Untitled') {
                 metaData.isLocked = true;
             } else {
                 metaData = { title: file.type === 'folder' ? 'Untitled' : 'Locked Note (Decrypting...)', isLocked: true };
                 console.warn(`[CRYPTO-AUDIT] Failed to decrypt legacy metadata for ${file.id} (${file.type})`);
             }
+        }
+
+        if (file.metadata && typeof file.metadata.color === 'string' && (!metaData.color || typeof metaData.color !== 'string')) {
+            metaData.color = file.metadata.color;
         }
     }
 
@@ -392,6 +404,7 @@ export async function decryptAndNormalizeFileItem(
         title: (typeof metaData.title === 'string' && metaData.title) || (typeof file.title === 'string' && file.title) || 'Untitled',
         isGroup: (metaData.isGroup as boolean | undefined) || ((file.public_meta as Record<string, unknown> | undefined)?.isGroup as boolean | undefined) || undefined,
         parent_id: (file.parent_id as string | null) || null,
+        color: (typeof metaData.color === 'string' && metaData.color) || (typeof file.metadata?.color === 'string' ? file.metadata.color : undefined) || (file.color as string | undefined),
     };
 
     if (file.type === 'event') {

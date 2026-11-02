@@ -92,7 +92,7 @@ export default function CloudStatusBanner() {
             return (
                 <button
                     onClick={() => setIsDismissed(false)}
-                    className="fixed bottom-4 right-4 z-[999] flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-medium backdrop-blur-md shadow-lg hover:bg-amber-500/25 transition-all"
+                    className="hidden md:flex fixed bottom-4 right-4 z-[999] items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-medium backdrop-blur-md shadow-lg hover:bg-amber-500/25 transition-all"
                     title="Offline-Status anzeigen"
                 >
                     <CloudOff size={13} />
@@ -108,7 +108,7 @@ export default function CloudStatusBanner() {
     }
 
     return (
-        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[999] pointer-events-auto max-w-md w-[calc(100%-2rem)] transition-all animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="hidden md:block fixed top-3 left-1/2 -translate-x-1/2 z-[999] pointer-events-auto max-w-md w-[calc(100%-2rem)] transition-all animate-in fade-in slide-in-from-top-2 duration-200">
             {showOffline ? (
                 <div className="flex items-center justify-between gap-3 px-3.5 py-2 rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 backdrop-blur-xl shadow-xl text-amber-900 dark:text-amber-200 text-xs">
                     <div className="flex items-center gap-2.5 min-w-0">

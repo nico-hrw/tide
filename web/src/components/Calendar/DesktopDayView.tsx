@@ -155,7 +155,7 @@ export default function DesktopDayView({
     };
 
     return (
-        <div className="flex-1 flex max-w-7xl mx-auto px-4 w-full gap-6 min-h-full py-4">
+        <div className="flex-1 flex max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 w-full gap-6 min-h-full py-4">
             {/* Left / Center Column (24h timeline grid and DayColumn) */}
             <div className="flex-1 min-w-[300px] md:min-w-0 flex relative min-h-full">
                 {/* Time Column (Sticky Left) */}
@@ -231,7 +231,7 @@ export default function DesktopDayView({
             </div>
 
             {/* Right Column (Sidebar) */}
-            <div className="hidden md:flex w-72 xl:w-80 flex-col shrink-0 rounded-2xl bg-white/70 dark:bg-white/[0.04] border border-gray-200/80 dark:border-white/10 p-4 gap-4 sticky top-4 self-start max-h-[calc(100vh-140px)] overflow-y-auto">
+            <div className="hidden md:flex w-80 xl:w-96 flex-col shrink-0 rounded-2xl bg-white/70 dark:bg-white/[0.04] border border-gray-200/80 dark:border-white/10 p-4 gap-4 sticky top-4 self-start max-h-[calc(100vh-210px)] overflow-y-auto">
                 {/* 1. Live Status Header */}
                 <div className="flex flex-col gap-2 p-3.5 rounded-xl bg-gray-50/80 dark:bg-white/[0.03] border border-gray-200/60 dark:border-white/5">
                     <div className="flex items-center justify-between">

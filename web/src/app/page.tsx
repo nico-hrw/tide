@@ -799,6 +799,8 @@ export default function Dashboard() {
                     const start = new Date(ev.start);
                     const diffMs = start.getTime() - now.getTime();
                     const diffMins = diffMs / 60_000;
+                    if ((ev as any).is_completed || (ev as any).isCompleted || (ev as any).completed_dates?.length) continue;
+                    if ((ev as any).is_all_day || (ev as any).isAllDay || ev.allDay || (ev as any).is_task) continue;
                     if (diffMins > 0 && diffMins <= 10 && !remindedEventsRef.current.has(ev.id)) {
                         remindedEventsRef.current.add(ev.id);
                         islandPush({
@@ -806,7 +808,7 @@ export default function Dashboard() {
                             priority: 'CRITICAL',
                             payload: {
                                 event: { title: ev.title, start: ev.start, end: ev.end, description: (ev as any).description || '' },
-                                duration: 15_000, // show for 15s
+                                duration: 7_000, // show for 7s
                             },
                         });
                     }
@@ -1109,9 +1111,30 @@ export default function Dashboard() {
     const handleUpdateFolderColor = async (folderId: string, color: string) => {
         try {
             useDataStore.getState().updateFile(folderId, { color });
+            const allFiles = useDataStore.getState().notes;
+            const existingFile = allFiles.find(f => f.id === folderId);
+            const currentMetadata = (existingFile?.metadata && typeof existingFile.metadata === 'object')
+                ? (existingFile.metadata as Record<string, unknown>)
+                : {};
+            const updatedMetadata = { ...currentMetadata, color };
+
+            let securedMeta: string | undefined = undefined;
+            if (publicKey && existingFile) {
+                const existingTitle = existingFile.title || (existingFile as any).name || 'Folder';
+                const meta = { title: existingTitle, parent_id: existingFile.parent_id, color };
+                try {
+                    securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
+                } catch (e) {
+                    console.warn('Failed to encrypt metadata for folder color update', e);
+                }
+            }
+
             await apiFetch(`/api/v1/files/${folderId}`, {
                 method: 'PATCH',
-                body: JSON.stringify({ metadata: { color } })
+                body: JSON.stringify({
+                    metadata: updatedMetadata,
+                    ...(securedMeta ? { secured_meta: securedMeta } : {})
+                })
             });
             useDataStore.getState().updateSpecificMetadataCache(folderId, { color });
         } catch (err) {
@@ -3178,14 +3201,31 @@ export default function Dashboard() {
             </div>
 
             {/* Floating Smart Island in Folder Mode */}
-            {navigationMode === 'folders' && enabledExtensions?.includes('smart_island') && (
-                <div className="fixed bottom-4 left-4 z-40 w-auto max-w-xs pointer-events-auto">
-                    <SmartIsland
-                        selectedDate={calendarDate}
-                        onSelect={handleDateSelect}
-                        userName={userProfile?.username}
-                        compact={true}
-                    />
+            {navigationMode === 'folders' && (
+                <div className="fixed bottom-4 left-4 z-40 flex flex-col gap-2 w-auto max-w-xs pointer-events-auto">
+                    {(!enabledExtensions || enabledExtensions.includes('todos')) && (
+                        <div className="flex items-center justify-start px-1">
+                            <button
+                                onClick={handleToggleTodos}
+                                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                                    activeTabId === 'todos'
+                                        ? 'bg-blue-600 text-white shadow-md'
+                                        : 'border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 shadow-sm'
+                                }`}
+                                title="Todos"
+                            >
+                                <ListTodo size={18} />
+                            </button>
+                        </div>
+                    )}
+                    {enabledExtensions?.includes('smart_island') && (
+                        <SmartIsland
+                            selectedDate={calendarDate}
+                            onSelect={handleDateSelect}
+                            userName={userProfile?.username}
+                            compact={true}
+                        />
+                    )}
                 </div>
             )}
 
@@ -3259,10 +3299,14 @@ export default function Dashboard() {
 
                         return (
                             <div className="absolute right-6 bottom-6 z-[55] pointer-events-auto bg-white/90 dark:bg-[#1c1c1c]/95 backdrop-blur-md border border-gray-200/80 dark:border-white/10 rounded-2xl p-3 shadow-xl w-72 sm:w-80 flex flex-col gap-2 max-h-[50vh] overflow-hidden">
-                                <div className="flex items-center justify-between px-1">
+                                <div
+                                    onClick={() => handleToggleTodos()}
+                                    className="flex items-center justify-between px-1 cursor-pointer hover:opacity-80 transition-opacity"
+                                    title="Aufgaben öffnen"
+                                >
                                     <div className="flex items-center gap-2">
                                         <ListTodo className="w-4 h-4 text-blue-500" />
-                                        <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">Todos</span>
+                                        <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">Aufgaben</span>
                                     </div>
                                     <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300">
                                         {visibleUnscheduled.length}
@@ -3311,7 +3355,10 @@ export default function Dashboard() {
                                                                         e.dataTransfer.setData('text/plain', t.id);
                                                                         e.dataTransfer.setData('application/json', JSON.stringify({ type: 'task', id: t.id }));
                                                                     }}
-                                                                    className="rounded-xl px-2.5 py-1.5 bg-gray-50/80 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200/60 dark:border-white/10 flex items-center gap-2 cursor-grab active:cursor-grabbing transition-all hover:scale-[1.01] hover:shadow-xs group"
+                                                                    onClick={() => {
+                                                                        handleToggleTodos();
+                                                                    }}
+                                                                    className="rounded-xl px-2.5 py-1.5 bg-gray-50/80 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200/60 dark:border-white/10 flex items-center gap-2 cursor-pointer transition-all hover:scale-[1.01] hover:shadow-xs group"
                                                                 >
                                                                     <GripVertical className="w-3.5 h-3.5 text-gray-400 shrink-0 opacity-40 group-hover:opacity-100" />
                                                                     <button
@@ -3493,6 +3540,7 @@ export default function Dashboard() {
                             onMoveFile={handleMoveFileToFolder}
                             onUpdateFolderColor={handleUpdateFolderColor}
                             onDeleteFile={(id) => handleDeleteNote({ stopPropagation: () => {} } as any, id)}
+                            onOpenTodos={() => handleToggleTodos()}
                         />
                     )}
                 </div>

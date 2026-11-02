@@ -20,6 +20,7 @@ import { pickGreetingTemplate, formatGreeting, NextEventCountdown, fireConfetti 
 import TodoList from '../Todo/TodoList';
 import { isItemUnlocked, ItemSecuritySettings } from '@/lib/pinSecurity';
 import PinPromptModal from '@/components/Security/PinPromptModal';
+import { getFolderColor } from '@/lib/folderColors';
 import { T } from './mobile/mobileTheme';
 import { useMobileSwipeGestures } from './mobile/useMobileSwipeGestures';
 import {
@@ -354,6 +355,7 @@ const FolderItem = React.memo(function FolderItem({
 interface NoteCardMetadata {
   has_custom_password?: boolean;
   security_settings?: ItemSecuritySettings;
+  color?: string;
   [key: string]: unknown;
 }
 
@@ -367,6 +369,11 @@ interface NoteCardItem {
   share_status?: string;
   is_shared?: boolean;
   parent_id?: string | null;
+  color?: string;
+  updated_at?: string;
+  updatedAt?: string;
+  created_at?: string;
+  createdAt?: string;
 }
 
 const NoteCard = React.memo(function NoteCard(props: {
@@ -378,7 +385,6 @@ const NoteCard = React.memo(function NoteCard(props: {
   const { file, isActive, onOpen, onContextMenu } = props;
   const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const movedRef = useRef(false);
-  const theme = useDataStore(s => s.theme);
 
   const isLocked = Boolean(
     file.has_pin ||
@@ -389,28 +395,32 @@ const NoteCard = React.memo(function NoteCard(props: {
   );
 
   const isCanvas = file.type === 'canvas';
-  const isShared = (file as any).share_status === 'shared' || (file as any).is_shared;
+  const isShared = file.share_status === 'shared' || file.is_shared;
 
   const displayTitle = (typeof file.title === 'string' && file.title.startsWith('#'))
     ? file.title.slice(1).trim()
     : (file.title || 'Untitled');
 
+  const rawDate = file.updated_at || file.updatedAt || file.created_at || file.createdAt;
+  let dateStr = '';
+  if (rawDate) {
+    try {
+      const d = new Date(rawDate);
+      if (!isNaN(d.getTime())) {
+        dateStr = d.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' });
+      }
+    } catch {}
+  }
+
   return (
     <button
       type="button"
       onClick={onOpen}
-      className={`w-full flex flex-col items-center justify-center text-center p-3.5 rounded-2xl transition-all duration-150 cursor-pointer active:scale-95 border ${
+      className={`group relative flex flex-col items-center justify-between cursor-pointer select-none p-2.5 rounded-2xl transition-all active:scale-95 hover:bg-gray-100/50 dark:hover:bg-white/5 active:bg-gray-100/50 dark:active:bg-white/5 w-full ${
         isActive
-          ? 'ring-2 ring-blue-500 shadow-md'
-          : 'hover:shadow-sm'
+          ? 'ring-2 ring-blue-500/80 bg-blue-500/10 dark:bg-blue-500/15'
+          : ''
       }`}
-      style={{
-        background: isActive
-          ? (theme === 'dark' ? 'rgba(59, 130, 246, 0.15)' : 'rgba(59, 130, 246, 0.08)')
-          : (theme === 'dark' ? 'rgba(255, 255, 255, 0.04)' : '#ffffff'),
-        borderColor: isActive ? '#3b82f6' : T.brd,
-        minHeight: 110,
-      }}
       onTouchStart={() => {
         movedRef.current = false;
         holdRef.current = setTimeout(() => {
@@ -430,35 +440,50 @@ const NoteCard = React.memo(function NoteCard(props: {
         if (holdRef.current) clearTimeout(holdRef.current);
       }}
     >
-      <div
-        className="relative mb-2 w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
-        style={{
-          background: isCanvas
-            ? 'rgba(168, 85, 247, 0.12)'
-            : 'rgba(59, 130, 246, 0.12)',
-          color: isCanvas ? '#a855f7' : '#3b82f6',
-        }}
-      >
-        {isCanvas ? <Layout size={24} /> : <FileText size={24} />}
+      <div className="relative flex flex-col items-center">
+        {isCanvas ? (
+          <Layout
+            className="w-12 h-14 sm:w-14 sm:h-16 text-purple-500 dark:text-purple-400 transition-transform group-active:scale-105"
+            fill="currentColor"
+            fillOpacity={0.06}
+            strokeWidth={1.25}
+          />
+        ) : (
+          <FileText
+            className={`w-12 h-14 sm:w-14 sm:h-16 transition-transform group-active:scale-105 ${
+              isActive
+                ? 'text-blue-500 dark:text-blue-400'
+                : 'text-slate-500 dark:text-slate-400 group-hover:text-blue-500'
+            }`}
+            fill="currentColor"
+            fillOpacity={0.06}
+            strokeWidth={1.25}
+          />
+        )}
         {isLocked && (
-          <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[2px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
-            <Lock size={10} className="text-amber-500" strokeWidth={2.5} />
+          <span title="PIN-geschützt" className="absolute -top-1 -right-1 flex items-center justify-center p-[2px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
+            <Lock size={11} className="text-amber-500" strokeWidth={2.5} />
           </span>
         )}
       </div>
 
       <span
-        className="text-xs font-bold line-clamp-2 max-w-full leading-tight"
-        style={{ color: isActive ? '#3b82f6' : T.pri }}
+        className={`text-xs font-semibold text-center line-clamp-2 max-w-[110px] mt-2 transition-colors ${
+          isActive ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-800 dark:text-gray-200'
+        }`}
       >
         {displayTitle}
       </span>
 
-      {isShared && (
-        <span className="mt-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+      {isShared ? (
+        <span className="mt-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-950/80 dark:text-sky-300 leading-none">
           Geteilt
         </span>
-      )}
+      ) : dateStr ? (
+        <span className="mt-1 text-[10px] text-gray-400 dark:text-gray-500 leading-none">
+          {dateStr}
+        </span>
+      ) : null}
     </button>
   );
 });
@@ -471,6 +496,7 @@ interface FolderCardItem {
   is_locked?: boolean;
   metadata?: NoteCardMetadata | null;
   parent_id?: string | null;
+  color?: string;
 }
 
 const FolderCard = React.memo(function FolderCard({
@@ -496,6 +522,7 @@ const FolderCard = React.memo(function FolderCard({
   const { loadedDirectories } = useDataStore();
   const theme = useDataStore(s => s.theme);
   const children = allFiles.filter(f => f.parent_id === folder.id);
+  const colorDef = getFolderColor(folder.color || folder.metadata?.color);
 
   const isLocked = Boolean(
     folder.has_pin ||
@@ -541,7 +568,7 @@ const FolderCard = React.memo(function FolderCard({
   if (open) {
     return (
       <div
-        className="col-span-2 rounded-2xl p-3 border transition-all"
+        className="col-span-2 sm:col-span-3 rounded-2xl p-3 border transition-all"
         style={{
           background: theme === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
           borderColor: T.brd,
@@ -553,14 +580,23 @@ const FolderCard = React.memo(function FolderCard({
           style={{ borderColor: T.brd }}
         >
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+              style={{
+                backgroundColor: `${colorDef.hex}20`,
+                color: colorDef.hex,
+              }}
+            >
               <FolderOpen size={16} />
             </div>
             <span className="text-xs font-bold truncate" style={{ color: T.pri }}>
               {displayTitle}
             </span>
-            <span className="text-[10px] font-semibold text-gray-400">
-              ({children.length})
+            <span
+              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white shadow-xs leading-none"
+              style={{ backgroundColor: colorDef.hex }}
+            >
+              {children.length}
             </span>
           </div>
           <ChevronDown size={14} className="rotate-180 transition-transform" style={{ color: T.mut }} />
@@ -571,7 +607,7 @@ const FolderCard = React.memo(function FolderCard({
             Ordner ist leer
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
             {children.map(child => (
               child.type === 'folder' ? (
                 <FolderCard
@@ -604,12 +640,7 @@ const FolderCard = React.memo(function FolderCard({
     <button
       type="button"
       onClick={handleToggle}
-      className="col-span-1 w-full flex flex-col items-center justify-center text-center p-3.5 rounded-2xl transition-all duration-150 cursor-pointer active:scale-95 border hover:shadow-sm"
-      style={{
-        background: theme === 'dark' ? 'rgba(255, 255, 255, 0.04)' : '#ffffff',
-        borderColor: T.brd,
-        minHeight: 110,
-      }}
+      className="group relative flex flex-col items-center justify-between cursor-pointer select-none p-2.5 rounded-2xl transition-all active:scale-95 hover:bg-gray-100/50 dark:hover:bg-white/5 active:bg-gray-100/50 dark:active:bg-white/5 w-full"
       onTouchStart={() => {
         movedRef.current = false;
         holdRef.current = setTimeout(() => {
@@ -629,20 +660,31 @@ const FolderCard = React.memo(function FolderCard({
         if (holdRef.current) clearTimeout(holdRef.current);
       }}
     >
-      <div className="relative mb-2 w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-amber-500/12 text-amber-500">
-        <Folder size={24} />
+      <div className="relative flex flex-col items-center">
+        <Folder
+          className="w-14 h-14 sm:w-16 sm:h-16 transition-transform group-active:scale-105"
+          style={{ color: colorDef.hex, fill: `${colorDef.hex}26` }}
+          strokeWidth={1.4}
+        />
         {isLocked && (
-          <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[2px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
-            <Lock size={10} className="text-amber-500" strokeWidth={2.5} />
+          <span title="PIN-geschützt" className="absolute -top-1 -right-1 flex items-center justify-center p-[2px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
+            <Lock size={11} className="text-amber-500" strokeWidth={2.5} />
+          </span>
+        )}
+        {children.length > 0 && (
+          <span
+            className="absolute bottom-0 right-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-xs leading-none"
+            style={{ backgroundColor: colorDef.hex }}
+          >
+            {children.length}
           </span>
         )}
       </div>
 
-      <span className="text-xs font-bold line-clamp-2 max-w-full leading-tight" style={{ color: T.pri }}>
+      <span
+        className="text-xs font-semibold text-center line-clamp-2 max-w-[110px] mt-2 text-gray-800 dark:text-gray-200 transition-colors"
+      >
         {displayTitle}
-      </span>
-      <span className="text-[10px] font-medium text-gray-400 mt-0.5">
-        {children.length} {children.length === 1 ? 'Eintrag' : 'Einträge'}
       </span>
     </button>
   );
@@ -1864,7 +1906,7 @@ export default function MobileLayout({
                 return <p className="text-sm py-8 text-center" style={{ color: T.mut }}>Keine Ergebnisse gefunden</p>;
               }
               return notesViewMode === 'grid' ? (
-                <div className="grid grid-cols-2 gap-2.5 p-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 p-1">
                   {filteredFiles.map(f => (
                     <NoteCard
                       key={f.id}
@@ -1953,7 +1995,7 @@ export default function MobileLayout({
                     </button>
                     {isSharedFolderOpen && (
                       notesViewMode === 'grid' ? (
-                        <div className="grid grid-cols-2 gap-2.5 p-1 mt-1">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 p-1 mt-1">
                           {sharedNotes.map(f => (
                             f.type === 'folder' ? (
                               <FolderCard
@@ -2018,7 +2060,7 @@ export default function MobileLayout({
                   <div>
                     <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Mach weiter wo du aufgehört hast</p>
                     {notesViewMode === 'grid' ? (
-                      <div className="grid grid-cols-2 gap-2.5 p-1">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 p-1">
                         {recentFiles.map(f => (
                           <NoteCard
                             key={f.id}
@@ -2051,7 +2093,7 @@ export default function MobileLayout({
                   <div>
                     <p className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Ordner</p>
                     {notesViewMode === 'grid' ? (
-                      <div className="grid grid-cols-2 gap-2.5 p-1">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 p-1">
                         {rootFolders.map(folder => (
                           <FolderCard
                             key={folder.id}
@@ -2094,7 +2136,7 @@ export default function MobileLayout({
                   <div>
                     <p className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Alle Notizen</p>
                     {notesViewMode === 'grid' ? (
-                      <div className="grid grid-cols-2 gap-2.5 p-1">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 p-1">
                         {rootNotes.map(f => (
                           <NoteCard
                             key={f.id}

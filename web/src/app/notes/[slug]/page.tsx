@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
     Share2, FolderInput, Check, Loader2, AlertCircle, X,
-    Paperclip, UploadCloud, Key, Download, Trash2,
+    Paperclip, UploadCloud, Download, Trash2,
 } from 'lucide-react';
 import Editor from '@/components/Editor';
 import Avatar from '@/components/Profile/Avatar';
@@ -181,9 +181,6 @@ export default function QuicknotePage() {
     const [attachments, setAttachments] = useState<QuicknoteAttachment[]>([]);
     const [isDragging, setIsDragging] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
-    const [showTokenModal, setShowTokenModal] = useState(false);
-    const [tokenInput, setTokenInput] = useState('');
-    const [uploadError, setUploadError] = useState<string | null>(null);
 
     const loadAttachments = useCallback(async () => {
         if (!slug) return;
@@ -348,19 +345,13 @@ export default function QuicknotePage() {
     const handleUpload = useCallback(async (files: File[]) => {
         if (!slug || files.length === 0) return;
         setIsUploading(true);
-        setUploadError(null);
-        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('tide_quicknote_token') || undefined : undefined;
         try {
             for (const file of files) {
                 try {
-                    await uploadQuicknoteFile(slug, file, storedToken);
+                    await uploadQuicknoteFile(slug, file);
                 } catch (err) {
                     if (err instanceof StorageLimitError) {
-                        setUploadError(err.message || 'Speicherlimit von 250MB überschritten.');
-                        if (typeof window !== 'undefined') {
-                            setTokenInput(localStorage.getItem('tide_quicknote_token') || '');
-                        }
-                        setShowTokenModal(true);
+                        setToast({ type: 'error', text: 'Speicherlimit von 250MB für diese Notiz erreicht.' });
                         break;
                     } else {
                         const msg = err instanceof Error ? err.message : 'Fehler beim Hochladen der Datei.';
@@ -519,19 +510,6 @@ export default function QuicknotePage() {
                             <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
                                 {(attachments.reduce((acc, f) => acc + f.size, 0) / (1024 * 1024)).toFixed(1)} MB / 250 MB
                             </span>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (typeof window !== 'undefined') {
-                                        setTokenInput(localStorage.getItem('tide_quicknote_token') || '');
-                                    }
-                                    setShowTokenModal(true);
-                                }}
-                                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5 rounded transition-colors"
-                                title="Speicherlimit erweitern"
-                            >
-                                <Key className="w-3 h-3" />
-                            </button>
                         </div>
                     </div>
 
@@ -689,76 +667,6 @@ export default function QuicknotePage() {
                     </div>
                 )}
             </div>
-
-            {/* Token Modal */}
-            {showTokenModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
-                                <Key className="w-5 h-5 text-blue-500" />
-                                Speicherlimit erweitern
-                            </h3>
-                            <button
-                                type="button"
-                                onClick={() => { setShowTokenModal(false); setUploadError(null); }}
-                                className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-1 rounded-lg"
-                                aria-label="Schließen"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        {uploadError && (
-                            <div className="p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-xl text-xs text-red-600 dark:text-red-400 flex items-start gap-2">
-                                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                                <span>{uploadError}</span>
-                            </div>
-                        )}
-
-                        <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-                            Für mehr als 250MB Speicher pro Notiz melde dich an oder gib ein Zugriffs-Token ein. Ein Token kannst du mit einem regulären Account unter Einstellungen &gt; Zugriff erstellen.
-                        </p>
-
-                        <div>
-                            <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1.5">
-                                Zugriffs-Token
-                            </label>
-                            <input
-                                type="text"
-                                value={tokenInput}
-                                onChange={(e) => setTokenInput(e.target.value)}
-                                placeholder="tide_pat_..."
-                                className="w-full px-3 py-2 text-sm rounded-xl border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                            />
-                        </div>
-
-                        <div className="flex justify-end gap-2 pt-2">
-                            <button
-                                type="button"
-                                onClick={() => { setShowTokenModal(false); setUploadError(null); }}
-                                className="px-4 py-2 text-sm font-medium rounded-xl text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                            >
-                                Abbrechen
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (typeof window !== 'undefined') {
-                                        localStorage.setItem('tide_quicknote_token', tokenInput.trim());
-                                    }
-                                    setShowTokenModal(false);
-                                    setUploadError(null);
-                                    setToast({ type: 'success', text: 'Token gespeichert!' });
-                                }}
-                                className="px-4 py-2 text-sm font-medium rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm"
-                            >
-                                Speichern &amp; Freischalten
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

@@ -35,6 +35,9 @@ const withPWA = withPWAInit({
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  experimental: {
+    proxyClientMaxBodySize: '250mb',
+  },
   turbopack: {},
   webpack: (config, { dev }) => {
     config.resolve.alias['yjs'] = path.resolve(__dirname, 'node_modules/yjs');

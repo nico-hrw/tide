@@ -52,6 +52,7 @@ func (h *FileHandler) RegisterRoutes(r chi.Router) {
 
 		r.Get("/{fileID}", h.GetFileMetadata)
 		r.Put("/{fileID}", h.UpdateFile)
+		r.Patch("/{fileID}", h.UpdateFile)
 		r.Delete("/{fileID}", h.DeleteFile)
 		r.Post("/{fileID}/upload", h.UploadFile)
 		r.Get("/{fileID}/download", h.DownloadFile)

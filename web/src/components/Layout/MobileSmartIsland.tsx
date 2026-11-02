@@ -12,6 +12,7 @@ export interface CountdownEvent {
   end?: string;
   allDay?: boolean;
   color?: string;
+  is_completed?: boolean;
 }
 
 export interface MobileSmartIslandProps {
@@ -20,6 +21,12 @@ export interface MobileSmartIslandProps {
   className?: string;
   isLoading?: boolean;
 }
+
+// Fluid Apple-style organic transition easing
+const islandContentTransition = {
+  ease: [0.32, 0.72, 0, 1] as [number, number, number, number],
+  duration: 0.28,
+};
 
 export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   events,
@@ -139,7 +146,9 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
 
     const parsed: ParsedEvent[] = [];
     for (const e of events) {
-      if (e.allDay || !e.start) continue;
+      if (e.allDay || (e as any).is_all_day || (e as any).is_task) continue;
+      if (e.is_completed || (e as any).isCompleted || (e as any).completed_dates?.length) continue;
+      if (!e.start) continue;
       const s = new Date(e.start);
       const startMs = s.getTime();
       if (isNaN(startMs)) continue;
@@ -205,6 +214,16 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   const isImminent = !target?.isActive && target !== null && diffSec > 0 && diffSec <= 900;
   const isImminentDismissed = target?.event?.id ? dismissedImminentId === target.event.id : false;
 
+  // Auto-dismiss imminent banner after 8 seconds back to compact countdown pill
+  useEffect(() => {
+    if (isImminent && target?.event?.id && dismissedImminentId !== target.event.id) {
+      const timer = setTimeout(() => {
+        setDismissedImminentId(target.event.id);
+      }, 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [isImminent, target?.event?.id, dismissedImminentId]);
+
   // Active mode resolution
   type IslandMode = 'loading' | 'syncing' | 'offline' | 'message' | 'imminent' | 'idle';
 
@@ -259,14 +278,18 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
     <div className={`relative shrink-0 w-20 h-20 ${className || ''}`}>
       <motion.div
         layout
-        transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 26, mass: 0.8 }}
         onDoubleClick={triggerDemoLoading}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
         whileTap={{ scale: 0.97 }}
-        className={`absolute right-0 top-0 h-20 bg-[#18181b]/95 dark:bg-[#09090b]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-xl text-white overflow-hidden ${
-          isExpanded ? 'w-[min(320px,calc(100vw-32px))] z-30' : isPill ? 'w-[min(210px,calc(100vw-32px))] z-30' : 'w-20 z-20'
+        className={`h-20 bg-[#18181b]/95 dark:bg-[#09090b]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-xl text-white overflow-hidden ${
+          isExpanded
+            ? 'fixed top-[max(12px,calc(env(safe-area-inset-top)+4px))] inset-x-3 w-auto z-50'
+            : isPill
+              ? 'fixed top-[max(12px,calc(env(safe-area-inset-top)+4px))] right-3 w-[min(240px,calc(100vw-24px))] z-50'
+              : 'absolute right-0 top-0 w-20 z-20'
         }`}
       >
         <AnimatePresence mode="wait">
@@ -276,7 +299,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.2 }}
+              transition={islandContentTransition}
               className="w-full h-full px-3.5 py-2 flex items-center gap-2.5 select-none"
             >
               <div className="relative shrink-0 w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
@@ -299,7 +322,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ duration: 0.2 }}
+              transition={islandContentTransition}
               className="w-full h-full px-3.5 py-2 flex items-center gap-2.5 select-none"
             >
               <div className="relative shrink-0 w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
@@ -322,7 +345,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
               initial={{ opacity: 0, scale: 0.85 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.85 }}
-              transition={{ duration: 0.18 }}
+              transition={islandContentTransition}
               className="relative w-full h-full flex items-center justify-center select-none"
             >
               {/* Outer Shape (morphing & spinning clockwise with variable speed) */}
@@ -377,7 +400,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
               initial={{ opacity: 0, x: 12 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 12 }}
-              transition={{ duration: 0.2 }}
+              transition={islandContentTransition}
               className="w-full h-full px-3 py-2 flex items-center gap-2.5 select-none"
             >
               <div className="relative shrink-0 w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
@@ -413,7 +436,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
               initial={{ opacity: 0, x: 12 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 12 }}
-              transition={{ duration: 0.2 }}
+              transition={islandContentTransition}
               className="w-full h-full px-3 py-2 flex items-center gap-2.5 cursor-pointer select-none"
               onClick={() => {
                 if (target?.event?.id) {
@@ -459,7 +482,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
+              transition={islandContentTransition}
               className="w-full h-full p-2 flex flex-col justify-between items-start text-left select-none cursor-pointer"
               onClick={() => {
                 if (target?.event?.id) {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import type { ComponentProps } from "react";
 import DayColumn from "@/components/Calendar/DayColumn";
 import "@/app/calendar/calendar.css";
-import { format, startOfWeek, addWeeks, subWeeks, getMinutes, getHours, addDays, subDays, addMonths, subMonths, startOfMonth } from "date-fns";
+import { format, startOfWeek, addWeeks, subWeeks, getMinutes, getHours, addDays, subDays, addMonths, subMonths, startOfMonth, isSameDay } from "date-fns";
 import { de } from "date-fns/locale";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { SearchIndexEntry } from "@/lib/searchIndex";
@@ -84,6 +84,14 @@ export default function CalendarView({
         onDateChange(today);
         if (viewMode === 'week') {
             handleScrollToToday();
+        } else if (viewMode === 'day') {
+            setTimeout(() => {
+                if (scrollContainerRef.current) {
+                    const nowMinutes = getHours(new Date()) * 60 + getMinutes(new Date());
+                    const targetScrollY = Math.max(0, nowMinutes - 120);
+                    scrollContainerRef.current.scrollTo({ top: targetScrollY, behavior: 'smooth' });
+                }
+            }, 60);
         }
     };
 
@@ -282,13 +290,44 @@ export default function CalendarView({
 
     // Initial scroll for day view
     useEffect(() => {
-        if (viewMode === 'day' && scrollContainerRef.current) {
-            const container = scrollContainerRef.current;
-            const nowMinutes = getHours(new Date()) * 60 + getMinutes(new Date());
-            const targetScrollY = Math.max(0, nowMinutes - 120);
-            container.scrollTop = targetScrollY;
+        if (viewMode === 'day') {
+            const timer = setTimeout(() => {
+                if (!scrollContainerRef.current) return;
+                const container = scrollContainerRef.current;
+                const isDateToday = isSameDay(date, new Date());
+                let targetScrollY = 0;
+                if (isDateToday) {
+                    const nowMinutes = getHours(new Date()) * 60 + getMinutes(new Date());
+                    targetScrollY = Math.max(0, nowMinutes - 120);
+                } else {
+                    const dayKey = format(date, "yyyy-MM-dd");
+                    const dayTimedEvents = events.filter(e => {
+                        if (e.allDay) return false;
+                        try {
+                            return format(new Date(e.start), "yyyy-MM-dd") === dayKey;
+                        } catch {
+                            return false;
+                        }
+                    });
+                    if (dayTimedEvents.length > 0) {
+                        let earliestMinutes = 24 * 60;
+                        for (const ev of dayTimedEvents) {
+                            try {
+                                const s = new Date(ev.start);
+                                const m = getHours(s) * 60 + getMinutes(s);
+                                if (m < earliestMinutes) earliestMinutes = m;
+                            } catch {}
+                        }
+                        targetScrollY = Math.max(0, earliestMinutes - 60);
+                    } else {
+                        targetScrollY = Math.max(0, 8 * 60 - 60);
+                    }
+                }
+                container.scrollTop = targetScrollY;
+            }, 60);
+            return () => clearTimeout(timer);
         }
-    }, [viewMode, date]);
+    }, [viewMode, date, events]);
 
     // Auto-update current time
     useEffect(() => {
@@ -385,6 +424,13 @@ export default function CalendarView({
                         start: e.start,
                         rect: rect
                     });
+                    return;
+                }
+
+                // In Day View, event details are shown in DesktopDayView's dedicated fixed "Termindetails" card.
+                // Do not open the floating popover over the day timeline.
+                if (viewMode === 'day') {
+                    setActivePopover(null);
                     return;
                 }
 
@@ -551,7 +597,7 @@ export default function CalendarView({
                 {viewMode === 'day' && (
                     <div
                         ref={scrollContainerRef}
-                        className="flex-1 relative flex overflow-y-auto overflow-x-hidden trackpad-scroll-free transition-all duration-300"
+                        className="flex-1 relative flex overflow-y-auto overflow-x-hidden transition-all duration-300"
                         style={{ touchAction: 'pan-y' }}
                     >
                         <DesktopDayView

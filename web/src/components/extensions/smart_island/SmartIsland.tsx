@@ -31,6 +31,8 @@ function WelcomeView({ payload }: { payload?: Record<string, any> }) {
         return storeEvents
             .filter((e: any) => {
                 try {
+                    if (e.is_completed || (e as any).isCompleted || e.completed_dates?.length) return false;
+                    if (e.is_all_day || (e as any).allDay || (e as any).is_task) return false;
                     const start = new Date(e.start);
                     return e.start.startsWith(todayStr) && start >= now;
                 } catch { return false; }
@@ -905,6 +907,14 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
     const storeEvents = useDataStore(s => s.events);
     const expandOnNotification = useIslandSettingsStore(s => s.expandOnNotification);
 
+    // Live 1-second interval ticker for compact pill countdown
+    const [currentTime, setCurrentTime] = useState(() => new Date());
+    useEffect(() => {
+        if (!compact) return;
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, [compact]);
+
     // Build today's events for InMeetingBar (exclude all-day events)
     const todayEvents = useMemo(() => {
         const today = new Date();
@@ -913,10 +923,10 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
         }).map((e: any) => ({ title: e.title, start: e.start, end: e.end, description: e.description, is_all_day: e.is_all_day }));
     }, [storeEvents]);
 
-    // Active or upcoming event for compact pill in Good-Notes mode
+    // Active or upcoming event for compact pill in Good-Notes / Tablet mode
     const activeOrUpcomingEvent = useMemo(() => {
         if (!compact) return null;
-        const now = new Date();
+        const now = currentTime;
         const today = new Date();
         const todayEvs = (storeEvents || []).filter((e: any) => {
             try { return isSameDay(new Date(e.start), today); } catch { return false; }
@@ -924,7 +934,8 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
 
         const activeMeeting = todayEvs.find((e: any) => {
             try {
-                if (e.is_all_day) return false;
+                if (e.is_completed || (e as any).isCompleted || e.completed_dates?.length) return false;
+                if (e.is_all_day || (e as any).allDay || (e as any).is_task) return false;
                 const s = new Date(e.start);
                 const en = new Date(e.end);
                 return s <= now && en > now;
@@ -933,8 +944,10 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
 
         if (activeMeeting) {
             return {
+                id: activeMeeting.id,
                 title: activeMeeting.title,
                 start: activeMeeting.start,
+                end: activeMeeting.end,
                 isOngoing: true,
             };
         }
@@ -942,6 +955,8 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
         const upcoming = todayEvs
             .filter((e: any) => {
                 try {
+                    if (e.is_completed || (e as any).isCompleted || e.completed_dates?.length) return false;
+                    if (e.is_all_day || (e as any).allDay || (e as any).is_task) return false;
                     return new Date(e.start) > now;
                 } catch { return false; }
             })
@@ -949,14 +964,35 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
 
         if (upcoming) {
             return {
+                id: upcoming.id,
                 title: upcoming.title,
                 start: upcoming.start,
+                end: upcoming.end,
                 isOngoing: false,
             };
         }
 
         return null;
-    }, [compact, storeEvents]);
+    }, [compact, storeEvents, currentTime]);
+
+    const countdownInfo = useMemo(() => {
+        if (!activeOrUpcomingEvent) return null;
+        const nowMs = currentTime.getTime();
+        const targetMs = activeOrUpcomingEvent.isOngoing
+            ? new Date(activeOrUpcomingEvent.end).getTime()
+            : new Date(activeOrUpcomingEvent.start).getTime();
+        const diffSec = Math.max(0, Math.floor((targetMs - nowMs) / 1000));
+        const h = Math.floor(diffSec / 3600);
+        const m = Math.floor((diffSec % 3600) / 60);
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        const formattedHoursMins = `${h}:${pad(m)}h`;
+        const isUnderOneHour = diffSec < 3600;
+        const formattedCountdown = isUnderOneHour
+            ? `${Math.max(1, Math.ceil(diffSec / 60))} Min`
+            : formattedHoursMins;
+        const label = activeOrUpcomingEvent.isOngoing ? 'NOCH' : 'STARTET IN';
+        return { diffSec, formattedCountdown, label, isUnderOneHour };
+    }, [activeOrUpcomingEvent, currentTime]);
 
     const isCentered = !!state.dailySummaryMode && state.dailySummaryMode !== 'morning';
 
@@ -987,9 +1023,9 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
             layoutId="smart-island-shell"
             transition={{
                 type: "spring",
-                stiffness: 250,
-                damping: 30,
-                mass: 0.9
+                stiffness: 420,
+                damping: 26,
+                mass: 0.8
             }}
             className={`liquidGlass-wrapper dark text-zinc-100 ${positionClass} ${sizeClass}`}
         >
@@ -1036,7 +1072,13 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                                 }}
                                 layout="position"
                                 className="flex items-center gap-2 select-none text-xs font-medium text-zinc-100 cursor-pointer"
-                                onClick={() => onSelect?.(selectedDate || new Date())}
+                                onClick={() => {
+                                    if (activeOrUpcomingEvent?.start) {
+                                        onSelect?.(new Date(activeOrUpcomingEvent.start));
+                                    } else {
+                                        onSelect?.(selectedDate || new Date());
+                                    }
+                                }}
                             >
                                 <div className="flex items-center gap-1.5 text-zinc-200 font-semibold shrink-0">
                                     <CalendarIcon className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
@@ -1044,10 +1086,10 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                                         {format(selectedDate || new Date(), 'EEE, d. MMM', { locale: de })}
                                     </span>
                                 </div>
-                                {activeOrUpcomingEvent ? (
+                                {activeOrUpcomingEvent && countdownInfo ? (
                                     <>
                                         <span className="text-zinc-600 dark:text-zinc-500">|</span>
-                                        <div className="flex items-center gap-1.5 min-w-0 max-w-[11rem]">
+                                        <div className="flex items-center gap-1.5 min-w-0 max-w-[14rem]">
                                             <span
                                                 className={`w-2 h-2 rounded-full shrink-0 ${
                                                     activeOrUpcomingEvent.isOngoing
@@ -1058,8 +1100,11 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                                             <span className="truncate text-zinc-200">
                                                 {activeOrUpcomingEvent.title}
                                             </span>
-                                            <span className="text-[10px] text-zinc-400 shrink-0">
-                                                {format(new Date(activeOrUpcomingEvent.start), 'HH:mm')}
+                                            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider shrink-0">
+                                                {countdownInfo.label}
+                                            </span>
+                                            <span className="text-[11px] font-mono font-bold text-indigo-300 dark:text-indigo-400 shrink-0 tabular-nums">
+                                                {countdownInfo.formattedCountdown}
                                             </span>
                                         </div>
                                     </>
