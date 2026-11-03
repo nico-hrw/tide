@@ -2,8 +2,8 @@ import type { DataStoreSlice, SafesSlice } from './types';
 import { apiFetch } from '@/lib/api';
 import { saveNotesToOfflineCache } from './createNotesSlice';
 
-export const DEFAULT_SAFES = ['Standard', 'Archiv'];
-export const DEFAULT_ACTIVE_SAFES = ['Standard'];
+export const DEFAULT_SAFES = ['main', 'Archiv'];
+export const DEFAULT_ACTIVE_SAFES = ['main'];
 
 export function loadCachedSafes(): string[] {
     if (typeof window === 'undefined') return DEFAULT_SAFES;
@@ -12,10 +12,17 @@ export function loadCachedSafes(): string[] {
         if (!stored) return DEFAULT_SAFES;
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-            const list = parsed.filter(
-                (s): s is string => typeof s === 'string' && s.trim().length > 0
-            );
-            return list.includes('Standard') ? list : ['Standard', ...list];
+            const list = parsed
+                .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+                .map((s) => (s === 'Standard' ? 'main' : s));
+            const unique = Array.from(new Set(list));
+            const result = unique.includes('main') ? unique : ['main', ...unique];
+            if (JSON.stringify(result) !== stored) {
+                try {
+                    localStorage.setItem('tide_safes', JSON.stringify(result));
+                } catch (_) {}
+            }
+            return result;
         }
         return DEFAULT_SAFES;
     } catch {
@@ -30,10 +37,17 @@ export function loadCachedActiveSafes(): string[] {
         if (!stored) return DEFAULT_ACTIVE_SAFES;
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-            const list = parsed.filter(
-                (s): s is string => typeof s === 'string' && s.trim().length > 0
-            );
-            return list.length > 0 ? list : DEFAULT_ACTIVE_SAFES;
+            const list = parsed
+                .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+                .map((s) => (s === 'Standard' ? 'main' : s));
+            const unique = Array.from(new Set(list));
+            const result = unique.length > 0 ? unique : DEFAULT_ACTIVE_SAFES;
+            if (JSON.stringify(result) !== stored) {
+                try {
+                    localStorage.setItem('tide_active_safes', JSON.stringify(result));
+                } catch (_) {}
+            }
+            return result;
         }
         return DEFAULT_ACTIVE_SAFES;
     } catch {
@@ -46,8 +60,10 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
     activeSafes: loadCachedActiveSafes(),
 
     setActiveSafes: (safes: string[]) => {
-        const valid = safes.filter((s) => s && s.trim().length > 0);
-        const resolved = valid.length > 0 ? valid : ['Standard'];
+        const valid = safes
+            .filter((s) => s && s.trim().length > 0)
+            .map((s) => (s === 'Standard' ? 'main' : s));
+        const resolved = valid.length > 0 ? Array.from(new Set(valid)) : ['main'];
         if (typeof window !== 'undefined') {
             try {
                 localStorage.setItem('tide_active_safes', JSON.stringify(resolved));
@@ -99,12 +115,12 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
     },
 
     deleteSafe: (name: string) => {
-        if (name === 'Standard') return; // Protect Standard safe
+        if (name === 'Standard' || name === 'main') return; // Protect default safe
         const state = get();
         const nextAvailable = state.availableSafes.filter((s) => s !== name);
         let nextActive = state.activeSafes.filter((s) => s !== name);
         if (nextActive.length === 0) {
-            nextActive = ['Standard'];
+            nextActive = ['main'];
         }
         if (typeof window !== 'undefined') {
             try {
@@ -115,11 +131,11 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
             }
         }
 
-        // Reassign all notes in this safe to 'Standard'
+        // Reassign all notes in this safe to 'main'
         const updatedNotes = state.notes.map((n) => {
             if ((n.safe || n.metadata?.safe) === name) {
-                const nextMeta = { ...(n.metadata || {}), safe: 'Standard' };
-                return { ...n, safe: 'Standard', metadata: nextMeta };
+                const nextMeta = { ...(n.metadata || {}), safe: 'main' };
+                return { ...n, safe: 'main', metadata: nextMeta };
             }
             return n;
         });
@@ -133,14 +149,15 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
     },
 
     setNoteSafe: async (noteId: string, safeName: string) => {
+        const normalized = safeName === 'Standard' ? 'main' : safeName;
         const state = get();
         const currentNote = state.notes.find((n) => n.id === noteId);
 
         // Optimistically update note in store and offline cache
         const updatedNotes = state.notes.map((n) => {
             if (n.id === noteId) {
-                const nextMeta = { ...(n.metadata || {}), safe: safeName };
-                return { ...n, safe: safeName, metadata: nextMeta };
+                const nextMeta = { ...(n.metadata || {}), safe: normalized };
+                return { ...n, safe: normalized, metadata: nextMeta };
             }
             return n;
         });
@@ -151,7 +168,7 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
             ...state.metadataCache,
             [noteId]: {
                 ...(typeof existingCache === 'object' ? existingCache : {}),
-                safe: safeName,
+                safe: normalized,
             },
         };
 
@@ -160,7 +177,7 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
         // Persist to backend if note exists
         try {
             const currentMeta = (currentNote?.metadata as Record<string, unknown>) || {};
-            const newMetadata = { ...currentMeta, safe: safeName };
+            const newMetadata = { ...currentMeta, safe: normalized };
             await apiFetch(`/api/v1/files/${noteId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -168,6 +185,57 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
             });
         } catch (err) {
             console.warn('[SAFES] Failed to persist note safe to backend', err);
+        }
+    },
+
+    linkNoteToSafe: async (noteId: string, targetSafe: string) => {
+        const normTarget = (targetSafe === 'Standard' ? 'main' : targetSafe).trim();
+        if (!normTarget || !noteId) return;
+        const state = get();
+        const currentNote = state.notes.find((n) => n.id === noteId);
+        if (!currentNote) return;
+
+        const rawLinked: string[] = Array.isArray(currentNote.linkedSafes)
+            ? currentNote.linkedSafes
+            : Array.isArray(currentNote.metadata?.linkedSafes)
+            ? currentNote.metadata.linkedSafes
+            : [];
+        const normalizedLinked = rawLinked.map((s) => (s === 'Standard' ? 'main' : s));
+
+        if (normalizedLinked.includes(normTarget)) return;
+
+        const nextLinked = [...normalizedLinked, normTarget];
+
+        const updatedNotes = state.notes.map((n) => {
+            if (n.id === noteId) {
+                const nextMeta = { ...(n.metadata || {}), linkedSafes: nextLinked };
+                return { ...n, linkedSafes: nextLinked, metadata: nextMeta };
+            }
+            return n;
+        });
+        saveNotesToOfflineCache(updatedNotes);
+
+        const existingCache = state.metadataCache[noteId] || {};
+        const updatedMetaCache = {
+            ...state.metadataCache,
+            [noteId]: {
+                ...(typeof existingCache === 'object' ? existingCache : {}),
+                linkedSafes: nextLinked,
+            },
+        };
+
+        set({ notes: updatedNotes, metadataCache: updatedMetaCache });
+
+        try {
+            const currentMeta = (currentNote?.metadata as Record<string, unknown>) || {};
+            const newMetadata = { ...currentMeta, linkedSafes: nextLinked };
+            await apiFetch(`/api/v1/files/${noteId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ metadata: newMetadata }),
+            });
+        } catch (err) {
+            console.warn('[SAFES] Failed to persist linkedSafes to backend', err);
         }
     },
 });

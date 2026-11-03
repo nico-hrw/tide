@@ -78,4 +78,31 @@ export const DT = {
 export const glass = DT.glass;
 export const chip = DT.chip;
 export const tokens = DT;
+
+export const SAFE_PALETTE: Record<string, { light: string; dark: string; border: string; bg: string }> = {
+    main:     { light: '#4A6B82', dark: '#7EA2BD', border: '#cbd5e1', bg: 'rgba(74, 107, 130, 0.08)' }, // Muted Steel Blue
+    Standard: { light: '#4A6B82', dark: '#7EA2BD', border: '#cbd5e1', bg: 'rgba(74, 107, 130, 0.08)' }, // Muted Steel Blue
+    Archiv:   { light: '#8C6D46', dark: '#C4A47C', border: '#e2d9cc', bg: 'rgba(140, 109, 70, 0.08)' }, // Warm Muted Sand / Amber
+    Personal: { light: '#5E7A68', dark: '#8DAFA0', border: '#cce3d8', bg: 'rgba(94, 122, 104, 0.08)' }, // Sage
+    Work:     { light: '#70607A', dark: '#A493AE', border: '#ddd6e5', bg: 'rgba(112, 96, 122, 0.08)' }, // Muted Dusty Violet
+};
+
+export function getSafeColor(safeName?: string, isDark: boolean = false): string {
+    if (!safeName) return isDark ? '#94a3b8' : '#64748b';
+    const match = SAFE_PALETTE[safeName];
+    if (match) return isDark ? match.dark : match.light;
+    // Deterministic fallback from muted palette
+    const fallbackColors = [
+        { light: '#5A6B7C', dark: '#8FA3B8' },
+        { light: '#7C675A', dark: '#B89F8F' },
+        { light: '#5A7C6B', dark: '#8FB8A1' },
+        { light: '#6E5A7C', dark: '#A78FB8' },
+        { light: '#7C5A6E', dark: '#B88FA7' },
+    ];
+    let hash = 0;
+    for (let i = 0; i < safeName.length; i++) hash = safeName.charCodeAt(i) + ((hash << 5) - hash);
+    const idx = Math.abs(hash) % fallbackColors.length;
+    return isDark ? fallbackColors[idx].dark : fallbackColors[idx].light;
+}
+
 export default DT;

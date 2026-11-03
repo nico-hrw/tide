@@ -9,10 +9,25 @@ import SidebarNavTree from "./SidebarNavTree";
 export function filterFilesBySafe(files: DecryptedFile[], activeSafes: string[]): DecryptedFile[] {
     if (!files) return [];
     if (!activeSafes || activeSafes.length === 0) return files;
+
+    const normActiveSafes = activeSafes.map((s) => (s === 'Standard' ? 'main' : s));
+
     return files.filter((f) => {
         if (f.type === 'folder') return true;
-        const noteSafe = f.safe || (f.metadata && f.metadata.safe) || 'Standard';
-        return activeSafes.includes(noteSafe);
+
+        const rawSafe = f.safe || (f.metadata && f.metadata.safe) || 'main';
+        const primarySafe = rawSafe === 'Standard' ? 'main' : rawSafe;
+
+        if (normActiveSafes.includes(primarySafe)) return true;
+
+        const rawLinked: string[] = Array.isArray(f.linkedSafes)
+            ? f.linkedSafes
+            : Array.isArray(f.metadata?.linkedSafes)
+            ? f.metadata.linkedSafes
+            : [];
+        const normLinked = rawLinked.map((s) => (s === 'Standard' ? 'main' : s));
+
+        return normLinked.some((s) => normActiveSafes.includes(s));
     });
 }
 

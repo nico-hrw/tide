@@ -218,7 +218,7 @@ export default function TabList({
                                             }}
                                             title={getTabLabel(tab)}
                                             style={{ borderRadius: DT.radius }}
-                                            className={`group relative flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer transition-all duration-150 max-w-[190px] min-w-[100px] border
+                                            className={`group relative flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer hover:-translate-y-[1px] hover:shadow-xs active:translate-y-0 active:scale-[0.99] transition-all duration-150 max-w-[190px] min-w-[100px] border
                                                 ${isActive
                                                     ? 'bg-white dark:bg-slate-900 text-gray-900 dark:text-gray-100 shadow-sm border-gray-200/90 dark:border-slate-700/80 font-semibold'
                                                     : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-200/60 dark:hover:bg-slate-900/40 border-transparent'

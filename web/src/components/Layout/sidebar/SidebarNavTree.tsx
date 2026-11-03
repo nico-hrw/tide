@@ -1,8 +1,10 @@
+import { useState, useMemo } from "react";
 import { Folder, FolderOpen, ChevronRight, ChevronDown } from "lucide-react";
 import { motion } from "framer-motion";
 import type { DecryptedFile, ContextMenuEvent, DropIndicator, SidebarProps } from "./types";
 import { FileItem } from "./FileItem";
 import { FolderItem } from "./FolderItem";
+import { useDataStore } from "@/store/useDataStore";
 
 type NavTreeProps = Pick<SidebarProps, 'files' | 'onDeleteNote' | 'onRenameNote' | 'onToggleVisibility' | 'onShare' | 'editingFileId' | 'onRenameSubmit' | 'onCreateFolder' | 'onMoveItem' | 'hiddenThemeIds' | 'onToggleThemeVisibility' | 'enabledExtensions' | 'activeTabId' | 'openTabs'> & {
     myId: string;
@@ -26,8 +28,95 @@ export default function SidebarNavTree({
     isSharedFolderOpen, setIsSharedFolderOpen, orderedItems, dropIndicator, setDropIndicator, orderedNoteIds, setOrderedNoteIds,
     handleReorder, handleProtectedSelect, handleContextMenu,
 }: NavTreeProps) {
+    const activeSafes = useDataStore((s) => s.activeSafes);
+    const normActiveSafes = useMemo(() => (activeSafes || []).map((s) => (s === 'Standard' ? 'main' : s)), [activeSafes]);
+    const [isRelatedFolderOpen, setIsRelatedFolderOpen] = useState(true);
+
+    const relatedItems = useMemo(() => {
+        return files.filter((f) => {
+            if (f.type === 'folder' || f.type === 'event' || f.type === 'canvas-asset') return false;
+            const rawSafe = f.safe || (f.metadata && f.metadata.safe) || 'main';
+            const primarySafe = rawSafe === 'Standard' ? 'main' : rawSafe;
+            if (normActiveSafes.includes(primarySafe)) return false;
+
+            const rawLinked: string[] = Array.isArray(f.linkedSafes)
+                ? f.linkedSafes
+                : Array.isArray(f.metadata?.linkedSafes)
+                ? f.metadata.linkedSafes
+                : [];
+            const normLinked = rawLinked.map((s) => (s === 'Standard' ? 'main' : s));
+            const isLinked = normLinked.some((s) => normActiveSafes.includes(s));
+            if (!isLinked) return false;
+
+            // Check if assigned to a folder in the current active safe
+            if (f.parent_id) {
+                const parent = files.find((p) => p.id === f.parent_id);
+                if (parent && parent.type === 'folder') {
+                    const parentSafe = (parent.safe || parent.metadata?.safe || 'main') === 'Standard' ? 'main' : (parent.safe || parent.metadata?.safe || 'main');
+                    if (normActiveSafes.includes(parentSafe)) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        });
+    }, [files, normActiveSafes]);
+
+    const displayOrderedItems = useMemo(() => {
+        if (relatedItems.length === 0) return orderedItems;
+        const relatedIds = new Set(relatedItems.map((r) => r.id));
+        return orderedItems.filter((item) => !relatedIds.has(item.id));
+    }, [orderedItems, relatedItems]);
+
     return (
                 <div className="space-y-0.5">
+                    {relatedItems.length > 0 && (
+                        <div className="mb-1">
+                            <button
+                                onClick={() => setIsRelatedFolderOpen(o => !o)}
+                                className="group flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover transition-colors"
+                            >
+                                <div className="flex items-center gap-1.5 truncate flex-1">
+                                    <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300 transition-colors">
+                                        {isRelatedFolderOpen ? (
+                                            <ChevronDown size={12} className="shrink-0 transition-transform duration-150" />
+                                        ) : (
+                                            <ChevronRight size={12} className="shrink-0 transition-transform duration-150" />
+                                        )}
+                                    </span>
+                                    {isRelatedFolderOpen ? <FolderOpen size={15} className="text-blue-500 shrink-0" /> : <Folder size={15} className="text-blue-500 shrink-0" />}
+                                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">Verwandt</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+                                        {relatedItems.length}
+                                    </span>
+                                </div>
+                            </button>
+                            {isRelatedFolderOpen && (
+                                <div className="relative mt-0.5 ml-3 pl-2.5 border-l border-blue-200/60 dark:border-blue-800/40 space-y-0.5">
+                                    {relatedItems.map((item) => (
+                                        <FileItem
+                                            key={item.id}
+                                            file={item}
+                                            level={0}
+                                            onSelect={handleProtectedSelect}
+                                            onDelete={onDeleteNote}
+                                            onRename={onRenameNote}
+                                            onVisibility={onToggleVisibility}
+                                            onShare={onShare}
+                                            editingId={editingFileId}
+                                            onRenameSubmit={onRenameSubmit}
+                                            onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
+                                            enabledExtensions={enabledExtensions}
+                                            myId={myId}
+                                            onContextMenu={handleContextMenu}
+                                            activeTabId={activeTabId}
+                                            openTabs={openTabs}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
                     {sharedWithMeItems.length > 0 && (
                         <div className="mb-1">
                             <button
@@ -112,7 +201,7 @@ export default function SidebarNavTree({
                             )}
                         </div>
                     )}
-                    {orderedItems.map((item, i) => (
+                    {displayOrderedItems.map((item, i) => (
                         <motion.div
                             layout
                             key={item.id}

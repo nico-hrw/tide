@@ -11,22 +11,23 @@ export function ensureSafeIsActive(safeName?: string | null) {
     if (!safeName) return;
     try {
         const store = useDataStore.getState();
+        const normSafe = safeName === 'Standard' ? 'main' : safeName;
         const currentActive: string[] = Array.isArray(store.activeSafes) ? store.activeSafes : [];
         const isAlreadyActive =
             currentActive.includes('all') ||
-            currentActive.some((s: string) => s.toLowerCase() === safeName.toLowerCase());
+            currentActive.some((s: string) => s.toLowerCase() === normSafe.toLowerCase() || (normSafe === 'main' && s.toLowerCase() === 'standard'));
 
         if (!isAlreadyActive) {
             const nextActive = currentActive.length === 0
-                ? Array.from(new Set(['Standard', safeName]))
-                : Array.from(new Set([...currentActive, safeName]));
+                ? Array.from(new Set(['main', normSafe]))
+                : Array.from(new Set([...currentActive, normSafe]));
 
             if (typeof store.setActiveSafes === 'function') {
                 store.setActiveSafes(nextActive);
             } else if (typeof store.toggleSafe === 'function') {
-                store.toggleSafe(safeName);
+                store.toggleSafe(normSafe);
             } else if (typeof (store as unknown as Record<string, unknown>).toggleActiveSafe === 'function') {
-                ((store as unknown as Record<string, unknown>).toggleActiveSafe as (s: string) => void)(safeName);
+                ((store as unknown as Record<string, unknown>).toggleActiveSafe as (s: string) => void)(normSafe);
             } else {
                 useDataStore.setState({ activeSafes: nextActive });
             }
@@ -254,16 +255,25 @@ const MentionList = forwardRef((props: any, ref) => {
             if (isCreatingRef.current) return;
             isCreatingRef.current = true;
             try {
-                const targetSafe = (item as any).safe || 'Standard';
+                let targetSafe = (item as any).safe || 'main';
+                if (targetSafe === 'Standard') targetSafe = 'main';
                 const cleanTitle =
                     (item as any).cleanNoteTitle ||
                     ('title' in item ? item.title : undefined) ||
                     'Untitled';
 
-                ensureSafeIsActive(targetSafe);
-
                 const newId = await useDataStore.getState().createNote(cleanTitle);
                 await setNoteSafeInStore(newId, targetSafe);
+
+                const store = useDataStore.getState();
+                const activeNoteId = store.activeNoteId;
+                const currentNote = store.notes?.find((n) => n.id === activeNoteId);
+                const rawCurrentSafe = currentNote?.safe || currentNote?.metadata?.safe || store.activeSafes?.[0] || 'main';
+                const currentSafe = rawCurrentSafe === 'Standard' ? 'main' : rawCurrentSafe;
+
+                if (targetSafe !== currentSafe && typeof store.linkNoteToSafe === 'function') {
+                    store.linkNoteToSafe(newId, currentSafe);
+                }
 
                 props.command({
                     id: newId,
@@ -278,19 +288,50 @@ const MentionList = forwardRef((props: any, ref) => {
                 isCreatingRef.current = false;
             }
         } else if ('safe' in item && item.safe && item.type === 'note') {
-            ensureSafeIsActive(item.safe);
+            const itemSafe = item.safe === 'Standard' ? 'main' : item.safe;
+            const store = useDataStore.getState();
+            const activeNoteId = store.activeNoteId;
+            const currentNote = store.notes?.find((n) => n.id === activeNoteId);
+            const rawCurrentSafe = currentNote?.safe || currentNote?.metadata?.safe || store.activeSafes?.[0] || 'main';
+            const currentSafe = rawCurrentSafe === 'Standard' ? 'main' : rawCurrentSafe;
+
+            if (itemSafe !== currentSafe && typeof store.linkNoteToSafe === 'function') {
+                store.linkNoteToSafe(item.id, currentSafe);
+            }
+
             const noteTitle = ('title' in item && item.title) ? item.title : item.label;
             props.command({
                 ...item,
                 id: item.id,
-                label: `${item.safe}:${noteTitle}`,
+                label: `${itemSafe}:${noteTitle}`,
                 type: 'note',
-                safe: item.safe,
+                safe: itemSafe,
                 isGhost: false,
             });
         } else {
             const title = 'title' in item ? item.title : undefined;
-            props.command({ ...item, label: title || item.label });
+            const store = useDataStore.getState();
+            const realNote = store.notes?.find((n) => n.id === item.id);
+            if (realNote && item.type === 'note') {
+                const noteSafeRaw = realNote.safe || realNote.metadata?.safe || 'main';
+                const noteSafe = noteSafeRaw === 'Standard' ? 'main' : noteSafeRaw;
+                const activeNoteId = store.activeNoteId;
+                const currentNote = store.notes?.find((n) => n.id === activeNoteId);
+                const rawCurrentSafe = currentNote?.safe || currentNote?.metadata?.safe || store.activeSafes?.[0] || 'main';
+                const currentSafe = rawCurrentSafe === 'Standard' ? 'main' : rawCurrentSafe;
+
+                if (noteSafe !== currentSafe && typeof store.linkNoteToSafe === 'function') {
+                    store.linkNoteToSafe(item.id, currentSafe);
+                }
+
+                props.command({
+                    ...item,
+                    safe: noteSafe,
+                    label: noteSafe !== currentSafe ? `${noteSafe}:${title || item.label}` : (title || item.label),
+                });
+            } else {
+                props.command({ ...item, label: title || item.label });
+            }
         }
         useLinkStore.getState().setPendingLinkSource(null);
     };
@@ -601,13 +642,17 @@ export default {
         // 2.4 Cross-Safe @-Links (@safeName:query)
         if (query.includes(':')) {
             const colonIdx = query.indexOf(':');
-            const targetSafe = query.substring(0, colonIdx).trim();
+            let targetSafe = query.substring(0, colonIdx).trim();
+            if (targetSafe.toLowerCase() === 'standard') {
+                targetSafe = 'main';
+            }
             const subQuery = query.substring(colonIdx + 1).trim();
 
             if (targetSafe) {
                 const safeFilteredFiles = filteredFiles.filter((f: any) => {
-                    const noteSafe = (f.safe || f.metadata?.safe || 'Standard').trim();
-                    return noteSafe.toLowerCase() === targetSafe.toLowerCase();
+                    const noteSafe = (f.safe || f.metadata?.safe || 'main').trim();
+                    const normNoteSafe = noteSafe.toLowerCase() === 'standard' ? 'main' : noteSafe.toLowerCase();
+                    return normNoteSafe === targetSafe.toLowerCase();
                 });
 
                 const lowSub = subQuery.toLowerCase();

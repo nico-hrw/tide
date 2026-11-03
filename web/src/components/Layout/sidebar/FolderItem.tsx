@@ -179,7 +179,7 @@ export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRena
                         )}
                         {isLocked && (
                             <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[1px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
-                                <Lock size={8} className="text-amber-500" strokeWidth={2.5} />
+                                <Lock size={8} className="text-zinc-900 dark:text-zinc-100" strokeWidth={2.5} />
                             </span>
                         )}
                     </div>

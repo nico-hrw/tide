@@ -11,6 +11,12 @@ export const MentionNodeView = ({ node }: any) => {
     const label = node.attrs.label || 'Unknown';
     const isGhost = node.attrs.isGhost === true || node.attrs.isGhost === 'true' || String(id).startsWith('ghost-');
 
+    // Retrieve active note and currentSafe
+    const activeNoteId = useDataStore((s) => s.activeNoteId);
+    const currentNote = useDataStore((s) => s.notes.find((n) => n.id === activeNoteId));
+    const rawCurrentSafe = currentNote?.safe || currentNote?.metadata?.safe || 'main';
+    const currentSafe = rawCurrentSafe === 'Standard' ? 'main' : rawCurrentSafe;
+
     // Dynamically look up live title
     const liveFile = useDataStore((s) => s.notes.find(f => f.id === id) || s.events.find(e => e.id === id)) as any;
     const title = liveFile?.title || label;
@@ -19,23 +25,36 @@ export const MentionNodeView = ({ node }: any) => {
     const start = node.attrs.start;
     const isCompleted = liveFile?.is_completed || false;
 
+    // Helper to normalize safe names
+    const normalizeSafeName = (s?: string | null) => {
+        if (!s) return null;
+        const trimmed = s.trim();
+        return trimmed === 'Standard' ? 'main' : trimmed;
+    };
+
     // Cross-Safe link detection & safe indicator
     const rawSafe = (node.attrs.safe as string | undefined) || (liveFile?.safe as string | undefined) || ((liveFile?.metadata as Record<string, unknown> | undefined)?.safe as string | undefined);
-    let safePrefix: string | null = rawSafe || null;
+    let targetSafe: string | null = normalizeSafeName(rawSafe);
     let displayTitle = title;
 
-    if (!safePrefix && typeof label === 'string' && label.includes(':')) {
+    if (!targetSafe && typeof label === 'string' && label.includes(':')) {
         const colonIdx = label.indexOf(':');
-        safePrefix = label.substring(0, colonIdx).trim();
+        targetSafe = normalizeSafeName(label.substring(0, colonIdx));
     }
 
-    if (safePrefix) {
-        if (displayTitle.startsWith(`${safePrefix}:`)) {
-            displayTitle = displayTitle.substring(safePrefix.length + 1).trim();
-        } else if (typeof label === 'string' && label.startsWith(`${safePrefix}:`)) {
-            displayTitle = liveFile?.title || label.substring(safePrefix.length + 1).trim();
+    if (targetSafe) {
+        if (displayTitle.startsWith(`${targetSafe}:`)) {
+            displayTitle = displayTitle.substring(targetSafe.length + 1).trim();
+        } else if (displayTitle.startsWith('Standard:')) {
+            displayTitle = displayTitle.substring('Standard:'.length).trim();
+        } else if (typeof label === 'string' && (label.startsWith(`${targetSafe}:`) || label.startsWith('Standard:'))) {
+            const prefix = label.startsWith(`${targetSafe}:`) ? `${targetSafe}:` : 'Standard:';
+            displayTitle = liveFile?.title || label.substring(prefix.length).trim();
         }
     }
+
+    const showSafePrefix = targetSafe && targetSafe !== currentSafe;
+    const safePrefix = showSafePrefix ? targetSafe : null;
 
     const isEvent = !isFile && (type === 'event' || !!useDataStore.getState().events?.find(e => e.id === id));
     const ev = !isFile ? useDataStore.getState().events?.find(e => e.id === id) : undefined;
@@ -170,7 +189,7 @@ export const MentionNodeView = ({ node }: any) => {
                                 <span>{displayTitle}</span>
                             </>
                         ) : (
-                            title
+                            displayTitle
                         )}
                     </span>
                     {isEvent && eventMentionPreview === 'hover' && (

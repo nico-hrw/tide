@@ -5,6 +5,7 @@ export interface DataItem {
     title: string;
     type: string;
     safe?: string;
+    linkedSafes?: string[];
     [key: string]: any; // Allow extra properties like visibility, secured_meta for file UI
 }
 
@@ -211,6 +212,7 @@ export interface SafesSlice {
     createSafe: (name: string) => void;
     deleteSafe: (name: string) => void;
     setNoteSafe: (noteId: string, safeName: string) => Promise<void>;
+    linkNoteToSafe: (noteId: string, targetSafe: string) => Promise<void> | void;
 }
 
 export type DataStoreState = NotesSlice &

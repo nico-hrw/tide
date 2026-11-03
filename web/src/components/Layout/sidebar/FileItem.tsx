@@ -6,6 +6,7 @@ import { useHighlight } from "@/components/HighlightContext";
 import { useDataStore } from "@/store/useDataStore";
 import { useDragGhost } from "@/store/useDragGhost";
 import { apiFetch } from "@/lib/api";
+import { getSafeColor } from "@/lib/designTokens";
 import type { DecryptedFile, ContextMenuEvent } from "./types";
 
 export const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0));
@@ -57,6 +58,9 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
     const startGhost = useDragGhost(s => s.startGhost);
     const [isCalendarDropTarget, setIsCalendarDropTarget] = useState(false);
     const activeNoteId = useDataStore(s => s.activeNoteId);
+    const theme = useDataStore(s => s.theme);
+    const isDark = theme === 'dark';
+    const safeColor = getSafeColor(file.safe || file.metadata?.safe, isDark);
 
     // Active state and Open tabs state
     const isActive = activeTabId === file.id || activeNoteId === file.id;
@@ -235,22 +239,42 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
             className={`group flex items-center justify-between w-full px-2 py-1 min-h-[28px] rounded-lg cursor-pointer transition-all duration-150
                 ${isCalendarDropTarget ? 'ring-2 ring-violet-400 bg-violet-50 dark:bg-violet-900/20' : ''}
                 ${isActive
-                    ? 'bg-blue-100/90 dark:bg-blue-950/60 text-blue-900 dark:text-blue-100 font-semibold ring-1 ring-blue-400/40'
+                    ? 'bg-gray-200/80 dark:bg-white/10 text-gray-950 dark:text-gray-100 font-semibold ring-1 ring-gray-300/50 dark:ring-white/15'
                     : isOpen
-                        ? 'bg-blue-50/75 dark:bg-blue-950/30 text-blue-800 dark:text-blue-200 font-medium'
+                        ? 'bg-gray-100/70 dark:bg-white/5 text-gray-800 dark:text-gray-200 font-medium'
                         : 'hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover text-gray-700 dark:text-gray-300'
                 }`}
         >
             <div className="flex items-center gap-2 truncate flex-1 flex-shrink-0">
                 <div className="relative shrink-0 flex items-center justify-center">
                     {file.type === 'canvas' ? (
-                        <Layout size={15} className={`shrink-0 ${isActive || isOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
+                        <Layout
+                            size={15}
+                            className={`shrink-0 ${
+                                isActive
+                                    ? 'text-gray-950 dark:text-white'
+                                    : isOpen
+                                        ? 'text-gray-800 dark:text-gray-200'
+                                        : ''
+                            }`}
+                            style={!isActive && !isOpen ? { color: safeColor } : undefined}
+                        />
                     ) : (
-                        <FileText size={15} className={`shrink-0 ${isActive || isOpen ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-slate-500'}`} />
+                        <FileText
+                            size={15}
+                            className={`shrink-0 ${
+                                isActive
+                                    ? 'text-gray-950 dark:text-white'
+                                    : isOpen
+                                        ? 'text-gray-800 dark:text-gray-200'
+                                        : ''
+                            }`}
+                            style={!isActive && !isOpen ? { color: safeColor } : undefined}
+                        />
                     )}
                     {isLocked && (
                         <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[1px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
-                            <Lock size={8} className="text-amber-500" strokeWidth={2.5} />
+                            <Lock size={8} className="text-zinc-900 dark:text-zinc-100" strokeWidth={2.5} />
                         </span>
                     )}
                 </div>
@@ -270,9 +294,9 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
                 ) : (
                     <span className={`text-sm truncate transition-colors ${
                         isActive
-                            ? 'text-blue-950 dark:text-blue-100 font-semibold'
+                            ? 'text-gray-950 dark:text-gray-100 font-semibold'
                             : isOpen
-                                ? 'text-blue-800 dark:text-blue-200 font-medium'
+                                ? 'text-gray-800 dark:text-gray-200 font-medium'
                                 : 'text-gray-700 dark:text-gray-300 font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100'
                     } ${file.owner_id && myId && file.owner_id !== myId ? 'purple-shimmer-text' : ''}`}>
                         {(highlight.isSelectingLink || isHighlighted(file.id, 'file')) ? <AnimatedLinkingText text={file.title.startsWith('#') ? file.title.slice(1).trim() : file.title} index={index} /> : (file.title.startsWith('#') ? file.title.slice(1).trim() : file.title)}
