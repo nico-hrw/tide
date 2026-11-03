@@ -19,7 +19,7 @@ import ProfilePage from "@/components/Profile/ProfilePage";
 import SocialHub from "@/components/Social/SocialHub";
 import dynamic from 'next/dynamic';
 import { getTranslation, useTranslation } from "@/lib/i18n";
-import { Node as ProseMirrorNode } from '@tiptap/pm/model';
+import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { JSONContent } from '@tiptap/react';
 import { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import { TodoList } from '../components/Todo/TodoList';
@@ -201,18 +201,19 @@ export default function Dashboard() {
     const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen?: boolean; fileId: string; isShared: boolean; isFolder: boolean } | null>(null);
 
     // Data State (selectors)
-    const {
-        notes: storeFiles,
-        events: storeEvents,
-        tasks: storeTasks,
-        setKeys,
-        fetchDirectory,
-        loadedDirectories,
-        enabledExtensions, setEnabledExtensions,
-        noteLayout, setNoteLayout,
-        isSettingsModalOpen, setSettingsModalOpen,
-        navigationMode
-    } = useDataStore();
+    const storeFiles = useDataStore(s => s.notes);
+    const storeEvents = useDataStore(s => s.events);
+    const storeTasks = useDataStore(s => s.tasks);
+    const setKeys = useDataStore(s => s.setKeys);
+    const fetchDirectory = useDataStore(s => s.fetchDirectory);
+    const loadedDirectories = useDataStore(s => s.loadedDirectories);
+    const enabledExtensions = useDataStore(s => s.enabledExtensions);
+    const setEnabledExtensions = useDataStore(s => s.setEnabledExtensions);
+    const noteLayout = useDataStore(s => s.noteLayout);
+    const setNoteLayout = useDataStore(s => s.setNoteLayout);
+    const isSettingsModalOpen = useDataStore(s => s.isSettingsModalOpen);
+    const setSettingsModalOpen = useDataStore(s => s.setSettingsModalOpen);
+    const navigationMode = useDataStore(s => s.navigationMode);
     const shouldShowSidebar = isSidebarOpen && navigationMode !== 'folders';
     const deleteTask = useDataStore(s => s.deleteTask);
     const updateTask = useDataStore(s => s.updateTask);

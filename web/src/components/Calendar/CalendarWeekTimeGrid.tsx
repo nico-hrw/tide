@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import type { ComponentProps } from "react";
 import type { MotionValue } from "framer-motion";
 import { format, addDays, isSameDay } from "date-fns";
 import DayColumn from "@/components/Calendar/DayColumn";
 import { DragGhost } from "./DragGhost";
 import type { CalendarEvent, CalendarViewProps, CreationDrag, DragState, ResizeDragState } from "./types";
+
+const EMPTY_ARRAY: CalendarEvent[] = [];
 
 interface CalendarWeekTimeGridProps {
     loadedWeeks: Date[];
@@ -67,6 +69,71 @@ export function CalendarWeekTimeGrid({
     // --- Hover State ---
     const [hoveredHour, setHoveredHour] = useState<number | null>(null);
 
+    // Stable day dates array across renders
+    const days = useMemo(() => {
+        return loadedWeeks.flatMap(weekStart =>
+            Array.from({ length: 7 }, (_, i) => {
+                const day = addDays(weekStart, i);
+                return {
+                    day,
+                    dayKey: format(day, "yyyy-MM-dd"),
+                    iso: day.toISOString(),
+                };
+            })
+        );
+    }, [loadedWeeks]);
+
+    // Memoize combined day events per day to prevent new array references every render
+    const combinedEventsByDay = useMemo(() => {
+        const map = new Map<string, CalendarEvent[]>();
+        for (const { dayKey } of days) {
+            const dayEvents = eventsByDay.timedMap.get(dayKey);
+            const allDayEventsGroup = eventsByDay.allDayMap.get(dayKey);
+
+            if (!dayEvents && !allDayEventsGroup) {
+                map.set(dayKey, EMPTY_ARRAY);
+            } else if (!allDayEventsGroup || allDayEventsGroup.length === 0) {
+                map.set(dayKey, dayEvents || EMPTY_ARRAY);
+            } else if (!dayEvents || dayEvents.length === 0) {
+                map.set(dayKey, allDayEventsGroup);
+            } else {
+                map.set(dayKey, [...dayEvents, ...allDayEventsGroup]);
+            }
+        }
+        return map;
+    }, [days, eventsByDay]);
+
+    // Stable callback handlers for DayColumn memoization
+    const handleEventDelete = useCallback((id: string) => {
+        if (onEventDelete) {
+            onEventDelete(id);
+        }
+    }, [onEventDelete]);
+
+    const handleHeaderClick = useCallback((clickedDay: Date) => {
+        // Create all-day event
+        const start = new Date(clickedDay);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(clickedDay);
+        end.setHours(23, 59, 59, 999);
+
+        if (onEventCreate) {
+            onEventCreate(start, end, true, { title: 'New All-Day Event', allDay: true });
+        }
+    }, [onEventCreate]);
+
+    const handleTaskToggle = useCallback((id: string, currentIsCompleted: boolean) => {
+        if (onEventSave) {
+            onEventSave(id, { is_completed: !currentIsCompleted });
+        }
+    }, [onEventSave]);
+
+    const handleEventDrop = useCallback(async (eventId: string, start: Date, end: Date) => {
+        if (onEventUpdate) {
+            await onEventUpdate(eventId, start, end);
+        }
+    }, [onEventUpdate]);
+
     return (
         <>
                 {/* Time Column (Sticky Left) */}
@@ -88,67 +155,47 @@ export function CalendarWeekTimeGrid({
 
 
                 {
-                    loadedWeeks.map(weekStart => {
-                        return Array.from({ length: 7 }).map((_, i) => {
-                            const day = addDays(weekStart, i);
-                            const dayKey = format(day, "yyyy-MM-dd");
-                            const dayEvents = eventsByDay.timedMap.get(dayKey) || [];
-                            const allDayEventsGroup = eventsByDay.allDayMap.get(dayKey) || [];
+                    days.map(({ day, dayKey, iso }) => {
+                        const dayCombinedEvents = combinedEventsByDay.get(dayKey) || EMPTY_ARRAY;
+                        const isToday = isSameDay(day, new Date());
 
-                            return (
-                                <DayColumn
-                                    key={day.toISOString()}
-                                    day={day}
-                                    events={[...dayEvents, ...allDayEventsGroup]}
-                                    allEvents={events}
-                                    isToday={isSameDay(day, new Date())}
-                                    dayIndexOffset={Math.floor((day.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
-                                    currentTime={currentTime}
-                                    hoveredHour={hoveredHour}
-                                    onHourHover={setHoveredHour}
-                                    onEventClick={onDayEventClick}
-                                    onEventCreate={onEventCreate}
-                                    onEventShare={onEventShare}
-                                    onEventDelete={onEventDelete ? (id) => onEventDelete(id) : undefined}
-                                    onGridMouseDown={onGridMouseDown}
-                                    onEventMouseDown={onEventMouseDown}
-                                    onResizeMouseDown={onResizeMouseDown}
-                                    // DnD States
-                                    draggingId={draggingId}
-                                    dragState={dragState}
-                                    creationDrag={creationDrag}
-                                    resizingId={resizingId}
-                                    resizeDragState={resizeDragState}
-                                    // Performance MotionValues
-                                    resizeHeightMV={resizeHeightMV}
-                                    creationEndYMV={creationEndYMV}
-                                    onHeaderClick={(clickedDay) => {
-                                        // Create all-day event
-                                        const start = new Date(clickedDay);
-                                        start.setHours(0, 0, 0, 0);
-                                        const end = new Date(clickedDay);
-                                        end.setHours(23, 59, 59, 999);
-
-                                        if (onEventCreate) {
-                                            onEventCreate(start, end, true, { title: 'New All-Day Event', allDay: true });
-                                        }
-                                    }}
-                                    onTaskToggle={(id, currentIsCompleted) => {
-                                        if (onEventSave) onEventSave(id, { is_completed: !currentIsCompleted });
-                                    }}
-                                    onEventRename={onEventRename}
-                                    snapInterval={isPreciseModeRef.current ? 1 : 10}
-                                    isMagnified={isPreciseMode}
-                                    onEventDrop={async (eventId: string, start: Date, end: Date) => {
-                                        if (onEventUpdate) {
-                                            await onEventUpdate(eventId, start, end);
-                                        }
-                                    }}
-                                    cursorX={cursorX}
-                                    cursorY={cursorY}
-                                    />
-                            );
-                        });
+                        return (
+                            <DayColumn
+                                key={iso}
+                                day={day}
+                                events={dayCombinedEvents}
+                                allEvents={events}
+                                isToday={isToday}
+                                dayIndexOffset={Math.floor((day.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))}
+                                currentTime={isToday ? currentTime : undefined}
+                                hoveredHour={hoveredHour}
+                                onHourHover={setHoveredHour}
+                                onEventClick={onDayEventClick}
+                                onEventCreate={onEventCreate}
+                                onEventShare={onEventShare}
+                                onEventDelete={onEventDelete ? handleEventDelete : undefined}
+                                onGridMouseDown={onGridMouseDown}
+                                onEventMouseDown={onEventMouseDown}
+                                onResizeMouseDown={onResizeMouseDown}
+                                // DnD States
+                                draggingId={draggingId}
+                                dragState={dragState}
+                                creationDrag={creationDrag}
+                                resizingId={resizingId}
+                                resizeDragState={resizeDragState}
+                                // Performance MotionValues
+                                resizeHeightMV={resizeHeightMV}
+                                creationEndYMV={creationEndYMV}
+                                onHeaderClick={handleHeaderClick}
+                                onTaskToggle={handleTaskToggle}
+                                onEventRename={onEventRename}
+                                snapInterval={isPreciseModeRef.current ? 1 : 10}
+                                isMagnified={isPreciseMode}
+                                onEventDrop={handleEventDrop}
+                                cursorX={cursorX}
+                                cursorY={cursorY}
+                            />
+                        );
                     })
                 }
 

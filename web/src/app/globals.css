@@ -492,11 +492,6 @@ body {
   overflow: hidden;
 }
 
-[class*="backdrop-blur"] {
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
-
 .liquidGlass-tint {
   z-index: 1;
   position: absolute;

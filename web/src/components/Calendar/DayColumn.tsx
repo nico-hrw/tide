@@ -233,6 +233,23 @@ const getEventTheme = (evt: CalendarEvent, palette: 'modern-dark' | 'soft-pastel
     return { bg: '#64748B', text: '#FFFFFF', border: '#64748B' };
 };
 
+const EMPTY_ALL_EVENTS: CalendarEvent[] = [];
+const EMPTY_LAYOUT_MAP = new Map<string, { left: number; width: number }>();
+
+function areLayoutsEqual(
+    a: Map<string, { left: number; width: number }>,
+    b: Map<string, { left: number; width: number }>
+): boolean {
+    if (a === b) return true;
+    if (a.size !== b.size) return false;
+    for (const [id, posA] of a) {
+        const posB = b.get(id);
+        if (!posB) return false;
+        if (posA.left !== posB.left || posA.width !== posB.width) return false;
+    }
+    return true;
+}
+
 const DayColumnBase: React.FC<DayColumnProps> = ({
     day,
     events,
@@ -265,7 +282,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     onEventCreate,
     cursorX,
     cursorY,
-    allEvents = [],
+    allEvents = EMPTY_ALL_EVENTS,
     readOnly = false,
     hourHeight = 60
 }: DayColumnProps) => {
@@ -372,7 +389,20 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
 
     const calendarOverlapMode = useDataStore(s => s.calendarOverlapMode || 'stack');
     const calendarColorPalette = useDataStore(s => s.calendarColorPalette || 'modern-dark');
-    const layout = useMemo(() => arrangeEvents(timedEvents, day, allEvents, calendarOverlapMode), [timedEvents, day, allEvents, calendarOverlapMode]);
+    const prevLayoutRef = useRef<Map<string, { left: number; width: number }>>(EMPTY_LAYOUT_MAP);
+    const dayTimestamp = day.getTime();
+    const layout = useMemo(() => {
+        if (timedEvents.length === 0) {
+            prevLayoutRef.current = EMPTY_LAYOUT_MAP;
+            return EMPTY_LAYOUT_MAP;
+        }
+        const nextLayout = arrangeEvents(timedEvents, day, allEvents, calendarOverlapMode);
+        if (areLayoutsEqual(nextLayout, prevLayoutRef.current)) {
+            return prevLayoutRef.current;
+        }
+        prevLayoutRef.current = nextLayout;
+        return nextLayout;
+    }, [timedEvents, dayTimestamp, allEvents, calendarOverlapMode]);
     const currentTimeTop = currentTime ? getHours(currentTime) * 60 + getMinutes(currentTime) + currentTime.getSeconds() / 60 : 0;
 
     const now = currentTime || new Date();
@@ -595,7 +625,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             {/* All-Day Events Area */}
             {allDayEvents.length > 0 && (
                 <div className="sticky top-[50px] z-[65] w-full h-0 pointer-events-auto">
-                    <div className="absolute top-0 left-0 right-0 w-[140px] md:w-[155px] lg:w-[185px] xl:w-[210px] bg-white/30 dark:bg-slate-900/40 backdrop-blur-2xl p-1 flex flex-col gap-1 border-b border-gray-200/60 dark:border-slate-800/60 rounded-b-xl">
+                    <div className="absolute top-0 left-0 right-0 w-[140px] md:w-[155px] lg:w-[185px] xl:w-[210px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm p-1 flex flex-col gap-1 border-b border-gray-200/60 dark:border-slate-800/60 rounded-b-xl">
                         {regularAllDayEvents.map(event => {
                             const theme = getEventTheme(event, calendarColorPalette);
                             const isHighlightedEvent = isHighlighted(event.id, 'event');

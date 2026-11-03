@@ -11,7 +11,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const [authorized, setAuthorized] = useState(false);
 
-    const { theme, themePreference, setThemePreference } = useDataStore();
+    const theme = useDataStore(s => s.theme);
+    const themePreference = useDataStore(s => s.themePreference);
+    const setThemePreference = useDataStore(s => s.setThemePreference);
 
     useEffect(() => {
         // Initialize theme class

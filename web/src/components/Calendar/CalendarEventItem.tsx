@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, useTransform, MotionValue } from 'framer-motion';
 import { format, getHours, getMinutes, isSameDay } from 'date-fns';
 import { useHighlight } from '@/components/HighlightContext';
@@ -187,6 +187,8 @@ export const getEffectStyle = (effect: string | undefined): React.CSSProperties 
     return undefined;
 };
 
+const EMPTY_NOTE_META_MAP: Record<string, { title: string; color?: string }> = Object.freeze({});
+
 const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     day,
     event,
@@ -214,26 +216,69 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const { highlight, isHighlighted } = useHighlight();
     const activeParentId = useDataStore(state => state.activeParentId);
     const setActiveParentId = useDataStore(state => state.setActiveParentId);
-    const notes = useDataStore(state => state.notes);
     const myId = useDataStore(state => state.myId) || (typeof window !== 'undefined' ? (localStorage.getItem("tide_user_id") || sessionStorage.getItem("tide_user_id") || "") : "");
-    const contacts = useSocialStore(state => state.contacts);
+    const ownerPartnerUsername = useSocialStore(
+        useCallback((state) => {
+            if (!event.owner_id) return undefined;
+            return state.contacts.find(c => c.partner?.id === event.owner_id)?.partner?.username;
+        }, [event.owner_id])
+    );
 
     const isShared = event.share_status === 'accepted' || (!!event.owner_id && event.owner_id !== myId);
-    const ownerPartner = event.owner_id ? contacts.find(c => c.partner?.id === event.owner_id)?.partner : undefined;
-    const ownerName = ownerPartner?.username || 'Geteilt';
-    const attributionText = ownerPartner?.username ? `Aus dem Kalender von ${ownerName}` : 'Geteilt';
+    const ownerName = ownerPartnerUsername || 'Geteilt';
+    const attributionText = ownerPartnerUsername ? `Aus dem Kalender von ${ownerName}` : 'Geteilt';
     const effectiveColor = resolveEventColor(event.color);
 
+    // Pre-calculate secondary group IDs (excluding primary group at index 0)
+    const secondaryGroupIds = useMemo(() => {
+        return getEventGroupIds(event).slice(1);
+    }, [event.groupIds, event.parent_id]);
+
+    // Targeted note metadata selector: Only subscribes to the specific note(s) referenced by
+    // secondaryGroupIds, extracting only title and color with a targeted equality check.
+    // If there are no secondary groups, returns stable EMPTY_NOTE_META_MAP to eliminate
+    // whole-store re-renders when notes in the store are modified.
+    const secondaryNoteMeta = useDataStore(
+        useCallback((state) => {
+            if (!secondaryGroupIds.length) return EMPTY_NOTE_META_MAP;
+            const result: Record<string, { title: string; color?: string }> = {};
+            let hasAny = false;
+            for (const gid of secondaryGroupIds) {
+                if (themes?.some(t => t.id === gid)) continue;
+                const n = state.notes?.find(note => note.id === gid);
+                if (n) {
+                    hasAny = true;
+                    result[gid] = {
+                        title: n.title,
+                        color: typeof n.color === 'string' ? n.color : undefined,
+                    };
+                }
+            }
+            return hasAny ? result : EMPTY_NOTE_META_MAP;
+        }, [secondaryGroupIds, themes]),
+        (prev, next) => {
+            if (prev === next) return true;
+            const prevKeys = Object.keys(prev);
+            const nextKeys = Object.keys(next);
+            if (prevKeys.length !== nextKeys.length) return false;
+            for (const key of prevKeys) {
+                const p = prev[key];
+                const n = next[key];
+                if (!n || p.title !== n.title || p.color !== n.color) return false;
+            }
+            return true;
+        }
+    );
+
     // Secondary group badges & event tags
-    const displayBadges = React.useMemo(() => {
+    const displayBadges = useMemo(() => {
         const badges: { id: string; label: string; color?: string }[] = [];
         const seenLabels = new Set<string>();
 
         // 1. Secondary group tags (classification badges from additional groups)
-        const secondaryGroupIds = getEventGroupIds(event).slice(1);
         for (const gid of secondaryGroupIds) {
             const matchedTheme = themes?.find(t => t.id === gid);
-            const matchedNote = !matchedTheme ? notes?.find(n => n.id === gid) : undefined;
+            const matchedNote = !matchedTheme ? secondaryNoteMeta[gid] : undefined;
             const matchedEvent = (!matchedTheme && !matchedNote && allEvents) ? allEvents.find(e => e.id === gid) : undefined;
             const label = matchedTheme?.title || matchedNote?.title || matchedEvent?.title || gid;
             const rawGroupColor = matchedTheme?.color || (typeof matchedNote?.color === 'string' ? matchedNote.color : undefined) || matchedEvent?.color;
@@ -265,14 +310,17 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         }
 
         return badges;
-    }, [event, themes, notes, allEvents, effectiveColor]);
+    }, [event.tags, secondaryGroupIds, themes, secondaryNoteMeta, allEvents, effectiveColor]);
 
     // If the event has a linkedTaskId, read completion state from the task store (source of truth)
     // so all taskMention nodes in notes update instantly via the same Zustand selector.
-    const linkedTaskIsCompleted = useDataStore(state => {
-        if (!(event as any).linkedTaskId) return undefined;
-        return state.tasks.find(t => t.id === (event as any).linkedTaskId)?.isCompleted;
-    });
+    const linkedTaskId = (event as any).linkedTaskId as string | undefined;
+    const linkedTaskIsCompleted = useDataStore(
+        useCallback((state) => {
+            if (!linkedTaskId) return undefined;
+            return state.tasks.find(t => t.id === linkedTaskId)?.isCompleted;
+        }, [linkedTaskId])
+    );
     const isCompleted = linkedTaskIsCompleted !== undefined ? linkedTaskIsCompleted : !!event.is_completed;
 
     const start = new Date(event.start);
@@ -497,6 +545,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 WebkitTouchCallout: 'none',
                 WebkitUserSelect: 'none',
                 userSelect: 'none',
+                transition: isDragging || isResizing ? 'none' : 'transform 0.15s ease, opacity 0.15s ease',
                 ...(shouldGlow ? {
                     boxShadow: `inset 0 0 0 1px ${glowColor}, inset 0 0 15px ${glowColor}30`,
                     zIndex: 65,
@@ -529,7 +578,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     setIsLinkingMode(false);
                 }
             }}
-            className={`event-item group absolute ${isTimePoint ? 'px-1.5 py-0 overflow-visible rounded-sm' : isShortEvent ? 'px-2.5 py-0 overflow-hidden' : durationMinutes < 45 ? 'px-3 py-1.5 overflow-hidden' : 'px-3.5 py-3 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-all ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''} ${shouldGlow ? 'event-shimmer' : ''}`}
+            className={`event-item group absolute ${isTimePoint ? 'px-1.5 py-0 overflow-visible rounded-sm' : isShortEvent ? 'px-2.5 py-0 overflow-hidden' : durationMinutes < 45 ? 'px-3 py-1.5 overflow-hidden' : 'px-3.5 py-3 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-[opacity,transform] duration-150 ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''} ${shouldGlow ? 'event-shimmer' : ''}`}
             onClick={(e) => {
                 e.stopPropagation();
 
@@ -675,7 +724,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                                     onTaskToggle?.(event.id, isCompleted);
                                 }
                             }}
-                            className={`w-3 h-3 rounded-[3px] border border-current flex-shrink-0 flex items-center justify-center cursor-pointer transition-all hover:scale-110 z-[80] ${isCompleted ? 'opacity-40' : 'opacity-100'}`}
+                            className={`w-3 h-3 rounded-[3px] border border-current flex-shrink-0 flex items-center justify-center cursor-pointer transition-transform duration-150 hover:scale-110 z-[80] ${isCompleted ? 'opacity-40' : 'opacity-100'}`}
                             style={{ borderColor: theme.text, color: theme.text }}
                         >
                             {isCompleted && (
@@ -716,7 +765,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                                     onTaskToggle?.(event.id, isCompleted);
                                 }
                             }}
-                            className={`mt-[2px] w-3 h-3 rounded-[3px] border border-current flex-shrink-0 flex items-center justify-center cursor-pointer transition-all hover:scale-110 z-[80] ${isCompleted ? 'opacity-40' : 'opacity-100'}`}
+                            className={`mt-[2px] w-3 h-3 rounded-[3px] border border-current flex-shrink-0 flex items-center justify-center cursor-pointer transition-transform duration-150 hover:scale-110 z-[80] ${isCompleted ? 'opacity-40' : 'opacity-100'}`}
                             style={{ borderColor: theme.text, color: theme.text }}
                         >
                             {isCompleted && (
@@ -812,4 +861,90 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     );
 };
 
-export const CalendarEventItem = React.memo(CalendarEventItemBase);
+const areArraysShallowEqual = (a?: string[], b?: string[]): boolean => {
+    if (a === b) return true;
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+    }
+    return true;
+};
+
+const areEventPropsEqual = (prev: CalendarEventItemProps, next: CalendarEventItemProps): boolean => {
+    if (prev === next) return true;
+
+    // 1. Event property equality
+    const pe = prev.event;
+    const ne = next.event;
+    if (pe !== ne) {
+        if (
+            pe.id !== ne.id ||
+            pe.title !== ne.title ||
+            pe.start !== ne.start ||
+            pe.end !== ne.end ||
+            pe.color !== ne.color ||
+            pe.effect !== ne.effect ||
+            pe.description !== ne.description ||
+            pe.allDay !== ne.allDay ||
+            pe.is_task !== ne.is_task ||
+            pe.is_completed !== ne.is_completed ||
+            pe.is_cancelled !== ne.is_cancelled ||
+            pe.shading !== ne.shading ||
+            pe.linkedTaskId !== ne.linkedTaskId ||
+            pe.is_public !== ne.is_public ||
+            pe.parent_id !== ne.parent_id ||
+            pe.owner_id !== ne.owner_id ||
+            pe.share_status !== ne.share_status ||
+            pe.permission !== ne.permission ||
+            (pe as any).is_important !== (ne as any).is_important ||
+            !areArraysShallowEqual(pe.groupIds, ne.groupIds) ||
+            !areArraysShallowEqual(pe.tags, ne.tags)
+        ) {
+            return false;
+        }
+    }
+
+    // 2. Dragging & resizing state for THIS event
+    const wasDragging = prev.draggingId === pe.id;
+    const isDragging = next.draggingId === ne.id;
+    if (wasDragging !== isDragging) return false;
+
+    const wasResizing = prev.resizingId === pe.id;
+    const isResizing = next.resizingId === ne.id;
+    if (wasResizing !== isResizing) return false;
+
+    // 3. Magnified state
+    if (prev.isMagnified !== next.isMagnified) return false;
+
+    // 4. Parent state
+    if (prev.isParent !== next.isParent) return false;
+
+    // 5. Day offset & day timestamp
+    if (prev.dayIndexOffset !== next.dayIndexOffset) return false;
+    if ((prev.day?.getTime() ?? 0) !== (next.day?.getTime() ?? 0)) return false;
+
+    // 6. Layout coordinates for this specific event
+    const prevPos = prev.layout?.get(pe.id);
+    const nextPos = next.layout?.get(ne.id);
+    if (prevPos?.left !== nextPos?.left || prevPos?.width !== nextPos?.width) return false;
+
+    // 7. Context collections
+    if (prev.timedEvents !== next.timedEvents) return false;
+    if (prev.allEvents !== next.allEvents) return false;
+    if (prev.themes !== next.themes) return false;
+
+    // 8. Callbacks & motion values
+    if (prev.cursorX !== next.cursorX || prev.cursorY !== next.cursorY) return false;
+    if (prev.resizeHeightMV !== next.resizeHeightMV || prev.fallbackMV !== next.fallbackMV) return false;
+    if (prev.onEventClick !== next.onEventClick) return false;
+    if (prev.onEventShare !== next.onEventShare) return false;
+    if (prev.onEventDelete !== next.onEventDelete) return false;
+    if (prev.onEventMouseDown !== next.onEventMouseDown) return false;
+    if (prev.onResizeMouseDown !== next.onResizeMouseDown) return false;
+    if (prev.onTaskToggle !== next.onTaskToggle) return false;
+    if (prev.onEventRename !== next.onEventRename) return false;
+
+    return true;
+};
+
+export const CalendarEventItem = React.memo(CalendarEventItemBase, areEventPropsEqual);

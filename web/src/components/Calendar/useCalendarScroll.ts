@@ -35,18 +35,29 @@ export function useCalendarScroll({
     const [todayAngle, setTodayAngle] = useState<number>(0);
 
     // Track today column visibility & direction angle to current time
+    // Throttled via requestAnimationFrame to avoid forced layout reflows and state churn on every scroll tick
     useEffect(() => {
         const container = scrollContainerRef.current;
         if (!container) return;
+
+        let rafId: number | null = null;
+
         const check = () => {
+            rafId = null;
             const todayIso = format(new Date(), "yyyy-MM-dd");
             const todayCol = container.querySelector(`[data-day-col="${todayIso}"]`) as HTMLElement | null;
-            if (!todayCol) { setTodayButtonDir('hidden'); return; }
+            if (!todayCol) {
+                setTodayButtonDir(prev => prev !== 'hidden' ? 'hidden' : prev);
+                return;
+            }
             const colRect = todayCol.getBoundingClientRect();
             const cRect = container.getBoundingClientRect();
-            if (colRect.right < cRect.left + 80) setTodayButtonDir('left');
-            else if (colRect.left > cRect.right - 80) setTodayButtonDir('right');
-            else setTodayButtonDir('hidden');
+
+            let newDir: 'hidden' | 'left' | 'right' = 'hidden';
+            if (colRect.right < cRect.left + 80) newDir = 'left';
+            else if (colRect.left > cRect.right - 80) newDir = 'right';
+
+            setTodayButtonDir(prev => prev !== newDir ? newDir : prev);
 
             const now = new Date();
             const nowMinutes = now.getHours() * 60 + now.getMinutes();
@@ -55,17 +66,28 @@ export function useCalendarScroll({
             const todayTargetX = colRect.left + (colRect.width / 2);
             const todayTargetY = cRect.top + (todayYInContainer - container.scrollTop);
 
-            const buttonX = colRect.right < cRect.left + 80 ? cRect.left + 90 : cRect.right - 40;
+            const buttonX = newDir === 'left' ? cRect.left + 90 : cRect.right - 40;
             const buttonY = cRect.top + (cRect.height / 2);
 
             const dx = todayTargetX - buttonX;
             const dy = todayTargetY - buttonY;
-            const angle = Math.atan2(dy, dx) * (180 / Math.PI);
-            setTodayAngle(angle);
+            const angle = Math.round(Math.atan2(dy, dx) * (180 / Math.PI));
+            setTodayAngle(prev => prev !== angle ? angle : prev);
         };
-        container.addEventListener('scroll', check, { passive: true });
+
+        const onScrollCheck = () => {
+            if (rafId === null) {
+                rafId = requestAnimationFrame(check);
+            }
+        };
+
+        container.addEventListener('scroll', onScrollCheck, { passive: true });
         const t = setTimeout(check, 300);
-        return () => { container.removeEventListener('scroll', check); clearTimeout(t); };
+        return () => {
+            container.removeEventListener('scroll', onScrollCheck);
+            if (rafId !== null) cancelAnimationFrame(rafId);
+            clearTimeout(t);
+        };
     }, [loadedWeeks, scrollContainerRef.current]);
 
     const handleScrollToToday = useCallback(() => {
@@ -132,6 +154,32 @@ export function useCalendarScroll({
         };
     }, [loadedWeeks, updateVisibleRange]);
 
+    // Debounced storage helper: persists scroll position 300ms after scrolling stops
+    // to avoid blocking UI thread / scroll frames with synchronous disk I/O.
+    const saveScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const debouncedSaveScroll = useCallback((scrollX: number, scrollY: number) => {
+        if (saveScrollTimeoutRef.current) {
+            clearTimeout(saveScrollTimeoutRef.current);
+        }
+        saveScrollTimeoutRef.current = setTimeout(() => {
+            try {
+                localStorage.setItem("tide_calendar_scroll_x", scrollX.toString());
+                localStorage.setItem("tide_calendar_scroll_y", scrollY.toString());
+            } catch {
+                // Ignore quota or private-browsing errors
+            }
+        }, 300);
+    }, []);
+
+    // Cleanup debounced storage on unmount
+    useEffect(() => {
+        return () => {
+            if (saveScrollTimeoutRef.current) {
+                clearTimeout(saveScrollTimeoutRef.current);
+            }
+        };
+    }, []);
+
     // Throttled scroll handler to persist state and trigger infinite loading
     const lastScrollCallRef = useRef(0);
     const onScroll = useCallback(() => {
@@ -142,9 +190,8 @@ export function useCalendarScroll({
         const container = scrollContainerRef.current;
         if (!container) return;
 
-        // Persist scroll position
-        localStorage.setItem("tide_calendar_scroll_x", container.scrollLeft.toString());
-        localStorage.setItem("tide_calendar_scroll_y", container.scrollTop.toString());
+        // Persist scroll position debounced so disk writes never block active scroll frames
+        debouncedSaveScroll(container.scrollLeft, container.scrollTop);
 
 
         const { scrollLeft, scrollWidth, clientWidth } = container;
@@ -216,7 +263,7 @@ export function useCalendarScroll({
             }
         };
 
-        container.addEventListener('scroll', scrollHandler);
+        container.addEventListener('scroll', scrollHandler, { passive: true });
 
         // Also capture window-level or document-level scrolling just in case trackpad causes body scroll
         const globalScrollHandler = (e: Event) => {
@@ -309,48 +356,9 @@ export function useCalendarScroll({
         };
     }, [onScroll, activePopover, scrollContainerRef.current]);
 
-    // Custom 2D Scroll Handler (Bypasses Browser Axis Locking)
-    useEffect(() => {
-        const container = scrollContainerRef.current;
-        if (!container) return;
-
-        const handleWheel = (e: WheelEvent) => {
-            if (e.ctrlKey || e.metaKey) return; // Allow zooming
-
-            // Don't intercept if wheel event originated inside a nested popover or modal
-            const popoverEl = document.getElementById('active-event-popover');
-            if (popoverEl && e.target && popoverEl.contains(e.target as Node)) {
-                return;
-            }
-
-            // Directly check if container is horizontally scrollable (e.g. week view)
-            const scrollableX = container.scrollWidth > container.clientWidth;
-            const scrollableY = container.scrollHeight > container.clientHeight;
-
-            // Only intercept when container has horizontal overflow AND the gesture involves horizontal panning.
-            // When user is doing natural vertical scrolling or when in a single-column view (e.g. Day View),
-            // do not preventDefault to preserve natural browser scrolling and momentum.
-            const isHorizontalPanning = scrollableX && (Math.abs(e.deltaX) > 0 || e.shiftKey);
-            if (!isHorizontalPanning) {
-                return;
-            }
-
-            e.preventDefault();
-
-            if (scrollableX || scrollableY) {
-                container.scrollLeft += e.shiftKey ? e.deltaY : e.deltaX;
-                if (!e.shiftKey) {
-                    container.scrollTop += e.deltaY;
-                }
-            }
-        };
-
-        // passive: false is required to call preventDefault
-        container.addEventListener('wheel', handleWheel, { passive: false });
-        return () => {
-            container.removeEventListener('wheel', handleWheel);
-        };
-    }, [scrollContainerRef.current, loadedWeeks]);
+    // Native browser 2D & momentum scrolling:
+    // Wheel hijacking with preventDefault has been removed to preserve OS momentum,
+    // trackpad inertia, and compositor-driven smooth scrolling.
 
     // Adjust Scroll Position for Prepending
     useLayoutEffect(() => {

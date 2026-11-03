@@ -79,29 +79,91 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
     return Array.from({ length: 241 }, (_, i) => addDays(wheelAnchor, i - 120));
   }, [wheelAnchor]);
 
+  const daysRef = useRef(days);
+  useEffect(() => {
+    daysRef.current = days;
+  }, [days]);
+
+  const activeDateRef = useRef(activeDate);
+  useEffect(() => {
+    activeDateRef.current = activeDate;
+  }, [activeDate]);
+
+  const onSelectDateRef = useRef(onSelectDate);
+  useEffect(() => {
+    onSelectDateRef.current = onSelectDate;
+  }, [onSelectDate]);
+
+  const itemMetricsRef = useRef({
+    itemOffset: 0,
+    itemWidth: 44,
+    itemStride: 48,
+  });
+  const hasMeasuredRef = useRef(false);
+  const lastMagnifiedIndicesRef = useRef<Set<number>>(new Set());
+
+  const measureMetrics = useCallback(() => {
+    const container = containerRef.current;
+    if (!container || container.children.length === 0) return;
+    const first = container.children[0] as HTMLElement | undefined;
+    const second = container.children[1] as HTMLElement | undefined;
+    if (first) {
+      const itemOffset = first.offsetLeft;
+      const itemWidth = first.offsetWidth || 44;
+      const itemStride = second ? (second.offsetLeft - first.offsetLeft) : 48;
+      itemMetricsRef.current = {
+        itemOffset,
+        itemWidth,
+        itemStride: itemStride || 48,
+      };
+      hasMeasuredRef.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    hasMeasuredRef.current = false;
+    lastMagnifiedIndicesRef.current.clear();
+  }, [wheelAnchor]);
+
   // Real-time magnifier function (runs on every scroll frame)
   const updateMagnifier = useCallback(() => {
     const container = containerRef.current;
     if (!container) return;
-    const rect = container.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const children = container.children;
-    const radius = 110; // lens influence radius in px
 
-    let closestChild: HTMLElement | null = null;
+    if (!hasMeasuredRef.current && container.children.length > 0) {
+      measureMetrics();
+    }
+
+    const { itemOffset, itemWidth, itemStride } = itemMetricsRef.current;
+    const containerWidth = container.clientWidth;
+    const centerOffset = container.scrollLeft + containerWidth / 2;
+    const children = container.children;
+    const totalChildren = children.length;
+    if (totalChildren === 0) return;
+
+    const radius = 110; // lens influence radius in px
+    const span = Math.ceil(radius / itemStride); // ~3 items to left and right
+
+    const rawCenterIndex = Math.round((centerOffset - itemOffset - itemWidth / 2) / itemStride);
+    const centerIndex = Math.max(0, Math.min(totalChildren - 1, rawCenterIndex));
+    const minIdx = Math.max(0, centerIndex - span);
+    const maxIdx = Math.min(totalChildren - 1, centerIndex + span);
+
+    const newMagnifiedIndices = new Set<number>();
+    let closestIndex = centerIndex;
     let minDistance = Infinity;
 
-    for (let i = 0; i < children.length; i++) {
-      const child = children[i] as HTMLElement;
-      if (!child.id?.startsWith('wheel-date-')) continue;
-      const cr = child.getBoundingClientRect();
-      const childCenter = cr.left + cr.width / 2;
-      const dist = Math.abs(childCenter - centerX);
+    for (let i = minIdx; i <= maxIdx; i++) {
+      const childCenter = itemOffset + i * itemStride + itemWidth / 2;
+      const dist = Math.abs(childCenter - centerOffset);
 
       if (dist < minDistance) {
         minDistance = dist;
-        closestChild = child;
+        closestIndex = i;
       }
+
+      const child = children[i] as HTMLElement | undefined;
+      if (!child) continue;
 
       if (dist < radius) {
         // Cosine bell curve: 1 at exact center, 0 at edge
@@ -110,30 +172,49 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
         const opacity = 0.35 + curve * 0.65; // 0.35 to 1.00
         child.style.transform = `scale(${scale.toFixed(3)})`;
         child.style.opacity = opacity.toFixed(3);
+        newMagnifiedIndices.add(i);
       } else {
         child.style.transform = 'scale(0.72)';
         child.style.opacity = '0.35';
       }
     }
 
-    if (closestChild) {
-      const dateStr = closestChild.id.replace('wheel-date-', '');
-      if (dateStr) {
-        const parts = dateStr.split('-').map(Number);
-        const d = new Date(parts[0], parts[1] - 1, parts[2]);
-        if (!isNaN(d.getTime())) {
-          const newMonthLabel = format(d, 'MMMM yyyy', { locale: de });
-          if (newMonthLabel !== currentMonthLabelRef.current) {
-            currentMonthLabelRef.current = newMonthLabel;
-            if (monthLabelRef.current) {
-              monthLabelRef.current.textContent = newMonthLabel;
-            }
-            onMonthChangeRef.current?.(newMonthLabel);
-          }
+    // Reset items that were magnified in previous frames but are now outside the lens
+    lastMagnifiedIndicesRef.current.forEach(prevIdx => {
+      if (!newMagnifiedIndices.has(prevIdx)) {
+        const child = children[prevIdx] as HTMLElement | undefined;
+        if (child) {
+          child.style.transform = 'scale(0.72)';
+          child.style.opacity = '0.35';
         }
       }
+    });
+
+    lastMagnifiedIndicesRef.current = newMagnifiedIndices;
+
+    const closestDate = daysRef.current[closestIndex];
+    if (closestDate) {
+      const newMonthLabel = format(closestDate, 'MMMM yyyy', { locale: de });
+      if (newMonthLabel !== currentMonthLabelRef.current) {
+        currentMonthLabelRef.current = newMonthLabel;
+        if (monthLabelRef.current) {
+          monthLabelRef.current.textContent = newMonthLabel;
+        }
+        onMonthChangeRef.current?.(newMonthLabel);
+      }
     }
-  }, []);
+  }, [measureMetrics]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      measureMetrics();
+      updateMagnifier();
+    };
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [measureMetrics, updateMagnifier]);
 
   // Programmatic centering on activeDate change
   useEffect(() => {
@@ -152,6 +233,7 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
     if (!mountedRef.current) {
       // First mount: instant centering without smooth animation
       mountedRef.current = true;
+      measureMetrics();
       const containerWidth = container.clientWidth;
       container.scrollLeft = el.offsetLeft - containerWidth / 2 + el.offsetWidth / 2;
       requestAnimationFrame(updateMagnifier);
@@ -169,7 +251,7 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
         updateMagnifier();
       }, 350);
     }
-  }, [activeDate, updateMagnifier]);
+  }, [activeDate, measureMetrics, updateMagnifier]);
 
   // Scroll handler for real-time lens + debounced snap when user scrolls manually
   useEffect(() => {
@@ -187,40 +269,30 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
       // Clean 140ms debounce after momentum/scrolling settles completely
       scrollTimerRef.current = setTimeout(() => {
         if (isProgrammaticScroll.current || isUserTouching.current) return;
-        const rect = container.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        let closestEl: HTMLElement | null = null;
-        let closestDist = Infinity;
+        const c = containerRef.current;
+        if (!c) return;
 
-        for (const child of Array.from(container.children) as HTMLElement[]) {
-          if (!child.id?.startsWith('wheel-date-')) continue;
-          const cr = child.getBoundingClientRect();
-          const dist = Math.abs(cr.left + cr.width / 2 - centerX);
-          if (dist < closestDist) { closestDist = dist; closestEl = child; }
+        const { itemOffset, itemWidth, itemStride } = itemMetricsRef.current;
+        const containerWidth = c.clientWidth;
+        const centerOffset = c.scrollLeft + containerWidth / 2;
+        const rawCenterIndex = Math.round((centerOffset - itemOffset - itemWidth / 2) / itemStride);
+        const closestIndex = Math.max(0, Math.min(daysRef.current.length - 1, rawCenterIndex));
+
+        const d = daysRef.current[closestIndex];
+        if (d && !isSameDay(d, activeDateRef.current)) {
+          suppressActiveDateScrollRef.current = true;
+          onSelectDateRef.current(d);
         }
 
-        if (closestEl) {
-          const dateStr = closestEl.id.replace('wheel-date-', '');
-          if (dateStr) {
-            const parts = dateStr.split('-').map(Number);
-            const d = new Date(parts[0], parts[1] - 1, parts[2]);
-            if (!isNaN(d.getTime()) && !isSameDay(d, activeDate)) {
-              suppressActiveDateScrollRef.current = true;
-              onSelectDate(d);
-            }
-          }
-
-          const containerWidth = container.clientWidth;
-          const targetScrollLeft = closestEl.offsetLeft - containerWidth / 2 + closestEl.offsetWidth / 2;
-          if (Math.abs(container.scrollLeft - targetScrollLeft) > 2) {
-            isProgrammaticScroll.current = true;
-            container.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
-            if (programmaticTimerRef.current) clearTimeout(programmaticTimerRef.current);
-            programmaticTimerRef.current = setTimeout(() => {
-              isProgrammaticScroll.current = false;
-              updateMagnifier();
-            }, 300);
-          }
+        const targetScrollLeft = itemOffset + closestIndex * itemStride + itemWidth / 2 - containerWidth / 2;
+        if (Math.abs(c.scrollLeft - targetScrollLeft) > 2) {
+          isProgrammaticScroll.current = true;
+          c.scrollTo({ left: targetScrollLeft, behavior: 'smooth' });
+          if (programmaticTimerRef.current) clearTimeout(programmaticTimerRef.current);
+          programmaticTimerRef.current = setTimeout(() => {
+            isProgrammaticScroll.current = false;
+            updateMagnifier();
+          }, 300);
         }
       }, 140);
     };
@@ -257,7 +329,7 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
       if (programmaticTimerRef.current) clearTimeout(programmaticTimerRef.current);
       if (rafId.current) cancelAnimationFrame(rafId.current);
     };
-  }, [activeDate, onSelectDate, updateMagnifier]);
+  }, [updateMagnifier]);
 
   return (
     <div className="flex items-center gap-2 px-3 pb-1 w-full min-w-0">

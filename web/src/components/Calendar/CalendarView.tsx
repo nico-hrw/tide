@@ -179,15 +179,12 @@ export default function CalendarView({
         handleResizeMouseDown,
     } = useCalendarDragResize({ events, onEventUpdate, onEventCreate, onEventClick, scrollContainerRef });
 
-    const [isSpeedTraveling, setIsSpeedTraveling] = useState(false);
-
     useEffect(() => {
         const handleScrollTo = (e: any) => {
             const { id, start } = e.detail;
             if (start) {
                 const targetDate = new Date(start);
                 onDateChange(targetDate);
-                setIsSpeedTraveling(true);
 
                 // After date change, scroll smoothly to event or date column
                 setTimeout(() => {
@@ -213,8 +210,6 @@ export default function CalendarView({
                             behavior: 'smooth'
                         });
                     }
-
-                    setTimeout(() => setIsSpeedTraveling(false), 500);
                 }, 150);
             }
         };
@@ -560,7 +555,7 @@ export default function CalendarView({
                 {viewMode === 'week' && (
                     <div
                         ref={scrollContainerRef}
-                        className={`flex-1 relative flex trackpad-scroll-free transition-all duration-300 ${isSpeedTraveling ? 'blur-[1.5px] brightness-105' : ''}`}
+                        className="flex-1 relative flex trackpad-scroll-free"
                         style={{ touchAction: 'pan-x pan-y', overscrollBehavior: 'none' }}
                     >
                         <CalendarWeekTimeGrid
@@ -597,7 +592,7 @@ export default function CalendarView({
                 {viewMode === 'day' && (
                     <div
                         ref={scrollContainerRef}
-                        className="flex-1 relative flex overflow-y-auto overflow-x-hidden transition-all duration-300"
+                        className="flex-1 relative flex overflow-y-auto overflow-x-hidden"
                         style={{ touchAction: 'pan-y' }}
                     >
                         <DesktopDayView
