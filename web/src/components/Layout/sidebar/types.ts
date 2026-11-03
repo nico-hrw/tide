@@ -15,6 +15,7 @@ export interface DecryptedFile {
     permission?: string;
     can_reshare?: boolean;
     metadata?: any;
+    safe?: string;
 }
 
 export type ContextMenuEvent = React.MouseEvent | {

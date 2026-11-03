@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { createPortal } from "react-dom";
-import { FileText, Plus, FolderPlus, Lock, LogOut, Share2, Edit3, Trash2, Upload, Download, Layout, ShieldCheck, Copy } from "lucide-react";
+import { FileText, Plus, FolderPlus, Lock, LogOut, Share2, Edit3, Trash2, Upload, Download, Layout, ShieldCheck, Copy, Archive, ChevronRight, Check } from "lucide-react";
 import { useDataStore } from "@/store/useDataStore";
 import type { DecryptedFile, SidebarProps } from "./types";
 
@@ -23,6 +24,9 @@ export default function SidebarContextMenu({
     contextMenu, setContextMenu, sidebarContextMenu, setSidebarContextMenu, myId,
     handleOpenSecuritySettings, handleExport, handleImport, handleCopyToMyNotes,
 }: ContextMenuProps) {
+    const [showSafeSubmenu, setShowSafeSubmenu] = useState(false);
+    const availableSafes = useDataStore((s) => s.availableSafes);
+    const setNoteSafe = useDataStore((s) => s.setNoteSafe);
     return (
         <>
             {contextMenu && typeof document !== 'undefined' && (() => {
@@ -138,6 +142,81 @@ export default function SidebarContextMenu({
                                 </button>
                             );
                         })()}
+
+                        {/* In Safe verschieben (für Dateien / Notizen) */}
+                        {contextMenu.type === 'file' && (
+                            <div
+                                className="relative"
+                                onMouseEnter={() => setShowSafeSubmenu(true)}
+                                onMouseLeave={() => setShowSafeSubmenu(false)}
+                            >
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowSafeSubmenu((v) => !v);
+                                    }}
+                                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group cursor-pointer"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <Archive size={15} className="text-gray-400 group-hover:text-blue-500" />
+                                        <span className="font-medium">In Safe verschieben</span>
+                                    </div>
+                                    <ChevronRight size={14} className="text-gray-400 group-hover:text-gray-600 dark:group-hover:text-slate-300" />
+                                </button>
+
+                                {showSafeSubmenu && (() => {
+                                    const targetFile = files.find((f) => f.id === contextMenu.id);
+                                    const currentSafe = targetFile?.safe || targetFile?.metadata?.safe || 'Standard';
+                                    const isLeft = clampedX > (typeof window !== 'undefined' ? window.innerWidth - 380 : 600);
+
+                                    return (
+                                        <div
+                                            className={`context-menu absolute ${
+                                                isLeft ? 'right-full mr-1' : 'left-full ml-1'
+                                            } top-0 w-44 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 z-[10000] animate-in fade-in zoom-in-95 duration-100`}
+                                        >
+                                            <div className="px-2.5 py-1 text-[10px] font-semibold text-gray-400 dark:text-slate-400 uppercase tracking-wider border-b border-gray-100 dark:border-slate-800 mb-1">
+                                                Safe wählen
+                                            </div>
+                                            <div className="px-1 flex flex-col gap-0.5">
+                                                {availableSafes.map((safe) => {
+                                                    const isCurrent = currentSafe === safe;
+                                                    const label =
+                                                        safe === 'Archiv'
+                                                            ? 'Ins Archiv'
+                                                            : safe === 'Standard'
+                                                            ? 'In Standard'
+                                                            : `In ${safe}`;
+                                                    return (
+                                                        <button
+                                                            key={safe}
+                                                            type="button"
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                setContextMenu(null);
+                                                                setShowSafeSubmenu(false);
+                                                                await setNoteSafe(contextMenu.id, safe);
+                                                            }}
+                                                            className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs rounded-lg transition-colors cursor-pointer ${
+                                                                isCurrent
+                                                                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-medium'
+                                                                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800'
+                                                            }`}
+                                                        >
+                                                            <span className="truncate">{label}</span>
+                                                            {isCurrent && (
+                                                                <Check size={13} className="text-blue-500 shrink-0 ml-1.5" />
+                                                            )}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
 
                         {/* 6. Export & Import */}
                         <div className="h-px bg-gray-100 dark:bg-slate-800 my-1" />

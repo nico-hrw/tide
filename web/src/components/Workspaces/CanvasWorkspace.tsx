@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { Clock, GraduationCap, Copy, Download, X, Check, MoreHorizontal, UploadCloud } from 'lucide-react';
+import { Clock, GraduationCap, Copy, Download, MoreHorizontal, UploadCloud } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useDataStore } from '@/store/useDataStore';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
@@ -200,9 +200,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                 <div className="flex items-center justify-center h-full text-gray-400">Loading content...</div>
             ) : (
                 <div className={`mx-auto min-h-[500px] py-12 px-8 lg:px-24 transition-all duration-300 ${
-                    isHistoryMode
-                        ? (noteLayout === 'thin' ? 'max-w-3xl' : noteLayout === 'normal' ? 'max-w-5xl' : noteLayout === 'wide' ? 'max-w-7xl' : 'max-w-full')
-                        : (noteLayout === 'thin' ? 'max-w-2xl' : noteLayout === 'normal' ? 'max-w-4xl' : noteLayout === 'wide' ? 'max-w-6xl' : 'max-w-full')
+                    noteLayout === 'thin' ? 'max-w-2xl' : noteLayout === 'normal' ? 'max-w-4xl' : noteLayout === 'wide' ? 'max-w-6xl' : 'max-w-full'
                 }`}>
                     <CanvasLayer
                         elements={canvasSidecar.elements}
@@ -379,43 +377,21 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                     const isOwner = !isRecipient && (!af?.owner_id || af?.owner_id === myId || af?.share_status === 'owner');
                                                     if (!isOwner) return null;
                                                     return (
-                                                        <>
-                                                            <button
-                                                                onClick={() => {
-                                                                    const next = !isHistoryMode;
-                                                                    setIsHistoryMode(next);
-                                                                    setShowBackups?.(next);
-                                                                }}
-                                                                className={`p-1.5 rounded-lg transition-colors ${
-                                                                    isHistoryMode
-                                                                        ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40'
-                                                                        : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 hover:text-indigo-600'
-                                                                }`}
-                                                                title="Versionsverlauf / Backups"
-                                                            >
-                                                                <Clock size={16} />
-                                                            </button>
-                                                            {isHistoryMode && (
-                                                                <>
-                                                                    <button
-                                                                        onClick={handleCancelHistory}
-                                                                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
-                                                                        title="Versionsverlauf abbrechen"
-                                                                    >
-                                                                        <X size={14} />
-                                                                        <span>Abbrechen</span>
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={handleApplyHistory}
-                                                                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors cursor-pointer"
-                                                                        title="Ausgewählten Stand übernehmen"
-                                                                    >
-                                                                        <Check size={14} />
-                                                                        <span>Übernehmen</span>
-                                                                    </button>
-                                                                </>
-                                                            )}
-                                                        </>
+                                                        <button
+                                                            onClick={() => {
+                                                                const next = !isHistoryMode;
+                                                                setIsHistoryMode(next);
+                                                                setShowBackups?.(next);
+                                                            }}
+                                                            className={`p-1.5 rounded-lg transition-colors ${
+                                                                isHistoryMode
+                                                                    ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40'
+                                                                    : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 hover:text-indigo-600'
+                                                            }`}
+                                                            title="Versionsverlauf / Backups"
+                                                        >
+                                                            <Clock size={16} />
+                                                        </button>
                                                     );
                                                 })()}
                                                 <div className="relative flex items-center justify-center">
@@ -674,21 +650,21 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                     );
                                 })()}
                             </div>
-                            {isHistoryMode && (
-                                <div className="shrink-0 pl-3 sm:pl-6 sticky top-12 z-10 self-start">
-                                    <NoteVersionTimeline
-                                        points={points}
-                                        activeIndex={activeIndex}
-                                        onSelectIndex={setActiveIndex}
-                                        isLoading={isBackupLoading}
-                                        onCancel={handleCancelHistory}
-                                        onApply={handleApplyHistory}
-                                    />
-                                </div>
-                            )}
                         </div>
                     </CanvasLayer>
                 </div>
+            )}
+            {isHistoryMode && (
+                <aside className="fixed right-3 sm:right-6 top-14 bottom-4 z-30 pointer-events-auto select-none">
+                    <NoteVersionTimeline
+                        points={points}
+                        activeIndex={activeIndex}
+                        onSelectIndex={setActiveIndex}
+                        isLoading={isBackupLoading}
+                        onCancel={handleCancelHistory}
+                        onApply={handleApplyHistory}
+                    />
+                </aside>
             )}
         </div>
     );

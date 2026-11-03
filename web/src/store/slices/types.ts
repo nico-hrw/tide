@@ -4,6 +4,7 @@ export interface DataItem {
     id: string;
     title: string;
     type: string;
+    safe?: string;
     [key: string]: any; // Allow extra properties like visibility, secured_meta for file UI
 }
 
@@ -201,11 +202,23 @@ export interface ContactsSlice {
     fetchContacts: () => Promise<void>;
 }
 
+export interface SafesSlice {
+    availableSafes: string[];
+    activeSafes: string[];
+
+    setActiveSafes: (safes: string[]) => void;
+    toggleSafe: (safe: string) => void;
+    createSafe: (name: string) => void;
+    deleteSafe: (name: string) => void;
+    setNoteSafe: (noteId: string, safeName: string) => Promise<void>;
+}
+
 export type DataStoreState = NotesSlice &
     EventsSlice &
     TodosSlice &
     UiSlice &
     FsSlice &
+    SafesSlice &
     Partial<ContactsSlice>;
 
 export type DataState = DataStoreState;

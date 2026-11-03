@@ -6,6 +6,7 @@ import { createTodosSlice } from './slices/createTodosSlice';
 import { createUiSlice } from './slices/createUiSlice';
 import { createFsSlice } from './slices/createFsSlice';
 import { createContactsSlice } from './slices/createContactsSlice';
+import { createSafesSlice, loadCachedSafes, loadCachedActiveSafes } from './slices/createSafesSlice';
 import { broadcastSync, subscribeToSync } from './sync/broadcast';
 import type { DataStoreState } from './slices/types';
 
@@ -26,6 +27,7 @@ export {
     loadCachedEvents,
     saveEventsToOfflineCache,
 } from './slices/createEventsSlice';
+export { loadCachedSafes, loadCachedActiveSafes } from './slices/createSafesSlice';
 export { broadcastSync, subscribeToSync } from './sync/broadcast';
 
 // Root store composing all domain slices
@@ -36,6 +38,7 @@ export const useDataStore = create<DataStoreState>()((...a) => ({
     ...createUiSlice(...a),
     ...createFsSlice(...a),
     ...createContactsSlice(...a),
+    ...createSafesSlice(...a),
 }));
 
 // Cross-tab broadcast synchronization
@@ -159,5 +162,18 @@ export const useFileSystem = () =>
             updateSpecificMetadataCache: s.updateSpecificMetadataCache,
             updateFileRaw: s.updateFileRaw,
             appendFiles: s.appendFiles,
+        }))
+    );
+
+export const useSafes = () =>
+    useDataStore(
+        useShallow((s) => ({
+            availableSafes: s.availableSafes,
+            activeSafes: s.activeSafes,
+            setActiveSafes: s.setActiveSafes,
+            toggleSafe: s.toggleSafe,
+            createSafe: s.createSafe,
+            deleteSafe: s.deleteSafe,
+            setNoteSafe: s.setNoteSafe,
         }))
     );

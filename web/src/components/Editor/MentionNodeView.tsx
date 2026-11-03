@@ -19,6 +19,24 @@ export const MentionNodeView = ({ node }: any) => {
     const start = node.attrs.start;
     const isCompleted = liveFile?.is_completed || false;
 
+    // Cross-Safe link detection & safe indicator
+    const rawSafe = (node.attrs.safe as string | undefined) || (liveFile?.safe as string | undefined) || ((liveFile?.metadata as Record<string, unknown> | undefined)?.safe as string | undefined);
+    let safePrefix: string | null = rawSafe || null;
+    let displayTitle = title;
+
+    if (!safePrefix && typeof label === 'string' && label.includes(':')) {
+        const colonIdx = label.indexOf(':');
+        safePrefix = label.substring(0, colonIdx).trim();
+    }
+
+    if (safePrefix) {
+        if (displayTitle.startsWith(`${safePrefix}:`)) {
+            displayTitle = displayTitle.substring(safePrefix.length + 1).trim();
+        } else if (typeof label === 'string' && label.startsWith(`${safePrefix}:`)) {
+            displayTitle = liveFile?.title || label.substring(safePrefix.length + 1).trim();
+        }
+    }
+
     const isEvent = !isFile && (type === 'event' || !!useDataStore.getState().events?.find(e => e.id === id));
     const ev = !isFile ? useDataStore.getState().events?.find(e => e.id === id) : undefined;
     const eventMentionStyle = useDataStore((s) => s.eventMentionStyle) || useDataStore.getState().eventMentionStyle || 'blue';
@@ -82,7 +100,15 @@ export const MentionNodeView = ({ node }: any) => {
             window.dispatchEvent(new CustomEvent('tide:select-event', { detail: { id, start: ev?.start || start } }));
             window.dispatchEvent(new CustomEvent('calendar:scroll-to', { detail: { id, start: ev?.start || start } }));
         }
-        window.dispatchEvent(new CustomEvent('editor:mention-click', { detail: { id, title, type: isEvent ? 'event' : type, start: ev?.start || start } }));
+        window.dispatchEvent(new CustomEvent('editor:mention-click', { 
+            detail: { 
+                id, 
+                title: displayTitle, 
+                type: isEvent ? 'event' : type, 
+                start: ev?.start || start,
+                safe: safePrefix || node.attrs.safe || liveFile?.safe || liveFile?.metadata?.safe
+            } 
+        }));
     };
 
     return (
@@ -92,12 +118,21 @@ export const MentionNodeView = ({ node }: any) => {
             data-type="mention"
             data-id={id}
             data-label={label}
+            data-safe={safePrefix || undefined}
             data-is-ghost={isGhost ? 'true' : 'false'}
             data-type-link={isFile ? 'file' : (isEvent ? 'event' : type)}
             data-start={ev?.start || start || ''}
             onClick={handleClick}
             style={styleObj}
-            title={isFile ? 'Klicken zum Herunterladen' : (isEvent && eventMentionPreview === 'hover' && eventDateStr ? `${title} (${eventDateStr})` : undefined)}
+            title={
+                isFile
+                    ? 'Klicken zum Herunterladen'
+                    : isEvent && eventMentionPreview === 'hover' && eventDateStr
+                    ? `${title} (${eventDateStr})`
+                    : safePrefix
+                    ? `[Safe: ${safePrefix}] ${displayTitle}`
+                    : undefined
+            }
         >
             {isFile ? (
                 <>
@@ -129,7 +164,14 @@ export const MentionNodeView = ({ node }: any) => {
                         />
                     )}
                     <span className={isEvent && liveFile?.is_task && isCompleted ? 'line-through opacity-60' : ''}>
-                        @{title}
+                        @{safePrefix ? (
+                            <>
+                                <span className="opacity-50 font-normal text-[0.9em] mr-0.5">{safePrefix}:</span>
+                                <span>{displayTitle}</span>
+                            </>
+                        ) : (
+                            title
+                        )}
                     </span>
                     {isEvent && eventMentionPreview === 'hover' && (
                         <span className="pointer-events-none invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 px-2.5 py-1 rounded-md bg-gray-900/90 dark:bg-gray-800/95 text-white text-xs shadow-lg whitespace-nowrap flex items-center gap-1.5 font-normal backdrop-blur-sm">

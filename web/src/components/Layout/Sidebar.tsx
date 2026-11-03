@@ -16,6 +16,7 @@ import SidebarNavTree from "./sidebar/SidebarNavTree";
 import SidebarContextMenu from "./sidebar/SidebarContextMenu";
 import type { FileContextMenuState, SidebarContextMenuState } from "./sidebar/SidebarContextMenu";
 import { useSidebarUserProfile } from "./sidebar/SidebarUserMenu";
+import { filterFilesBySafe } from "./sidebar/SidebarFiles";
 import * as actions from "./sidebar/sidebarActions";
 
 export default function Sidebar({
@@ -155,18 +156,23 @@ export default function Sidebar({
     };
 
     const userProfile = propProfile || sidebarUserProfile;
+    const activeSafes = useDataStore((s) => s.activeSafes);
+
+    const safeFilteredFiles = useMemo(() => {
+        return filterFilesBySafe(files, activeSafes);
+    }, [files, activeSafes]);
 
     const topLevelItems = useMemo(() => {
-        return files?.filter(f => f.parent_id === null && f.type !== 'event' && f.type !== 'canvas-asset' && (!(f as any).share_status || (f as any).share_status === 'owner')) || [];
-    }, [files]);
+        return safeFilteredFiles?.filter(f => f.parent_id === null && f.type !== 'event' && f.type !== 'canvas-asset' && (!(f as any).share_status || (f as any).share_status === 'owner')) || [];
+    }, [safeFilteredFiles]);
 
     // Files shared with me (pending or accepted, not owned by me)
     const sharedWithMeItems = useMemo(() => {
-        return files?.filter(f => {
+        return safeFilteredFiles?.filter(f => {
             const status = (f as any).share_status;
             return status === 'pending' || status === 'accepted';
         }) || [];
-    }, [files]);
+    }, [safeFilteredFiles]);
     const pendingShareCount = sharedWithMeItems.filter(f => (f as any).share_status === 'pending').length;
     const [isSharedFolderOpen, setIsSharedFolderOpen] = useState(true);
     const [orderedItems, setOrderedItems] = useState<DecryptedFile[]>([]);
@@ -182,7 +188,7 @@ export default function Sidebar({
         });
         const uniqueItems = Array.from(new Map(sorted.map(item => [item.id, item])).values());
         setOrderedItems(uniqueItems);
-    }, [files, orderedNoteIds]);
+    }, [topLevelItems, orderedNoteIds]);
 
     const handleReorder = (newItems: DecryptedFile[]) => {
         setOrderedItems(newItems);
@@ -332,7 +338,7 @@ export default function Sidebar({
                 }}
             >
                 <SidebarNavTree
-                    files={files}
+                    files={safeFilteredFiles}
                     onDeleteNote={onDeleteNote}
                     onRenameNote={onRenameNote}
                     onToggleVisibility={onToggleVisibility}

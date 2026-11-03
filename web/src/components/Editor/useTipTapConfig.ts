@@ -46,6 +46,7 @@ import { apiFetch } from '@/lib/api';
 import { uploadQuicknoteFile, getQuicknoteFileDownloadUrl } from '@/lib/quicknotesApi';
 import type { LinkTarget, UseTipTapConfigOptions } from './types';
 import { MentionNodeView } from './MentionNodeView';
+import { ensureSafeIsActive } from '../extensions/mentionSuggestion';
 import { PLACELHODER_QUOTES, COLORS } from './editorConstants';
 import { isDocEmpty, getCleanDocContent } from './editorUtils';
 
@@ -225,7 +226,8 @@ export function useTipTapConfig({
                     label: { default: null, parseHTML: el => el.getAttribute('data-label') || el.innerText.replace(/^@/, '') },
                     isGhost: { default: false, parseHTML: el => el.getAttribute('data-is-ghost') === 'true' },
                     type: { default: 'note', parseHTML: el => el.getAttribute('data-type-link') || 'note' },
-                    start: { default: null, parseHTML: el => el.getAttribute('data-start') }
+                    start: { default: null, parseHTML: el => el.getAttribute('data-start') },
+                    safe: { default: null, parseHTML: el => el.getAttribute('data-safe') }
                 }),
                 parseHTML: () => [{ tag: 'mark[data-type="mention"]' }, { tag: 'mark.mention' }, { tag: 'span[data-type="mention"]' }],
                 renderHTML: ({ node, HTMLAttributes }) => {
@@ -431,6 +433,10 @@ export function useTipTapConfig({
                     if (targetId) {
                         const realFile = useDataStore.getState().notes?.find((f: any) => f.id === targetId);
                         if (!realFile) return true;
+                        const noteSafe = (realFile as any).safe || realFile.metadata?.safe;
+                        if (noteSafe) {
+                            ensureSafeIsActive(noteSafe);
+                        }
                         onLinkClickRef.current?.({ id: targetId, type: 'file', title: realFile.title || mentionNode.textContent?.replace(/^@/, '') || '' });
                         useDataStore.getState().setActiveNoteId(targetId);
                         return true;

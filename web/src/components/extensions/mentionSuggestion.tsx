@@ -7,6 +7,78 @@ import { FileText, Calendar as CalendarIcon, CheckSquare, Plus, ChevronRight, Ar
 import { getKnownQuicknotes, saveKnownQuicknote } from '@/lib/quicknotesApi';
 import { format } from 'date-fns';
 
+export function ensureSafeIsActive(safeName?: string | null) {
+    if (!safeName) return;
+    try {
+        const store = useDataStore.getState();
+        const currentActive: string[] = Array.isArray(store.activeSafes) ? store.activeSafes : [];
+        const isAlreadyActive =
+            currentActive.includes('all') ||
+            currentActive.some((s: string) => s.toLowerCase() === safeName.toLowerCase());
+
+        if (!isAlreadyActive) {
+            const nextActive = currentActive.length === 0
+                ? Array.from(new Set(['Standard', safeName]))
+                : Array.from(new Set([...currentActive, safeName]));
+
+            if (typeof store.setActiveSafes === 'function') {
+                store.setActiveSafes(nextActive);
+            } else if (typeof store.toggleSafe === 'function') {
+                store.toggleSafe(safeName);
+            } else if (typeof (store as unknown as Record<string, unknown>).toggleActiveSafe === 'function') {
+                ((store as unknown as Record<string, unknown>).toggleActiveSafe as (s: string) => void)(safeName);
+            } else {
+                useDataStore.setState({ activeSafes: nextActive });
+            }
+
+            try {
+                if (typeof window !== 'undefined') {
+                    localStorage.setItem('tide_active_safes', JSON.stringify(nextActive));
+                }
+            } catch (_) {}
+        }
+    } catch (err) {
+        console.warn('ensureSafeIsActive error:', err);
+    }
+}
+
+export async function setNoteSafeInStore(noteId: string, safeName: string) {
+    if (!noteId || !safeName) return;
+    try {
+        const store = useDataStore.getState();
+        if (typeof store.setNoteSafe === 'function') {
+            await store.setNoteSafe(noteId, safeName);
+            return;
+        }
+
+        if (typeof store.createSafe === 'function') {
+            const knownSafes: string[] = Array.isArray(store.availableSafes)
+                ? store.availableSafes
+                : [];
+            if (!knownSafes.some((s: string) => s.toLowerCase() === safeName.toLowerCase())) {
+                store.createSafe(safeName);
+            }
+        }
+
+        if (typeof store.updateFile === 'function') {
+            const currentNote = (store.notes || []).find((n) => n.id === noteId);
+            const currentMeta = (currentNote?.metadata as Record<string, unknown> | undefined) || {};
+            await store.updateFile(noteId, {
+                safe: safeName,
+                metadata: { ...currentMeta, safe: safeName }
+            });
+        } else {
+            useDataStore.setState((s) => ({
+                notes: (s.notes || []).map((n) =>
+                    n.id === noteId ? { ...n, safe: safeName, metadata: { ...((n.metadata as Record<string, unknown> | undefined) || {}), safe: safeName } } : n
+                )
+            }));
+        }
+    } catch (err) {
+        console.warn('setNoteSafeInStore error:', err);
+    }
+}
+
 interface EventItem {
     id: string;
     title: string;
@@ -16,6 +88,7 @@ interface EventItem {
     color: string;
     formattedDate: string;
     isGhost: boolean;
+    safe?: string;
 }
 
 interface EventGroupItem {
@@ -50,6 +123,7 @@ type MentionSuggestionItem =
           scheduledDate?: string;
           pathSegments?: string[];
           cleanNoteTitle?: string;
+          safe?: string;
       };
 
 const MentionList = forwardRef((props: any, ref) => {
@@ -176,6 +250,44 @@ const MentionList = forwardRef((props: any, ref) => {
             } finally {
                 isCreatingRef.current = false;
             }
+        } else if (item.id === 'NEW_SAFE_NOTE') {
+            if (isCreatingRef.current) return;
+            isCreatingRef.current = true;
+            try {
+                const targetSafe = (item as any).safe || 'Standard';
+                const cleanTitle =
+                    (item as any).cleanNoteTitle ||
+                    ('title' in item ? item.title : undefined) ||
+                    'Untitled';
+
+                ensureSafeIsActive(targetSafe);
+
+                const newId = await useDataStore.getState().createNote(cleanTitle);
+                await setNoteSafeInStore(newId, targetSafe);
+
+                props.command({
+                    id: newId,
+                    label: `${targetSafe}:${cleanTitle}`,
+                    type: 'note',
+                    safe: targetSafe,
+                    isGhost: false,
+                });
+            } catch (err) {
+                console.error('Failed to create cross-safe note:', err);
+            } finally {
+                isCreatingRef.current = false;
+            }
+        } else if ('safe' in item && item.safe && item.type === 'note') {
+            ensureSafeIsActive(item.safe);
+            const noteTitle = ('title' in item && item.title) ? item.title : item.label;
+            props.command({
+                ...item,
+                id: item.id,
+                label: `${item.safe}:${noteTitle}`,
+                type: 'note',
+                safe: item.safe,
+                isGhost: false,
+            });
         } else {
             const title = 'title' in item ? item.title : undefined;
             props.command({ ...item, label: title || item.label });
@@ -371,6 +483,16 @@ const MentionList = forwardRef((props: any, ref) => {
                                         <div className="font-medium truncate flex-1">{item.label || item.title}</div>
                                         <Plus size={14} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
                                     </>
+                                ) : item.safe && item.type === 'note' ? (
+                                    <>
+                                        <div className="flex items-center gap-1.5 truncate flex-1 min-w-0">
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold tracking-wide shrink-0">
+                                                {item.safe}
+                                            </span>
+                                            <span className="font-medium truncate">{item.title || item.label}</span>
+                                        </div>
+                                        <FileText size={14} className="text-gray-400 dark:text-gray-500 shrink-0" />
+                                    </>
                                 ) : (
                                     <>
                                         <div className="font-medium truncate flex-1">{item.label || item.title}</div>
@@ -475,6 +597,52 @@ export default {
             if (f.isLocked || titleLower.startsWith('locked note')) return false;
             return true;
         });
+
+        // 2.4 Cross-Safe @-Links (@safeName:query)
+        if (query.includes(':')) {
+            const colonIdx = query.indexOf(':');
+            const targetSafe = query.substring(0, colonIdx).trim();
+            const subQuery = query.substring(colonIdx + 1).trim();
+
+            if (targetSafe) {
+                const safeFilteredFiles = filteredFiles.filter((f: any) => {
+                    const noteSafe = (f.safe || f.metadata?.safe || 'Standard').trim();
+                    return noteSafe.toLowerCase() === targetSafe.toLowerCase();
+                });
+
+                const lowSub = subQuery.toLowerCase();
+                const matchedNotes = lowSub
+                    ? safeFilteredFiles.filter((f: any) => (f.title || f.id).toLowerCase().includes(lowSub))
+                    : safeFilteredFiles;
+
+                const suggestionItems: MentionSuggestionItem[] = matchedNotes.slice(0, 6).map((f: any) => ({
+                    id: f.id,
+                    label: `[Safe: ${targetSafe}] ${f.title || f.id}`,
+                    title: f.title || f.id,
+                    safe: targetSafe,
+                    type: 'note',
+                    isGhost: false,
+                }));
+
+                const hasExactMatch = matchedNotes.some(
+                    (f: any) => (f.title || '').trim().toLowerCase() === lowSub
+                );
+
+                if (!hasExactMatch) {
+                    suggestionItems.push({
+                        id: 'NEW_SAFE_NOTE',
+                        label: `[+] In "${targetSafe}" erstellen: ${subQuery || 'Neue Notiz'}`,
+                        title: subQuery || 'Neue Notiz',
+                        cleanNoteTitle: subQuery || 'Neue Notiz',
+                        safe: targetSafe,
+                        type: 'action',
+                        isGhost: false,
+                    });
+                }
+
+                return suggestionItems;
+            }
+        }
 
         // 2.5 Path Support in Links (Feature B)
         if (query.includes('/')) {
@@ -769,13 +937,19 @@ export default {
             const label = props.label || props.query || 'Untitled';
             editor.chain().focus().deleteRange(range).insertContent({
                 type: 'mention',
-                attrs: { id: props.id, label: label, type: 'note', isGhost: false }
+                attrs: { id: props.id, label: label, type: 'note', isGhost: false, safe: props.safe }
             }).run();
         } else if (props.id === 'NEW_PATH_NOTE') {
             const label = props.cleanNoteTitle || props.label || 'Untitled';
             editor.chain().focus().deleteRange(range).insertContent({
                 type: 'mention',
                 attrs: { id: props.id, label: label, type: 'note', isGhost: false }
+            }).run();
+        } else if (props.id === 'NEW_SAFE_NOTE') {
+            const label = props.label || 'Untitled';
+            editor.chain().focus().deleteRange(range).insertContent({
+                type: 'mention',
+                attrs: { id: props.id, label: label, type: 'note', isGhost: false, safe: props.safe }
             }).run();
         } else if (props.type === 'task' || props.id === 'NEW_TASK') {
             editor.chain().focus().deleteRange(range).insertContent({
@@ -808,7 +982,8 @@ export default {
                     label: props.label, 
                     isGhost: false,
                     type: props.type === 'action' ? 'note' : (props.type || 'note'),
-                    start: props.start 
+                    start: props.start,
+                    safe: props.safe,
                 }
             }).run();
         }

@@ -73,12 +73,22 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
             parentIdOverride !== undefined
                 ? parentIdOverride
                 : state.activeParentId || null;
+        const defaultSafe =
+            state.activeSafes && state.activeSafes.length === 1
+                ? state.activeSafes[0]
+                : 'Standard';
         if (!state.privateKey || !state.publicKey) {
             const fallbackId = crypto.randomUUID();
             set((s) => {
                 const nextNotes: DataItem[] = [
                     ...s.notes,
-                    { id: fallbackId, title, type: 'note', parent_id: targetParentId },
+                    {
+                        id: fallbackId,
+                        title,
+                        type: 'note',
+                        parent_id: targetParentId,
+                        safe: defaultSafe,
+                    },
                 ];
                 saveNotesToOfflineCache(nextNotes);
                 return { notes: nextNotes };
@@ -134,7 +144,7 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
                     secured_meta: securedMeta,
                     visibility: 'private',
                     version: 2,
-                    metadata: { ...v2Result.metadata, title },
+                    metadata: { ...v2Result.metadata, title, safe: defaultSafe },
                     access_keys: accessKeysMap,
                 }),
             });
@@ -157,6 +167,7 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
                 title,
                 type: 'note',
                 parent_id: targetParentId,
+                safe: defaultSafe,
                 isLocked: false,
             };
 
@@ -171,6 +182,7 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
                             title,
                             isLocked: false,
                             parent_id: targetParentId,
+                            safe: defaultSafe,
                         },
                     },
                 };

@@ -308,6 +308,7 @@ export async function decryptAndNormalizeFileItem(
                 isGroup: (cached.isGroup as boolean | undefined) || ((file.public_meta as Record<string, unknown> | undefined)?.isGroup as boolean | undefined) || undefined,
                 parent_id: (file.parent_id as string | null) || null,
                 color: (typeof cached.color === 'string' && cached.color) || (typeof file.metadata?.color === 'string' ? file.metadata.color : undefined) || (file.color as string | undefined),
+                safe: (typeof cached.safe === 'string' ? cached.safe : undefined) || (typeof file.safe === 'string' ? file.safe : undefined) || (typeof (file.metadata as Record<string, unknown> | undefined)?.safe === 'string' ? (file.metadata as Record<string, unknown>).safe as string : undefined) || 'Standard',
             };
             return {
                 item: normalizedCached,
@@ -397,10 +398,12 @@ export async function decryptAndNormalizeFileItem(
         }
     }
 
-    const savedCacheEntry: Record<string, unknown> = { ...metaData, parent_id: file.parent_id || null };
+    const resolvedSafe = (typeof metaData.safe === 'string' ? metaData.safe : undefined) || (typeof (file.metadata as Record<string, unknown> | undefined)?.safe === 'string' ? (file.metadata as Record<string, unknown>).safe as string : undefined) || (typeof file.safe === 'string' ? file.safe : undefined) || 'Standard';
+    const savedCacheEntry: Record<string, unknown> = { ...metaData, parent_id: file.parent_id || null, safe: resolvedSafe };
     const normalizedItem: DataItem = {
         ...file,
         ...metaData,
+        safe: resolvedSafe,
         title: (typeof metaData.title === 'string' && metaData.title) || (typeof file.title === 'string' && file.title) || 'Untitled',
         isGroup: (metaData.isGroup as boolean | undefined) || ((file.public_meta as Record<string, unknown> | undefined)?.isGroup as boolean | undefined) || undefined,
         parent_id: (file.parent_id as string | null) || null,

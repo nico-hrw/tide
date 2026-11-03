@@ -21,6 +21,7 @@ import { PencilInkLayer } from './Canvas/PencilInkLayer';
 import { PencilToolbox } from './Canvas/PencilToolbox';
 import { useDataStore } from '@/store/useDataStore';
 import { useLinkStore } from '@/store/useLinkStore';
+import { ensureSafeIsActive } from './extensions/mentionSuggestion';
 
 export default function Editor(props: EditorProps) {
     const [mounted, setMounted] = useState(false);
@@ -405,6 +406,13 @@ function CollaborativeEditor(props: EditorProps) {
                 a.click();
                 document.body.removeChild(a);
                 return;
+            }
+
+            // Cross-Safe Fast Loading:
+            const targetNote = useDataStore.getState().notes?.find((n) => n.id === id);
+            const noteSafe = (e.detail as { safe?: string } | undefined)?.safe || (targetNote?.safe as string | undefined) || ((targetNote?.metadata as Record<string, unknown> | undefined)?.safe as string | undefined);
+            if (noteSafe) {
+                ensureSafeIsActive(noteSafe);
             }
 
             if (onLinkClickRef.current) onLinkClickRef.current({ id, type: type || 'note', title });
