@@ -69,10 +69,17 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
         parentIdOverride?: string | null
     ): Promise<string> => {
         const state = get();
+        const targetParentId =
+            parentIdOverride !== undefined
+                ? parentIdOverride
+                : state.activeParentId || null;
         if (!state.privateKey || !state.publicKey) {
             const fallbackId = crypto.randomUUID();
             set((s) => {
-                const nextNotes: DataItem[] = [...s.notes, { id: fallbackId, title, type: 'note' }];
+                const nextNotes: DataItem[] = [
+                    ...s.notes,
+                    { id: fallbackId, title, type: 'note', parent_id: targetParentId },
+                ];
                 saveNotesToOfflineCache(nextNotes);
                 return { notes: nextNotes };
             });
@@ -263,6 +270,98 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
             const fallbackId = crypto.randomUUID();
             set((s) => {
                 const nextNotes: DataItem[] = [...s.notes, { id: fallbackId, title, type: 'canvas' }];
+                saveNotesToOfflineCache(nextNotes);
+                return { notes: nextNotes };
+            });
+            return fallbackId;
+        }
+    },
+
+    createFolder: async (
+        name: string,
+        parentId?: string | null
+    ): Promise<string> => {
+        const state = get();
+        const folderColor = '#3b82f6';
+        const targetParentId =
+            parentId !== undefined ? parentId : state.activeParentId || null;
+
+        if (!state.privateKey || !state.publicKey) {
+            const fallbackId = crypto.randomUUID();
+            const fallbackFolder: DataItem = {
+                id: fallbackId,
+                title: name,
+                type: 'folder',
+                parent_id: targetParentId,
+                color: folderColor,
+            };
+            set((s) => {
+                const nextNotes: DataItem[] = [...s.notes, fallbackFolder];
+                saveNotesToOfflineCache(nextNotes);
+                return { notes: nextNotes };
+            });
+            return fallbackId;
+        }
+
+        try {
+            const cryptoLib = await import('@/lib/crypto');
+            const meta = { title: name, parent_id: targetParentId, color: folderColor };
+            const securedMeta = await cryptoLib.encryptMetadata(meta, state.publicKey);
+
+            const res = await apiFetch('/api/v1/files', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'folder',
+                    parent_id: targetParentId,
+                    public_meta: {},
+                    metadata: { title: name, color: folderColor },
+                    secured_meta: securedMeta,
+                    visibility: 'private',
+                }),
+            });
+
+            if (!res.ok) throw new Error('Backend failed to create folder');
+            const newFolder = (await res.json()) as { id: string; secured_meta?: string; [key: string]: unknown };
+
+            const decFolder: DataItem = {
+                id: newFolder.id,
+                title: name,
+                type: 'folder',
+                size: 0,
+                updated_at: new Date().toISOString(),
+                secured_meta: newFolder.secured_meta,
+                share_status: 'owner',
+                visibility: 'private',
+                parent_id: targetParentId,
+                color: folderColor,
+            };
+
+            set((s) => {
+                const nextNotes = [...s.notes, decFolder];
+                saveNotesToOfflineCache(nextNotes);
+                return {
+                    notes: nextNotes,
+                    metadataCache: {
+                        ...s.metadataCache,
+                        [newFolder.id]: { title: name, color: folderColor, parent_id: targetParentId },
+                    },
+                };
+            });
+
+            return newFolder.id;
+        } catch (e) {
+            console.error('Failed to create folder on server', e);
+            const fallbackId = crypto.randomUUID();
+            const fallbackFolder: DataItem = {
+                id: fallbackId,
+                title: name,
+                type: 'folder',
+                parent_id: targetParentId,
+                color: folderColor,
+            };
+            set((s) => {
+                const nextNotes = [...s.notes, fallbackFolder];
                 saveNotesToOfflineCache(nextNotes);
                 return { notes: nextNotes };
             });

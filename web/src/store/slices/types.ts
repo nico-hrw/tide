@@ -87,6 +87,10 @@ export interface NotesSlice {
         parentIdOverride?: string | null
     ) => Promise<string>;
     createCanvasNote: (title: string) => Promise<string>;
+    createFolder: (
+        name: string,
+        parentId?: string | null
+    ) => Promise<string>;
     insertMentionIntoNote: (
         noteId: string,
         targetId: string,

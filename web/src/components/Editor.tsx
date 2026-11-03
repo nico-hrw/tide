@@ -12,6 +12,7 @@ import { getCleanDocContent } from './Editor/editorUtils';
 import { MentionNodeView } from './Editor/MentionNodeView';
 import { TableContextMenu } from './Editor/EditorToolbar';
 import { EditorBubbleMenu } from './Editor/EditorBubbleMenu';
+import { EditorInlineSearch } from './Editor/EditorInlineSearch';
 import { useTipTapConfig } from './Editor/useTipTapConfig';
 import {
     InkStroke, InkToolType, PencilInputMode, setEditorInkStrokes,
@@ -658,6 +659,8 @@ function CollaborativeEditor(props: EditorProps) {
             {tableMenuData && (
                 <TableContextMenu editor={editor} position={tableMenuData} />
             )}
+
+            <EditorInlineSearch editor={editor} />
         </div>
     );
 }

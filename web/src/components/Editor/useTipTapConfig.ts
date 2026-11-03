@@ -372,7 +372,32 @@ export function useTipTapConfig({
             }
         },
         editorProps: {
-            handleKeyDown: () => { userHasTyped.current = true; return false; },
+            handleKeyDown: (view, event) => {
+                userHasTyped.current = true;
+                if (event.key === ' ' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+                    const { $from, empty } = view.state.selection;
+                    const isBlockEmpty = empty && $from.parent.isTextblock && $from.parent.content.size === 0;
+                    if (isBlockEmpty) {
+                        event.preventDefault();
+                        try {
+                            const coords = view.coordsAtPos($from.pos);
+                            window.dispatchEvent(
+                                new CustomEvent('tide:editor-inline-search-open', {
+                                    detail: {
+                                        x: coords.left,
+                                        y: coords.bottom,
+                                        from: $from.pos,
+                                    },
+                                })
+                            );
+                        } catch (err) {
+                            console.warn('[EditorInlineSearch] Failed to get cursor coords', err);
+                        }
+                        return true;
+                    }
+                }
+                return false;
+            },
             handleTextInput: () => { userHasTyped.current = true; return false; },
             attributes: {
                 class: 'prose max-w-none w-full max-w-full focus:outline-none min-h-[500px] pb-32 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mt-1 [&_ul[data-type="taskList"]]:list-none [&_ul[data-type="taskList"]]:pl-0 [&_li[data-type="taskItem"]]:flex [&_li[data-type="taskItem"]]:items-start [&_li[data-type="taskItem"]>label]:mr-2 [&_li[data-type="taskItem"]>label]:mt-1 [&_li[data-type="taskItem"]>div]:mt-[2px] [&_.tableWrapper]:overflow-x-auto [&_.tableWrapper]:max-w-full [&_.tableWrapper]:w-full [&_.tableWrapper]:my-4 [&_.tableWrapper]:overscroll-x-contain [&_table]:border-collapse [&_table]:table-fixed [&_table]:w-full [&_table]:my-4 [&_.tableWrapper_table]:my-0 [&_td]:border [&_td]:border-gray-300 dark:[&_td]:border-slate-600 [&_td]:p-2 [&_td]:relative [&_td]:min-w-[100px] [&_td]:break-words [&_th]:border [&_th]:border-gray-300 dark:[&_th]:border-slate-600 [&_th]:p-2 [&_th]:bg-gray-50 dark:[&_th]:bg-slate-800/50 [&_th]:relative [&_th]:min-w-[100px] [&_th]:font-semibold [&_th]:break-words [&_.column-resize-handle]:absolute [&_.column-resize-handle]:-right-1.5 [&_.column-resize-handle]:top-0 [&_.column-resize-handle]:bottom-[calc(-1px)] [&_.column-resize-handle]:w-3 [&_.column-resize-handle]:bg-blue-500/20 [&_.column-resize-handle]:cursor-col-resize hover:[&_.column-resize-handle]:bg-blue-500',

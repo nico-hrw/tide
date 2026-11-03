@@ -264,25 +264,6 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
       : formattedHoursMins
     : '0:00h';
 
-  // Progress for active meeting
-  const progressPercent = useMemo(() => {
-    if (!target?.isActive) return 0;
-    const total = target.endMs - target.startMs;
-    if (total <= 0) return 100;
-    const elapsed = nowMs - target.startMs;
-    return Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
-  }, [target, nowMs]);
-
-  // Formatted time interval (e.g. 14:00 – 15:30)
-  const timeInterval = useMemo(() => {
-    if (!target) return '';
-    const formatHHmm = (ms: number) => {
-      const d = new Date(ms);
-      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    };
-    return `${formatHHmm(target.startMs)} – ${formatHHmm(target.endMs)}`;
-  }, [target]);
-
   // Date for idle widget (e.g. "Mo., 2. Nov.")
   const todayDateStr = useMemo(() => {
     const days = ['So.', 'Mo.', 'Di.', 'Mi.', 'Do.', 'Fr.', 'Sa.'];
@@ -359,6 +340,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
     <div className={`relative shrink-0 w-20 h-20 ${className || ''}`}>
       <motion.div
         layout
+        style={{ borderRadius: 16 }}
         transition={{ type: 'spring', stiffness: 350, damping: 28, mass: 0.8 }}
         onDoubleClick={triggerDemoLoading}
         onTouchStart={handleTouchStart}
@@ -562,45 +544,20 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={islandContentTransition}
-              className="w-full h-full p-2 flex flex-col justify-between items-start text-left select-none cursor-pointer"
+              className="w-full h-full p-2.5 flex flex-col justify-between items-start text-left select-none cursor-pointer"
               onClick={() => handleTap(target.event.id)}
             >
-              <div className="w-full min-w-0">
-                <div className="flex items-center justify-between gap-1 w-full">
-                  <span className="text-[11px] font-bold text-white truncate leading-tight flex-1">
-                    {target.event.title || 'Termin'}
-                  </span>
-                  <span
-                    className={`shrink-0 w-1.5 h-1.5 rounded-full ${
-                      target.isActive ? 'bg-emerald-400 animate-pulse' : 'bg-indigo-400'
-                    }`}
-                  />
-                </div>
-                <div className="text-[9px] font-medium text-white/60 font-mono tracking-tight mt-0.5 truncate">
-                  {timeInterval}
-                </div>
-              </div>
+              <span className="text-xs font-bold text-white truncate max-w-full leading-tight">
+                {target.event.title || 'Termin'}
+              </span>
 
-              <div className="w-full">
-                <div className="flex items-center justify-between gap-1">
-                  <span
-                    className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
-                      target.isActive
-                        ? 'bg-emerald-500/20 text-emerald-300'
-                        : 'bg-indigo-500/20 text-indigo-300'
-                    }`}
-                  >
-                    {target.isActive ? 'NOCH' : 'IN'} {formattedCountdown}
-                  </span>
-                </div>
-                {target.isActive && (
-                  <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mt-1.5">
-                    <div
-                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-1000 ease-linear"
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
-                )}
+              <div className="flex flex-col gap-0.5 w-full min-w-0">
+                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-none">
+                  {target.isActive ? 'NOCH' : 'STARTET IN'}
+                </span>
+                <span className="text-2xl sm:text-[26px] font-black tracking-tight tabular-nums text-white leading-none">
+                  {formattedCountdown}
+                </span>
               </div>
             </motion.div>
           )}
@@ -612,42 +569,39 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={islandContentTransition}
-              className="w-full h-full p-2 flex flex-col justify-between items-start text-left select-none cursor-pointer"
+              className="w-full h-full p-2.5 flex flex-col justify-between items-start text-left select-none cursor-pointer"
               onClick={() => {
                 if (tomorrowFirstEvent?.id) {
                   handleTap(tomorrowFirstEvent.id);
                 }
               }}
             >
-              <div className="w-full min-w-0">
-                <div className="flex items-center gap-1 text-white/70">
-                  <CalendarIcon className="w-3 h-3 text-indigo-400 shrink-0" />
-                  <span className="text-[10px] font-semibold tracking-tight text-white/90 truncate">
-                    {todayDateStr}
-                  </span>
-                </div>
+              <div className="flex items-center gap-1.5 text-white/70">
+                <CalendarIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <span className="text-xs font-bold text-white truncate leading-tight">
+                  {todayDateStr}
+                </span>
               </div>
 
-              <div className="w-full min-w-0">
+              <div className="flex flex-col gap-0.5 w-full min-w-0">
                 {tomorrowFirstEvent ? (
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[8px] font-bold uppercase tracking-wider text-indigo-300/80 leading-none">
-                      Morgen {tomorrowTimeStr}
+                  <>
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-none">
+                      MORGEN {tomorrowTimeStr}
                     </span>
-                    <span className="text-[10px] font-medium text-white/90 truncate mt-0.5 leading-tight">
+                    <span className="text-sm font-bold text-white truncate leading-tight">
                       {tomorrowFirstEvent.title || 'Termin'}
                     </span>
-                  </div>
+                  </>
                 ) : (
-                  <div className="flex flex-col gap-0.5">
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 text-[9px] font-semibold w-fit">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  <>
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-none">
+                      HEUTE
+                    </span>
+                    <span className="text-sm font-bold text-white truncate leading-tight">
                       Keine Termine
                     </span>
-                    <span className="text-[9px] text-white/50 font-medium pl-0.5">
-                      Heute frei
-                    </span>
-                  </div>
+                  </>
                 )}
               </div>
             </motion.div>

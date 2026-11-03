@@ -15,7 +15,7 @@ import {
   CheckSquare
 } from 'lucide-react';
 import { FOLDER_PALETTE, getFolderColor } from '../../lib/folderColors';
-import { MobileSmartIsland, type CountdownEvent } from '../Layout/MobileSmartIsland';
+import type { CountdownEvent } from '../Layout/MobileSmartIsland';
 
 export interface CentralFolderItem {
   id: string;
@@ -284,14 +284,6 @@ export function CentralFolderView({
               );
             })}
           </div>
-        </div>
-
-        {/* Smart Island in Header */}
-        <div className="flex items-center justify-center shrink-0">
-          <MobileSmartIsland
-            events={events}
-            onEventClick={onEventClick}
-          />
         </div>
 
         {/* Action Buttons */}

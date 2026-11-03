@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Clock, GraduationCap, Copy, Download, X, Check, MoreHorizontal, UploadCloud } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
@@ -148,6 +148,29 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
         enabled: isHistoryMode,
     });
 
+    const handleCancelHistory = useCallback(() => {
+        setIsHistoryMode(false);
+        setShowBackups?.(false);
+        setActiveIndex(0);
+    }, [setShowBackups, setActiveIndex]);
+
+    const handleApplyHistory = useCallback(() => {
+        setIsHistoryMode(false);
+        setShowBackups?.(false);
+        setActiveIndex(0);
+        if (selectedContent) {
+            if (onRestoreBackup) {
+                onRestoreBackup(selectedContent);
+            } else {
+                window.dispatchEvent(new CustomEvent('editor:restore-content', { detail: selectedContent }));
+                if (activeNoteId && performSave) {
+                    const currentFile = files.find(f => f.id === activeNoteId);
+                    performSave(selectedContent, activeNoteId, activeFileKey, currentFile?.visibility);
+                }
+            }
+        }
+    }, [selectedContent, onRestoreBackup, activeNoteId, performSave, files, activeFileKey, setShowBackups, setActiveIndex]);
+
     const titleInputNoteIdRef = useRef<string | null>(null);
     const [internalHoveredElementId, setInternalHoveredElementId] = useState<string | null>(null);
     const [internalIsLinkingMode, setInternalIsLinkingMode] = useState(false);
@@ -177,7 +200,9 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                 <div className="flex items-center justify-center h-full text-gray-400">Loading content...</div>
             ) : (
                 <div className={`mx-auto min-h-[500px] py-12 px-8 lg:px-24 transition-all duration-300 ${
-                    noteLayout === 'thin' ? 'max-w-2xl' : noteLayout === 'normal' ? 'max-w-4xl' : noteLayout === 'wide' ? 'max-w-6xl' : 'max-w-full'
+                    isHistoryMode
+                        ? (noteLayout === 'thin' ? 'max-w-3xl' : noteLayout === 'normal' ? 'max-w-5xl' : noteLayout === 'wide' ? 'max-w-7xl' : 'max-w-full')
+                        : (noteLayout === 'thin' ? 'max-w-2xl' : noteLayout === 'normal' ? 'max-w-4xl' : noteLayout === 'wide' ? 'max-w-6xl' : 'max-w-full')
                 }`}>
                     <CanvasLayer
                         elements={canvasSidecar.elements}
@@ -373,39 +398,20 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                             {isHistoryMode && (
                                                                 <>
                                                                     <button
-                                                                        onClick={() => {
-                                                                            setIsHistoryMode(false);
-                                                                            setShowBackups?.(false);
-                                                                            setActiveIndex(0);
-                                                                        }}
-                                                                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 transition-colors"
+                                                                        onClick={handleCancelHistory}
+                                                                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
                                                                         title="Versionsverlauf abbrechen"
                                                                     >
                                                                         <X size={14} />
                                                                         <span>Abbrechen</span>
                                                                     </button>
                                                                     <button
-                                                                        onClick={() => {
-                                                                            setIsHistoryMode(false);
-                                                                            setShowBackups?.(false);
-                                                                            setActiveIndex(0);
-                                                                            if (selectedContent) {
-                                                                                if (onRestoreBackup) {
-                                                                                    onRestoreBackup(selectedContent);
-                                                                                } else {
-                                                                                    window.dispatchEvent(new CustomEvent('editor:restore-content', { detail: selectedContent }));
-                                                                                    if (activeNoteId && performSave) {
-                                                                                        const currentFile = files.find(f => f.id === activeNoteId);
-                                                                                        performSave(selectedContent, activeNoteId, activeFileKey, currentFile?.visibility);
-                                                                                    }
-                                                                                }
-                                                                            }
-                                                                        }}
-                                                                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors"
-                                                                        title="Ausgewählten Stand speichern"
+                                                                        onClick={handleApplyHistory}
+                                                                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors cursor-pointer"
+                                                                        title="Ausgewählten Stand übernehmen"
                                                                     >
                                                                         <Check size={14} />
-                                                                        <span>Speichern</span>
+                                                                        <span>Übernehmen</span>
                                                                     </button>
                                                                 </>
                                                             )}
@@ -669,12 +675,14 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                 })()}
                             </div>
                             {isHistoryMode && (
-                                <div className="shrink-0 pl-6 sticky top-12 z-10">
+                                <div className="shrink-0 pl-3 sm:pl-6 sticky top-12 z-10 self-start">
                                     <NoteVersionTimeline
                                         points={points}
                                         activeIndex={activeIndex}
                                         onSelectIndex={setActiveIndex}
                                         isLoading={isBackupLoading}
+                                        onCancel={handleCancelHistory}
+                                        onApply={handleApplyHistory}
                                     />
                                 </div>
                             )}

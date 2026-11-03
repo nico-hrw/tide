@@ -75,6 +75,7 @@ export const useNotes = () =>
             setNoteCaretPosition: s.setNoteCaretPosition,
             createNote: s.createNote,
             createCanvasNote: s.createCanvasNote,
+            createFolder: s.createFolder,
             insertMentionIntoNote: s.insertMentionIntoNote,
         }))
     );

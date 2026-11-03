@@ -48,6 +48,8 @@ type MentionSuggestionItem =
           priority?: string;
           dueDate?: string;
           scheduledDate?: string;
+          pathSegments?: string[];
+          cleanNoteTitle?: string;
       };
 
 const MentionList = forwardRef((props: any, ref) => {
@@ -130,6 +132,47 @@ const MentionList = forwardRef((props: any, ref) => {
                     dueDate: undefined,
                     color: undefined,
                 });
+            } finally {
+                isCreatingRef.current = false;
+            }
+        } else if (item.id === 'NEW_PATH_NOTE') {
+            if (isCreatingRef.current) return;
+            isCreatingRef.current = true;
+            try {
+                const pathSegments: string[] = (item as any).pathSegments || [];
+                const cleanNoteTitle: string =
+                    (item as any).cleanNoteTitle ||
+                    ('title' in item ? item.title : undefined) ||
+                    'Untitled';
+
+                let currentParentId: string | null = null;
+                for (const segment of pathSegments) {
+                    const currentNotes = useDataStore.getState().notes || [];
+                    const existingFolder = currentNotes.find(
+                        (f: any) =>
+                            f &&
+                            f.type === 'folder' &&
+                            !f.isGroup &&
+                            (f.parent_id || null) === (currentParentId || null) &&
+                            f.title?.trim().toLowerCase() === segment.trim().toLowerCase()
+                    );
+
+                    if (existingFolder) {
+                        currentParentId = existingFolder.id;
+                    } else {
+                        const createFolder = useDataStore.getState().createFolder;
+                        if (typeof createFolder === 'function') {
+                            currentParentId = await createFolder(segment, currentParentId);
+                        }
+                    }
+                }
+
+                const finalFolderId = currentParentId;
+                const newNoteId = await useDataStore.getState().createNote(cleanNoteTitle, undefined, finalFolderId);
+
+                props.command({ id: newNoteId, label: cleanNoteTitle, type: 'note', isGhost: false });
+            } catch (err) {
+                console.error('Failed to create path note:', err);
             } finally {
                 isCreatingRef.current = false;
             }
@@ -433,6 +476,77 @@ export default {
             return true;
         });
 
+        // 2.5 Path Support in Links (Feature B)
+        if (query.includes('/')) {
+            const cleanPath = query.trim().replace(/^\/+/, '');
+            const parts = cleanPath.split('/');
+            const cleanNoteTitle = parts[parts.length - 1].trim();
+            const folderSegments = parts.slice(0, -1).map(s => s.trim()).filter(Boolean);
+
+            const allFolders = files.filter((f: any) => f && f.type === 'folder' && !f.isGroup);
+            const folderMap = new Map<string, any>(allFolders.map((f: any) => [f.id, f]));
+
+            const getFolderPathSegments = (parentId?: string | null): string[] => {
+                const segs: string[] = [];
+                let cur = parentId;
+                const seen = new Set<string>();
+                while (cur && folderMap.has(cur) && !seen.has(cur)) {
+                    seen.add(cur);
+                    const folder = folderMap.get(cur);
+                    if (folder?.title) {
+                        segs.unshift(folder.title);
+                    }
+                    cur = folder?.parent_id || null;
+                }
+                return segs;
+            };
+
+            const matchedPathNotes = filteredFiles
+                .filter((f: any) => {
+                    const noteFolderSegs = getFolderPathSegments(f.parent_id);
+                    const notePathString = '/' + [...noteFolderSegs, f.title].join('/');
+                    const matchBySegments =
+                        folderSegments.length === 0 ||
+                        (noteFolderSegs.length >= folderSegments.length &&
+                            folderSegments.every((seg, idx) =>
+                                noteFolderSegs[idx]?.toLowerCase().includes(seg.toLowerCase())
+                            ));
+                    const matchByTitle =
+                        !cleanNoteTitle || (f.title || '').toLowerCase().includes(cleanNoteTitle.toLowerCase());
+                    return (
+                        (matchBySegments && matchByTitle) ||
+                        notePathString.toLowerCase().includes(cleanPath.toLowerCase())
+                    );
+                })
+                .slice(0, 5)
+                .map((f: any) => {
+                    const noteFolderSegs = getFolderPathSegments(f.parent_id);
+                    const displayPath = '/' + [...noteFolderSegs, f.title].join('/');
+                    return {
+                        id: f.id,
+                        label: displayPath,
+                        title: f.title,
+                        type: 'note',
+                        isGhost: false,
+                    };
+                });
+
+            const displayCreateTitle = cleanNoteTitle || 'Untitled';
+            const normalizedCreatePath = '/' + [...folderSegments, displayCreateTitle].join('/');
+            const createItem: MentionSuggestionItem = {
+                id: 'NEW_PATH_NOTE',
+                label: `[+] Erstellen: ${normalizedCreatePath}`,
+                title: displayCreateTitle,
+                query: query,
+                type: 'action',
+                isGhost: false,
+                pathSegments: folderSegments,
+                cleanNoteTitle: displayCreateTitle,
+            };
+
+            return [...matchedPathNotes, createItem];
+        }
+
         // 3. Search Matching
         const lowQuery = query.toLowerCase();
         let matched = filteredFiles.filter((f: any) => (f.title || f.id).toLowerCase().includes(lowQuery));
@@ -657,6 +771,12 @@ export default {
                 type: 'mention',
                 attrs: { id: props.id, label: label, type: 'note', isGhost: false }
             }).run();
+        } else if (props.id === 'NEW_PATH_NOTE') {
+            const label = props.cleanNoteTitle || props.label || 'Untitled';
+            editor.chain().focus().deleteRange(range).insertContent({
+                type: 'mention',
+                attrs: { id: props.id, label: label, type: 'note', isGhost: false }
+            }).run();
         } else if (props.type === 'task' || props.id === 'NEW_TASK') {
             editor.chain().focus().deleteRange(range).insertContent({
                 type: 'taskMention',
@@ -802,7 +922,7 @@ export default {
                     popup = null;
                     // Ensure focus returns to the editor
                     props.editor?.commands?.focus?.();
-                    return true;
+                    return false;
                 }
 
                 const handled = (component?.ref as any)?.onKeyDown(props);

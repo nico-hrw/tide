@@ -26,6 +26,7 @@ import Avatar from '../Profile/Avatar';
 import { useSocialStore } from '@/store/useSocialStore';
 import { useDataStore } from '@/store/useDataStore';
 import DT from '@/lib/designTokens';
+import SmartIsland from '@/components/extensions/smart_island/SmartIsland';
 
 export interface Tab {
     id: string;
@@ -158,7 +159,7 @@ export default function TabList({
             className="w-full flex-shrink-0 min-h-[calc(4.25rem+env(safe-area-inset-top,0px))] bg-gray-100/70 dark:bg-slate-950/60 border-b border-gray-200/80 dark:border-white/10 flex items-center justify-between px-3 gap-2 select-none z-30 pt-[env(safe-area-inset-top,0px)]"
         >
             {/* Zone 1: Left balanced zone (Sidebar toggle) */}
-            <div className="flex items-center justify-start gap-2 flex-1 min-w-0 shrink-0">
+            <div className={`flex items-center justify-start gap-2 min-w-0 shrink-0 ${navigationMode === 'folders' ? 'hidden' : 'flex-1'}`}>
                 {navigationMode !== 'folders' && onToggleSidebar && (
                     <button
                         type="button"
@@ -176,9 +177,9 @@ export default function TabList({
             {/* Zone 2: Center balanced zone (Horizontally Centered Tabs) */}
             <div 
                 ref={scrollRef}
-                className="flex items-center min-w-0 max-w-full overflow-x-auto no-scrollbar py-1"
+                className={`flex items-center min-w-0 py-1 ${navigationMode === 'folders' ? 'flex-1 justify-start overflow-x-auto no-scrollbar' : 'max-w-full overflow-x-auto no-scrollbar'}`}
             >
-                <div className="flex items-center gap-1 mx-auto shrink-0">
+                <div className={`flex items-center gap-1.5 shrink-0 ${navigationMode === 'folders' ? 'justify-start' : 'mx-auto'}`}>
                     <Reorder.Group
                         axis="x"
                         values={tabs}
@@ -224,7 +225,7 @@ export default function TabList({
                                                 }`}
                                         >
                                             {/* Icon */}
-                                            <div className={`shrink-0 ${isActive ? 'text-blue-500' : 'text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300 transition-colors'}`}>
+                                            <div className={`shrink-0 ${isActive ? 'text-gray-950 dark:text-white font-semibold' : 'text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300 transition-colors'}`}>
                                                 {getTabIcon(tab.type)}
                                             </div>
 
@@ -271,6 +272,17 @@ export default function TabList({
                         >
                             <Plus size={15} />
                         </button>
+                    )}
+
+                    {/* Tablet Mode Compact Smart Island: positioned right next to open tabs & "+" button */}
+                    {navigationMode === 'folders' && (
+                        <div className="shrink-0 ml-1.5 flex items-center">
+                            <SmartIsland 
+                                compact={true} 
+                                userName={userProfile?.username}
+                                onSelect={() => onTabSelect('calendar', 'calendar')}
+                            />
+                        </div>
                     )}
                 </div>
             </div>
