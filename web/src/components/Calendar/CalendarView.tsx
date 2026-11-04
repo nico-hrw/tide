@@ -555,7 +555,7 @@ export default function CalendarView({
                 {viewMode === 'week' && (
                     <div
                         ref={scrollContainerRef}
-                        className="flex-1 relative flex trackpad-scroll-free"
+                        className="flex-1 relative flex overflow-auto trackpad-scroll-free"
                         style={{ touchAction: 'pan-x pan-y', overscrollBehavior: 'none' }}
                     >
                         <CalendarWeekTimeGrid

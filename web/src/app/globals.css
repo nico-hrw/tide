@@ -410,9 +410,14 @@ body {
 }
 
 .trackpad-scroll-free {
-  overflow: hidden !important;
-  touch-action: none;
+  overflow: auto;
+  touch-action: pan-x pan-y;
   overscroll-behavior: none;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.trackpad-scroll-free::-webkit-scrollbar {
+  display: none;
 }
 
 /* Updated Pill buttons */
