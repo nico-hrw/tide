@@ -1584,7 +1584,7 @@ export default function MobileLayout({
                 })()}
               </h1>
             </div>
-            <NextEventCountdown events={expandedEvents} onTap={handleCountdownTap} className="-mt-1.5" />
+            <NextEventCountdown events={expandedEvents} onTap={handleCountdownTap} className="-mt-1.5" userName={displayName} />
           </div>
 
           {/* Row 2: Apple-style Horizontal Date Wheel */}

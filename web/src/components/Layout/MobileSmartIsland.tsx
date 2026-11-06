@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Bell, X, RefreshCw, CloudOff, Calendar as CalendarIcon } from 'lucide-react';
+import { X, ChevronRight, MessageSquare, CloudOff } from 'lucide-react';
 import { useIslandStore } from '@/components/extensions/smart_island/useIslandStore';
 
 export interface CountdownEvent {
@@ -25,13 +24,39 @@ export interface MobileSmartIslandProps {
   onEventClick?: (eventId: string) => void;
   className?: string;
   isLoading?: boolean;
+  userName?: string;
 }
 
-// Fluid Apple-style organic transition easing
-const islandContentTransition = {
-  ease: [0.32, 0.72, 0, 1] as [number, number, number, number],
-  duration: 0.28,
-};
+// Math easing functions from drehendes_quadrat.html
+function lerp(start: number, end: number, t: number): number {
+  return start + (end - start) * t;
+}
+
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+interface AnimationState {
+  state: 'IDLE' | 'STARTING' | 'RUNNING' | 'STOPPING';
+  animationFrameId: number | null;
+  mainAngle: number;
+  bgAngle: number;
+  loaderAngle: number;
+  speedFactor: number;
+  textProgress: number;
+  offsetProgress: number;
+  loaderProgress: number;
+  bgProgress: number;
+  lastTimestamp: number;
+  waveTime: number;
+  stopStartAngle: number;
+  stopTargetAngle: number;
+  stopProgress: number;
+}
 
 export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   events = [],
@@ -39,10 +64,11 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   onEventClick,
   className,
   isLoading = false,
+  userName,
 }: MobileSmartIslandProps) {
-  const { state, dismiss } = useIslandStore();
+  const { state: islandStoreState, dismiss } = useIslandStore();
   const [now, setNow] = useState<Date>(() => new Date());
-  const [dismissedImminentId, setDismissedImminentId] = useState<string | null>(null);
+  const [isUserExpanded, setIsUserExpanded] = useState(false);
   const [isDemoLoading, setDemoLoading] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isOffline, setIsOffline] = useState(() => {
@@ -50,6 +76,52 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
       return !navigator.onLine;
     }
     return false;
+  });
+
+  // Expand automatically when incoming message arrives in store
+  const incomingMessage = islandStoreState.current?.type === 'message'
+    ? islandStoreState.current.payload
+    : null;
+
+  // Determine whether loading animation should run
+  const shouldBeLoading = Boolean(
+    isLoading ||
+    isDemoLoading ||
+    isSyncing ||
+    islandStoreState.current?.type === 'loading' ||
+    islandStoreState.current?.type === 'upload_progress'
+  );
+
+  // Expanded state is active when user opens it or when incoming message arrives, provided not loading
+  const isExpanded = !shouldBeLoading && (isUserExpanded || Boolean(incomingMessage));
+
+  // DOM Refs for direct GPU-composited RAF updates
+  const containerRef = useRef<HTMLDivElement>(null);
+  const baseSquareRef = useRef<HTMLDivElement>(null);
+  const idleTextRef = useRef<HTMLDivElement>(null);
+  const welcomeTextRef = useRef<HTMLDivElement>(null);
+  const offsetSquareRef = useRef<HTMLDivElement>(null);
+  const loaderIconRef = useRef<HTMLDivElement>(null);
+  const navySquareRef = useRef<HTMLDivElement>(null);
+  const purpleSquareRef = useRef<HTMLDivElement>(null);
+
+  // Animation controller state
+  const animRef = useRef<AnimationState>({
+    state: 'IDLE',
+    animationFrameId: null,
+    mainAngle: 0,
+    bgAngle: 0,
+    loaderAngle: 0,
+    speedFactor: 0,
+    textProgress: 1,
+    offsetProgress: 0,
+    loaderProgress: 0,
+    bgProgress: 0,
+    lastTimestamp: 0,
+    waveTime: 0,
+    stopStartAngle: 0,
+    stopTargetAngle: 0,
+    stopProgress: 0,
   });
 
   const demoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -64,7 +136,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
     }
   }, [onEventClick, onTap]);
 
-  // Offline recovery: 8-second auto-check with navigator.onLine
+  // Offline recovery
   useEffect(() => {
     if (!isOffline) return;
     const interval = setInterval(() => {
@@ -77,9 +149,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
 
   // Sync and Network status listeners
   useEffect(() => {
-    const handleSyncing = () => {
-      setIsSyncing(true);
-    };
+    const handleSyncing = () => setIsSyncing(true);
     const handleSynced = () => {
       setIsSyncing(false);
       setIsOffline(false);
@@ -88,9 +158,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
       setIsOffline(true);
       setIsSyncing(false);
     };
-    const handleOnline = () => {
-      setIsOffline(false);
-    };
+    const handleOnline = () => setIsOffline(false);
     const handleOffline = () => {
       setIsOffline(true);
       setIsSyncing(false);
@@ -129,43 +197,19 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
     return () => clearInterval(timer);
   }, []);
 
-  // Cleanup timers on unmount
+  // Outside click handler to collapse expanded state
   useEffect(() => {
-    return () => {
-      if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
-      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    if (!isExpanded) return;
+    const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsUserExpanded(false);
+      }
     };
-  }, []);
-
-  // Long-press / double-tap demo trigger
-  const triggerDemoLoading = useCallback(() => {
-    setDemoLoading(true);
-    if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
-    demoTimerRef.current = setTimeout(() => {
-      setDemoLoading(false);
-    }, 6000);
-  }, []);
-
-  const handleTouchStart = useCallback(() => {
-    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-    longPressTimerRef.current = setTimeout(() => {
-      triggerDemoLoading();
-    }, 500);
-  }, [triggerDemoLoading]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  }, []);
-
-  const handleTouchMove = useCallback(() => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  }, []);
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [isExpanded]);
 
   // Target event calculation (active or next upcoming today) + tomorrow's first event
   const { target, tomorrowFirstEvent } = useMemo(() => {
@@ -256,20 +300,51 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   const pad = (n: number) => n.toString().padStart(2, '0');
   const h = Math.floor(diffSec / 3600);
   const m = Math.floor((diffSec % 3600) / 60);
-  const formattedHoursMins = `${h}:${pad(m)}h`;
-  const isUnderOneHour = Boolean(target && diffSec < 3600);
-  const formattedCountdown = target
-    ? isUnderOneHour
-      ? `${Math.max(1, Math.ceil(diffSec / 60))} Min`
-      : formattedHoursMins
-    : '0:00h';
 
-  // Date for idle widget (e.g. "Mo., 2. Nov.")
-  const todayDateStr = useMemo(() => {
-    const days = ['So.', 'Mo.', 'Di.', 'Mi.', 'Do.', 'Fr.', 'Sa.'];
-    const months = ['Jan.', 'Feb.', 'Mär.', 'Apr.', 'Mai', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
-    return `${days[now.getDay()]}, ${now.getDate()}. ${months[now.getMonth()]}`;
-  }, [now]);
+  // Time & Label calculation for Idle State matching drehendes_quadrat.html
+  const { displayTitle, displaySubtitle, timeMain, timeUnit, formattedCountdown } = useMemo(() => {
+    let title = 'TERMIN';
+    let subtitle = 'IN';
+    let main = '0:00';
+    let unit = 'h';
+    let countdownStr = '0:00h';
+
+    if (target) {
+      title = target.event.title ? target.event.title.toUpperCase() : 'TERMIN';
+      subtitle = target.isActive ? 'NOCH' : 'IN';
+      if (diffSec >= 3600) {
+        main = `${h}:${pad(m)}`;
+        unit = 'h';
+        countdownStr = `${h}:${pad(m)}h`;
+      } else {
+        const minsLeft = Math.max(1, Math.ceil(diffSec / 60));
+        main = `${minsLeft}`;
+        unit = 'm';
+        countdownStr = `${minsLeft} Min`;
+      }
+    } else if (tomorrowFirstEvent?.start) {
+      const d = new Date(tomorrowFirstEvent.start);
+      title = tomorrowFirstEvent.title ? tomorrowFirstEvent.title.toUpperCase() : 'TERMIN';
+      subtitle = 'MORGEN';
+      main = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      unit = 'h';
+      countdownStr = `Morgen ${main}h`;
+    } else {
+      title = 'TIDE';
+      subtitle = 'HEUTE';
+      main = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      unit = 'h';
+      countdownStr = `${main}h`;
+    }
+
+    return {
+      displayTitle: title,
+      displaySubtitle: subtitle,
+      timeMain: main,
+      timeUnit: unit,
+      formattedCountdown: countdownStr,
+    };
+  }, [target, diffSec, h, m, tomorrowFirstEvent, now]);
 
   const tomorrowTimeStr = useMemo(() => {
     if (!tomorrowFirstEvent?.start) return '';
@@ -277,337 +352,554 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
     return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }, [tomorrowFirstEvent]);
 
-  // Imminent event: starting in 15 minutes or less
-  const isImminent = !target?.isActive && target !== null && diffSec > 0 && diffSec <= 900;
-  const isImminentDismissed = target?.event?.id ? dismissedImminentId === target.event.id : false;
+  const formatEventTimeRange = useCallback((e?: CountdownEvent | null) => {
+    if (!e?.start) return '';
+    const s = new Date(e.start);
+    const sStr = `${pad(s.getHours())}:${pad(s.getMinutes())}`;
+    if (!e.end) return `${sStr} Uhr`;
+    const end = new Date(e.end);
+    const endStr = `${pad(end.getHours())}:${pad(end.getMinutes())}`;
+    return `${sStr} – ${endStr} Uhr`;
+  }, []);
 
-  // Auto-dismiss imminent banner after 8 seconds back to compact countdown pill
-  useEffect(() => {
-    if (isImminent && target?.event?.id && dismissedImminentId !== target.event.id) {
-      const timer = setTimeout(() => {
-        setDismissedImminentId(target.event.id);
-      }, 8000);
-      return () => clearTimeout(timer);
+  // Loading animation controller (RAF loop from drehendes_quadrat.html)
+  const startAnimation = useCallback(() => {
+    const a = animRef.current;
+    if (a.state === 'STARTING' || a.state === 'RUNNING') return;
+
+    a.state = 'STARTING';
+    a.lastTimestamp = performance.now();
+
+    const updateLoop = (timestamp: number) => {
+      const anim = animRef.current;
+      if (!anim.lastTimestamp) anim.lastTimestamp = timestamp;
+      const dt = Math.min((timestamp - anim.lastTimestamp) * 0.001, 0.04);
+      anim.lastTimestamp = timestamp;
+
+      const baseSquare = baseSquareRef.current;
+      const idleText = idleTextRef.current;
+      const offsetSquare = offsetSquareRef.current;
+      const loaderIcon = loaderIconRef.current;
+      const navySquare = navySquareRef.current;
+      const purpleSquare = purpleSquareRef.current;
+
+      if (!baseSquare || !idleText || !offsetSquare || !loaderIcon || !navySquare || !purpleSquare) {
+        anim.animationFrameId = requestAnimationFrame(updateLoop);
+        return;
+      }
+
+      if (anim.state === 'STARTING') {
+        anim.speedFactor = lerp(anim.speedFactor, 1, dt * 2.2);
+        anim.textProgress = Math.max(0, anim.textProgress - dt * 4.0);
+
+        if (anim.speedFactor > 0.15) {
+          anim.offsetProgress = Math.min(1, anim.offsetProgress + dt * 1.6);
+        }
+        if (anim.offsetProgress > 0.4) {
+          anim.loaderProgress = Math.min(1, anim.loaderProgress + dt * 1.8);
+        }
+        if (anim.loaderProgress > 0.5) {
+          anim.bgProgress = Math.min(1, anim.bgProgress + dt * 1.4);
+        }
+
+        if (anim.bgProgress >= 0.99 && anim.speedFactor > 0.95) {
+          anim.bgProgress = 1;
+          anim.offsetProgress = 1;
+          anim.loaderProgress = 1;
+          anim.speedFactor = 1;
+          anim.textProgress = 0;
+          anim.state = 'RUNNING';
+        }
+
+        anim.waveTime += dt;
+        const burstMultiplier = 1.0 + 1.25 * Math.pow(Math.max(0, Math.sin(anim.waveTime * 1.8)), 4);
+        anim.mainAngle += 110 * burstMultiplier * anim.speedFactor * dt;
+        anim.bgAngle -= 75 * anim.speedFactor * dt;
+        anim.loaderAngle += 340 * dt;
+
+      } else if (anim.state === 'RUNNING') {
+        anim.waveTime += dt;
+        const burstMultiplier = 1.0 + 1.25 * Math.pow(Math.max(0, Math.sin(anim.waveTime * 1.8)), 4);
+        anim.mainAngle += 110 * burstMultiplier * dt;
+        anim.bgAngle -= 75 * dt;
+        anim.loaderAngle += 340 * dt;
+
+      } else if (anim.state === 'STOPPING') {
+        anim.bgProgress = Math.max(0, anim.bgProgress - dt * 2.0);
+
+        if (anim.bgProgress < 0.5) {
+          anim.loaderProgress = Math.max(0, anim.loaderProgress - dt * 2.5);
+        }
+        if (anim.loaderProgress < 0.4) {
+          anim.offsetProgress = Math.max(0, anim.offsetProgress - dt * 2.2);
+        }
+
+        anim.stopProgress = Math.min(1, anim.stopProgress + dt * 0.7);
+        const easedStop = easeOutCubic(anim.stopProgress);
+
+        if (anim.stopProgress > 0.65) {
+          anim.textProgress = Math.min(1, anim.textProgress + dt * 2.8);
+        }
+
+        // MATHEMATICAL ORTHOGONAL DOCKING: Smooth deceleration to stopTargetAngle
+        anim.mainAngle = lerp(anim.stopStartAngle, anim.stopTargetAngle, easedStop);
+        anim.bgAngle -= 75 * (1 - easedStop) * dt;
+        anim.loaderAngle += 340 * (1 - easedStop) * dt;
+
+        if (anim.stopProgress >= 1 && anim.offsetProgress <= 0.01 && anim.bgProgress <= 0.01 && anim.loaderProgress <= 0.01) {
+          // Normalize to exactly 0deg
+          anim.mainAngle = 0;
+          baseSquare.style.transform = 'translate3d(0,0,0) scale(1) rotate(0deg)';
+          anim.textProgress = 1;
+          idleText.style.opacity = '1';
+          offsetSquare.style.opacity = '0';
+          loaderIcon.style.opacity = '0';
+          navySquare.style.opacity = '0';
+          purpleSquare.style.opacity = '0';
+
+          anim.state = 'IDLE';
+          anim.speedFactor = 0;
+          if (anim.animationFrameId) {
+            cancelAnimationFrame(anim.animationFrameId);
+            anim.animationFrameId = null;
+          }
+          return;
+        }
+      }
+
+      // Direct GPU-composited CSS transforms
+      idleText.style.opacity = anim.textProgress.toFixed(3);
+      baseSquare.style.transform = `translate3d(0,0,0) scale(1) rotate(${anim.mainAngle.toFixed(2)}deg)`;
+
+      if (anim.offsetProgress > 0) {
+        const easedOffset = easeInOutCubic(anim.offsetProgress);
+        offsetSquare.style.opacity = easedOffset.toFixed(3);
+        offsetSquare.style.transform = `translate3d(0,0,0) scale(${lerp(0.85, 1, easedOffset).toFixed(3)}) rotate(${(anim.mainAngle + 45).toFixed(2)}deg)`;
+      } else {
+        offsetSquare.style.opacity = '0';
+      }
+
+      if (anim.loaderProgress > 0) {
+        const easedLoader = easeInOutCubic(anim.loaderProgress);
+        loaderIcon.style.opacity = easedLoader.toFixed(3);
+        loaderIcon.style.transform = `translate3d(0,0,0) scale(${lerp(0.6, 1, easedLoader).toFixed(3)}) rotate(${anim.loaderAngle.toFixed(2)}deg)`;
+      } else {
+        loaderIcon.style.opacity = '0';
+      }
+
+      if (anim.bgProgress > 0.001) {
+        const easedBg = easeInOutCubic(anim.bgProgress);
+        const pulseCycle = (Math.sin(anim.waveTime * 2.2) + 1) * 0.5;
+
+        const navyScale = lerp(0.4, lerp(0.85, 1.28, pulseCycle), easedBg);
+        navySquare.style.opacity = (lerp(0.2, 0.95, pulseCycle) * easedBg).toFixed(3);
+        navySquare.style.transform = `translate3d(0,0,0) scale(${navyScale.toFixed(3)}) rotate(${anim.bgAngle.toFixed(2)}deg)`;
+
+        const purpleScale = lerp(0.4, lerp(0.85, 1.28, 1 - pulseCycle), easedBg);
+        purpleSquare.style.opacity = (lerp(0.2, 0.95, 1 - pulseCycle) * easedBg).toFixed(3);
+        purpleSquare.style.transform = `translate3d(0,0,0) scale(${purpleScale.toFixed(3)}) rotate(${(anim.bgAngle - 25).toFixed(2)}deg)`;
+      } else {
+        navySquare.style.opacity = '0';
+        purpleSquare.style.opacity = '0';
+      }
+
+      anim.animationFrameId = requestAnimationFrame(updateLoop);
+    };
+
+    if (!a.animationFrameId) {
+      a.animationFrameId = requestAnimationFrame(updateLoop);
     }
-  }, [isImminent, target?.event?.id, dismissedImminentId]);
+  }, []);
 
-  // Active mode resolution
-  type IslandMode = 'loading' | 'syncing' | 'offline' | 'message' | 'imminent' | 'idle';
+  const stopAnimation = useCallback(() => {
+    const anim = animRef.current;
+    if (anim.state !== 'RUNNING' && anim.state !== 'STARTING') return;
 
-  let mode: IslandMode = 'idle';
-  if (isOffline) {
-    mode = 'offline';
-  } else if (isSyncing) {
-    mode = 'syncing';
-  } else if (
-    isLoading ||
-    isDemoLoading ||
-    state.current?.type === 'loading' ||
-    state.current?.type === 'upload_progress'
-  ) {
-    mode = 'loading';
-  } else if (state.current?.type === 'message') {
-    mode = 'message';
-  } else if (state.current?.type === 'reminder' || (!isImminentDismissed && isImminent)) {
-    mode = 'imminent';
-  } else {
-    mode = 'idle';
-  }
+    anim.state = 'STOPPING';
+    anim.stopStartAngle = anim.mainAngle;
+    const minRunout = 240;
+    // Round up to nearest forward multiple of 360deg
+    anim.stopTargetAngle = Math.ceil((anim.stopStartAngle + minRunout) / 360) * 360;
+    anim.stopProgress = 0;
+  }, []);
 
-  const isExpanded = mode === 'message' || mode === 'imminent';
-  const isPill = mode === 'syncing' || mode === 'offline';
+  useEffect(() => {
+    if (shouldBeLoading) {
+      startAnimation();
+    } else {
+      stopAnimation();
+    }
+  }, [shouldBeLoading, startAnimation, stopAnimation]);
 
-  const senderName =
-    typeof state.current?.payload?.senderName === 'string'
-      ? state.current.payload.senderName
-      : 'Nachricht';
+  // Cleanup on unmount (zero memory leaks, 0% CPU on idle)
+  useEffect(() => {
+    const anim = animRef.current;
+    return () => {
+      if (anim.animationFrameId) {
+        cancelAnimationFrame(anim.animationFrameId);
+        anim.animationFrameId = null;
+      }
+      if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    };
+  }, []);
 
-  const messageText =
-    typeof state.current?.payload?.text === 'string'
-      ? state.current.payload.text
-      : 'Neue Nachricht';
+  // Interactive controls
+  const handleBaseClick = useCallback(() => {
+    if (animRef.current.state !== 'IDLE') return;
+    setIsUserExpanded((prev) => !prev);
+  }, []);
 
-  const imminentTitle =
-    (typeof state.current?.payload?.title === 'string' ? state.current.payload.title : '') ||
-    target?.event.title ||
-    'Termin steht an';
+  const triggerDemoLoading = useCallback(() => {
+    if (animRef.current.state !== 'IDLE') return;
+    setDemoLoading(true);
+    if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
+    demoTimerRef.current = setTimeout(() => {
+      setDemoLoading(false);
+    }, 5500);
+  }, []);
 
-  const imminentMinutes = Math.max(1, Math.ceil(diffSec / 60));
-  const imminentLabel =
-    diffSec <= 60 ? "Gleich geht's los!" : `In ${imminentMinutes} Min!`;
+  const handleTouchStart = useCallback(() => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = setTimeout(() => {
+      triggerDemoLoading();
+    }, 500);
+  }, [triggerDemoLoading]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
 
   return (
-    <div className={`relative shrink-0 w-20 h-20 ${className || ''}`}>
-      <motion.div
-        layout
-        style={{ borderRadius: 16 }}
-        transition={{ type: 'spring', stiffness: 350, damping: 28, mass: 0.8 }}
+    <div
+      ref={containerRef}
+      className={`relative shrink-0 w-[140px] h-[140px] select-none ${className || ''}`}
+    >
+      {/* Visual styles and transitions matching drehendes_quadrat.html */}
+      <style>{`
+        .smart-island-layer {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          border-radius: 30px;
+          transform-origin: center center;
+          will-change: transform, opacity;
+          contain: layout style paint;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+        }
+        .smart-island-spring {
+          transition: width 0.65s cubic-bezier(0.34, 1.45, 0.54, 1);
+        }
+        .smart-island-base {
+          position: absolute;
+          top: 0;
+          right: 0;
+          left: auto;
+          width: 140px;
+          height: 140px;
+          border-radius: 30px;
+          transform-origin: center center;
+          will-change: transform, opacity, width;
+          contain: layout style paint;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+          z-index: 30;
+        }
+        .smart-island-base.expanded {
+          width: 290px;
+        }
+        @media (max-width: 340px) {
+          .smart-island-base.expanded {
+            width: calc(100vw - 32px);
+          }
+        }
+        .smart-island-idle-text {
+          transition: transform 0.55s cubic-bezier(0.34, 1.35, 0.54, 1), 
+                      opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .smart-island-welcome-text {
+          transition: transform 0.6s cubic-bezier(0.34, 1.4, 0.54, 1), 
+                      opacity 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .smart-island-text-slide-out {
+          opacity: 0 !important;
+          transform: translate3d(28px, 0, 0) scale(0.96) !important;
+          pointer-events: none;
+        }
+        .smart-island-welcome-hidden {
+          opacity: 0;
+          transform: translate3d(-32px, 0, 0) scale(0.96);
+          pointer-events: none;
+        }
+        .smart-island-welcome-visible {
+          opacity: 1;
+          transform: translate3d(0, 0, 0) scale(1);
+          pointer-events: auto;
+        }
+      `}</style>
+
+      {/* Anchor: Concentric 140x140px square geometry */}
+      <div className="absolute top-0 right-0 w-[140px] h-[140px] pointer-events-none">
+        {/* Layer 1: Navy Blue (#001f3f) */}
+        <div
+          ref={navySquareRef}
+          className="smart-island-layer bg-[#001f3f] shadow-2xl shadow-[#001f3f]/30"
+          style={{ opacity: 0, transform: 'scale(0.3) rotate(0deg)' }}
+          aria-hidden="true"
+        />
+
+        {/* Layer 2: Purple (#7928ca) */}
+        <div
+          ref={purpleSquareRef}
+          className="smart-island-layer bg-[#7928ca] shadow-2xl shadow-[#7928ca]/30"
+          style={{ opacity: 0, transform: 'scale(0.3) rotate(0deg)' }}
+          aria-hidden="true"
+        />
+
+        {/* Layer 3: 45° Offset Anthracite Square (#212226) */}
+        <div
+          ref={offsetSquareRef}
+          className="smart-island-layer bg-[#212226] shadow-2xl shadow-black/30 z-10"
+          style={{ opacity: 0, transform: 'scale(0.6) rotate(45deg)' }}
+          aria-hidden="true"
+        />
+
+        {/* Layer 4: Central Loader SVG Icon */}
+        <div
+          ref={loaderIconRef}
+          className="smart-island-layer z-20 flex items-center justify-center"
+          style={{ opacity: 0, transform: 'scale(0.6) rotate(0deg)' }}
+          aria-hidden="true"
+        >
+          <svg
+            className="w-10 h-10 text-white drop-shadow"
+            viewBox="0 0 24 24"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="9.5"
+              stroke="currentColor"
+              strokeWidth="2.75"
+            />
+            <path
+              className="opacity-95"
+              fill="currentColor"
+              d="M12 2.5a9.5 9.5 0 0 1 9.5 9.5h-2.5A7 7 0 0 0 12 5V2.5z"
+            />
+          </svg>
+        </div>
+      </div>
+
+      {/* Layer 5: Base Matte Anthracite Square (Expands exclusively to the left) */}
+      <div
+        ref={baseSquareRef}
+        role="button"
+        tabIndex={0}
+        onClick={handleBaseClick}
         onDoubleClick={triggerDemoLoading}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
-        whileTap={{ scale: 0.97 }}
-        className={`h-20 bg-[#18181b]/95 dark:bg-[#09090b]/95 backdrop-blur-xl border border-white/15 rounded-2xl shadow-xl text-white overflow-hidden ${
-          isExpanded
-            ? 'fixed top-[max(12px,calc(env(safe-area-inset-top)+4px))] inset-x-3 sm:w-[380px] sm:right-6 sm:inset-x-auto sm:top-14 w-auto z-50 rounded-2xl'
-            : isPill
-              ? 'fixed top-[max(12px,calc(env(safe-area-inset-top)+4px))] right-3 sm:right-6 sm:top-14 w-[min(240px,calc(100vw-24px))] z-50 rounded-2xl'
-              : 'absolute right-0 top-0 w-20 z-20 rounded-2xl'
+        className={`smart-island-base smart-island-spring bg-[#212226] shadow-2xl shadow-black/35 p-4 text-white box-border overflow-hidden cursor-pointer ${
+          isExpanded ? 'expanded' : ''
         }`}
+        style={{
+          transform: 'translate3d(0,0,0) scale(1) rotate(0deg)',
+        }}
       >
-        <AnimatePresence mode="wait">
-          {mode === 'syncing' && (
-            <motion.div
-              key="syncing"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={islandContentTransition}
-              className="w-full h-full px-3.5 py-2 flex items-center gap-2.5 select-none"
+        {/* Offline indicator badge */}
+        {isOffline && (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOfflineRetry();
+            }}
+            title="Offline - Klicken zum Wiederverbinden"
+            className="absolute top-3.5 right-3.5 z-40 flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-[9px] font-bold text-amber-300"
+          >
+            <CloudOff className="w-2.5 h-2.5 text-amber-400" />
+            <span>OFF</span>
+          </div>
+        )}
+
+        {/* Idle Mode: Top-left Title + Subtitle, Bottom-right Large Bold Time */}
+        <div
+          ref={idleTextRef}
+          className={`w-full h-full flex flex-col justify-between select-none smart-island-idle-text ${
+            isExpanded ? 'smart-island-text-slide-out' : ''
+          }`}
+          style={{ opacity: 1, transform: 'translate3d(0, 0, 0)' }}
+        >
+          {/* Top Left: TERMIN + IN/NOCH/MORGEN/HEUTE */}
+          <div className="flex flex-col items-start text-left gap-0 min-w-0 max-w-full">
+            <span className="text-[19px] font-black tracking-tight text-white leading-none truncate max-w-[104px]">
+              {displayTitle}
+            </span>
+            <span className="text-[13px] font-black tracking-widest text-[#9498a3] uppercase leading-tight mt-0.5">
+              {displaySubtitle}
+            </span>
+          </div>
+
+          {/* Bottom Right: Countdown Display (e.g. 3:12h or 45m) */}
+          <div className="w-full flex items-baseline justify-end pb-0.5 pr-0.5">
+            <span
+              className={`${
+                timeMain.length >= 5 ? 'text-[42px]' : 'text-[50px]'
+              } font-black tracking-tighter text-white leading-none font-sans`}
             >
-              <div className="relative shrink-0 w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-                <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
-              </div>
-              <div className="flex flex-col justify-center text-left min-w-0">
-                <span className="text-xs font-bold text-white truncate leading-tight">
-                  synchronisieren...
-                </span>
-                <span className="text-[10px] text-blue-300/80 font-medium truncate mt-0.5">
-                  Tide Cloud
-                </span>
-              </div>
-            </motion.div>
-          )}
+              {timeMain}
+              <span className="text-[26px] font-black tracking-tight text-neutral-300 ml-0.5">
+                {timeUnit}
+              </span>
+            </span>
+          </div>
+        </div>
 
-          {mode === 'offline' && (
-            <motion.div
-              key="offline"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={islandContentTransition}
-              onClick={handleOfflineRetry}
-              className="w-full h-full px-3.5 py-2 flex items-center gap-2.5 select-none cursor-pointer hover:bg-white/5 active:scale-95 transition-all"
-              title="Klicken zum Wiederverbinden"
-            >
-              <div className="relative shrink-0 w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                <CloudOff className="w-4 h-4 text-amber-400" />
+        {/* Expanded Mode: Springs out to 290px with leftward momentum */}
+        <div
+          ref={welcomeTextRef}
+          className={`absolute inset-0 p-4 flex flex-col justify-between items-start smart-island-welcome-text ${
+            isExpanded ? 'smart-island-welcome-visible' : 'smart-island-welcome-hidden'
+          }`}
+        >
+          {incomingMessage ? (
+            // Message notification view
+            <div className="w-full h-full flex flex-col justify-between select-none">
+              <div className="w-full flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                    <MessageSquare className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-bold text-white truncate max-w-[180px]">
+                    {incomingMessage.senderName || 'Nachricht'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dismiss();
+                    setIsUserExpanded(false);
+                  }}
+                  className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center text-neutral-300 transition-all"
+                  aria-label="Schließen"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
-              <div className="flex flex-col justify-center text-left min-w-0">
-                <span className="text-xs font-bold text-amber-400 truncate leading-tight">
-                  offline
-                </span>
-                <span className="text-[10px] text-white/60 font-medium truncate mt-0.5">
-                  Keine Verbindung (Retry)
-                </span>
+
+              <p className="text-xs text-neutral-200 line-clamp-2 my-auto leading-snug">
+                {incomingMessage.text || 'Neue Nachricht erhalten'}
+              </p>
+
+              <div className="w-full flex items-center justify-between text-[11px] text-neutral-400">
+                <span>Tide Smart Island</span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dismiss();
+                    setIsUserExpanded(false);
+                  }}
+                  className="text-xs font-bold text-white hover:underline"
+                >
+                  Gelesen
+                </button>
               </div>
-            </motion.div>
-          )}
-
-          {mode === 'loading' && (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.85 }}
-              transition={islandContentTransition}
-              className="relative w-full h-full flex items-center justify-center select-none"
-            >
-              {/* Outer Shape (morphing & spinning clockwise with variable speed) */}
-              <motion.div
-                animate={{
-                  rotate: [0, 90, 320, 540, 720],
-                  borderRadius: ['22%', '40%', '50%', '35%', '22%'],
-                  scale: [1, 1.08, 0.94, 1.06, 1],
-                }}
-                transition={{
-                  duration: 3.2,
-                  repeat: Infinity,
-                  ease: ['easeInOut', 'circIn', 'circOut', 'easeInOut'],
-                }}
-                className="absolute w-11 h-11 border-2 border-indigo-400/90 shadow-[0_0_15px_rgba(129,140,248,0.6)]"
-              />
-
-              {/* Inner Shape (morphing & spinning counter-clockwise in opposite direction) */}
-              <motion.div
-                animate={{
-                  rotate: [0, -180, -360, -540, -720],
-                  borderRadius: ['50%', '15%', '45%', '20%', '50%'],
-                  scale: [0.92, 1.12, 0.88, 1.1, 0.92],
-                }}
-                transition={{
-                  duration: 2.6,
-                  repeat: Infinity,
-                  ease: ['easeInOut', 'anticipate', 'circOut', 'easeInOut'],
-                }}
-                className="absolute w-7 h-7 border-2 border-cyan-400/90 shadow-[0_0_12px_rgba(34,211,238,0.7)]"
-              />
-
-              {/* Center core dot */}
-              <motion.div
-                animate={{
-                  scale: [0.8, 1.3, 0.85, 1.25, 0.8],
-                  opacity: [0.7, 1, 0.6, 1, 0.7],
-                }}
-                transition={{
-                  duration: 1.8,
-                  repeat: Infinity,
-                  ease: 'easeInOut',
-                }}
-                className="w-2.5 h-2.5 rounded-full bg-gradient-to-r from-cyan-400 to-indigo-400 shadow-[0_0_8px_rgba(34,211,238,0.9)]"
-              />
-            </motion.div>
-          )}
-
-          {mode === 'message' && (
-            <motion.div
-              key="message"
-              initial={{ opacity: 0, x: 12 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 12 }}
-              transition={islandContentTransition}
-              className="w-full h-full px-3 py-2 flex items-center gap-2.5 select-none"
-            >
-              <div className="relative shrink-0 w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-                <MessageSquare className="w-5 h-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-indigo-400" />
-              </div>
-              <div className="flex-1 min-w-0 flex flex-col justify-center text-left">
-                <span className="text-xs font-bold text-white truncate leading-tight">
-                  {senderName}
-                </span>
-                <span className="text-[11px] text-gray-300 truncate mt-0.5 leading-snug">
-                  {messageText}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  dismiss();
-                }}
-                className="p-1 rounded-full text-gray-400 hover:text-white hover:bg-white/10 active:scale-90 transition-all shrink-0"
-                aria-label="Schließen"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </motion.div>
-          )}
-
-          {mode === 'imminent' && (
-            <motion.div
-              key="imminent"
-              initial={{ opacity: 0, x: 12 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 12 }}
-              transition={islandContentTransition}
-              className="w-full h-full px-3 py-2 flex items-center gap-2.5 cursor-pointer select-none"
-              onClick={() => handleTap(target?.event?.id)}
-            >
-              <div className="relative shrink-0 w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                <Bell className="w-5 h-5 animate-bounce" />
-                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-amber-400 ring-2 ring-amber-400/40 animate-ping" />
-              </div>
-              <div className="flex-1 min-w-0 flex flex-col justify-center text-left">
-                <span className="text-xs font-bold text-white truncate leading-tight">
-                  {imminentTitle}
-                </span>
-                <div className="text-[11px] font-medium text-amber-300 truncate flex items-center gap-1.5 mt-0.5">
-                  <span>{imminentLabel}</span>
-                  <span className="text-white/60 font-mono text-[10px]">({formattedHoursMins})</span>
+            </div>
+          ) : (
+            // Default rich expanded view (Willkommen zurück Nico + Event details)
+            <>
+              {/* Top Row: Greeting & Close */}
+              <div className="w-full flex items-start justify-between">
+                <div className="flex flex-col text-left min-w-0 pr-2">
+                  <span className="text-[12px] font-bold tracking-wider text-neutral-400 uppercase leading-snug">
+                    {target ? (target.isActive ? 'Aktueller Termin' : 'Nächster Termin') : 'Willkommen zurück'}
+                  </span>
+                  <span className="text-[20px] font-black tracking-tight text-white leading-tight truncate max-w-[210px]">
+                    {target ? (target.event.title || 'Termin') : (userName || 'Nico')}
+                  </span>
+                </div>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsUserExpanded(false);
+                  }}
+                  className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center text-neutral-300 transition-all shrink-0 cursor-pointer"
+                  title="Einklappen"
+                >
+                  <X className="w-3.5 h-3.5" />
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (state.current) {
-                    dismiss();
-                  }
-                  if (target) {
-                    setDismissedImminentId(target.event.id);
-                  }
-                }}
-                className="p-1 rounded-full text-gray-400 hover:text-white hover:bg-white/10 active:scale-90 transition-all shrink-0"
-                aria-label="Schließen"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </motion.div>
-          )}
 
-          {mode === 'idle' && target && (
-            <motion.div
-              key="idle-target"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={islandContentTransition}
-              className="w-full h-full p-2.5 flex flex-col justify-between items-start text-left select-none cursor-pointer"
-              onClick={() => handleTap(target.event.id)}
-            >
-              <span className="text-xs font-bold text-white truncate max-w-full leading-tight">
-                {target.event.title || 'Termin'}
-              </span>
-
-              <div className="flex flex-col gap-0.5 w-full min-w-0">
-                <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-none">
-                  {target.isActive ? 'NOCH' : 'STARTET IN'}
-                </span>
-                <span className="text-2xl sm:text-[26px] font-black tracking-tight tabular-nums text-white leading-none">
-                  {formattedCountdown}
-                </span>
-              </div>
-            </motion.div>
-          )}
-
-          {mode === 'idle' && !target && (
-            <motion.div
-              key="idle-empty"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={islandContentTransition}
-              className="w-full h-full p-2.5 flex flex-col justify-between items-start text-left select-none cursor-pointer"
-              onClick={() => {
-                if (tomorrowFirstEvent?.id) {
-                  handleTap(tomorrowFirstEvent.id);
-                }
-              }}
-            >
-              <div className="flex items-center gap-1.5 text-white/70">
-                <CalendarIcon className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                <span className="text-xs font-bold text-white truncate leading-tight">
-                  {todayDateStr}
-                </span>
-              </div>
-
-              <div className="flex flex-col gap-0.5 w-full min-w-0">
-                {tomorrowFirstEvent ? (
+              {/* Bottom Row: Event Time & Action Button */}
+              <div className="w-full flex items-end justify-between pt-1">
+                {target ? (
                   <>
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-none">
-                      MORGEN {tomorrowTimeStr}
-                    </span>
-                    <span className="text-sm font-bold text-white truncate leading-tight">
-                      {tomorrowFirstEvent.title || 'Termin'}
-                    </span>
+                    <div className="flex flex-col text-left">
+                      <span className="text-[13px] font-bold text-neutral-200 leading-tight">
+                        {target.isActive ? 'Läuft gerade' : `In ${formattedCountdown}`}
+                      </span>
+                      <span className="text-[11px] text-neutral-400 font-medium mt-0.5">
+                        {formatEventTimeRange(target.event)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (target?.event?.id) handleTap(target.event.id);
+                      }}
+                      className="px-3.5 py-1.5 bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1 shadow-sm shrink-0"
+                    >
+                      <span>Öffnen</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
                   </>
                 ) : (
-                  <>
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider leading-none">
-                      HEUTE
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xs text-neutral-400 font-medium truncate pr-2">
+                      {tomorrowFirstEvent
+                        ? `Morgen ${tomorrowTimeStr} Uhr: ${tomorrowFirstEvent.title || 'Termin'}`
+                        : 'Keine weiteren Termine heute'}
                     </span>
-                    <span className="text-sm font-bold text-white truncate leading-tight">
-                      Keine Termine
-                    </span>
-                  </>
+                    {tomorrowFirstEvent && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTap(tomorrowFirstEvent.id);
+                        }}
+                        className="px-2.5 py-1 bg-white/15 hover:bg-white/25 active:scale-95 text-white text-xs font-bold rounded-lg transition-all shrink-0"
+                      >
+                        Öffnen
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
-            </motion.div>
+            </>
           )}
-        </AnimatePresence>
-      </motion.div>
+        </div>
+      </div>
     </div>
   );
 });
