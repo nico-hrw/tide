@@ -23,7 +23,8 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { JSONContent } from '@tiptap/react';
 import { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import { TodoList } from '../components/Todo/TodoList';
-import { getEventGroupIds } from '../lib/calendarUtils';
+import { getEventGroupIds, getEventsForDate } from '../lib/calendarUtils';
+import { MobileSmartIsland } from '@/components/Layout/MobileSmartIsland';
 import { getFolderColor, loadTodoFoldersMeta, isTaskVisibleInCalendar } from '../lib/folderColors';
 
 const Editor = dynamic(() => import('@/components/Editor'), {
@@ -2838,6 +2839,29 @@ export default function Dashboard() {
         }
     };
 
+    const displayName = userProfile?.username || (typeof window !== 'undefined' ? sessionStorage.getItem('tide_user_name') : null) || (userProfile?.email || '').split('@')[0] || '';
+
+    const handleCountdownTap = useCallback((eventId: string) => {
+        const ev = (events as any[]).find(e => e.id === eventId);
+        if (ev?.start) {
+            handleDateSelect(new Date(ev.start));
+        } else {
+            handleTabSelect('calendar', 'calendar');
+        }
+    }, [handleTabSelect, events]);
+
+    const expandedEvents = useMemo(() => {
+        const today = new Date();
+        const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+        const todayEvts = getEventsForDate(today, events as any);
+        const tomorrowEvts = getEventsForDate(tomorrow, events as any);
+        const map = new Map<string, any>();
+        for (const e of [...todayEvts, ...tomorrowEvts, ...(events as any[])]) {
+            if (!map.has(e.id)) map.set(e.id, e);
+        }
+        return Array.from(map.values());
+    }, [events]);
+
     const handleMagicLinkClick = async (target: any) => {
         const targetIsEvent = target.type === 'event' || useDataStore.getState().events?.some((e: any) => e.id === target.id);
         if (targetIsEvent) {
@@ -3244,6 +3268,18 @@ export default function Dashboard() {
                         window.location.reload();
                     }}
                 />
+
+                {/* Tablet Mode Dynamic Island (Bottom-Left) */}
+                {navigationMode === 'folders' && (
+                    <div className="fixed bottom-5 left-4 z-40">
+                        <MobileSmartIsland
+                            placement="bottom-left"
+                            events={expandedEvents}
+                            onTap={handleCountdownTap}
+                            userName={userProfile?.username || displayName}
+                        />
+                    </div>
+                )}
 
                 {/* Main Workspace Body */}
                 <div 

@@ -26,7 +26,6 @@ import Avatar from '../Profile/Avatar';
 import { useSocialStore } from '@/store/useSocialStore';
 import { useDataStore } from '@/store/useDataStore';
 import DT from '@/lib/designTokens';
-import SmartIsland from '@/components/extensions/smart_island/SmartIsland';
 
 export interface Tab {
     id: string;
@@ -274,16 +273,6 @@ export default function TabList({
                         </button>
                     )}
 
-                    {/* Tablet Mode Compact Smart Island: positioned right next to open tabs & "+" button */}
-                    {navigationMode === 'folders' && (
-                        <div className="shrink-0 ml-1.5 flex items-center">
-                            <SmartIsland 
-                                compact={true} 
-                                userName={userProfile?.username}
-                                onSelect={() => onTabSelect('calendar', 'calendar')}
-                            />
-                        </div>
-                    )}
                 </div>
             </div>
 

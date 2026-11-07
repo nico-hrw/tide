@@ -1542,7 +1542,7 @@ export default function MobileLayout({
         }}
       >
           {/* Row 1: Date & Greeting ("XX. Monat", "Guten Morgen/Mittag/Tag/Abend Name!") */}
-          <div className="px-5 pt-1 pb-1.5 flex items-start justify-between gap-3">
+          <div className="px-4 pt-1 pb-1.5 flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 flex-wrap" style={{ color: T.mut }}>
                 {format(now, 'd. MMMM', { locale: de })}
