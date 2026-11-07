@@ -8,6 +8,7 @@ import {
   Trash2, GraduationCap, Clock, MapPin,
   X, PenLine, FolderPlus,
   BookOpen, Coffee, RotateCcw, ListTodo, SlidersHorizontal, Check, List, LayoutGrid,
+  CalendarPlus, CheckSquare,
 } from 'lucide-react';
 import { isSameDay, format, startOfWeek, addDays, isAfter } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -31,6 +32,7 @@ import {
   MobileContextMenuSheet,
   MobileRenameModal,
 } from './mobile/MobileBottomSheets';
+import { MobileCreateModal } from './mobile/MobileCreateModal';
 import { MobileDateWheel } from './mobile/MobileDateWheel';
 import {
   DbTimelineDay,
@@ -727,6 +729,8 @@ export default function MobileLayout({
   const dayViewSentinelRef = useRef<HTMLDivElement>(null);
   const [isNewEventSheetOpen, setIsNewEventSheetOpen] = useState(false);
   const [newEventDefaultDate, setNewEventDefaultDate] = useState<Date>(new Date());
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createModalMode, setCreateModalMode] = useState<'event' | 'todo'>('event');
   const [isSharedFolderOpen, setIsSharedFolderOpen] = useState(true);
   const [pinPromptItem, setPinPromptItem] = useState<PinPromptTarget | null>(null);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
@@ -1787,7 +1791,11 @@ export default function MobileLayout({
                     isToday={isSameDay(activeDate, now)}
                     now={now}
                     theme={theme}
-                    onNewEvent={date => { setNewEventDefaultDate(date); setIsNewEventSheetOpen(true); }}
+                    onNewEvent={date => {
+                      setNewEventDefaultDate(date);
+                      setCreateModalMode('event');
+                      setIsCreateModalOpen(true);
+                    }}
                     onDeleteEvent={onEventDelete}
                     onEditEvent={ev => { setSelectedEvent(null); setEditingEvent(ev); }}
                     onTaskComplete={onTaskComplete}
@@ -1820,7 +1828,8 @@ export default function MobileLayout({
                     theme={theme}
                     onNewEvent={date => {
                       setNewEventDefaultDate(date);
-                      setIsNewEventSheetOpen(true);
+                      setCreateModalMode('event');
+                      setIsCreateModalOpen(true);
                     }}
                     onDeleteEvent={onEventDelete}
                     onEditEvent={ev => { setSelectedEvent(null); setEditingEvent(ev); }}
@@ -1841,7 +1850,8 @@ export default function MobileLayout({
             onTodayClick={handleGoToToday}
             onNewEvent={date => {
               setNewEventDefaultDate(date);
-              setIsNewEventSheetOpen(true);
+              setCreateModalMode('event');
+              setIsCreateModalOpen(true);
             }}
             onDeleteEvent={onEventDelete}
             onEditEvent={ev => { setSelectedEvent(null); setEditingEvent(ev); }}
@@ -2192,7 +2202,29 @@ export default function MobileLayout({
       </div>
       )}
 
-      {/* Quick Mobile New Event Sheet */}
+      {/* Unified Mobile Create Modal (Termin & To-Do) */}
+      <AnimatePresence>
+        {isCreateModalOpen && (
+          <MobileCreateModal
+            isOpen={isCreateModalOpen}
+            mode={createModalMode}
+            initialDate={newEventDefaultDate || activeDate}
+            themes={resolvedThemes}
+            onClose={() => setIsCreateModalOpen(false)}
+            onSaveEvent={(start, end, meta) => {
+              onNewEvent?.(start, end, meta);
+            }}
+            onSaveTodo={async (taskDraft) => {
+              await useDataStore.getState().addTask({
+                ...taskDraft,
+                isCompleted: false,
+              });
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Quick Mobile New Event Sheet (backwards compatibility) */}
       <AnimatePresence>
         {isNewEventSheetOpen && (
           <MobileNewEventSheet
@@ -2276,10 +2308,10 @@ export default function MobileLayout({
         ) : (
           <div className="flex items-center gap-1.5 sm:gap-2">
             {[
-              { id: 'calendar' as const, icon: <CalendarIcon size={20} />, label: 'Kalender' },
-              { id: 'notes' as const, icon: <BookOpen size={20} />, label: 'Notizen' },
+              { id: 'calendar' as const, icon: <CalendarIcon size={22} />, label: 'Kalender' },
+              { id: 'notes' as const, icon: <BookOpen size={22} />, label: 'Notizen' },
               ...(!enabledExtensions || enabledExtensions.includes('todos')
-                ? [{ id: 'todos' as const, icon: <ListTodo size={20} />, label: 'Todos' }]
+                ? [{ id: 'todos' as const, icon: <ListTodo size={22} />, label: 'Todos' }]
                 : []),
             ].map(tab => {
               const isActive = activeTab === tab.id;
@@ -2290,16 +2322,11 @@ export default function MobileLayout({
                     setActiveTab(tab.id);
                     setIsPlusMenuOpen(false);
                   }}
-                  className="w-10 h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
-                  style={{
-                    background: isActive
-                      ? (theme === 'dark' ? '#ffffff' : '#000000')
-                      : 'transparent',
-                    color: isActive
-                      ? (theme === 'dark' ? '#000000' : '#ffffff')
-                      : T.mut,
-                    border: '1px solid transparent',
-                  }}
+                  className={`w-[44px] h-[44px] sm:w-[48px] sm:h-[48px] flex items-center justify-center rounded-[16px] sm:rounded-[18px] transition-all active:scale-95 shrink-0 cursor-pointer ${
+                    isActive
+                      ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-md'
+                      : 'text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5'
+                  }`}
                   title={tab.label}
                 >
                   {tab.icon}
@@ -2310,7 +2337,7 @@ export default function MobileLayout({
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {!editingTodoId && (
             <>
               <button
@@ -2318,15 +2345,10 @@ export default function MobileLayout({
                   setSearchQuery('');
                   setIsSearchOpen(true);
                 }}
-                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
-                style={{
-                  background: 'transparent',
-                  color: T.sec,
-                  border: 'none',
-                }}
+                className="w-[44px] h-[44px] sm:w-[48px] sm:h-[48px] flex items-center justify-center rounded-[16px] sm:rounded-[18px] text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all active:scale-95 shrink-0 cursor-pointer"
                 title="Suchen"
               >
-                <Search size={18} />
+                <Search size={20} />
               </button>
 
               <button
@@ -2336,84 +2358,87 @@ export default function MobileLayout({
                   }
                   window.dispatchEvent(new CustomEvent('tide:toggle-todo-filter'));
                 }}
-                className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer"
-                style={{
-                  background: 'transparent',
-                  color: T.sec,
-                  border: 'none',
-                }}
+                className="w-[44px] h-[44px] sm:w-[48px] sm:h-[48px] flex items-center justify-center rounded-[16px] sm:rounded-[18px] text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all active:scale-95 shrink-0 cursor-pointer"
                 title="Filter"
               >
-                <SlidersHorizontal size={18} />
+                <SlidersHorizontal size={20} />
               </button>
             </>
           )}
 
           <div className="relative">
-            {!editingTodoId && isPlusMenuOpen && (activeTab === 'notes' || activeTab === 'todos') && (
+            {!editingTodoId && isPlusMenuOpen && (
               <>
                 <div
                   className="fixed inset-0 z-40"
                   onClick={() => setIsPlusMenuOpen(false)}
                 />
                 <div
-                  className="absolute bottom-full right-0 mb-3 z-50 flex flex-col min-w-[170px] rounded-2xl p-1.5 shadow-xl backdrop-blur-xl border"
+                  className="absolute bottom-[60px] right-0 rounded-2xl shadow-xl border p-2 flex flex-col w-[170px] z-50 transition-all origin-bottom-right"
                   style={{
-                    background: theme === 'dark' ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                    borderColor: T.brd,
+                    background: theme === 'dark' ? '#1a1e28' : '#ffffff',
+                    borderColor: theme === 'dark' ? '#262b38' : '#f1f2f5',
                     boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2)',
                   }}
                 >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPlusMenuOpen(false);
+                      setCreateModalMode('event');
+                      setIsCreateModalOpen(true);
+                    }}
+                    className="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                    style={{ color: theme === 'dark' ? '#f3f4f6' : '#1f2937' }}
+                  >
+                    <CalendarPlus className="w-5 h-5 text-blue-500 shrink-0" />
+                    <span>Termin</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPlusMenuOpen(false);
+                      setCreateModalMode('todo');
+                      setIsCreateModalOpen(true);
+                    }}
+                    className="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                    style={{ color: theme === 'dark' ? '#f3f4f6' : '#1f2937' }}
+                  >
+                    <CheckSquare className="w-5 h-5 text-green-500 shrink-0" />
+                    <span>To-Do</span>
+                  </button>
+
                   {activeTab === 'notes' && (
                     <>
+                      <div
+                        className="h-[1px] my-1"
+                        style={{ background: theme === 'dark' ? '#262b38' : '#f3f4f6' }}
+                      />
                       <button
+                        type="button"
                         onClick={() => {
                           onNewNote();
                           setIsEditingNote(true);
                           setIsPlusMenuOpen(false);
                         }}
-                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-colors active:opacity-70"
-                        style={{ color: T.pri }}
+                        className="flex items-center gap-3 w-full text-left px-3 py-2 text-[14px] font-medium rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                        style={{ color: theme === 'dark' ? '#9ca3af' : '#4b5563' }}
                       >
-                        <PenLine size={15} style={{ color: T.accent }} />
-                        <span>Notiz erstellen</span>
+                        <PenLine size={16} className="text-purple-500 shrink-0" />
+                        <span>Notiz</span>
                       </button>
                       <button
+                        type="button"
                         onClick={() => {
                           onNewFolder?.();
                           setIsPlusMenuOpen(false);
                         }}
-                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-colors active:opacity-70"
-                        style={{ color: T.pri }}
+                        className="flex items-center gap-3 w-full text-left px-3 py-2 text-[14px] font-medium rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                        style={{ color: theme === 'dark' ? '#9ca3af' : '#4b5563' }}
                       >
-                        <FolderPlus size={15} style={{ color: T.accent }} />
-                        <span>Ordner erstellen</span>
-                      </button>
-                    </>
-                  )}
-                  {activeTab === 'todos' && (
-                    <>
-                      <button
-                        onClick={() => {
-                          window.dispatchEvent(new CustomEvent('tide:new-todo'));
-                          setIsPlusMenuOpen(false);
-                        }}
-                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-colors active:opacity-70"
-                        style={{ color: T.pri }}
-                      >
-                        <ListTodo size={15} style={{ color: T.accent }} />
-                        <span>Aufgabe erstellen</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          window.dispatchEvent(new CustomEvent('tide:new-todo-folder'));
-                          setIsPlusMenuOpen(false);
-                        }}
-                        className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-colors active:opacity-70"
-                        style={{ color: T.pri }}
-                      >
-                        <FolderPlus size={15} style={{ color: T.accent }} />
-                        <span>Ordner erstellen</span>
+                        <FolderPlus size={16} className="text-purple-500 shrink-0" />
+                        <span>Ordner</span>
                       </button>
                     </>
                   )}
@@ -2427,17 +2452,16 @@ export default function MobileLayout({
                   window.dispatchEvent(new CustomEvent('tide:new-subtask'));
                   return;
                 }
-                if (activeTab === 'calendar') {
-                  setNewEventDefaultDate(activeDate);
-                  setIsNewEventSheetOpen(true);
-                } else if (activeTab === 'notes' || activeTab === 'todos') {
-                  setIsPlusMenuOpen(prev => !prev);
-                }
+                setIsPlusMenuOpen(prev => !prev);
               }}
-              className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-xl sm:rounded-2xl bg-gray-900 dark:bg-white hover:bg-black text-white dark:text-gray-900 shadow-md transition-all active:scale-95 shrink-0 cursor-pointer"
-              title={editingTodoId ? 'Unteraufgabe hinzufügen' : (activeTab === 'calendar' ? 'Neuer Termin' : 'Neues Element')}
+              className="w-[44px] h-[44px] sm:w-[48px] sm:h-[48px] flex items-center justify-center rounded-[16px] sm:rounded-[18px] bg-gray-900 dark:bg-white hover:bg-black text-white dark:text-gray-900 shadow-md transition-all active:scale-95 shrink-0 cursor-pointer relative z-30"
+              title={editingTodoId ? 'Unteraufgabe hinzufügen' : 'Hinzufügen'}
             >
-              <Plus size={20} strokeWidth={2.4} />
+              <Plus
+                size={22}
+                strokeWidth={2.4}
+                className={`transition-transform duration-300 ${isPlusMenuOpen ? 'rotate-45' : ''}`}
+              />
             </button>
           </div>
         </div>

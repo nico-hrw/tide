@@ -1136,3 +1136,6 @@ export const MobileRenameModal = ({
     </motion.div>
   );
 };
+
+export { MobileCreateModal, type MobileCreateModalProps } from './MobileCreateModal';
+

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Navigationsleiste</title>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Versteckt den Standard-Color-Picker Button in manchen Browsern, wir nutzen das Label als Button */
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="time"]::-webkit-calendar-picker-indicator { cursor: pointer; }
+    </style>
+</head>
+<body class="m-0 bg-gray-200 h-screen flex justify-center items-center font-sans antialiased overflow-hidden">
+
+    <!-- Mobile Container -->
+    <div class="w-full max-w-[400px] h-full sm:h-[850px] max-h-screen sm:rounded-[36px] bg-[#f4f5f7] relative shadow-2xl border-4 border-gray-900 flex flex-col justify-between overflow-hidden box-border">
+
+        <!-- App Inhalt Platzhalter -->
+        <div class="flex-1 p-6 flex flex-col">
+            <h1 class="text-2xl font-bold text-gray-800 mt-8">Hallo, Nico!</h1>
+            <p class="text-gray-500 mt-2">Dein Tag sieht gut aus.</p>
+        </div>
+
+        <!-- Navigationsleiste -->
+        <nav class="w-full box-border bg-white/90 backdrop-blur-md border-t border-gray-200 flex items-center justify-between px-4 py-4 pb-8 sm:pb-6 shadow-[0_-5px_15px_rgba(0,0,0,0.03)] relative z-20">
+            
+            <!-- Linke Gruppe -->
+            <div class="flex items-center gap-2">
+                <!-- Kalender (Aktiv) -->
+                <button class="flex justify-center items-center w-[48px] h-[48px] rounded-[18px] bg-gray-900 text-white transition-all shadow-md active:scale-95">
+                    <i class="ph ph-calendar-blank text-2xl"></i>
+                </button>
+                
+                <!-- Buch / Journal -->
+                <button class="flex justify-center items-center w-[48px] h-[48px] rounded-[18px] text-gray-400 hover:text-gray-800 hover:bg-gray-100 transition-all active:scale-95">
+                    <i class="ph ph-book-open text-[28px]"></i>
+                </button>
+                
+                <!-- Checkliste -->
+                <button class="flex justify-center items-center w-[48px] h-[48px] rounded-[18px] text-gray-400 hover:text-gray-800 hover:bg-gray-100 transition-all active:scale-95">
+                    <i class="ph ph-list-checks text-[28px]"></i>
+                </button>
+            </div>
+
+            <!-- Rechte Gruppe -->
+            <div class="flex items-center gap-2">
+                <!-- Suche -->
+                <button class="flex justify-center items-center w-[48px] h-[48px] rounded-[18px] text-gray-400 hover:text-gray-800 hover:bg-gray-100 transition-all active:scale-95">
+                    <i class="ph ph-magnifying-glass text-[28px]"></i>
+                </button>
+                
+                <!-- Einstellungen -->
+                <button class="flex justify-center items-center w-[48px] h-[48px] rounded-[18px] text-gray-400 hover:text-gray-800 hover:bg-gray-100 transition-all active:scale-95">
+                    <i class="ph ph-sliders-horizontal text-[28px]"></i>
+                </button>
+                
+                <!-- Hinzufügen Button (Aktiv) -->
+                <div class="relative">
+                    <button id="plus-btn" class="flex justify-center items-center w-[48px] h-[48px] rounded-[18px] bg-gray-900 text-white shadow-md hover:bg-black transition-all active:scale-95 relative z-30">
+                        <i id="plus-icon" class="ph ph-plus text-2xl transition-transform duration-300"></i>
+                    </button>
+
+                    <!-- Aufklappmenü (Popup INNERHALB) -->
+                    <div id="add-menu" class="hidden absolute bottom-[60px] right-0 bg-white rounded-2xl shadow-xl border border-gray-100 p-2 flex flex-col w-[170px] z-10 transition-all origin-bottom-right">
+                        <button id="btn-new-event" class="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold text-gray-800 hover:bg-gray-50 rounded-xl transition-colors">
+                            <i class="ph ph-calendar-plus text-xl text-blue-500"></i> Termin
+                        </button>
+                        <button id="btn-new-todo" class="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold text-gray-800 hover:bg-gray-50 rounded-xl transition-colors">
+                            <i class="ph ph-check-square text-xl text-green-500"></i> To-Do
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Erstellen Overlay / Modal (Fullscreen im Mobile Container) -->
+        <div id="create-modal" class="absolute inset-0 bg-[#f4f5f7] z-50 flex flex-col transform translate-y-full transition-transform duration-400 ease-[cubic-bezier(0.32,0.72,0,1)] overflow-hidden">
+            
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between px-4 py-4 bg-white border-b border-gray-200 z-10 shrink-0">
+                <button id="cancel-btn" class="text-blue-500 font-medium text-[16px] hover:text-blue-600 transition-colors px-2 py-1">Abbrechen</button>
+                <h2 id="modal-title" class="font-bold text-[17px] text-gray-900 tracking-tight">Neuer Termin</h2>
+                <button class="text-gray-400 font-semibold text-[16px] transition-colors px-2 py-1" id="save-btn">Hinzufügen</button>
+            </div>
+            
+            <!-- Modal Content (Scrollbar) -->
+            <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-6 pb-12">
+                
+                <!-- Titel und Farbe in einer Zeile -->
+                <div class="flex items-center gap-4 bg-white rounded-2xl p-4 shadow-sm">
+                    <!-- Farbwähler (Runder Kreis) -->
+                    <div class="relative shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-sm border border-gray-200">
+                        <input type="color" id="item-color" value="#8b5cf6" class="absolute top-[-10px] left-[-10px] w-[50px] h-[50px] cursor-pointer outline-none">
+                    </div>
+                    <!-- Titel Eingabe -->
+                    <input type="text" id="title-input" placeholder="Titel" class="w-full text-2xl font-semibold text-gray-900 placeholder-gray-300 outline-none bg-transparent">
+                </div>
+                
+                <!-- Datum / Von / Bis (Eigene Zeilen, nicht überlappend) -->
+                <div class="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                    <!-- Datum -->
+                    <div class="flex justify-between items-center px-4 py-3.5 border-b border-gray-100">
+                        <span class="text-[16px] text-gray-800">Datum</span>
+                        <input type="text" placeholder="Auswählen" onfocus="(this.type='date')" onblur="(this.value==''?this.type='text':null)" class="text-right text-[16px] text-gray-500 bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer">
+                    </div>
+                    <!-- Von -->
+                    <div class="flex justify-between items-center px-4 py-3.5 border-b border-gray-100">
+                        <span class="text-[16px] text-gray-800">Von</span>
+                        <input type="text" placeholder="Zeit wählen" onfocus="(this.type='time')" onblur="(this.value==''?this.type='text':null)" class="text-right text-[16px] text-gray-500 bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer">
+                    </div>
+                    <!-- Bis -->
+                    <div class="flex justify-between items-center px-4 py-3.5">
+                        <span class="text-[16px] text-gray-800">Bis</span>
+                        <input type="text" placeholder="Zeit wählen" onfocus="(this.type='time')" onblur="(this.value==''?this.type='text':null)" class="text-right text-[16px] text-gray-500 bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- Wiederholung -->
+                <div class="bg-white rounded-2xl shadow-sm overflow-hidden flex flex-col transition-all duration-300">
+                    <div class="flex justify-between items-center px-4 py-3.5">
+                        <span class="text-[16px] text-gray-800">Wiederholung</span>
+                        <select id="repeat-select" class="text-right text-[16px] text-gray-500 bg-transparent outline-none cursor-pointer appearance-none">
+                            <option value="nie">Nie</option>
+                            <option value="Tage">Täglich</option>
+                            <option value="Wochen">Wöchentlich</option>
+                            <option value="Monate">Monatlich</option>
+                            <option value="Jahre">Jährlich</option>
+                        </select>
+                    </div>
+
+                    <!-- Dynamisch aufbauende Felder für Wiederholung -->
+                    <div id="repeat-details" class="hidden flex-col border-t border-gray-100 bg-gray-50/50">
+                        <!-- Zahl + Einheit -->
+                        <div class="flex justify-between items-center px-4 py-3.5 border-b border-gray-100">
+                            <span class="text-[16px] text-gray-600">Intervall</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-gray-500">alle</span>
+                                <input type="number" value="1" min="1" class="w-14 text-center bg-white border border-gray-200 rounded-md py-1 text-[16px] text-gray-800 outline-none focus:border-blue-400">
+                                <span id="repeat-unit" class="text-gray-500 w-[60px] text-right">Tage</span>
+                            </div>
+                        </div>
+                        <!-- Endet am -->
+                        <div class="flex justify-between items-center px-4 py-3.5">
+                            <span class="text-[16px] text-gray-600">Endet am</span>
+                            <input type="text" placeholder="Nie" onfocus="(this.type='date')" onblur="(this.value==''?this.type='text':null)" class="text-right text-[16px] text-gray-500 bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Spezifische Todo-Felder (Standardmäßig versteckt) -->
+                <div id="todo-fields" class="hidden bg-white rounded-2xl shadow-sm overflow-hidden flex-col transition-all duration-300">
+                    <div class="flex justify-between items-center px-4 py-3.5 border-b border-gray-100">
+                        <span class="text-[16px] text-gray-800">Priorität</span>
+                        <select class="text-right text-[16px] text-blue-500 font-medium bg-transparent outline-none cursor-pointer appearance-none">
+                            <option value="none">Keine</option>
+                            <option value="low">Niedrig</option>
+                            <option value="medium" selected>Mittel</option>
+                            <option value="high">Hoch</option>
+                        </select>
+                    </div>
+                    <div class="flex justify-between items-center px-4 py-3.5">
+                        <span class="text-[16px] text-gray-800">Tags</span>
+                        <input type="text" placeholder="#Hinzufügen" class="text-right text-[16px] text-gray-500 bg-transparent outline-none w-auto flex-1 ml-4">
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elemente
+        const plusBtn = document.getElementById('plus-btn');
+        const plusIcon = document.getElementById('plus-icon');
+        const addMenu = document.getElementById('add-menu');
+        
+        const btnNewEvent = document.getElementById('btn-new-event');
+        const btnNewTodo = document.getElementById('btn-new-todo');
+        const createModal = document.getElementById('create-modal');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const modalTitle = document.getElementById('modal-title');
+        
+        const repeatSelect = document.getElementById('repeat-select');
+        const repeatDetails = document.getElementById('repeat-details');
+        const repeatUnit = document.getElementById('repeat-unit');
+        
+        const todoFields = document.getElementById('todo-fields');
+        const titleInput = document.getElementById('title-input');
+        const saveBtn = document.getElementById('save-btn');
+
+        // 1. Popup Menü am Plus-Button umschalten
+        plusBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); 
+            addMenu.classList.toggle('hidden');
+            plusIcon.classList.toggle('rotate-45'); 
+        });
+
+        // Schließen des Popups bei Klick ins Leere
+        document.addEventListener('click', (e) => {
+            if (!addMenu.contains(e.target) && !plusBtn.contains(e.target)) {
+                addMenu.classList.add('hidden');
+                plusIcon.classList.remove('rotate-45');
+            }
+        });
+
+        // 2. Erstellen-Modal öffnen
+        const openModal = (type) => {
+            // UI anpassen basierend auf Termin oder To-Do
+            if(type === 'todo') {
+                modalTitle.textContent = 'Neues To-Do';
+                todoFields.classList.remove('hidden');
+                todoFields.classList.add('flex');
+            } else {
+                modalTitle.textContent = 'Neuer Termin';
+                todoFields.classList.add('hidden');
+                todoFields.classList.remove('flex');
+            }
+
+            // Felder zurücksetzen
+            titleInput.value = '';
+            validateSaveBtn();
+
+            // Slide-In Animation
+            createModal.classList.remove('translate-y-full');
+            
+            // Popup-Menü ausblenden
+            addMenu.classList.add('hidden');
+            plusIcon.classList.remove('rotate-45');
+        };
+
+        btnNewEvent.addEventListener('click', () => openModal('event'));
+        btnNewTodo.addEventListener('click', () => openModal('todo'));
+
+        // 3. Erstellen-Modal schließen
+        cancelBtn.addEventListener('click', () => {
+            createModal.classList.add('translate-y-full');
+            // Fokus entfernen damit Tastatur auf Mobile verschwindet
+            document.activeElement.blur(); 
+        });
+
+        // 4. Logik für das Wiederholungs-Feld (Dynamischer Aufbau)
+        repeatSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            if (val === 'nie') {
+                repeatDetails.classList.add('hidden');
+                repeatDetails.classList.remove('flex');
+            } else {
+                repeatDetails.classList.remove('hidden');
+                repeatDetails.classList.add('flex');
+                repeatUnit.textContent = val; // Setzt den Text auf Tage, Wochen, etc.
+            }
+        });
+
+        // 5. Speichern Button einfärben wenn Titel eingegeben ist (kleines UX extra)
+        const validateSaveBtn = () => {
+            if(titleInput.value.trim().length > 0) {
+                saveBtn.classList.remove('text-gray-400');
+                saveBtn.classList.add('text-blue-500');
+            } else {
+                saveBtn.classList.add('text-gray-400');
+                saveBtn.classList.remove('text-blue-500');
+            }
+        }
+        titleInput.addEventListener('input', validateSaveBtn);
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kalender Widget - Perfekte Animationen</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    /* ==== Kalender Farben & Shapes ==== */
+    .purple-range-wrapper {
+      background-color: rgba(94, 60, 134, 0.45);
+      border: 1.5px solid rgba(138, 92, 196, 0.4);
+      border-radius: 12px;
+    }
+    .purple-single-badge {
+      background-color: rgba(94, 60, 134, 0.55);
+      border: 1.5px solid rgba(138, 92, 196, 0.4);
+      border-radius: 10px;
+    }
+    .day-circle-darkblue {
+      background-color: #1a293f;
+      color: #60a5fa;
+    }
+    .day-circle-active {
+      background-color: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 0 14px rgba(37, 99, 235, 0.4);
+    }
+    .range-col {
+      border-right: 1px solid rgba(138, 92, 196, 0.25);
+    }
+    .range-col:last-child {
+      border-right: none;
+    }
+
+    /* ==== Animations-Layering & Physik ==== */
+    /* Layer 1: Steuert Position, Größe & Skalierung (Federn) */
+    .positioner {
+      transition: 
+        width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+        height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+        left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+        top 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+        transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform-origin: center center;
+      will-change: width, height, left, top, transform;
+    }
+
+    .positioner.is-puffing {
+      transform: scale(1.05); /* Kurzes Aufblähen */
+    }
+
+    .positioner.is-shrunk {
+      /* Zentriertes 140x140 Quadrat relativ zur 320x350 Box: 
+         (320-140)/2 = 90 left, (350-140)/2 = 105 top */
+      width: 140px;
+      height: 140px;
+      left: 90px;
+      top: 105px;
+      transform: scale(1); 
+    }
+
+    .positioner.is-expanded {
+      width: 704px;
+      /* left und top bleiben auf 0, dadurch breitet es sich nur nach rechts aus! */
+    }
+
+    /* Layer 2: Steuert exklusiv die Whip-Rotation */
+    .rotator {
+      transform-origin: center center;
+    }
+
+    .rotator.is-spinning {
+      animation: whipSpin 1.6s cubic-bezier(0.7, 0, 0.2, 1) infinite;
+    }
+
+    @keyframes whipSpin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Layer 3: Das versetzte 45° Quadrat im Hintergrund */
+    .bg-square {
+      transform: rotate(45deg) scale(0);
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .bg-square.is-active {
+      transform: rotate(45deg) scale(1);
+    }
+
+    /* Zentrierter Lade-Spinner (Eigene Rotation, unabhängig vom Container) */
+    .custom-spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid rgba(255, 255, 255, 0.25);
+      border-top-color: #ffffff;
+      border-radius: 50%;
+      animation: spin-linear 1s linear infinite;
+    }
+    @keyframes spin-linear {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="bg-white min-h-screen flex flex-col items-center justify-center p-4 antialiased text-slate-900 selection:bg-blue-600 overflow-x-hidden">
+
+  <!-- Steuerung -->
+  <div class="flex flex-wrap items-center justify-center gap-3 mb-10 z-20">
+    <button id="toggleAnimBtn" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium transition-all shadow-md active:scale-95 text-sm min-w-[200px]">
+      1. Lade-Animation
+    </button>
+    <button id="toggleExpandBtn" class="px-6 py-2.5 bg-slate-900 hover:bg-black text-white rounded-full font-medium transition-all shadow-md active:scale-95 text-sm min-w-[210px] flex items-center justify-center gap-2">
+      <span id="expandBtnText">2. Termin nach rechts</span>
+      <svg class="w-4 h-4 transition-transform duration-300" id="expandArrow" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+    </button>
+  </div>
+
+  <!-- BÜHNE: Zwingt den Ankerpunkt stabil auf die Mitte des Bildschirms -->
+  <div id="stage" class="relative w-[320px] h-[350px]">
+    
+    <!-- LAYER 1: Positioner (Steuert Verkleinerung zentriert & Ausdehnung nach rechts) -->
+    <div id="positioner" class="positioner absolute left-0 top-0 w-[320px] h-[350px]">
+      
+      <!-- LAYER 2: Rotator (Steuert das Drehen) -->
+      <div id="rotator" class="rotator absolute inset-0 w-full h-full">
+        
+        <!-- LAYER 3a: Das 45° Hintergrund-Quadrat -->
+        <div id="bgSquare" class="bg-square absolute inset-0 bg-[#1a1c1e] rounded-[24px] shadow-xl"></div>
+        
+        <!-- LAYER 3b: Die Haupt-Box mit den Inhalten -->
+        <div id="widgetBase" class="absolute inset-0 bg-[#1a1c1e] rounded-[24px] shadow-2xl overflow-hidden transition-colors">
+          
+          <!-- INHALT 1: Kalender (320x350px) -->
+          <div id="calendarView" class="absolute left-0 top-0 w-[320px] h-[350px] p-5 flex flex-col justify-between transition-opacity duration-300">
+            <!-- Header -->
+            <div class="flex justify-between items-center px-1 mb-2">
+              <h2 class="text-white text-lg font-semibold tracking-wide">November 2026</h2>
+              <div class="flex space-x-4 text-neutral-400">
+                <svg class="w-4 h-4 cursor-pointer hover:text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"></path></svg>
+                <svg class="w-4 h-4 cursor-pointer hover:text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"></path></svg>
+              </div>
+            </div>
+
+            <!-- Wochentage -->
+            <div class="grid grid-cols-7 text-center text-[11px] font-semibold text-neutral-400 mb-2">
+              <div>MO</div><div>DI</div><div>MI</div><div>DO</div><div>FR</div><div>SA</div><div>SO</div>
+            </div>
+
+            <!-- Raster -->
+            <div class="grid grid-cols-7 gap-y-1.5 text-sm text-white items-center text-center flex-grow">
+              <div class="col-span-7 grid grid-cols-7 purple-range-wrapper h-9 items-center">
+                <div class="range-col h-full flex items-center justify-center font-bold">26</div>
+                <div class="range-col h-full flex items-center justify-center font-bold">27</div>
+                <div class="range-col h-full flex items-center justify-center font-bold">28</div>
+                <div class="range-col h-full flex items-center justify-center font-bold">29</div>
+                <div class="range-col h-full flex items-center justify-center font-bold">30</div>
+                <div class="range-col h-full flex items-center justify-center font-bold">31</div>
+                <div class="h-full flex items-center justify-center font-bold">1</div>
+              </div>
+
+              <!-- Zeile 2 -->
+              <div class="flex items-center justify-center h-9">
+                <div class="purple-single-badge w-full h-full flex items-center justify-center font-bold">2</div>
+              </div>
+              <div class="h-9 flex items-center justify-center font-bold">3</div>
+              <div class="h-9 flex items-center justify-center font-bold">4</div>
+              <div class="h-9 flex items-center justify-center font-bold">5</div>
+              <div class="flex items-center justify-center h-9">
+                <div class="day-circle-darkblue w-8 h-8 rounded-full flex items-center justify-center font-bold">6</div>
+              </div>
+              <div class="flex items-center justify-center h-9">
+                <div class="day-circle-active w-8 h-8 rounded-full flex items-center justify-center font-bold">7</div>
+              </div>
+              <div class="h-9 flex items-center justify-center font-bold">8</div>
+
+              <!-- Zeilen 3 bis 6 -->
+              <div class="h-9 flex items-center justify-center font-bold">9</div>
+              <div class="h-9 flex items-center justify-center font-bold">10</div>
+              <div class="h-9 flex items-center justify-center font-bold">11</div>
+              <div class="h-9 flex items-center justify-center font-bold">12</div>
+              <div class="h-9 flex items-center justify-center font-bold">13</div>
+              <div class="h-9 flex items-center justify-center font-bold">14</div>
+              <div class="h-9 flex items-center justify-center font-bold">15</div>
+
+              <div class="h-9 flex items-center justify-center font-bold">16</div>
+              <div class="h-9 flex items-center justify-center font-bold">17</div>
+              <div class="h-9 flex items-center justify-center font-bold">18</div>
+              <div class="h-9 flex items-center justify-center font-bold">19</div>
+              <div class="h-9 flex items-center justify-center font-bold">20</div>
+              <div class="h-9 flex items-center justify-center font-bold">21</div>
+              <div class="h-9 flex items-center justify-center font-bold">22</div>
+
+              <div class="h-9 flex items-center justify-center font-bold">23</div>
+              <div class="h-9 flex items-center justify-center font-bold">24</div>
+              <div class="h-9 flex items-center justify-center font-bold">25</div>
+              <div class="h-9 flex items-center justify-center font-bold">26</div>
+              <div class="h-9 flex items-center justify-center font-bold">27</div>
+              <div class="h-9 flex items-center justify-center font-bold">28</div>
+              <div class="h-9 flex items-center justify-center font-bold">29</div>
+
+              <div class="h-9 flex items-center justify-center font-bold">30</div>
+              <div class="h-9 flex items-center justify-center text-neutral-500 font-bold">1</div>
+              <div class="h-9 flex items-center justify-center text-neutral-500 font-bold">2</div>
+              <div class="h-9 flex items-center justify-center text-neutral-500 font-bold">3</div>
+              <div class="h-9 flex items-center justify-center text-neutral-500 font-bold">4</div>
+              <div class="h-9 flex items-center justify-center text-neutral-500 font-bold">5</div>
+              <div class="h-9 flex items-center justify-center text-neutral-500 font-bold">6</div>
+            </div>
+          </div>
+
+          <!-- INHALT 2: Termin Ansicht (704x350px) -->
+          <div id="appointmentView" class="absolute left-0 top-0 w-[704px] h-[350px] p-7 flex flex-col justify-between text-white opacity-0 pointer-events-none transition-opacity duration-300">
+            <div class="flex items-start justify-between">
+              <div>
+                <h3 class="text-3xl font-extrabold tracking-tight mt-1">TERMIN in</h3>
+                <p class="text-4xl md:text-5xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-200 mt-1">
+                  2 Std. 15 Min.
+                </p>
+              </div>
+              <div class="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-blue-400 shrink-0">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 bg-white/[0.04] p-4 rounded-2xl border border-white/5 my-2 w-[400px]">
+              <div>
+                <p class="text-xs font-medium text-neutral-400 uppercase tracking-wider">Meeting</p>
+                <p class="text-base font-semibold text-white mt-0.5">Design Review Q4</p>
+              </div>
+              <div>
+                <p class="text-xs font-medium text-neutral-400 uppercase tracking-wider">Datum & Zeit</p>
+                <p class="text-base font-semibold text-white mt-0.5">07. Nov 2026 • 14:00</p>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-1 pr-4 w-full">
+              <div class="flex items-center space-x-2 text-xs text-neutral-400">
+                <span class="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]"></span>
+                <span class="text-neutral-300 font-medium">Anschließend 20min PAUSE</span>
+              </div>
+              <button id="closeAppointmentBtn" class="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-all">
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Lade-Spinner (zentriert im Positioner, rotiert linear in sich selbst) -->
+      <div id="loaderWrapper" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 z-50 pointer-events-none">
+        <div class="custom-spinner"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="mt-8 text-xs text-neutral-400">
+    Pixelgenaue Nachbildung • November 2026
+  </div>
+
+  <script>
+    // Elemente
+    const positioner = document.getElementById('positioner');
+    const rotator = document.getElementById('rotator');
+    const bgSquare = document.getElementById('bgSquare');
+    const calendarView = document.getElementById('calendarView');
+    const appointmentView = document.getElementById('appointmentView');
+    const loaderWrapper = document.getElementById('loaderWrapper');
+    
+    // Buttons
+    const toggleAnimBtn = document.getElementById('toggleAnimBtn');
+    const toggleExpandBtn = document.getElementById('toggleExpandBtn');
+    const closeAppointmentBtn = document.getElementById('closeAppointmentBtn');
+    const expandBtnText = document.getElementById('expandBtnText');
+    const expandArrow = document.getElementById('expandArrow');
+
+    // States
+    let state = 'IDLE'; // IDLE, PUFF, SHRUNK, SPINNING, STOPPING, EXPANDED
+
+    // ==== 1. Lade-Animation (Mittig schrumpfen & drehen) ====
+    toggleAnimBtn.addEventListener('click', () => {
+      if (state === 'IDLE') {
+        startLoadAnimation();
+      } else if (state === 'SPINNING') {
+        stopLoadAnimation();
+      }
+    });
+
+    function startLoadAnimation() {
+      state = 'PUFF';
+      
+      // UI sperren
+      toggleExpandBtn.disabled = true;
+      toggleExpandBtn.classList.add('opacity-40', 'cursor-not-allowed');
+      toggleAnimBtn.disabled = true;
+      toggleAnimBtn.textContent = 'Bereite vor...';
+
+      // 1. Leichtes Aufblähen
+      positioner.classList.add('is-puffing');
+      
+      setTimeout(() => {
+        state = 'SHRUNK';
+        
+        // 2. Zentriert auf Quadrat schrumpfen & Kalender ausblenden
+        positioner.classList.remove('is-puffing');
+        positioner.classList.add('is-shrunk');
+        calendarView.style.opacity = '0';
+        
+        setTimeout(() => {
+          // 3. 45° Quadrat hervorspringen lassen
+          bgSquare.classList.add('is-active');
+          
+          setTimeout(() => {
+            state = 'SPINNING';
+            // 4. Whip-Spin starten & Spinner einblenden
+            rotator.classList.add('is-spinning');
+            loaderWrapper.style.opacity = '1';
+            
+            toggleAnimBtn.disabled = false;
+            toggleAnimBtn.textContent = 'Lade-Animation stoppen';
+            toggleAnimBtn.classList.replace('bg-blue-600', 'bg-red-600');
+            toggleAnimBtn.classList.replace('hover:bg-blue-700', 'hover:bg-red-700');
+            
+          }, 350); // Warten bis bgSquare da ist
+        }, 500); // Warten bis Verkleinerung fast fertig ist
+      }, 150); // Dauer des Puff-Effekts
+    }
+
+    function stopLoadAnimation() {
+      state = 'STOPPING';
+      toggleAnimBtn.disabled = true;
+      toggleAnimBtn.textContent = 'Warte auf Nullpunkt...';
+
+      // Wir hängen uns an das Ende eines Rotationszyklus
+      const iterationHandler = () => {
+        rotator.removeEventListener('animationiteration', iterationHandler);
+        
+        // Drehung exakt bei 360° stoppen
+        rotator.classList.remove('is-spinning');
+        loaderWrapper.style.opacity = '0';
+        
+        // 45° Quadrat verschwinden lassen
+        bgSquare.classList.remove('is-active');
+        
+        setTimeout(() => {
+          // Wieder groß werden
+          positioner.classList.remove('is-shrunk');
+          
+          setTimeout(() => {
+            // Kalender wieder sichtbar
+            calendarView.style.opacity = '1';
+            
+            // Buttons zurücksetzen
+            state = 'IDLE';
+            toggleAnimBtn.disabled = false;
+            toggleAnimBtn.textContent = '1. Lade-Animation';
+            toggleAnimBtn.classList.replace('bg-red-600', 'bg-blue-600');
+            toggleAnimBtn.classList.replace('hover:bg-red-700', 'hover:bg-blue-700');
+            
+            toggleExpandBtn.disabled = false;
+            toggleExpandBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+            
+          }, 400); // Kurz bevor das Groesse-Wachsen fertig ist
+        }, 300); // Warten bis 45° Quadrat weg ist
+      };
+
+      rotator.addEventListener('animationiteration', iterationHandler);
+    }
+
+
+    // ==== 2. Expansions-Animation (nach rechts) ====
+    function toggleExpand() {
+      if (state !== 'IDLE' && state !== 'EXPANDED') return;
+
+      if (state === 'IDLE') {
+        state = 'EXPANDING';
+        
+        toggleAnimBtn.disabled = true;
+        toggleAnimBtn.classList.add('opacity-40', 'cursor-not-allowed');
+        
+        // Inhalt ausblenden
+        calendarView.style.opacity = '0';
+        
+        setTimeout(() => {
+          // Breite auf 704px aufklappen
+          positioner.classList.add('is-expanded');
+          expandArrow.style.transform = 'rotate(180deg)';
+          expandBtnText.textContent = 'Kalender anzeigen';
+          
+          setTimeout(() => {
+            // Neuen Inhalt einblenden und klickbar machen
+            appointmentView.style.opacity = '1';
+            appointmentView.style.pointerEvents = 'auto';
+            state = 'EXPANDED';
+          }, 350);
+        }, 150);
+
+      } else if (state === 'EXPANDED') {
+        state = 'COLLAPSING';
+        
+        // Termin ausblenden
+        appointmentView.style.opacity = '0';
+        appointmentView.style.pointerEvents = 'none';
+        
+        setTimeout(() => {
+          // Wieder auf 320px zurückklappen
+          positioner.classList.remove('is-expanded');
+          expandArrow.style.transform = 'rotate(0deg)';
+          expandBtnText.textContent = '2. Termin nach rechts';
+          
+          setTimeout(() => {
+            // Alten Kalender einblenden
+            calendarView.style.opacity = '1';
+            
+            toggleAnimBtn.disabled = false;
+            toggleAnimBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+            state = 'IDLE';
+          }, 450);
+        }, 200);
+      }
+    }
+
+    toggleExpandBtn.addEventListener('click', toggleExpand);
+    closeAppointmentBtn.addEventListener('click', toggleExpand);
+  </script>
+</body>
+</html>

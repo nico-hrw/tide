@@ -89,7 +89,7 @@ function TimelineView({ payload }: { payload?: Record<string, any> }) {
 
     if (events.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center gap-2 py-4 text-gray-400 select-none">
+            <div className="flex flex-col items-center justify-center gap-2 py-4 text-zinc-400 select-none">
                 <CalendarIcon size={22} className="opacity-40" />
                 <span className="text-xs font-semibold">Nothing on your schedule today</span>
             </div>
@@ -100,17 +100,17 @@ function TimelineView({ payload }: { payload?: Record<string, any> }) {
         <div className="flex flex-col gap-2 select-none">
             {/* Header */}
             <div className="flex items-center gap-2 mb-1">
-                <div className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
+                <div className="text-[11px] font-bold text-indigo-400 uppercase tracking-widest flex items-center gap-1.5">
                     <CalendarIcon size={11} /> Today's Schedule
                 </div>
-                <div className="flex-1 h-px bg-gray-100 dark:bg-white/10" />
-                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">{format(now, 'MMM d')}</span>
+                <div className="flex-1 h-px bg-white/10" />
+                <span className="text-[10px] text-zinc-400 font-medium">{format(now, 'MMM d')}</span>
             </div>
 
             {/* Event Cards with Vertical connecting line */}
             <div className="relative flex flex-col gap-3 mt-1.5 pl-2">
                 {/* The vertical line spanning the timeline */}
-                <div className="absolute top-2 bottom-2 left-[11px] w-[2px] bg-gray-100 dark:bg-white/10 rounded-full" />
+                <div className="absolute top-2 bottom-2 left-[11px] w-[2px] bg-white/10 rounded-full" />
 
                 {events.map((ev, i) => {
                     const start = new Date(ev.start);
@@ -121,17 +121,17 @@ function TimelineView({ payload }: { payload?: Record<string, any> }) {
                         <div key={i} className="relative z-10 flex items-start gap-3">
                             {/* Dot on the timeline */}
                             <div className="mt-2.5 relative flex items-center justify-center shrink-0">
-                                <div className={`w-[6px] h-[6px] rounded-full z-10 ring-4 ring-[#18181b] dark:ring-[#09090b] ${isPast ? 'bg-gray-300 dark:bg-gray-600' : isNow ? 'bg-indigo-500 animate-pulse' : 'bg-indigo-300 dark:bg-indigo-600'}`} />
+                                <div className={`w-[6px] h-[6px] rounded-full z-10 ring-4 ring-[#18181b] dark:ring-[#09090b] ${isPast ? 'bg-zinc-600' : isNow ? 'bg-indigo-500 animate-pulse' : 'bg-indigo-400'}`} />
                             </div>
 
                             <div
                                 className={`
                                     flex-1 relative flex flex-col gap-0.5 p-3 rounded-2xl border transition-all
                                     ${isPast
-                                        ? 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/5'
+                                        ? 'bg-white/5 border-white/5'
                                         : isNow
-                                            ? 'bg-indigo-500 border-indigo-400 shadow-md shadow-indigo-200 dark:shadow-indigo-900/50'
-                                            : 'bg-white dark:bg-white/10 border-gray-200 dark:border-white/10 shadow-sm'
+                                            ? 'bg-indigo-500 border-indigo-400 shadow-md shadow-indigo-900/50'
+                                            : 'bg-white/10 border-white/10 shadow-sm'
                                     }
                                 `}
                             >
@@ -141,10 +141,10 @@ function TimelineView({ payload }: { payload?: Record<string, any> }) {
                                         <span className="text-[9px] text-white/80 font-bold uppercase tracking-wider">Now</span>
                                     </div>
                                 )}
-                                <div className={`text-[10px] font-bold uppercase tracking-wider ${isPast ? 'text-gray-400 dark:text-gray-600' : isNow ? 'text-indigo-100' : 'text-indigo-500 dark:text-indigo-400'}`}>
+                                <div className={`text-[10px] font-bold uppercase tracking-wider ${isPast ? 'text-zinc-500' : isNow ? 'text-indigo-100' : 'text-indigo-400'}`}>
                                     {format(start, 'HH:mm')}
                                 </div>
-                                <div className={`text-[13px] font-black leading-tight ${isPast ? 'text-gray-400 dark:text-gray-600 line-through' : isNow ? 'text-white' : 'text-gray-800 dark:text-gray-100'}`}>
+                                <div className={`text-[13px] font-black leading-tight ${isPast ? 'text-zinc-500 line-through' : isNow ? 'text-white' : 'text-zinc-100'}`}>
                                     {ev.title}
                                 </div>
                             </div>
@@ -160,7 +160,7 @@ function NextEventView({ payload }: { payload?: Record<string, any> }) {
     const event = payload?.event;
     if (!event) {
         return (
-            <div className="flex flex-col items-center justify-center gap-2 py-2 text-gray-400 select-none">
+            <div className="flex flex-col items-center justify-center gap-2 py-2 text-zinc-400 select-none">
                 <span className="text-xs font-medium">No upcoming events</span>
             </div>
         );
@@ -177,15 +177,15 @@ function NextEventView({ payload }: { payload?: Record<string, any> }) {
 
     return (
         <div className="flex flex-col gap-2.5 select-none">
-            <div className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Next Up</div>
-            <div className="flex flex-col gap-1 p-3 bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-900/20 dark:to-purple-900/20 rounded-2xl border border-violet-100 dark:border-violet-800/50">
-                <div className="text-sm font-black text-gray-900 dark:text-gray-100 leading-tight truncate">{event.title}</div>
+            <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Next Up</div>
+            <div className="flex flex-col gap-1 p-3 bg-gradient-to-br from-violet-500/10 to-purple-500/10 rounded-2xl border border-violet-500/20">
+                <div className="text-sm font-black text-white leading-tight truncate">{event.title}</div>
                 <div className="flex items-center gap-2 mt-0.5">
                     <div className="flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
-                        <span className="text-[10px] text-violet-600 dark:text-violet-400 font-bold">{timeLabel}</span>
+                        <span className="text-[10px] text-violet-400 font-bold">{timeLabel}</span>
                     </div>
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">{format(start, 'HH:mm')}</span>
+                    <span className="text-[10px] text-zinc-400 font-medium">{format(start, 'HH:mm')}</span>
                 </div>
             </div>
         </div>
@@ -210,12 +210,12 @@ const MessageView = ({ payload }: { payload: any }) => {
                     <span className="text-white text-sm font-black">{senderName.charAt(0).toUpperCase()}</span>
                 </div>
                 <div className="min-w-0 flex-1">
-                    <div className="text-[14px] font-black text-gray-900 dark:text-gray-100 leading-tight">
+                    <div className="text-[14px] font-black text-white leading-tight">
                         {senderName}
                     </div>
-                    <div className="text-[11px] text-gray-500 dark:text-gray-400 font-medium mb-1">New message</div>
+                    <div className="text-[11px] text-zinc-400 font-medium mb-1">New message</div>
                     {payload?.text && (
-                        <div className="text-[14px] text-gray-800 dark:text-gray-300 leading-snug break-words whitespace-pre-wrap font-medium">
+                        <div className="text-[14px] text-zinc-200 leading-snug break-words whitespace-pre-wrap font-medium">
                             {payload.text}
                         </div>
                     )}
@@ -229,16 +229,16 @@ const UploadProgressView = ({ payload }: { payload: any }) => (
     <div className="flex flex-col items-center justify-center gap-4 py-8 px-4 w-full">
         <div className="relative flex items-center justify-center">
             {/* Pulsing ring */}
-            <div className="absolute inset-0 rounded-full bg-indigo-200 animate-ping opacity-75" style={{ animationDuration: '2s' }} />
-            <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-300">
+            <div className="absolute inset-0 rounded-full bg-indigo-500/20 animate-ping opacity-75" style={{ animationDuration: '2s' }} />
+            <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-900/50">
                 <Loader2 size={28} className="text-white animate-spin" />
             </div>
         </div>
         <div className="text-center mt-2">
-            <div className="text-[18px] font-black text-gray-900 dark:text-gray-100 leading-tight tracking-wide">
+            <div className="text-[18px] font-black text-white leading-tight tracking-wide">
                 Sending...
             </div>
-            <div className="text-[13px] text-gray-500 dark:text-gray-400 truncate max-w-[200px] mt-1 font-medium">
+            <div className="text-[13px] text-zinc-400 truncate max-w-[200px] mt-1 font-medium">
                 {payload?.fileName || 'Data packet'}
             </div>
         </div>
@@ -254,22 +254,22 @@ const InteractiveCardView = ({ payload }: { payload: any }) => {
         <div className="flex flex-col gap-3 px-3 py-2 w-full">
             <div className="flex items-center gap-2 mb-1">
                 <div className={`w-2.5 h-2.5 rounded-full ${isEvent ? 'bg-amber-500 animate-pulse' : isNote ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500 animate-pulse'}`} />
-                <div className="text-[12px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <div className="text-[12px] font-bold uppercase tracking-wider text-zinc-400">
                     {headerTitle}
                 </div>
             </div>
 
-            <div className={`p-4 rounded-2xl border ${isEvent ? 'bg-amber-500 border-amber-400 text-white shadow-md shadow-amber-200' : isNote ? 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-200' : 'bg-indigo-500 border-indigo-400 text-white shadow-md shadow-indigo-200'}`}>
+            <div className={`p-4 rounded-2xl border ${isEvent ? 'bg-amber-500/20 border-amber-500/40 text-white shadow-md shadow-amber-900/20' : isNote ? 'bg-emerald-600/20 border-emerald-500/40 text-white shadow-md shadow-emerald-900/20' : 'bg-indigo-500/20 border-indigo-500/40 text-white shadow-md shadow-indigo-900/20'}`}>
                 <div className="text-[18px] font-black leading-tight mb-2 text-white">
                     {payload?.fileName || payload?.title || (isNote ? 'Notiz' : 'Untitled')}
                 </div>
                 {payload?.noteSharedText && showNoteSharedText && (
-                    <div className="text-[13px] text-white/95 mb-2 line-clamp-4 whitespace-pre-wrap font-medium bg-black/15 p-2.5 rounded-xl border border-white/10">
+                    <div className="text-[13px] text-white/95 mb-2 line-clamp-4 whitespace-pre-wrap font-medium bg-black/25 p-2.5 rounded-xl border border-white/10">
                         {payload.noteSharedText}
                     </div>
                 )}
                 <div className="flex flex-col gap-1">
-                    <div className={`text-[13px] font-semibold flex items-center gap-1.5 ${isEvent ? 'text-amber-100' : 'text-indigo-100'}`}>
+                    <div className={`text-[13px] font-semibold flex items-center gap-1.5 ${isEvent ? 'text-amber-200' : 'text-indigo-200'}`}>
                         {isEvent ? <CalendarIcon size={14} /> : <FileText size={14} />}
                         Shared by {payload?.senderName || 'Contact'}
                     </div>
@@ -281,7 +281,7 @@ const InteractiveCardView = ({ payload }: { payload: any }) => {
                     e.stopPropagation();
                     if (payload?.onAction) payload.onAction();
                 }}
-                className="w-full py-2.5 mt-1 rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] hover:bg-[#09090b] dark:hover:bg-zinc-100"
+                className="w-full py-2.5 mt-1 rounded-xl text-[13px] font-bold flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98] bg-white/10 hover:bg-white/20 text-white"
             >
                 {isEvent ? (
                     <>
@@ -342,23 +342,23 @@ const EventPreviewView = ({ payload }: { payload: any }) => {
         <div className="flex flex-col gap-3 px-3 py-2 w-full">
             <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${event.is_cancelled ? 'bg-gray-300 dark:bg-gray-600' : isPast ? 'bg-gray-400 dark:bg-gray-500' : isNow ? 'bg-indigo-500 animate-pulse' : 'bg-blue-500'}`} />
-                    <div className="text-[12px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    <div className={`w-2.5 h-2.5 rounded-full ${event.is_cancelled ? 'bg-zinc-600' : isPast ? 'bg-zinc-500' : isNow ? 'bg-indigo-500 animate-pulse' : 'bg-blue-500'}`} />
+                    <div className="text-[12px] font-bold uppercase tracking-wider text-zinc-400">
                         {event.is_cancelled ? 'Cancelled' : isPast ? 'Past Event' : isNow ? 'Current Event' : 'Upcoming Event'}
                     </div>
                 </div>
             </div>
 
-            <div className={`p-4 rounded-2xl border ${isPast ? 'bg-gray-50 dark:bg-white/5 border-gray-100 dark:border-white/5' : isNow ? 'bg-indigo-500 border-indigo-400 text-white shadow-md shadow-indigo-200 dark:shadow-indigo-900/50' : 'bg-white dark:bg-white/10 border-gray-200 dark:border-white/10 shadow-sm'}`}>
-                <div className={`text-[18px] font-black leading-tight mb-2 ${event.is_cancelled || isPast ? 'text-gray-400 dark:text-gray-600 line-through' : isNow ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+            <div className={`p-4 rounded-2xl border ${isPast ? 'bg-white/5 border-white/5' : isNow ? 'bg-indigo-500 border-indigo-400 text-white shadow-md shadow-indigo-900/50' : 'bg-white/10 border-white/10 shadow-sm'}`}>
+                <div className={`text-[18px] font-black leading-tight mb-2 ${event.is_cancelled || isPast ? 'text-zinc-500 line-through' : isNow ? 'text-white' : 'text-zinc-100'}`}>
                     {event.title || 'Untitled Event'}
                 </div>
                 <div className="flex flex-col gap-1">
-                    <div className={`text-[13px] font-semibold flex items-center gap-1.5 ${isPast ? 'text-gray-400 dark:text-gray-600' : isNow ? 'text-indigo-100' : 'text-indigo-600 dark:text-indigo-400'}`}>
+                    <div className={`text-[13px] font-semibold flex items-center gap-1.5 ${isPast ? 'text-zinc-400' : isNow ? 'text-indigo-100' : 'text-indigo-400'}`}>
                         <Calendar size={14} />
                         {format(start, 'HH:mm')} - {format(end, 'HH:mm')}
                     </div>
-                    <div className={`text-[12px] font-medium flex items-center gap-1.5 ${isPast ? 'text-gray-400 dark:text-gray-600' : isNow ? 'text-indigo-200' : 'text-gray-500 dark:text-gray-400'}`}>
+                    <div className={`text-[12px] font-medium flex items-center gap-1.5 ${isPast ? 'text-zinc-500' : isNow ? 'text-indigo-200' : 'text-zinc-400'}`}>
                         {timeLabel}
                     </div>
                 </div>
@@ -398,7 +398,7 @@ const ReminderView = ({ payload }: { payload: any }) => {
                     href={m[0]}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-500 dark:text-blue-400 hover:underline inline-flex items-center gap-0.5 font-medium"
+                    className="text-blue-400 hover:underline inline-flex items-center gap-0.5 font-medium"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <Link2 size={10} className="shrink-0" />
@@ -419,20 +419,20 @@ const ReminderView = ({ payload }: { payload: any }) => {
                     <AlarmClock size={16} className="text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest">Gleich geht's los</div>
-                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                    <div className="text-[11px] font-bold text-amber-400 uppercase tracking-widest">Gleich geht's los</div>
+                    <div className="text-[10px] text-zinc-400 font-medium">
                         {minsUntil <= 1 ? 'Jetzt' : `In ${minsUntil} Minuten`} · {format(start, 'HH:mm')}
                     </div>
                 </div>
             </div>
 
             {/* Event title */}
-            <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/40">
-                <div className="text-[14px] font-black text-gray-900 dark:text-gray-100 leading-tight">
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                <div className="text-[14px] font-black text-white leading-tight">
                     {event.title || 'Termin'}
                 </div>
                 {description && (
-                    <div className="text-[12px] text-gray-600 dark:text-gray-300 leading-relaxed mt-1.5 break-words whitespace-pre-wrap">
+                    <div className="text-[12px] text-zinc-300 leading-relaxed mt-1.5 break-words whitespace-pre-wrap">
                         {renderDescription()}
                     </div>
                 )}
@@ -447,7 +447,7 @@ const ReminderView = ({ payload }: { payload: any }) => {
                             href={url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800/40 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-500/20 border border-blue-500/30 text-[11px] font-semibold text-blue-300 hover:bg-blue-500/30 transition-colors"
                             onClick={(e) => e.stopPropagation()}
                         >
                             <ExternalLink size={10} />
@@ -874,9 +874,9 @@ function InMeetingBar({ events }: { events: Array<{ title: string; start: string
             exit={{ opacity: 0, y: 4 }}
             className="mt-1 px-2 pb-0.5"
         >
-            <div className="w-full h-[2px] rounded-full bg-gray-200/60 dark:bg-white/5 overflow-hidden">
+            <div className="w-full h-[2px] rounded-full bg-white/10 overflow-hidden">
                 <motion.div
-                    className="h-full rounded-full bg-blue-400/60 dark:bg-blue-500/50"
+                    className="h-full rounded-full bg-blue-400"
                     initial={{ width: `${progress * 100}%` }}
                     animate={{ width: `${progress * 100}%` }}
                     transition={{ duration: 0.5, ease: 'easeInOut' }}
@@ -1370,7 +1370,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                     </div>
                     {activeOrUpcomingEvent && compactCountdownInfo ? (
                         <>
-                            <span className="text-zinc-600 dark:text-zinc-500">|</span>
+                            <span className="text-white/20">|</span>
                             <div className="flex items-center gap-1.5 min-w-0 max-w-[14rem]">
                                 <span
                                     className={`w-2 h-2 rounded-full shrink-0 ${
@@ -1484,7 +1484,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                             ref={widgetBaseRef}
                             id="si-widgetBase"
                             onDoubleClick={triggerDemoLoading}
-                            className="absolute inset-0 bg-[#1a1c1e] rounded-[24px] shadow-2xl border border-white/10 overflow-hidden transition-colors"
+                            className="absolute inset-0 bg-[#1a1c1e] dark text-white rounded-[24px] shadow-2xl border border-white/10 overflow-hidden transition-colors"
                         >
                             {/* CONTENT 1: Calendar View (Base view) */}
                             <div
@@ -1503,53 +1503,15 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                                         })()}
                                     </div>
                                 ) : (
-                                    <>
-                                        <div className="w-full [&>div:first-child]:!p-1 [&>div:first-child]:!py-0.5 [&_.w-7]:!w-6 [&_.w-7]:!h-6">
-                                            <MiniCalendar
-                                                selectedDate={selectedDate}
-                                                onSelect={(date) => {
-                                                    onSelect?.(date);
-                                                }}
-                                            />
-                                            <InMeetingBar events={todayEvents} />
-                                        </div>
-
-                                        {/* Expand Pill: Termin nach rechts anzeigen */}
-                                        <div
-                                            onClick={toggleExpand}
-                                            className="mt-1 mx-0.5 px-3 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] active:scale-[0.98] border border-white/5 flex items-center justify-between cursor-pointer transition-all group"
-                                            title="Terminübersicht aufklappen"
-                                        >
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <span
-                                                    className={`w-2 h-2 rounded-full shrink-0 ${
-                                                        activeOrUpcomingEvent?.isOngoing
-                                                            ? 'bg-amber-400 animate-pulse'
-                                                            : 'bg-blue-400'
-                                                    }`}
-                                                />
-                                                <span className="text-xs font-bold text-white truncate max-w-[120px]">
-                                                    {activeOrUpcomingEvent ? activeOrUpcomingEvent.title : 'Nächster Termin'}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-1.5 text-blue-400 text-xs font-semibold shrink-0">
-                                                <span className="text-[11px] font-bold text-blue-300">
-                                                    {countdownDisplay.countdownText}
-                                                </span>
-                                                <svg
-                                                    className={`w-3.5 h-3.5 transition-transform duration-300 ${
-                                                        isUserExpanded ? 'rotate-180' : 'group-hover:translate-x-0.5'
-                                                    }`}
-                                                    fill="none"
-                                                    stroke="currentColor"
-                                                    strokeWidth="2"
-                                                    viewBox="0 0 24 24"
-                                                >
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                                                </svg>
-                                            </div>
-                                        </div>
-                                    </>
+                                    <div className="w-full [&>div:first-child]:!p-1 [&>div:first-child]:!py-0.5 [&_.w-7]:!w-6 [&_.w-7]:!h-6">
+                                        <MiniCalendar
+                                            selectedDate={selectedDate}
+                                            onSelect={(date) => {
+                                                onSelect?.(date);
+                                            }}
+                                        />
+                                        <InMeetingBar events={todayEvents} />
+                                    </div>
                                 )}
                             </div>
 
@@ -1576,7 +1538,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
 
                                         {/* Message text card */}
                                         <div className="bg-white/[0.04] p-4 rounded-2xl border border-white/5 my-2 max-w-[520px]">
-                                            <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1">Nachricht</p>
+                                            <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-1">Nachricht</p>
                                             <p className="text-base font-semibold text-white leading-relaxed line-clamp-3">
                                                 {incomingMessage.text || 'Neue Nachricht erhalten'}
                                             </p>
@@ -1584,9 +1546,9 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
 
                                         {/* Footer */}
                                         <div className="flex items-center justify-between pt-1 pr-4 w-full">
-                                            <div className="flex items-center space-x-2 text-xs text-neutral-400">
+                                            <div className="flex items-center space-x-2 text-xs text-zinc-400">
                                                 <span className="w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.6)] shrink-0" />
-                                                <span className="text-neutral-300 font-medium">Tide Smart Island</span>
+                                                <span className="text-zinc-300 font-medium">Tide Smart Island</span>
                                             </div>
                                             <button
                                                 type="button"
@@ -1622,13 +1584,13 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                                         {/* Event details card */}
                                         <div className="grid grid-cols-2 gap-4 bg-white/[0.04] p-4 rounded-2xl border border-white/5 my-2 max-w-[480px]">
                                             <div>
-                                                <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider">Meeting</p>
+                                                <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Meeting</p>
                                                 <p className="text-base font-semibold text-white mt-0.5 truncate">
                                                     {activeOrUpcomingEvent ? activeOrUpcomingEvent.title : 'Kein anstehender Termin'}
                                                 </p>
                                             </div>
                                             <div>
-                                                <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider">Datum & Zeit</p>
+                                                <p className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Datum & Zeit</p>
                                                 <p className="text-base font-semibold text-white mt-0.5">
                                                     {activeOrUpcomingEvent?.start
                                                         ? format(new Date(activeOrUpcomingEvent.start), 'dd. MMM yyyy • HH:mm', { locale: de })
@@ -1639,9 +1601,9 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
 
                                         {/* Footer with amber pause badge and buttons */}
                                         <div className="flex items-center justify-between pt-1 pr-4 w-full">
-                                            <div className="flex items-center space-x-2 text-xs text-neutral-400">
+                                            <div className="flex items-center space-x-2 text-xs text-zinc-400">
                                                 <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)] shrink-0" />
-                                                <span className="text-neutral-300 font-medium">{pauseInfo}</span>
+                                                <span className="text-zinc-300 font-medium">{pauseInfo}</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 {activeOrUpcomingEvent?.id && (
