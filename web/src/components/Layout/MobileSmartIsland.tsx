@@ -498,13 +498,15 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
       }
 
       // Direct GPU-composited CSS transforms
+      // Shrink whole group while loading so rotated bounding boxes stay inside the 92px island box
+      const shrink = 1 - 0.45 * easeInOutCubic(Math.max(anim.offsetProgress, anim.speedFactor));
       idleText.style.opacity = anim.textProgress.toFixed(3);
-      baseSquare.style.transform = `translate3d(0,0,0) scale(1) rotate(${anim.mainAngle.toFixed(2)}deg)`;
+      baseSquare.style.transform = `translate3d(0,0,0) scale(${shrink.toFixed(3)}) rotate(${anim.mainAngle.toFixed(2)}deg)`;
 
       if (anim.offsetProgress > 0) {
         const easedOffset = easeInOutCubic(anim.offsetProgress);
         offsetSquare.style.opacity = easedOffset.toFixed(3);
-        offsetSquare.style.transform = `translate3d(0,0,0) scale(${lerp(0.5, 0.75, easedOffset).toFixed(3)}) rotate(${(anim.mainAngle + 45).toFixed(2)}deg)`;
+        offsetSquare.style.transform = `translate3d(0,0,0) scale(${(lerp(0.85, 1, easedOffset) * shrink).toFixed(3)}) rotate(${(anim.mainAngle + 45).toFixed(2)}deg)`;
       } else {
         offsetSquare.style.opacity = '0';
       }
@@ -512,7 +514,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
       if (anim.loaderProgress > 0) {
         const easedLoader = easeInOutCubic(anim.loaderProgress);
         loaderIcon.style.opacity = easedLoader.toFixed(3);
-        loaderIcon.style.transform = `translate3d(0,0,0) scale(${lerp(0.4, 0.67, easedLoader).toFixed(3)}) rotate(${anim.loaderAngle.toFixed(2)}deg)`;
+        loaderIcon.style.transform = `translate3d(0,0,0) scale(${(lerp(0.6, 1, easedLoader) * shrink).toFixed(3)}) rotate(${anim.loaderAngle.toFixed(2)}deg)`;
       } else {
         loaderIcon.style.opacity = '0';
       }
@@ -521,11 +523,11 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         const easedBg = easeInOutCubic(anim.bgProgress);
         const pulseCycle = (Math.sin(anim.waveTime * 2.2) + 1) * 0.5;
 
-        const navyScale = lerp(0.3, lerp(0.55, 0.85, pulseCycle), easedBg);
+        const navyScale = lerp(0.4, lerp(0.85, 1.28, pulseCycle), easedBg) * shrink;
         navySquare.style.opacity = (lerp(0.2, 0.95, pulseCycle) * easedBg).toFixed(3);
         navySquare.style.transform = `translate3d(0,0,0) scale(${navyScale.toFixed(3)}) rotate(${anim.bgAngle.toFixed(2)}deg)`;
 
-        const purpleScale = lerp(0.3, lerp(0.55, 0.85, 1 - pulseCycle), easedBg);
+        const purpleScale = lerp(0.4, lerp(0.85, 1.28, 1 - pulseCycle), easedBg) * shrink;
         purpleSquare.style.opacity = (lerp(0.2, 0.95, 1 - pulseCycle) * easedBg).toFixed(3);
         purpleSquare.style.transform = `translate3d(0,0,0) scale(${purpleScale.toFixed(3)}) rotate(${(anim.bgAngle - 25).toFixed(2)}deg)`;
       } else {
