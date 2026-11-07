@@ -18,6 +18,7 @@ import { useDataStore } from '@/store/useDataStore';
 import dynamic from 'next/dynamic';
 import { parseGermanDate } from '@/lib/dateParser';
 import { pickGreetingTemplate, formatGreeting, NextEventCountdown, fireConfetti } from './MobileHeaderWidgets';
+import { phaseAtLeast, type SplashPhase } from './mobile/MobileSplash';
 import TodoList from '../Todo/TodoList';
 import { isItemUnlocked, ItemSecuritySettings } from '@/lib/pinSecurity';
 import PinPromptModal from '@/components/Security/PinPromptModal';
@@ -53,6 +54,8 @@ const JobPlanner = dynamic(() => import('../JobPlanner/JobPlanner'), {
 });
 
 export interface MobileLayoutProps {
+  /** App-start splash phase; entry animations are gated by it ('done' = no animation). */
+  splashPhase?: SplashPhase;
   events: any[];
   files: any[];
   folders: any[];
@@ -418,7 +421,7 @@ const NoteCard = React.memo(function NoteCard(props: {
     <button
       type="button"
       onClick={onOpen}
-      className={`group relative flex flex-col items-center justify-between cursor-pointer select-none p-2.5 rounded-2xl transition-all active:scale-95 hover:bg-gray-100/50 dark:hover:bg-white/5 active:bg-gray-100/50 dark:active:bg-white/5 w-full ${
+      className={`group relative flex flex-col items-center justify-between cursor-pointer select-none p-1.5 rounded-xl transition-all active:scale-95 hover:bg-gray-100/50 dark:hover:bg-white/5 active:bg-gray-100/50 dark:active:bg-white/5 w-full ${
         isActive
           ? 'ring-2 ring-blue-500/80 bg-blue-500/10 dark:bg-blue-500/15'
           : ''
@@ -445,14 +448,14 @@ const NoteCard = React.memo(function NoteCard(props: {
       <div className="relative flex flex-col items-center">
         {isCanvas ? (
           <Layout
-            className="w-12 h-14 sm:w-14 sm:h-16 text-purple-500 dark:text-purple-400 transition-transform group-active:scale-105"
+            className="w-9 h-11 text-purple-500 dark:text-purple-400 transition-transform group-active:scale-105"
             fill="currentColor"
             fillOpacity={0.06}
             strokeWidth={1.25}
           />
         ) : (
           <FileText
-            className={`w-12 h-14 sm:w-14 sm:h-16 transition-transform group-active:scale-105 ${
+            className={`w-9 h-11 transition-transform group-active:scale-105 ${
               isActive
                 ? 'text-blue-500 dark:text-blue-400'
                 : 'text-slate-500 dark:text-slate-400 group-hover:text-blue-500'
@@ -470,7 +473,7 @@ const NoteCard = React.memo(function NoteCard(props: {
       </div>
 
       <span
-        className={`text-xs font-semibold text-center line-clamp-2 max-w-[110px] mt-2 transition-colors ${
+        className={`text-[11px] leading-tight font-semibold text-center line-clamp-2 max-w-[84px] mt-1.5 transition-colors ${
           isActive ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-800 dark:text-gray-200'
         }`}
       >
@@ -570,7 +573,7 @@ const FolderCard = React.memo(function FolderCard({
   if (open) {
     return (
       <div
-        className="col-span-2 sm:col-span-3 rounded-2xl p-3 border transition-all"
+        className="col-span-3 min-[480px]:col-span-4 rounded-2xl p-3 border transition-all"
         style={{
           background: theme === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
           borderColor: T.brd,
@@ -609,7 +612,7 @@ const FolderCard = React.memo(function FolderCard({
             Ordner ist leer
           </p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-3 min-[480px]:grid-cols-4 gap-2">
             {children.map(child => (
               child.type === 'folder' ? (
                 <FolderCard
@@ -642,7 +645,7 @@ const FolderCard = React.memo(function FolderCard({
     <button
       type="button"
       onClick={handleToggle}
-      className="group relative flex flex-col items-center justify-between cursor-pointer select-none p-2.5 rounded-2xl transition-all active:scale-95 hover:bg-gray-100/50 dark:hover:bg-white/5 active:bg-gray-100/50 dark:active:bg-white/5 w-full"
+      className="group relative flex flex-col items-center justify-between cursor-pointer select-none p-1.5 rounded-xl transition-all active:scale-95 hover:bg-gray-100/50 dark:hover:bg-white/5 active:bg-gray-100/50 dark:active:bg-white/5 w-full"
       onTouchStart={() => {
         movedRef.current = false;
         holdRef.current = setTimeout(() => {
@@ -664,7 +667,7 @@ const FolderCard = React.memo(function FolderCard({
     >
       <div className="relative flex flex-col items-center">
         <Folder
-          className="w-14 h-14 sm:w-16 sm:h-16 transition-transform group-active:scale-105"
+          className="w-11 h-11 transition-transform group-active:scale-105"
           style={{ color: colorDef.hex, fill: `${colorDef.hex}26` }}
           strokeWidth={1.4}
         />
@@ -684,7 +687,7 @@ const FolderCard = React.memo(function FolderCard({
       </div>
 
       <span
-        className="text-xs font-semibold text-center line-clamp-2 max-w-[110px] mt-2 text-gray-800 dark:text-gray-200 transition-colors"
+        className="text-[11px] leading-tight font-semibold text-center line-clamp-2 max-w-[84px] mt-1.5 text-gray-800 dark:text-gray-200 transition-colors"
       >
         {displayTitle}
       </span>
@@ -697,8 +700,9 @@ export default function MobileLayout({
   onNewFolder, onNewFolderIn, onNoteRename,
   editorElement, activeNoteId, activeNoteTitle, onNewEvent,
   onEventClick, onEventUpdate, onEventSave, onEventDelete, onTaskComplete,
-  socialHubElement, userProfile, themes,
+  socialHubElement, userProfile, themes, splashPhase = 'done',
 }: MobileLayoutProps) {
+  const splashAt = (p: SplashPhase) => phaseAtLeast(splashPhase, p);
   const resolvedThemes = useMemo(() => {
     if (themes && themes.length > 0) return themes;
     return (files || [])
@@ -735,7 +739,11 @@ export default function MobileLayout({
   const [pinPromptItem, setPinPromptItem] = useState<PinPromptTarget | null>(null);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
-  const [notesViewMode, setNotesViewMode] = useState<'list' | 'grid'>('list');
+  const [notesViewMode, setNotesViewMode] = useState<'list' | 'grid'>(() => {
+    try {
+      return typeof window !== 'undefined' && localStorage.getItem('tide_notes_view') === 'list' ? 'list' : 'grid';
+    } catch { return 'grid'; }
+  });
 
   useEffect(() => {
     const handleStart = (e: any) => setEditingTodoId(e.detail?.id || 'active');
@@ -1547,7 +1555,10 @@ export default function MobileLayout({
       >
           {/* Row 1: Date & Greeting ("XX. Monat", "Guten Morgen/Mittag/Tag/Abend Name!") */}
           <div className="px-4 pt-1 pb-1.5 flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
+            <motion.div className="min-w-0 flex-1"
+              initial={false}
+              animate={{ opacity: splashAt('content') ? 1 : 0, y: splashAt('content') ? 0 : -14 }}
+              transition={{ duration: 0.45, ease: 'easeOut' }}>
               <p className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 flex-wrap" style={{ color: T.mut }}>
                 {format(now, 'd. MMMM', { locale: de })}
               </p>
@@ -1587,10 +1598,20 @@ export default function MobileLayout({
                   );
                 })()}
               </h1>
-            </div>
-            <NextEventCountdown events={expandedEvents} onTap={handleCountdownTap} className="-mt-1.5" userName={displayName} />
+            </motion.div>
+            <motion.div className="shrink-0"
+              initial={false}
+              animate={{ opacity: splashAt('island') ? 1 : 0, scale: splashAt('island') ? 1 : 0.85 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+              style={{ transformOrigin: 'top right' }}>
+              <NextEventCountdown events={expandedEvents} onTap={handleCountdownTap} className="-mt-1.5" userName={displayName} />
+            </motion.div>
           </div>
 
+          <motion.div
+            initial={false}
+            animate={{ opacity: splashAt('content') ? 1 : 0, y: splashAt('content') ? 0 : -14 }}
+            transition={{ duration: 0.45, delay: 0.1, ease: 'easeOut' }}>
           {/* Row 2: Apple-style Horizontal Date Wheel */}
           {activeTab === 'calendar' && calViewMode !== 'month' && (
             <MobileDateWheel
@@ -1656,14 +1677,18 @@ export default function MobileLayout({
               </button>
             </div>
           )}
+          </motion.div>
 
           <div className="h-px" style={{ background: T.brd }} />
         </div>
 
       {/* ── Main content area ───────────────────────────── */}
       {activeTab === 'calendar' ? (
-      <div
+      <motion.div
         className="flex flex-col"
+        initial={false}
+        animate={{ opacity: splashAt('content') ? 1 : 0, y: splashAt('content') ? 0 : -18 }}
+        transition={{ duration: 0.5, delay: 0.2, ease: 'easeOut' }}
         style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}
         onTouchStart={calViewMode === 'week' || calViewMode === 'day' ? onSwipeStart : undefined}
         onTouchMove={calViewMode === 'week' || calViewMode === 'day' ? onSwipeMove : undefined}
@@ -1859,7 +1884,7 @@ export default function MobileLayout({
             dayViewSentinelRef={dayViewSentinelRef}
           />
         )}
-      </div>
+      </motion.div>
       ) : activeTab === 'notes' ? (
       /* ── Notes tab ── */
       <div className="flex flex-col" style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}>
@@ -1874,7 +1899,7 @@ export default function MobileLayout({
             }}
           >
             <button
-              onClick={() => setNotesViewMode('list')}
+              onClick={() => { setNotesViewMode('list'); try { localStorage.setItem('tide_notes_view', 'list'); } catch {} }}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer"
               style={{
                 background: notesViewMode === 'list'
@@ -1888,7 +1913,7 @@ export default function MobileLayout({
               <span>Liste</span>
             </button>
             <button
-              onClick={() => setNotesViewMode('grid')}
+              onClick={() => { setNotesViewMode('grid'); try { localStorage.setItem('tide_notes_view', 'grid'); } catch {} }}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer"
               style={{
                 background: notesViewMode === 'grid'
@@ -1916,7 +1941,7 @@ export default function MobileLayout({
                 return <p className="text-sm py-8 text-center" style={{ color: T.mut }}>Keine Ergebnisse gefunden</p>;
               }
               return notesViewMode === 'grid' ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 p-1">
+                <div className="grid grid-cols-3 min-[480px]:grid-cols-4 gap-2 p-1">
                   {filteredFiles.map(f => (
                     <NoteCard
                       key={f.id}
@@ -2005,7 +2030,7 @@ export default function MobileLayout({
                     </button>
                     {isSharedFolderOpen && (
                       notesViewMode === 'grid' ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 p-1 mt-1">
+                        <div className="grid grid-cols-3 min-[480px]:grid-cols-4 gap-2 p-1 mt-1">
                           {sharedNotes.map(f => (
                             f.type === 'folder' ? (
                               <FolderCard
@@ -2070,7 +2095,7 @@ export default function MobileLayout({
                   <div>
                     <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Mach weiter wo du aufgehört hast</p>
                     {notesViewMode === 'grid' ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 p-1">
+                      <div className="grid grid-cols-3 min-[480px]:grid-cols-4 gap-2 p-1">
                         {recentFiles.map(f => (
                           <NoteCard
                             key={f.id}
@@ -2103,7 +2128,7 @@ export default function MobileLayout({
                   <div>
                     <p className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Ordner</p>
                     {notesViewMode === 'grid' ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 p-1">
+                      <div className="grid grid-cols-3 min-[480px]:grid-cols-4 gap-2 p-1">
                         {rootFolders.map(folder => (
                           <FolderCard
                             key={folder.id}
@@ -2146,7 +2171,7 @@ export default function MobileLayout({
                   <div>
                     <p className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Alle Notizen</p>
                     {notesViewMode === 'grid' ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 p-1">
+                      <div className="grid grid-cols-3 min-[480px]:grid-cols-4 gap-2 p-1">
                         {rootNotes.map(f => (
                           <NoteCard
                             key={f.id}
@@ -2239,7 +2264,10 @@ export default function MobileLayout({
       </AnimatePresence>
 
       {/* ── High-presence Bottom Navigation Bar ────────────────── */}
-      <div
+      <motion.div
+        initial={false}
+        animate={{ y: splashAt('content') ? 0 : '100%' }}
+        transition={{ type: 'spring', stiffness: 220, damping: 26, delay: 0.25 }}
         className="fixed left-0 right-0 flex items-center justify-between z-20 px-3 sm:px-5 pt-2.5 sm:pt-3"
         style={{
           bottom: kbOffset > 0 ? kbOffset : 0,
@@ -2465,7 +2493,7 @@ export default function MobileLayout({
             </button>
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {pinPromptItem && (
         <PinPromptModal
