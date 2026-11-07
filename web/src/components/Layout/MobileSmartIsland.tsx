@@ -499,7 +499,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
       if (anim.offsetProgress > 0) {
         const easedOffset = easeInOutCubic(anim.offsetProgress);
         offsetSquare.style.opacity = easedOffset.toFixed(3);
-        offsetSquare.style.transform = `translate3d(0,0,0) scale(${lerp(0.85, 1, easedOffset).toFixed(3)}) rotate(${(anim.mainAngle + 45).toFixed(2)}deg)`;
+        offsetSquare.style.transform = `translate3d(0,0,0) scale(${lerp(0.65, 0.95, easedOffset).toFixed(3)}) rotate(${(anim.mainAngle + 45).toFixed(2)}deg)`;
       } else {
         offsetSquare.style.opacity = '0';
       }
@@ -507,7 +507,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
       if (anim.loaderProgress > 0) {
         const easedLoader = easeInOutCubic(anim.loaderProgress);
         loaderIcon.style.opacity = easedLoader.toFixed(3);
-        loaderIcon.style.transform = `translate3d(0,0,0) scale(${lerp(0.6, 1, easedLoader).toFixed(3)}) rotate(${anim.loaderAngle.toFixed(2)}deg)`;
+        loaderIcon.style.transform = `translate3d(0,0,0) scale(${lerp(0.5, 0.85, easedLoader).toFixed(3)}) rotate(${anim.loaderAngle.toFixed(2)}deg)`;
       } else {
         loaderIcon.style.opacity = '0';
       }
@@ -516,11 +516,11 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         const easedBg = easeInOutCubic(anim.bgProgress);
         const pulseCycle = (Math.sin(anim.waveTime * 2.2) + 1) * 0.5;
 
-        const navyScale = lerp(0.4, lerp(0.85, 1.28, pulseCycle), easedBg);
+        const navyScale = lerp(0.3, lerp(0.70, 1.05, pulseCycle), easedBg);
         navySquare.style.opacity = (lerp(0.2, 0.95, pulseCycle) * easedBg).toFixed(3);
         navySquare.style.transform = `translate3d(0,0,0) scale(${navyScale.toFixed(3)}) rotate(${anim.bgAngle.toFixed(2)}deg)`;
 
-        const purpleScale = lerp(0.4, lerp(0.85, 1.28, 1 - pulseCycle), easedBg);
+        const purpleScale = lerp(0.3, lerp(0.70, 1.05, 1 - pulseCycle), easedBg);
         purpleSquare.style.opacity = (lerp(0.2, 0.95, 1 - pulseCycle) * easedBg).toFixed(3);
         purpleSquare.style.transform = `translate3d(0,0,0) scale(${purpleScale.toFixed(3)}) rotate(${(anim.bgAngle - 25).toFixed(2)}deg)`;
       } else {
@@ -560,7 +560,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         collapseTimerRef.current = setTimeout(() => {
           setIsPendingSpin(false);
           startAnimation();
-        }, 460);
+        }, 550);
         return () => clearTimeout(collapseTimeout);
       } else if (!isPendingSpin) {
         startAnimation();
@@ -649,7 +649,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
           -webkit-backface-visibility: hidden;
         }
         .smart-island-spring {
-          transition: width 0.45s cubic-bezier(0.34, 1.25, 0.64, 1);
+          transition: width 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
         .smart-island-base {
           position: absolute;
@@ -678,8 +678,10 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         .smart-island-idle-text {
           will-change: transform, opacity;
           contain: layout style paint;
-          transition: transform 0.45s cubic-bezier(0.34, 1.35, 0.54, 1), 
-                      opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+          transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                      opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .is-animating .smart-island-idle-text {
           transition: none !important;
@@ -687,8 +689,10 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         .smart-island-welcome-text {
           will-change: transform, opacity;
           contain: layout style paint;
-          transition: transform 0.45s cubic-bezier(0.34, 1.25, 0.54, 1), 
-                      opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+          transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                      opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .smart-island-text-slide-out {
           opacity: 0 !important;
@@ -714,7 +718,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         {/* Layer 1: Navy Blue (#001f3f) */}
         <div
           ref={navySquareRef}
-          className="smart-island-layer bg-[#001f3f] shadow-2xl shadow-[#001f3f]/30"
+          className="smart-island-layer bg-[#001f3f] shadow-md shadow-[#001f3f]/20"
           style={{ opacity: 0, transform: 'scale(0.3) rotate(0deg)' }}
           aria-hidden="true"
         />
@@ -722,7 +726,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         {/* Layer 2: Purple (#7928ca) */}
         <div
           ref={purpleSquareRef}
-          className="smart-island-layer bg-[#7928ca] shadow-2xl shadow-[#7928ca]/30"
+          className="smart-island-layer bg-[#7928ca] shadow-md shadow-[#7928ca]/20"
           style={{ opacity: 0, transform: 'scale(0.3) rotate(0deg)' }}
           aria-hidden="true"
         />
@@ -730,8 +734,8 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         {/* Layer 3: 45° Offset Anthracite Square (#212226) */}
         <div
           ref={offsetSquareRef}
-          className="smart-island-layer bg-[#212226] shadow-2xl shadow-black/30 z-10"
-          style={{ opacity: 0, transform: 'scale(0.6) rotate(45deg)' }}
+          className="smart-island-layer bg-[#212226] shadow-md shadow-black/20 z-10"
+          style={{ opacity: 0, transform: 'scale(0.5) rotate(45deg)' }}
           aria-hidden="true"
         />
 
@@ -739,11 +743,11 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         <div
           ref={loaderIconRef}
           className="smart-island-layer z-20 flex items-center justify-center"
-          style={{ opacity: 0, transform: 'scale(0.6) rotate(0deg)' }}
+          style={{ opacity: 0, transform: 'scale(0.5) rotate(0deg)' }}
           aria-hidden="true"
         >
           <svg
-            className="w-7 h-7 text-white drop-shadow"
+            className="w-6 h-6 text-white drop-shadow"
             viewBox="0 0 24 24"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
@@ -775,7 +779,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onTouchMove={handleTouchMove}
-        className={`smart-island-base smart-island-spring bg-[#212226] shadow-2xl shadow-black/35 p-2.5 text-white box-border overflow-hidden cursor-pointer ${
+        className={`smart-island-base smart-island-spring bg-[#212226] shadow-lg shadow-black/25 p-2.5 text-white box-border overflow-hidden cursor-pointer ${
           placement === 'bottom-left' ? 'placement-bottom-left' : 'placement-top-right'
         } ${isExpanded ? 'expanded' : ''}`}
         style={{
@@ -856,10 +860,10 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
                     dismiss();
                     setIsUserExpanded(false);
                   }}
-                  className="w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center text-neutral-300 transition-all shrink-0 cursor-pointer"
+                  className="w-7 h-7 rounded-full bg-transparent hover:opacity-75 active:scale-90 flex items-center justify-center text-neutral-300 transition-all shrink-0 cursor-pointer"
                   aria-label="Schließen"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
@@ -891,7 +895,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
                   <span className="text-[10px] font-bold tracking-wider text-neutral-400 uppercase leading-none">
                     {target ? (target.isActive ? 'Aktueller Termin' : 'Nächster Termin') : 'Willkommen zurück'}
                   </span>
-                  <span className="text-[15px] font-black tracking-tight text-white leading-tight truncate max-w-[calc(100vw-110px)] mt-0.5">
+                  <span className="text-[26px] font-black tracking-tight text-white leading-tight truncate max-w-[calc(100vw-80px)] mt-0.5">
                     {target ? (target.event.title || 'Termin') : (userName || 'Nico')}
                   </span>
                 </div>
@@ -902,10 +906,10 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
                     e.stopPropagation();
                     setIsUserExpanded(false);
                   }}
-                  className="w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 active:scale-90 flex items-center justify-center text-neutral-300 transition-all shrink-0 cursor-pointer"
+                  className="w-7 h-7 rounded-full bg-transparent hover:opacity-75 active:scale-90 flex items-center justify-center text-neutral-300 transition-all shrink-0 cursor-pointer"
                   title="Einklappen"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-4 h-4" />
                 </div>
               </div>
 
@@ -914,11 +918,8 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
                 {target ? (
                   <>
                     <div className="flex flex-col text-left min-w-0 pr-2">
-                      <span className="text-[12px] font-bold text-neutral-200 leading-tight">
-                        {target.isActive ? 'Läuft gerade' : `In ${formattedCountdown}`}
-                      </span>
-                      <span className="text-[10px] text-neutral-400 font-medium leading-tight mt-0.5 truncate">
-                        {formatEventTimeRange(target.event)}
+                      <span className="text-[16px] font-black tracking-wider uppercase text-neutral-200 leading-tight">
+                        {target.isActive ? `NOCH ${formattedCountdown.toUpperCase()}` : `IN ${formattedCountdown.toUpperCase()}`}
                       </span>
                     </div>
                     <button
@@ -927,26 +928,26 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
                         e.stopPropagation();
                         if (target?.event?.id) handleTap(target.event.id);
                       }}
-                      className="group w-8 h-8 bg-white/15 hover:bg-white/25 active:scale-95 text-white rounded-xl transition-all flex items-center justify-center shadow-sm shrink-0 cursor-pointer"
+                      className="group w-8 h-8 bg-transparent hover:opacity-75 active:scale-90 text-white transition-all flex items-center justify-center shrink-0 cursor-pointer"
                       aria-label="Termin öffnen"
                     >
                       <svg
-                        className="w-5 h-5 transform transition-transform duration-300 group-hover:translate-x-1"
+                        className="w-6 h-6 transform transition-transform duration-300 group-hover:translate-x-1"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
                         xmlns="http://www.w3.org/2000/svg"
                       >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                       </svg>
                     </button>
                   </>
                 ) : (
                   <div className="flex items-center justify-between w-full">
-                    <span className="text-xs text-neutral-400 font-medium truncate pr-2">
+                    <span className="text-[14px] font-black tracking-wider uppercase text-neutral-300 truncate pr-2">
                       {tomorrowFirstEvent
-                        ? `Morgen ${tomorrowTimeStr} Uhr: ${tomorrowFirstEvent.title || 'Termin'}`
-                        : 'Keine weiteren Termine heute'}
+                        ? `MORGEN ${tomorrowTimeStr} UHR`
+                        : 'KEINE WEITEREN TERMINE'}
                     </span>
                     {tomorrowFirstEvent && (
                       <button
@@ -955,17 +956,17 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
                           e.stopPropagation();
                           handleTap(tomorrowFirstEvent.id);
                         }}
-                        className="group w-8 h-8 bg-white/15 hover:bg-white/25 active:scale-95 text-white rounded-xl transition-all flex items-center justify-center shadow-sm shrink-0 cursor-pointer"
+                        className="group w-8 h-8 bg-transparent hover:opacity-75 active:scale-90 text-white transition-all flex items-center justify-center shrink-0 cursor-pointer"
                         aria-label="Termin öffnen"
                       >
                         <svg
-                          className="w-5 h-5 transform transition-transform duration-300 group-hover:translate-x-1"
+                          className="w-6 h-6 transform transition-transform duration-300 group-hover:translate-x-1"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
                           xmlns="http://www.w3.org/2000/svg"
                         >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                         </svg>
                       </button>
                     )}

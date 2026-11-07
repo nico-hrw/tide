@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, Calendar as CalendarIcon, MessageSquare, Bell, TrendingUp, Sparkles, Loader2, FileText, ExternalLink, Calendar, Plus, Clock, Link2, GripVertical, FileEdit, AlarmClock, X, CheckCircle2, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -304,6 +304,7 @@ interface SmartIslandProps {
     onSelect?: (date: Date) => void;
     userName?: string;
     compact?: boolean;
+    isLoading?: boolean;
 }
 
 const EventPreviewView = ({ payload }: { payload: any }) => {
@@ -902,18 +903,64 @@ const registeredPlugins: Record<string, React.FC<{ payload: any }>> = {
     'text_collector': TextCollectorView,
 };
 
-export default function SmartIsland({ selectedDate, onSelect, userName, compact = false }: SmartIslandProps) {
-    const { state, setDailySummaryMode } = useIslandStore();
+export default function SmartIsland({ selectedDate, onSelect, userName, compact = false, isLoading = false }: SmartIslandProps) {
+    const { state, setDailySummaryMode, dismiss } = useIslandStore();
     const storeEvents = useDataStore(s => s.events);
     const expandOnNotification = useIslandSettingsStore(s => s.expandOnNotification);
 
-    // Live 1-second interval ticker for compact pill countdown
+    // Live 1-second interval ticker for countdowns
     const [currentTime, setCurrentTime] = useState(() => new Date());
     useEffect(() => {
-        if (!compact) return;
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(timer);
-    }, [compact]);
+    }, []);
+
+    // Sync state listener
+    const [isSyncing, setIsSyncing] = useState(false);
+    useEffect(() => {
+        const handleSyncing = () => setIsSyncing(true);
+        const handleSynced = () => setIsSyncing(false);
+        window.addEventListener('tide-syncing', handleSyncing);
+        window.addEventListener('tide-synced', handleSynced);
+        return () => {
+            window.removeEventListener('tide-syncing', handleSyncing);
+            window.removeEventListener('tide-synced', handleSynced);
+        };
+    }, []);
+
+    // Demo loading state triggerable via double click
+    const [isDemoLoading, setDemoLoading] = useState(false);
+    const triggerDemoLoading = useCallback(() => {
+        if (animStateRef.current !== 'IDLE') return;
+        setDemoLoading(true);
+        setTimeout(() => {
+            setDemoLoading(false);
+        }, 5000);
+    }, []);
+
+    const shouldBeLoading = Boolean(
+        isLoading ||
+        isDemoLoading ||
+        isSyncing ||
+        state.current?.type === 'loading' ||
+        state.current?.type === 'upload_progress'
+    );
+
+    // Animation state machine from animationen_si.html
+    const [islandAnimState, setIslandAnimState] = useState<'IDLE' | 'PUFF' | 'SHRUNK' | 'SPINNING' | 'STOPPING' | 'EXPANDING' | 'EXPANDED' | 'COLLAPSING'>('IDLE');
+    const [isUserExpanded, setIsUserExpanded] = useState(false);
+
+    // Refs
+    const positionerRef = useRef<HTMLDivElement>(null);
+    const rotatorRef = useRef<HTMLDivElement>(null);
+    const bgSquareRef = useRef<HTMLDivElement>(null);
+    const widgetBaseRef = useRef<HTMLDivElement>(null);
+    const calendarViewRef = useRef<HTMLDivElement>(null);
+    const appointmentViewRef = useRef<HTMLDivElement>(null);
+    const loaderWrapperRef = useRef<HTMLDivElement>(null);
+
+    const animStateRef = useRef<'IDLE' | 'PUFF' | 'SHRUNK' | 'SPINNING' | 'STOPPING' | 'EXPANDING' | 'EXPANDED' | 'COLLAPSING'>('IDLE');
+    const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Build today's events for InMeetingBar (exclude all-day events)
     const todayEvents = useMemo(() => {
@@ -923,9 +970,8 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
         }).map((e: any) => ({ title: e.title, start: e.start, end: e.end, description: e.description, is_all_day: e.is_all_day }));
     }, [storeEvents]);
 
-    // Active or upcoming event for compact pill in Good-Notes / Tablet mode
+    // Active or upcoming event calculation
     const activeOrUpcomingEvent = useMemo(() => {
-        if (!compact) return null;
         const now = currentTime;
         const today = new Date();
         const todayEvs = (storeEvents || []).filter((e: any) => {
@@ -948,7 +994,9 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                 title: activeMeeting.title,
                 start: activeMeeting.start,
                 end: activeMeeting.end,
+                description: activeMeeting.description,
                 isOngoing: true,
+                isTomorrow: false,
             };
         }
 
@@ -968,14 +1016,289 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                 title: upcoming.title,
                 start: upcoming.start,
                 end: upcoming.end,
+                description: upcoming.description,
                 isOngoing: false,
+                isTomorrow: false,
+            };
+        }
+
+        // Tomorrow's first event fallback
+        const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+        const tomorrowEvs = (storeEvents || []).filter((e: any) => {
+            try { return isSameDay(new Date(e.start), tomorrow); } catch { return false; }
+        }).filter((e: any) => {
+            try {
+                if (e.is_completed || (e as any).isCompleted || e.completed_dates?.length) return false;
+                if (e.is_all_day || (e as any).allDay || (e as any).is_task) return false;
+                return true;
+            } catch { return false; }
+        }).sort((a: any, b: any) => new Date(a.start).getTime() - new Date(b.start).getTime())[0];
+
+        if (tomorrowEvs) {
+            return {
+                id: tomorrowEvs.id,
+                title: tomorrowEvs.title,
+                start: tomorrowEvs.start,
+                end: tomorrowEvs.end,
+                description: tomorrowEvs.description,
+                isOngoing: false,
+                isTomorrow: true,
             };
         }
 
         return null;
-    }, [compact, storeEvents, currentTime]);
+    }, [storeEvents, currentTime]);
 
-    const countdownInfo = useMemo(() => {
+    // Countdown and header labels
+    const countdownDisplay = useMemo(() => {
+        if (!activeOrUpcomingEvent) {
+            return { countdownText: 'Kein Termin', headerLabel: 'TERMIN' };
+        }
+        const nowMs = currentTime.getTime();
+        const targetMs = activeOrUpcomingEvent.isOngoing
+            ? new Date(activeOrUpcomingEvent.end).getTime()
+            : new Date(activeOrUpcomingEvent.start).getTime();
+        const diffSec = Math.max(0, Math.floor((targetMs - nowMs) / 1000));
+        const h = Math.floor(diffSec / 3600);
+        const m = Math.floor((diffSec % 3600) / 60);
+
+        let countdownText = '';
+        if (h > 0) {
+            countdownText = m > 0 ? `${h} Std. ${m} Min.` : `${h} Std.`;
+        } else {
+            countdownText = `${Math.max(1, m)} Min.`;
+        }
+
+        const headerLabel = activeOrUpcomingEvent.isOngoing
+            ? 'TERMIN läuft noch'
+            : activeOrUpcomingEvent.isTomorrow
+                ? 'TERMIN morgen in'
+                : 'TERMIN in';
+
+        return { countdownText, headerLabel };
+    }, [activeOrUpcomingEvent, currentTime]);
+
+    // Pause/Break info matching animationen_si.html
+    const pauseInfo = useMemo(() => {
+        if (!activeOrUpcomingEvent) return 'Keine weiteren Termine heute';
+        if (activeOrUpcomingEvent.isTomorrow) return 'Erster Termin morgen früh';
+
+        const endMs = new Date(activeOrUpcomingEvent.end || activeOrUpcomingEvent.start).getTime();
+        const today = new Date();
+        const futureEvs = (storeEvents || [])
+            .filter((e: any) => {
+                try {
+                    if (e.id === activeOrUpcomingEvent.id) return false;
+                    if (e.is_completed || (e as any).isCompleted || e.completed_dates?.length) return false;
+                    if (e.is_all_day || (e as any).allDay || (e as any).is_task) return false;
+                    if (!isSameDay(new Date(e.start), today)) return false;
+                    return new Date(e.start).getTime() >= endMs;
+                } catch { return false; }
+            })
+            .sort((a: any, b: any) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
+        if (futureEvs.length > 0) {
+            const nextStartMs = new Date(futureEvs[0].start).getTime();
+            const pauseMins = Math.max(0, Math.round((nextStartMs - endMs) / 60000));
+            if (pauseMins > 0) {
+                return `Anschließend ${pauseMins}min PAUSE`;
+            }
+            return 'Direkt anschließender Termin';
+        }
+        return 'Letzter geplanter Termin heute';
+    }, [activeOrUpcomingEvent, storeEvents]);
+
+    // Incoming message payload
+    const incomingMessage = state.current?.type === 'message'
+        ? state.current.payload
+        : null;
+
+    // Loading Animation functions from animationen_si.html
+    const startLoadAnimation = useCallback(() => {
+        if (animStateRef.current === 'PUFF' || animStateRef.current === 'SHRUNK' || animStateRef.current === 'SPINNING') return;
+
+        animStateRef.current = 'PUFF';
+        setIslandAnimState('PUFF');
+
+        const positioner = positionerRef.current;
+        const rotator = rotatorRef.current;
+        const bgSquare = bgSquareRef.current;
+        const calendarView = calendarViewRef.current;
+        const appointmentView = appointmentViewRef.current;
+        const loaderWrapper = loaderWrapperRef.current;
+
+        if (!positioner || !rotator || !bgSquare || !loaderWrapper) return;
+
+        // 1. If currently expanded, immediately collapse
+        positioner.classList.remove('is-expanded');
+        setIsUserExpanded(false);
+
+        // 2. Light puffing (scale 1.05)
+        positioner.classList.add('is-puffing');
+
+        loadTimerRef.current = setTimeout(() => {
+            animStateRef.current = 'SHRUNK';
+            setIslandAnimState('SHRUNK');
+
+            // 3. Shrink to centered square & hide content
+            positioner.classList.remove('is-puffing');
+            positioner.classList.add('is-shrunk');
+            if (calendarView) calendarView.style.opacity = '0';
+            if (appointmentView) {
+                appointmentView.style.opacity = '0';
+                appointmentView.style.pointerEvents = 'none';
+            }
+
+            loadTimerRef.current = setTimeout(() => {
+                // 4. 45° background diamond square springs in
+                bgSquare.classList.add('is-active');
+
+                loadTimerRef.current = setTimeout(() => {
+                    animStateRef.current = 'SPINNING';
+                    setIslandAnimState('SPINNING');
+
+                    // 5. Whip spin & loader wrapper fade in
+                    rotator.classList.add('is-spinning');
+                    loaderWrapper.style.opacity = '1';
+                }, 350);
+            }, 500);
+        }, 150);
+    }, []);
+
+    const stopLoadAnimation = useCallback(() => {
+        if (animStateRef.current === 'STOPPING' || animStateRef.current === 'IDLE') return;
+
+        const positioner = positionerRef.current;
+        const rotator = rotatorRef.current;
+        const bgSquare = bgSquareRef.current;
+        const calendarView = calendarViewRef.current;
+        const loaderWrapper = loaderWrapperRef.current;
+
+        if (!positioner || !rotator || !bgSquare || !loaderWrapper) {
+            animStateRef.current = 'IDLE';
+            setIslandAnimState('IDLE');
+            return;
+        }
+
+        if (animStateRef.current !== 'SPINNING') {
+            // Was still in PUFF or SHRUNK phase: clear pending timers and reset
+            if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
+            positioner.classList.remove('is-puffing', 'is-shrunk');
+            bgSquare.classList.remove('is-active');
+            rotator.classList.remove('is-spinning');
+            loaderWrapper.style.opacity = '0';
+            if (calendarView) calendarView.style.opacity = '1';
+            animStateRef.current = 'IDLE';
+            setIslandAnimState('IDLE');
+            return;
+        }
+
+        animStateRef.current = 'STOPPING';
+        setIslandAnimState('STOPPING');
+
+        const iterationHandler = () => {
+            rotator.removeEventListener('animationiteration', iterationHandler);
+
+            // Stop spin exactly at 360°/0°
+            rotator.classList.remove('is-spinning');
+            loaderWrapper.style.opacity = '0';
+
+            // 45° diamond square scale back to 0
+            bgSquare.classList.remove('is-active');
+
+            setTimeout(() => {
+                // Spring back to normal size
+                positioner.classList.remove('is-shrunk');
+
+                setTimeout(() => {
+                    // Content visible again
+                    if (calendarView) calendarView.style.opacity = '1';
+                    animStateRef.current = 'IDLE';
+                    setIslandAnimState('IDLE');
+                }, 400);
+            }, 300);
+        };
+
+        rotator.addEventListener('animationiteration', iterationHandler);
+    }, []);
+
+    // Watch loading trigger
+    useEffect(() => {
+        if (shouldBeLoading) {
+            startLoadAnimation();
+        } else if (animStateRef.current === 'SPINNING' || animStateRef.current === 'PUFF' || animStateRef.current === 'SHRUNK') {
+            stopLoadAnimation();
+        }
+    }, [shouldBeLoading, startLoadAnimation, stopLoadAnimation]);
+
+    // Expand Animation functions from animationen_si.html
+    const toggleExpand = useCallback(() => {
+        if (animStateRef.current === 'PUFF' || animStateRef.current === 'SHRUNK' || animStateRef.current === 'SPINNING' || animStateRef.current === 'STOPPING') return;
+
+        const positioner = positionerRef.current;
+        const calendarView = calendarViewRef.current;
+        const appointmentView = appointmentViewRef.current;
+        if (!positioner) return;
+
+        if (!isUserExpanded) {
+            animStateRef.current = 'EXPANDING';
+            setIslandAnimState('EXPANDING');
+
+            // 1. Fade out calendarView
+            if (calendarView) calendarView.style.opacity = '0';
+
+            setTimeout(() => {
+                // 2. Expand positioner to 704px
+                positioner.classList.add('is-expanded');
+                setIsUserExpanded(true);
+
+                setTimeout(() => {
+                    // 3. Fade in appointmentView
+                    if (appointmentView) {
+                        appointmentView.style.opacity = '1';
+                        appointmentView.style.pointerEvents = 'auto';
+                    }
+                    animStateRef.current = 'EXPANDED';
+                    setIslandAnimState('EXPANDED');
+                }, 350);
+            }, 150);
+
+        } else {
+            animStateRef.current = 'COLLAPSING';
+            setIslandAnimState('COLLAPSING');
+
+            // 1. Fade out appointmentView
+            if (appointmentView) {
+                appointmentView.style.opacity = '0';
+                appointmentView.style.pointerEvents = 'none';
+            }
+
+            setTimeout(() => {
+                // 2. Collapse positioner
+                positioner.classList.remove('is-expanded');
+                setIsUserExpanded(false);
+
+                setTimeout(() => {
+                    // 3. Fade in calendarView
+                    if (calendarView) {
+                        calendarView.style.opacity = '1';
+                    }
+                    animStateRef.current = 'IDLE';
+                    setIslandAnimState('IDLE');
+                }, 450);
+            }, 200);
+        }
+    }, [isUserExpanded]);
+
+    // Auto-expand on incoming message
+    useEffect(() => {
+        if (incomingMessage && !isUserExpanded && animStateRef.current === 'IDLE') {
+            toggleExpand();
+        }
+    }, [incomingMessage, isUserExpanded, toggleExpand]);
+
+    // Compact pill countdown memo
+    const compactCountdownInfo = useMemo(() => {
         if (!activeOrUpcomingEvent) return null;
         const nowMs = currentTime.getTime();
         const targetMs = activeOrUpcomingEvent.isOngoing
@@ -996,187 +1319,371 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
 
     const isCentered = !!state.dailySummaryMode && state.dailySummaryMode !== 'morning';
 
-    const sizeClass = isCentered
-        ? 'p-6 rounded-2xl w-[26rem] sm:w-[30rem]'
-        : state.current?.type === 'timeline'
-            ? 'p-4 rounded-xl w-full'
-            : state.current?.type === 'interactive_card'
-                ? (expandOnNotification ? 'p-4 rounded-xl w-full sm:w-[26rem] md:w-[28rem] shadow-2xl' : 'p-4 rounded-xl w-full')
-                : state.current?.type === 'event_suggestion'
-                    ? 'rounded-xl w-full'
-                    : state.current?.type === 'reminder'
-                        ? 'rounded-xl w-full'
-                        : state.current?.type === 'text_collector'
-                            ? 'rounded-xl w-full sm:w-[26rem] shadow-2xl'
-                            : state.current?.type === 'welcome' || state.current?.type === 'morning' || state.current?.type === 'event_preview'
-                                ? 'p-4 rounded-xl w-full'
-                                : state.current?.type === 'message'
-                                    ? (expandOnNotification ? 'p-3 rounded-xl w-full sm:w-[26rem] md:w-[28rem] shadow-2xl' : 'p-3 rounded-xl w-full')
-                                    : compact
-                                        ? 'py-2 px-3.5 rounded-full w-auto'
-                                        : 'py-1.5 px-2 rounded-xl w-full';
-
-    const positionClass = 'relative';
-
-    const islandShell = (
-        <motion.div
-            layoutId="smart-island-shell"
-            transition={{
-                type: "spring",
-                stiffness: 420,
-                damping: 26,
-                mass: 0.8
-            }}
-            className={`liquidGlass-wrapper dark text-zinc-100 ${positionClass} ${sizeClass}`}
-        >
-            {/* Layer 1: Distortion blur */}
-            <div className="liquidGlass-effect" />
-            {/* Layer 2: Tint */}
-            <div className="liquidGlass-tint" />
-            {/* Layer 2.5: Ambient yellow-white glow */}
-            <div className="liquidGlass-glow" />
-            {/* Layer 3: Inner shine */}
-            <div className="liquidGlass-shine" />
-            {/* Layer 4: Content */}
-            <div className="liquidGlass-text w-full">
-                <AnimatePresence mode="wait" initial={false}>
-                    {isCentered ? (
-                        <motion.div
-                            key={`summary-${state.dailySummaryMode}`}
-                            initial={{ opacity: 0, scale: 0.96 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.96 }}
-                            transition={{
-                                opacity: { delay: 0.1, duration: 0.15 },
-                                scale: { type: "spring", stiffness: 300, damping: 30 },
-                                default: { type: "spring", stiffness: 300, damping: 30 }
-                            }}
-                            layout="position"
-                        >
-                            <DailySummaryView 
-                                mode={state.dailySummaryMode!} 
-                                userName={userName}
-                                onClose={() => setDailySummaryMode(null)} 
-                            />
-                        </motion.div>
-                    ) : !state.current ? (
-                        compact ? (
-                            <motion.div
-                                key="compact-pill"
-                                initial={{ opacity: 0, scale: 0.95 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.95 }}
-                                transition={{
-                                    opacity: { delay: 0.05, duration: 0.15 },
-                                    default: { type: "spring", stiffness: 300, damping: 30 }
-                                }}
-                                layout="position"
-                                className="flex items-center gap-2 select-none text-xs font-medium text-zinc-100 cursor-pointer"
-                                onClick={() => {
-                                    if (activeOrUpcomingEvent?.start) {
-                                        onSelect?.(new Date(activeOrUpcomingEvent.start));
-                                    } else {
-                                        onSelect?.(selectedDate || new Date());
-                                    }
-                                }}
-                            >
-                                <div className="flex items-center gap-1.5 text-zinc-200 font-semibold shrink-0">
-                                    <CalendarIcon className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                                    <span>
-                                        {format(selectedDate || new Date(), 'EEE, d. MMM', { locale: de })}
-                                    </span>
-                                </div>
-                                {activeOrUpcomingEvent && countdownInfo ? (
-                                    <>
-                                        <span className="text-zinc-600 dark:text-zinc-500">|</span>
-                                        <div className="flex items-center gap-1.5 min-w-0 max-w-[14rem]">
-                                            <span
-                                                className={`w-2 h-2 rounded-full shrink-0 ${
-                                                    activeOrUpcomingEvent.isOngoing
-                                                        ? 'bg-emerald-400 animate-pulse'
-                                                        : 'bg-indigo-400'
-                                                }`}
-                                            />
-                                            <span className="truncate text-zinc-200">
-                                                {activeOrUpcomingEvent.title}
-                                            </span>
-                                            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider shrink-0">
-                                                {countdownInfo.label}
-                                            </span>
-                                            <span className="text-[11px] font-mono font-bold text-indigo-300 dark:text-indigo-400 shrink-0 tabular-nums">
-                                                {countdownInfo.formattedCountdown}
-                                            </span>
-                                        </div>
-                                    </>
-                                ) : (
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/80 shrink-0" title="Keine anstehenden Termine" />
-                                )}
-                            </motion.div>
-                        ) : (
-                            <motion.div
-                                key="default-calendar"
-                                initial={{ opacity: 0, scale: 0.96 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                exit={{ opacity: 0, scale: 0.96 }}
-                                transition={{
-                                    opacity: { delay: 0.1, duration: 0.15 },
-                                    default: { type: "spring", stiffness: 300, damping: 30 }
-                                }}
-                                layout="position"
-                                className="dark [&>div:first-child]:!p-2 [&>div:first-child]:!py-1 [&>div:first-child>div:nth-child(1)]:!mb-1 [&>div:first-child>div:nth-child(2)]:!mb-1 [&>div:first-child>div:nth-child(3)]:!mb-0.5 [&_.w-7]:!w-6 [&_.w-7]:!h-6"
-                            >
-                                <MiniCalendar
-                                    selectedDate={selectedDate}
-                                    onSelect={(date) => {
-                                        onSelect?.(date);
-                                    }}
-                                />
-                                {/* In-Meeting progress bar below calendar */}
-                                <InMeetingBar events={todayEvents} />
-                            </motion.div>
-                        )
-                    ) : (
-                        <motion.div
-                            key={state.current.id}
-                            initial={{ opacity: 0, y: 15, filter: 'blur(8px)' }}
-                            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-                            exit={{ opacity: 0, y: -15, filter: 'blur(8px)' }}
-                            transition={{
-                                opacity: { delay: 0.1, duration: 0.15 },
-                                y: { type: "spring", stiffness: 300, damping: 30 },
-                                filter: { delay: 0.1, duration: 0.15 },
-                                default: { type: "spring", stiffness: 300, damping: 30 }
-                            }}
-                            layout="position"
-                        >
-                            {(() => {
-                                const ViewComponent = registeredPlugins[state.current.type];
-                                if (!ViewComponent) return null;
-                                
-                                const payload = { ...state.current.payload };
-                                if (state.current.type === 'morning') payload.userName = userName;
-                                
-                                return <ViewComponent payload={payload} />;
-                            })()}
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-        </motion.div>
-    );
-
+    // Daily summary modal view
     if (isCentered && typeof window !== 'undefined') {
         return createPortal(
             <div className="hidden md:block fixed bottom-6 left-6 z-[9999] pointer-events-auto">
-                {islandShell}
+                <motion.div
+                    layoutId="smart-island-shell"
+                    transition={{
+                        type: "spring",
+                        stiffness: 420,
+                        damping: 26,
+                        mass: 0.8
+                    }}
+                    className="liquidGlass-wrapper dark text-zinc-100 relative p-6 rounded-2xl w-[26rem] sm:w-[30rem]"
+                >
+                    <div className="liquidGlass-effect" />
+                    <div className="liquidGlass-tint" />
+                    <div className="liquidGlass-glow" />
+                    <div className="liquidGlass-shine" />
+                    <div className="liquidGlass-text w-full">
+                        <DailySummaryView 
+                            mode={state.dailySummaryMode!} 
+                            userName={userName}
+                            onClose={() => setDailySummaryMode(null)} 
+                        />
+                    </div>
+                </motion.div>
             </div>,
             document.body
         );
     }
 
+    // Compact pill for tablet mode
+    if (compact) {
+        return (
+            <div className="hidden md:block select-none relative z-[500]">
+                <div
+                    className="liquidGlass-wrapper dark text-zinc-100 relative py-2 px-3.5 rounded-full w-auto flex items-center gap-2 cursor-pointer"
+                    onClick={() => {
+                        if (activeOrUpcomingEvent?.start) {
+                            onSelect?.(new Date(activeOrUpcomingEvent.start));
+                        } else {
+                            onSelect?.(selectedDate || new Date());
+                        }
+                    }}
+                >
+                    <div className="flex items-center gap-1.5 text-zinc-200 font-semibold shrink-0">
+                        <CalendarIcon className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <span>{format(selectedDate || new Date(), 'EEE, d. MMM', { locale: de })}</span>
+                    </div>
+                    {activeOrUpcomingEvent && compactCountdownInfo ? (
+                        <>
+                            <span className="text-zinc-600 dark:text-zinc-500">|</span>
+                            <div className="flex items-center gap-1.5 min-w-0 max-w-[14rem]">
+                                <span
+                                    className={`w-2 h-2 rounded-full shrink-0 ${
+                                        activeOrUpcomingEvent.isOngoing
+                                            ? 'bg-emerald-400 animate-pulse'
+                                            : 'bg-indigo-400'
+                                    }`}
+                                />
+                                <span className="truncate text-zinc-200">
+                                    {activeOrUpcomingEvent.title}
+                                </span>
+                                <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider shrink-0">
+                                    {compactCountdownInfo.label}
+                                </span>
+                                <span className="text-[11px] font-mono font-bold text-indigo-300 dark:text-indigo-400 shrink-0 tabular-nums">
+                                    {compactCountdownInfo.formattedCountdown}
+                                </span>
+                            </div>
+                        </>
+                    ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/80 shrink-0" title="Keine anstehenden Termine" />
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // Default PC Smart Island with new animations from animationen_si.html
     return (
-        <div className="hidden md:block select-none relative z-[500]">
-            {islandShell}
+        <div className="hidden md:block select-none relative z-[500] w-full">
+            {/* Embedded styles from animationen_si.html */}
+            <style>{`
+                .si-positioner {
+                    transition: 
+                        width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        top 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+                        transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+                    transform-origin: center center;
+                    will-change: width, height, left, top, transform;
+                }
+                .si-positioner.is-puffing {
+                    transform: scale(1.05) !important;
+                }
+                .si-positioner.is-shrunk {
+                    width: 140px !important;
+                    height: 140px !important;
+                    left: calc(50% - 70px) !important;
+                    top: calc(50% - 70px) !important;
+                    transform: scale(1) !important;
+                }
+                .si-positioner.is-expanded {
+                    width: min(704px, calc(100vw - 32px)) !important;
+                    height: 340px !important;
+                }
+                .si-rotator {
+                    transform-origin: center center;
+                }
+                .si-rotator.is-spinning {
+                    animation: siWhipSpin 1.6s cubic-bezier(0.7, 0, 0.2, 1) infinite !important;
+                }
+                @keyframes siWhipSpin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+                .si-bg-square {
+                    transform: rotate(45deg) scale(0);
+                    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+                }
+                .si-bg-square.is-active {
+                    transform: rotate(45deg) scale(1) !important;
+                }
+                .si-custom-spinner {
+                    width: 44px;
+                    height: 44px;
+                    border: 4px solid rgba(255, 255, 255, 0.25);
+                    border-top-color: #ffffff;
+                    border-radius: 50%;
+                    animation: siSpinLinear 1s linear infinite;
+                }
+                @keyframes siSpinLinear {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `}</style>
+
+            {/* STAGE: Stable anchor container */}
+            <div id="si-stage" className="relative w-full h-[290px]">
+                {/* LAYER 1: Positioner (Controls centering shrink & rightward expansion) */}
+                <div
+                    ref={positionerRef}
+                    id="si-positioner"
+                    className="si-positioner absolute left-0 top-0 w-full h-[290px] z-30"
+                >
+                    {/* LAYER 2: Rotator (Controls whip rotation exclusively) */}
+                    <div
+                        ref={rotatorRef}
+                        id="si-rotator"
+                        className="si-rotator absolute inset-0 w-full h-full"
+                    >
+                        {/* LAYER 3a: 45° offset background diamond square */}
+                        <div
+                            ref={bgSquareRef}
+                            id="si-bgSquare"
+                            className="si-bg-square absolute inset-0 bg-[#1a1c1e] rounded-[24px] shadow-xl border border-white/5"
+                        />
+
+                        {/* LAYER 3b: Main box with contents */}
+                        <div
+                            ref={widgetBaseRef}
+                            id="si-widgetBase"
+                            onDoubleClick={triggerDemoLoading}
+                            className="absolute inset-0 bg-[#1a1c1e] rounded-[24px] shadow-2xl border border-white/10 overflow-hidden transition-colors"
+                        >
+                            {/* CONTENT 1: Calendar View (Base view) */}
+                            <div
+                                ref={calendarViewRef}
+                                id="si-calendarView"
+                                className="absolute left-0 top-0 w-full h-full p-2.5 flex flex-col justify-between transition-opacity duration-300 overflow-y-auto no-scrollbar"
+                            >
+                                {state.current && state.current.type !== 'message' ? (
+                                    <div className="w-full">
+                                        {(() => {
+                                            const ViewComponent = registeredPlugins[state.current.type];
+                                            if (!ViewComponent) return null;
+                                            const payload = { ...state.current.payload };
+                                            if (state.current.type === 'morning') payload.userName = userName;
+                                            return <ViewComponent payload={payload} />;
+                                        })()}
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="w-full [&>div:first-child]:!p-1 [&>div:first-child]:!py-0.5 [&_.w-7]:!w-6 [&_.w-7]:!h-6">
+                                            <MiniCalendar
+                                                selectedDate={selectedDate}
+                                                onSelect={(date) => {
+                                                    onSelect?.(date);
+                                                }}
+                                            />
+                                            <InMeetingBar events={todayEvents} />
+                                        </div>
+
+                                        {/* Expand Pill: Termin nach rechts anzeigen */}
+                                        <div
+                                            onClick={toggleExpand}
+                                            className="mt-1 mx-0.5 px-3 py-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] active:scale-[0.98] border border-white/5 flex items-center justify-between cursor-pointer transition-all group"
+                                            title="Terminübersicht aufklappen"
+                                        >
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <span
+                                                    className={`w-2 h-2 rounded-full shrink-0 ${
+                                                        activeOrUpcomingEvent?.isOngoing
+                                                            ? 'bg-amber-400 animate-pulse'
+                                                            : 'bg-blue-400'
+                                                    }`}
+                                                />
+                                                <span className="text-xs font-bold text-white truncate max-w-[120px]">
+                                                    {activeOrUpcomingEvent ? activeOrUpcomingEvent.title : 'Nächster Termin'}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 text-blue-400 text-xs font-semibold shrink-0">
+                                                <span className="text-[11px] font-bold text-blue-300">
+                                                    {countdownDisplay.countdownText}
+                                                </span>
+                                                <svg
+                                                    className={`w-3.5 h-3.5 transition-transform duration-300 ${
+                                                        isUserExpanded ? 'rotate-180' : 'group-hover:translate-x-0.5'
+                                                    }`}
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="2"
+                                                    viewBox="0 0 24 24"
+                                                >
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* CONTENT 2: Appointment & Message View from animationen_si.html */}
+                            <div
+                                ref={appointmentViewRef}
+                                id="si-appointmentView"
+                                className="absolute left-0 top-0 w-[704px] max-w-[calc(100vw-32px)] h-[340px] p-7 flex flex-col justify-between text-white opacity-0 pointer-events-none transition-opacity duration-300 select-none"
+                            >
+                                {incomingMessage ? (
+                                    <>
+                                        {/* Header */}
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <h3 className="text-3xl font-extrabold tracking-tight mt-1">NACHRICHT von</h3>
+                                                <p className="text-4xl md:text-5xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-200 mt-1 truncate max-w-[500px]">
+                                                    {incomingMessage.senderName || 'Unbekannt'}
+                                                </p>
+                                            </div>
+                                            <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-indigo-400 shrink-0">
+                                                <MessageSquare className="w-6 h-6" />
+                                            </div>
+                                        </div>
+
+                                        {/* Message text card */}
+                                        <div className="bg-white/[0.04] p-4 rounded-2xl border border-white/5 my-2 max-w-[520px]">
+                                            <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-1">Nachricht</p>
+                                            <p className="text-base font-semibold text-white leading-relaxed line-clamp-3">
+                                                {incomingMessage.text || 'Neue Nachricht erhalten'}
+                                            </p>
+                                        </div>
+
+                                        {/* Footer */}
+                                        <div className="flex items-center justify-between pt-1 pr-4 w-full">
+                                            <div className="flex items-center space-x-2 text-xs text-neutral-400">
+                                                <span className="w-2 h-2 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.6)] shrink-0" />
+                                                <span className="text-neutral-300 font-medium">Tide Smart Island</span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    dismiss();
+                                                    toggleExpand();
+                                                }}
+                                                className="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-all active:scale-95 cursor-pointer"
+                                            >
+                                                Schließen
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        {/* Header */}
+                                        <div className="flex items-start justify-between">
+                                            <div>
+                                                <h3 className="text-3xl font-extrabold tracking-tight mt-1">
+                                                    {countdownDisplay.headerLabel}
+                                                </h3>
+                                                <p className="text-4xl md:text-5xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-200 mt-1">
+                                                    {countdownDisplay.countdownText}
+                                                </p>
+                                            </div>
+                                            <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-blue-400 shrink-0">
+                                                <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            </div>
+                                        </div>
+
+                                        {/* Event details card */}
+                                        <div className="grid grid-cols-2 gap-4 bg-white/[0.04] p-4 rounded-2xl border border-white/5 my-2 max-w-[480px]">
+                                            <div>
+                                                <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider">Meeting</p>
+                                                <p className="text-base font-semibold text-white mt-0.5 truncate">
+                                                    {activeOrUpcomingEvent ? activeOrUpcomingEvent.title : 'Kein anstehender Termin'}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider">Datum & Zeit</p>
+                                                <p className="text-base font-semibold text-white mt-0.5">
+                                                    {activeOrUpcomingEvent?.start
+                                                        ? format(new Date(activeOrUpcomingEvent.start), 'dd. MMM yyyy • HH:mm', { locale: de })
+                                                        : 'Heute'}
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Footer with amber pause badge and buttons */}
+                                        <div className="flex items-center justify-between pt-1 pr-4 w-full">
+                                            <div className="flex items-center space-x-2 text-xs text-neutral-400">
+                                                <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)] shrink-0" />
+                                                <span className="text-neutral-300 font-medium">{pauseInfo}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {activeOrUpcomingEvent?.id && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (activeOrUpcomingEvent?.start) {
+                                                                onSelect?.(new Date(activeOrUpcomingEvent.start));
+                                                            }
+                                                            toggleExpand();
+                                                        }}
+                                                        className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-all active:scale-95 cursor-pointer"
+                                                    >
+                                                        Termin öffnen
+                                                    </button>
+                                                )}
+                                                <button
+                                                    id="closeAppointmentBtn"
+                                                    type="button"
+                                                    onClick={toggleExpand}
+                                                    className="px-5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-all active:scale-95 cursor-pointer"
+                                                >
+                                                    Schließen
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Loader Spinner (Centered in positioner, rotates linearly) */}
+                    <div
+                        ref={loaderWrapperRef}
+                        id="si-loaderWrapper"
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-0 transition-opacity duration-300 z-50 pointer-events-none"
+                    >
+                        <div className="si-custom-spinner" />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }
