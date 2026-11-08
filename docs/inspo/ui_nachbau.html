@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>App UI mit animiertem Widget</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Fester Widget-Anker: 114x114px, 16px Rand nach oben und rechts */
+    .widget-anchor {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 114px;
+      height: 114px;
+      z-index: 30;
+    }
+
+    /* Alle Quadrate teilen sich denselben geometrischen Raum */
+    .square-layer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 114px;
+      height: 114px;
+      border-radius: 26px;
+      transform-origin: center center;
+      will-change: transform, opacity;
+      contain: layout style paint;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    /* Elastischer Feder-Übergang AUSSCHLIESSLICH für die Breite (kein Konflikt mit JS-Transform) */
+    .spring-transition {
+      transition: width 0.65s cubic-bezier(0.34, 1.45, 0.54, 1);
+    }
+
+    /* 
+      Basis-Widget:
+      Ruhezustand: 114px
+      Expandiert: exakt 342px
+    */
+    #baseSquare {
+      right: 0;
+      left: auto;
+      width: 114px;
+      height: 114px;
+    }
+
+    #baseSquare.expanded {
+      width: 342px;
+    }
+
+    /* Text-Slide-Animationen */
+    .idle-text-transition {
+      transition: transform 0.5s cubic-bezier(0.34, 1.35, 0.54, 1), 
+                  opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .welcome-text-transition {
+      transition: transform 0.55s cubic-bezier(0.34, 1.4, 0.54, 1), 
+                  opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .text-slide-out {
+      opacity: 0 !important;
+      transform: translate3d(24px, 0, 0) scale(0.95) !important;
+      pointer-events: none;
+    }
+
+    .text-welcome-hidden {
+      opacity: 0;
+      transform: translate3d(-24px, 0, 0) scale(0.95);
+      pointer-events: none;
+    }
+
+    .text-welcome-visible {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+      pointer-events: auto;
+    }
+    
+    /* Sanfter Kaskaden-Übergang für die UI-Elemente bei der Startsequenz */
+    .intro-item {
+      transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), 
+                  transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+  </style>
+</head>
+<body class="bg-neutral-100 min-h-screen flex items-center justify-center p-4 md:p-8 select-none">
+
+  <div class="flex flex-row items-start justify-center gap-8">
+    
+    <!-- Smartphone App-Screen (Breite: 390px) -->
+    <div class="relative w-[390px] h-[812px] bg-white rounded-[44px] shadow-2xl overflow-hidden border-[8px] border-neutral-900 flex flex-col justify-between flex-shrink-0">
+      
+      <!-- OBERER BEREICH MIT HEADER & WIDGET -->
+      <div class="relative pt-6 px-4">
+        
+        <!-- Header Text -->
+        <div class="pr-[120px] pt-1">
+          <p id="dateHeader" class="intro-item text-[13px] font-bold text-neutral-400 tracking-wider uppercase mb-1">8. NOVEMBER</p>
+          <h1 id="welcomeTitle" class="text-[34px] font-black tracking-tight text-neutral-900 leading-[1.08] mb-4 min-h-[74px]">
+            Frisch in den Tag, Nico!
+          </h1>
+          <p id="monthHeader" class="intro-item text-[14px] font-black text-neutral-900 tracking-wider uppercase">JULI 2026</p>
+        </div>
+
+        <!-- ANIMIERTES WIDGET -->
+        <div id="widgetContainer" class="intro-item widget-anchor pointer-events-none">
+          
+          <!-- Hintergrund 1: Navy-Blau -->
+          <div 
+            id="navySquare" 
+            class="square-layer bg-[#001f3f] shadow-lg shadow-[#001f3f]/30"
+            style="opacity: 0; transform: scale(0.2) rotate(0deg);"
+            aria-hidden="true"
+          ></div>
+
+          <!-- Hintergrund 2: Lila -->
+          <div 
+            id="purpleSquare" 
+            class="square-layer bg-[#7928ca] shadow-lg shadow-[#7928ca]/30"
+            style="opacity: 0; transform: scale(0.2) rotate(0deg);"
+            aria-hidden="true"
+          ></div>
+
+          <!-- 45°-Offset-Quadrat -->
+          <div 
+            id="offsetSquare" 
+            class="square-layer bg-[#212226] shadow-xl shadow-black/25 z-10"
+            style="opacity: 0; transform: scale(0.4) rotate(45deg);"
+            aria-hidden="true"
+          ></div>
+
+          <!-- Vordergrund: Lade-Icon -->
+          <div 
+            id="loaderIcon" 
+            class="square-layer z-20 flex items-center justify-center"
+            style="opacity: 0; transform: scale(0.4) rotate(0deg);"
+            aria-hidden="true"
+          >
+            <svg class="w-8 h-8 text-white drop-shadow" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="2.75"></circle>
+              <path class="opacity-95" fill="currentColor" d="M12 2.5a9.5 9.5 0 0 1 9.5 9.5h-2.5A7 7 0 0 0 12 5V2.5z"></path>
+            </svg>
+          </div>
+
+          <!-- Basis-Quadrat -->
+          <div 
+            id="baseSquare" 
+            class="square-layer spring-transition bg-[#212226] shadow-xl shadow-black/35 z-10 p-3.5 text-white box-border overflow-hidden pointer-events-auto"
+            style="opacity: 1; transform: scale(1) rotate(0deg);"
+          >
+            <!-- Idle-Zustand -->
+            <div 
+              id="idleText" 
+              class="w-full h-full flex flex-col justify-between select-none idle-text-transition"
+              style="opacity: 1; transform: translate3d(0, 0, 0);"
+            >
+              <div class="flex flex-col items-start leading-none gap-0.5">
+                <span class="text-[14px] font-black tracking-tight text-white uppercase">ANGLÜH...</span>
+                <span class="text-[10px] font-black tracking-wider text-neutral-400 uppercase">IN</span>
+              </div>
+              <div class="w-full flex items-baseline justify-end">
+                <span class="text-[34px] font-black tracking-tighter text-white leading-none">8:11<span class="text-[19px] font-bold tracking-tight text-neutral-300 ml-0.5">h</span></span>
+              </div>
+            </div>
+
+            <!-- Expandierter Zustand -->
+            <div 
+              id="welcomeText"
+              class="absolute inset-0 px-5 flex flex-col justify-center items-start text-welcome-hidden welcome-text-transition"
+            >
+              <span class="text-[11px] font-bold tracking-widest text-neutral-400 uppercase leading-snug">Willkommen zurück</span>
+              <span class="text-[26px] font-black tracking-tight text-white leading-tight">Nico</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- WOCHENTAGE-KALENDERLEISTE -->
+        <div id="weekBar" class="intro-item grid grid-cols-7 text-center mt-5 mb-4 items-end">
+          <div class="flex flex-col items-center text-neutral-300">
+            <span class="text-[11px] font-bold tracking-wider uppercase mb-1">SA.</span>
+            <span class="text-[17px] font-extrabold">11</span>
+          </div>
+          <div class="flex flex-col items-center text-neutral-300">
+            <span class="text-[11px] font-bold tracking-wider uppercase mb-1">SO.</span>
+            <span class="text-[17px] font-extrabold">12</span>
+          </div>
+          <div class="flex flex-col items-center text-neutral-400">
+            <span class="text-[11px] font-bold tracking-wider uppercase mb-1">MO.</span>
+            <span class="text-[20px] font-black text-neutral-500">13</span>
+          </div>
+          
+          <!-- Aktiver Tag (DI 14) -->
+          <div class="flex flex-col items-center text-neutral-900 relative">
+            <span class="text-[12px] font-black tracking-wider uppercase mb-0.5">DI.</span>
+            <span class="text-[24px] font-black leading-none">14</span>
+            <div class="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[5px] border-b-neutral-900 mt-1"></div>
+          </div>
+          
+          <div class="flex flex-col items-center text-neutral-500">
+            <span class="text-[11px] font-bold tracking-wider uppercase mb-1">MI.</span>
+            <span class="text-[20px] font-black">15</span>
+          </div>
+          <div class="flex flex-col items-center text-neutral-300">
+            <span class="text-[11px] font-bold tracking-wider uppercase mb-1">DO.</span>
+            <span class="text-[17px] font-extrabold">16</span>
+          </div>
+          <div class="flex flex-col items-center text-neutral-300">
+            <span class="text-[11px] font-bold tracking-wider uppercase mb-1">FR.</span>
+            <span class="text-[17px] font-extrabold">17</span>
+          </div>
+        </div>
+
+        <!-- FILTER-PILLS -->
+        <div id="filterPills" class="intro-item flex items-center justify-between text-[13px] font-bold pt-1">
+          <div class="flex items-center gap-1.5 text-neutral-400">
+            <button class="px-3.5 py-1.5 bg-neutral-200 text-neutral-800 rounded-xl font-bold">Tag</button>
+            <button class="px-2 py-1.5 hover:text-neutral-700">Fortlaufend</button>
+            <button class="px-2 py-1.5 hover:text-neutral-700">Woche</button>
+            <button class="px-2 py-1.5 hover:text-neutral-700">Monat</button>
+          </div>
+          <button class="flex items-center gap-1 px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-500 rounded-xl text-[12px] font-bold">
+            <span class="material-symbols-outlined text-[15px]">refresh</span>
+            <span>Heute</span>
+          </button>
+        </div>
+
+        <!-- TERMIN-KARTE -->
+        <div id="eventCard" class="intro-item mt-5 bg-neutral-50/80 border border-neutral-100 rounded-2xl p-4 flex items-start gap-3.5 relative">
+          <div class="flex flex-col text-right min-w-[45px]">
+            <span class="text-[14px] font-black text-neutral-800 leading-tight">19:00</span>
+            <span class="text-[11px] font-bold text-neutral-400 mt-0.5">20:00</span>
+          </div>
+
+          <div class="w-0.5 self-stretch bg-neutral-300/80 rounded-full my-0.5"></div>
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500 flex-shrink-0"></span>
+              <h3 class="text-[15px] font-black text-neutral-900 truncate">Anglühen?</h3>
+            </div>
+            
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-600 text-white rounded-lg text-[11px] font-black shadow-sm">
+              <span class="material-symbols-outlined text-[13px]">schedule</span>
+              <span>Startet in 8 Std. 11 Min.</span>
+            </div>
+          </div>
+
+          <div class="flex flex-col items-end justify-between self-stretch">
+            <span class="material-symbols-outlined text-neutral-400 text-[18px]">expand_more</span>
+            <span class="text-[11px] font-bold text-neutral-400">1h</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- BOTTOM NAVIGATION BAR -->
+      <div id="bottomNav" class="intro-item border-t border-neutral-100 px-6 py-4 flex items-center justify-between bg-white z-20">
+        <button class="w-12 h-12 rounded-2xl bg-neutral-900 text-white flex items-center justify-center shadow-md">
+          <span class="material-symbols-outlined text-[24px]">calendar_today</span>
+        </button>
+        <button class="text-neutral-400 hover:text-neutral-800 transition-colors">
+          <span class="material-symbols-outlined text-[26px]">menu_book</span>
+        </button>
+        <button class="text-neutral-400 hover:text-neutral-800 transition-colors">
+          <span class="material-symbols-outlined text-[26px]">checklist</span>
+        </button>
+        <button class="text-neutral-400 hover:text-neutral-800 transition-colors">
+          <span class="material-symbols-outlined text-[26px]">search</span>
+        </button>
+        <button class="text-neutral-400 hover:text-neutral-800 transition-colors">
+          <span class="material-symbols-outlined text-[26px]">tune</span>
+        </button>
+        <button class="w-12 h-12 rounded-2xl bg-neutral-900 text-white flex items-center justify-center shadow-md hover:bg-neutral-800 transition-colors">
+          <span class="material-symbols-outlined text-[26px]">add</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- SEITLICHES STEUERUNGS-PANEL FÜR DIE BUTTONS (RECHTS NEBEN DEM HANDY) -->
+    <div class="flex flex-col gap-3 p-5 bg-white border border-neutral-200/80 rounded-3xl shadow-sm w-[260px]">
+      <div class="text-[12px] font-black tracking-wider text-neutral-400 uppercase border-b pb-2">
+        Widget Animation
+      </div>
+
+      <!-- Button: Startsequenz abspielen -->
+      <button 
+        id="introBtn" 
+        type="button" 
+        class="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-semibold text-sm rounded-xl shadow-md transition duration-200 cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-[18px]">play_circle</span>
+        <span>Startsequenz abspielen</span>
+      </button>
+
+      <button 
+        id="startBtn" 
+        type="button" 
+        class="flex items-center justify-center gap-2 px-4 py-2.5 bg-black hover:bg-neutral-800 active:scale-95 text-white font-semibold text-sm rounded-xl shadow transition duration-200 disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <span>Start Drehung</span>
+      </button>
+
+      <button 
+        id="stopBtn" 
+        type="button" 
+        disabled
+        class="flex items-center justify-center gap-2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 active:scale-95 text-neutral-800 font-semibold text-sm rounded-xl border border-neutral-200 transition duration-200 disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+        <span>Stopp</span>
+      </button>
+
+      <button 
+        id="expandBtn" 
+        type="button" 
+        class="flex items-center justify-center gap-2 px-4 py-2.5 bg-neutral-900 hover:bg-black active:scale-95 text-white font-semibold text-sm rounded-xl shadow transition duration-200 disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <svg id="expandIcon" class="w-4 h-4 fill-none stroke-current stroke-2 transition-transform duration-300" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+        </svg>
+        <span id="expandBtnText">Expandieren</span>
+      </button>
+
+      <div class="border-t border-neutral-100 my-1 pt-2 flex flex-col gap-2">
+        <span class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Kommende Buttons</span>
+        <button class="px-4 py-2 bg-neutral-50 text-neutral-400 border border-dashed border-neutral-200 rounded-xl text-xs font-medium cursor-not-allowed text-left">
+          + Weitere Aktion 1
+        </button>
+        <button class="px-4 py-2 bg-neutral-50 text-neutral-400 border border-dashed border-neutral-200 rounded-xl text-xs font-medium cursor-not-allowed text-left">
+          + Weitere Aktion 2
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const baseSquare = document.getElementById('baseSquare');
+    const idleText = document.getElementById('idleText');
+    const welcomeText = document.getElementById('welcomeText');
+    const offsetSquare = document.getElementById('offsetSquare');
+    const navySquare = document.getElementById('navySquare');
+    const purpleSquare = document.getElementById('purpleSquare');
+    const loaderIcon = document.getElementById('loaderIcon');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const expandBtn = document.getElementById('expandBtn');
+    const expandBtnText = document.getElementById('expandBtnText');
+    const expandIcon = document.getElementById('expandIcon');
+    const introBtn = document.getElementById('introBtn');
+
+    // UI-Elemente für Startsequenz
+    const welcomeTitle = document.getElementById('welcomeTitle');
+    const widgetContainer = document.getElementById('widgetContainer');
+    const dateHeader = document.getElementById('dateHeader');
+    const monthHeader = document.getElementById('monthHeader');
+    const weekBar = document.getElementById('weekBar');
+    const filterPills = document.getElementById('filterPills');
+    const eventCard = document.getElementById('eventCard');
+    const bottomNav = document.getElementById('bottomNav');
+
+    const introItemsTopDown = [
+      dateHeader,
+      monthHeader,
+      weekBar,
+      filterPills,
+      eventCard
+    ];
+
+    let state = 'IDLE';
+    let isExpanded = false;
+    let isIntroPlaying = false;
+    let animationFrameId = null;
+
+    let mainAngle = 0;
+    let bgAngle = 0;
+    let loaderAngle = 0;
+    let speedFactor = 0;
+
+    let textProgress = 1;
+    let offsetProgress = 0;
+    let loaderProgress = 0;
+    let bgProgress = 0;
+
+    let lastTimestamp = 0;
+    let waveTime = 0;
+
+    let stopStartAngle = 0;
+    let stopTargetAngle = 0;
+    let stopProgress = 0;
+
+    function lerp(start, end, t) {
+      return start + (end - start) * t;
+    }
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    // Elastische Federfunktion mit Overshoot für spürbaren Bounce-Effekt
+    function easeOutBack(t, overshoot = 1.35) {
+      const c1 = overshoot;
+      const c3 = c1 + 1;
+      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+    }
+
+    function updateLoop(timestamp) {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const dt = Math.min((timestamp - lastTimestamp) * 0.001, 0.04);
+      lastTimestamp = timestamp;
+
+      if (state === 'STARTING') {
+        speedFactor = Math.min(1, speedFactor + dt * 2.2);
+        textProgress = Math.max(0, textProgress - dt * 4.0);
+
+        if (speedFactor > 0.15) offsetProgress = Math.min(1, offsetProgress + dt * 1.6);
+        if (offsetProgress > 0.4) loaderProgress = Math.min(1, loaderProgress + dt * 1.8);
+        if (loaderProgress > 0.5) bgProgress = Math.min(1, bgProgress + dt * 1.4);
+
+        if (bgProgress >= 0.99 && speedFactor >= 1) {
+          bgProgress = 1;
+          offsetProgress = 1;
+          loaderProgress = 1;
+          speedFactor = 1;
+          textProgress = 0;
+          state = 'RUNNING';
+          stopBtn.disabled = false;
+        }
+
+        waveTime += dt;
+        const burstMultiplier = 1.0 + 1.25 * Math.pow(Math.max(0, Math.sin(waveTime * 1.8)), 4);
+        mainAngle += 110 * burstMultiplier * speedFactor * dt;
+        bgAngle -= 75 * speedFactor * dt;
+        loaderAngle += 340 * dt;
+
+      } else if (state === 'RUNNING') {
+        waveTime += dt;
+        const burstMultiplier = 1.0 + 1.25 * Math.pow(Math.max(0, Math.sin(waveTime * 1.8)), 4);
+        mainAngle += 110 * burstMultiplier * dt;
+        bgAngle -= 75 * dt;
+        loaderAngle += 340 * dt;
+
+      } else if (state === 'STOPPING') {
+        bgProgress = Math.max(0, bgProgress - dt * 2.2);
+        if (bgProgress < 0.5) loaderProgress = Math.max(0, loaderProgress - dt * 2.5);
+        if (loaderProgress < 0.4) offsetProgress = Math.max(0, offsetProgress - dt * 2.2);
+
+        // Sanfter Stopp-Fortschritt
+        stopProgress = Math.min(1, stopProgress + dt * 0.95);
+        const easedStop = easeOutCubic(stopProgress);
+
+        if (stopProgress > 0.6) {
+          textProgress = Math.min(1, textProgress + dt * 2.8);
+        }
+
+        // Kontinuierliche lineare Annäherung an den Zielwinkel
+        mainAngle = lerp(stopStartAngle, stopTargetAngle, easedStop);
+        bgAngle -= 75 * (1 - easedStop) * dt;
+        loaderAngle += 340 * (1 - easedStop) * dt;
+        if (stopProgress >= 1 && offsetProgress <= 0.01 && bgProgress <= 0.01 && loaderProgress <= 0.01) {
+          mainAngle = 0;
+          baseSquare.style.transform = `scale(1) rotate(0deg)`;
+          
+          textProgress = 1;
+          idleText.style.opacity = '1';
+          offsetSquare.style.opacity = '0';
+          loaderIcon.style.opacity = '0';
+          navySquare.style.opacity = '0';
+          purpleSquare.style.opacity = '0';
+
+          state = 'IDLE';
+          speedFactor = 0;
+          startBtn.disabled = false;
+          stopBtn.disabled = true;
+          expandBtn.disabled = false;
+
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = null;
+          return;
+        }
+      }
+
+      idleText.style.opacity = textProgress.toFixed(3);
+
+      // Federnder Skalierungseffekt beim Starten und Stoppen
+      let activeScale = 1;
+      if (state === 'STARTING') {
+        // Federt beim Starten elastisch von 1.0 auf ca. 0.80 herunter (Bounce nach innen)
+        const springT = easeOutBack(Math.min(1, speedFactor), 1.4);
+        activeScale = lerp(1, 0.82, springT);
+      } else if (state === 'RUNNING') {
+        activeScale = 0.82;
+      } else if (state === 'STOPPING') {
+        // Federt beim Stoppen elastisch von 0.82 auf 1.0 zurück (mit kleinem Überschwinger)
+        const springStop = easeOutBack(Math.min(1, stopProgress), 1.25);
+        activeScale = lerp(0.82, 1.0, springStop);
+      }
+      baseSquare.style.transform = `scale(${activeScale.toFixed(3)}) rotate(${mainAngle.toFixed(2)}deg)`;
+
+      // 45°-Offset-Quadrat
+      if (offsetProgress > 0) {
+        const easedOffset = easeInOutCubic(offsetProgress);
+        offsetSquare.style.opacity = easedOffset.toFixed(3);
+        offsetSquare.style.transform = `scale(${lerp(1, activeScale, easedOffset).toFixed(3)}) rotate(${(mainAngle + 45).toFixed(2)}deg)`;
+      } else {
+        offsetSquare.style.opacity = '0';
+      }
+
+      // Lade-Icon
+      if (loaderProgress > 0) {
+        const easedLoader = easeInOutCubic(loaderProgress);
+        loaderIcon.style.opacity = easedLoader.toFixed(3);
+        loaderIcon.style.transform = `scale(${lerp(0.5, 0.75, easedLoader).toFixed(3)}) rotate(${loaderAngle.toFixed(2)}deg)`;
+      } else {
+        loaderIcon.style.opacity = '0';
+      }
+
+      // Farbige Quadrate (Navy & Lila)
+      if (bgProgress > 0.001) {
+        const easedBg = easeInOutCubic(bgProgress);
+        const pulseCycle = (Math.sin(waveTime * 2.2) + 1) * 0.5;
+
+        const navyScale = lerp(0.3, lerp(0.70, 0.88, pulseCycle), easedBg);
+        navySquare.style.opacity = (lerp(0.2, 0.9, pulseCycle) * easedBg).toFixed(3);
+        navySquare.style.transform = `scale(${navyScale.toFixed(3)}) rotate(${bgAngle.toFixed(2)}deg)`;
+
+        const purpleScale = lerp(0.3, lerp(0.70, 0.88, 1 - pulseCycle), easedBg);
+        purpleSquare.style.opacity = (lerp(0.2, 0.9, 1 - pulseCycle) * easedBg).toFixed(3);
+        purpleSquare.style.transform = `scale(${purpleScale.toFixed(3)}) rotate(${(bgAngle - 25).toFixed(2)}deg)`;
+      } else {
+        navySquare.style.opacity = '0';
+        purpleSquare.style.opacity = '0';
+      }
+
+      animationFrameId = requestAnimationFrame(updateLoop);
+    }
+
+    function handleStart() {
+      if (state !== 'IDLE' || isExpanded) return;
+      state = 'STARTING';
+      startBtn.disabled = true;
+      stopBtn.disabled = true;
+      expandBtn.disabled = true;
+      lastTimestamp = performance.now();
+      
+      if (!animationFrameId) {
+        animationFrameId = requestAnimationFrame(updateLoop);
+      }
+    }
+
+    function handleStop() {
+      if (state !== 'RUNNING' && state !== 'STARTING') return;
+      state = 'STOPPING';
+      startBtn.disabled = true;
+      stopBtn.disabled = true;
+      expandBtn.disabled = true;
+
+      stopStartAngle = mainAngle;
+      const minRunout = 180; 
+      stopTargetAngle = Math.ceil((stopStartAngle + minRunout) / 360) * 360;
+      stopProgress = 0;
+    }
+
+    function handleExpandToggle() {
+      if (state !== 'IDLE') return;
+
+      isExpanded = !isExpanded;
+
+      if (isExpanded) {
+        baseSquare.classList.add('expanded');
+        idleText.classList.add('text-slide-out');
+        welcomeText.classList.remove('text-welcome-hidden');
+        welcomeText.classList.add('text-welcome-visible');
+        expandBtnText.textContent = 'Einklappen';
+        expandIcon.style.transform = 'rotate(180deg)';
+        startBtn.disabled = true;
+      } else {
+        baseSquare.classList.remove('expanded');
+        welcomeText.classList.remove('text-welcome-visible');
+        welcomeText.classList.add('text-welcome-hidden');
+        idleText.classList.remove('text-slide-out');
+        expandBtnText.textContent = 'Expandieren';
+        expandIcon.style.transform = 'rotate(0deg)';
+        startBtn.disabled = false;
+      }
+    }
+
+    startBtn.addEventListener('click', handleStart);
+    stopBtn.addEventListener('click', handleStop);
+    expandBtn.addEventListener('click', handleExpandToggle);
+
+    // Komplette Startanimations-Sequenz
+    function playIntroSequence() {
+      if (isIntroPlaying) return;
+      isIntroPlaying = true;
+      introBtn.disabled = true;
+
+      // Falls das Widget expandiert war, sofort einklappen
+      if (isExpanded) {
+        handleExpandToggle();
+      }
+
+      // 1. Initialer Zustand: Alles auf weiß / unsichtbar setzen
+      welcomeTitle.innerHTML = '';
+      widgetContainer.style.opacity = '0';
+      widgetContainer.style.transform = 'scale(0.85)';
+
+      introItemsTopDown.forEach(el => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-18px)';
+      });
+
+      bottomNav.style.opacity = '0';
+      bottomNav.style.transform = 'translateY(100%)';
+
+      const fullText = "Frisch in den Tag, Nico!";
+      let charIdx = 0;
+
+      // 2. Typewriter: Buchstabe für Buchstabe handgetippt
+      function typeNextChar() {
+        if (charIdx < fullText.length) {
+          welcomeTitle.textContent = fullText.slice(0, charIdx + 1);
+          charIdx++;
+          const typingDelay = 35 + Math.random() * 35;
+          setTimeout(typeNextChar, typingDelay);
+        } else {
+          // 3. WIDGET-START: Bereits im Unsichtbaren andrehen
+          handleStart();
+
+          // Kurz anlaufen lassen, dann schon in voller Drehung sanft einblenden
+          setTimeout(() => {
+            widgetContainer.style.opacity = '1';
+            widgetContainer.style.transform = 'scale(1)';
+
+            // Läuft kurz gedreht weiter und dockt dann sauber ein
+            setTimeout(() => {
+              handleStop();
+            }, 750);
+
+            // 4. Kaskaden-Aufbau von oben nach unten
+            introItemsTopDown.forEach((el, index) => {
+              setTimeout(() => {
+                el.style.opacity = '1';
+                el.style.transform = 'translateY(0)';
+              }, 450 + (index * 130));
+            });
+
+            // Bottom-Navigation fliegt von unten herein
+            setTimeout(() => {
+              bottomNav.style.opacity = '1';
+              bottomNav.style.transform = 'translateY(0)';
+              isIntroPlaying = false;
+              introBtn.disabled = false;
+            }, 450 + (introItemsTopDown.length * 130) + 120);
+
+          }, 180);
+        }
+      }
+
+      // Kurze Ruhepause am Anfang vor dem Tippen
+      setTimeout(typeNextChar, 250);
+    }
+
+    introBtn.addEventListener('click', playIntroSequence);
+  </script>
+</body>
+</html>

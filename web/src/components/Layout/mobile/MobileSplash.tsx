@@ -1,38 +1,25 @@
 'use client';
 
-import React, { useEffect, useLayoutEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Caveat } from 'next/font/google';
-import { DT } from '@/lib/designTokens';
-import { pickGreetingTemplate, formatGreeting } from '../MobileHeaderWidgets';
+import { useEffect, useLayoutEffect } from 'react';
 
-const handwriting = Caveat({ subsets: ['latin'], weight: ['600'], display: 'swap' });
+export type IntroPhase = 'hidden' | 'greeting' | 'island' | 'content' | 'done';
 
-export type SplashPhase = 'white' | 'greeting' | 'island' | 'content' | 'done';
-
-const ORDER: readonly SplashPhase[] = ['white', 'greeting', 'island', 'content', 'done'];
 const SESSION_KEY = 'tide_splash_done';
 const MOBILE_MAX_WIDTH = 768;
-
-/** Duration (ms) each phase lasts before advancing to the next one. */
-const PHASE_MS: Record<Exclude<SplashPhase, 'done'>, number> = {
-  white: 450,
-  greeting: 2600,
-  island: 650,
-  content: 1000,
-};
-
-export const SPLASH_WRITE_SECONDS = 1.9;
-
-/** True when `current` has reached (or passed) `target`. */
-export function phaseAtLeast(current: SplashPhase, target: SplashPhase): boolean {
-  return ORDER.indexOf(current) >= ORDER.indexOf(target);
-}
+const GREETING_START_MS = 250;
+const ISLAND_SPIN_MS = 750;
+const STAGGER_MS = 130;
+const REVEAL_MS = 450;
+const MAX_ITEMS = 8;
+const H1_WAIT_MS = 2000;
 
 const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
-function shouldSkipSplash(): boolean {
-  if (typeof window === 'undefined') return true;
+function setPhase(p: IntroPhase) {
+  document.documentElement.dataset.intro = p;
+}
+
+function shouldSkipIntro(): boolean {
   if (window.innerWidth >= MOBILE_MAX_WIDTH) return true;
   try {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return true;
@@ -43,84 +30,101 @@ function shouldSkipSplash(): boolean {
   return false;
 }
 
-/**
- * Splash phase controller. Runs once per session on mobile viewports only,
- * and is skipped for prefers-reduced-motion. Returns 'done' when inactive.
- */
-export function useSplashPhase(): SplashPhase {
-  const [phase, setPhase] = useState<SplashPhase>('done');
+/** Collect the text nodes of `root` (keeps inner elements such as the confetti span intact). */
+function textNodesOf(root: HTMLElement): Text[] {
+  const out: Text[] = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let n = walker.nextNode();
+  while (n) { out.push(n as Text); n = walker.nextNode(); }
+  return out;
+}
 
+/**
+ * Mobile intro controller (renders nothing, no React state).
+ * Drives `html[data-intro]` = hidden -> greeting -> island -> content -> done and
+ * typewrites the real header greeting `h1[data-intro-greeting]` via DOM text nodes.
+ * CSS lives in globals.css ("MOBILE INTRO" block). Runs once per session, mobile only.
+ */
+export default function MobileSplash() {
   useIsoLayoutEffect(() => {
-    if (shouldSkipSplash()) return;
+    if (shouldSkipIntro()) { setPhase('done'); return; }
     try { sessionStorage.setItem(SESSION_KEY, '1'); } catch { /* ignore */ }
-    setPhase('white');
+    setPhase('hidden');
+
+    const timers: number[] = [];
+    let raf = 0;
+    let cancelled = false;
+    let h1: HTMLElement | null = null;
+    let nodes: Text[] = [];
+    let full: string[] = [];
+
+    const restoreText = () => {
+      nodes.forEach((n, i) => { n.data = full[i]; });
+      if (h1) h1.style.minHeight = '';
+    };
+    const finish = () => { restoreText(); setPhase('done'); };
+
+    const later = (fn: () => void, ms: number) => { timers.push(window.setTimeout(fn, ms)); };
+
+    const toIsland = () => {
+      if (cancelled) return;
+      setPhase('island');
+      // Reuse MobileSmartIsland's existing sync-spinner listeners.
+      window.dispatchEvent(new Event('tide-syncing'));
+      later(() => {
+        window.dispatchEvent(new Event('tide-synced'));
+        setPhase('content');
+        later(finish, MAX_ITEMS * STAGGER_MS + REVEAL_MS + 100);
+      }, ISLAND_SPIN_MS);
+    };
+
+    const startTypewriter = () => {
+      if (!h1) { toIsland(); return; }
+      setPhase('greeting');
+      const total = nodes.reduce((s, n, i) => s + full[i].length, 0);
+      let idx = 0;
+      const step = () => {
+        if (cancelled) return;
+        if (idx >= total) { later(toIsland, 250); return; }
+        idx++;
+        let left = idx;
+        nodes.forEach((n, i) => {
+          const take = Math.max(0, Math.min(full[i].length, left));
+          left -= take;
+          const next = full[i].slice(0, take);
+          if (n.data !== next) n.data = next;
+        });
+        later(step, 35 + Math.random() * 35);
+      };
+      later(step, GREETING_START_MS);
+    };
+
+    const t0 = performance.now();
+    const waitForH1 = () => {
+      if (cancelled) return;
+      h1 = document.querySelector<HTMLElement>('h1[data-intro-greeting]');
+      if (h1 && h1.textContent) {
+        h1.style.minHeight = `${h1.offsetHeight}px`;
+        nodes = textNodesOf(h1);
+        full = nodes.map(n => n.data);
+        nodes.forEach(n => { n.data = ''; });
+        startTypewriter();
+      } else if (performance.now() - t0 > H1_WAIT_MS) {
+        h1 = null;
+        toIsland();
+      } else {
+        raf = requestAnimationFrame(waitForH1);
+      }
+    };
+    waitForH1();
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      timers.forEach(t => window.clearTimeout(t));
+      finish();
+    };
   }, []);
 
-  useEffect(() => {
-    if (phase === 'done') return;
-    const t = window.setTimeout(() => {
-      setPhase(ORDER[ORDER.indexOf(phase) + 1]);
-    }, PHASE_MS[phase]);
-    return () => window.clearTimeout(t);
-  }, [phase]);
-
-  return phase;
-}
-
-interface MobileSplashProps {
-  phase: SplashPhase;
-  name: string;
-}
-
-/** Full-screen white overlay with a handwritten-style greeting (left-to-right reveal). */
-export default function MobileSplash({ phase, name }: MobileSplashProps) {
-  const [template] = useState(() => pickGreetingTemplate(new Date()));
-  const text = formatGreeting(template, name);
-  const visible = phase === 'white' || phase === 'greeting';
-
-  return (
-    <AnimatePresence>
-      {visible && (
-        <motion.div
-          key="tide-splash"
-          initial={{ opacity: 1 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, transition: { duration: 0.35, ease: 'easeOut' } }}
-          className="fixed inset-0 flex items-center justify-center px-8 md:hidden"
-          style={{ zIndex: 9999, background: '#ffffff', pointerEvents: 'all' }}
-          aria-hidden="true"
-        >
-          {phase === 'greeting' && (
-            <div style={{ position: 'relative', textAlign: 'center' }}>
-              {/* Pen-stroke wipe: the text is revealed by a mask sliding away to the right */}
-              <p
-                className={handwriting.className}
-                style={{
-                  fontSize: 'clamp(2rem, 11vw, 3rem)',
-                  lineHeight: 1.15,
-                  color: '#111827',
-                  fontFamily: `${handwriting.style.fontFamily}, ${DT.fontSans}`,
-                  margin: 0,
-                }}
-              >
-                {text}
-              </p>
-              <motion.div
-                initial={{ x: '0%' }}
-                animate={{ x: '101%' }}
-                transition={{ duration: SPLASH_WRITE_SECONDS, ease: [0.45, 0.05, 0.35, 1] }}
-                style={{
-                  position: 'absolute',
-                  inset: '-8px -12px',
-                  background: '#ffffff',
-                  boxShadow: '-14px 0 14px 0 #ffffff',
-                  willChange: 'transform',
-                }}
-              />
-            </div>
-          )}
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
+  return null;
 }

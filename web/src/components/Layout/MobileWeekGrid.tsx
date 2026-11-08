@@ -153,6 +153,21 @@ function arrangeEvents(events: CalEvent[], drag?: EventDrag | null): Map<string,
   return layout;
 }
 
+// Static hour/half-hour grid lines — memoized so touchmove-driven re-renders don't rebuild gradients.
+const HourGridLines = React.memo(function HourGridLines({ hourH }: { hourH: number }) {
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, pointerEvents: 'none',
+      backgroundImage: [
+        // Even hours strong (0.45), odd hours faint (0.12) — 2*hourH period
+        `repeating-linear-gradient(to bottom, rgba(128,128,128,0.45) 0px, rgba(128,128,128,0.45) 0.5px, transparent 0.5px, transparent ${hourH}px, rgba(128,128,128,0.12) ${hourH}px, rgba(128,128,128,0.12) ${hourH + 0.5}px, transparent ${hourH + 0.5}px, transparent ${2 * hourH}px)`,
+        // Half-hour tick lines
+        `repeating-linear-gradient(to bottom, transparent ${hourH / 2 - 0.5}px, rgba(128,128,128,0.06) ${hourH / 2 - 0.5}px, rgba(128,128,128,0.06) ${hourH / 2 + 0.5}px, transparent ${hourH / 2 + 0.5}px, transparent ${hourH}px)`,
+      ].join(', '),
+    }} />
+  );
+});
+
 export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNewEvent, onEventUpdate, onWeekShift, onEventDragChange, hideTimeStrip, onScrollY, onHourHeightChange }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const columnsRef = useRef<HTMLDivElement>(null);
@@ -606,19 +621,11 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
 
             return (
               <div key={day.toISOString()} data-col-idx={colIdx}
-                style={{ width: colW, flexShrink: 0, position: 'relative', borderRight: '1px solid var(--border-color)', background: isToday ? 'rgba(59,130,246,0.025)' : 'transparent', userSelect: 'none' }}
+                style={{ width: colW, flexShrink: 0, position: 'relative', borderRight: '1px solid var(--border-color)', background: isToday ? 'rgba(59,130,246,0.025)' : 'transparent', userSelect: 'none', contain: 'layout style' }}
                 onTouchStart={e => colTouchStart(e, colIdx)} onTouchMove={e => colTouchMove(e, colIdx)} onTouchEnd={() => colTouchEnd(colIdx)} onClick={e => handleColumnClick(e, colIdx)}
               >
                 {/* Hour grid via CSS gradient (2×period for even/odd alternating opacity) */}
-                <div style={{
-                  position: 'absolute', inset: 0, pointerEvents: 'none',
-                  backgroundImage: [
-                    // Even hours strong (0.45), odd hours faint (0.12) — 2*hourH period
-                    `repeating-linear-gradient(to bottom, rgba(128,128,128,0.45) 0px, rgba(128,128,128,0.45) 0.5px, transparent 0.5px, transparent ${hourH}px, rgba(128,128,128,0.12) ${hourH}px, rgba(128,128,128,0.12) ${hourH + 0.5}px, transparent ${hourH + 0.5}px, transparent ${2 * hourH}px)`,
-                    // Half-hour tick lines
-                    `repeating-linear-gradient(to bottom, transparent ${hourH / 2 - 0.5}px, rgba(128,128,128,0.06) ${hourH / 2 - 0.5}px, rgba(128,128,128,0.06) ${hourH / 2 + 0.5}px, transparent ${hourH / 2 + 0.5}px, transparent ${hourH}px)`,
-                  ].join(', '),
-                }} />
+                <HourGridLines hourH={hourH} />
 
                 {/* Creation ghost */}
                 {creation?.colIdx === colIdx && (

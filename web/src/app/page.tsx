@@ -35,7 +35,7 @@ const Editor = dynamic(() => import('@/components/Editor'), {
 const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEditor'), { ssr: false });
 
 import MobileLayout from "@/components/Layout/MobileLayout";
-import MobileSplash, { useSplashPhase } from "@/components/Layout/mobile/MobileSplash";
+import MobileSplash from "@/components/Layout/mobile/MobileSplash";
 import { Clock, Settings, LogOut, Users, Trash2, GraduationCap, Copy, ListTodo, GripVertical } from 'lucide-react';
 import Avatar from "@/components/Profile/Avatar";
 import CalendarCaptureIsland from "@/components/SmartIsland";
@@ -197,7 +197,7 @@ export default function Dashboard() {
     const isSidebarOpen = !isSidebarCollapsed;
     const [userProfile, setUserProfile] = useState<{ username: string; email: string; avatar_seed?: string; avatar_salt?: string; avatar_style?: string; bio?: string; title?: string; is_verified?: boolean; profile_status?: number; id?: string; user_id?: string } | null>(null);
     const [streak, setStreak] = useState(0);
-    const splashPhase = useSplashPhase();    const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+    const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const [summaryStats, setSummaryStats] = useState({ events: 0, tasks: 0 });
     const [showBackups, setShowBackups] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen?: boolean; fileId: string; isShared: boolean; isFolder: boolean } | null>(null);
@@ -3028,9 +3028,9 @@ export default function Dashboard() {
             />
             </div>
             {/* Mobile Layout Wrapper */}
-            <MobileSplash phase={splashPhase} name={displayName} />
+            <MobileSplash />
             <MobileLayout
-                splashPhase={splashPhase}                events={events}
+                events={events}
                 files={files.filter((f: any) => !f.isGroup && !(f.title || '').startsWith('.') && f.type !== 'event')}
                 folders={files.filter((f: any) => f.type === 'folder' && !f.isGroup)}
                 onNoteSelect={(id: string, title: string) => {

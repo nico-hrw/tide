@@ -18,7 +18,6 @@ import { useDataStore } from '@/store/useDataStore';
 import dynamic from 'next/dynamic';
 import { parseGermanDate } from '@/lib/dateParser';
 import { pickGreetingTemplate, formatGreeting, NextEventCountdown, fireConfetti } from './MobileHeaderWidgets';
-import { phaseAtLeast, type SplashPhase } from './mobile/MobileSplash';
 import TodoList from '../Todo/TodoList';
 import { isItemUnlocked, ItemSecuritySettings } from '@/lib/pinSecurity';
 import PinPromptModal from '@/components/Security/PinPromptModal';
@@ -54,8 +53,6 @@ const JobPlanner = dynamic(() => import('../JobPlanner/JobPlanner'), {
 });
 
 export interface MobileLayoutProps {
-  /** App-start splash phase; entry animations are gated by it ('done' = no animation). */
-  splashPhase?: SplashPhase;
   events: any[];
   files: any[];
   folders: any[];
@@ -209,7 +206,7 @@ const FolderItem = React.memo(function FolderItem({
   const [open, setOpen] = useState(false);
   const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const movedRef = useRef(false);
-  const { loadedDirectories } = useDataStore();
+  const loadedDirectories = useDataStore(s => s.loadedDirectories);
   const children = allFiles.filter(f => f.parent_id === folder.id);
   const isOver = dragOverId === folder.id;
 
@@ -524,7 +521,7 @@ const FolderCard = React.memo(function FolderCard({
   const [open, setOpen] = useState(false);
   const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const movedRef = useRef(false);
-  const { loadedDirectories } = useDataStore();
+  const loadedDirectories = useDataStore(s => s.loadedDirectories);
   const theme = useDataStore(s => s.theme);
   const children = allFiles.filter(f => f.parent_id === folder.id);
   const colorDef = getFolderColor(folder.color || folder.metadata?.color);
@@ -700,9 +697,8 @@ export default function MobileLayout({
   onNewFolder, onNewFolderIn, onNoteRename,
   editorElement, activeNoteId, activeNoteTitle, onNewEvent,
   onEventClick, onEventUpdate, onEventSave, onEventDelete, onTaskComplete,
-  socialHubElement, userProfile, themes, splashPhase = 'done',
+  socialHubElement, userProfile, themes,
 }: MobileLayoutProps) {
-  const splashAt = (p: SplashPhase) => phaseAtLeast(splashPhase, p);
   const resolvedThemes = useMemo(() => {
     if (themes && themes.length > 0) return themes;
     return (files || [])
@@ -800,6 +796,7 @@ export default function MobileLayout({
 
   const {
     swipeDx,
+    swipeElRef,
     snapping,
     eventDragActive,
     setEventDragActive,
@@ -880,13 +877,22 @@ export default function MobileLayout({
   useEffect(() => {
     const vv = (window as any).visualViewport as VisualViewport | undefined;
     if (!vv) return;
+    let raf: number | null = null;
     const handler = () => {
-      const offset = window.innerHeight - vv.height - vv.offsetTop;
-      setKbOffset(Math.max(0, offset));
+      if (raf !== null) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        const next = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+        setKbOffset(prev => (prev === next ? prev : next));
+      });
     };
     vv.addEventListener('resize', handler);
     vv.addEventListener('scroll', handler);
-    return () => { vv.removeEventListener('resize', handler); vv.removeEventListener('scroll', handler); };
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+      vv.removeEventListener('resize', handler);
+      vv.removeEventListener('scroll', handler);
+    };
   }, []);
 
   // Load persistent search index from localStorage into __mobileNoteCache each time search opens.
@@ -1555,14 +1561,11 @@ export default function MobileLayout({
       >
           {/* Row 1: Date & Greeting ("XX. Monat", "Guten Morgen/Mittag/Tag/Abend Name!") */}
           <div className="px-4 pt-1 pb-1.5 flex items-start justify-between gap-3">
-            <motion.div className="min-w-0 flex-1"
-              initial={false}
-              animate={{ opacity: splashAt('content') ? 1 : 0, y: splashAt('content') ? 0 : -14 }}
-              transition={{ duration: 0.45, ease: 'easeOut' }}>
-              <p className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 flex-wrap" style={{ color: T.mut }}>
+            <div className="min-w-0 flex-1">
+              <p className="intro-item text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 flex-wrap" style={{ color: T.mut, ['--i' as string]: 0 }}>
                 {format(now, 'd. MMMM', { locale: de })}
               </p>
-              <h1 className="text-[1.7rem] font-black tracking-tight line-clamp-2 leading-tight mt-0.5" style={{ color: T.pri }}>
+              <h1 data-intro-greeting className="text-[1.7rem] font-black tracking-tight line-clamp-2 leading-tight mt-0.5" style={{ color: T.pri }}>
                 {(() => {
                   const trimmed = displayName?.trim();
                   if (!trimmed || !greetingTemplate.includes('{name}')) {
@@ -1598,20 +1601,13 @@ export default function MobileLayout({
                   );
                 })()}
               </h1>
-            </motion.div>
-            <motion.div className="shrink-0"
-              initial={false}
-              animate={{ opacity: splashAt('island') ? 1 : 0, scale: splashAt('island') ? 1 : 0.85 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-              style={{ transformOrigin: 'top right' }}>
+            </div>
+            <div className="intro-island shrink-0">
               <NextEventCountdown events={expandedEvents} onTap={handleCountdownTap} className="-mt-1.5" userName={displayName} />
-            </motion.div>
+            </div>
           </div>
 
-          <motion.div
-            initial={false}
-            animate={{ opacity: splashAt('content') ? 1 : 0, y: splashAt('content') ? 0 : -14 }}
-            transition={{ duration: 0.45, delay: 0.1, ease: 'easeOut' }}>
+          <div className="intro-item" style={{ ['--i' as string]: 1 }}>
           {/* Row 2: Apple-style Horizontal Date Wheel */}
           {activeTab === 'calendar' && calViewMode !== 'month' && (
             <MobileDateWheel
@@ -1677,25 +1673,23 @@ export default function MobileLayout({
               </button>
             </div>
           )}
-          </motion.div>
+          </div>
 
           <div className="h-px" style={{ background: T.brd }} />
         </div>
 
       {/* ── Main content area ───────────────────────────── */}
       {activeTab === 'calendar' ? (
-      <motion.div
-        className="flex flex-col"
-        initial={false}
-        animate={{ opacity: splashAt('content') ? 1 : 0, y: splashAt('content') ? 0 : -18 }}
-        transition={{ duration: 0.5, delay: 0.2, ease: 'easeOut' }}
-        style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}
+      <div
+        className="flex flex-col intro-fade"
+        style={{ ['--i' as string]: 2, flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}
         onTouchStart={calViewMode === 'week' || calViewMode === 'day' ? onSwipeStart : undefined}
         onTouchMove={calViewMode === 'week' || calViewMode === 'day' ? onSwipeMove : undefined}
         onTouchEnd={calViewMode === 'week' || calViewMode === 'day' ? onSwipeEnd : undefined}
       >
         {calViewMode === 'week' ? (
           <div
+            ref={swipeElRef}
             style={{
               transform: snapping === 'left' ? 'translateX(-100%)' : snapping === 'right' ? 'translateX(100%)' : `translateX(${swipeDx * 0.4}px)`,
               transition: snapping ? 'transform 0.24s cubic-bezier(0.4,0,0.2,1)' : (swipeDx === 0 && !eventDragActive) ? 'transform 0.18s ease-out' : 'none',
@@ -1884,7 +1878,7 @@ export default function MobileLayout({
             dayViewSentinelRef={dayViewSentinelRef}
           />
         )}
-      </motion.div>
+      </div>
       ) : activeTab === 'notes' ? (
       /* ── Notes tab ── */
       <div className="flex flex-col" style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}>
@@ -2264,16 +2258,12 @@ export default function MobileLayout({
       </AnimatePresence>
 
       {/* ── High-presence Bottom Navigation Bar ────────────────── */}
-      <motion.div
-        initial={false}
-        animate={{ y: splashAt('content') ? 0 : '100%' }}
-        transition={{ type: 'spring', stiffness: 220, damping: 26, delay: 0.25 }}
-        className="fixed left-0 right-0 flex items-center justify-between z-20 px-3 sm:px-5 pt-2.5 sm:pt-3"
+      <div
+        className="intro-nav fixed left-0 right-0 flex items-center justify-between z-20 px-3 sm:px-5 pt-2.5 sm:pt-3"
         style={{
+          ['--i' as string]: 5,
           bottom: kbOffset > 0 ? kbOffset : 0,
           background: theme === 'dark' ? 'rgba(15, 20, 30, 0.95)' : 'rgba(255, 255, 255, 0.97)',
-          backdropFilter: 'blur(24px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(24px) saturate(180%)',
           borderTop: `1px solid ${T.brd}`,
           paddingBottom: 'max(14px, env(safe-area-inset-bottom))',
         }}
@@ -2493,7 +2483,7 @@ export default function MobileLayout({
             </button>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {pinPromptItem && (
         <PinPromptModal
