@@ -122,14 +122,17 @@ Token management for user account access delegation. Requires user session JWT (
 | `GET`    | `/api-tokens/scopes` | List all available scopes and their implementation status |
 
 ### 12. External Integration API & Todos (`/api/v1/external`, `/api/v1/todos`)
-Dedicated endpoints for external tools, automation scripts, and calendar/todo clients using Personal Access Tokens (`Authorization: Bearer tide_pat_...` or `X-API-Key: tide_pat_...`). For full documentation, query parameter specifications, and curl examples, see [docs/API_TODOS.md](../../docs/API_TODOS.md).
+Dedicated endpoints for external tools, automation scripts, and calendar/todo clients using Personal Access Tokens (`Authorization: Bearer tide_pat_...` or `X-API-Key: tide_pat_...`). For full documentation, query parameter specifications, and curl examples, see [docs/API_TODOS.md](../../docs/API_TODOS.md) and [docs/API_NOTES.md](../../docs/API_NOTES.md).
 
 | Method | Route | Required Scope | Description |
 |--------|-------|----------------|-------------|
 | `GET` | `/external/events` | `events:read` | List calendar events with optional date range (`start`, `end`), search (`q`), and pagination (`limit`) |
 | `GET` | `/external/events/{id}` | `events:read` | Retrieve details for a single calendar event by ID |
-| `GET` | `/external/notes` | `notes:read` | *(Planned)* List notes (returns 501 Not Implemented) |
-| `GET` | `/external/notes/{id}` | `notes:read` | *(Planned)* Retrieve note content (returns 501 Not Implemented) |
+| `GET` | `/external/notes` | `notes:read` or `notes:write` | List notes with optional search (`q`, `search`) and pagination (`limit`) |
+| `POST` | `/external/notes` | `notes:write` | Create a new note with title, markdown/plain text content, and optional parent folder |
+| `GET` | `/external/notes/{id}` | `notes:read` or `notes:write` | Retrieve single note metadata and content |
+| `PUT` / `PATCH` | `/external/notes/{id}` | `notes:write` | Update note title, content, or parent folder |
+| `DELETE` | `/external/notes/{id}` | `notes:write` | Soft-delete / delete note |
 | `GET` | `/todos` / `/external/todos` | `todos:read` or `todos:write` | Query & filter todos by `date`, `prio`, `tag`, `description`, `overdue`, `status`, `completed` |
 | `POST` | `/todos` / `/external/todos` | `todos:create` or `todos:write` | Create a new todo |
 | `GET` | `/todos/{id}` / `/external/todos/{id}` | `todos:read` or `todos:write` | Retrieve single todo by ID |

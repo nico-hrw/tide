@@ -20,8 +20,15 @@ export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, ev
     const touchGridY = useRef<number | null>(null);
 
     const visibleCalendarRange = useDataStore(s => s.visibleCalendarRange);
-    const activeNoteId = useDataStore(s => s.activeNoteId);
-    const isInCalendar = activeNoteId === null;
+
+    const effectiveRange = React.useMemo(() => {
+        if (visibleCalendarRange) return visibleCalendarRange;
+        const baseDate = selectedDate || new Date();
+        return {
+            start: format(startOfWeek(baseDate, { weekStartsOn: 1 }), "yyyy-MM-dd"),
+            end: format(endOfWeek(baseDate, { weekStartsOn: 1 }), "yyyy-MM-dd"),
+        };
+    }, [visibleCalendarRange, selectedDate]);
 
     React.useEffect(() => {
         if (selectedDate && !isSameMonth(selectedDate, currentDateInternal)) {
@@ -137,12 +144,12 @@ export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, ev
                     });
                     const hasEvents = dayEvents.length > 0;
 
-                    const isVisibleInGrid = !hideVisibleRangeHighlight && isInCalendar && visibleCalendarRange
-                        ? (dayIso >= visibleCalendarRange.start && dayIso <= visibleCalendarRange.end)
+                    const isVisibleInGrid = !hideVisibleRangeHighlight && effectiveRange
+                        ? (dayIso >= effectiveRange.start && dayIso <= effectiveRange.end)
                         : false;
 
-                    const isStartOfVisible = isVisibleInGrid && (visibleCalendarRange?.start === dayIso || day.getDay() === 1);
-                    const isEndOfVisible = isVisibleInGrid && (visibleCalendarRange?.end === dayIso || day.getDay() === 0);
+                    const isStartOfVisible = isVisibleInGrid && (effectiveRange?.start === dayIso || day.getDay() === 1);
+                    const isEndOfVisible = isVisibleInGrid && (effectiveRange?.end === dayIso || day.getDay() === 0);
 
                     const stripRounded = isStartOfVisible && isEndOfVisible
                         ? "rounded-md"

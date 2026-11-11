@@ -1476,15 +1476,15 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
             `}</style>
 
             {/* STAGE: Stable anchor container */}
-            <div id="si-stage" className={`relative w-full transition-all duration-300 ${isExpandedViewActive ? 'h-auto min-h-[208px]' : 'h-[208px]'}`}>
+            <div id="si-stage" className={`relative w-full transition-all duration-300 ${isExpandedViewActive ? 'h-auto min-h-[236px]' : 'h-[236px]'}`}>
                 {/* LAYER 1: Positioner (Controls centering shrink & rightward expansion) */}
                 <div
                     ref={positionerRef}
                     id="si-positioner"
                     className={`si-positioner left-0 top-0 z-40 transition-all duration-300 ${
                         isExpandedViewActive
-                            ? 'relative w-full min-w-full md:min-w-[340px] max-w-[calc(100vw-32px)] h-auto min-h-[208px]'
-                            : 'absolute w-full h-[208px]'
+                            ? 'relative w-full min-w-full md:min-w-[340px] max-w-[calc(100vw-32px)] h-auto min-h-[236px]'
+                            : 'absolute w-full h-[236px]'
                     }`}
                 >
                     {/* LAYER 2: Rotator (Controls whip rotation exclusively) */}
@@ -1493,7 +1493,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                         id="si-rotator"
                         className={`si-rotator w-full transition-all duration-300 ${
                             isExpandedViewActive
-                                ? 'relative h-auto min-h-[208px]'
+                                ? 'relative h-auto min-h-[236px]'
                                 : 'absolute inset-0 h-full'
                         }`}
                     >
@@ -1511,7 +1511,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                             onDoubleClick={triggerDemoLoading}
                             className={`bg-[#1a1c1e] dark text-white rounded-[24px] shadow-2xl border border-white/10 transition-all duration-300 ${
                                 isExpandedViewActive
-                                    ? 'relative w-full h-auto min-h-[208px] overflow-visible'
+                                    ? 'relative w-full h-auto min-h-[236px] overflow-visible'
                                     : 'absolute inset-0 overflow-hidden'
                             }`}
                         >
@@ -1519,9 +1519,9 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                             <div
                                 ref={calendarViewRef}
                                 id="si-calendarView"
-                                className={`w-full pt-2 px-2.5 pb-2.5 flex flex-col transition-all duration-300 ${
+                                className={`w-full pt-2 px-2.5 pb-4 flex flex-col transition-all duration-300 ${
                                     isExpandedViewActive
-                                        ? 'relative h-auto min-h-[208px] overflow-visible'
+                                        ? 'relative h-auto min-h-[236px] overflow-visible'
                                         : 'absolute left-0 top-0 h-full overflow-hidden'
                                 }`}
                             >

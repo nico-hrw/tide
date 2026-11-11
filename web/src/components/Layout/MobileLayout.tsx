@@ -742,8 +742,15 @@ export default function MobileLayout({
   });
 
   useEffect(() => {
-    const handleStart = (e: any) => setEditingTodoId(e.detail?.id || 'active');
-    const handleEnd = () => setEditingTodoId(null);
+    const isMobile = () => typeof window !== 'undefined' && window.innerWidth < 768;
+    const handleStart = (e: any) => {
+      if (!isMobile()) return;
+      setEditingTodoId(e.detail?.id || 'active');
+    };
+    const handleEnd = () => {
+      if (!isMobile()) return;
+      setEditingTodoId(null);
+    };
     window.addEventListener('tide:todo-editing-start', handleStart);
     window.addEventListener('tide:todo-editing-end', handleEnd);
     return () => {
@@ -753,6 +760,7 @@ export default function MobileLayout({
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined' || window.innerWidth >= 768) return;
     if (activeTab !== 'todos' && editingTodoId) {
       setEditingTodoId(null);
       window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit'));
