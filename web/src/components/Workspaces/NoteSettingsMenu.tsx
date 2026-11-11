@@ -17,10 +17,13 @@ import {
     Check,
     Sparkles,
     Code,
+    Lock,
+    AlertTriangle,
+    Loader2,
     type LucideIcon,
 } from 'lucide-react';
 import { DT } from '@/lib/designTokens';
-import { getApiBase } from '@/lib/api';
+import { apiFetch, getApiBase } from '@/lib/api';
 import { useDataStore } from '@/store/useDataStore';
 import type { NoteLayout, PaperPattern } from '@/store/slices/types';
 import { tipTapToMarkdown, exportTideBundle } from '@/lib/bundleImportExport';
@@ -141,6 +144,9 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
     const menuRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [copiedApi, setCopiedApi] = useState(false);
+    const [showUnencryptedWarning, setShowUnencryptedWarning] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [reencryptedSuccess, setReencryptedSuccess] = useState(false);
 
     // Fallbacks from Zustand store
     const storeNoteLayout = useDataStore((s) => s.noteLayout);
@@ -151,6 +157,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
     const setStoreShowPageBreaks = useDataStore((s) => s.setShowPageBreaks);
     const enabledExtensions = useDataStore((s) => s.enabledExtensions ?? []);
     const activeNoteId = useDataStore((s) => s.activeNoteId);
+    const notes = useDataStore((s) => s.notes);
 
     const activeLayout: NoteLayout = propNoteLayout ?? storeNoteLayout ?? 'normal';
     const activePattern: PaperPattern = propPaperPattern ?? storePaperPattern ?? 'blanko';
@@ -159,6 +166,17 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
 
     const effectiveNoteId = noteId ?? activeNoteId;
     const effectiveTitle = noteTitle || 'Notiz';
+
+    const currentFile = notes.find((f) => f.id === effectiveNoteId);
+    const isUnencrypted = Boolean(currentFile?.metadata?.unencrypted === true);
+
+    useEffect(() => {
+        if (!isOpen) {
+            setShowUnencryptedWarning(false);
+            setIsProcessing(false);
+            setReencryptedSuccess(false);
+        }
+    }, [isOpen]);
 
     // Outside-click & Escape dismissal
     useEffect(() => {
@@ -285,7 +303,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
         onClose();
     };
 
-    const handleCopyApiUrl = async () => {
+    const copyApiUrlToClipboard = async () => {
         if (!effectiveNoteId) return;
         const apiUrl = `${getApiBase()}/api/v1/external/notes/${effectiveNoteId}`;
         try {
@@ -303,10 +321,144 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
             setTimeout(() => {
                 setCopiedApi(false);
                 onClose();
-            }, 600);
+            }, 800);
         } catch (err) {
             console.error('[NoteSettingsMenu] Failed to copy API URL', err);
             onClose();
+        }
+    };
+
+    const handleCopyApiUrl = async () => {
+        if (!effectiveNoteId) return;
+        if (!isUnencrypted) {
+            setShowUnencryptedWarning(true);
+            return;
+        }
+        await copyApiUrlToClipboard();
+    };
+
+    const handleConfirmUnencryptedShare = async () => {
+        if (!effectiveNoteId) return;
+        setIsProcessing(true);
+        try {
+            let md = '';
+            if (typeof noteContent === 'string') {
+                md = noteContent;
+            } else if (noteContent && typeof noteContent === 'object') {
+                try {
+                    md = tipTapToMarkdown(noteContent);
+                } catch {
+                    md = JSON.stringify(noteContent, null, 2);
+                }
+            } else {
+                md = `# ${effectiveTitle}\n\n`;
+            }
+
+            // 1. Upload plaintext markdown
+            await apiFetch(`/api/v1/files/${effectiveNoteId}/upload`, {
+                method: 'POST',
+                body: new Blob([md], { type: 'text/markdown;charset=utf-8' }),
+            });
+
+            // 2. Update file metadata
+            const currentFileObj = useDataStore.getState().notes.find((f) => f.id === effectiveNoteId);
+            const existingMeta = (currentFileObj?.metadata as Record<string, unknown>) || {};
+            const newMeta = { ...existingMeta, unencrypted: true };
+
+            await apiFetch(`/api/v1/files/${effectiveNoteId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ metadata: newMeta }),
+            });
+
+            // 3. Update store
+            useDataStore.getState().updateFileRaw(effectiveNoteId, { metadata: newMeta });
+
+            // 4. Copy URL and notify
+            setShowUnencryptedWarning(false);
+            await copyApiUrlToClipboard();
+        } catch (err) {
+            console.error('[NoteSettingsMenu] Failed to share note unencrypted', err);
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleReEncrypt = async () => {
+        if (!effectiveNoteId) return;
+        setIsProcessing(true);
+        try {
+            const cryptoV2 = await import('@/lib/cryptoV2');
+            const cryptoLib = await import('@/lib/crypto');
+            const state = useDataStore.getState();
+            const { publicKey, myId } = state;
+
+            if (!publicKey || !myId) {
+                console.error('[NoteSettingsMenu] Missing public key or user ID for re-encryption');
+                setIsProcessing(false);
+                return;
+            }
+
+            const docContent =
+                noteContent && typeof noteContent === 'object'
+                    ? noteContent
+                    : typeof noteContent === 'string'
+                    ? noteContent
+                    : {
+                          type: 'doc',
+                          content: [
+                              {
+                                  type: 'paragraph',
+                                  attrs: { blockId: crypto.randomUUID() },
+                              },
+                          ],
+                      };
+
+            const contentStr = typeof docContent === 'string' ? docContent : JSON.stringify(docContent);
+
+            // 1. Re-encrypt note using V2 envelope encryption
+            const v2Result = await cryptoV2.encryptFileV2(contentStr, publicKey);
+            const accessKeysMap = { [myId]: v2Result.encrypted_dek };
+            const securedMeta = await cryptoLib.encryptMetadata({ title: effectiveTitle }, publicKey);
+
+            // 2. Upload ciphertext blob
+            await apiFetch(`/api/v1/files/${effectiveNoteId}/upload`, {
+                method: 'POST',
+                body: v2Result.content_ciphertext,
+            });
+
+            // 3. Update metadata via PUT
+            const currentFileObj = state.notes.find((f) => f.id === effectiveNoteId);
+            const existingMeta = (currentFileObj?.metadata as Record<string, unknown>) || {};
+            const newMeta = { ...existingMeta, unencrypted: false };
+
+            await apiFetch(`/api/v1/files/${effectiveNoteId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    metadata: newMeta,
+                    access_keys: accessKeysMap,
+                    secured_meta: securedMeta,
+                }),
+            });
+
+            // 4. Update store
+            state.updateFileRaw(effectiveNoteId, {
+                metadata: newMeta,
+                access_keys: accessKeysMap,
+                secured_meta: securedMeta,
+            });
+
+            // 5. Show notification
+            setReencryptedSuccess(true);
+            setTimeout(() => {
+                setReencryptedSuccess(false);
+                onClose();
+            }, 1000);
+        } catch (err) {
+            console.error('[NoteSettingsMenu] Failed to re-encrypt note', err);
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -451,6 +603,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 <button
                     type="button"
                     onClick={handleCopyApiUrl}
+                    disabled={isProcessing}
                     className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800/60 transition-colors text-left cursor-pointer"
                 >
                     {copiedApi ? (
@@ -461,10 +614,78 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                     ) : (
                         <>
                             <Code size={15} className="text-gray-500 dark:text-gray-400 shrink-0" />
-                            <span className="truncate">API-Adresse kopieren</span>
+                            <span className="truncate flex-1">API-Adresse kopieren</span>
+                            {isUnencrypted && (
+                                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 shrink-0">
+                                    Offen
+                                </span>
+                            )}
                         </>
                     )}
                 </button>
+
+                {/* Inline warning / confirmation prompt */}
+                {showUnencryptedWarning && (
+                    <div className="mt-1.5 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/70 text-amber-900 dark:text-amber-200 text-xs flex flex-col gap-2 animate-in fade-in">
+                        <div className="flex items-start gap-2">
+                            <AlertTriangle size={15} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                            <div className="leading-snug text-[11px]">
+                                Hinweis: Für den Lese- und Schreibzugriff per API muss die Notiz unverschlüsselt auf dem Server hinterlegt werden.
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                            <button
+                                type="button"
+                                disabled={isProcessing}
+                                onClick={handleConfirmUnencryptedShare}
+                                className="flex-1 px-2 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white font-medium text-[11px] text-center transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                            >
+                                {isProcessing ? (
+                                    <>
+                                        <Loader2 size={12} className="animate-spin" />
+                                        <span>Freigeben...</span>
+                                    </>
+                                ) : (
+                                    <span>Unverschlüsselt freigeben & kopieren</span>
+                                )}
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isProcessing}
+                                onClick={() => setShowUnencryptedWarning(false)}
+                                className="px-2 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 dark:text-gray-300 font-medium text-[11px] transition-colors cursor-pointer"
+                            >
+                                Abbrechen
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Prominent Re-encrypt option when note is unencrypted */}
+                {isUnencrypted && (
+                    <button
+                        type="button"
+                        disabled={isProcessing}
+                        onClick={handleReEncrypt}
+                        className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50/80 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 border border-emerald-200/80 dark:border-emerald-800/60 transition-colors text-left cursor-pointer mt-1"
+                    >
+                        {reencryptedSuccess ? (
+                            <>
+                                <Check size={15} className="text-emerald-500 shrink-0" />
+                                <span className="truncate text-emerald-600 dark:text-emerald-400 font-medium">Notiz wieder verschlüsselt!</span>
+                            </>
+                        ) : (
+                            <>
+                                {isProcessing ? (
+                                    <Loader2 size={15} className="text-emerald-600 dark:text-emerald-400 animate-spin shrink-0" />
+                                ) : (
+                                    <Lock size={15} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                )}
+                                <span className="truncate font-medium">Wieder verschlüsseln</span>
+                            </>
+                        )}
+                    </button>
+                )}
             </div>
 
             {/* SECTION 5: Extended File Support (active when enabledExtensions.includes('file_support')) */}

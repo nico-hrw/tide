@@ -307,6 +307,7 @@ export default function Sidebar({
                 }}
                 onDragOver={(e) => {
                     e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
                     const container = scrollContainerRef.current;
                     if (!container) return;
                     const rect = container.getBoundingClientRect();

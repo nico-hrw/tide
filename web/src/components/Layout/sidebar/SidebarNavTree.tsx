@@ -116,7 +116,10 @@ export default function SidebarNavTree({
                                             onShare={onShare}
                                             editingId={editingFileId}
                                             onRenameSubmit={onRenameSubmit}
-                                            onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
+                                            onDragStart={(e, id) => {
+                                                e.dataTransfer.setData("text/plain", id);
+                                                e.dataTransfer.effectAllowed = "move";
+                                            }}
                                             enabledExtensions={enabledExtensions}
                                             myId={myId}
                                             onContextMenu={handleContextMenu}
@@ -172,7 +175,10 @@ export default function SidebarNavTree({
                                                     onRenameSubmit={onRenameSubmit}
                                                     onCreateFolder={onCreateFolder}
                                                     onMoveItem={onMoveItem}
-                                                    onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
+                                                    onDragStart={(e, id) => {
+                                                        e.dataTransfer.setData("text/plain", id);
+                                                        e.dataTransfer.effectAllowed = "move";
+                                                    }}
                                                     hiddenThemeIds={hiddenThemeIds}
                                                     onToggleThemeVisibility={(id) => onToggleThemeVisibility && onToggleThemeVisibility(id)}
                                                     enabledExtensions={enabledExtensions}
@@ -198,7 +204,10 @@ export default function SidebarNavTree({
                                                     onShare={onShare}
                                                     editingId={editingFileId}
                                                     onRenameSubmit={onRenameSubmit}
-                                                    onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
+                                                    onDragStart={(e, id) => {
+                                                        e.dataTransfer.setData("text/plain", id);
+                                                        e.dataTransfer.effectAllowed = "move";
+                                                    }}
                                                     enabledExtensions={enabledExtensions}
                                                     myId={myId}
                                                     onContextMenu={handleContextMenu}
@@ -219,9 +228,9 @@ export default function SidebarNavTree({
                             transition={{ layout: { type: 'spring', stiffness: 350, damping: 40, mass: 0.8 } }}
                             className={
                                 dropIndicator?.id === item.id && dropIndicator.zone === 'top'
-                                    ? 'border-t-2 border-blue-400 rounded-t'
+                                    ? 'shadow-[inset_0_2px_0_0_#60a5fa] rounded-t'
                                     : dropIndicator?.id === item.id && dropIndicator.zone === 'bottom'
-                                    ? 'border-b-2 border-blue-400 rounded-b'
+                                    ? 'shadow-[inset_0_-2px_0_0_#60a5fa] rounded-b'
                                     : ''
                             }
                             onDragOver={(e: React.DragEvent) => {
@@ -230,6 +239,7 @@ export default function SidebarNavTree({
                                 }
                                 e.preventDefault();
                                 e.stopPropagation();
+                                e.dataTransfer.dropEffect = 'move';
                                 const rowHeight = 32; // Feste Höhe einer Item-Row
                                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                                 const y = e.clientY - rect.top;
@@ -240,10 +250,17 @@ export default function SidebarNavTree({
                                 } else {
                                     zone = y < rowHeight / 2 ? 'top' : 'bottom';
                                 }
-                                setDropIndicator({ id: item.id, zone });
+                                if (dropIndicator?.id !== item.id || dropIndicator?.zone !== zone) {
+                                    setDropIndicator({ id: item.id, zone });
+                                }
                             }}
                             onDragLeave={(e: React.DragEvent) => {
-                                if ((e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) return;
+                                const related = e.relatedTarget as Node | null;
+                                if (related && (e.currentTarget as HTMLElement).contains(related)) return;
+                                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                                    return;
+                                }
                                 setDropIndicator(null);
                             }}
                             onDrop={(e: React.DragEvent) => {
@@ -302,7 +319,10 @@ export default function SidebarNavTree({
                                         onRenameSubmit={onRenameSubmit}
                                         onCreateFolder={onCreateFolder}
                                         onMoveItem={onMoveItem}
-                                        onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
+                                        onDragStart={(e, id) => {
+                                            e.dataTransfer.setData("text/plain", id);
+                                            e.dataTransfer.effectAllowed = "move";
+                                        }}
                                         hiddenThemeIds={hiddenThemeIds}
                                         onToggleThemeVisibility={(id) => onToggleThemeVisibility && onToggleThemeVisibility(id)}
                                         enabledExtensions={enabledExtensions}
@@ -328,7 +348,10 @@ export default function SidebarNavTree({
                                     onShare={onShare}
                                     editingId={editingFileId}
                                     onRenameSubmit={onRenameSubmit}
-                                    onDragStart={(e, id) => e.dataTransfer.setData("text/plain", id)}
+                                    onDragStart={(e, id) => {
+                                        e.dataTransfer.setData("text/plain", id);
+                                        e.dataTransfer.effectAllowed = "move";
+                                    }}
                                     enabledExtensions={enabledExtensions}
                                     myId={myId}
                                     onContextMenu={handleContextMenu}

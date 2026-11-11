@@ -9,7 +9,7 @@ import { apiFetch } from "@/lib/api";
 import { getSafeColor } from "@/lib/designTokens";
 import type { DecryptedFile, ContextMenuEvent } from "./types";
 
-export const isTouchDevice = typeof window !== 'undefined' && ('ontouchstart' in window || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0));
+export const isTouchDevice = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse) and (hover: none)')?.matches);
 
 export interface FileItemProps {
     file: DecryptedFile;
@@ -184,7 +184,13 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
                 }
                 isLongPressTriggeredRef.current = false;
             }}
-            onDragStart={(e: any) => onDragStart(e, file.id)}
+            onDragStart={(e: any) => {
+                try {
+                    e.dataTransfer.setData("text/plain", file.id);
+                    e.dataTransfer.effectAllowed = "move";
+                } catch {}
+                onDragStart(e, file.id);
+            }}
             onContextMenu={(e: any) => onContextMenu(e, file.id, 'file')}
             onDragOver={(e) => {
                 if (e.dataTransfer.types.includes('tide/calendar-event')) {

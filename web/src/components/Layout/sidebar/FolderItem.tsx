@@ -160,11 +160,18 @@ export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRena
                     }
                     isLongPressTriggeredRef.current = false;
                 }}
-                onDragStart={(e: any) => onDragStart(e, folder.id)}
+                onDragStart={(e: any) => {
+                    try {
+                        e.dataTransfer.setData("text/plain", folder.id);
+                        e.dataTransfer.effectAllowed = "move";
+                    } catch {}
+                    onDragStart(e, folder.id);
+                }}
                 onContextMenu={(e: any) => onContextMenu(e, folder.id, 'folder')}
                 onDragOver={level > 0 ? (e: React.DragEvent) => {
                     if (e.dataTransfer.types.includes('tide/calendar-event')) return;
                     e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
                 } : undefined}
                 onDrop={level > 0 ? (e: React.DragEvent) => {
                     if (e.dataTransfer.types.includes('tide/calendar-event')) return;
@@ -223,6 +230,7 @@ export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRena
                     onDragOver={(e) => {
                         if (e.dataTransfer.types.includes('tide/calendar-event')) return;
                         e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
                     }}
                     onDrop={(e) => {
                         if (e.dataTransfer.types.includes('tide/calendar-event')) return;
@@ -273,15 +281,16 @@ export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRena
                                 transition={{ layout: { type: 'spring', stiffness: 350, damping: 40, mass: 0.8 } }}
                                 className={
                                     dropIndicator?.id === f.id && dropIndicator.zone === 'top'
-                                        ? 'border-t-2 border-blue-400 rounded-t'
+                                        ? 'shadow-[inset_0_2px_0_0_#60a5fa] rounded-t'
                                         : dropIndicator?.id === f.id && dropIndicator.zone === 'bottom'
-                                        ? 'border-b-2 border-blue-400 rounded-b'
+                                        ? 'shadow-[inset_0_-2px_0_0_#60a5fa] rounded-b'
                                         : ''
                                 }
                                 onDragOver={(e: React.DragEvent) => {
                                     if (e.dataTransfer.types.includes('tide/calendar-event')) return;
                                     e.preventDefault();
                                     e.stopPropagation();
+                                    e.dataTransfer.dropEffect = 'move';
                                     const rowHeight = 32;
                                     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                                     const y = e.clientY - rect.top;
@@ -292,10 +301,17 @@ export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRena
                                     } else {
                                         zone = y < rowHeight / 2 ? 'top' : 'bottom';
                                     }
-                                    setDropIndicator?.({ id: f.id, zone });
+                                    if (dropIndicator?.id !== f.id || dropIndicator?.zone !== zone) {
+                                        setDropIndicator?.({ id: f.id, zone });
+                                    }
                                 }}
                                 onDragLeave={(e: React.DragEvent) => {
-                                    if ((e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) return;
+                                    const related = e.relatedTarget as Node | null;
+                                    if (related && (e.currentTarget as HTMLElement).contains(related)) return;
+                                    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                    if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                                        return;
+                                    }
                                     setDropIndicator?.(null);
                                 }}
                                 onDrop={(e: React.DragEvent) => {
