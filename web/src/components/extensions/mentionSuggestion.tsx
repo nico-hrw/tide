@@ -662,7 +662,7 @@ export default {
 
                 const suggestionItems: MentionSuggestionItem[] = matchedNotes.slice(0, 6).map((f: any) => ({
                     id: f.id,
-                    label: `[Safe: ${targetSafe}] ${f.title || f.id}`,
+                    label: `[Workspace: ${targetSafe}] ${f.title || f.id}`,
                     title: f.title || f.id,
                     safe: targetSafe,
                     type: 'note',

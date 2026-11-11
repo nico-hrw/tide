@@ -149,7 +149,7 @@ export const MentionNodeView = ({ node }: any) => {
                     : isEvent && eventMentionPreview === 'hover' && eventDateStr
                     ? `${title} (${eventDateStr})`
                     : safePrefix
-                    ? `[Safe: ${safePrefix}] ${displayTitle}`
+                    ? `[Workspace: ${safePrefix}] ${displayTitle}`
                     : undefined
             }
         >

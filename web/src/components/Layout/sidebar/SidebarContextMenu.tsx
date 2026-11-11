@@ -143,8 +143,8 @@ export default function SidebarContextMenu({
                             );
                         })()}
 
-                        {/* In Safe verschieben (für Dateien / Notizen) */}
-                        {contextMenu.type === 'file' && (
+                        {/* In Workspace verschieben (für Dateien / Ordner) */}
+                        {(contextMenu.type === 'file' || contextMenu.type === 'folder') && (
                             <div
                                 className="relative"
                                 onMouseEnter={() => setShowSafeSubmenu(true)}
@@ -160,7 +160,7 @@ export default function SidebarContextMenu({
                                 >
                                     <div className="flex items-center gap-3">
                                         <Archive size={15} className="text-gray-400 group-hover:text-blue-500" />
-                                        <span className="font-medium">In Safe verschieben</span>
+                                        <span className="font-medium">In Workspace verschieben</span>
                                     </div>
                                     <ChevronRight size={14} className="text-gray-400 group-hover:text-gray-600 dark:group-hover:text-slate-300" />
                                 </button>
@@ -177,7 +177,7 @@ export default function SidebarContextMenu({
                                             } top-0 w-44 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 z-[10000] animate-in fade-in zoom-in-95 duration-100`}
                                         >
                                             <div className="px-2.5 py-1 text-[10px] font-semibold text-gray-400 dark:text-slate-400 uppercase tracking-wider border-b border-gray-100 dark:border-slate-800 mb-1">
-                                                Safe wählen
+                                                Workspace wählen
                                             </div>
                                             <div className="px-1 flex flex-col gap-0.5">
                                                 {availableSafes.map((safe) => {

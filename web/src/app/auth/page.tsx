@@ -418,6 +418,7 @@ function AuthContent() {
             localStorage.setItem("tide_user_id", loginData.user_id);
             if (loginData.username) {
                 localStorage.setItem("tide_user_name", loginData.username);
+                sessionStorage.setItem("tide_user_name", loginData.username);
                 const localRec = JSON.parse(localStorage.getItem("tide_user_" + identifier) || "{}");
                 localStorage.setItem("tide_user_" + identifier, JSON.stringify({ ...localRec, username: loginData.username }));
             }

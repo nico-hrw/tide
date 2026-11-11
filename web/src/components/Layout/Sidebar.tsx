@@ -261,7 +261,10 @@ export default function Sidebar({
         setContextMenu({ x: e.clientX, y: e.clientY, id, type });
     };
 
-    const effectiveUserName = userProfile?.username || (typeof window !== 'undefined' ? sessionStorage.getItem('tide_user_name') : null) || (userProfile?.email || "").split('@')[0] || "User";
+    const storedName = typeof window !== 'undefined' ? (localStorage.getItem('tide_user_name') || sessionStorage.getItem('tide_user_name')) : null;
+    const emailPrefix = (userProfile?.email || '').split('@')[0];
+    const validUsername = userProfile?.username && userProfile.username !== emailPrefix ? userProfile.username : null;
+    const effectiveUserName = (userProfile as any)?.displayName || (userProfile as any)?.name || validUsername || storedName || userProfile?.username || emailPrefix || "User";
 
     const handleImport = (targetFolderId: string | null = null) => actions.handleImport(onFileSelect, targetFolderId);
     const handleExport = (itemId: string, format: 'bundle' | 'markdown') => actions.handleExport(files, itemId, format);

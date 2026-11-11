@@ -1459,12 +1459,12 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
             `}</style>
 
             {/* STAGE: Stable anchor container */}
-            <div id="si-stage" className="relative w-full h-[290px]">
+            <div id="si-stage" className="relative w-full h-[208px]">
                 {/* LAYER 1: Positioner (Controls centering shrink & rightward expansion) */}
                 <div
                     ref={positionerRef}
                     id="si-positioner"
-                    className="si-positioner absolute left-0 top-0 w-full h-[290px] z-30"
+                    className="si-positioner absolute left-0 top-0 w-full h-[208px] z-30"
                 >
                     {/* LAYER 2: Rotator (Controls whip rotation exclusively) */}
                     <div
@@ -1490,7 +1490,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                             <div
                                 ref={calendarViewRef}
                                 id="si-calendarView"
-                                className="absolute left-0 top-0 w-full h-full p-2.5 flex flex-col justify-between transition-opacity duration-300 overflow-y-auto no-scrollbar"
+                                className="absolute left-0 top-0 w-full h-full pt-2 px-2.5 pb-1 flex flex-col transition-opacity duration-300 overflow-hidden"
                             >
                                 {state.current && state.current.type !== 'message' ? (
                                     <div className="w-full">
@@ -1503,7 +1503,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                                         })()}
                                     </div>
                                 ) : (
-                                    <div className="w-full [&>div:first-child]:!p-1 [&>div:first-child]:!py-0.5 [&_.w-7]:!w-6 [&_.w-7]:!h-6">
+                                    <div className="w-full [&>div:first-child]:!p-1 [&>div:first-child]:!py-0 [&_.w-7]:!w-6 [&_.h-7]:!h-6 [&_div.h-px]:!my-1 [&_.text-sm]:!text-xs [&_.grid]:!gap-y-0.5">
                                         <MiniCalendar
                                             selectedDate={selectedDate}
                                             onSelect={(date) => {

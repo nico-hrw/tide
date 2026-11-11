@@ -848,7 +848,10 @@ export default function MobileLayout({
     }, 60);
   }, []);
 
-  const displayName = userProfile?.username || (typeof window !== 'undefined' ? sessionStorage.getItem('tide_user_name') : null) || (userProfile?.email || '').split('@')[0] || '';
+  const storedName = typeof window !== 'undefined' ? (localStorage.getItem('tide_user_name') || sessionStorage.getItem('tide_user_name')) : null;
+  const emailPrefix = (userProfile?.email || '').split('@')[0];
+  const validUsername = userProfile?.username && userProfile.username !== emailPrefix ? userProfile.username : null;
+  const displayName = (userProfile as any)?.displayName || (userProfile as any)?.name || validUsername || storedName || userProfile?.username || emailPrefix || '';
   const viewModesRef = useRef<HTMLDivElement>(null);
   const weekTouchX = useRef<number | null>(null);
 
@@ -1562,10 +1565,10 @@ export default function MobileLayout({
           {/* Row 1: Date & Greeting ("XX. Monat", "Guten Morgen/Mittag/Tag/Abend Name!") */}
           <div className="px-4 pt-1 pb-1.5 flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <p className="intro-item text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 flex-wrap" style={{ color: T.mut, ['--i' as string]: 0 }}>
+              <p className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 flex-wrap" style={{ color: T.mut }}>
                 {format(now, 'd. MMMM', { locale: de })}
               </p>
-              <h1 data-intro-greeting className="text-[1.7rem] font-black tracking-tight line-clamp-2 leading-tight mt-0.5" style={{ color: T.pri }}>
+              <h1 className="text-[1.7rem] font-black tracking-tight line-clamp-2 leading-tight mt-0.5" style={{ color: T.pri }}>
                 {(() => {
                   const trimmed = displayName?.trim();
                   if (!trimmed || !greetingTemplate.includes('{name}')) {
@@ -1602,12 +1605,12 @@ export default function MobileLayout({
                 })()}
               </h1>
             </div>
-            <div className="intro-island shrink-0">
+            <div className="shrink-0">
               <NextEventCountdown events={expandedEvents} onTap={handleCountdownTap} className="-mt-1.5" userName={displayName} />
             </div>
           </div>
 
-          <div className="intro-item" style={{ ['--i' as string]: 1 }}>
+          <div>
           {/* Row 2: Apple-style Horizontal Date Wheel */}
           {activeTab === 'calendar' && calViewMode !== 'month' && (
             <MobileDateWheel
@@ -1681,8 +1684,8 @@ export default function MobileLayout({
       {/* ── Main content area ───────────────────────────── */}
       {activeTab === 'calendar' ? (
       <div
-        className="flex flex-col intro-fade"
-        style={{ ['--i' as string]: 2, flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}
+        className="flex flex-col"
+        style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}
         onTouchStart={calViewMode === 'week' || calViewMode === 'day' ? onSwipeStart : undefined}
         onTouchMove={calViewMode === 'week' || calViewMode === 'day' ? onSwipeMove : undefined}
         onTouchEnd={calViewMode === 'week' || calViewMode === 'day' ? onSwipeEnd : undefined}
@@ -2259,9 +2262,8 @@ export default function MobileLayout({
 
       {/* ── High-presence Bottom Navigation Bar ────────────────── */}
       <div
-        className="intro-nav fixed left-0 right-0 flex items-center justify-between z-20 px-3 sm:px-5 pt-2.5 sm:pt-3"
+        className="fixed left-0 right-0 flex items-center justify-between z-20 px-3 sm:px-5 pt-2.5 sm:pt-3"
         style={{
-          ['--i' as string]: 5,
           bottom: kbOffset > 0 ? kbOffset : 0,
           background: theme === 'dark' ? 'rgba(15, 20, 30, 0.95)' : 'rgba(255, 255, 255, 0.97)',
           borderTop: `1px solid ${T.brd}`,

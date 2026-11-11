@@ -2,9 +2,8 @@ import type { DecryptedFile } from "./types";
 import SidebarNavTree from "./SidebarNavTree";
 
 /**
- * Filter files by active safes.
- * Notes/files must match one of the active safes (default: 'Standard').
- * Folders remain visible so folder hierarchies are navigable.
+ * Filter files and folders by active workspaces/safes.
+ * Items must match one of the active workspaces (default: 'Standard' / 'main').
  */
 export function filterFilesBySafe(files: DecryptedFile[], activeSafes: string[]): DecryptedFile[] {
     if (!files) return [];
@@ -13,8 +12,6 @@ export function filterFilesBySafe(files: DecryptedFile[], activeSafes: string[])
     const normActiveSafes = activeSafes.map((s) => (s === 'Standard' ? 'main' : s));
 
     return files.filter((f) => {
-        if (f.type === 'folder') return true;
-
         const rawSafe = f.safe || (f.metadata && f.metadata.safe) || 'main';
         const primarySafe = rawSafe === 'Standard' ? 'main' : rawSafe;
 

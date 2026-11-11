@@ -35,7 +35,6 @@ const Editor = dynamic(() => import('@/components/Editor'), {
 const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEditor'), { ssr: false });
 
 import MobileLayout from "@/components/Layout/MobileLayout";
-import MobileSplash from "@/components/Layout/mobile/MobileSplash";
 import { Clock, Settings, LogOut, Users, Trash2, GraduationCap, Copy, ListTodo, GripVertical } from 'lucide-react';
 import Avatar from "@/components/Profile/Avatar";
 import CalendarCaptureIsland from "@/components/SmartIsland";
@@ -71,6 +70,7 @@ import { SearchOverlay } from "@/components/Workspaces/SearchOverlay";
 import { CanvasWorkspace } from "@/components/Workspaces/CanvasWorkspace";
 import { CentralFolderView } from "@/components/Workspaces/CentralFolderView";
 import { GlobalModalsHost } from "@/components/Layout/GlobalModalsHost";
+import { filterFilesBySafe } from "@/components/Layout/sidebar/SidebarFiles";
 
 // Stable ref to avoid stale closures in event-listener callbacks
 function useLatestRef<T>(value: T) {
@@ -94,6 +94,9 @@ interface DecryptedFile {
     color?: string;
     isGroup?: boolean;
     effect?: string;
+    metadata?: Record<string, unknown> & { safe?: string; title?: string; color?: string; [key: string]: unknown };
+    safe?: string;
+    linkedSafes?: string[];
 }
 
 // ...
@@ -224,6 +227,11 @@ export default function Dashboard() {
     const files = storeFiles as unknown as DecryptedFile[];
     const events = storeEvents as unknown as CalendarEvent[];
     const tasks = storeTasks as any[];
+    const activeSafes = useDataStore(s => s.activeSafes);
+
+    const safeFilteredFiles = useMemo(() => {
+        return filterFilesBySafe(files, activeSafes);
+    }, [files, activeSafes]);
 
     // Editor & File State
     const [isSearching, setIsSearching] = useState(false);
@@ -882,10 +890,15 @@ export default function Dashboard() {
     const handleCreateFolder = async (parentId: string | null = null, color: string = "#3b82f6") => {
         if (!privateKey || !publicKey) return;
         const title = "New Folder";
+        const folderColor = color || "#3b82f6";
 
         try {
+            const currentActiveSafes = useDataStore.getState().activeSafes;
+            const parentFile = parentId ? files.find((f) => f.id === parentId) : null;
+            const targetSafe = parentFile ? (parentFile.safe || (parentFile.metadata as { safe?: string } | undefined)?.safe || (currentActiveSafes?.[0] || 'main')) : (currentActiveSafes?.[0] || 'main');
+
             // Folders might not need encryption for content, but we encrypt metadata (title & color)
-            const meta = { title, parent_id: parentId, color };
+            const meta = { title, parent_id: parentId, color: folderColor, safe: targetSafe };
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
             const res = await apiFetch("/api/v1/files", {
@@ -895,7 +908,7 @@ export default function Dashboard() {
                     type: "folder",
                     parent_id: parentId,
                     public_meta: {},
-                    metadata: { title }, // Unencrypted fallback
+                    metadata: { title, color: folderColor, safe: targetSafe }, // Unencrypted fallback
                     secured_meta: securedMeta,
                     visibility: 'private'
                 })
@@ -919,7 +932,9 @@ export default function Dashboard() {
                 share_status: 'owner',
                 visibility: 'private',
                 parent_id: parentId,
-                color: color
+                color: folderColor,
+                safe: targetSafe,
+                metadata: { title, color: folderColor, safe: targetSafe }
             };
             // Refresh parent
             const targetParent = parentId || null;
@@ -1156,7 +1171,11 @@ export default function Dashboard() {
         if (!privateKey || !publicKey) return;
         const folderColor = color || '#3b82f6';
         try {
-            const meta = { title: name, parent_id: parentId, color: folderColor };
+            const currentActiveSafes = useDataStore.getState().activeSafes;
+            const parentFile = parentId ? files.find((f) => f.id === parentId) : null;
+            const targetSafe = parentFile ? (parentFile.safe || (parentFile.metadata as { safe?: string } | undefined)?.safe || (currentActiveSafes?.[0] || 'main')) : (currentActiveSafes?.[0] || 'main');
+
+            const meta = { title: name, parent_id: parentId, color: folderColor, safe: targetSafe };
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
             const res = await apiFetch("/api/v1/files", {
@@ -1166,7 +1185,7 @@ export default function Dashboard() {
                     type: "folder",
                     parent_id: parentId,
                     public_meta: {},
-                    metadata: { title: name, color: folderColor },
+                    metadata: { title: name, color: folderColor, safe: targetSafe },
                     secured_meta: securedMeta,
                     visibility: 'private'
                 })
@@ -1185,14 +1204,16 @@ export default function Dashboard() {
                 share_status: 'owner',
                 visibility: 'private',
                 parent_id: parentId,
-                color: folderColor
+                color: folderColor,
+                safe: targetSafe,
+                metadata: { title: name, color: folderColor, safe: targetSafe }
             };
 
             useDataStore.setState(s => ({
                 notes: [...s.notes, decFolder as any],
                 metadataCache: {
                     ...s.metadataCache,
-                    [newFolder.id]: { title: name, color: folderColor, parent_id: parentId }
+                    [newFolder.id]: { title: name, color: folderColor, parent_id: parentId, safe: targetSafe }
                 }
             }));
 
@@ -1363,7 +1384,8 @@ export default function Dashboard() {
                 setMyId(userId);
                 setUserEmail(email);
                 // Set a quick initial profile from stored data
-                setUserProfile({ username: email.split('@')[0], email: email });
+                const storedName = typeof window !== 'undefined' ? (localStorage.getItem("tide_user_name") || sessionStorage.getItem("tide_user_name")) : null;
+                setUserProfile({ username: storedName || email.split('@')[0], email: email });
                 // Then fetch the real profile (avatar_seed, bio, title, avatar_style, is_verified) from the public endpoint
                 fetch(`${getApiBase()}/api/v1/profiles/${userId}`)
                     .then(r => r.ok ? r.json() : null)
@@ -2840,7 +2862,10 @@ export default function Dashboard() {
         }
     };
 
-    const displayName = userProfile?.username || (typeof window !== 'undefined' ? sessionStorage.getItem('tide_user_name') : null) || (userProfile?.email || '').split('@')[0] || '';
+    const storedName = typeof window !== 'undefined' ? (localStorage.getItem('tide_user_name') || sessionStorage.getItem('tide_user_name')) : null;
+    const emailPrefix = (userProfile?.email || '').split('@')[0];
+    const validUsername = userProfile?.username && userProfile.username !== emailPrefix ? userProfile.username : null;
+    const displayName = (userProfile as any)?.displayName || (userProfile as any)?.name || validUsername || storedName || userProfile?.username || emailPrefix || '';
 
     const handleCountdownTap = useCallback((eventId: string) => {
         const ev = (events as any[]).find(e => e.id === eventId);
@@ -3028,7 +3053,6 @@ export default function Dashboard() {
             />
             </div>
             {/* Mobile Layout Wrapper */}
-            <MobileSplash />
             <MobileLayout
                 events={events}
                 files={files.filter((f: any) => !f.isGroup && !(f.title || '').startsWith('.') && f.type !== 'event')}
@@ -3556,7 +3580,7 @@ export default function Dashboard() {
                 }`}>
                     {(activeTabId === 'folders' || (navigationMode === 'folders' && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))) && (
                         <CentralFolderView
-                            files={files}
+                            files={safeFilteredFiles}
                             events={events}
                             onEventClick={(id) => {
                                 const ev = events.find(e => e.id === id);
