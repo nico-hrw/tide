@@ -135,27 +135,29 @@ export function EditorInlineSearch({ editor }: EditorInlineSearchProps) {
                 if (parsedResults.length > 0 && parsedResults[0].proposedDate) {
                     const res = parsedResults[0];
                     const d = res.proposedDate;
-                    items.push({
-                        id: `date-${d.toISOString()}`,
-                        type: 'date',
-                        label: format(d, 'EEEE, d. MMMM yyyy', { locale: de }),
-                        sublabel: 'Datum aufrufen',
-                        date: d,
-                    });
+                    if (d instanceof Date && !isNaN(d.getTime())) {
+                        items.push({
+                            id: `date-${d.toISOString()}`,
+                            type: 'date',
+                            label: format(d, 'EEEE, d. MMMM yyyy', { locale: de }),
+                            sublabel: 'Datum aufrufen',
+                            date: d,
+                        });
 
-                    const titleHint = res.titleHint || trimmed;
-                    const startTime = res.proposedStart || d;
-                    const endTime = res.proposedEnd || new Date(startTime.getTime() + 60 * 60 * 1000);
-                    items.push({
-                        id: `create-event-${d.toISOString()}`,
-                        type: 'create-event',
-                        label: `Termin "${titleHint}" erstellen`,
-                        sublabel: `${format(startTime, 'HH:mm')} Uhr (${format(d, 'dd.MM.yyyy')})`,
-                        date: d,
-                        title: titleHint,
-                        start: startTime,
-                        end: endTime,
-                    });
+                        const titleHint = res.titleHint || trimmed;
+                        const startTime = (res.proposedStart instanceof Date && !isNaN(res.proposedStart.getTime())) ? res.proposedStart : d;
+                        const endTime = (res.proposedEnd instanceof Date && !isNaN(res.proposedEnd.getTime())) ? res.proposedEnd : new Date(startTime.getTime() + 60 * 60 * 1000);
+                        items.push({
+                            id: `create-event-${d.toISOString()}`,
+                            type: 'create-event',
+                            label: `Termin "${titleHint}" erstellen`,
+                            sublabel: `${format(startTime, 'HH:mm')} Uhr (${format(d, 'dd.MM.yyyy')})`,
+                            date: d,
+                            title: titleHint,
+                            start: startTime,
+                            end: endTime,
+                        });
+                    }
                 }
             } catch (_) {}
         }
@@ -166,13 +168,15 @@ export function EditorInlineSearch({ editor }: EditorInlineSearchProps) {
                 const hResults = searchHolidays(trimmed, new Date().getFullYear(), calendarHolidayPackage);
                 hResults.slice(0, 2).forEach((h) => {
                     const hDate = new Date(h.date);
-                    items.push({
-                        id: `holiday-${h.date}-${h.name}`,
-                        type: 'holiday',
-                        label: h.name,
-                        sublabel: `Feiertag · ${format(hDate, 'dd.MM.yyyy')}`,
-                        date: hDate,
-                    });
+                    if (!isNaN(hDate.getTime())) {
+                        items.push({
+                            id: `holiday-${h.date}-${h.name}`,
+                            type: 'holiday',
+                            label: h.name,
+                            sublabel: `Feiertag · ${format(hDate, 'dd.MM.yyyy')}`,
+                            date: hDate,
+                        });
+                    }
                 });
             } catch (_) {}
         }
@@ -241,11 +245,13 @@ export function EditorInlineSearch({ editor }: EditorInlineSearchProps) {
 
     const handleSelectItem = useCallback(
         (item: SearchItem) => {
-            if (item.type === 'date' && item.date) {
+            const isSafeDate = (d: unknown): d is Date => d instanceof Date && !isNaN(d.getTime());
+
+            if (item.type === 'date' && isSafeDate(item.date)) {
                 window.dispatchEvent(
                     new CustomEvent('tide:select-event', { detail: { start: item.date.toISOString() } })
                 );
-            } else if (item.type === 'create-event' && item.start && item.end) {
+            } else if (item.type === 'create-event' && isSafeDate(item.start) && item.end) {
                 window.dispatchEvent(
                     new CustomEvent('tide:collector-create-event', {
                         detail: {
@@ -258,7 +264,7 @@ export function EditorInlineSearch({ editor }: EditorInlineSearchProps) {
                 window.dispatchEvent(
                     new CustomEvent('tide:select-event', { detail: { start: item.start.toISOString() } })
                 );
-            } else if (item.type === 'holiday' && item.date) {
+            } else if (item.type === 'holiday' && isSafeDate(item.date)) {
                 window.dispatchEvent(
                     new CustomEvent('tide:select-event', { detail: { start: item.date.toISOString() } })
                 );

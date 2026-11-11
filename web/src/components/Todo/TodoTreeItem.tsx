@@ -139,17 +139,22 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
   const draft = editDraft || localDraft;
   const setDraft = setEditDraft || setLocalDraft;
 
-  const [prevTask, setPrevTask] = useState(task);
-  if (!editDraft && !expanded && prevTask !== task) {
-    setPrevTask(task);
-    setLocalDraft({
-      title: task.title, description: task.description || '', priority: getTaskPriority(task),
-      status: task.isCompleted ? 'completed' : (task.status || 'todo'),
-      dueDate: task.dueDate || task.scheduledDate || '', recurrence: task.recurrence || 'none',
-      recurrenceEnd: task.recurrence_end || '', folder: task.folder || '', tags: task.tags ? [...task.tags] : [],
-      showInCalendar: task.showInCalendar !== false,
-    });
-  }
+  useEffect(() => {
+    if (!editDraft && !expanded) {
+      setLocalDraft({
+        title: task.title,
+        description: task.description || '',
+        priority: getTaskPriority(task),
+        status: task.isCompleted ? 'completed' : (task.status || 'todo'),
+        dueDate: task.dueDate || task.scheduledDate || '',
+        recurrence: task.recurrence || 'none',
+        recurrenceEnd: task.recurrence_end || '',
+        folder: task.folder || '',
+        tags: task.tags ? [...task.tags] : [],
+        showInCalendar: task.showInCalendar !== false,
+      });
+    }
+  }, [task.id, task.updatedAt, (task as any).updated_at, editDraft, expanded]);
 
   const [localTagInput, setLocalTagInput] = useState('');
   const tagInput = editNewTagInput !== undefined ? editNewTagInput : localTagInput;
