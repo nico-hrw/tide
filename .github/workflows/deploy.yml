@@ -3,11 +3,11 @@
 # ==============================================================================
 #
 # Environments:
-#   - Staging:    test.go-tide.app  (Trigger: Push to `staging` branch or manual dispatch)
+#   - Staging:    test.hrw.rocks  (Trigger: Push to `staging` branch or manual dispatch)
 #                 Destination: /root/tide-staging
 #                 PM2 reload:  pm2 reload tide-staging-backend; pm2 reload tide-staging-frontend
 #
-#   - Production: go-tide.app       (Trigger: Push to `main` branch or manual dispatch)
+#   - Production: hrw.rocks/tide       (Trigger: Push to `main` branch or manual dispatch)
 #                 Destination: /root/tide
 #                 PM2 reload:  pm2 reload tide-backend; pm2 reload tide-frontend
 #
@@ -27,7 +27,7 @@
 #      (Ensure the public key is added to ~/.ssh/authorized_keys on the server).
 #
 #    - `SSH_HOST`:
-#      The IP address or domain of the deployment server (e.g., `go-tide.app` or server IP).
+#      The IP address or domain of the deployment server (e.g., `hrw.rocks` or server IP).
 #
 #    - `SSH_USER`:
 #      The username for SSH connection on the server (e.g., `root`).
@@ -86,12 +86,12 @@ jobs:
 
           if [ "$TARGET_ENV" = "production" ]; then
             echo "DEPLOY_PATH=/root/tide" >> $GITHUB_ENV
-            echo "DEPLOY_DOMAIN=go-tide.app" >> $GITHUB_ENV
+            echo "DEPLOY_DOMAIN=hrw.rocks/tide" >> $GITHUB_ENV
             echo "PM2_BACKEND=tide-backend" >> $GITHUB_ENV
             echo "PM2_FRONTEND=tide-frontend" >> $GITHUB_ENV
           else
             echo "DEPLOY_PATH=/root/tide-staging" >> $GITHUB_ENV
-            echo "DEPLOY_DOMAIN=test.go-tide.app" >> $GITHUB_ENV
+            echo "DEPLOY_DOMAIN=test.hrw.rocks" >> $GITHUB_ENV
             echo "PM2_BACKEND=tide-staging-backend" >> $GITHUB_ENV
             echo "PM2_FRONTEND=tide-staging-frontend" >> $GITHUB_ENV
           fi
