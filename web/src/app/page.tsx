@@ -183,6 +183,7 @@ export default function Dashboard() {
         return initial;
     });
     const [activeTabId, setActiveTabId] = useState<string>('calendar');
+    const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
     const [isSharingDisabled, setIsSharingDisabled] = useState(false);
     const {
         width: sidebarWidth,
@@ -3403,7 +3404,9 @@ export default function Dashboard() {
                                                                         e.dataTransfer.setData('application/json', JSON.stringify({ type: 'task', id: t.id }));
                                                                     }}
                                                                     onClick={() => {
-                                                                        handleToggleTodos();
+                                                                        setSelectedTodoId(t.id);
+                                                                        switchTab('todos', 'todos', 'Todos');
+                                                                        window.dispatchEvent(new CustomEvent('tide:select-todo', { detail: { id: t.id } }));
                                                                     }}
                                                                     className="rounded-xl px-2.5 py-1.5 bg-gray-50/80 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 border border-gray-200/60 dark:border-white/10 flex items-center gap-2 cursor-pointer transition-all hover:scale-[1.01] hover:shadow-xs group"
                                                                 >
@@ -3562,7 +3565,7 @@ export default function Dashboard() {
                 />
 
                 <div className={`absolute inset-0 z-10 bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto ${activeTabId === 'todos' ? 'block' : 'hidden'}`}>
-                    {activeTabId === 'todos' && (!enabledExtensions || enabledExtensions.includes('todos')) && <TodoList />}
+                    {activeTabId === 'todos' && (!enabledExtensions || enabledExtensions.includes('todos')) && <TodoList initialTaskId={selectedTodoId} />}
                 </div>
 
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'trash' ? 'block' : 'hidden'}`}>

@@ -18,6 +18,7 @@ export type ArchiveTier = 'week' | 'month' | 'year';
 export interface TodoListProps {
   className?: string;
   onSelectTask?: (task: TaskItem) => void;
+  initialTaskId?: string | null;
 }
 
 export interface TaskCreateDraft {

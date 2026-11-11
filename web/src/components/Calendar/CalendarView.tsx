@@ -4,7 +4,7 @@ import DayColumn from "@/components/Calendar/DayColumn";
 import "@/app/calendar/calendar.css";
 import { format, startOfWeek, addWeeks, subWeeks, getMinutes, getHours, addDays, subDays, addMonths, subMonths, startOfMonth, isSameDay } from "date-fns";
 import { de } from "date-fns/locale";
-import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { SearchIndexEntry } from "@/lib/searchIndex";
 import Fuse from "fuse.js";
 import { useHighlight } from "@/components/HighlightContext";
@@ -53,46 +53,6 @@ export default function CalendarView({
         }
         setInternalViewMode(mode);
         onViewModeChange?.(mode);
-    };
-
-    const handlePrev = () => {
-        if (viewMode === 'day') {
-            onDateChange(subDays(date, 1));
-        } else if (viewMode === 'week') {
-            onDateChange(subWeeks(date, 1));
-        } else if (viewMode === 'month') {
-            onDateChange(subMonths(date, 1));
-        } else if (viewMode === 'continuous') {
-            onDateChange(subWeeks(date, 1));
-        }
-    };
-
-    const handleNext = () => {
-        if (viewMode === 'day') {
-            onDateChange(addDays(date, 1));
-        } else if (viewMode === 'week') {
-            onDateChange(addWeeks(date, 1));
-        } else if (viewMode === 'month') {
-            onDateChange(addMonths(date, 1));
-        } else if (viewMode === 'continuous') {
-            onDateChange(addWeeks(date, 1));
-        }
-    };
-
-    const handleToday = () => {
-        const today = new Date();
-        onDateChange(today);
-        if (viewMode === 'week') {
-            handleScrollToToday();
-        } else if (viewMode === 'day') {
-            setTimeout(() => {
-                if (scrollContainerRef.current) {
-                    const nowMinutes = getHours(new Date()) * 60 + getMinutes(new Date());
-                    const targetScrollY = Math.max(0, nowMinutes - 120);
-                    scrollContainerRef.current.scrollTo({ top: targetScrollY, behavior: 'smooth' });
-                }
-            }, 60);
-        }
     };
 
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
@@ -465,32 +425,9 @@ export default function CalendarView({
                 <div className="flex flex-col bg-transparent border-b border-gray-200/60 dark:border-white/10" style={{ position: 'relative', zIndex: 500 }}>
                     {/* Row 1 (Main Controls) */}
                     <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                        {/* Left: Date navigation + Title */}
+                        {/* Left: Date Title */}
                         <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-0.5 bg-gray-100/80 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 rounded-lg p-0.5">
-                                <button
-                                    onClick={handlePrev}
-                                    className="p-1 hover:bg-white dark:hover:bg-white/10 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-md transition-colors"
-                                    title="Zurück"
-                                >
-                                    <ChevronLeft size={16} />
-                                </button>
-                                <button
-                                    onClick={handleNext}
-                                    className="p-1 hover:bg-white dark:hover:bg-white/10 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white rounded-md transition-colors"
-                                    title="Weiter"
-                                >
-                                    <ChevronRight size={16} />
-                                </button>
-                            </div>
-                            <button
-                                onClick={handleToday}
-                                className="px-2.5 py-1 text-xs font-bold rounded-lg border border-gray-200/80 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/10 text-gray-700 dark:text-gray-200 transition-colors"
-                                title="Zu heute springen"
-                            >
-                                Heute
-                            </button>
-                            <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-[#1F2937] dark:text-[#E2E8F0] tracking-tight ml-1">
+                            <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-[#1F2937] dark:text-[#E2E8F0] tracking-tight">
                                 {viewMode === 'day' 
                                     ? format(date, "EEEE, d. MMMM yyyy", { locale: de }) 
                                     : format(date, "MMMM yyyy", { locale: de })}

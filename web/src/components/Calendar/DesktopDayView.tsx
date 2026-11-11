@@ -164,7 +164,7 @@ export default function DesktopDayView({
                     {Array.from({ length: 24 }).map((_, i) => (
                         <div
                             key={i}
-                            className="h-[60px] relative group border-b border-dashed border-gray-100/50 dark:border-slate-900/40"
+                            className="h-[48px] relative group border-b border-dashed border-gray-100/50 dark:border-slate-900/40"
                         >
                             <span className="absolute -top-3 right-3 text-[11px] font-semibold text-gray-400 dark:text-gray-500 z-[10]">
                                 {i}:00
@@ -174,7 +174,7 @@ export default function DesktopDayView({
                 </div>
 
                 {/* Single Day Column Wrapper */}
-                <div className="flex-1 flex relative items-start pb-[40px]" ref={gridDaysRef}>
+                <div className="flex-1 flex relative items-start pb-[40px]" ref={gridDaysRef} style={{ '--hour-height': '48px' } as React.CSSProperties}>
                     <DayColumn
                         key={day.toISOString()}
                         day={day}
@@ -221,6 +221,7 @@ export default function DesktopDayView({
                         }}
                         cursorX={cursorX}
                         cursorY={cursorY}
+                        hourHeight={48}
                     />
 
                     {/* Drag Ghost within Day Column */}

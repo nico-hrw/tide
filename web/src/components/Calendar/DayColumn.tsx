@@ -284,7 +284,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     cursorY,
     allEvents = EMPTY_ALL_EVENTS,
     readOnly = false,
-    hourHeight = 60
+    hourHeight = 48
 }: DayColumnProps) => {
     const { highlight, isHighlighted } = useHighlight();
 
@@ -403,7 +403,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
         prevLayoutRef.current = nextLayout;
         return nextLayout;
     }, [timedEvents, dayTimestamp, allEvents, calendarOverlapMode]);
-    const currentTimeTop = currentTime ? getHours(currentTime) * 60 + getMinutes(currentTime) + currentTime.getSeconds() / 60 : 0;
+    const currentTimeTop = currentTime ? (getHours(currentTime) * 60 + getMinutes(currentTime) + currentTime.getSeconds() / 60) * (hourHeight / 60) : 0;
 
     const now = currentTime || new Date();
     let currentEventInfo: string | null = null;
@@ -479,6 +479,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
             className={`w-[140px] md:w-[155px] lg:w-[185px] xl:w-[210px] flex-shrink-0 border-r border-gray-100/80 dark:border-slate-900/50 relative z-[10] bg-transparent`}
+            style={{ '--hour-height': `${hourHeight}px` } as React.CSSProperties}
             onMouseMove={(e) => {
                 physicalMouseRef.current = { x: e.clientX, y: e.clientY };
                 gearedMouseRef.current = { x: e.clientX, y: e.clientY };
@@ -493,7 +494,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 className={`
                  h-[50px] border-b border-gray-100/80 dark:border-slate-900/50
                  sticky top-0 z-[2000]
-                 flex items-center justify-center gap-2 cursor-pointer hover:bg-black/[0.02] dark:hover:bg-white/[0.02] transition-colors
+                 flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-900 transition-colors
                  bg-white dark:bg-slate-950
              `}
                 onClick={() => {
@@ -836,7 +837,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             )}
 
             <div 
-                className="relative h-[1440px] shrink-0 z-[10]" 
+                className="relative shrink-0 z-[10]" 
+                style={{ height: `${24 * hourHeight}px` }}
                 onMouseDown={(e) => {
                     if (readOnly) return;
                     useDataStore.getState().setActiveParentId(null);
@@ -979,7 +981,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     <div
                         key={i}
                         className={`border-b border-dashed ${isToday ? 'border-indigo-200 dark:border-indigo-800' : 'border-gray-200 dark:border-slate-800'} ${hoveredHour === i ? 'bg-black/[0.01] dark:bg-white/[0.01]' : 'bg-transparent'}`}
-                        style={{ height: 'var(--hour-height, 60px)' }}
+                        style={{ height: 'var(--hour-height, 48px)' }}
                         onMouseEnter={() => onHourHover && onHourHover(i)}
                         onMouseLeave={() => onHourHover && onHourHover(null)}
                     ></div>
@@ -1058,7 +1060,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 {isToday && nextEventInfo && (() => {
                     const upcomingEvent = [...timedEvents].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()).find(e => new Date(e.start) > now);
                     if (!upcomingEvent) return null;
-                    const nextTimeTop = getHours(new Date(upcomingEvent.start)) * 60 + getMinutes(new Date(upcomingEvent.start));
+                    const nextTimeTop = (getHours(new Date(upcomingEvent.start)) * 60 + getMinutes(new Date(upcomingEvent.start))) * (hourHeight / 60);
                     return (
                         <div 
                             className="absolute left-1 z-[60] pointer-events-none text-[10px] font-medium text-gray-400 dark:text-gray-500"

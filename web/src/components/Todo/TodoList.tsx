@@ -35,7 +35,7 @@ export {
   getTaskCompletionTime, isTaskArchived, getTaskArchiveTier,
 } from './types';
 
-export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask }) => {
+export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask, initialTaskId }) => {
   const { tasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useDataStore();
 
   const [viewMode, setViewMode] = useState<'tasks' | 'folders'>('tasks');
@@ -225,6 +225,13 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const editingTaskIdRef = useRef<string | null>(editingTaskId);
   editingTaskIdRef.current = editingTaskId;
 
+  useEffect(() => {
+    if (initialTaskId) {
+      setViewMode('tasks');
+      setEditingTaskId(initialTaskId);
+    }
+  }, [initialTaskId]);
+
   const cancelEditingRef = useRef(cancelEditing);
   cancelEditingRef.current = cancelEditing;
 
@@ -279,6 +286,13 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     const handleNewSubtask = () => {
       window.dispatchEvent(new CustomEvent('tide:toggle-subtask-input'));
     };
+    const handleSelectTodo = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id?: string }>;
+      if (customEvent.detail?.id) {
+        setViewMode('tasks');
+        setEditingTaskId(customEvent.detail.id);
+      }
+    };
 
     window.addEventListener('tide:new-todo', handleNewTodoEvent);
     window.addEventListener('tide:toggle-todo-filter', handleToggleFilterEvent);
@@ -287,6 +301,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     window.addEventListener('tide:todo-save-edit', handleSaveEdit);
     window.addEventListener('tide:todo-delete', handleDeleteTask as EventListener);
     window.addEventListener('tide:new-subtask', handleNewSubtask);
+    window.addEventListener('tide:select-todo', handleSelectTodo as EventListener);
     return () => {
       window.removeEventListener('tide:new-todo', handleNewTodoEvent);
       window.removeEventListener('tide:toggle-todo-filter', handleToggleFilterEvent);
@@ -295,6 +310,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       window.removeEventListener('tide:todo-save-edit', handleSaveEdit);
       window.removeEventListener('tide:todo-delete', handleDeleteTask as EventListener);
       window.removeEventListener('tide:new-subtask', handleNewSubtask);
+      window.removeEventListener('tide:select-todo', handleSelectTodo as EventListener);
     };
   }, []);
 

@@ -160,7 +160,7 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
         ? `${Math.floor(durationMins / 60)}h${durationMins % 60 ? ` ${durationMins % 60}m` : ''}`
         : `${durationMins}m`;
 
-    const chipBase = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12px] font-semibold transition-all duration-200 cursor-default select-none";
+    const chipBase = "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold tabular-nums tracking-tight font-sans transition-all duration-200 cursor-default select-none";
 
     const chipStyle = (key: FieldKey) => {
         const isActive = editing && activeField === key;
@@ -172,16 +172,16 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
     };
 
     return (
-        <div className="flex flex-col gap-0 w-[22rem] overflow-hidden select-none">
+        <div className="flex flex-col gap-0 w-full min-w-full select-none font-sans">
             {/* Header */}
-            <div className="px-4 pt-4 pb-3 bg-gradient-to-r from-indigo-500/10 via-violet-500/8 to-purple-500/6 dark:from-indigo-500/15 dark:via-violet-500/10 dark:to-purple-500/8">
-                <div className="flex items-center gap-2.5 mb-2">
+            <div className="px-4 pt-3.5 pb-2.5 bg-gradient-to-r from-indigo-500/10 via-violet-500/8 to-purple-500/6 dark:from-indigo-500/15 dark:via-violet-500/10 dark:to-purple-500/8 border-b border-white/5">
+                <div className="flex items-center gap-2.5 mb-1">
                     <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-sm">
                         <Calendar size={14} className="text-white" />
                     </div>
                     <div>
-                        <div className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">Termin erkannt</div>
-                        <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">{durationLabel} Dauer</div>
+                        <div className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest font-sans">Termin erkannt</div>
+                        <div className="text-[10px] text-zinc-400 font-medium tabular-nums font-sans">{durationLabel} Dauer</div>
                     </div>
                 </div>
             </div>
@@ -198,7 +198,7 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
                             onChange={(e) => setTitle(e.target.value)}
                             onBlur={() => setActiveField(null)}
                             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === 'Escape') (e.target as HTMLInputElement).blur(); }}
-                            className="w-full px-3 py-1.5 text-[15px] font-bold bg-white dark:bg-white/10 border border-indigo-300 dark:border-indigo-600 rounded-lg text-gray-900 dark:text-gray-100 outline-none ring-2 ring-indigo-400/30 dark:ring-indigo-500/30"
+                            className="w-full px-3 py-1.5 text-sm font-bold bg-white dark:bg-white/10 border border-indigo-300 dark:border-indigo-600 rounded-lg text-gray-900 dark:text-gray-100 outline-none ring-2 ring-indigo-400/30 dark:ring-indigo-500/30 font-sans tracking-tight"
                         />
                     ) : (
                         <button
@@ -207,7 +207,7 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
                             className="w-full text-left flex items-center gap-2 group"
                         >
                             <Type size={13} className="text-gray-400 dark:text-gray-500 shrink-0" />
-                            <span className={`text-[15px] font-bold text-gray-900 dark:text-gray-100 leading-tight truncate ${editing ? 'group-hover:text-indigo-600 dark:group-hover:text-indigo-400 cursor-pointer' : ''} ${flashFields.has('title') ? 'text-blue-600 dark:text-blue-400' : ''}`}>
+                            <span className={`text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight truncate font-sans tracking-tight ${editing ? 'group-hover:text-indigo-600 dark:group-hover:text-indigo-400 cursor-pointer' : ''} ${flashFields.has('title') ? 'text-blue-600 dark:text-blue-400' : ''}`}>
                                 {title}
                             </span>
                         </button>
@@ -244,7 +244,7 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
 
                 {/* Keyboard hint when editing date/time fields */}
                 {editing && activeField !== 'title' && activeField !== null && (
-                    <div className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1">
+                    <div className="text-[10px] text-gray-400 dark:text-gray-500 flex items-center gap-1 font-sans">
                         <span className="px-1 py-0.5 rounded bg-gray-100 dark:bg-white/10 font-mono text-[9px]">←→</span>
                         <span>{activeField === 'date' ? 'Datum wechseln' : 'Zeit wechseln'}</span>
                         <span className="mx-0.5">·</span>
@@ -255,17 +255,17 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
             </div>
 
             {/* Actions */}
-            <div className="px-4 pb-4 pt-1 flex items-center gap-2">
+            <div className="px-4 pb-3.5 pt-1 flex items-center gap-2">
                 <button
                     onClick={onDismiss}
-                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors font-sans"
                 >
                     <X size={13} />
                     Nein
                 </button>
                 <button
                     onClick={() => { setEditing(!editing); setActiveField(null); }}
-                    className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${editing
+                    className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors font-sans ${editing
                         ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
                         : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10'
                         }`}
@@ -276,7 +276,7 @@ export const EventSuggestionView: React.FC<{ payload: EventSuggestionPayload }> 
                 <div className="flex-1" />
                 <button
                     onClick={handleAccept}
-                    className="flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-[12px] font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-sm shadow-indigo-300/30 dark:shadow-indigo-900/30 transition-all active:scale-[0.97]"
+                    className="flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold bg-indigo-500 hover:bg-indigo-600 text-white shadow-sm shadow-indigo-300/30 dark:shadow-indigo-900/30 transition-all active:scale-[0.97] font-sans"
                 >
                     <Check size={14} />
                     Erstellen

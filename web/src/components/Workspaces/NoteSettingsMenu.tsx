@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     FileText,
     AlignCenter,
@@ -16,9 +16,11 @@ import {
     Package,
     Check,
     Sparkles,
+    Code,
     type LucideIcon,
 } from 'lucide-react';
 import { DT } from '@/lib/designTokens';
+import { getApiBase } from '@/lib/api';
 import { useDataStore } from '@/store/useDataStore';
 import type { NoteLayout, PaperPattern } from '@/store/slices/types';
 import { tipTapToMarkdown, exportTideBundle } from '@/lib/bundleImportExport';
@@ -138,6 +140,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
 }) => {
     const menuRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [copiedApi, setCopiedApi] = useState(false);
 
     // Fallbacks from Zustand store
     const storeNoteLayout = useDataStore((s) => s.noteLayout);
@@ -282,6 +285,31 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
         onClose();
     };
 
+    const handleCopyApiUrl = async () => {
+        if (!effectiveNoteId) return;
+        const apiUrl = `${getApiBase()}/api/v1/external/notes/${effectiveNoteId}`;
+        try {
+            if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(apiUrl);
+            } else if (typeof document !== 'undefined') {
+                const textArea = document.createElement('textarea');
+                textArea.value = apiUrl;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            }
+            setCopiedApi(true);
+            setTimeout(() => {
+                setCopiedApi(false);
+                onClose();
+            }, 600);
+        } catch (err) {
+            console.error('[NoteSettingsMenu] Failed to copy API URL', err);
+            onClose();
+        }
+    };
+
     return (
         <div
             ref={menuRef}
@@ -419,6 +447,23 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 >
                     <FileCode size={15} className="text-gray-500 dark:text-gray-400 shrink-0" />
                     <span className="truncate">Als Markdown (.md) exportieren</span>
+                </button>
+                <button
+                    type="button"
+                    onClick={handleCopyApiUrl}
+                    className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800/60 transition-colors text-left cursor-pointer"
+                >
+                    {copiedApi ? (
+                        <>
+                            <Check size={15} className="text-emerald-500 shrink-0" />
+                            <span className="truncate text-emerald-600 dark:text-emerald-400 font-medium">API-Adresse kopiert!</span>
+                        </>
+                    ) : (
+                        <>
+                            <Code size={15} className="text-gray-500 dark:text-gray-400 shrink-0" />
+                            <span className="truncate">API-Adresse kopieren</span>
+                        </>
+                    )}
                 </button>
             </div>
 

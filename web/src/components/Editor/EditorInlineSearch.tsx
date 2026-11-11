@@ -109,6 +109,20 @@ export function EditorInlineSearch({ editor }: EditorInlineSearchProps) {
         return () => window.removeEventListener('mousedown', handleMouseDown);
     }, [isOpen, handleClose]);
 
+    // Global Esc key listener
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleGlobalKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                handleClose();
+            }
+        };
+        window.addEventListener('keydown', handleGlobalKeyDown, true);
+        return () => window.removeEventListener('keydown', handleGlobalKeyDown, true);
+    }, [isOpen, handleClose]);
+
     // Compute search items matching SmartIsland functionality
     const searchItems = useMemo<SearchItem[]>(() => {
         const trimmed = query.trim();
@@ -313,7 +327,7 @@ export function EditorInlineSearch({ editor }: EditorInlineSearchProps) {
         }
     };
 
-    const POPUP_WIDTH = 340;
+    const POPUP_WIDTH = 460;
     const computedPosition = useMemo(() => {
         if (!position || typeof window === 'undefined') return { top: 0, left: 0 };
         const left = Math.max(16, Math.min(position.x, window.innerWidth - POPUP_WIDTH - 16));
@@ -343,11 +357,11 @@ export function EditorInlineSearch({ editor }: EditorInlineSearchProps) {
                     zIndex: 9999,
                     borderRadius: DT.radiusLg,
                 }}
-                className="bg-[#18181b]/95 dark:bg-[#09090b]/95 backdrop-blur-xl border border-white/10 shadow-2xl p-2.5 flex flex-col gap-2 text-zinc-100 select-none"
+                className="bg-white/95 dark:bg-[#18181b]/95 backdrop-blur-xl border border-gray-200 dark:border-white/10 shadow-2xl p-2.5 flex flex-col gap-2 text-gray-900 dark:text-zinc-100 select-none"
             >
                 {/* Search Input */}
-                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 shadow-inner">
-                    <Search size={14} className="text-zinc-400 flex-shrink-0" />
+                <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 shadow-inner">
+                    <Search size={14} className="text-gray-400 dark:text-zinc-400 flex-shrink-0" />
                     <input
                         ref={inputRef}
                         type="text"
@@ -355,10 +369,10 @@ export function EditorInlineSearch({ editor }: EditorInlineSearchProps) {
                         onChange={(e) => setQuery(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="Suchen oder eingeben..."
-                        className="bg-transparent text-xs font-medium text-zinc-100 placeholder:text-zinc-500 outline-none w-full"
+                        className="bg-transparent text-xs font-medium text-gray-900 dark:text-zinc-100 placeholder:text-gray-400 dark:placeholder:text-zinc-500 outline-none w-full"
                     />
                     {query.trim().length > 0 && (
-                        <CornerDownLeft size={12} className="text-zinc-500 flex-shrink-0" />
+                        <CornerDownLeft size={12} className="text-gray-400 dark:text-zinc-500 flex-shrink-0" />
                     )}
                 </div>
 
@@ -374,31 +388,31 @@ export function EditorInlineSearch({ editor }: EditorInlineSearchProps) {
                                     onClick={() => handleSelectItem(item)}
                                     className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg cursor-pointer transition-colors text-left w-full ${
                                         isSelected
-                                            ? 'bg-indigo-600/35 border border-indigo-400/40 text-white'
-                                            : 'hover:bg-white/5 text-zinc-300 border border-transparent'
+                                            ? 'bg-indigo-50 dark:bg-indigo-600/35 border border-indigo-200 dark:border-indigo-400/40 text-indigo-900 dark:text-white'
+                                            : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-700 dark:text-zinc-300 border border-transparent'
                                     }`}
                                 >
                                     {item.type === 'date' && (
-                                        <Calendar size={13} className="text-blue-400 flex-shrink-0" />
+                                        <Calendar size={13} className="text-blue-500 dark:text-blue-400 flex-shrink-0" />
                                     )}
                                     {item.type === 'create-event' && (
-                                        <Plus size={13} className="text-emerald-400 flex-shrink-0" />
+                                        <Plus size={13} className="text-gray-500 dark:text-zinc-400 flex-shrink-0" />
                                     )}
                                     {item.type === 'holiday' && (
-                                        <Sparkles size={13} className="text-amber-400 flex-shrink-0" />
+                                        <Sparkles size={13} className="text-amber-500 dark:text-amber-400 flex-shrink-0" />
                                     )}
                                     {item.type === 'note' && (
-                                        <FileText size={13} className="text-emerald-400 flex-shrink-0" />
+                                        <FileText size={13} className="text-gray-500 dark:text-zinc-400 flex-shrink-0" />
                                     )}
                                     {item.type === 'event' && (
-                                        <CalendarIcon size={13} className="text-indigo-400 flex-shrink-0" />
+                                        <CalendarIcon size={13} className="text-indigo-500 dark:text-indigo-400 flex-shrink-0" />
                                     )}
                                     <div className="flex flex-col min-w-0 flex-1">
                                         <span className="text-xs font-semibold truncate leading-tight">
                                             {item.label}
                                         </span>
                                         {item.sublabel && (
-                                            <span className="text-[10px] text-zinc-400 truncate leading-tight mt-0.5">
+                                            <span className="text-[10px] text-gray-500 dark:text-zinc-400 truncate leading-tight mt-0.5">
                                                 {item.sublabel}
                                             </span>
                                         )}
@@ -408,13 +422,13 @@ export function EditorInlineSearch({ editor }: EditorInlineSearchProps) {
                         })}
                     </div>
                 ) : (
-                    <div className="py-3 px-2 text-center text-xs text-zinc-500">
+                    <div className="py-3 px-2 text-center text-xs text-gray-400 dark:text-zinc-500">
                         Keine Ergebnisse gefunden.
                     </div>
                 )}
 
                 {/* Footer hints */}
-                <div className="flex items-center justify-between px-1.5 pt-1 border-t border-white/5 text-[10px] text-zinc-400">
+                <div className="flex items-center justify-between px-1.5 pt-1 border-t border-gray-100 dark:border-white/5 text-[10px] text-gray-400 dark:text-zinc-400">
                     <span>↑↓ navigieren</span>
                     <span>↵ auswählen</span>
                     <span>esc schließen</span>

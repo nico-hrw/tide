@@ -75,8 +75,8 @@ func (h *APITokenHandler) ListScopes(w http.ResponseWriter, r *http.Request) {
 	scopes := []ScopeItem{
 		{Key: "events:read", Description: SupportedScopes["events:read"], Implemented: true},
 		{Key: "events:write", Description: SupportedScopes["events:write"], Implemented: false},
-		{Key: "notes:read", Description: SupportedScopes["notes:read"], Implemented: false},
-		{Key: "notes:write", Description: SupportedScopes["notes:write"], Implemented: false},
+		{Key: "notes:read", Description: SupportedScopes["notes:read"], Implemented: true},
+		{Key: "notes:write", Description: SupportedScopes["notes:write"], Implemented: true},
 		{Key: "todos:read", Description: SupportedScopes["todos:read"], Implemented: true},
 		{Key: "todos:write", Description: SupportedScopes["todos:write"], Implemented: true},
 		{Key: "todos:create", Description: SupportedScopes["todos:create"], Implemented: true},

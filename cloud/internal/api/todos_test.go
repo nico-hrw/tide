@@ -89,8 +89,8 @@ func TestTodosAPI_FullLifecycle(t *testing.T) {
 		"title":          "Implement Todos API",
 		"description":    "Write REST handlers and store layer",
 		"priority":       "high",
-		"due_date":       "2026-11-10",
-		"scheduled_date": "2026-11-05",
+		"due_date":       "2029-11-10",
+		"scheduled_date": "2029-11-05",
 		"tags":           []string{"backend", "go"},
 		"color":          "#3b82f6",
 	}

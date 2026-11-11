@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, ListTodo, ChevronRight, Archive, CheckCircle2, Timer,
@@ -51,6 +51,25 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
   };
 
   const isDateGroupedView = selectedDateFilter === null && filterStatus !== 'completed' && filterStatus !== 'archived';
+
+  const isEditingCompleted = Boolean(
+    editingTaskId &&
+      recentlyCompletedTasks.some(
+        (t) => t.id === editingTaskId || (t as TaskWithChildren).children?.some((c) => c.id === editingTaskId)
+      )
+  );
+  const isEditingArchived = Boolean(
+    editingTaskId &&
+      archivedTasks.some(
+        (t) => t.id === editingTaskId || (t as TaskWithChildren).children?.some((c) => c.id === editingTaskId)
+      )
+  );
+
+  useEffect(() => {
+    if (isEditingCompleted && !showCompleted) {
+      setShowCompleted(true);
+    }
+  }, [isEditingCompleted, showCompleted, setShowCompleted]);
 
   const dateSections = useMemo(() => {
     if (!isDateGroupedView) return [];
@@ -346,17 +365,23 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
         {/* Collapsible Completed Tasks Section when filterStatus === 'all' */}
         {filterStatus === 'all' && recentlyCompletedTasks.length > 0 && (
           <motion.div
-            className="mt-2 pt-3 border-t border-gray-200 dark:border-white/10"
+            className={`mt-2 pt-3 ${isEditingCompleted ? 'border-t-0' : 'border-t border-gray-200 dark:border-white/10'}`}
             animate={
-              editingTaskId
+              editingTaskId && !isEditingCompleted
                 ? { opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' as const }
                 : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const }
             }
             transition={{ duration: 0.15 }}
           >
-            <button
+            <motion.button
               type="button"
               onClick={() => setShowCompleted((prev) => !prev)}
+              animate={
+                editingTaskId
+                  ? { opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' as const, marginBottom: 0 }
+                  : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const, marginBottom: 0 }
+              }
+              transition={{ duration: 0.15 }}
               className="w-full flex items-center justify-between text-xs font-bold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer py-1.5 select-none"
             >
               <div className="flex items-center gap-2">
@@ -371,7 +396,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
               <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400">
                 {recentlyCompletedTasks.length}
               </span>
-            </button>
+            </motion.button>
 
             <AnimatePresence initial={false}>
               {showCompleted && (
@@ -383,27 +408,42 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                   className="overflow-hidden pt-2 flex flex-col gap-3"
                 >
                   <AnimatePresence mode="popLayout" initial={false}>
-                    {recentlyCompletedTasks.map((task) => (
-                      <motion.div
-                        key={task.id}
-                        layout
-                        initial={{ opacity: 0, y: -8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{
-                          opacity: 0,
-                          x: -20,
-                          height: 0,
-                          marginBottom: 0,
-                          scale: 0.95,
-                          transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1] }
-                        }}
-                        transition={{
-                          layout: { type: 'spring', damping: 26, stiffness: 280 }
-                        }}
-                      >
-                        {renderTask(task as TaskWithChildren)}
-                      </motion.div>
-                    ))}
+                    {recentlyCompletedTasks.map((task) => {
+                      const isEditing = task.id === editingTaskId || (task as TaskWithChildren).children?.some((c) => c.id === editingTaskId);
+                      const isOther = Boolean(editingTaskId && !isEditing);
+
+                      const animateState = editingTaskId
+                        ? isEditing
+                          ? { opacity: 1, y: 0, scale: 1, display: 'block' }
+                          : { opacity: 0, display: 'none' }
+                        : { opacity: 1, y: 0, scale: 1, display: 'block' };
+
+                      return (
+                        <motion.div
+                          key={task.id}
+                          layout
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={animateState}
+                          exit={{
+                            opacity: 0,
+                            x: -20,
+                            height: 0,
+                            marginBottom: 0,
+                            scale: 0.95,
+                            transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1] }
+                          }}
+                          transition={
+                            isOther
+                              ? { duration: 0.05, ease: 'easeOut' }
+                              : { layout: { type: 'spring', damping: 26, stiffness: 280 }, duration: 0.2 }
+                          }
+                          style={isOther ? { pointerEvents: 'none' } : undefined}
+                          className={isEditing ? 'relative z-20 h-full flex-1 min-h-0 flex flex-col' : undefined}
+                        >
+                          {renderTask(task as TaskWithChildren)}
+                        </motion.div>
+                      );
+                    })}
                   </AnimatePresence>
                 </motion.div>
               )}
@@ -415,7 +455,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
         {filterStatus === 'completed' && recentlyCompletedTasks.length === 0 && archivedTasks.length > 0 && (
           <motion.div
             animate={
-              editingTaskId
+              editingTaskId && !isEditingArchived
                 ? { opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' as const }
                 : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const }
             }
@@ -429,9 +469,9 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
         {/* Collapsible Archive Section when filterStatus === 'all' | 'completed' | 'archived' */}
         {(filterStatus === 'all' || filterStatus === 'completed' || filterStatus === 'archived') && archivedTasks.length > 0 && (
           <motion.div
-            className="mt-3 pt-3 border-t border-gray-200 dark:border-white/10"
+            className={`mt-3 pt-3 ${isEditingArchived ? 'border-t-0' : 'border-t border-gray-200 dark:border-white/10'}`}
             animate={
-              editingTaskId
+              editingTaskId && !isEditingArchived
                 ? { opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' as const }
                 : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const }
             }

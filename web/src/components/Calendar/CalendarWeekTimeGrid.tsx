@@ -142,7 +142,7 @@ export function CalendarWeekTimeGrid({
                     <div className="h-[50px] border-b border-gray-100/80 dark:border-slate-900/50 sticky top-0 z-[410] bg-white dark:bg-slate-950"></div>
                     {
                         Array.from({ length: 24 }).map((_, i) => (
-                            <div key={i} className="h-[60px] relative group border-b border-dashed border-gray-100/50 dark:border-slate-900/40">
+                            <div key={i} className="h-[48px] relative group border-b border-dashed border-gray-100/50 dark:border-slate-900/40">
                                 <span className="absolute -top-3 right-3 text-[11px] font-semibold text-gray-400 dark:text-gray-500 z-[10]">{i}:00</span>
                             </div>
                         ))
@@ -150,7 +150,7 @@ export function CalendarWeekTimeGrid({
                 </div>
 
                 {/* Days Wrapper with Relative positioning for the Time Line */}
-                <div className="flex relative items-start pb-[40px]" ref={gridDaysRef}>
+                <div className="flex relative items-start pb-[40px]" ref={gridDaysRef} style={{ '--hour-height': '48px' } as React.CSSProperties}>
 
 
 
@@ -194,6 +194,7 @@ export function CalendarWeekTimeGrid({
                                 onEventDrop={handleEventDrop}
                                 cursorX={cursorX}
                                 cursorY={cursorY}
+                                hourHeight={48}
                             />
                         );
                     })
@@ -211,11 +212,11 @@ export function CalendarWeekTimeGrid({
                         />
                     )}
 
-                    {/* End-of-calendar hatching strip — explicitly at 24:00 (50px header + 24×60px) */}
+                    {/* End-of-calendar hatching strip — explicitly at 24:00 (50px header + 24×48px) */}
                     <div
                         className="absolute left-0 right-0 pointer-events-none"
                         style={{
-                            top: '1490px',
+                            top: '1202px',
                             height: '40px',
                             backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(0,0,0,0.04) 5px, rgba(0,0,0,0.04) 10px)',
                             borderTop: '1px solid rgba(0,0,0,0.08)',

@@ -419,8 +419,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     let style: any;
     if (isDragging) {
         style = {
-            top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes} + 2px)`,
-            height: isTimePoint ? '6px' : `calc(var(--hour-height, 60px) / 60 * ${minRenderedMinutes} - 4px)`,
+            top: `calc(var(--hour-height, 48px) / 60 * ${startMinutes} + 2px)`,
+            height: isTimePoint ? '6px' : `calc(var(--hour-height, 48px) / 60 * ${minRenderedMinutes} - 4px)`,
             minHeight: isTimePoint ? '6px' : '22px',
             left: `calc(${pos.left}% + 3px)`,
             width: `calc(${pos.width}% - 6px)`,
@@ -432,7 +432,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         };
     } else if (isResizing) {
         style = {
-            top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes} + 2px)`,
+            top: `calc(var(--hour-height, 48px) / 60 * ${startMinutes} + 2px)`,
             height: resizeHeightMV,
             minHeight: isTimePoint ? '6px' : '22px',
             left: `calc(${pos.left}% + 3px)`,
@@ -445,8 +445,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     } else {
         const baseColor = isActiveParent ? 'transparent' : (effectiveColor || theme.bg);
         style = {
-            top: `calc(var(--hour-height, 60px) / 60 * ${startMinutes} + 2px)`,
-            height: isTimePoint ? '6px' : `calc(var(--hour-height, 60px) / 60 * ${minRenderedMinutes} - 4px)`,
+            top: `calc(var(--hour-height, 48px) / 60 * ${startMinutes} + 2px)`,
+            height: isTimePoint ? '6px' : `calc(var(--hour-height, 48px) / 60 * ${minRenderedMinutes} - 4px)`,
             minHeight: isTimePoint ? '6px' : '22px',
             left: `calc(${pos.left}% + 3px)`,
             width: `calc(${pos.width}% - 6px)`,

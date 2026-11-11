@@ -42,19 +42,19 @@ function WelcomeView({ payload }: { payload?: Record<string, any> }) {
     }, [storeEvents]);
 
     return (
-        <div className="flex flex-col gap-4 select-none text-zinc-100 w-full">
+        <div className="flex flex-col gap-4 select-none text-zinc-100 w-full font-sans">
             {/* Greeting row */}
             <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-[1rem] bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center shadow-md flex-shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center shadow-md flex-shrink-0">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
                     </svg>
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
+                    <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider font-sans">
                         {new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
                     </div>
-                    <div className="text-[17px] font-black text-white leading-tight tracking-tight">
+                    <div className="text-[17px] font-black text-white leading-tight tracking-tight font-sans">
                         {greeting}{name}.
                     </div>
                 </div>
@@ -65,18 +65,18 @@ function WelcomeView({ payload }: { payload?: Record<string, any> }) {
 
             {/* Next Events */}
             <div className="flex flex-col gap-2">
-                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Nächste Termine</div>
+                <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest font-sans">Nächste Termine</div>
                 {upcomingEvents.length > 0 ? (
                     <div className="flex flex-col gap-1.5">
                         {upcomingEvents.map((ev, i) => (
                             <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5 text-xs text-zinc-200">
-                                <span className="font-bold truncate max-w-[12rem]">{ev.title}</span>
-                                <span className="text-zinc-400 font-semibold">{format(new Date(ev.start), 'HH:mm')} Uhr</span>
+                                <span className="font-bold truncate max-w-[12rem] font-sans tracking-tight">{ev.title}</span>
+                                <span className="text-zinc-400 font-semibold tabular-nums font-sans">{format(new Date(ev.start), 'HH:mm')} Uhr</span>
                             </div>
                         ))}
                     </div>
                 ) : (
-                    <p className="text-[12px] text-zinc-400 font-medium">Keine anstehenden Termine für heute.</p>
+                    <p className="text-xs text-zinc-400 font-medium font-sans">Keine anstehenden Termine für heute.</p>
                 )}
             </div>
         </div>
@@ -707,9 +707,9 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
     };
 
     return (
-        <div className="flex flex-col gap-3 px-3 py-3 w-full select-none text-zinc-100">
+        <div className="flex flex-col gap-3 px-3 py-3 w-full select-none text-zinc-100 font-sans">
             {/* Search Input Box */}
-            <div className="flex items-start gap-2 p-2 rounded-xl bg-white/5 border border-white/10 shadow-inner">
+            <div className="flex items-start gap-2 p-2.5 rounded-2xl bg-white/[0.06] border border-white/10 shadow-inner">
                 <Search size={14} className="text-zinc-400 ml-1 mt-1 flex-shrink-0" />
                 <textarea
                     ref={textareaRef}
@@ -718,7 +718,7 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
                     onChange={handleTextChange}
                     onKeyDown={handleKeyDown}
                     placeholder="Suchen oder tippen..."
-                    className="flex-1 bg-transparent text-xs font-bold outline-none text-zinc-100 placeholder:text-zinc-500 resize-none overflow-y-auto leading-relaxed py-0.5"
+                    className="flex-1 bg-transparent text-xs font-semibold outline-none text-zinc-100 placeholder:text-zinc-500 resize-none overflow-y-auto leading-relaxed py-0.5 font-sans"
                     autoFocus
                 />
                 <button
@@ -728,7 +728,7 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
                             handleDismiss();
                         }
                     }}
-                    className="p-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-all active:scale-95 flex-shrink-0 mt-0.5"
+                    className="p-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/20 transition-all active:scale-95 flex-shrink-0 mt-0.5"
                     title="Notiz erstellen"
                 >
                     <FileEdit size={13} />
@@ -737,15 +737,16 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
 
             {/* Event Suggestion Card (Expanded box if date parsed) */}
             {showEventSuggestion && editStart && editEnd && editDate && (
-                <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex flex-col gap-1.5">
+                <div className="p-3 rounded-2xl bg-gradient-to-br from-indigo-500/15 via-indigo-500/10 to-violet-500/15 border border-indigo-500/25 flex flex-col gap-2 shadow-lg shadow-indigo-950/20">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
                             <CalendarIcon size={12} className="text-indigo-400" />
-                            <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Termin erkannt</span>
+                            <span className="text-[10px] font-bold text-indigo-300 uppercase tracking-wider font-sans">Termin erkannt</span>
                         </div>
                         <button 
                             onClick={() => setEventDismissed(true)} 
-                            className="text-zinc-500 hover:text-zinc-300 text-xs font-bold"
+                            className="text-zinc-400 hover:text-zinc-200 text-xs font-bold p-1 rounded-md hover:bg-white/5 transition-colors"
                         >
                             ✕
                         </button>
@@ -761,33 +762,33 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
                                 if (e.key === 'Enter') setEventEditing(false);
                                 if (e.key === 'Escape') setEventEditing(false);
                             }}
-                            className="w-full px-2 py-0.5 text-xs font-bold bg-white/5 border border-indigo-500/30 rounded-lg text-zinc-100 outline-none"
+                            className="w-full px-2.5 py-1 text-xs font-bold bg-white/10 border border-indigo-500/30 rounded-xl text-white outline-none font-sans"
                         />
                     ) : (
                         <div 
                             onClick={() => setEventEditing(true)}
-                            className="text-xs font-bold text-zinc-100 hover:underline cursor-pointer truncate"
+                            className="text-xs font-bold text-white hover:text-indigo-200 cursor-pointer truncate font-sans tracking-tight"
                         >
                             {editTitle}
                         </div>
                     )}
 
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/15 text-[9px] font-bold text-indigo-300 border border-indigo-500/10">
-                            <Calendar size={9} />
+                    <div className="flex flex-wrap gap-1.5 mt-0.5">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-indigo-500/20 text-[10px] font-semibold text-indigo-200 border border-indigo-500/20 tabular-nums font-sans">
+                            <Calendar size={10} className="text-indigo-300" />
                             {format(editDate, 'EEE dd. MMM', { locale: de })}
                         </span>
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/15 text-[9px] font-bold text-indigo-300 border border-indigo-500/10">
-                            <Clock size={9} />
+                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-indigo-500/20 text-[10px] font-semibold text-indigo-200 border border-indigo-500/20 tabular-nums font-sans">
+                            <Clock size={10} className="text-indigo-300" />
                             {format(editStart, 'HH:mm')} – {format(editEnd, 'HH:mm')}
                         </span>
                     </div>
 
                     <button
                         onClick={handleAcceptEvent}
-                        className="w-full py-1.5 mt-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] uppercase tracking-wider transition-all flex items-center justify-center gap-1 active:scale-95"
+                        className="w-full py-2 mt-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] uppercase tracking-wider transition-all shadow-md shadow-indigo-600/30 flex items-center justify-center gap-1.5 active:scale-[0.98] font-sans"
                     >
-                        <Check size={11} strokeWidth={3} /> Termin erstellen
+                        <Check size={12} strokeWidth={3} /> Termin erstellen
                     </button>
                 </div>
             )}
@@ -796,11 +797,11 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
             <AnimatePresence>
                 {displayText.trim().length > 0 && searchItems.length > 0 && (
                     <motion.div
-                        initial={{ opacity: 0, height: 0, scale: 0.96 }}
+                        initial={{ opacity: 0, height: 0, scale: 0.98 }}
                         animate={{ opacity: 1, height: 'auto', scale: 1 }}
-                        exit={{ opacity: 0, height: 0, scale: 0.96 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                        className="flex flex-col gap-1.5 p-2 rounded-xl bg-[#18181b]/80 dark:bg-[#09090b]/85 border border-white/10 max-h-48 overflow-y-auto"
+                        exit={{ opacity: 0, height: 0, scale: 0.98 }}
+                        transition={{ type: "spring", stiffness: 350, damping: 28 }}
+                        className="flex flex-col gap-1 p-2 rounded-2xl bg-[#141518]/95 border border-white/10 max-h-56 overflow-y-auto shadow-xl"
                     >
                         {searchItems.map((item, idx) => {
                             const isSelected = idx === selectedIndex;
@@ -808,16 +809,16 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
                                 <div
                                     key={item.id}
                                     onClick={() => handleSelectItem(item)}
-                                    className={`flex items-center gap-2 p-1.5 rounded-lg cursor-pointer transition-all ${isSelected ? 'bg-indigo-600/40 border border-indigo-400/40' : 'hover:bg-white/10 border border-transparent'}`}
+                                    className={`flex items-center gap-2.5 p-2 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-indigo-600/35 border border-indigo-500/30 shadow-sm' : 'hover:bg-white/5 border border-transparent'}`}
                                 >
-                                    {item.type === 'date' && <Calendar size={12} className="text-blue-400 flex-shrink-0" />}
-                                    {item.type === 'holiday' && <Sparkles size={12} className="text-amber-400 flex-shrink-0" />}
-                                    {item.type === 'note' && <FileText size={12} className="text-emerald-400 flex-shrink-0" />}
-                                    {item.type === 'event' && <CalendarIcon size={12} className="text-indigo-400 flex-shrink-0" />}
+                                    {item.type === 'date' && <Calendar size={13} className="text-blue-400 flex-shrink-0" />}
+                                    {item.type === 'holiday' && <Sparkles size={13} className="text-amber-400 flex-shrink-0" />}
+                                    {item.type === 'note' && <FileText size={13} className="text-emerald-400 flex-shrink-0" />}
+                                    {item.type === 'event' && <CalendarIcon size={13} className="text-indigo-400 flex-shrink-0" />}
                                     <div className="flex flex-col min-w-0 flex-1">
-                                        <span className="text-xs font-semibold text-zinc-200 truncate">{item.label}</span>
+                                        <span className="text-xs font-semibold text-zinc-100 truncate font-sans tracking-tight">{item.label}</span>
                                         {item.sublabel && (
-                                            <span className="text-[9.5px] text-zinc-400">{item.sublabel}</span>
+                                            <span className="text-[10px] text-zinc-400 font-sans tabular-nums">{item.sublabel}</span>
                                         )}
                                     </div>
                                 </div>
@@ -828,7 +829,7 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
             </AnimatePresence>
 
             {/* Weekstrip Calendar below */}
-            <div className="pt-2 border-t border-white/5 mt-1">
+            <div className="pt-2 border-t border-white/5 mt-0.5">
                 <WeekStrip />
             </div>
         </div>
@@ -907,6 +908,22 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
     const { state, setDailySummaryMode, dismiss } = useIslandStore();
     const storeEvents = useDataStore(s => s.events);
     const expandOnNotification = useIslandSettingsStore(s => s.expandOnNotification);
+
+    // Dynamic expanded view state for event detection / suggestions and cards
+    const isExpandedViewActive = Boolean(
+        state.current && (
+            state.current.type === 'event_suggestion' ||
+            state.current.type === 'text_collector' ||
+            state.current.type === 'event_preview' ||
+            state.current.type === 'interactive_card' ||
+            state.current.type === 'reminder' ||
+            state.current.type === 'timeline' ||
+            state.current.type === 'welcome' ||
+            state.current.type === 'morning' ||
+            state.current.type === 'next_event' ||
+            state.current.type === 'upload_progress'
+        )
+    );
 
     // Live 1-second interval ticker for countdowns
     const [currentTime, setCurrentTime] = useState(() => new Date());
@@ -1459,24 +1476,32 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
             `}</style>
 
             {/* STAGE: Stable anchor container */}
-            <div id="si-stage" className="relative w-full h-[208px]">
+            <div id="si-stage" className={`relative w-full transition-all duration-300 ${isExpandedViewActive ? 'h-auto min-h-[208px]' : 'h-[208px]'}`}>
                 {/* LAYER 1: Positioner (Controls centering shrink & rightward expansion) */}
                 <div
                     ref={positionerRef}
                     id="si-positioner"
-                    className="si-positioner absolute left-0 top-0 w-full h-[208px] z-30"
+                    className={`si-positioner left-0 top-0 z-40 transition-all duration-300 ${
+                        isExpandedViewActive
+                            ? 'relative w-full min-w-full md:min-w-[340px] max-w-[calc(100vw-32px)] h-auto min-h-[208px]'
+                            : 'absolute w-full h-[208px]'
+                    }`}
                 >
                     {/* LAYER 2: Rotator (Controls whip rotation exclusively) */}
                     <div
                         ref={rotatorRef}
                         id="si-rotator"
-                        className="si-rotator absolute inset-0 w-full h-full"
+                        className={`si-rotator w-full transition-all duration-300 ${
+                            isExpandedViewActive
+                                ? 'relative h-auto min-h-[208px]'
+                                : 'absolute inset-0 h-full'
+                        }`}
                     >
                         {/* LAYER 3a: 45° offset background diamond square */}
                         <div
                             ref={bgSquareRef}
                             id="si-bgSquare"
-                            className="si-bg-square absolute inset-0 bg-[#1a1c1e] rounded-[24px] shadow-xl border border-white/5"
+                            className="si-bg-square absolute inset-0 bg-[#1a1c1e] rounded-[24px] shadow-xl border border-white/5 pointer-events-none"
                         />
 
                         {/* LAYER 3b: Main box with contents */}
@@ -1484,13 +1509,21 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                             ref={widgetBaseRef}
                             id="si-widgetBase"
                             onDoubleClick={triggerDemoLoading}
-                            className="absolute inset-0 bg-[#1a1c1e] dark text-white rounded-[24px] shadow-2xl border border-white/10 overflow-hidden transition-colors"
+                            className={`bg-[#1a1c1e] dark text-white rounded-[24px] shadow-2xl border border-white/10 transition-all duration-300 ${
+                                isExpandedViewActive
+                                    ? 'relative w-full h-auto min-h-[208px] overflow-visible'
+                                    : 'absolute inset-0 overflow-hidden'
+                            }`}
                         >
                             {/* CONTENT 1: Calendar View (Base view) */}
                             <div
                                 ref={calendarViewRef}
                                 id="si-calendarView"
-                                className="absolute left-0 top-0 w-full h-full pt-2 px-2.5 pb-1 flex flex-col transition-opacity duration-300 overflow-hidden"
+                                className={`w-full pt-2 px-2.5 pb-2.5 flex flex-col transition-all duration-300 ${
+                                    isExpandedViewActive
+                                        ? 'relative h-auto min-h-[208px] overflow-visible'
+                                        : 'absolute left-0 top-0 h-full overflow-hidden'
+                                }`}
                             >
                                 {state.current && state.current.type !== 'message' ? (
                                     <div className="w-full">

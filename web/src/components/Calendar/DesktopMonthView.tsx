@@ -12,6 +12,7 @@ import {
 import { Plus, CheckSquare, Square } from "lucide-react";
 import { getHolidayForDate } from "@/lib/holidays";
 import { getEventGroupIds } from "@/lib/calendarUtils";
+import { useJobPlannerStore } from "@/store/useJobPlannerStore";
 import type { CalendarEvent } from "./types";
 
 interface DesktopMonthViewProps {
@@ -25,6 +26,7 @@ interface DesktopMonthViewProps {
 }
 
 const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const JOB_TAGS = ["job", "arbeit", "uni", "studium"];
 
 export default function DesktopMonthView({
     currentDate,
@@ -35,6 +37,18 @@ export default function DesktopMonthView({
     onTaskToggle,
     themes = [],
 }: DesktopMonthViewProps) {
+    const jobPluginGroupId = useJobPlannerStore((state) => state.pluginGroupId);
+
+    const isJobOrUniEvent = (e: CalendarEvent) => {
+        if (jobPluginGroupId && (e.parent_id === jobPluginGroupId || e.groupIds?.includes(jobPluginGroupId))) {
+            return true;
+        }
+        if (e.tags && e.tags.some((t) => JOB_TAGS.includes(t.toLowerCase()))) {
+            return true;
+        }
+        return false;
+    };
+
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(monthStart);
     const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
@@ -54,14 +68,14 @@ export default function DesktopMonthView({
 
     return (
         <div className="flex-1 flex flex-col h-full select-none overflow-hidden bg-transparent p-3 sm:p-4">
-            <div className="flex-1 flex flex-col rounded-2xl border border-gray-200/80 dark:border-white/10 overflow-hidden shadow-sm bg-white/60 dark:bg-white/[0.02] backdrop-blur-md">
+            <div className="flex-1 flex flex-col rounded-2xl border-2 border-gray-300 dark:border-slate-700 overflow-hidden shadow-md bg-gray-100/90 dark:bg-slate-950">
                 {/* Weekday Header */}
-                <div className="grid grid-cols-7 border-b border-gray-200/80 dark:border-white/10 bg-white/40 dark:bg-slate-950/40 backdrop-blur-sm z-10">
+                <div className="grid grid-cols-7 border-b border-gray-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 z-10 px-2">
                     {WEEKDAYS.map((wd, i) => (
                         <div
                             key={wd}
                             className={`py-2 text-center text-xs font-bold uppercase tracking-wider ${
-                                i >= 5 ? "text-gray-400 dark:text-gray-500" : "text-gray-600 dark:text-gray-400"
+                                i >= 5 ? "text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-300"
                             }`}
                         >
                             {wd}
@@ -70,15 +84,15 @@ export default function DesktopMonthView({
                 </div>
 
                 {/* Month Day Grid */}
-                <div className="grid grid-cols-7 flex-1 auto-rows-fr overflow-y-auto divide-x divide-y divide-gray-150 dark:divide-white/10">
+                <div className="grid grid-cols-7 flex-1 auto-rows-fr overflow-y-auto gap-1.5 p-2">
                     {days.map((day) => {
                         const dayKey = format(day, "yyyy-MM-dd");
                         const isCurMonth = isSameMonth(day, currentDate);
                         const isTod = isToday(day);
                         const holiday = getHolidayForDate(dayKey);
 
-                        const timed = eventsByDay.timedMap.get(dayKey) || [];
-                        const allDay = eventsByDay.allDayMap.get(dayKey) || [];
+                        const timed = (eventsByDay.timedMap.get(dayKey) || []).filter((e) => !isJobOrUniEvent(e));
+                        const allDay = (eventsByDay.allDayMap.get(dayKey) || []).filter((e) => !isJobOrUniEvent(e));
                         const allEventsForDay = [...allDay, ...timed];
 
                         const tasks = allEventsForDay.filter((e) => e.is_task);
@@ -96,10 +110,10 @@ export default function DesktopMonthView({
                                 onClick={() => onDayClick(day)}
                                 className={`group relative flex flex-col p-1.5 transition-colors cursor-pointer min-h-[96px] ${
                                     isTod
-                                        ? "bg-blue-50/90 dark:bg-blue-950/40 ring-2 ring-inset ring-blue-500/80 dark:ring-blue-400 shadow-sm z-[2]"
+                                        ? "rounded-xl bg-blue-50/90 dark:bg-blue-950/40 border-2 border-blue-500/80 dark:border-blue-400 shadow-xs hover:border-blue-600 dark:hover:border-blue-300 z-[2]"
                                         : isCurMonth
-                                        ? "bg-white/60 dark:bg-slate-900/40 hover:bg-gray-50/90 dark:hover:bg-white/[0.04]"
-                                        : "bg-gray-50/50 dark:bg-black/20 text-gray-400 dark:text-gray-600 hover:bg-gray-100/50 dark:hover:bg-white/[0.02]"
+                                        ? "rounded-xl bg-white dark:bg-slate-900 border border-gray-200/90 dark:border-slate-800 shadow-xs hover:border-gray-300 dark:hover:border-slate-700"
+                                        : "rounded-xl bg-gray-50 dark:bg-slate-950 border border-gray-200/60 dark:border-slate-900 text-gray-400 dark:text-gray-600 hover:border-gray-300 dark:hover:border-slate-800"
                                 }`}
                             >
                                 {/* Cell Header: Date Number + Holiday + Quick Add */}
@@ -134,7 +148,7 @@ export default function DesktopMonthView({
                                 <button
                                     onClick={(e) => handleCreateOnDay(e, day)}
                                     title="Termin hinzufügen"
-                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-opacity text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-opacity text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
                                 >
                                     <Plus size={13} strokeWidth={2.5} />
                                 </button>
@@ -148,7 +162,7 @@ export default function DesktopMonthView({
                                             e.stopPropagation();
                                             onDayClick(day);
                                         }}
-                                        className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-gray-100/80 dark:bg-white/10 hover:brightness-95 dark:hover:brightness-110 shadow-xs ${
+                                        className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 shadow-xs ${
                                             allCompleted
                                                 ? "border-emerald-500 text-gray-500 dark:text-gray-400"
                                                 : "border-blue-500 text-gray-800 dark:text-gray-200"
@@ -163,7 +177,7 @@ export default function DesktopMonthView({
                                                     tasks.forEach((t) => onTaskToggle(t.id, !allCompleted));
                                                 }
                                             }}
-                                            className="shrink-0 p-0.5 -m-0.5 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors flex items-center justify-center"
+                                            className="shrink-0 p-0.5 -m-0.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center"
                                             title={allCompleted ? "Todos als unerledigt markieren" : "Alle Todos als erledigt markieren"}
                                         >
                                             {allCompleted ? (
@@ -200,7 +214,7 @@ export default function DesktopMonthView({
                                             style={{
                                                 borderLeftColor: eventColor,
                                             }}
-                                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-gray-100/80 dark:bg-white/10 hover:brightness-95 dark:hover:brightness-110 shadow-xs ${
+                                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 shadow-xs ${
                                                 isCancelled ? "opacity-50 line-through" : ""
                                             } ${isCompleted ? "opacity-60" : ""}`}
                                             title={`${ev.title}${isTimed ? ` (${format(new Date(ev.start), "HH:mm")})` : ""}`}

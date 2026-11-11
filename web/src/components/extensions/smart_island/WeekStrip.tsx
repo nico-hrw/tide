@@ -2,7 +2,6 @@
 
 import React, { useMemo } from 'react';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
-import { de } from 'date-fns/locale';
 import { useDataStore } from '@/store/useDataStore';
 
 export default function WeekStrip() {
@@ -34,7 +33,7 @@ export default function WeekStrip() {
     const weekdaysGerman = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
     return (
-        <div className="w-full py-2 border-b border-white/5 select-none">
+        <div className="w-full px-3.5 py-2 border-b border-white/5 select-none font-sans">
             <div className="grid grid-cols-7 gap-1 text-center">
                 {days.map((day, idx) => {
                     const isTodayActive = isSameDay(day, today);
@@ -42,17 +41,17 @@ export default function WeekStrip() {
                     const formattedDayNum = format(day, 'd');
                     
                     return (
-                        <div key={day.toISOString()} className="flex flex-col items-center gap-1.5">
+                        <div key={day.toISOString()} className="flex flex-col items-center gap-1">
                             {/* Weekday Label */}
-                            <span className="text-[10px] uppercase font-bold text-zinc-500 tracking-wider">
+                            <span className="text-[10px] uppercase font-semibold text-zinc-400 dark:text-zinc-500 tracking-wider font-sans">
                                 {weekdaysGerman[idx]}
                             </span>
                             
                             {/* Day Number bubble */}
                             <div 
-                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold tabular-nums font-sans tracking-tight transition-all ${
                                     isTodayActive 
-                                    ? 'bg-white text-zinc-950 shadow-md shadow-black/10 scale-105' 
+                                    ? 'bg-white text-zinc-950 font-bold shadow-md shadow-black/10 scale-105' 
                                     : 'text-zinc-300 hover:bg-white/5'
                                 }`}
                             >

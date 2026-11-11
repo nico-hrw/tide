@@ -189,3 +189,21 @@ type ExternalEvent struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
+
+// ExternalNoteListItem represents a note item returned in external list API.
+type ExternalNoteListItem struct {
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	ParentID  *string   `json:"parent_id"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// ExternalNote represents a single note returned in external API with content.
+type ExternalNote struct {
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	Content   string    `json:"content"`
+	ParentID  *string   `json:"parent_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}

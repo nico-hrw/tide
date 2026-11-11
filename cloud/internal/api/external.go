@@ -5,12 +5,15 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/nicoh/tide/internal/db"
 	"github.com/nicoh/tide/internal/store"
 )
 
@@ -23,8 +26,8 @@ func NewExternalHandler(s *store.SQLiteStore) *ExternalHandler {
 }
 
 // APITokenAuth middleware validates the Bearer token or X-API-Key against the api_tokens table
-// and enforces that the token has the required scope.
-func APITokenAuth(s *store.SQLiteStore, requiredScope string) func(http.Handler) http.Handler {
+// and enforces that the token has at least one of the required scopes (or wildcard "*").
+func APITokenAuth(s *store.SQLiteStore, requiredScopes ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var tokenString string
@@ -85,18 +88,28 @@ func APITokenAuth(s *store.SQLiteStore, requiredScope string) func(http.Handler)
 			// Check scope
 			hasScope := false
 			for _, sc := range apiToken.Scopes {
-				if sc == requiredScope {
+				if sc == "*" {
 					hasScope = true
+					break
+				}
+				for _, req := range requiredScopes {
+					if sc == req {
+						hasScope = true
+						break
+					}
+				}
+				if hasScope {
 					break
 				}
 			}
 			if !hasScope {
+				reqDesc := strings.Join(requiredScopes, " or ")
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
 				json.NewEncoder(w).Encode(map[string]interface{}{
 					"error":          "Forbidden",
-					"message":        "Token lacks required scope '" + requiredScope + "'",
-					"required_scope": requiredScope,
+					"message":        "Token lacks required scope '" + reqDesc + "'",
+					"required_scope": reqDesc,
 					"token_scopes":   apiToken.Scopes,
 				})
 				return
@@ -125,11 +138,18 @@ func (h *ExternalHandler) RegisterRoutes(r chi.Router) {
 		r.Get("/events/{id}", h.GetEvent)
 	})
 
-	// Notes endpoints (Stubs for future implementation)
+	// Notes endpoints
 	r.Group(func(r chi.Router) {
-		r.Use(APITokenAuth(h.Store, "notes:read"))
-		r.Get("/notes", h.ListNotesStub)
-		r.Get("/notes/{id}", h.GetNoteStub)
+		r.Use(APITokenAuth(h.Store, "notes:read", "notes:write"))
+		r.Get("/notes", h.ListNotes)
+		r.Get("/notes/{id}", h.GetNote)
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(APITokenAuth(h.Store, "notes:write"))
+		r.Post("/notes", h.CreateNote)
+		r.Put("/notes/{id}", h.UpdateNote)
+		r.Patch("/notes/{id}", h.UpdateNote)
+		r.Delete("/notes/{id}", h.DeleteNote)
 	})
 
 	// Todos endpoints
@@ -263,22 +283,373 @@ func (h *ExternalHandler) GetEvent(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *ExternalHandler) ListNotesStub(w http.ResponseWriter, r *http.Request) {
+// --- Notes API ---
+
+type CreateExternalNoteRequest struct {
+	Title    string  `json:"title"`
+	Content  string  `json:"content"`
+	ParentID *string `json:"parent_id"`
+}
+
+type UpdateExternalNoteRequest struct {
+	Title    *string `json:"title"`
+	Content  *string `json:"content"`
+	ParentID *string `json:"parent_id"`
+}
+
+func (h *ExternalHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	q := r.URL.Query()
+	search := q.Get("search")
+	if search == "" {
+		search = q.Get("q")
+	}
+
+	limit := 100
+	if limitStr := q.Get("limit"); limitStr != "" {
+		if parsedLimit, err := strconv.Atoi(limitStr); err == nil && parsedLimit > 0 {
+			if parsedLimit > 500 {
+				limit = 500
+			} else {
+				limit = parsedLimit
+			}
+		}
+	}
+
+	notes, err := h.Store.ListNotesForExternalAPI(r.Context(), userID, search, limit)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":   "Internal Server Error",
+			"message": "Failed to retrieve notes",
+		})
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotImplemented)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"error":          "Not Implemented",
-		"message":        "Notes querying via external API is planned and will be available in an upcoming update.",
-		"required_scope": "notes:read",
+		"count": len(notes),
+		"notes": notes,
 	})
 }
 
-func (h *ExternalHandler) GetNoteStub(w http.ResponseWriter, r *http.Request) {
+func (h *ExternalHandler) GetNote(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	noteID := chi.URLParam(r, "id")
+	if noteID == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Bad Request", "message": "Missing note ID"})
+		return
+	}
+
+	note, err := h.Store.GetNoteForExternalAPI(r.Context(), userID, noteID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Not Found", "message": "Note not found"})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Internal Server Error", "message": "Failed to retrieve note"})
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotImplemented)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"error":          "Not Implemented",
-		"message":        "Note retrieval via external API is planned and will be available in an upcoming update.",
-		"required_scope": "notes:read",
+		"id":         note.ID,
+		"title":      note.Title,
+		"content":    note.Content,
+		"parent_id":  note.ParentID,
+		"created_at": note.CreatedAt,
+		"updated_at": note.UpdatedAt,
+		"note":       note,
+	})
+}
+
+func (h *ExternalHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req CreateExternalNoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Bad Request", "message": "Invalid request body"})
+		return
+	}
+
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		title = "Untitled Note"
+	}
+
+	var parentID *string
+	if req.ParentID != nil && strings.TrimSpace(*req.ParentID) != "" {
+		cleanParentID := strings.TrimSpace(*req.ParentID)
+		parentFile, err := h.Store.GetAccessibleFile(r.Context(), cleanParentID, userID)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Bad Request", "message": "Parent not found or access denied"})
+			return
+		}
+		if !store.CanWrite(parentFile.Permission) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Forbidden", "message": "Write permission required on parent"})
+			return
+		}
+		parentID = &cleanParentID
+	}
+
+	now := time.Now().UTC()
+	fileID := uuid.New().String()
+	contentBytes := []byte(req.Content)
+
+	metaMap := map[string]interface{}{"title": title}
+	metaBytes, _ := json.Marshal(metaMap)
+
+	file := &db.File{
+		ID:         fileID,
+		OwnerID:    userID,
+		ParentID:   parentID,
+		Type:       db.FileTypeNote,
+		Size:       int64(len(contentBytes)),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		Visibility: "private",
+		Metadata:   metaBytes,
+		PublicMeta: metaBytes,
+		Version:    1,
+		Content:    contentBytes,
+	}
+
+	if err := h.Store.CreateFile(r.Context(), file); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Internal Server Error", "message": "Failed to create note"})
+		return
+	}
+
+	createdNote := &db.ExternalNote{
+		ID:        fileID,
+		Title:     title,
+		Content:   req.Content,
+		ParentID:  parentID,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"id":         createdNote.ID,
+		"title":      createdNote.Title,
+		"content":    createdNote.Content,
+		"parent_id":  createdNote.ParentID,
+		"created_at": createdNote.CreatedAt,
+		"updated_at": createdNote.UpdatedAt,
+		"note":       createdNote,
+	})
+}
+
+func (h *ExternalHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	noteID := chi.URLParam(r, "id")
+	if noteID == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Bad Request", "message": "Missing note ID"})
+		return
+	}
+
+	file, err := h.Store.GetAccessibleFile(r.Context(), noteID, userID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Not Found", "message": "Note not found"})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Internal Server Error", "message": "Failed to retrieve note"})
+		return
+	}
+
+	if file.Type != db.FileTypeNote {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Not Found", "message": "Note not found"})
+		return
+	}
+
+	if !store.CanWrite(file.Permission) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Forbidden", "message": "Write permission required"})
+		return
+	}
+
+	var req UpdateExternalNoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Bad Request", "message": "Invalid request body"})
+		return
+	}
+
+	if req.Title != nil {
+		var metaMap map[string]interface{}
+		if len(file.Metadata) > 0 {
+			_ = json.Unmarshal(file.Metadata, &metaMap)
+		}
+		if metaMap == nil {
+			metaMap = make(map[string]interface{})
+		}
+		metaMap["title"] = *req.Title
+		metaBytes, _ := json.Marshal(metaMap)
+		file.Metadata = metaBytes
+		file.PublicMeta = metaBytes
+	}
+
+	if req.Content != nil {
+		file.Content = []byte(*req.Content)
+		file.Size = int64(len(file.Content))
+	}
+
+	if req.ParentID != nil {
+		if strings.TrimSpace(*req.ParentID) == "" {
+			file.ParentID = nil
+		} else {
+			cleanParentID := strings.TrimSpace(*req.ParentID)
+			parentFile, err := h.Store.GetAccessibleFile(r.Context(), cleanParentID, userID)
+			if err != nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Bad Request", "message": "Parent not found or access denied"})
+				return
+			}
+			if !store.CanWrite(parentFile.Permission) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{"error": "Forbidden", "message": "Write permission required on parent"})
+				return
+			}
+			file.ParentID = &cleanParentID
+		}
+	}
+
+	file.UpdatedAt = time.Now().UTC()
+
+	if err := h.Store.UpdateFile(r.Context(), file); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Internal Server Error", "message": "Failed to update note"})
+		return
+	}
+
+	updatedNote, err := h.Store.GetNoteForExternalAPI(r.Context(), userID, noteID)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"id":      noteID,
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"id":         updatedNote.ID,
+		"title":      updatedNote.Title,
+		"content":    updatedNote.Content,
+		"parent_id":  updatedNote.ParentID,
+		"created_at": updatedNote.CreatedAt,
+		"updated_at": updatedNote.UpdatedAt,
+		"note":       updatedNote,
+	})
+}
+
+func (h *ExternalHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	noteID := chi.URLParam(r, "id")
+	if noteID == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Bad Request", "message": "Missing note ID"})
+		return
+	}
+
+	file, err := h.Store.GetAccessibleFile(r.Context(), noteID, userID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]string{"error": "Not Found", "message": "Note not found"})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Internal Server Error", "message": "Failed to retrieve note"})
+		return
+	}
+
+	if file.Type != db.FileTypeNote {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Not Found", "message": "Note not found"})
+		return
+	}
+
+	if !store.CanWrite(file.Permission) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Forbidden", "message": "Write permission required"})
+		return
+	}
+
+	if err := h.Store.DeleteFile(r.Context(), noteID); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Internal Server Error", "message": "Failed to delete note"})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Note deleted successfully",
+		"id":      noteID,
 	})
 }
