@@ -314,8 +314,12 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
         {/* Item View / Options Panel */}
         <AnimatePresence mode="wait" initial={false}>
           {!expanded ? (
-            <div
+            <motion.div
               key={`collapsed-${task.id}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
               style={{
                 transform: `translateX(${swipeOffset}px)`,
                 transition: isSwiping ? 'none' : 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)',
@@ -468,7 +472,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                   </div>
                 )}
               </div>
-            </div>
+            </motion.div>
           ) : (
             <motion.div
               key={`expanded-${task.id}`}

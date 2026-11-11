@@ -122,7 +122,7 @@ Token management for user account access delegation. Requires user session JWT (
 | `GET`    | `/api-tokens/scopes` | List all available scopes and their implementation status |
 
 ### 12. External Integration API & Todos (`/api/v1/external`, `/api/v1/todos`)
-Dedicated endpoints for external tools, automation scripts, and calendar/todo clients using Personal Access Tokens (`Authorization: Bearer tide_pat_...` or `X-API-Key: tide_pat_...`). For full documentation, query parameter specifications, and curl examples, see [docs/API_TODOS.md](../../docs/API_TODOS.md) and [docs/API_NOTES.md](../../docs/API_NOTES.md).
+Dedicated endpoints for external tools, automation scripts, and calendar/todo clients using Personal Access Tokens (`Authorization: Bearer tide_pat_...` or `X-API-Key: tide_pat_...`). For full documentation, query parameter specifications, and curl examples, see [docs/API.md](../../docs/API.md).
 
 | Method | Route | Required Scope | Description |
 |--------|-------|----------------|-------------|

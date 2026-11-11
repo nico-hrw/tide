@@ -300,15 +300,16 @@ export default function CalendarView({
             const targetScrollY = Math.max(0, nowMinutes - 120);
             container.scrollTop = targetScrollY;
 
-            // Horizontal scroll to today
+            // Horizontal scroll to selected date or today
             setTimeout(() => {
                 if (!container) return;
-                const todayIso = format(new Date(), "yyyy-MM-dd");
-                const todayCol = container.querySelector(`[data-day-col="${todayIso}"]`) as HTMLElement;
-                if (todayCol) {
+                const targetIso = format(date, "yyyy-MM-dd");
+                let targetCol = container.querySelector(`[data-day-col="${targetIso}"]`) as HTMLElement;
+                if (!targetCol) targetCol = container.querySelector(`[data-day-col="${format(new Date(), "yyyy-MM-dd")}"]`) as HTMLElement;
+                if (targetCol) {
                     const containerWidth = container.clientWidth;
-                    const colLeft = todayCol.offsetLeft;
-                    const colWidth = todayCol.offsetWidth;
+                    const colLeft = targetCol.offsetLeft;
+                    const colWidth = targetCol.offsetWidth;
                     const targetScrollX = colLeft - (containerWidth / 2) + (colWidth / 2) - 30;
                     container.scrollLeft = Math.max(0, targetScrollX);
                 }
@@ -316,7 +317,7 @@ export default function CalendarView({
 
             hasInitializedScroll.current = true;
         }
-    }, [loadedWeeks, viewMode]);
+    }, [loadedWeeks, viewMode, date]);
 
     // --- Magic Link Navigation Support ---
     useLayoutEffect(() => {

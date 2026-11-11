@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import MiniCalendar from '../../Calendar/MiniCalendar';
 import { useIslandStore, IslandView } from './useIslandStore';
 import { useDataStore } from '@/store/useDataStore';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { de } from 'date-fns/locale';
 import WeekStrip from './WeekStrip';
 import DailySummaryView from './DailySummaryView';
@@ -925,6 +925,26 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
         )
     );
 
+    const [calendarMonth, setCalendarMonth] = useState<Date>(() => selectedDate || new Date());
+    useEffect(() => {
+        if (selectedDate) {
+            setCalendarMonth(selectedDate);
+        }
+    }, [selectedDate]);
+
+    const calendarHeightClass = useMemo(() => {
+        const d = calendarMonth || selectedDate || new Date();
+        const mStart = startOfMonth(d);
+        const mEnd = endOfMonth(mStart);
+        const sDate = startOfWeek(mStart, { weekStartsOn: 1 });
+        const eDate = endOfWeek(mEnd, { weekStartsOn: 1 });
+        const days = eachDayOfInterval({ start: sDate, end: eDate });
+        const weeks = Math.round(days.length / 7);
+        if (weeks <= 4) return 'h-[188px]';
+        if (weeks === 5) return 'h-[212px]';
+        return 'h-[236px]';
+    }, [calendarMonth, selectedDate]);
+
     // Live 1-second interval ticker for countdowns
     const [currentTime, setCurrentTime] = useState(() => new Date());
     useEffect(() => {
@@ -1476,15 +1496,15 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
             `}</style>
 
             {/* STAGE: Stable anchor container */}
-            <div id="si-stage" className={`relative w-full transition-all duration-300 ${isExpandedViewActive ? 'h-auto min-h-[236px]' : 'h-[236px]'}`}>
+            <div id="si-stage" className={`relative w-full transition-all duration-300 ${isExpandedViewActive ? 'h-auto min-h-[188px]' : calendarHeightClass}`}>
                 {/* LAYER 1: Positioner (Controls centering shrink & rightward expansion) */}
                 <div
                     ref={positionerRef}
                     id="si-positioner"
                     className={`si-positioner left-0 top-0 z-40 transition-all duration-300 ${
                         isExpandedViewActive
-                            ? 'relative w-full min-w-full md:min-w-[340px] max-w-[calc(100vw-32px)] h-auto min-h-[236px]'
-                            : 'absolute w-full h-[236px]'
+                            ? 'relative w-full min-w-full md:min-w-[340px] max-w-[calc(100vw-32px)] h-auto min-h-[188px]'
+                            : `absolute w-full ${calendarHeightClass}`
                     }`}
                 >
                     {/* LAYER 2: Rotator (Controls whip rotation exclusively) */}
@@ -1493,7 +1513,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                         id="si-rotator"
                         className={`si-rotator w-full transition-all duration-300 ${
                             isExpandedViewActive
-                                ? 'relative h-auto min-h-[236px]'
+                                ? 'relative h-auto min-h-[188px]'
                                 : 'absolute inset-0 h-full'
                         }`}
                     >
@@ -1511,7 +1531,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                             onDoubleClick={triggerDemoLoading}
                             className={`bg-[#1a1c1e] dark text-white rounded-[24px] shadow-2xl border border-white/10 transition-all duration-300 ${
                                 isExpandedViewActive
-                                    ? 'relative w-full h-auto min-h-[236px] overflow-visible'
+                                    ? 'relative w-full h-auto min-h-[188px] overflow-visible'
                                     : 'absolute inset-0 overflow-hidden'
                             }`}
                         >
@@ -1521,7 +1541,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                                 id="si-calendarView"
                                 className={`w-full pt-2 px-2.5 pb-4 flex flex-col transition-all duration-300 ${
                                     isExpandedViewActive
-                                        ? 'relative h-auto min-h-[236px] overflow-visible'
+                                        ? 'relative h-auto min-h-[188px] overflow-visible'
                                         : 'absolute left-0 top-0 h-full overflow-hidden'
                                 }`}
                             >
@@ -1541,6 +1561,9 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                                             selectedDate={selectedDate}
                                             onSelect={(date) => {
                                                 onSelect?.(date);
+                                            }}
+                                            onMonthChange={(date) => {
+                                                setCalendarMonth(date);
                                             }}
                                         />
                                         <InMeetingBar events={todayEvents} />

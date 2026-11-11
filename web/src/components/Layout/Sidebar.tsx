@@ -193,6 +193,8 @@ export default function Sidebar({
     const handleReorder = (newItems: DecryptedFile[]) => {
         setOrderedItems(newItems);
         const newIds = newItems.map(i => i.id);
+        const currentOtherIds = orderedNoteIds.filter(id => !topLevelItems.some(item => item.id === id));
+        setOrderedNoteIds([...newIds, ...currentOtherIds]);
     };
 
 

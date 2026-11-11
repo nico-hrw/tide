@@ -68,7 +68,7 @@ export interface CanvasWorkspaceProps {
     setFileName: (name: string) => void;
     saveStatus: 'unsaved' | 'saving' | 'saved';
     setSaveStatus: (status: 'unsaved' | 'saving' | 'saved') => void;
-    submitRename: (id: string, newTitle: string) => void;
+    submitRename: (id: string, newTitle: string, force?: boolean) => void;
     setShowBackups: (show: boolean) => void;
     showBackups?: boolean;
     onRestoreBackup?: (content: JSONContent | Record<string, unknown> | null) => void;
@@ -172,6 +172,22 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     }, [selectedContent, onRestoreBackup, activeNoteId, performSave, files, activeFileKey, setShowBackups, setActiveIndex]);
 
     const titleInputNoteIdRef = useRef<string | null>(null);
+    const initialTitleRef = useRef<string>(fileName);
+    const lastSubmittedTitleRef = useRef<string>(fileName);
+    const isEditingTitleRef = useRef<boolean>(false);
+
+    useEffect(() => {
+        isEditingTitleRef.current = false;
+        initialTitleRef.current = fileName;
+        lastSubmittedTitleRef.current = fileName;
+    }, [activeNoteId]);
+
+    useEffect(() => {
+        if (!isEditingTitleRef.current) {
+            initialTitleRef.current = fileName;
+            lastSubmittedTitleRef.current = fileName;
+        }
+    }, [fileName]);
     const [internalHoveredElementId, setInternalHoveredElementId] = useState<string | null>(null);
     const [internalIsLinkingMode, setInternalIsLinkingMode] = useState(false);
     const [internalActiveLinkBlockId, setInternalActiveLinkBlockId] = useState<string | null>(null);
@@ -338,9 +354,14 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 value={fileName}
                                                 readOnly={(files.find(f => f.id === (titleInputNoteIdRef.current || activeNoteId)) as any)?.permission === 'view'}
                                                 onFocus={() => {
+                                                    isEditingTitleRef.current = true;
                                                     titleInputNoteIdRef.current = activeNoteId || (!NON_EDITOR_TABS.has(activeTabId) ? activeTabId : null);
+                                                    if (!lastSubmittedTitleRef.current) {
+                                                        lastSubmittedTitleRef.current = fileName;
+                                                    }
                                                 }}
                                                 onChange={(e) => {
+                                                    isEditingTitleRef.current = true;
                                                     const targetId = titleInputNoteIdRef.current || activeNoteId || (!NON_EDITOR_TABS.has(activeTabId) ? activeTabId : null);
                                                     if (!titleInputNoteIdRef.current) titleInputNoteIdRef.current = targetId;
                                                     if ((files.find(f => f.id === targetId) as any)?.permission === 'view') return;
@@ -353,15 +374,22 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                     }
                                                 }}
                                                 onBlur={(e) => {
+                                                    isEditingTitleRef.current = false;
                                                     const targetId = titleInputNoteIdRef.current || activeNoteId || (!NON_EDITOR_TABS.has(activeTabId) ? activeTabId : null);
                                                     titleInputNoteIdRef.current = null;
                                                     if (!targetId) return;
                                                     if ((files.find(f => f.id === targetId) as any)?.permission === 'view') return;
-                                                    submitRename(targetId, e.target.value);
+                                                    const newTitle = e.target.value;
+                                                    if (newTitle !== lastSubmittedTitleRef.current) {
+                                                        lastSubmittedTitleRef.current = newTitle;
+                                                        initialTitleRef.current = newTitle;
+                                                        submitRename(targetId, newTitle, true);
+                                                    }
                                                 }}
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter' || e.key === 'Tab') {
                                                         e.preventDefault();
+                                                        (e.target as HTMLInputElement).blur();
                                                         if (editorInstance && !editorInstance.isDestroyed && editorInstance.commands) {
                                                             editorInstance.commands.focus();
                                                         }

@@ -242,10 +242,22 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
   // Synchronize editing state with the bottom navigation
   useEffect(() => {
+    const isInsideMobile = Boolean(listScrollRef.current?.closest('.mobile-todos-container'));
     if (editingTaskId) {
-      window.dispatchEvent(new CustomEvent('tide:todo-editing-start', { detail: { id: editingTaskId } }));
+      window.dispatchEvent(new CustomEvent('tide:todo-editing-start', {
+        detail: {
+          id: editingTaskId,
+          source: isInsideMobile ? 'mobile' : 'desktop',
+          isDesktop: !isInsideMobile,
+        },
+      }));
     } else {
-      window.dispatchEvent(new CustomEvent('tide:todo-editing-end'));
+      window.dispatchEvent(new CustomEvent('tide:todo-editing-end', {
+        detail: {
+          source: isInsideMobile ? 'mobile' : 'desktop',
+          isDesktop: !isInsideMobile,
+        },
+      }));
     }
     return () => {
       window.dispatchEvent(new CustomEvent('tide:todo-editing-end'));
@@ -268,7 +280,12 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       setIsFolderModalOpen(true);
     };
 
-    const handleCancelEdit = () => {
+    const handleCancelEdit = (e?: Event) => {
+      const customEvent = e as CustomEvent<{ source?: string }>;
+      const isInsideMobile = Boolean(listScrollRef.current?.closest('.mobile-todos-container'));
+      if (!isInsideMobile && customEvent?.detail?.source === 'mobile') {
+        return;
+      }
       const currentId = editingTaskIdRef.current || editingTaskId;
       if (currentId) cancelEditingRef.current(currentId);
     };
@@ -524,7 +541,11 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     setIsAddMenuOpen(false);
   };
 
+  const lastRowClickRef = useRef<{ id: string; time: number }>({ id: '', time: 0 });
+  const editingStartTimeRef = useRef<number>(0);
+
   const startEditing = (task: TaskItem) => {
+    editingStartTimeRef.current = Date.now();
     setEditingTaskId(task.id);
     setEditDraft({
       title: task.title, description: task.description || '', priority: getTaskPriority(task),
@@ -567,7 +588,21 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   saveEditingRef.current = saveEditing;
 
   const handleRowClick = (task: TaskItem) => {
+    const now = Date.now();
+    const timeSinceLastClick = now - lastRowClickRef.current.time;
+    const sameTask = lastRowClickRef.current.id === task.id;
+
+    // Debounce rapid successive clicks on the same row (within 300ms)
+    if (sameTask && timeSinceLastClick < 300) {
+      return;
+    }
+    lastRowClickRef.current = { id: task.id, time: now };
+
     if (editingTaskId === task.id) {
+      // Do not rapidly toggle off an item if clicked again during editing (within 500ms of opening)
+      if (now - editingStartTimeRef.current < 500) {
+        return;
+      }
       saveEditing(task.id);
     } else {
       if (editingTaskId) saveEditing(editingTaskId);

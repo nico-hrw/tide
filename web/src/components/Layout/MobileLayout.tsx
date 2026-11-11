@@ -742,13 +742,16 @@ export default function MobileLayout({
   });
 
   useEffect(() => {
-    const isMobile = () => typeof window !== 'undefined' && window.innerWidth < 768;
+    const isMobileVisible = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
     const handleStart = (e: any) => {
-      if (!isMobile()) return;
+      if (!isMobileVisible()) return;
+      if (e.detail?.source === 'desktop' || e.detail?.isDesktop) return;
+      if (activeTab !== 'todos') return;
       setEditingTodoId(e.detail?.id || 'active');
     };
-    const handleEnd = () => {
-      if (!isMobile()) return;
+    const handleEnd = (e?: any) => {
+      if (!isMobileVisible()) return;
+      if (e?.detail?.source === 'desktop' || e?.detail?.isDesktop) return;
       setEditingTodoId(null);
     };
     window.addEventListener('tide:todo-editing-start', handleStart);
@@ -757,13 +760,18 @@ export default function MobileLayout({
       window.removeEventListener('tide:todo-editing-start', handleStart);
       window.removeEventListener('tide:todo-editing-end', handleEnd);
     };
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || window.innerWidth >= 768) return;
+    if (typeof window === 'undefined') return;
+    const isMobileVisible = window.matchMedia('(max-width: 767px)').matches;
+    if (!isMobileVisible) {
+      if (editingTodoId) setEditingTodoId(null);
+      return;
+    }
     if (activeTab !== 'todos' && editingTodoId) {
       setEditingTodoId(null);
-      window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit'));
+      window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit', { detail: { source: 'mobile' } }));
     }
   }, [activeTab, editingTodoId]);
 
@@ -828,7 +836,7 @@ export default function MobileLayout({
 
   const handleCountdownTap = useCallback((eventId: string) => {
     setEditingTodoId(null);
-    window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit'));
+    window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit', { detail: { source: 'mobile' } }));
     setActiveTab('calendar');
     setCalViewMode('day');
     setActiveDate(new Date());
@@ -2284,7 +2292,7 @@ export default function MobileLayout({
             <button
               onClick={() => {
                 setEditingTodoId(null);
-                window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit'));
+                window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit', { detail: { source: 'mobile' } }));
               }}
               className="h-10 px-3 flex items-center gap-1.5 rounded-xl sm:rounded-2xl text-xs font-semibold transition-all active:scale-95 shrink-0 cursor-pointer"
               style={{

@@ -1031,6 +1031,11 @@ func (h *FileHandler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 
 	rc, err := h.BlobStore.Get(r.Context(), lookupID)
 	if err != nil {
+		if len(file.Content) > 0 {
+			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Write(file.Content)
+			return
+		}
 		log.Printf("[ERROR] DownloadFile: Blob not found key=%s: %v", lookupID, err)
 		http.Error(w, "Blob not found", http.StatusNotFound)
 		return

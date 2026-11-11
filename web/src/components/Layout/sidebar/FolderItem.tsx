@@ -59,6 +59,17 @@ export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRena
         };
     }, []);
 
+    const isDescendant = (parentCandidateId: string, childCandidateId: string): boolean => {
+        let curr = allFiles.find(f => f.id === childCandidateId);
+        let depth = 0;
+        while (curr && curr.parent_id && depth < 20) {
+            if (curr.parent_id === parentCandidateId) return true;
+            curr = allFiles.find(f => f.id === curr!.parent_id);
+            depth++;
+        }
+        return false;
+    };
+
     const handleToggle = async (e: React.MouseEvent) => {
         if (isLongPressTriggeredRef.current) {
             e.preventDefault();
@@ -151,12 +162,16 @@ export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRena
                 }}
                 onDragStart={(e: any) => onDragStart(e, folder.id)}
                 onContextMenu={(e: any) => onContextMenu(e, folder.id, 'folder')}
-                onDragOver={level > 0 ? (e: any) => e.preventDefault() : undefined}
-                onDrop={level > 0 ? (e) => {
+                onDragOver={level > 0 ? (e: React.DragEvent) => {
+                    if (e.dataTransfer.types.includes('tide/calendar-event')) return;
+                    e.preventDefault();
+                } : undefined}
+                onDrop={level > 0 ? (e: React.DragEvent) => {
+                    if (e.dataTransfer.types.includes('tide/calendar-event')) return;
                     e.preventDefault();
                     e.stopPropagation();
                     const id = e.dataTransfer.getData("text/plain");
-                    if (id && id !== folder.id) onMoveItem?.(id, folder.id);
+                    if (id && id !== folder.id && !isDescendant(id, folder.id)) onMoveItem?.(id, folder.id);
                 } : undefined}
                 onClick={handleToggle}
                 className={`group flex items-center justify-between w-full px-2 py-1 min-h-[28px] rounded-lg cursor-pointer transition-all duration-150 hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover`}
@@ -204,8 +219,44 @@ export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRena
                 </div>
             </motion.div>
             {isOpen && (
-                <div className="relative mt-0.5 ml-3 pl-2.5 border-l border-gray-200/90 dark:border-white/10 space-y-0.5">
-                    {children
+                <div
+                    onDragOver={(e) => {
+                        if (e.dataTransfer.types.includes('tide/calendar-event')) return;
+                        e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                        if (e.dataTransfer.types.includes('tide/calendar-event')) return;
+                        if (e.target === e.currentTarget) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const id = e.dataTransfer.getData("text/plain");
+                            if (id && id !== folder.id && !isDescendant(id, folder.id)) onMoveItem?.(id, folder.id);
+                        }
+                    }}
+                    className="relative mt-0.5 ml-3 pl-2.5 border-l border-gray-200/90 dark:border-white/10 space-y-0.5 min-h-[10px]"
+                >
+                    {children.length === 0 ? (
+                        <div
+                            onDragOver={(e) => {
+                                if (e.dataTransfer.types.includes('tide/calendar-event')) return;
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.dataTransfer.dropEffect = 'move';
+                            }}
+                            onDrop={(e) => {
+                                if (e.dataTransfer.types.includes('tide/calendar-event')) return;
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const id = e.dataTransfer.getData("text/plain");
+                                if (id && id !== folder.id && !isDescendant(id, folder.id)) onMoveItem?.(id, folder.id);
+                            }}
+                            className="py-1.5 px-2 text-[11px] text-gray-400 dark:text-slate-500 italic rounded-md border border-dashed border-gray-200/80 dark:border-slate-800 transition-colors hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/20"
+                        >
+                            Leer (hier ablegen)
+                        </div>
+                    ) : (
+                        <>
+                            {children
                         .sort((a, b) => {
                             if (!orderedNoteIds) return 0;
                             const indexA = orderedNoteIds.indexOf(a.id);
@@ -257,7 +308,9 @@ export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRena
                                     if (!draggedId || draggedId === f.id) return;
 
                                     if (zone === 'middle' && f.type === 'folder') {
-                                        onMoveItem?.(draggedId, f.id);
+                                        if (draggedId !== f.id && !isDescendant(draggedId, f.id)) {
+                                            onMoveItem?.(draggedId, f.id);
+                                        }
                                         return;
                                     }
 
@@ -351,6 +404,8 @@ export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRena
                                 )}
                             </motion.div>
                         ))}
+                    </>
+                    )}
                 </div>
             )}
         </div>

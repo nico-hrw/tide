@@ -103,7 +103,7 @@ func main() {
 
 	tabsHandler := api.NewTabsHandler(sqliteStore)
 	apiTokenHandler := api.NewAPITokenHandler(sqliteStore)
-	externalHandler := api.NewExternalHandler(sqliteStore)
+	externalHandler := api.NewExternalHandler(sqliteStore, blobStore)
 	todosHandler := api.NewTodosHandler(sqliteStore)
 
 	// 3. Setup Router

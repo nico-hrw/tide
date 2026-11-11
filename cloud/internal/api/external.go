@@ -1,11 +1,13 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,11 +20,16 @@ import (
 )
 
 type ExternalHandler struct {
-	Store *store.SQLiteStore
+	Store     *store.SQLiteStore
+	BlobStore store.BlobStore
 }
 
-func NewExternalHandler(s *store.SQLiteStore) *ExternalHandler {
-	return &ExternalHandler{Store: s}
+func NewExternalHandler(s *store.SQLiteStore, b ...store.BlobStore) *ExternalHandler {
+	h := &ExternalHandler{Store: s}
+	if len(b) > 0 {
+		h.BlobStore = b[0]
+	}
+	return h
 }
 
 // APITokenAuth middleware validates the Bearer token or X-API-Key against the api_tokens table
@@ -97,6 +104,11 @@ func APITokenAuth(s *store.SQLiteStore, requiredScopes ...string) func(http.Hand
 						hasScope = true
 						break
 					}
+					// If required scope is notes:read or notes:write, safe:... or folder:... can qualify
+					if strings.HasPrefix(req, "notes:") && (strings.HasPrefix(sc, "safe:") || strings.HasPrefix(sc, "folder:")) {
+						hasScope = true
+						break
+					}
 				}
 				if hasScope {
 					break
@@ -122,9 +134,10 @@ func APITokenAuth(s *store.SQLiteStore, requiredScopes ...string) func(http.Hand
 				_ = s.UpdateAPITokenLastUsed(ctx, tokenID, time.Now())
 			}(apiToken.ID)
 
-			// Inject user_id into context
+			// Inject user_id and token_scopes into context
 			ctx := context.WithValue(r.Context(), "user_id", apiToken.UserID)
 			ctx = context.WithValue(ctx, "api_token_id", apiToken.ID)
+			ctx = context.WithValue(ctx, "token_scopes", apiToken.Scopes)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -297,12 +310,112 @@ type UpdateExternalNoteRequest struct {
 	ParentID *string `json:"parent_id"`
 }
 
+func extractScopes(r *http.Request) (safes []string, folders []string) {
+	scopes, _ := r.Context().Value("token_scopes").([]string)
+	for _, sc := range scopes {
+		if strings.HasPrefix(sc, "safe:") {
+			s := strings.TrimSpace(strings.TrimPrefix(sc, "safe:"))
+			if s != "" {
+				safes = append(safes, s)
+			}
+		} else if strings.HasPrefix(sc, "folder:") {
+			f := strings.TrimSpace(strings.TrimPrefix(sc, "folder:"))
+			if f != "" {
+				folders = append(folders, f)
+			}
+		}
+	}
+	return
+}
+
+func normSafeName(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" || s == "Standard" {
+		return "main"
+	}
+	return s
+}
+
+func (h *ExternalHandler) getFileSafe(ctx context.Context, file *db.File) string {
+	var meta struct {
+		Safe string `json:"safe"`
+	}
+	if len(file.Metadata) > 0 {
+		_ = json.Unmarshal(file.Metadata, &meta)
+	}
+	if meta.Safe != "" {
+		return normSafeName(meta.Safe)
+	}
+	if file.ParentID != nil && *file.ParentID != "" {
+		if parent, err := h.Store.GetAccessibleFile(ctx, *file.ParentID, file.OwnerID); err == nil {
+			var pMeta struct {
+				Safe string `json:"safe"`
+			}
+			if len(parent.Metadata) > 0 {
+				_ = json.Unmarshal(parent.Metadata, &pMeta)
+				if pMeta.Safe != "" {
+					return normSafeName(pMeta.Safe)
+				}
+			}
+		}
+	}
+	return "main"
+}
+
+func (h *ExternalHandler) noteMatchesScope(ctx context.Context, file *db.File, safes []string, folders []string) bool {
+	if len(safes) == 0 && len(folders) == 0 {
+		return true
+	}
+
+	if len(folders) > 0 {
+		matchesFolder := false
+		currParentID := file.ParentID
+		for depth := 0; depth < 5 && currParentID != nil && *currParentID != ""; depth++ {
+			for _, fID := range folders {
+				if *currParentID == fID {
+					matchesFolder = true
+					break
+				}
+			}
+			if matchesFolder {
+				break
+			}
+			parentFile, err := h.Store.GetAccessibleFile(ctx, *currParentID, file.OwnerID)
+			if err != nil {
+				break
+			}
+			currParentID = parentFile.ParentID
+		}
+		if !matchesFolder {
+			return false
+		}
+	}
+
+	if len(safes) > 0 {
+		fileSafe := h.getFileSafe(ctx, file)
+		matchesSafe := false
+		for _, s := range safes {
+			if normSafeName(s) == fileSafe {
+				matchesSafe = true
+				break
+			}
+		}
+		if !matchesSafe {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (h *ExternalHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("user_id").(string)
 	if !ok || userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
+	safes, folders := extractScopes(r)
 
 	q := r.URL.Query()
 	search := q.Get("search")
@@ -321,7 +434,7 @@ func (h *ExternalHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	notes, err := h.Store.ListNotesForExternalAPI(r.Context(), userID, search, limit)
+	notes, err := h.Store.ListNotesForExternalAPI(r.Context(), userID, search, 0)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -330,6 +443,24 @@ func (h *ExternalHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
 			"message": "Failed to retrieve notes",
 		})
 		return
+	}
+
+	if len(safes) > 0 || len(folders) > 0 {
+		var filtered []*db.ExternalNoteListItem
+		for _, n := range notes {
+			f, err := h.Store.GetAccessibleFile(r.Context(), n.ID, userID)
+			if err != nil {
+				continue
+			}
+			if h.noteMatchesScope(r.Context(), f, safes, folders) {
+				filtered = append(filtered, n)
+			}
+		}
+		notes = filtered
+	}
+
+	if limit > 0 && len(notes) > limit {
+		notes = notes[:limit]
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -354,7 +485,7 @@ func (h *ExternalHandler) GetNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	note, err := h.Store.GetNoteForExternalAPI(r.Context(), userID, noteID)
+	file, err := h.Store.GetAccessibleFile(r.Context(), noteID, userID)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			w.Header().Set("Content-Type", "application/json")
@@ -368,15 +499,96 @@ func (h *ExternalHandler) GetNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if file.Type != db.FileTypeNote {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Not Found", "message": "Note not found"})
+		return
+	}
+
+	safes, folders := extractScopes(r)
+	if !h.noteMatchesScope(r.Context(), file, safes, folders) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":   "Forbidden",
+			"message": "Note does not belong to scoped workspace or folder",
+		})
+		return
+	}
+
+	var metaMap map[string]interface{}
+	if len(file.Metadata) > 0 {
+		_ = json.Unmarshal(file.Metadata, &metaMap)
+	}
+	title := ""
+	if metaMap != nil {
+		if t, ok := metaMap["title"].(string); ok {
+			title = t
+		}
+	}
+	if title == "" {
+		title = store.ParseNoteTitle(string(file.Metadata), string(file.PublicMeta))
+	}
+
+	isUnencrypted := file.Visibility == "public"
+	if metaMap != nil {
+		if unenc, ok := metaMap["unencrypted"].(bool); ok && unenc {
+			isUnencrypted = true
+		}
+	}
+
+	if !isUnencrypted {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":         file.ID,
+			"title":      title,
+			"encrypted":  true,
+			"message":    "This note is end-to-end encrypted and cannot be decrypted without the user's private key",
+			"parent_id":  file.ParentID,
+			"created_at": file.CreatedAt,
+			"updated_at": file.UpdatedAt,
+			"note": map[string]interface{}{
+				"id":         file.ID,
+				"title":      title,
+				"encrypted":  true,
+				"message":    "This note is end-to-end encrypted and cannot be decrypted without the user's private key",
+				"parent_id":  file.ParentID,
+				"created_at": file.CreatedAt,
+				"updated_at": file.UpdatedAt,
+			},
+		})
+		return
+	}
+
+	contentStr := string(file.Content)
+	if contentStr == "" && file.BlobPath != nil && h.BlobStore != nil {
+		if rc, err := h.BlobStore.Get(r.Context(), *file.BlobPath); err == nil {
+			b, _ := io.ReadAll(rc)
+			rc.Close()
+			contentStr = string(b)
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"id":         note.ID,
-		"title":      note.Title,
-		"content":    note.Content,
-		"parent_id":  note.ParentID,
-		"created_at": note.CreatedAt,
-		"updated_at": note.UpdatedAt,
-		"note":       note,
+		"id":         file.ID,
+		"title":      title,
+		"content":    contentStr,
+		"parent_id":  file.ParentID,
+		"encrypted":  false,
+		"created_at": file.CreatedAt,
+		"updated_at": file.UpdatedAt,
+		"note": map[string]interface{}{
+			"id":         file.ID,
+			"title":      title,
+			"content":    contentStr,
+			"parent_id":  file.ParentID,
+			"created_at": file.CreatedAt,
+			"updated_at": file.UpdatedAt,
+		},
 	})
 }
 
@@ -386,6 +598,8 @@ func (h *ExternalHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
+	safes, folders := extractScopes(r)
 
 	var req CreateExternalNoteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -416,14 +630,68 @@ func (h *ExternalHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(map[string]string{"error": "Forbidden", "message": "Write permission required on parent"})
 			return
 		}
+
+		if len(folders) > 0 {
+			matchesFolder := false
+			for _, fID := range folders {
+				if cleanParentID == fID {
+					matchesFolder = true
+					break
+				}
+			}
+			if !matchesFolder {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error":   "Forbidden",
+					"message": "Parent folder does not match scoped token folder",
+				})
+				return
+			}
+		}
+
+		if len(safes) > 0 {
+			parentSafe := h.getFileSafe(r.Context(), parentFile)
+			matchesSafe := false
+			for _, s := range safes {
+				if normSafeName(s) == parentSafe {
+					matchesSafe = true
+					break
+				}
+			}
+			if !matchesSafe {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error":   "Forbidden",
+					"message": "Parent folder safe does not match scoped token workspace",
+				})
+				return
+			}
+		}
+
 		parentID = &cleanParentID
+	} else if len(folders) > 0 {
+		parentID = &folders[0]
 	}
 
 	now := time.Now().UTC()
 	fileID := uuid.New().String()
 	contentBytes := []byte(req.Content)
 
-	metaMap := map[string]interface{}{"title": title}
+	metaMap := map[string]interface{}{
+		"title":       title,
+		"unencrypted": true,
+		"author":      "external_api",
+	}
+	if len(safes) > 0 {
+		metaMap["safe"] = normSafeName(safes[0])
+	} else if parentID != nil {
+		if pf, err := h.Store.GetAccessibleFile(r.Context(), *parentID, userID); err == nil {
+			metaMap["safe"] = h.getFileSafe(r.Context(), pf)
+		}
+	}
+
 	metaBytes, _ := json.Marshal(metaMap)
 
 	file := &db.File{
@@ -439,6 +707,13 @@ func (h *ExternalHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 		PublicMeta: metaBytes,
 		Version:    1,
 		Content:    contentBytes,
+	}
+
+	if h.BlobStore != nil {
+		if err := h.BlobStore.Put(r.Context(), fileID, bytes.NewReader(contentBytes)); err == nil {
+			path := fileID
+			file.BlobPath = &path
+		}
 	}
 
 	if err := h.Store.CreateFile(r.Context(), file); err != nil {
@@ -464,6 +739,7 @@ func (h *ExternalHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 		"title":      createdNote.Title,
 		"content":    createdNote.Content,
 		"parent_id":  createdNote.ParentID,
+		"encrypted":  false,
 		"created_at": createdNote.CreatedAt,
 		"updated_at": createdNote.UpdatedAt,
 		"note":       createdNote,
@@ -513,6 +789,17 @@ func (h *ExternalHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	safes, folders := extractScopes(r)
+	if !h.noteMatchesScope(r.Context(), file, safes, folders) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":   "Forbidden",
+			"message": "Note does not belong to scoped workspace or folder",
+		})
+		return
+	}
+
 	var req UpdateExternalNoteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -521,27 +808,59 @@ func (h *ExternalHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var metaMap map[string]interface{}
+	if len(file.Metadata) > 0 {
+		_ = json.Unmarshal(file.Metadata, &metaMap)
+	}
+	if metaMap == nil {
+		metaMap = make(map[string]interface{})
+	}
+
+	isUnencrypted := file.Visibility == "public"
+	if unenc, ok := metaMap["unencrypted"].(bool); ok && unenc {
+		isUnencrypted = true
+	}
+
+	if req.Content != nil && !isUnencrypted {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error":     "Bad Request",
+			"message":   "Cannot update content of an end-to-end encrypted note via external API. Note content is protected with client-side encryption.",
+			"encrypted": true,
+		})
+		return
+	}
+
 	if req.Title != nil {
-		var metaMap map[string]interface{}
-		if len(file.Metadata) > 0 {
-			_ = json.Unmarshal(file.Metadata, &metaMap)
-		}
-		if metaMap == nil {
-			metaMap = make(map[string]interface{})
-		}
 		metaMap["title"] = *req.Title
 		metaBytes, _ := json.Marshal(metaMap)
 		file.Metadata = metaBytes
 		file.PublicMeta = metaBytes
 	}
 
-	if req.Content != nil {
-		file.Content = []byte(*req.Content)
-		file.Size = int64(len(file.Content))
+	if req.Content != nil && isUnencrypted {
+		contentBytes := []byte(*req.Content)
+		file.Content = contentBytes
+		file.Size = int64(len(contentBytes))
+		if h.BlobStore != nil {
+			_ = h.BlobStore.Put(r.Context(), file.ID, bytes.NewReader(contentBytes))
+			path := file.ID
+			file.BlobPath = &path
+		}
 	}
 
 	if req.ParentID != nil {
 		if strings.TrimSpace(*req.ParentID) == "" {
+			if len(folders) > 0 {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]string{
+					"error":   "Forbidden",
+					"message": "Cannot move note to root with folder-scoped token",
+				})
+				return
+			}
 			file.ParentID = nil
 		} else {
 			cleanParentID := strings.TrimSpace(*req.ParentID)
@@ -558,6 +877,40 @@ func (h *ExternalHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 				json.NewEncoder(w).Encode(map[string]string{"error": "Forbidden", "message": "Write permission required on parent"})
 				return
 			}
+
+			if len(folders) > 0 {
+				matches := false
+				for _, fID := range folders {
+					if cleanParentID == fID {
+						matches = true
+						break
+					}
+				}
+				if !matches {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusForbidden)
+					json.NewEncoder(w).Encode(map[string]string{"error": "Forbidden", "message": "Parent folder does not match scoped folder"})
+					return
+				}
+			}
+
+			if len(safes) > 0 {
+				pSafe := h.getFileSafe(r.Context(), parentFile)
+				matches := false
+				for _, s := range safes {
+					if normSafeName(s) == pSafe {
+						matches = true
+						break
+					}
+				}
+				if !matches {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusForbidden)
+					json.NewEncoder(w).Encode(map[string]string{"error": "Forbidden", "message": "Parent folder does not match scoped workspace"})
+					return
+				}
+			}
+
 			file.ParentID = &cleanParentID
 		}
 	}
@@ -571,27 +924,35 @@ func (h *ExternalHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updatedNote, err := h.Store.GetNoteForExternalAPI(r.Context(), userID, noteID)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": true,
-			"id":      noteID,
-		})
-		return
+	contentStr := string(file.Content)
+	title := ""
+	if metaMap != nil {
+		if t, ok := metaMap["title"].(string); ok {
+			title = t
+		}
+	}
+	if title == "" {
+		title = store.ParseNoteTitle(string(file.Metadata), string(file.PublicMeta))
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"id":         updatedNote.ID,
-		"title":      updatedNote.Title,
-		"content":    updatedNote.Content,
-		"parent_id":  updatedNote.ParentID,
-		"created_at": updatedNote.CreatedAt,
-		"updated_at": updatedNote.UpdatedAt,
-		"note":       updatedNote,
+		"id":         file.ID,
+		"title":      title,
+		"content":    contentStr,
+		"parent_id":  file.ParentID,
+		"encrypted":  !isUnencrypted,
+		"created_at": file.CreatedAt,
+		"updated_at": file.UpdatedAt,
+		"note": map[string]interface{}{
+			"id":         file.ID,
+			"title":      title,
+			"content":    contentStr,
+			"parent_id":  file.ParentID,
+			"created_at": file.CreatedAt,
+			"updated_at": file.UpdatedAt,
+		},
 	})
 }
 
@@ -635,6 +996,17 @@ func (h *ExternalHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusForbidden)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Forbidden", "message": "Write permission required"})
+		return
+	}
+
+	safes, folders := extractScopes(r)
+	if !h.noteMatchesScope(r.Context(), file, safes, folders) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":   "Forbidden",
+			"message": "Note does not belong to scoped workspace or folder",
+		})
 		return
 	}
 

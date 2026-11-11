@@ -11,7 +11,8 @@ import (
 	"github.com/nicoh/tide/internal/db"
 )
 
-func parseNoteTitle(metadataStr, publicMetaStr string) string {
+// ParseNoteTitle extracts title from metadata or public_meta.
+func ParseNoteTitle(metadataStr, publicMetaStr string) string {
 	var meta struct {
 		Title string `json:"title"`
 	}
@@ -67,7 +68,7 @@ func (s *SQLiteStore) ListNotesForExternalAPI(ctx context.Context, userID string
 			return nil, err
 		}
 
-		title := parseNoteTitle(md, pm)
+		title := ParseNoteTitle(md, pm)
 		if searchLower != "" {
 			if !strings.Contains(strings.ToLower(title), searchLower) {
 				continue
@@ -126,7 +127,7 @@ func (s *SQLiteStore) GetNoteForExternalAPI(ctx context.Context, userID, noteID 
 		return nil, err
 	}
 
-	title := parseNoteTitle(md, pm)
+	title := ParseNoteTitle(md, pm)
 	contentStr := string(content)
 
 	return &db.ExternalNote{

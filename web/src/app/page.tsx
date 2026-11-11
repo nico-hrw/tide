@@ -1574,7 +1574,7 @@ export default function Dashboard() {
         setEditingFileId(fileId);
     };
 
-    const submitRename = async (fileId: string, newTitle: string) => {
+    const submitRename = async (fileId: string, newTitle: string, force = false) => {
         setEditingFileId(null);
 
         const files = useDataStore.getState().notes;
@@ -1584,15 +1584,20 @@ export default function Dashboard() {
         if (!target) return;
         
         // Prevent unnecessary backend updates if the title hasn't actually changed
-        if (target.title === newTitle) return;
+        const cachedMeta = useDataStore.getState().metadataCache[fileId];
+        const lastSavedTitle = (target as any).metadata?.title ?? (target as any).public_meta?.title ?? (cachedMeta as any)?.title;
+        if (!force && target.title === newTitle && (lastSavedTitle === undefined || lastSavedTitle === newTitle)) return;
 
         // Optimistic
         useDataStore.getState().setUpdatingMetadata(fileId, true);
         useDataStore.getState().updateSpecificMetadataCache(fileId, { title: newTitle });
-        useDataStore.getState().setNotes(files.map(f => f.id === fileId ? { ...f, title: newTitle } as any : f));
+        useDataStore.getState().setNotes(files.map(f => f.id === fileId ? { ...f, title: newTitle, metadata: { ...((f as any).metadata || {}), title: newTitle } } as any : f));
         useDataStore.getState().setEvents(events.map(e => e.id === fileId ? { ...e, title: newTitle } as any : e));
         setOpenTabs(prev => prev.map(t => t.id === fileId ? { ...t, title: newTitle } : t));
-        if (activeTabId === fileId) setFileName(newTitle);
+        if (activeTabId === fileId) {
+            setFileName(newTitle);
+            setSaveStatus("saving");
+        }
 
         try {
             const isPublic = 'visibility' in target && target.visibility === 'public';
@@ -1606,6 +1611,7 @@ export default function Dashboard() {
             } else {
                 if (!publicKey || !privateKey) {
                     useDataStore.getState().setUpdatingMetadata(fileId, false);
+                    if (activeTabId === fileId) setSaveStatus("unsaved");
                     return;
                 }
 
@@ -1685,11 +1691,17 @@ export default function Dashboard() {
                 }
             }
 
+            if (activeTabId === fileId) {
+                setSaveStatus("saved");
+            }
             useDataStore.getState().setUpdatingMetadata(fileId, false);
             useDataStore.getState().loadedDirectories.clear();
             useDataStore.getState().fetchDirectory(null);
         } catch (e) {
             console.error("Rename failed", e);
+            if (activeTabId === fileId) {
+                setSaveStatus("unsaved");
+            }
             alert("Rename failed");
             useDataStore.getState().setUpdatingMetadata(fileId, false);
             useDataStore.getState().loadedDirectories.clear();

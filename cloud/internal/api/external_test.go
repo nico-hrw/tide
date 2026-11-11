@@ -391,3 +391,170 @@ func TestExternalNotesCRUD(t *testing.T) {
 		t.Fatalf("expected 404 Not Found after deletion, got %d", afterDelRec.Code)
 	}
 }
+
+func TestExternalNotesE2EEAndScoping(t *testing.T) {
+	s, tempDir := setupTestStore(t)
+	defer os.RemoveAll(tempDir)
+
+	blobDir, err := os.MkdirTemp("", "tide-blob-test-*")
+	if err != nil {
+		t.Fatalf("failed to create blob temp dir: %v", err)
+	}
+	defer os.RemoveAll(blobDir)
+	blobStore := store.NewLocalBlobStore(blobDir)
+
+	userID := "user-scope-test"
+	err = s.CreateUser(context.Background(), &db.User{
+		ID:              userID,
+		EncryptedVault:  []byte("vault"),
+		EncryptedPepper: []byte("pepper"),
+		PublicKey:       "pubkey",
+		CreatedAt:       time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	r := chi.NewRouter()
+	apiTokenHandler := api.NewAPITokenHandler(s)
+	externalHandler := api.NewExternalHandler(s, blobStore)
+
+	r.Route("/api-tokens", func(sub chi.Router) {
+		sub.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				ctx := context.WithValue(req.Context(), "user_id", userID)
+				next.ServeHTTP(w, req.WithContext(ctx))
+			})
+		})
+		sub.Post("/", apiTokenHandler.CreateToken)
+	})
+
+	r.Route("/external", externalHandler.RegisterRoutes)
+
+	// Create tokens:
+	// 1. Full token
+	fullTokenReq, _ := json.Marshal(map[string]interface{}{
+		"name":   "Full Token",
+		"scopes": []string{"notes:read", "notes:write"},
+	})
+	fullRec := httptest.NewRecorder()
+	r.ServeHTTP(fullRec, httptest.NewRequest("POST", "/api-tokens", bytes.NewReader(fullTokenReq)))
+	var fullToken api.CreateAPITokenResponse
+	_ = json.NewDecoder(fullRec.Body).Decode(&fullToken)
+
+	// 2. Safe-scoped token: safe:Uni
+	uniTokenReq, _ := json.Marshal(map[string]interface{}{
+		"name":   "Uni Token",
+		"scopes": []string{"notes:read", "notes:write", "safe:Uni"},
+	})
+	uniRec := httptest.NewRecorder()
+	r.ServeHTTP(uniRec, httptest.NewRequest("POST", "/api-tokens", bytes.NewReader(uniTokenReq)))
+	var uniToken api.CreateAPITokenResponse
+	_ = json.NewDecoder(uniRec.Body).Decode(&uniToken)
+
+	// A. Test E2EE Note Protection
+	e2eeNoteID := "e2ee-note-1"
+	now := time.Now().UTC()
+	err = s.CreateFile(context.Background(), &db.File{
+		ID:         e2eeNoteID,
+		OwnerID:    userID,
+		Type:       db.FileTypeNote,
+		Size:       100,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		Visibility: "private",
+		Metadata:   []byte(`{"title":"Secret Note"}`),
+		PublicMeta: []byte(`{"title":"Secret Note"}`),
+		Version:    2,
+		Content:    []byte{0x01, 0x02, 0xff, 0xfe}, // raw binary Yjs / AES-GCM bytes
+	})
+	if err != nil {
+		t.Fatalf("failed to create e2ee note: %v", err)
+	}
+
+	// GET on E2EE note should return encrypted: true and not corrupted string
+	getReq := httptest.NewRequest("GET", "/external/notes/"+e2eeNoteID, nil)
+	getReq.Header.Set("Authorization", "Bearer "+fullToken.Token)
+	getRec := httptest.NewRecorder()
+	r.ServeHTTP(getRec, getReq)
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", getRec.Code)
+	}
+	var getResp map[string]interface{}
+	_ = json.NewDecoder(getRec.Body).Decode(&getResp)
+	if getResp["encrypted"] != true {
+		t.Fatalf("expected encrypted: true for E2EE note, got: %+v", getResp)
+	}
+
+	// PUT on E2EE note with content should fail with 400 Bad Request
+	putBody, _ := json.Marshal(map[string]interface{}{
+		"content": "Trying to overwrite encrypted note with plaintext",
+	})
+	putReq := httptest.NewRequest("PUT", "/external/notes/"+e2eeNoteID, bytes.NewReader(putBody))
+	putReq.Header.Set("Authorization", "Bearer "+fullToken.Token)
+	putReq.Header.Set("Content-Type", "application/json")
+	putRec := httptest.NewRecorder()
+	r.ServeHTTP(putRec, putReq)
+	if putRec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400 Bad Request when updating E2EE note content, got %d", putRec.Code)
+	}
+
+	// B. Test API Note Creation (unencrypted: true, author: external_api, blob storage)
+	createBody, _ := json.Marshal(map[string]interface{}{
+		"title":   "Lecture Notes",
+		"content": "Calculus 101",
+	})
+	createReq := httptest.NewRequest("POST", "/external/notes", bytes.NewReader(createBody))
+	createReq.Header.Set("Authorization", "Bearer "+uniToken.Token)
+	createReq.Header.Set("Content-Type", "application/json")
+	createRec := httptest.NewRecorder()
+	r.ServeHTTP(createRec, createReq)
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 Created, got %d: %s", createRec.Code, createRec.Body.String())
+	}
+	var createdResp map[string]interface{}
+	_ = json.NewDecoder(createRec.Body).Decode(&createdResp)
+	createdID := createdResp["id"].(string)
+
+	// Verify file in DB has metadata.unencrypted == true, author == external_api, safe == Uni
+	createdFile, err := s.GetFile(context.Background(), createdID)
+	if err != nil {
+		t.Fatalf("failed to get created file: %v", err)
+	}
+	var metaMap map[string]interface{}
+	_ = json.Unmarshal(createdFile.Metadata, &metaMap)
+	if metaMap["unencrypted"] != true || metaMap["author"] != "external_api" || metaMap["safe"] != "Uni" {
+		t.Fatalf("unexpected metadata on created note: %+v", metaMap)
+	}
+
+	// Verify content exists in blob storage
+	if !blobStore.Exists(context.Background(), createdID) {
+		t.Fatalf("expected note to exist in blob storage")
+	}
+
+	// C. Test Scoping: List notes with Uni token vs Full token
+	listReq := httptest.NewRequest("GET", "/external/notes", nil)
+	listReq.Header.Set("Authorization", "Bearer "+uniToken.Token)
+	listRec := httptest.NewRecorder()
+	r.ServeHTTP(listRec, listReq)
+	if listRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", listRec.Code)
+	}
+	var listResp struct {
+		Count int `json:"count"`
+	}
+	_ = json.NewDecoder(listRec.Body).Decode(&listResp)
+	// Uni token should only see "Lecture Notes" (safe: Uni), NOT "Secret Note" (safe: main)
+	if listResp.Count != 1 {
+		t.Fatalf("expected exactly 1 note matching safe:Uni, got %d", listResp.Count)
+	}
+
+	// Uni token trying to GET e2eeNoteID (safe: main) should return 403 Forbidden
+	forbiddenReq := httptest.NewRequest("GET", "/external/notes/"+e2eeNoteID, nil)
+	forbiddenReq.Header.Set("Authorization", "Bearer "+uniToken.Token)
+	forbiddenRec := httptest.NewRecorder()
+	r.ServeHTTP(forbiddenRec, forbiddenReq)
+	if forbiddenRec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 Forbidden for out-of-scope note, got %d", forbiddenRec.Code)
+	}
+}

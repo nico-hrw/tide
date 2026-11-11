@@ -45,6 +45,9 @@ Each part of the project has its own dedicated documentation:
   - [`cloud/docs/API.md`](cloud/docs/API.md) — REST & WebSocket API specification
   - [`cloud/docs/SYSTEM_FLOW.md`](cloud/docs/SYSTEM_FLOW.md) — End-to-end encryption protocols and key exchange
 
+- **API & Integrations**:
+  - [`docs/API.md`](docs/API.md) — External REST API guide for third parties (Notes, Todos, Calendar Events, Personal Access Tokens)
+
 - **AI Contributors**:
   - [`AGENTS.md`](AGENTS.md) — Operating instructions, build/verify commands, and rules
 

@@ -132,7 +132,7 @@ func (h *APITokenHandler) CreateToken(w http.ResponseWriter, r *http.Request) {
 	var validScopes []string
 	for _, sc := range req.Scopes {
 		sc = strings.TrimSpace(sc)
-		if _, exists := SupportedScopes[sc]; exists {
+		if _, exists := SupportedScopes[sc]; exists || strings.HasPrefix(sc, "safe:") || strings.HasPrefix(sc, "folder:") || sc == "*" {
 			validScopes = append(validScopes, sc)
 		}
 	}

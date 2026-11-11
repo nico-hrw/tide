@@ -68,6 +68,17 @@ export default function SidebarNavTree({
         return orderedItems.filter((item) => !relatedIds.has(item.id));
     }, [orderedItems, relatedItems]);
 
+    const isDescendant = (parentCandidateId: string, childCandidateId: string): boolean => {
+        let curr = files.find(f => f.id === childCandidateId);
+        let depth = 0;
+        while (curr && curr.parent_id && depth < 20) {
+            if (curr.parent_id === parentCandidateId) return true;
+            curr = files.find(f => f.id === curr!.parent_id);
+            depth++;
+        }
+        return false;
+    };
+
     return (
                 <div className="space-y-0.5">
                     {relatedItems.length > 0 && (
@@ -247,7 +258,9 @@ export default function SidebarNavTree({
                                 if (!draggedId || draggedId === item.id) return;
 
                                 if (zone === 'middle' && item.type === 'folder') {
-                                    onMoveItem?.(draggedId, item.id);
+                                    if (!isDescendant(draggedId, item.id)) {
+                                        onMoveItem?.(draggedId, item.id);
+                                    }
                                     return;
                                 }
 

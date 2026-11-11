@@ -308,6 +308,30 @@ export interface DecryptedNotePayload {
     title?: string;
 }
 
+function ensureTipTapContent(rawText: string): string {
+    if (!rawText) return "";
+    const trimmed = rawText.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(rawText);
+            if (parsed && typeof parsed === 'object') {
+                return rawText;
+            }
+        } catch (_) {
+            // Not JSON, format as TipTap doc below
+        }
+    }
+    const lines = rawText.split(/\r?\n/);
+    return JSON.stringify({
+        type: 'doc',
+        content: lines.map(line => ({
+            type: 'paragraph',
+            attrs: { blockId: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) },
+            content: line.length > 0 ? [{ type: 'text', text: line }] : []
+        }))
+    });
+}
+
 export async function decryptNotePayload(params: {
     target: any;
     fileId: string;
@@ -317,13 +341,24 @@ export async function decryptNotePayload(params: {
 }): Promise<DecryptedNotePayload> {
     const { target, fileId, effectivePrivKey, effectiveMyId, onNotFound } = params;
 
-    if (target.visibility === 'public') {
+    const parsedTargetMeta = typeof target?.metadata === 'string'
+        ? (() => { try { return JSON.parse(target.metadata); } catch { return {}; } })()
+        : (target?.metadata || {});
+
+    const isExplicitlyUnencrypted = target?.visibility === 'public'
+        || target?.unencrypted === true
+        || target?.is_unencrypted === true
+        || parsedTargetMeta?.unencrypted === true;
+
+    if (isExplicitlyUnencrypted) {
         const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
         if (resBlob.status === 404) {
             onNotFound();
             throw new Error("File not found on server (404)");
         }
-        return { contentText: resBlob.ok ? await resBlob.text() : "", fileKeyToUse: null };
+        const rawText = resBlob.ok ? await resBlob.text() : "";
+        const title = parsedTargetMeta?.title || target?.title;
+        return { contentText: ensureTipTapContent(rawText), fileKeyToUse: null, title };
     }
 
     if ((target.version ?? 1) >= 2 && target.access_keys) {
@@ -381,6 +416,15 @@ export async function decryptNotePayload(params: {
 
     if (!target.secured_meta) throw new Error("Missing metadata");
     const meta = await cryptoLib.decryptMetadata(target.secured_meta, effectivePrivKey, `load-${fileId}`);
+    if (meta?.unencrypted === true) {
+        const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
+        if (resBlob.status === 404) {
+            onNotFound();
+            throw new Error("File not found on server (404)");
+        }
+        const rawText = resBlob.ok ? await resBlob.text() : "";
+        return { contentText: ensureTipTapContent(rawText), fileKeyToUse: null, title: (meta.title || target?.title) as string };
+    }
     if (!meta.fileKey || typeof meta.fileKey !== 'object' || !(meta.fileKey as any).kty) {
         throw new Error("Invalid or missing FileKey structure.");
     }
