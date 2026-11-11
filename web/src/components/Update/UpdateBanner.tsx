@@ -13,14 +13,11 @@ import {
     isNewerVersion,
 } from '@/lib/version';
 import { apiFetch } from '@/lib/api';
+import { isAuthOrLoginPath } from '@/lib/routeUtils';
 
 type BannerState = 'idle' | 'ascending' | 'banner' | 'success';
 
-function isAuthOrLoginRoute(path: string | null): boolean {
-    const current = path ?? (typeof window !== 'undefined' ? window.location.pathname : '');
-    if (!current) return false;
-    return current.startsWith('/auth') || current.startsWith('/login');
-}
+const isAuthOrLoginRoute = (path: string | null) => isAuthOrLoginPath(path || '');
 
 function hasAuthToken(): boolean {
     if (typeof window === 'undefined') return false;

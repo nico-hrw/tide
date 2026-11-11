@@ -1,5 +1,7 @@
 // Basic API wrapper
 
+import { isAuthOrLoginPath, getAuthPath } from './routeUtils';
+
 export const getApiBase = () => {
     if (typeof window !== 'undefined') {
         const clientHostname = window.location.hostname;
@@ -65,11 +67,11 @@ export async function apiFetch(url: string, options: RequestInit & { _isSyncRepl
             credentials: 'include' // Use httpOnly cookie
         });
 
-        if (res.status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/auth')) {
+        if (res.status === 401 && typeof window !== 'undefined' && !isAuthOrLoginPath(window.location.pathname)) {
             console.warn("[apiFetch] 401 Unauthorized. Redirecting.");
             sessionStorage.clear();
             localStorage.removeItem("tide_session_token");
-            window.location.href = '/auth';
+            window.location.href = getAuthPath(window.location.pathname);
         }
 
         // Cache successful GET requests for offline use

@@ -3,8 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useDataStore } from "@/store/useDataStore";
+import { normalizePath, getAuthPath } from "@/lib/routeUtils";
 
 const PUBLIC_PATHS = ["/", "/auth", "/verify"];
+
+const isPublic = (path: string) => {
+  const clean = normalizePath(path);
+  return PUBLIC_PATHS.includes(clean) || clean.startsWith("/notes/") || clean.startsWith("/files/public/");
+};
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
     const router = useRouter();
@@ -35,8 +41,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         const checkAuth = async () => {
-            const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/notes/") || pathname.startsWith("/files/public/");
-            if (isPublic) {
+            if (isPublic(pathname)) {
                 setAuthorized(true);
                 return;
             }
@@ -44,7 +49,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             const vaultKey = sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
             if (!vaultKey) {
                 setAuthorized(false);
-                router.push("/auth");
+                router.push(getAuthPath(pathname));
                 return;
             }
 
@@ -57,7 +62,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
                     setAuthorized(false);
                     sessionStorage.clear();
                     localStorage.removeItem("tide_session_token");
-                    router.push("/auth");
+                    router.push(getAuthPath(pathname));
                 }
             } catch (err) {
                 console.error("Auth check failed:", err);
@@ -71,7 +76,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     // Prevent flash of content
     if (!authorized) {
-        if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/notes/") || pathname.startsWith("/files/public/")) {
+        if (isPublic(pathname)) {
             return <>{children}</>;
         }
         return null;

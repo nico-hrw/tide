@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import * as cryptoLib from "@/lib/crypto";
 import { apiFetch } from "@/lib/api";
 import { storeMasterKey, purgeLegacyKeys, getMasterKey } from "@/lib/keyStorage";
+import { getHomePath } from "@/lib/routeUtils";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -268,7 +269,7 @@ function AuthContent() {
             const vaultKey = sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
             const sessionToken = localStorage.getItem("tide_session_token");
             if (sessionToken && vaultKey) {
-                router.push("/");
+                router.push(getHomePath());
             }
         }
     }, [router]);
@@ -289,7 +290,7 @@ function AuthContent() {
                         localStorage.setItem("tide_user_email", signal.email);
                         if (signal.publicKey) localStorage.setItem("tide_user_public_key", signal.publicKey);
                         if (signal.userId) localStorage.setItem("tide_user_id", signal.userId);
-                        router.push("/");
+                        router.push(getHomePath());
                     }
                 } catch (err) {
                     console.error("Multi-tab auth signal error:", err);
@@ -424,7 +425,7 @@ function AuthContent() {
             if (loginData.token) localStorage.setItem("tide_session_token", loginData.token);
 
             setStatus("success");
-            router.push("/");
+            router.push(getHomePath());
         } catch (err) {
             console.error("Failed to decrypt vault:", err);
             setStatus("error");
@@ -596,7 +597,7 @@ function AuthContent() {
                                 endlich im Flow.
                             </h1>
 
-                            <form onSubmit={handleIdentifierSubmit} className="w-full relative mb-16" noValidate>
+                            <form method="POST" action="#" onSubmit={(e) => { e.preventDefault(); handleIdentifierSubmit(e); }} className="w-full relative mb-16" noValidate>
                                 <div className="relative w-full max-w-sm mb-12">
                                     <label htmlFor="email" className="sr-only">E-Mail Adresse</label>
                                     <input
