@@ -125,6 +125,9 @@ func main() {
 				"http://127.0.0.1:5173":   true,
 				"https://go-tide.app":     true,
 				"https://www.go-tide.app": true,
+				"https://hrw.rocks":       true,
+				"https://www.hrw.rocks":   true,
+				"https://track.hrw.rocks": true,
 			}
 
 			if appURL := os.Getenv("APP_URL"); appURL != "" {

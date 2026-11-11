@@ -265,11 +265,11 @@ function AuthContent() {
     // Auto-login check on mount
     useEffect(() => {
         if (typeof window !== "undefined") {
-            if (localStorage.getItem("tide_session_token")) {
+            const vaultKey = sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
+            const sessionToken = localStorage.getItem("tide_session_token");
+            if (sessionToken && vaultKey) {
                 router.push("/");
-                return;
             }
-            getMasterKey().then((key) => { if (key) router.push("/"); });
         }
     }, [router]);
 

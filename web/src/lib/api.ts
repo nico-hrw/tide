@@ -3,7 +3,7 @@
 export const getApiBase = () => {
     if (typeof window !== 'undefined') {
         const clientHostname = window.location.hostname;
-        if (clientHostname === 'go-tide.app' || clientHostname.endsWith('.go-tide.app')) {
+        if (clientHostname !== 'localhost' && clientHostname !== '127.0.0.1') {
             return window.location.origin;
         }
     }

@@ -322,7 +322,7 @@ export class YjsE2EEProvider {
             const hostname = window.location.hostname;
             if (hostname === 'localhost' || hostname === '127.0.0.1') {
                 wsHost = `${hostname}:8080`;
-            } else if (hostname === 'go-tide.app' || hostname.endsWith('.go-tide.app')) {
+            } else if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
                 wsHost = window.location.host;
             } else {
                 wsHost = `${hostname}:8080`;
