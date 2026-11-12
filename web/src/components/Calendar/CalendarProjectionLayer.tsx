@@ -33,6 +33,7 @@ interface CalendarProjectionLayerProps {
     cursorX: MotionValue<number>;
     cursorY: MotionValue<number>;
     dropBounds: DOMRect | null;
+    hourHeight?: number;
 }
 
 /** Visual Projection Layer (Precise Mode loupe). */
@@ -44,64 +45,69 @@ export function CalendarProjectionLayer({
     resizingId,
     resizeDragState,
     events,
-    dragCurrentTopRef,
+    dragCurrentTopRef: _dragCurrentTopRef,
     activeEventEdgeRef,
     cursorX,
     cursorY,
     dropBounds,
+    hourHeight = 48,
 }: CalendarProjectionLayerProps) {
-            let eventObj: CalendarEvent | null = null;
-            let targetStartMins = 0;
-            let targetDuration = 0;
-            let activeMins = 0;
-            let actionType: 'move' | 'resize' | 'create' | null = null;
+    let eventObj: CalendarEvent | null = null;
+    let targetStartMins = 0;
+    let targetDuration = 0;
+    let activeMins = 0;
+    let actionType: 'move' | 'resize' | 'create' | null = null;
 
-            if (draggingId && dragState) {
-                eventObj = events.find(e => e.id === draggingId || (draggingId && draggingId.startsWith(e.id + "_"))) || null;
-                if (eventObj) {
-                    // Use real-time snapped position from the ref (updated every mousemove without re-render)
-                    targetStartMins = dragCurrentTopRef.current;
-                    const oldEnd = new Date(eventObj.end);
-                    const oldStart = new Date(eventObj.start);
-                    targetDuration = Math.max(10, (oldEnd.getTime() - oldStart.getTime()) / 60000);
-                    activeMins = targetStartMins; // Loupe focuses on TOP (start) edge when moving
-                    actionType = 'move';
-                    activeEventEdgeRef.current = activeMins; // anchor Loupe at event top
-                }
-            } else if (creationDrag) {
-                eventObj = {
-                    id: 'new-event-creation',
-                    title: 'New Event',
-                    start: new Date().toISOString(),
-                    end: new Date().toISOString(),
-                    effect: 'sky' // Default creation color
-                };
-                const snapInterval = 1;
-                const startMins = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
-                const deltaY = creationDrag.currentY - creationDrag.startY;
-                let snappoints = Math.floor(deltaY / snapInterval) * snapInterval;
-                if (deltaY < 0) snappoints = Math.ceil(deltaY / snapInterval) * snapInterval;
+    if (draggingId && dragState) {
+        eventObj = events.find(e => e.id === draggingId || (draggingId && draggingId.startsWith(e.id + "_"))) || null;
+        if (eventObj) {
+            // Use real-time snapped position from drag state
+            targetStartMins = dragState.currentTop;
+            const oldEnd = new Date(eventObj.end);
+            const oldStart = new Date(eventObj.start);
+            targetDuration = Math.max(10, (oldEnd.getTime() - oldStart.getTime()) / 60000);
+            activeMins = targetStartMins; // Loupe focuses on TOP (start) edge when moving
+            actionType = 'move';
+        }
+    } else if (creationDrag) {
+        eventObj = {
+            id: 'new-event-creation',
+            title: 'New Event',
+            start: new Date().toISOString(),
+            end: new Date().toISOString(),
+            effect: 'sky' // Default creation color
+        };
+        const snapInterval = 1;
+        const startMins = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
+        const deltaY = creationDrag.currentY - creationDrag.startY;
+        const deltaMins = deltaY / (hourHeight / 60);
+        let snappoints = Math.floor(deltaMins / snapInterval) * snapInterval;
+        if (deltaMins < 0) snappoints = Math.ceil(deltaMins / snapInterval) * snapInterval;
 
-                targetStartMins = deltaY < 0 ? startMins + snappoints : startMins;
-                targetDuration = Math.max(10, Math.abs(snappoints));
-                activeMins = deltaY < 0 ? targetStartMins : targetStartMins + targetDuration; // Focus Dragged Edge
-                actionType = 'create';
-                activeEventEdgeRef.current = activeMins;
-            } else if (resizingId && resizeDragState) {
-                eventObj = events.find(e => e.id === resizingId || (resizingId && resizingId.startsWith(e.id + "_"))) || null;
-                if (eventObj) {
-                    const snapInterval = 1;
-                    targetStartMins = resizeDragState.originalTop;
-                    targetDuration = Math.max(10, Math.round(resizeDragState.currentHeight / snapInterval) * snapInterval);
-                    activeMins = targetStartMins + targetDuration; // Focus Bottom Edge
-                    actionType = 'resize';
-                    activeEventEdgeRef.current = activeMins; // anchor Loupe at event bottom
-                }
-            }
+        targetStartMins = deltaMins < 0 ? startMins + snappoints : startMins;
+        targetDuration = Math.max(10, Math.abs(snappoints));
+        activeMins = deltaMins < 0 ? targetStartMins : targetStartMins + targetDuration; // Focus Dragged Edge
+        actionType = 'create';
+    } else if (resizingId && resizeDragState) {
+        eventObj = events.find(e => e.id === resizingId || (resizingId && resizingId.startsWith(e.id + "_"))) || null;
+        if (eventObj) {
+            const snapInterval = 1;
+            targetStartMins = resizeDragState.originalTop;
+            targetDuration = Math.max(10, Math.round(resizeDragState.currentHeight / snapInterval) * snapInterval);
+            activeMins = targetStartMins + targetDuration; // Focus Bottom Edge
+            actionType = 'resize';
+        }
+    }
 
-            if (!eventObj) return null;
+    React.useEffect(() => {
+        if (actionType !== null) {
+            activeEventEdgeRef.current = activeMins;
+        }
+    }, [actionType, activeMins, activeEventEdgeRef]);
 
-            const theme = getEventTheme(eventObj);
+    if (!eventObj) return null;
+
+    const theme = getEventTheme(eventObj);
 
     return (
         <MagnifiedEventView

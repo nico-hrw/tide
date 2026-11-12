@@ -1,5 +1,5 @@
 import { Plus, Folder, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Lock, Pin, Users, Puzzle, Globe, Check, Loader2, X, FileText } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, Reorder, AnimatePresence } from "framer-motion";
 import { Tab } from '@/components/Layout/TabList';
 import { useHighlight } from "@/components/HighlightContext";
@@ -42,7 +42,33 @@ export interface FolderItemProps {
 
 export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onCreateFolder, onMoveItem, onDragStart, onContextMenu, viewMode, enabledExtensions, myId, index, dropIndicator, setDropIndicator, orderedNoteIds, setOrderedNoteIds, handleReorder, activeTabId, openTabs }: FolderItemProps) => {
     const [isLoading, setIsLoading] = useState(false);
-    const children = allFiles.filter(f => f.parent_id === folder.id);
+    const children = useMemo(() => allFiles.filter(f => f.parent_id === folder.id), [allFiles, folder.id]);
+    const sortedChildren = useMemo(() => {
+        return [...children].sort((a, b) => {
+            // Folders first
+            if (a.type === 'folder' && b.type !== 'folder') return -1;
+            if (a.type !== 'folder' && b.type === 'folder') return 1;
+
+            // Custom order if any
+            if (orderedNoteIds && orderedNoteIds.length > 0) {
+                const indexA = orderedNoteIds.indexOf(a.id);
+                const indexB = orderedNoteIds.indexOf(b.id);
+                if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+                if (indexA !== -1) return -1;
+                if (indexB !== -1) return 1;
+            }
+
+            // Most recently updated/created first
+            const itemA = a as { updated_at?: string; created_at?: string };
+            const itemB = b as { updated_at?: string; created_at?: string };
+            const timeA = new Date(itemA.updated_at || a.metadata?.updated_at || itemA.created_at || a.metadata?.created_at || 0).getTime();
+            const timeB = new Date(itemB.updated_at || b.metadata?.updated_at || itemB.created_at || b.metadata?.created_at || 0).getTime();
+            if (timeB !== timeA) return timeB - timeA;
+
+            // Tiebreaker
+            return a.id.localeCompare(b.id);
+        });
+    }, [children, orderedNoteIds]);
     const { highlight } = useHighlight();
     const { fetchDirectory, loadedDirectories, openFolderIds, toggleFolder } = useDataStore();
     const isOpen = openFolderIds.has(folder.id);
@@ -264,17 +290,7 @@ export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRena
                         </div>
                     ) : (
                         <>
-                            {children
-                        .sort((a, b) => {
-                            if (!orderedNoteIds) return 0;
-                            const indexA = orderedNoteIds.indexOf(a.id);
-                            const indexB = orderedNoteIds.indexOf(b.id);
-                            if (indexA === -1 && indexB === -1) return 0;
-                            if (indexA === -1) return 1;
-                            if (indexB === -1) return -1;
-                            return indexA - indexB;
-                        })
-                        .map((f, i) => (
+                            {sortedChildren.map((f, i) => (
                             <motion.div
                                 layout
                                 key={f.id}

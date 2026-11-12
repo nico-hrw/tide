@@ -10,6 +10,7 @@ interface UseCalendarDragResizeParams {
     onEventCreate: CalendarViewProps["onEventCreate"];
     onEventClick: CalendarViewProps["onEventClick"];
     scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+    hourHeight?: number;
 }
 
 /**
@@ -23,6 +24,7 @@ export function useCalendarDragResize({
     onEventCreate,
     onEventClick,
     scrollContainerRef,
+    hourHeight = 48,
 }: UseCalendarDragResizeParams) {
     const s = useCalendarDragState({ events, onEventUpdate, onEventCreate, scrollContainerRef });
     useCalendarTouch(scrollContainerRef, s);
@@ -172,9 +174,10 @@ export function useCalendarDragResize({
                 const rawDeltaY = gY - creationDrag.startY;
 
                 // Clamp deltaY so the drag can never produce an event that crosses midnight.
-                // Since 1px = 1 minute on the grid, the max forward drag is (1440 - startMins) pixels.
-                const maxForwardPx = 1440 - startMinsCreation;
-                const maxBackwardPx = -startMinsCreation;
+                // Since hourHeight / 60 is pixels per minute on the grid:
+                const minuteHeight = hourHeight / 60;
+                const maxForwardPx = (1440 - startMinsCreation) * minuteHeight;
+                const maxBackwardPx = -startMinsCreation * minuteHeight;
                 const clampedDeltaY = Math.max(maxBackwardPx, Math.min(rawDeltaY, maxForwardPx));
                 const clampedY = creationDrag.startY + clampedDeltaY;
 
@@ -182,8 +185,9 @@ export function useCalendarDragResize({
                     isDraggingRef.current = true;
                 }
                 // Keep Loupe anchored to the dragged edge of the new event
-                const creationEndMin = startMinsCreation + Math.max(10, Math.abs(clampedDeltaY));
-                activeEventEdgeRef.current = clampedDeltaY < 0 ? startMinsCreation + clampedDeltaY : Math.min(1440, creationEndMin);
+                const deltaMins = clampedDeltaY / minuteHeight;
+                const creationEndMin = startMinsCreation + Math.max(10, Math.abs(deltaMins));
+                activeEventEdgeRef.current = clampedDeltaY < 0 ? startMinsCreation + deltaMins : Math.min(1440, creationEndMin);
 
                 // Update creationDrag so the MagnifiedEventView reads live delta
                 setCreationDrag(prev => prev ? { ...prev, currentY: clampedY, currentX: gX } : prev);
@@ -197,7 +201,8 @@ export function useCalendarDragResize({
                 }
                 if (isDraggingRef.current) {
                     const scrollDelta = (scrollContainerRef.current?.scrollTop || 0) - resizeDragState.initialScrollTop;
-                    let newHeight = resizeDragState.originalHeight + deltaY + scrollDelta;
+                    const deltaMins = (deltaY + scrollDelta) / (hourHeight / 60);
+                    let newHeight = resizeDragState.originalHeight + deltaMins;
                     let maxAllowedHeight = 1440 - resizeDragState.originalTop;
                     if (newHeight < 15) newHeight = 15;
                     if (newHeight > maxAllowedHeight) newHeight = maxAllowedHeight;
@@ -320,7 +325,7 @@ export function useCalendarDragResize({
 
             const snapInterval = isPreciseModeRef.current ? 1 : 10;
             const startMins = cDrag.startDay.getHours() * 60 + cDrag.startDay.getMinutes();
-            const rawDeltaMins = Math.floor((gY - cDrag.startY) / snapInterval) * snapInterval;
+            const rawDeltaMins = Math.floor(((gY - cDrag.startY) / (hourHeight / 60)) / snapInterval) * snapInterval;
 
             // Clamp delta strictly within the start day.
             // maxForwardMins: how many minutes from startMins until midnight.
@@ -382,7 +387,7 @@ export function useCalendarDragResize({
                 const scrollDelta = (scrollContainerRef.current?.scrollTop || 0) - rState.initialScrollTop;
                 const snapInterval = isPreciseModeRef.current ? 1 : 10;
                 const minDuration = 10;
-                const newHeight = Math.max(minDuration, rState.currentHeight + scrollDelta);
+                const newHeight = Math.max(minDuration, rState.currentHeight + scrollDelta / (hourHeight / 60));
                 const snappedHeight = Math.max(minDuration, Math.round(newHeight / snapInterval) * snapInterval);
 
                 const start = new Date(event.start);

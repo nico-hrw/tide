@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mobile Kalender-App UI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Fester Widget-Anker: 114x114px, 16px Rand nach oben und rechts */
+    .widget-anchor {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      width: 114px;
+      height: 114px;
+      z-index: 30;
+      transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), 
+                  transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Alle Quadrate teilen sich exakt denselben geometrischen Raum */
+    .square-layer {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 114px;
+      height: 114px;
+      border-radius: 26px;
+      transform-origin: center center;
+      will-change: transform, opacity;
+      contain: layout style paint;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+    }
+
+    /* Elastischer Feder-Übergang AUSSCHLIESSLICH für die Breite */
+    .spring-transition {
+      transition: width 0.65s cubic-bezier(0.34, 1.45, 0.54, 1);
+    }
+
+    /* Basis-Widget: Ruhezustand 114px, Expandiert 342px (16px Rand links und rechts) */
+    #baseSquare {
+      right: 0;
+      left: auto;
+      width: 114px;
+      height: 114px;
+    }
+
+    #baseSquare.expanded {
+      width: 342px;
+    }
+
+    /* Text-Slide-Animationen im Widget */
+    .idle-text-transition {
+      transition: transform 0.5s cubic-bezier(0.34, 1.35, 0.54, 1), 
+                  opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .welcome-text-transition {
+      transition: transform 0.55s cubic-bezier(0.34, 1.4, 0.54, 1), 
+                  opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .text-slide-out {
+      opacity: 0 !important;
+      transform: translate3d(24px, 0, 0) scale(0.95) !important;
+      pointer-events: none;
+    }
+
+    .text-welcome-hidden {
+      opacity: 0;
+      transform: translate3d(-24px, 0, 0) scale(0.95);
+      pointer-events: none;
+    }
+
+    .text-welcome-visible {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1);
+      pointer-events: auto;
+    }
+    
+    /* Kaskaden-Übergang für UI-Elemente bei der Startsequenz */
+    .intro-item {
+      transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), 
+                  transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Filter-Overlay Feder-Animation */
+    .filter-popover {
+      transition: opacity 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+                  transform 0.38s cubic-bezier(0.34, 1.4, 0.64, 1);
+      transform-origin: bottom center;
+    }
+
+    .filter-popover.closed {
+      opacity: 0;
+      transform: translateY(14px) scale(0.95);
+      pointer-events: none;
+    }
+
+    .filter-popover.open {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+
+    /* Search-Overlay Animationen */
+    .search-backdrop {
+      transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .search-backdrop.closed {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .search-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .search-sheet {
+      transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .search-backdrop.closed .search-sheet {
+      transform: translateY(100%);
+    }
+
+    .search-backdrop.open .search-sheet {
+      transform: translateY(0);
+    }
+
+    /* Scrollbar ausblenden */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-neutral-100 min-h-screen flex items-center justify-center p-4 md:p-8 select-none">
+
+  <div class="flex flex-col md:flex-row items-center md:items-start justify-center gap-8">
+    
+    <!-- 1. LINKER BEREICH: SMARTPHONE-UI (390px x 812px) -->
+    <div class="relative w-[390px] h-[812px] bg-white rounded-[44px] shadow-2xl overflow-hidden border-[8px] border-neutral-900 flex flex-col justify-between flex-shrink-0">
+      
+      <!-- OBERER BEREICH MIT HEADER, WIDGET, KALENDERLEISTE & TERMIN-KARTE -->
+      <div class="relative pt-6 px-4">
+        
+        <!-- Header Text -->
+        <div class="pr-[120px] pt-1">
+          <p id="dateHeader" class="intro-item text-[13px] font-bold text-neutral-400 tracking-wider uppercase mb-1">8. NOVEMBER</p>
+          <h1 id="greetingTitle" class="text-[34px] font-black tracking-tight text-neutral-900 leading-[1.08] mb-4 min-h-[74px]">
+            Frisch in den Tag, Nico!
+          </h1>
+          <p id="monthHeader" class="intro-item text-[14px] font-black text-neutral-900 tracking-wider uppercase">JULI 2026</p>
+        </div>
+
+        <!-- ANIMIERTES WIDGET OBEN RECHTS (114x114px) -->
+        <div id="widgetAnchor" class="widget-anchor pointer-events-none">
+          
+          <!-- Hintergrund-Ebene 1: Navy-Blau -->
+          <div 
+            id="navySquare" 
+            class="square-layer bg-[#001f3f] shadow-lg shadow-[#001f3f]/30"
+            style="opacity: 0; transform: scale(0.2) rotate(0deg);"
+            aria-hidden="true"
+          ></div>
+
+          <!-- Hintergrund-Ebene 2: Lila -->
+          <div 
+            id="purpleSquare" 
+            class="square-layer bg-[#7928ca] shadow-lg shadow-[#7928ca]/30"
+            style="opacity: 0; transform: scale(0.2) rotate(0deg);"
+            aria-hidden="true"
+          ></div>
+
+          <!-- 45°-Offset-Quadrat -->
+          <div 
+            id="offsetSquare" 
+            class="square-layer bg-[#212226] shadow-xl shadow-black/25 z-10"
+            style="opacity: 0; transform: scale(0.4) rotate(45deg);"
+            aria-hidden="true"
+          ></div>
+
+          <!-- Vordergrund: Weißes Lade-Icon -->
+          <div 
+            id="loaderIcon" 
+            class="square-layer z-20 flex items-center justify-center"
+            style="opacity: 0; transform: scale(0.4) rotate(0deg);"
+            aria-hidden="true"
+          >
+            <svg class="w-8 h-8 text-white drop-shadow" viewBox="0 0 24 24" fill="none">
+              <circle class="opacity-25" cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="2.75"></circle>
+              <path class="opacity-95" fill="currentColor" d="M12 2.5a9.5 9.5 0 0 1 9.5 9.5h-2.5A7 7 0 0 0 12 5V2.5z"></path>
+            </svg>
+          </div>
+
+          <!-- Basis-Quadrat -->
+          <div 
+            id="baseSquare" 
+            class="square-layer spring-transition bg-[#212226] shadow-xl shadow-black/35 z-10 p-3.5 text-white box-border overflow-hidden pointer-events-auto"
+            style="opacity: 1; transform: scale(1) rotate(0deg);"
+          >
+            <!-- Idle-Inhalt -->
+            <div 
+              id="idleText" 
+              class="w-full h-full flex flex-col justify-between select-none idle-text-transition"
+              style="opacity: 1; transform: translate3d(0, 0, 0);"
+            >
+              <div class="flex flex-col items-start leading-none gap-0.5">
+                <span class="text-[14px] font-black tracking-tight text-white uppercase">ANGLÜH...</span>
+                <span class="text-[10px] font-black tracking-wider text-neutral-400 uppercase">IN</span>
+              </div>
+              <div class="w-full flex items-baseline justify-end">
+                <span class="text-[34px] font-black tracking-tighter text-white leading-none">8:11<span class="text-[19px] font-bold tracking-tight text-neutral-300 ml-0.5">h</span></span>
+              </div>
+            </div>
+
+            <!-- Expandierter Inhalt -->
+            <div 
+              id="welcomeText"
+              class="absolute inset-0 px-5 flex flex-col justify-center items-start text-welcome-hidden welcome-text-transition"
+            >
+              <span class="text-[11px] font-bold tracking-widest text-neutral-400 uppercase leading-snug">Willkommen zurück</span>
+              <span class="text-[26px] font-black tracking-tight text-white leading-tight">Nico</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- WOCHENTAGS-KALENDERLEISTE (7 Spalten) -->
+        <div id="weekBar" class="intro-item grid grid-cols-7 text-center mt-5 mb-4 items-end">
+          <div class="flex flex-col items-center text-neutral-300">
+            <span class="text-[11px] font-bold tracking-wider uppercase mb-1">SA.</span>
+            <span class="text-[17px] font-extrabold">11</span>
+          </div>
+          <div class="flex flex-col items-center text-neutral-300">
+            <span class="text-[11px] font-bold tracking-wider uppercase mb-1">SO.</span>
+            <span class="text-[17px] font-extrabold">12</span>
+          </div>
+          <div class="flex flex-col items-center text-neutral-400">
+            <span class="text-[11px] font-bold tracking-wider uppercase mb-1">MO.</span>
+            <span class="text-[20px] font-black text-neutral-500">13</span>
+          </div>
+          
+          <!-- Aktiver Tag (DI 14) -->
+          <div class="flex flex-col items-center text-neutral-900 relative">
+            <span class="text-[12px] font-black tracking-wider uppercase mb-0.5">DI.</span>
+            <span class="text-[24px] font-black leading-none">14</span>
+            <div class="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[5px] border-b-neutral-900 mt-1"></div>
+          </div>
+          
+          <div class="flex flex-col items-center text-neutral-500">
+            <span class="text-[11px] font-bold tracking-wider uppercase mb-1">MI.</span>
+            <span class="text-[20px] font-black">15</span>
+          </div>
+          <div class="flex flex-col items-center text-neutral-300">
+            <span class="text-[11px] font-bold tracking-wider uppercase mb-1">DO.</span>
+            <span class="text-[17px] font-extrabold">16</span>
+          </div>
+          <div class="flex flex-col items-center text-neutral-300">
+            <span class="text-[11px] font-bold tracking-wider uppercase mb-1">FR.</span>
+            <span class="text-[17px] font-extrabold">17</span>
+          </div>
+        </div>
+
+        <!-- FILTER-PILLS-LEISTE -->
+        <div id="filterPills" class="intro-item flex items-center justify-between text-[13px] font-bold pt-1">
+          <div class="flex items-center gap-1.5 text-neutral-400">
+            <button type="button" class="px-3.5 py-1.5 bg-neutral-200 text-neutral-800 rounded-xl font-bold">Tag</button>
+            <button type="button" class="px-2 py-1.5 hover:text-neutral-700 transition-colors">Fortlaufend</button>
+            <button type="button" class="px-2 py-1.5 hover:text-neutral-700 transition-colors">Woche</button>
+            <button type="button" class="px-2 py-1.5 hover:text-neutral-700 transition-colors">Monat</button>
+          </div>
+          <button type="button" class="flex items-center gap-1 px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-500 rounded-xl text-[12px] font-bold transition-colors">
+            <span class="material-symbols-outlined text-[15px]">refresh</span>
+            <span>Heute</span>
+          </button>
+        </div>
+
+        <!-- TERMIN-KARTE -->
+        <div id="eventCard" class="intro-item mt-5 bg-neutral-50/80 border border-neutral-100 rounded-2xl p-4 flex items-start gap-3.5 relative">
+          <div class="flex flex-col text-right min-w-[45px]">
+            <span class="text-[14px] font-black text-neutral-800 leading-tight">19:00</span>
+            <span class="text-[11px] font-bold text-neutral-400 mt-0.5">20:00</span>
+          </div>
+
+          <div class="w-0.5 self-stretch bg-neutral-300/80 rounded-full my-0.5"></div>
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500 flex-shrink-0"></span>
+              <h3 class="text-[15px] font-black text-neutral-900 truncate">Anglühen?</h3>
+            </div>
+            
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-600 text-white rounded-lg text-[11px] font-black shadow-sm">
+              <span class="material-symbols-outlined text-[13px]">schedule</span>
+              <span>Startet in 8 Std. 11 Min.</span>
+            </div>
+          </div>
+
+          <div class="flex flex-col items-end justify-between self-stretch">
+            <span class="material-symbols-outlined text-neutral-400 text-[18px]">expand_more</span>
+            <span class="text-[11px] font-bold text-neutral-400">1h</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- VOLLBILD SEARCH OVERLAY MIT STARKEM BLUR, STICKY SUCHLEISTE & MOBILER TASTATUR -->
+      <div 
+        id="searchOverlay" 
+        class="search-backdrop closed absolute inset-0 z-40 bg-white/65 backdrop-blur-xl flex flex-col justify-end"
+      >
+        <!-- Klickbarer Hintergrund zum Schließen -->
+        <div id="searchBackdropDismiss" class="absolute inset-0 z-0"></div>
+
+        <!-- Dynamisches Sheet (fährt mit der Tastatur hoch) -->
+        <div class="search-sheet relative z-10 w-full h-full flex flex-col justify-end pointer-events-none">
+          
+          <!-- Scrollbarer Ergebnis-Bereich oberhalb der Suchleiste -->
+          <div id="searchResultsContainer" class="flex-1 overflow-y-auto no-scrollbar px-4 pt-12 pb-3 flex flex-col justify-end pointer-events-auto">
+            
+            <!-- EINE zusammenhängende, harmonisch gegliederte Ergebnis-Blase -->
+            <div id="searchUnifiedCard" class="bg-white/95 backdrop-blur-md rounded-3xl border border-neutral-200/80 shadow-xl p-4 flex flex-col transition-all">
+              
+              <!-- Kategorie 1: Termine -->
+              <div id="searchGroupEvents" class="flex flex-col">
+                <div class="flex items-center justify-between px-1.5 mb-1.5">
+                  <div class="flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[15px] text-blue-600">event</span>
+                    <span class="text-[10px] font-extrabold uppercase tracking-wider text-neutral-400">Termine</span>
+                  </div>
+                  <span id="countEvents" class="text-[10px] font-bold text-neutral-400">2</span>
+                </div>
+                <div id="listEvents" class="flex flex-col gap-1"></div>
+              </div>
+
+              <!-- Kategorie 2: Todos -->
+              <div id="searchGroupTodos" class="flex flex-col">
+                <div class="flex items-center justify-between px-1.5 mb-1.5">
+                  <div class="flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[15px] text-emerald-600">check_circle</span>
+                    <span class="text-[10px] font-extrabold uppercase tracking-wider text-neutral-400">Todos</span>
+                  </div>
+                  <span id="countTodos" class="text-[10px] font-bold text-neutral-400">2</span>
+                </div>
+                <div id="listTodos" class="flex flex-col gap-1"></div>
+              </div>
+
+              <!-- Kategorie 3: Notizen -->
+              <div id="searchGroupNotes" class="flex flex-col">
+                <div class="flex items-center justify-between px-1.5 mb-1.5">
+                  <div class="flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[15px] text-amber-500">description</span>
+                    <span class="text-[10px] font-extrabold uppercase tracking-wider text-neutral-400">Notizen</span>
+                  </div>
+                  <span id="countNotes" class="text-[10px] font-bold text-neutral-400">2</span>
+                </div>
+                <div id="listNotes" class="flex flex-col gap-1"></div>
+              </div>
+
+            </div>
+
+            <!-- Leerer Zustand bei keinen Treffern -->
+            <div id="searchEmptyState" class="hidden bg-white/95 backdrop-blur-md border border-neutral-200/80 rounded-3xl p-5 text-center shadow-xl">
+              <span class="material-symbols-outlined text-[28px] text-neutral-300 mb-1">search_off</span>
+              <p class="text-[13px] font-extrabold text-neutral-700">Keine Treffer gefunden</p>
+              <p class="text-[11px] font-medium text-neutral-400 mt-0.5">Versuche einen anderen Suchbegriff.</p>
+            </div>
+
+          </div>
+
+          <!-- STICKY SUCHLEISTE DIREKT AUF DER OBERKANTE DER TASTATUR -->
+          <div class="px-3 pb-2.5 pt-1 pointer-events-auto">
+            <div class="bg-white border border-neutral-200/90 rounded-full px-3.5 py-2 shadow-2xl shadow-black/15 flex items-center gap-2">
+              <span class="material-symbols-outlined text-[20px] text-neutral-900">search</span>
+              <input 
+                id="searchInput" 
+                type="text" 
+                placeholder="Termine, Todos & Notizen durchsuchen..." 
+                autocomplete="off"
+                class="flex-1 bg-transparent text-[13px] font-semibold text-neutral-900 placeholder:text-neutral-400 focus:outline-none min-w-0"
+              />
+              <button 
+                id="searchClearBtn" 
+                type="button" 
+                title="Eingabe löschen"
+                class="hidden w-6 h-6 rounded-full bg-neutral-200/80 hover:bg-neutral-300 text-neutral-600 flex items-center justify-center transition-colors"
+              >
+                <span class="material-symbols-outlined text-[14px]">close</span>
+              </button>
+              <button 
+                id="searchCloseBtn" 
+                type="button" 
+                class="px-2.5 py-1 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white text-[11px] font-bold transition-colors"
+              >
+                Fertig
+              </button>
+            </div>
+          </div>
+
+          <!-- INTERAKTIVE MOBILE QWERTZ-TASTATUR AM UNTEREN RAND -->
+          <div id="mobileKeyboard" class="w-full bg-[#d1d4d9]/95 backdrop-blur-md border-t border-neutral-300/80 pt-2 pb-6 px-1.5 select-none pointer-events-auto">
+            <!-- Reihe 1: QWERTZ -->
+            <div class="grid grid-cols-10 gap-1 mb-1.5">
+              <button type="button" data-key="q" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">q</button>
+              <button type="button" data-key="w" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">w</button>
+              <button type="button" data-key="e" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">e</button>
+              <button type="button" data-key="r" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">r</button>
+              <button type="button" data-key="t" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">t</button>
+              <button type="button" data-key="z" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">z</button>
+              <button type="button" data-key="u" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">u</button>
+              <button type="button" data-key="i" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">i</button>
+              <button type="button" data-key="o" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">o</button>
+              <button type="button" data-key="p" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">p</button>
+            </div>
+            <!-- Reihe 2: ASDFGHJKL -->
+            <div class="grid grid-cols-9 gap-1 px-3 mb-1.5">
+              <button type="button" data-key="a" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">a</button>
+              <button type="button" data-key="s" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">s</button>
+              <button type="button" data-key="d" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">d</button>
+              <button type="button" data-key="f" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">f</button>
+              <button type="button" data-key="g" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">g</button>
+              <button type="button" data-key="h" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">h</button>
+              <button type="button" data-key="j" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">j</button>
+              <button type="button" data-key="k" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">k</button>
+              <button type="button" data-key="l" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">l</button>
+            </div>
+            <!-- Reihe 3: Shift + YXCVBNM + Backspace -->
+            <div class="flex items-center gap-1 mb-1.5">
+              <button type="button" id="kbShiftBtn" class="w-10 h-9 bg-[#adb2ba] rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-neutral-800 flex items-center justify-center active:bg-white">
+                <span class="material-symbols-outlined text-[18px]">shift</span>
+              </button>
+              <div class="flex-1 grid grid-cols-7 gap-1">
+                <button type="button" data-key="y" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">y</button>
+                <button type="button" data-key="x" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">x</button>
+                <button type="button" data-key="c" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">c</button>
+                <button type="button" data-key="v" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">v</button>
+                <button type="button" data-key="b" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">b</button>
+                <button type="button" data-key="n" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">n</button>
+                <button type="button" data-key="m" class="kb-key h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[15px] font-medium text-neutral-900 active:bg-neutral-200">m</button>
+              </div>
+              <button type="button" id="kbBackspaceBtn" class="w-10 h-9 bg-[#adb2ba] rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-neutral-800 flex items-center justify-center active:bg-white">
+                <span class="material-symbols-outlined text-[18px]">backspace</span>
+              </button>
+            </div>
+            <!-- Reihe 4: #, Leerzeichen, Suchen -->
+            <div class="flex items-center gap-1">
+              <button type="button" data-key="#" class="kb-key w-11 h-9 bg-[#adb2ba] rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[13px] font-semibold text-neutral-800 active:bg-white">#</button>
+              <button type="button" data-key=" " class="kb-key flex-1 h-9 bg-white rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[13px] font-medium text-neutral-700 active:bg-neutral-200">Leerzeichen</button>
+              <button type="button" id="kbReturnBtn" class="w-20 h-9 bg-blue-600 rounded-[6px] shadow-[0_1px_0_rgba(0,0,0,0.3)] text-[13px] font-bold text-white active:bg-blue-700">Suchen</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- AUSKLAPPBARES FILTER-PANEL ÜBER DER UNTEREN NAVIGATION -->
+      <div 
+        id="filterOverlay" 
+        class="filter-popover closed absolute bottom-[86px] left-4 right-4 bg-white/95 backdrop-blur-xl border border-neutral-200/90 rounded-[28px] p-4 shadow-2xl z-30 flex flex-col gap-3.5"
+      >
+        <!-- Kopfzeile mit Zurücksetzen -->
+        <div class="flex items-center justify-between border-b border-neutral-100 pb-2">
+          <div class="flex items-center gap-1.5">
+            <span class="material-symbols-outlined text-[16px] text-neutral-800">tune</span>
+            <span class="text-[12px] font-black tracking-wider text-neutral-900 uppercase">Filteroptionen</span>
+          </div>
+          <button 
+            id="resetFiltersBtn" 
+            type="button" 
+            class="text-[11px] font-bold text-neutral-400 hover:text-neutral-800 transition-colors"
+          >
+            Zurücksetzen
+          </button>
+        </div>
+
+        <!-- Zeile 1: Priorität (Einzeilig mit farbigen Symbol-Buttons ^, -, v) -->
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[10px] font-extrabold tracking-wider text-neutral-400 uppercase">Priorität</span>
+          <div class="flex items-center gap-1.5" data-filter-group="priority">
+            <button 
+              type="button" 
+              data-prio="high"
+              title="Hohe Priorität"
+              class="prio-chip w-9 h-7 rounded-xl text-[13px] font-black bg-neutral-100 text-red-500 hover:bg-red-50 transition-all flex items-center justify-center"
+            >^</button>
+            <button 
+              type="button" 
+              data-prio="medium"
+              title="Mittlere Priorität"
+              class="prio-chip w-9 h-7 rounded-xl text-[13px] font-black bg-neutral-100 text-amber-500 hover:bg-amber-50 transition-all flex items-center justify-center"
+            >-</button>
+            <button 
+              type="button" 
+              data-prio="low"
+              title="Niedrige Priorität"
+              class="prio-chip w-9 h-7 rounded-xl text-[13px] font-black bg-neutral-100 text-emerald-500 hover:bg-emerald-50 transition-all flex items-center justify-center"
+            >v</button>
+          </div>
+        </div>
+
+        <!-- Zeile 2: Status -->
+        <div class="flex flex-col gap-1.5">
+          <span class="text-[10px] font-extrabold tracking-wider text-neutral-400 uppercase">Status</span>
+          <div class="flex flex-wrap gap-1.5" data-filter-group="status">
+            <button type="button" class="filter-chip px-3 py-1 rounded-xl text-[11px] font-bold bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-all">Offen</button>
+            <button type="button" class="filter-chip px-3 py-1 rounded-xl text-[11px] font-bold bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-all">In Arbeit</button>
+            <button type="button" class="filter-chip px-3 py-1 rounded-xl text-[11px] font-bold bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-all">Erledigt</button>
+          </div>
+        </div>
+
+        <!-- Zeile 3: Tag -->
+        <div class="flex flex-col gap-1.5">
+          <span class="text-[10px] font-extrabold tracking-wider text-neutral-400 uppercase">Tag</span>
+          <div class="flex flex-wrap gap-1.5" data-filter-group="tag">
+            <button type="button" class="filter-chip px-3 py-1 rounded-xl text-[11px] font-bold bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-all">#Arbeit</button>
+            <button type="button" class="filter-chip px-3 py-1 rounded-xl text-[11px] font-bold bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-all">#Privat</button>
+            <button type="button" class="filter-chip px-3 py-1 rounded-xl text-[11px] font-bold bg-neutral-100 text-neutral-600 hover:bg-neutral-200 transition-all">#Event</button>
+          </div>
+        </div>
+
+        <!-- Zeile 4: Datum -->
+        <div class="flex flex-col gap-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-extrabold tracking-wider text-neutral-400 uppercase">Datum</span>
+            <span id="customDateLabel" class="text-[10px] font-bold text-blue-600 hidden"></span>
+          </div>
+          <div class="flex items-center justify-between bg-neutral-100 rounded-xl p-1" data-filter-group="date">
+            <button type="button" data-date-opt="Alle" class="date-chip flex-1 py-1.5 rounded-lg text-[11px] font-bold bg-neutral-900 text-white shadow-sm transition-all">Alle</button>
+            <span class="text-neutral-300 text-[10px] px-0.5">|</span>
+            <button type="button" data-date-opt="Heute" class="date-chip flex-1 py-1.5 rounded-lg text-[11px] font-bold text-neutral-500 hover:text-neutral-900 transition-all">Heute</button>
+            <span class="text-neutral-300 text-[10px] px-0.5">|</span>
+            <button type="button" data-date-opt="Morgen" class="date-chip flex-1 py-1.5 rounded-lg text-[11px] font-bold text-neutral-500 hover:text-neutral-900 transition-all">Morgen</button>
+            <span class="text-neutral-300 text-[10px] px-0.5">|</span>
+            <button 
+              id="customDateBtn" 
+              type="button" 
+              title="Datum wählen"
+              class="date-chip px-2.5 py-1 rounded-lg text-neutral-500 hover:text-neutral-900 flex items-center justify-center transition-all relative"
+            >
+              <span class="material-symbols-outlined text-[17px]">calendar_month</span>
+              <input id="customDateInput" type="date" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DREITEILIGE SCHWEBENDE UNTERE NAVIGATION -->
+      <div id="bottomNav" class="intro-item px-4 pb-6 pt-2 flex items-center justify-between z-20 pointer-events-none">
+        
+        <!-- 1. Linke Blase: 3 Seiten-Icons -->
+        <div class="flex items-center gap-1 bg-white/85 backdrop-blur-md border border-neutral-200/80 rounded-full p-1.5 shadow-lg pointer-events-auto">
+          <button type="button" class="w-10 h-10 rounded-full bg-neutral-900 text-white flex items-center justify-center shadow-sm transition-transform active:scale-95">
+            <span class="material-symbols-outlined text-[20px]">calendar_today</span>
+          </button>
+          <button type="button" class="w-10 h-10 rounded-full text-neutral-400 hover:text-neutral-800 hover:bg-neutral-100 flex items-center justify-center transition-colors">
+            <span class="material-symbols-outlined text-[21px]">menu_book</span>
+          </button>
+          <button type="button" class="w-10 h-10 rounded-full text-neutral-400 hover:text-neutral-800 hover:bg-neutral-100 flex items-center justify-center transition-colors">
+            <span class="material-symbols-outlined text-[21px]">checklist</span>
+          </button>
+        </div>
+
+        <!-- 2. Mittlere Blase: Lupe und Filter -->
+        <div class="flex items-center gap-1 bg-white/85 backdrop-blur-md border border-neutral-200/80 rounded-full p-1.5 shadow-lg pointer-events-auto">
+          <button 
+            id="navSearchBtn" 
+            type="button" 
+            aria-expanded="false"
+            class="w-10 h-10 rounded-full text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 flex items-center justify-center transition-all active:scale-95"
+          >
+            <span class="material-symbols-outlined text-[21px]">search</span>
+          </button>
+          <button 
+            id="navFilterBtn" 
+            type="button"
+            aria-expanded="false"
+            class="w-10 h-10 rounded-full text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 flex items-center justify-center transition-all active:scale-95"
+          >
+            <span class="material-symbols-outlined text-[21px]">tune</span>
+          </button>
+        </div>
+
+        <!-- 3. Rechtsbündiger + Button -->
+        <button type="button" class="w-[52px] h-[52px] rounded-full bg-neutral-900 text-white flex items-center justify-center shadow-lg hover:bg-neutral-800 active:scale-95 transition-all pointer-events-auto">
+          <span class="material-symbols-outlined text-[25px]">add</span>
+        </button>
+
+      </div>
+
+    </div>
+
+    <!-- 2. RECHTER BEREICH: SEITLICHES STEUERUNGS-PANEL (260px) -->
+    <div class="flex flex-col gap-3 p-5 bg-white border border-neutral-200/80 rounded-3xl shadow-sm w-[260px] flex-shrink-0">
+      <div class="text-[12px] font-black tracking-wider text-neutral-400 uppercase border-b pb-2">
+        Widget & App Steuerung
+      </div>
+
+      <!-- Button: Startsequenz abspielen -->
+      <button 
+        id="introBtn" 
+        type="button" 
+        class="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-semibold text-sm rounded-xl shadow-md transition duration-200 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+      >
+        <span class="material-symbols-outlined text-[18px]">play_circle</span>
+        <span>Startsequenz abspielen</span>
+      </button>
+
+      <button 
+        id="startBtn" 
+        type="button" 
+        class="flex items-center justify-center gap-2 px-4 py-2.5 bg-black hover:bg-neutral-800 active:scale-95 text-white font-semibold text-sm rounded-xl shadow transition duration-200 cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <span>Start Drehung</span>
+      </button>
+
+      <button 
+        id="stopBtn" 
+        type="button" 
+        disabled
+        class="flex items-center justify-center gap-2 px-4 py-2.5 bg-neutral-100 hover:bg-neutral-200 active:scale-95 text-neutral-800 font-semibold text-sm rounded-xl border border-neutral-200 transition duration-200 cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>
+        <span>Stopp</span>
+      </button>
+
+      <button 
+        id="expandBtn" 
+        type="button" 
+        class="flex items-center justify-center gap-2 px-4 py-2.5 bg-neutral-900 hover:bg-black active:scale-95 text-white font-semibold text-sm rounded-xl shadow transition duration-200 cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
+      >
+        <svg id="expandIcon" class="w-4 h-4 fill-none stroke-current stroke-2 transition-transform duration-300" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+        </svg>
+        <span id="expandBtnText">Expandieren</span>
+      </button>
+
+      <div class="border-t border-neutral-100 my-1 pt-2 flex flex-col gap-2">
+        <span class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Kommende Buttons</span>
+        <button type="button" class="px-4 py-2 bg-neutral-50 text-neutral-400 border border-dashed border-neutral-200 rounded-xl text-xs font-medium cursor-not-allowed text-left">
+          + Weitere Aktion 1
+        </button>
+        <button type="button" class="px-4 py-2 bg-neutral-50 text-neutral-400 border border-dashed border-neutral-200 rounded-xl text-xs font-medium cursor-not-allowed text-left">
+          + Weitere Aktion 2
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. DOM-REFERENZEN & ZUSTANDSVARIABLEN
+    // ==========================================
+    const baseSquare = document.getElementById('baseSquare');
+    const idleText = document.getElementById('idleText');
+    const welcomeText = document.getElementById('welcomeText');
+    const offsetSquare = document.getElementById('offsetSquare');
+    const navySquare = document.getElementById('navySquare');
+    const purpleSquare = document.getElementById('purpleSquare');
+    const loaderIcon = document.getElementById('loaderIcon');
+
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const expandBtn = document.getElementById('expandBtn');
+    const expandBtnText = document.getElementById('expandBtnText');
+    const expandIcon = document.getElementById('expandIcon');
+    const introBtn = document.getElementById('introBtn');
+
+    // Startsequenz-Elemente
+    const greetingTitle = document.getElementById('greetingTitle');
+    const widgetAnchor = document.getElementById('widgetAnchor');
+    const dateHeader = document.getElementById('dateHeader');
+    const monthHeader = document.getElementById('monthHeader');
+    const weekBar = document.getElementById('weekBar');
+    const filterPills = document.getElementById('filterPills');
+    const eventCard = document.getElementById('eventCard');
+    const bottomNav = document.getElementById('bottomNav');
+
+    const introItemsTopDown = [
+      dateHeader,
+      monthHeader,
+      weekBar,
+      filterPills,
+      eventCard
+    ];
+
+    // Filter-Overlay Elemente
+    const navFilterBtn = document.getElementById('navFilterBtn');
+    const filterOverlay = document.getElementById('filterOverlay');
+    const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+    const customDateBtn = document.getElementById('customDateBtn');
+    const customDateInput = document.getElementById('customDateInput');
+    const customDateLabel = document.getElementById('customDateLabel');
+
+    // Search-Overlay Elemente
+    const navSearchBtn = document.getElementById('navSearchBtn');
+    const searchOverlay = document.getElementById('searchOverlay');
+    const searchBackdropDismiss = document.getElementById('searchBackdropDismiss');
+    const searchInput = document.getElementById('searchInput');
+    const searchClearBtn = document.getElementById('searchClearBtn');
+    const searchCloseBtn = document.getElementById('searchCloseBtn');
+    const searchUnifiedCard = document.getElementById('searchUnifiedCard');
+    const searchGroupEvents = document.getElementById('searchGroupEvents');
+    const searchGroupTodos = document.getElementById('searchGroupTodos');
+    const searchGroupNotes = document.getElementById('searchGroupNotes');
+    const searchEmptyState = document.getElementById('searchEmptyState');
+    const listEvents = document.getElementById('listEvents');
+    const listTodos = document.getElementById('listTodos');
+    const listNotes = document.getElementById('listNotes');
+    const countEvents = document.getElementById('countEvents');
+    const countTodos = document.getElementById('countTodos');
+    const countNotes = document.getElementById('countNotes');
+
+    // Status-Variablen
+    let state = 'IDLE'; // 'IDLE' | 'STARTING' | 'RUNNING' | 'STOPPING'
+    let isExpanded = false;
+    let isIntroPlaying = false;
+    let isFilterOpen = false;
+    let isSearchOpen = false;
+    let isShiftActive = false;
+
+    let animationFrameId = null;
+    let mainAngle = 0;
+    let bgAngle = 0;
+    let loaderAngle = 0;
+    let speedFactor = 0;
+
+    let textProgress = 1;
+    let offsetProgress = 0;
+    let loaderProgress = 0;
+    let bgProgress = 0;
+
+    let lastTimestamp = 0;
+    let waveTime = 0;
+
+    let stopStartAngle = 0;
+    let stopTargetAngle = 0;
+    let stopProgress = 0;
+
+    // ==========================================
+    // 2. MATHEMATISCHE HELFER & FEDER-KURVEN
+    // ==========================================
+    function lerp(start, end, t) {
+      return start + (end - start) * t;
+    }
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function easeInOutCubic(t) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    // Feder-Overshoot für elastisches Verkleinern & Zurückfedern
+    function easeOutBack(t, overshoot = 1.65) {
+      const c1 = overshoot;
+      const c3 = c1 + 1;
+      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+    }
+
+    // ==========================================
+    // 3. WIDGET DREH- & FEDER-ANIMATION
+    // ==========================================
+    function updateLoop(timestamp) {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const dt = Math.min((timestamp - lastTimestamp) * 0.001, 0.04);
+      lastTimestamp = timestamp;
+
+      let currentScale = 1;
+
+      if (state === 'STARTING') {
+        speedFactor = Math.min(1, speedFactor + dt * 2.1);
+        textProgress = Math.max(0, textProgress - dt * 4.5);
+
+        if (speedFactor > 0.12) offsetProgress = Math.min(1, offsetProgress + dt * 1.8);
+        if (offsetProgress > 0.35) loaderProgress = Math.min(1, loaderProgress + dt * 2.0);
+        if (loaderProgress > 0.45) bgProgress = Math.min(1, bgProgress + dt * 1.6);
+
+        // Federndes Hineinzoomen von 1.0 auf 0.82 mit Overshoot
+        const springIn = easeOutBack(speedFactor, 1.8);
+        currentScale = lerp(1, 0.82, springIn);
+
+        if (bgProgress >= 0.99 && speedFactor >= 0.99) {
+          bgProgress = 1;
+          offsetProgress = 1;
+          loaderProgress = 1;
+          speedFactor = 1;
+          textProgress = 0;
+          currentScale = 0.82;
+          state = 'RUNNING';
+          if (!isIntroPlaying) stopBtn.disabled = false;
+        }
+
+        waveTime += dt;
+        const burstMultiplier = 1.0 + 1.15 * Math.pow(Math.max(0, Math.sin(waveTime * 1.8)), 4);
+        mainAngle += 115 * burstMultiplier * speedFactor * dt;
+        bgAngle -= 75 * speedFactor * dt;
+        loaderAngle += 340 * dt;
+
+      } else if (state === 'RUNNING') {
+        currentScale = 0.82;
+        waveTime += dt;
+        const burstMultiplier = 1.0 + 1.15 * Math.pow(Math.max(0, Math.sin(waveTime * 1.8)), 4);
+        mainAngle += 115 * burstMultiplier * dt;
+        bgAngle -= 75 * dt;
+        loaderAngle += 340 * dt;
+
+      } else if (state === 'STOPPING') {
+        bgProgress = Math.max(0, bgProgress - dt * 2.2);
+        if (bgProgress < 0.55) loaderProgress = Math.max(0, loaderProgress - dt * 2.6);
+        if (loaderProgress < 0.45) offsetProgress = Math.max(0, offsetProgress - dt * 2.4);
+
+        stopProgress = Math.min(1, stopProgress + dt * 0.85);
+        const easedStop = easeOutCubic(stopProgress);
+
+        // Federndes Zurückspringen von 0.82 auf 1.0 mit sanftem Overshoot
+        const springOut = easeOutBack(stopProgress, 1.75);
+        currentScale = lerp(0.82, 1.0, springOut);
+
+        if (stopProgress > 0.62) {
+          textProgress = Math.min(1, textProgress + dt * 3.0);
+        }
+
+        // Exakte Zielwinkel-Interpolation ohne Rückwärts-Sprung
+        mainAngle = lerp(stopStartAngle, stopTargetAngle, easedStop);
+        bgAngle -= 75 * (1 - easedStop) * dt;
+        loaderAngle += 340 * (1 - easedStop) * dt;
+
+        if (stopProgress >= 1 && offsetProgress <= 0.01 && bgProgress <= 0.01 && loaderProgress <= 0.01) {
+          mainAngle = 0;
+          baseSquare.style.transform = `scale(1) rotate(0deg)`;
+          
+          textProgress = 1;
+          idleText.style.opacity = '1';
+          offsetSquare.style.opacity = '0';
+          loaderIcon.style.opacity = '0';
+          navySquare.style.opacity = '0';
+          purpleSquare.style.opacity = '0';
+
+          state = 'IDLE';
+          speedFactor = 0;
+          if (!isIntroPlaying) {
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            expandBtn.disabled = false;
+          }
+
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = null;
+          return;
+        }
+      }
+
+      idleText.style.opacity = textProgress.toFixed(3);
+      baseSquare.style.transform = `scale(${currentScale.toFixed(3)}) rotate(${mainAngle.toFixed(2)}deg)`;
+
+      // 45°-Offset-Quadrat exakt synchronisiert
+      if (offsetProgress > 0) {
+        const easedOffset = easeInOutCubic(offsetProgress);
+        offsetSquare.style.opacity = easedOffset.toFixed(3);
+        offsetSquare.style.transform = `scale(${currentScale.toFixed(3)}) rotate(${(mainAngle + 45).toFixed(2)}deg)`;
+      } else {
+        offsetSquare.style.opacity = '0';
+      }
+
+      // Lade-Icon
+      if (loaderProgress > 0) {
+        const easedLoader = easeInOutCubic(loaderProgress);
+        loaderIcon.style.opacity = easedLoader.toFixed(3);
+        loaderIcon.style.transform = `scale(${lerp(0.5, 0.78, easedLoader).toFixed(3)}) rotate(${loaderAngle.toFixed(2)}deg)`;
+      } else {
+        loaderIcon.style.opacity = '0';
+      }
+
+      // Farbige Hintergrund-Quadrate
+      if (bgProgress > 0.001) {
+        const easedBg = easeInOutCubic(bgProgress);
+        const pulseCycle = (Math.sin(waveTime * 2.2) + 1) * 0.5;
+
+        const navyScale = lerp(0.3, lerp(0.70, 0.88, pulseCycle), easedBg);
+        navySquare.style.opacity = (lerp(0.2, 0.9, pulseCycle) * easedBg).toFixed(3);
+        navySquare.style.transform = `scale(${navyScale.toFixed(3)}) rotate(${bgAngle.toFixed(2)}deg)`;
+
+        const purpleScale = lerp(0.3, lerp(0.70, 0.88, 1 - pulseCycle), easedBg);
+        purpleSquare.style.opacity = (lerp(0.2, 0.9, 1 - pulseCycle) * easedBg).toFixed(3);
+        purpleSquare.style.transform = `scale(${purpleScale.toFixed(3)}) rotate(${(bgAngle - 25).toFixed(2)}deg)`;
+      } else {
+        navySquare.style.opacity = '0';
+        purpleSquare.style.opacity = '0';
+      }
+
+      animationFrameId = requestAnimationFrame(updateLoop);
+    }
+
+    function handleStart() {
+      if (state !== 'IDLE' || isExpanded) return;
+      state = 'STARTING';
+      startBtn.disabled = true;
+      stopBtn.disabled = true;
+      expandBtn.disabled = true;
+      lastTimestamp = performance.now();
+      
+      if (!animationFrameId) {
+        animationFrameId = requestAnimationFrame(updateLoop);
+      }
+    }
+
+    function handleStop() {
+      if (state !== 'RUNNING' && state !== 'STARTING') return;
+      state = 'STOPPING';
+      startBtn.disabled = true;
+      stopBtn.disabled = true;
+      expandBtn.disabled = true;
+
+      stopStartAngle = mainAngle;
+      const minRunout = 180;
+      stopTargetAngle = Math.ceil((stopStartAngle + minRunout) / 360) * 360;
+      stopProgress = 0;
+    }
+
+    function handleExpandToggle() {
+      if (state !== 'IDLE' || isIntroPlaying) return;
+
+      isExpanded = !isExpanded;
+
+      if (isExpanded) {
+        baseSquare.classList.add('expanded');
+        idleText.classList.add('text-slide-out');
+        welcomeText.classList.remove('text-welcome-hidden');
+        welcomeText.classList.add('text-welcome-visible');
+        expandBtnText.textContent = 'Einklappen';
+        expandIcon.style.transform = 'rotate(180deg)';
+        startBtn.disabled = true;
+      } else {
+        baseSquare.classList.remove('expanded');
+        welcomeText.classList.remove('text-welcome-visible');
+        welcomeText.classList.add('text-welcome-hidden');
+        idleText.classList.remove('text-slide-out');
+        expandBtnText.textContent = 'Expandieren';
+        expandIcon.style.transform = 'rotate(0deg)';
+        startBtn.disabled = false;
+      }
+    }
+
+    startBtn.addEventListener('click', handleStart);
+    stopBtn.addEventListener('click', handleStop);
+    expandBtn.addEventListener('click', handleExpandToggle);
+
+    // ==========================================
+    // 4. STARTSEQUENZ (TYPEWRITER & KASKADE)
+    // ==========================================
+    function playIntroSequence() {
+      if (isIntroPlaying) return;
+      isIntroPlaying = true;
+
+      // Offene Overlays schließen
+      if (isFilterOpen) toggleFilterOverlay(false);
+      if (isSearchOpen) toggleSearchOverlay(false);
+
+      // Falls Widget expandiert ist, zurücksetzen
+      if (isExpanded) {
+        isExpanded = false;
+        baseSquare.classList.remove('expanded');
+        welcomeText.classList.remove('text-welcome-visible');
+        welcomeText.classList.add('text-welcome-hidden');
+        idleText.classList.remove('text-slide-out');
+        expandBtnText.textContent = 'Expandieren';
+        expandIcon.style.transform = 'rotate(0deg)';
+      }
+
+      // Laufende Animation hart auf Null setzen
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+      state = 'IDLE';
+      mainAngle = 0;
+      speedFactor = 0;
+      offsetProgress = 0;
+      loaderProgress = 0;
+      bgProgress = 0;
+      textProgress = 1;
+      baseSquare.style.transform = 'scale(1) rotate(0deg)';
+      idleText.style.opacity = '1';
+      offsetSquare.style.opacity = '0';
+      loaderIcon.style.opacity = '0';
+      navySquare.style.opacity = '0';
+      purpleSquare.style.opacity = '0';
+
+      // Buttons sperren
+      introBtn.disabled = true;
+      startBtn.disabled = true;
+      stopBtn.disabled = true;
+      expandBtn.disabled = true;
+
+      // Schritt 1: Alles auf Weiß / Ausgangszustand setzen
+      greetingTitle.textContent = '';
+
+      widgetAnchor.style.transition = 'none';
+      widgetAnchor.style.opacity = '0';
+      widgetAnchor.style.transform = 'scale(0.88) translateY(-8px)';
+
+      introItemsTopDown.forEach(el => {
+        el.style.transition = 'none';
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-14px)';
+      });
+
+      bottomNav.style.transition = 'none';
+      bottomNav.style.opacity = '0';
+      bottomNav.style.transform = 'translateY(36px)';
+
+      // Reflow erzwingen
+      void greetingTitle.offsetWidth;
+
+      // Transitions reaktivieren
+      widgetAnchor.style.transition = 'opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1)';
+      introItemsTopDown.forEach(el => {
+        el.style.transition = 'opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), transform 0.45s cubic-bezier(0.16, 1, 0.3, 1)';
+      });
+      bottomNav.style.transition = 'opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)';
+
+      // Schritt 2: Typewriter-Effekt für "Frisch in den Tag, Nico!"
+      const fullGreeting = "Frisch in den Tag, Nico!";
+      let charIndex = 0;
+
+      function typeNextChar() {
+        if (charIndex < fullGreeting.length) {
+          greetingTitle.textContent += fullGreeting.charAt(charIndex);
+          charIndex++;
+          const typingDelay = 36 + Math.random() * 28;
+          setTimeout(typeNextChar, typingDelay);
+        } else {
+          // Schritt 3: Widget startet Drehung noch unsichtbar und blendet bereits rotierend ein
+          setTimeout(() => {
+            handleStart();
+
+            setTimeout(() => {
+              widgetAnchor.style.opacity = '1';
+              widgetAnchor.style.transform = 'scale(1) translateY(0)';
+            }, 170);
+
+            // Kurz darauf Stopp der Drehung einleiten
+            setTimeout(() => {
+              handleStop();
+
+              // Schritt 4: Kaskadierender Aufbau von oben nach unten & Einfliegen der Bottom-Navigation
+              setTimeout(() => {
+                introItemsTopDown.forEach((el, idx) => {
+                  setTimeout(() => {
+                    el.style.opacity = '1';
+                    el.style.transform = 'translateY(0)';
+                  }, idx * 95);
+                });
+
+                setTimeout(() => {
+                  bottomNav.style.opacity = '1';
+                  bottomNav.style.transform = 'translateY(0)';
+                }, introItemsTopDown.length * 95 + 60);
+
+                // Steuerung wieder freigeben
+                setTimeout(() => {
+                  isIntroPlaying = false;
+                  introBtn.disabled = false;
+                  if (state === 'IDLE') {
+                    startBtn.disabled = false;
+                    expandBtn.disabled = false;
+                  }
+                }, introItemsTopDown.length * 95 + 520);
+
+              }, 350);
+            }, 950);
+          }, 150);
+        }
+      }
+
+      setTimeout(typeNextChar, 220);
+    }
+
+    introBtn.addEventListener('click', playIntroSequence);
+
+    // ==========================================
+    // 5. AUSKLAPPBARES FILTER-PANEL
+    // ==========================================
+    function toggleFilterOverlay(forceState) {
+      isFilterOpen = typeof forceState === 'boolean' ? forceState : !isFilterOpen;
+      if (isFilterOpen && isSearchOpen) toggleSearchOverlay(false);
+      navFilterBtn.setAttribute('aria-expanded', isFilterOpen ? 'true' : 'false');
+
+      if (isFilterOpen) {
+        filterOverlay.classList.remove('closed');
+        filterOverlay.classList.add('open');
+        navFilterBtn.classList.remove('text-neutral-500', 'hover:text-neutral-900', 'hover:bg-neutral-100');
+        navFilterBtn.classList.add('bg-neutral-900', 'text-white', 'shadow-sm');
+      } else {
+        filterOverlay.classList.remove('open');
+        filterOverlay.classList.add('closed');
+        navFilterBtn.classList.remove('bg-neutral-900', 'text-white', 'shadow-sm');
+        navFilterBtn.classList.add('text-neutral-500', 'hover:text-neutral-900', 'hover:bg-neutral-100');
+      }
+    }
+
+    navFilterBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleFilterOverlay();
+    });
+
+    // Prioritäts-Symbole (^, -, v) umschalten
+    const prioStyles = {
+      high: { active: ['bg-red-500', 'text-white', 'shadow-sm'], inactive: ['bg-neutral-100', 'text-red-500', 'hover:bg-red-50'] },
+      medium: { active: ['bg-amber-500', 'text-white', 'shadow-sm'], inactive: ['bg-neutral-100', 'text-amber-500', 'hover:bg-amber-50'] },
+      low: { active: ['bg-emerald-500', 'text-white', 'shadow-sm'], inactive: ['bg-neutral-100', 'text-emerald-500', 'hover:bg-emerald-50'] }
+    };
+
+    document.querySelectorAll('.prio-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const prioKey = btn.dataset.prio;
+        const isCurrentlyActive = btn.dataset.active === 'true';
+
+        document.querySelectorAll('.prio-chip').forEach(b => {
+          const k = b.dataset.prio;
+          b.dataset.active = 'false';
+          b.classList.remove(...prioStyles[k].active);
+          b.classList.add(...prioStyles[k].inactive);
+        });
+
+        if (!isCurrentlyActive) {
+          btn.dataset.active = 'true';
+          btn.classList.remove(...prioStyles[prioKey].inactive);
+          btn.classList.add(...prioStyles[prioKey].active);
+        }
+      });
+    });
+
+    // Status & Tag Pills umschalten
+    document.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const isActive = chip.dataset.active === 'true';
+        const group = chip.closest('[data-filter-group]');
+
+        if (group) {
+          group.querySelectorAll('.filter-chip').forEach(sibling => {
+            sibling.dataset.active = 'false';
+            sibling.classList.remove('bg-neutral-900', 'text-white', 'shadow-sm');
+            sibling.classList.add('bg-neutral-100', 'text-neutral-600', 'hover:bg-neutral-200');
+          });
+        }
+
+        if (!isActive) {
+          chip.dataset.active = 'true';
+          chip.classList.remove('bg-neutral-100', 'text-neutral-600', 'hover:bg-neutral-200');
+          chip.classList.add('bg-neutral-900', 'text-white', 'shadow-sm');
+        }
+      });
+    });
+
+    // Datumsleiste (Alle | Heute | Morgen | Date-Picker)
+    const dateChips = document.querySelectorAll('.date-chip');
+    function setActiveDateChip(targetChip) {
+      dateChips.forEach(c => {
+        c.classList.remove('bg-neutral-900', 'text-white', 'shadow-sm');
+        c.classList.add('text-neutral-500', 'hover:text-neutral-900');
+      });
+      targetChip.classList.remove('text-neutral-500', 'hover:text-neutral-900');
+      targetChip.classList.add('bg-neutral-900', 'text-white', 'shadow-sm');
+    }
+
+    dateChips.forEach(chip => {
+      if (chip.id !== 'customDateBtn') {
+        chip.addEventListener('click', () => {
+          setActiveDateChip(chip);
+          customDateLabel.classList.add('hidden');
+          customDateInput.value = '';
+        });
+      }
+    });
+
+    customDateInput.addEventListener('change', (e) => {
+      if (e.target.value) {
+        const parts = e.target.value.split('-');
+        customDateLabel.textContent = `${parts[2]}.${parts[1]}.${parts[0]}`;
+        customDateLabel.classList.remove('hidden');
+        setActiveDateChip(customDateBtn);
+      }
+    });
+
+    // Filter zurücksetzen
+    resetFiltersBtn.addEventListener('click', () => {
+      document.querySelectorAll('.prio-chip').forEach(b => {
+        const k = b.dataset.prio;
+        b.dataset.active = 'false';
+        b.classList.remove(...prioStyles[k].active);
+        b.classList.add(...prioStyles[k].inactive);
+      });
+
+      document.querySelectorAll('.filter-chip').forEach(chip => {
+        chip.dataset.active = 'false';
+        chip.classList.remove('bg-neutral-900', 'text-white', 'shadow-sm');
+        chip.classList.add('bg-neutral-100', 'text-neutral-600', 'hover:bg-neutral-200');
+      });
+
+      const defaultDateChip = document.querySelector('[data-date-opt="Alle"]');
+      if (defaultDateChip) setActiveDateChip(defaultDateChip);
+      customDateLabel.classList.add('hidden');
+      customDateInput.value = '';
+    });
+
+    // ==========================================
+    // 6. SUCH-OVERLAY, TASTATUR & ERGEBNIS-BLASE
+    // ==========================================
+    const mockSearchData = {
+      events: [
+        { title: 'Anglühen?', time: 'Heute · 19:00 – 20:00', tag: '#Event', dot: 'bg-amber-500' },
+        { title: 'Design Review Sprint', time: 'Morgen · 10:30 – 11:30', tag: '#Arbeit', dot: 'bg-blue-600' }
+      ],
+      todos: [
+        { title: 'Getränke kaltstellen', prio: '^', prioColor: 'text-red-500 bg-red-50', tag: '#Privat', done: false },
+        { title: 'Präsentationsfolien finalisieren', prio: '-', prioColor: 'text-amber-500 bg-amber-50', tag: '#Arbeit', done: false }
+      ],
+      notes: [
+        { title: 'Einkaufsliste Wochenende', preview: 'Limetten, Eiswürfel, Snacks & Mineralwasser...', tag: '#Privat' },
+        { title: 'Ideen App-Animationen', preview: 'Feder-Kurven für Widget und Such-Overlay testen...', tag: '#Arbeit' }
+      ]
+    };
+
+    function renderSearchResults(query = '') {
+      const q = query.trim().toLowerCase();
+
+      const filteredEvents = mockSearchData.events.filter(item =>
+        item.title.toLowerCase().includes(q) ||
+        item.time.toLowerCase().includes(q) ||
+        item.tag.toLowerCase().includes(q)
+      );
+
+      const filteredTodos = mockSearchData.todos.filter(item =>
+        item.title.toLowerCase().includes(q) ||
+        item.tag.toLowerCase().includes(q)
+      );
+
+      const filteredNotes = mockSearchData.notes.filter(item =>
+        item.title.toLowerCase().includes(q) ||
+        item.preview.toLowerCase().includes(q) ||
+        item.tag.toLowerCase().includes(q)
+      );
+
+      // Termine rendern
+      if (filteredEvents.length > 0) {
+        searchGroupEvents.classList.remove('hidden');
+        countEvents.textContent = filteredEvents.length;
+        listEvents.innerHTML = filteredEvents.map(ev => `
+          <div class="flex items-center justify-between hover:bg-neutral-100/80 rounded-2xl px-2 py-1.5 transition-colors cursor-pointer">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-2.5 h-2.5 rounded-full ${ev.dot} flex-shrink-0"></span>
+              <div class="min-w-0">
+                <p class="text-[13px] font-black text-neutral-900 truncate">${ev.title}</p>
+                <p class="text-[11px] font-semibold text-neutral-400 truncate">${ev.time}</p>
+              </div>
+            </div>
+            <span class="text-[10px] font-bold text-neutral-500 bg-neutral-100/90 px-2 py-0.5 rounded-lg flex-shrink-0">${ev.tag}</span>
+          </div>
+        `).join('');
+      } else {
+        searchGroupEvents.classList.add('hidden');
+      }
+
+      // Todos rendern
+      if (filteredTodos.length > 0) {
+        searchGroupTodos.classList.remove('hidden');
+        countTodos.textContent = filteredTodos.length;
+        listTodos.innerHTML = filteredTodos.map(td => `
+          <div class="todo-search-row flex items-center justify-between hover:bg-neutral-100/80 rounded-2xl px-2 py-1.5 transition-colors cursor-pointer" data-todo-title="${td.title}">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="w-4 h-4 rounded-md border-2 ${td.done ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-neutral-300 bg-white'} flex items-center justify-center flex-shrink-0">
+                ${td.done ? '<span class="material-symbols-outlined text-[12px] font-bold">check</span>' : ''}
+              </span>
+              <span class="text-[13px] font-bold ${td.done ? 'line-through text-neutral-400' : 'text-neutral-900'} truncate">${td.title}</span>
+            </div>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              <span class="w-5 h-5 rounded-md ${td.prioColor} text-[11px] font-black flex items-center justify-center">${td.prio}</span>
+              <span class="text-[10px] font-bold text-neutral-500 bg-neutral-100/90 px-2 py-0.5 rounded-lg">${td.tag}</span>
+            </div>
+          </div>
+        `).join('');
+
+        // Checkbox-Toggle für Todos in der Suche
+        listTodos.querySelectorAll('.todo-search-row').forEach(row => {
+          row.addEventListener('click', () => {
+            const targetTitle = row.dataset.todoTitle;
+            const found = mockSearchData.todos.find(t => t.title === targetTitle);
+            if (found) {
+              found.done = !found.done;
+              renderSearchResults(searchInput.value);
+            }
+          });
+        });
+      } else {
+        searchGroupTodos.classList.add('hidden');
+      }
+
+      // Notizen rendern
+      if (filteredNotes.length > 0) {
+        searchGroupNotes.classList.remove('hidden');
+        countNotes.textContent = filteredNotes.length;
+        listNotes.innerHTML = filteredNotes.map(nt => `
+          <div class="flex items-center justify-between hover:bg-neutral-100/80 rounded-2xl px-2 py-1.5 transition-colors cursor-pointer gap-2">
+            <div class="min-w-0">
+              <p class="text-[13px] font-black text-neutral-900 truncate">${nt.title}</p>
+              <p class="text-[11px] font-medium text-neutral-400 truncate">${nt.preview}</p>
+            </div>
+            <span class="text-[10px] font-bold text-neutral-500 bg-neutral-100/90 px-2 py-0.5 rounded-lg flex-shrink-0">${nt.tag}</span>
+          </div>
+        `).join('');
+      } else {
+        searchGroupNotes.classList.add('hidden');
+      }
+
+      // Großzügige Abstände & dezente Trennlinien zwischen sichtbaren Kategorien in der gemeinsamen Blase
+      const visibleGroups = [searchGroupEvents, searchGroupTodos, searchGroupNotes].filter(
+        el => !el.classList.contains('hidden')
+      );
+      visibleGroups.forEach((group, index) => {
+        if (index === 0) {
+          group.classList.remove('mt-4', 'pt-3.5', 'border-t', 'border-neutral-100');
+        } else {
+          group.classList.add('mt-4', 'pt-3.5', 'border-t', 'border-neutral-100');
+        }
+      });
+
+      // Leerzustand vs. gemeinsame Blase
+      const totalHits = filteredEvents.length + filteredTodos.length + filteredNotes.length;
+      if (totalHits === 0) {
+        searchUnifiedCard.classList.add('hidden');
+        searchEmptyState.classList.remove('hidden');
+      } else {
+        searchUnifiedCard.classList.remove('hidden');
+        searchEmptyState.classList.add('hidden');
+      }
+
+      // Clear-Button Sichtbarkeit
+      if (q.length > 0) {
+        searchClearBtn.classList.remove('hidden');
+      } else {
+        searchClearBtn.classList.add('hidden');
+      }
+    }
+
+    function toggleSearchOverlay(forceState) {
+      isSearchOpen = typeof forceState === 'boolean' ? forceState : !isSearchOpen;
+      if (isSearchOpen && isFilterOpen) toggleFilterOverlay(false);
+      navSearchBtn.setAttribute('aria-expanded', isSearchOpen ? 'true' : 'false');
+
+      if (isSearchOpen) {
+        renderSearchResults(searchInput.value);
+        searchOverlay.classList.remove('closed');
+        searchOverlay.classList.add('open');
+        navSearchBtn.classList.remove('text-neutral-500', 'hover:text-neutral-900', 'hover:bg-neutral-100');
+        navSearchBtn.classList.add('bg-neutral-900', 'text-white', 'shadow-sm');
+        setTimeout(() => searchInput.focus(), 180);
+      } else {
+        searchOverlay.classList.remove('open');
+        searchOverlay.classList.add('closed');
+        navSearchBtn.classList.remove('bg-neutral-900', 'text-white', 'shadow-sm');
+        navSearchBtn.classList.add('text-neutral-500', 'hover:text-neutral-900', 'hover:bg-neutral-100');
+        searchInput.blur();
+      }
+    }
+
+    navSearchBtn.addEventListener('click', () => toggleSearchOverlay());
+    searchCloseBtn.addEventListener('click', () => toggleSearchOverlay(false));
+    searchBackdropDismiss.addEventListener('click', () => toggleSearchOverlay(false));
+
+    searchInput.addEventListener('input', (e) => {
+      renderSearchResults(e.target.value);
+    });
+
+    searchClearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      renderSearchResults('');
+      searchInput.focus();
+    });
+
+    // Escape-Taste schließt Suche
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && isSearchOpen) {
+        toggleSearchOverlay(false);
+      }
+    });
+
+    // Interaktive virtuelle Tastatur
+    const kbShiftBtn = document.getElementById('kbShiftBtn');
+    const kbBackspaceBtn = document.getElementById('kbBackspaceBtn');
+    const kbReturnBtn = document.getElementById('kbReturnBtn');
+    const kbKeys = document.querySelectorAll('.kb-key');
+
+    function updateShiftVisuals() {
+      kbKeys.forEach(btn => {
+        const k = btn.dataset.key;
+        if (k && k.length === 1 && /[a-z]/i.test(k)) {
+          btn.textContent = isShiftActive ? k.toUpperCase() : k.toLowerCase();
+        }
+      });
+      if (isShiftActive) {
+        kbShiftBtn.classList.remove('bg-[#adb2ba]', 'text-neutral-800');
+        kbShiftBtn.classList.add('bg-white', 'text-neutral-900');
+      } else {
+        kbShiftBtn.classList.remove('bg-white', 'text-neutral-900');
+        kbShiftBtn.classList.add('bg-[#adb2ba]', 'text-neutral-800');
+      }
+    }
+
+    kbShiftBtn.addEventListener('click', () => {
+      isShiftActive = !isShiftActive;
+      updateShiftVisuals();
+      searchInput.focus();
+    });
+
+    kbKeys.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const rawKey = btn.dataset.key;
+        const charToAdd = (isShiftActive && rawKey.length === 1 && /[a-z]/i.test(rawKey))
+          ? rawKey.toUpperCase()
+          : rawKey;
+        searchInput.value += charToAdd;
+        if (isShiftActive) {
+          isShiftActive = false;
+          updateShiftVisuals();
+        }
+        renderSearchResults(searchInput.value);
+        searchInput.focus();
+      });
+    });
+
+    kbBackspaceBtn.addEventListener('click', () => {
+      searchInput.value = searchInput.value.slice(0, -1);
+      renderSearchResults(searchInput.value);
+      searchInput.focus();
+    });
+
+    kbReturnBtn.addEventListener('click', () => {
+      searchInput.blur();
+    });
+  </script>
+</body>
+</html>

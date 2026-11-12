@@ -8,7 +8,7 @@ export function extractTimeFromText(text: string): { title: string; startMins: n
     
     while ((match = timeRegex.exec(text)) !== null) {
         let hours = parseInt(match[1], 10);
-        let minutes = match[2] ? parseInt(match[2], 10) : 0;
+        const minutes = match[2] ? parseInt(match[2], 10) : 0;
         const meridian = match[3]?.toLowerCase();
 
         // Handle AM/PM

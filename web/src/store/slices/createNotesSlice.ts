@@ -21,6 +21,16 @@ export function saveNotesToOfflineCache(notes: DataItem[]): void {
     }
 }
 
+function loadCachedOrderedNoteIds(): string[] {
+    if (typeof window === 'undefined') return [];
+    try {
+        const raw = localStorage.getItem('tide_ordered_note_ids');
+        return raw ? JSON.parse(raw) : [];
+    } catch {
+        return [];
+    }
+}
+
 function getInitialNoteLayout(): NoteLayout {
     if (typeof window === 'undefined') return 'a4';
     const saved = localStorage.getItem('tide_note_layout');
@@ -32,7 +42,7 @@ function getInitialNoteLayout(): NoteLayout {
 
 export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
     notes: loadCachedNotes(),
-    orderedNoteIds: [],
+    orderedNoteIds: loadCachedOrderedNoteIds(),
     activeNoteId: null,
     activeParentId: null,
     noteLayout: getInitialNoteLayout(),
@@ -43,7 +53,16 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
         set({ notes });
     },
 
-    setOrderedNoteIds: (orderedNoteIds: string[]) => set({ orderedNoteIds }),
+    setOrderedNoteIds: (orderedNoteIds: string[]) => {
+        if (typeof window !== 'undefined') {
+            try {
+                localStorage.setItem('tide_ordered_note_ids', JSON.stringify(orderedNoteIds));
+            } catch {
+                // Ignore storage errors (e.g. quota exceeded)
+            }
+        }
+        set({ orderedNoteIds });
+    },
 
     setActiveNoteId: (activeNoteId: string | null) => set({ activeNoteId }),
 

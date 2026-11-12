@@ -16,6 +16,7 @@ interface UseCalendarDragStateParams {
     onEventUpdate: CalendarViewProps["onEventUpdate"];
     onEventCreate: CalendarViewProps["onEventCreate"];
     scrollContainerRef: React.RefObject<HTMLDivElement | null>;
+    hourHeight?: number;
 }
 
 /**
@@ -27,6 +28,7 @@ export function useCalendarDragState({
     onEventUpdate,
     onEventCreate,
     scrollContainerRef,
+    hourHeight = 48,
 }: UseCalendarDragStateParams) {
     // --- DnD State ---
     const eventsRef = useRef(events);
@@ -149,7 +151,8 @@ export function useCalendarDragState({
             const durationMins = (new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000;
             const minDuration = Math.max(10, durationMins);
 
-            let newStartMins = dState.originalTop + deltaY;
+            const deltaMinutes = deltaY / (hourHeight / 60);
+            let newStartMins = dState.originalTop + deltaMinutes;
             newStartMins = Math.round(newStartMins / snapInterval) * snapInterval;
             // MIDNIGHT SWAP FIX: clamp so start can never exceed end boundary
             newStartMins = Math.max(0, Math.min(newStartMins, 1440 - minDuration));
@@ -179,7 +182,7 @@ export function useCalendarDragState({
 
             await updateFn(dId, safeStart, safeEnd);
         }
-    }, []);
+    }, [hourHeight]);
 
     const handleEventMouseDown = (e: React.MouseEvent, id: string, start: Date) => {
         if (e.button !== 0) return;
@@ -224,8 +227,10 @@ export function useCalendarDragState({
         const clickY = gearedMouseRef.current.y - rect.top; // Use geared coords for clickY
 
         const snapInterval = isPreciseModeRef.current ? 1 : 10;
-        const hour = Math.floor(clickY / 60);
-        const minute = Math.floor((clickY % 60) / snapInterval) * snapInterval;
+        const minuteHeight = hourHeight / 60;
+        const totalMinutes = clickY / minuteHeight;
+        const hour = Math.floor(totalMinutes / 60);
+        const minute = Math.floor((totalMinutes % 60) / snapInterval) * snapInterval;
 
         const start = new Date(day);
         start.setHours(hour, minute, 0, 0);

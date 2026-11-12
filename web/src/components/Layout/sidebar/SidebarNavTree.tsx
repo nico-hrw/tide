@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Folder, FolderOpen, ChevronRight, ChevronDown } from "lucide-react";
 import { motion } from "framer-motion";
 import type { DecryptedFile, ContextMenuEvent, DropIndicator, SidebarProps } from "./types";
@@ -31,6 +31,20 @@ export default function SidebarNavTree({
     const activeSafes = useDataStore((s) => s.activeSafes);
     const normActiveSafes = useMemo(() => (activeSafes || []).map((s) => (s === 'Standard' ? 'main' : s)), [activeSafes]);
     const [isRelatedFolderOpen, setIsRelatedFolderOpen] = useState(true);
+    const [isDragging, setIsDragging] = useState(false);
+
+    useEffect(() => {
+        const handleDragStart = () => setIsDragging(true);
+        const handleDragEnd = () => setIsDragging(false);
+        window.addEventListener('dragstart', handleDragStart);
+        window.addEventListener('dragend', handleDragEnd);
+        return () => {
+            window.removeEventListener('dragstart', handleDragStart);
+            window.removeEventListener('dragend', handleDragEnd);
+        };
+    }, []);
+
+    const isManualDrag = isDragging || dropIndicator !== null;
 
     const relatedItems = useMemo(() => {
         return files.filter((f) => {
@@ -223,9 +237,9 @@ export default function SidebarNavTree({
                     )}
                     {displayOrderedItems.map((item, i) => (
                         <motion.div
-                            layout
+                            layout={isManualDrag}
                             key={item.id}
-                            transition={{ layout: { type: 'spring', stiffness: 350, damping: 40, mass: 0.8 } }}
+                            transition={isManualDrag ? { layout: { type: 'spring', stiffness: 350, damping: 40, mass: 0.8 } } : { duration: 0 }}
                             className={
                                 dropIndicator?.id === item.id && dropIndicator.zone === 'top'
                                     ? 'shadow-[inset_0_2px_0_0_#60a5fa] rounded-t'

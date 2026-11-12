@@ -1465,7 +1465,9 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 				OR fs.user_id = ?
 				OR COALESCE(f.visibility, 'private') = 'public'
 				OR json_extract(COALESCE(NULLIF(f.access_keys, ''), '{}'), '$."' || ? || '"') IS NOT NULL
-			) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL ` + typeFilter
+			) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL ` + typeFilter + `
+			ORDER BY (f.type = 'folder') DESC, f.updated_at DESC, f.created_at DESC, f.id ASC
+		`
 
 		args = append(args, viewerID, viewerID, viewerID)
 		if filterType != nil {
@@ -1490,6 +1492,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 				OR COALESCE(f.visibility, 'private') = 'public'
 				OR json_extract(COALESCE(NULLIF(f.access_keys, ''), '{}'), '$."' || ? || '"') IS NOT NULL
 			) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
+			ORDER BY (f.type = 'folder') DESC, f.updated_at DESC, f.created_at DESC, f.id ASC
 		`
 		args = append(args, *parentID)
 		if filterType != nil {
@@ -1513,6 +1516,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE f.type = ? AND (f.owner_id = ? OR fs.user_id = ? OR json_extract(COALESCE(NULLIF(f.access_keys, ''), '{}'), '$."' || ? || '"') IS NOT NULL) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
+			ORDER BY (f.type = 'folder') DESC, f.updated_at DESC, f.created_at DESC, f.id ASC
 			`
 			rows, err = s.readDB().QueryContext(ctx, query, viewerID, *filterType, viewerID, viewerID, viewerID)
 		} else {
@@ -1532,6 +1536,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			OR fs.user_id = ?
 			OR json_extract(COALESCE(NULLIF(f.access_keys, ''), '{}'), '$."' || ? || '"') IS NOT NULL)
 			AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
+			ORDER BY (f.type = 'folder') DESC, f.updated_at DESC, f.created_at DESC, f.id ASC
 			`
 			rows, err = s.readDB().QueryContext(ctx, query, viewerID, viewerID, viewerID, viewerID)
 		}

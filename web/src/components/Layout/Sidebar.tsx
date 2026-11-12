@@ -11,6 +11,29 @@ import PinPromptModal from "@/components/Security/PinPromptModal";
 import { ItemSecuritySettings, isItemUnlocked } from "@/lib/pinSecurity";
 import { Check } from "lucide-react";
 import type { DecryptedFile, ContextMenuEvent, DropIndicator, SidebarProps } from "./sidebar/types";
+
+declare module "./sidebar/types" {
+    interface DecryptedFile {
+        updatedAt?: string | number | Date;
+        createdAt?: string | number | Date;
+    }
+}
+
+interface SecurityItemMetadata {
+    security_settings?: ItemSecuritySettings;
+    has_custom_password?: boolean;
+    pwd_salt?: string;
+    pin_hash?: string;
+    frequency?: ItemSecuritySettings['frequency'];
+    [key: string]: unknown;
+}
+
+interface SecurityModalItem {
+    id: string;
+    title: string;
+    type: 'file' | 'folder' | 'note' | 'canvas';
+    metadata?: SecurityItemMetadata;
+}
 import SidebarQuickNotes from "./sidebar/SidebarQuickNotes";
 import SidebarNavTree from "./sidebar/SidebarNavTree";
 import SidebarContextMenu from "./sidebar/SidebarContextMenu";
@@ -76,8 +99,8 @@ export default function Sidebar({
     const [isBubbleTraversing, setIsBubbleTraversing] = useState(false);
 
     // Security & PIN Protection State
-    const [securityModalItem, setSecurityModalItem] = useState<{ id: string; title: string; type: 'file' | 'folder' | 'note' | 'canvas'; metadata?: any } | null>(null);
-    const [pinPromptItem, setPinPromptItem] = useState<{ id: string; title: string; type: 'file' | 'folder' | 'note' | 'canvas'; metadata?: any; onUnlocked?: () => void } | null>(null);
+    const [securityModalItem, setSecurityModalItem] = useState<SecurityModalItem | null>(null);
+    const [pinPromptItem, setPinPromptItem] = useState<(SecurityModalItem & { onUnlocked?: () => void }) | null>(null);
 
     const handleOpenSecuritySettings = (id: string) => {
         const target = files.find(f => f.id === id);
@@ -85,7 +108,7 @@ export default function Sidebar({
             setSecurityModalItem({
                 id: target.id,
                 title: target.title,
-                type: (target.type as any) || 'note',
+                type: (target.type as 'file' | 'folder' | 'note' | 'canvas') || 'note',
                 metadata: target.metadata
             });
         }
@@ -128,7 +151,7 @@ export default function Sidebar({
             setPinPromptItem({
                 id: fileId,
                 title: title || target?.title || 'Notiz',
-                type: (target?.type as any) || 'note',
+                type: (target?.type as 'file' | 'folder' | 'note' | 'canvas') || 'note',
                 metadata: target?.metadata,
                 onUnlocked: () => onFileSelect(fileId, title)
             });
@@ -137,7 +160,7 @@ export default function Sidebar({
         onFileSelect(fileId, title);
     };
 
-    const handleProtectedTabSelect = (tabId: string, tabType: any) => {
+    const handleProtectedTabSelect = (tabId: string, tabType: Parameters<NonNullable<SidebarProps['onTabSelect']>>[1]) => {
         if (tabType === 'file') {
             const target = files.find(f => f.id === tabId);
             const settings = target?.metadata?.security_settings || (target?.metadata?.has_custom_password ? target?.metadata : null);
@@ -145,7 +168,7 @@ export default function Sidebar({
                 setPinPromptItem({
                     id: tabId,
                     title: target?.title || 'Notiz',
-                    type: (target?.type as any) || 'note',
+                    type: (target?.type as 'file' | 'folder' | 'note' | 'canvas') || 'note',
                     metadata: target?.metadata,
                     onUnlocked: () => onTabSelect?.(tabId, tabType)
                 });
@@ -175,23 +198,27 @@ export default function Sidebar({
     }, [safeFilteredFiles]);
     const pendingShareCount = sharedWithMeItems.filter(f => (f as any).share_status === 'pending').length;
     const [isSharedFolderOpen, setIsSharedFolderOpen] = useState(true);
-    const [orderedItems, setOrderedItems] = useState<DecryptedFile[]>([]);
-
-    useEffect(() => {
+    const orderedItems = useMemo(() => {
         const sorted = [...topLevelItems].sort((a, b) => {
             const indexA = orderedNoteIds.indexOf(a.id);
             const indexB = orderedNoteIds.indexOf(b.id);
-            if (indexA === -1 && indexB === -1) return 0;
-            if (indexA === -1) return 1;
-            if (indexB === -1) return -1;
-            return indexA - indexB;
+            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+            if (indexA !== -1) return -1;
+            if (indexB !== -1) return 1;
+            // Deterministic fallback: Folders first
+            if (a.type === 'folder' && b.type !== 'folder') return -1;
+            if (a.type !== 'folder' && b.type === 'folder') return 1;
+            // Most recently updated/created first
+            const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+            const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+            if (timeB !== timeA) return timeB - timeA;
+            // Stable tie-breaker by ID
+            return a.id.localeCompare(b.id);
         });
-        const uniqueItems = Array.from(new Map(sorted.map(item => [item.id, item])).values());
-        setOrderedItems(uniqueItems);
+        return Array.from(new Map(sorted.map(item => [item.id, item])).values());
     }, [topLevelItems, orderedNoteIds]);
 
     const handleReorder = (newItems: DecryptedFile[]) => {
-        setOrderedItems(newItems);
         const newIds = newItems.map(i => i.id);
         const currentOtherIds = orderedNoteIds.filter(id => !topLevelItems.some(item => item.id === id));
         setOrderedNoteIds([...newIds, ...currentOtherIds]);

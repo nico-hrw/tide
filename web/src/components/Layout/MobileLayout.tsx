@@ -16,7 +16,6 @@ import MiniCalendar from '../Calendar/MiniCalendar';
 import MobileWeekGrid from './MobileWeekGrid';
 import { useDataStore } from '@/store/useDataStore';
 import dynamic from 'next/dynamic';
-import { parseGermanDate } from '@/lib/dateParser';
 import { pickGreetingTemplate, formatGreeting, NextEventCountdown, fireConfetti } from './MobileHeaderWidgets';
 import TodoList from '../Todo/TodoList';
 import { isItemUnlocked, ItemSecuritySettings } from '@/lib/pinSecurity';
@@ -39,6 +38,19 @@ import {
   MobileAgendaTimeline,
   getGroupedDayViewItems,
 } from './mobile/MobileAgendaTimeline';
+import { MobileBottomNav, MobileTab } from './mobile/MobileBottomNav';
+import {
+  MobileFilterPopover,
+  PriorityOption,
+  StatusOption,
+  DateFilterOption,
+} from './mobile/MobileFilterPopover';
+import {
+  MobileSearchOverlay,
+  SearchEventItem,
+  SearchTodoItem,
+  SearchNoteItem,
+} from './mobile/MobileSearchOverlay';
 
 type PinPromptTarget = React.ComponentProps<typeof PinPromptModal>['item'] & { onUnlocked?: () => void };
 
@@ -735,6 +747,12 @@ export default function MobileLayout({
   const [pinPromptItem, setPinPromptItem] = useState<PinPromptTarget | null>(null);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [editingTodoId, setEditingTodoId] = useState<string | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [selectedPriority, setSelectedPriority] = useState<PriorityOption | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<StatusOption | string | null>(null);
+  const [dateFilter, setDateFilter] = useState<DateFilterOption>('all');
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const tasks = useDataStore((s) => s.tasks);
   const [notesViewMode, setNotesViewMode] = useState<'list' | 'grid'>(() => {
     try {
       return typeof window !== 'undefined' && localStorage.getItem('tide_notes_view') === 'list' ? 'list' : 'grid';
@@ -1105,16 +1123,6 @@ export default function MobileLayout({
     [dayViewDays, expandedEvents, now]
   );
 
-  // Date/time recognition from search query (use new Date() inside so `now` tick doesn't re-run)
-  const parsedDate = useMemo(() => {
-    const q = searchQuery.trim();
-    if (q.length < 3) return null;
-    try {
-      const results = parseGermanDate(q, new Date());
-      return results.length > 0 ? results[0] : null;
-    } catch { return null; }
-  }, [searchQuery]);
-
   // Text collector: open search on key press
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1130,21 +1138,63 @@ export default function MobileLayout({
     return () => window.removeEventListener('keydown', handler);
   }, [isSearchOpen, isEditingNote, isSidebarOpen, activeTab]);
 
-  const searchResults = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    if (!q || q.length < 2) return [];
-    const contentCache: Record<string, string> = typeof window !== 'undefined' ? ((window as any).__mobileNoteCache ?? {}) : {};
-    const notes = files.filter(f => f.type !== 'folder' && (
-      (f.title || '').toLowerCase().includes(q) ||
-      (contentCache[f.id] ?? '').includes(q)
-    )).map(f => ({ kind: 'note', ...f }));
-    const now = Date.now();
-    const evts = expandedEvents
-      .filter(e => (e.title || '').toLowerCase().includes(q))
-      .sort((a, b) => Math.abs(new Date(a.start).getTime() - now) - Math.abs(new Date(b.start).getTime() - now))
-      .map(e => ({ kind: 'event', ...e }));
-    return [...notes, ...evts];
-  }, [searchQuery, files, expandedEvents]);
+  const searchEvents: SearchEventItem[] = useMemo(() => {
+    return (expandedEvents || []).map((e: any) => ({
+      id: e.id,
+      title: e.title || 'Termin',
+      start: e.start,
+      end: e.end,
+      dotColor: e.color,
+      tag: e.tag || e.category,
+    }));
+  }, [expandedEvents]);
+
+  const searchTodos: SearchTodoItem[] = useMemo(() => {
+    return (tasks || []).map((t) => ({
+      id: t.id,
+      title: t.title || 'Aufgabe',
+      completed: t.isCompleted,
+      isCompleted: t.isCompleted,
+      priority: t.priority,
+      tag: t.folder || (t.tags && t.tags[0]),
+    }));
+  }, [tasks]);
+
+  const searchNotes: SearchNoteItem[] = useMemo(() => {
+    const contentCache: Record<string, string> =
+      typeof window !== 'undefined' ? ((window as any).__mobileNoteCache ?? {}) : {};
+    return (files || [])
+      .filter((f: any) => f.type !== 'folder')
+      .map((f: any) => ({
+        id: f.id,
+        title: f.title || 'Notiz',
+        preview: contentCache[f.id] || f.preview || '',
+        tag: f.folder_name || (f.tags && f.tags[0]),
+        updatedAt: f.updated_at || f.updatedAt,
+      }));
+  }, [files]);
+
+  const allTags = useMemo(() => {
+    const s = new Set<string>();
+    (tasks || []).forEach((t) => t.tags?.forEach((tag) => s.add(tag)));
+    (files || []).forEach((f: any) => f.tags?.forEach?.((tag: string) => s.add(tag)));
+    return Array.from(s);
+  }, [tasks, files]);
+
+  const navBadges = useMemo(() => {
+    const openTodos = (tasks || []).filter((t) => !t.isCompleted).length;
+    const todayEvts = (expandedEvents || []).filter((e: any) => {
+      try {
+        return isSameDay(new Date(e.start), new Date());
+      } catch {
+        return false;
+      }
+    }).length;
+    return {
+      calendar: todayEvts > 0 ? todayEvts : undefined,
+      todos: openTodos > 0 ? openTodos : undefined,
+    };
+  }, [tasks, expandedEvents]);
 
   const openNote = useCallback((id: string, title: string) => {
     const note = useDataStore.getState().notes.find(n => n.id === id) || files.find((f: { id?: string }) => f?.id === id);
@@ -1346,106 +1396,69 @@ export default function MobileLayout({
           </OverlayShell>
         )}
 
-        {/* ── Search glass panel — slides up from bottom, partial overlay ── */}
-        {isSearchOpen && (
-          <>
-            {/* Dimmed backdrop, dismisses on tap */}
-            <motion.div key="search-back"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className={`fixed inset-0 w-full h-[100dvh] ${isEditingNote ? 'z-[55]' : 'z-40'}`}
-              style={{ background: 'rgba(0,0,0,0.5)' }}
-              onClick={() => setIsSearchOpen(false)}
-            />
+        {/* Unified Mobile Search Overlay */}
+        <MobileSearchOverlay
+          isOpen={isSearchOpen}
+          onClose={() => setIsSearchOpen(false)}
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          events={searchEvents}
+          todos={searchTodos}
+          notes={searchNotes}
+          onSelectEvent={(evItem) => {
+            const found = expandedEvents.find((e: any) => e.id === evItem.id);
+            if (found) {
+              setSelectedEvent(found);
+            }
+            setIsSearchOpen(false);
+          }}
+          onSelectTodo={(todoItem) => {
+            setActiveTab('todos');
+            setIsSearchOpen(false);
+            window.dispatchEvent(new CustomEvent('tide:select-todo', { detail: { id: todoItem.id } }));
+          }}
+          onSelectNote={(noteItem) => {
+            openNote(noteItem.id, noteItem.title);
+            setIsSearchOpen(false);
+          }}
+          onToggleTodo={async (id) => {
+            await useDataStore.getState().toggleTask(id);
+          }}
+        />
 
-            {/* Glass panel — slides up, covers ~75% of screen */}
-            <motion.div key="search"
-              initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 32, stiffness: 320 }}
-              className={`fixed left-0 right-0 ${isEditingNote ? 'z-[60]' : 'z-50'} flex flex-col rounded-t-3xl overflow-hidden`}
-              style={{
-                bottom: kbOffset,
-                maxHeight: kbOffset > 0 ? `calc(100dvh - ${kbOffset}px - 40px)` : '78vh',
-                background: theme === 'dark'
-                  ? 'rgba(28,28,28,0.98)'
-                  : 'rgba(255,255,255,0.98)',
-                borderTop: `1px solid ${T.brd}`,
-                boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
-              }}
-            >
-              {/* Handle */}
-              <div className="flex justify-center pt-3 pb-2 cursor-pointer shrink-0" onClick={() => setIsSearchOpen(false)}>
-                <div className="w-10 h-1.5 rounded-full" style={{ background: T.brd }} />
-              </div>
-
-              {/* Middle scrollable container */}
-              <div className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-2 min-h-0" style={{ overscrollBehavior: 'contain' }}>
-                {/* Search results */}
-                {searchResults.length > 0 ? (
-                  <div className="flex flex-col">
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: T.mut }}>Ergebnisse</p>
-                    {searchResults.map(r => (
-                      <button key={r.id}
-                        onClick={() => r.kind === 'note' ? openNote(r.id, r.title) : (() => { const ev = expandedEvents.find(e => e.id === r.id); if (ev) setSelectedEvent(ev); setIsSearchOpen(false); })()}
-                        className="w-full flex items-center gap-3 py-3 text-left" style={{ borderBottom: `1px solid ${T.brd}` }}>
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                          style={{ background: r.kind === 'note' ? '#6366F122' : `${T.accent}22` }}>
-                          {r.kind === 'note' ? <FileText size={14} style={{ color: '#6366F1' }} /> : <CalendarIcon size={14} style={{ color: T.accent }} />}
-                        </div>
-                        <div className="flex-1 overflow-hidden">
-                          <p className="text-sm font-medium truncate" style={{ color: T.pri }}>{r.title}</p>
-                          <p className="text-xs" style={{ color: T.mut }}>
-                            {r.kind === 'note' ? 'Notiz' : `Ereignis · ${format(new Date(r.start), 'd. MMM', { locale: de })}`}
-                          </p>
-                        </div>
-                        <ChevronRight size={13} style={{ color: T.mut }} />
-                      </button>
-                    ))}
-                  </div>
-                ) : searchQuery ? (
-                  <p className="text-sm py-4 text-center" style={{ color: T.mut }}>Keine Ergebnisse für &ldquo;{searchQuery}&rdquo;</p>
-                ) : null}
-
-                {/* Date recognition hint */}
-                {parsedDate && (
-                  <div className="px-4 py-2.5 rounded-2xl flex items-center gap-3 shrink-0"
-                    style={{ background: `${T.accent}12`, border: `1px solid ${T.accent}30` }}>
-                    <CalendarIcon size={14} style={{ color: T.accent, flexShrink: 0 }} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold" style={{ color: T.accent }}>
-                        Termin erkannt: {format(parsedDate.proposedStart, 'EEE d. MMM, HH:mm', { locale: de })}
-                        {parsedDate.proposedEnd && ` – ${format(parsedDate.proposedEnd, 'HH:mm')}`}
-                      </p>
-                      {parsedDate.titleHint && <p className="text-xs truncate" style={{ color: T.sec }}>{parsedDate.titleHint}</p>}
-                    </div>
-                    <button
-                      onClick={() => { setIsSearchOpen(false); onNewEvent?.(parsedDate.proposedStart); }}
-                      className="text-xs font-bold px-3 py-1.5 rounded-xl shrink-0"
-                      style={{ background: T.accent, color: '#fff' }}>
-                      + Anlegen
-                    </button>
-                  </div>
-                )}
-
-
-              </div>
-
-              {/* Bottom pinned search input */}
-              <div className="mx-4 mt-1 mb-3 pb-[max(8px,env(safe-area-inset-bottom))] shrink-0">
-                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl border border-black dark:border-white focus-within:ring-1 focus-within:ring-black dark:focus-within:ring-white"
-                  style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}>
-                  <Search size={16} className="shrink-0 text-gray-900 dark:text-white" />
-                  <input autoFocus value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="Suchen, Notiz oder Termin erfassen…"
-                    className="flex-1 bg-transparent outline-none text-sm text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500" />
-                  {searchQuery
-                    ? <button onClick={() => setSearchQuery('')}><X size={14} className="text-gray-500 dark:text-gray-400" /></button>
-                    : <button onClick={() => setIsSearchOpen(false)} className="text-sm font-semibold text-gray-900 dark:text-white">Fertig</button>
-                  }
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
+        {/* Mobile Filter Popover */}
+        <MobileFilterPopover
+          isOpen={isFilterOpen}
+          onClose={() => setIsFilterOpen(false)}
+          selectedPriority={selectedPriority}
+          onPriorityChange={(priority) => {
+            setSelectedPriority(priority);
+            window.dispatchEvent(new CustomEvent('tide:filter-priority', { detail: { priority } }));
+          }}
+          selectedStatus={selectedStatus}
+          onStatusChange={(status) => {
+            setSelectedStatus(status);
+            window.dispatchEvent(new CustomEvent('tide:filter-status', { detail: { status } }));
+          }}
+          dateFilter={dateFilter}
+          onDateFilterChange={(date) => {
+            setDateFilter(date);
+            window.dispatchEvent(new CustomEvent('tide:filter-date', { detail: { date } }));
+          }}
+          tags={allTags}
+          selectedTag={selectedTag}
+          onTagChange={(tag) => {
+            setSelectedTag(tag);
+            window.dispatchEvent(new CustomEvent('tide:filter-tag', { detail: { tag } }));
+          }}
+          onResetFilters={() => {
+            setSelectedPriority(null);
+            setSelectedStatus(null);
+            setDateFilter('all');
+            setSelectedTag(null);
+            window.dispatchEvent(new CustomEvent('tide:filter-reset'));
+          }}
+        />
 
         {/* Event detail sheet */}
         {selectedEvent && (
@@ -2277,17 +2290,16 @@ export default function MobileLayout({
       </AnimatePresence>
 
       {/* ── High-presence Bottom Navigation Bar ────────────────── */}
-      <div
-        className="fixed left-0 right-0 flex items-center justify-between z-20 px-3 sm:px-5 pt-2.5 sm:pt-3"
-        style={{
-          bottom: kbOffset > 0 ? kbOffset : 0,
-          background: theme === 'dark' ? 'rgba(15, 20, 30, 0.95)' : 'rgba(255, 255, 255, 0.97)',
-          borderTop: `1px solid ${T.brd}`,
-          paddingBottom: 'max(14px, env(safe-area-inset-bottom))',
-        }}
-      >
-        {/* Tabs / Edit controls */}
-        {editingTodoId ? (
+      {editingTodoId ? (
+        <div
+          className="fixed left-0 right-0 flex items-center justify-between z-20 px-3 sm:px-5 pt-2.5 sm:pt-3"
+          style={{
+            bottom: kbOffset > 0 ? kbOffset : 0,
+            background: theme === 'dark' ? 'rgba(15, 20, 30, 0.95)' : 'rgba(255, 255, 255, 0.97)',
+            borderTop: `1px solid ${T.brd}`,
+            paddingBottom: 'max(14px, env(safe-area-inset-bottom))',
+          }}
+        >
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => {
@@ -2341,167 +2353,118 @@ export default function MobileLayout({
               <span>Fertig</span>
             </button>
           </div>
-        ) : (
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            {[
-              { id: 'calendar' as const, icon: <CalendarIcon size={22} />, label: 'Kalender' },
-              { id: 'notes' as const, icon: <BookOpen size={22} />, label: 'Notizen' },
-              ...(!enabledExtensions || enabledExtensions.includes('todos')
-                ? [{ id: 'todos' as const, icon: <ListTodo size={22} />, label: 'Todos' }]
-                : []),
-            ].map(tab => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                    setIsPlusMenuOpen(false);
-                  }}
-                  className={`w-[44px] h-[44px] sm:w-[48px] sm:h-[48px] flex items-center justify-center rounded-[16px] sm:rounded-[18px] transition-all active:scale-95 shrink-0 cursor-pointer ${
-                    isActive
-                      ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-md'
-                      : 'text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5'
-                  }`}
-                  title={tab.label}
-                >
-                  {tab.icon}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {!editingTodoId && (
+          <button
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('tide:new-subtask'));
+            }}
+            className="w-[44px] h-[44px] sm:w-[48px] sm:h-[48px] flex items-center justify-center rounded-[16px] sm:rounded-[18px] bg-gray-900 dark:bg-white hover:bg-black text-white dark:text-gray-900 shadow-md transition-all active:scale-95 shrink-0 cursor-pointer"
+            title="Unteraufgabe hinzufügen"
+          >
+            <Plus size={22} strokeWidth={2.4} />
+          </button>
+        </div>
+      ) : (
+        <>
+          <MobileBottomNav
+            activeTab={activeTab}
+            onTabChange={(tab: MobileTab) => {
+              setActiveTab(tab);
+              setIsPlusMenuOpen(false);
+            }}
+            isSearchOpen={isSearchOpen}
+            onToggleSearch={() => {
+              if (!isSearchOpen) setSearchQuery('');
+              setIsSearchOpen((prev) => !prev);
+            }}
+            isFilterOpen={isFilterOpen}
+            onToggleFilter={() => {
+              setIsFilterOpen((prev) => !prev);
+            }}
+            onFabClick={() => {
+              setIsPlusMenuOpen((prev) => !prev);
+            }}
+            badges={navBadges}
+          />
+          {isPlusMenuOpen && (
             <>
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setIsSearchOpen(true);
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setIsPlusMenuOpen(false)}
+              />
+              <div
+                className="fixed bottom-[84px] right-4 rounded-2xl shadow-xl border p-2 flex flex-col w-[170px] z-50 transition-all origin-bottom-right"
+                style={{
+                  background: theme === 'dark' ? '#1a1e28' : '#ffffff',
+                  borderColor: theme === 'dark' ? '#262b38' : '#f1f2f5',
+                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2)',
                 }}
-                className="w-[44px] h-[44px] sm:w-[48px] sm:h-[48px] flex items-center justify-center rounded-[16px] sm:rounded-[18px] text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all active:scale-95 shrink-0 cursor-pointer"
-                title="Suchen"
               >
-                <Search size={20} />
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPlusMenuOpen(false);
+                    setCreateModalMode('event');
+                    setIsCreateModalOpen(true);
+                  }}
+                  className="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                  style={{ color: theme === 'dark' ? '#f3f4f6' : '#1f2937' }}
+                >
+                  <CalendarPlus className="w-5 h-5 text-blue-500 shrink-0" />
+                  <span>Termin</span>
+                </button>
 
-              <button
-                onClick={() => {
-                  if (activeTab !== 'todos') {
-                    setActiveTab('todos');
-                  }
-                  window.dispatchEvent(new CustomEvent('tide:toggle-todo-filter'));
-                }}
-                className="w-[44px] h-[44px] sm:w-[48px] sm:h-[48px] flex items-center justify-center rounded-[16px] sm:rounded-[18px] text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all active:scale-95 shrink-0 cursor-pointer"
-                title="Filter"
-              >
-                <SlidersHorizontal size={20} />
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPlusMenuOpen(false);
+                    setCreateModalMode('todo');
+                    setIsCreateModalOpen(true);
+                  }}
+                  className="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                  style={{ color: theme === 'dark' ? '#f3f4f6' : '#1f2937' }}
+                >
+                  <CheckSquare className="w-5 h-5 text-green-500 shrink-0" />
+                  <span>To-Do</span>
+                </button>
+
+                {activeTab === 'notes' && (
+                  <>
+                    <div
+                      className="h-[1px] my-1"
+                      style={{ background: theme === 'dark' ? '#262b38' : '#f3f4f6' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onNewNote();
+                        setIsEditingNote(true);
+                        setIsPlusMenuOpen(false);
+                      }}
+                      className="flex items-center gap-3 w-full text-left px-3 py-2 text-[14px] font-medium rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                      style={{ color: theme === 'dark' ? '#9ca3af' : '#4b5563' }}
+                    >
+                      <PenLine size={16} className="text-purple-500 shrink-0" />
+                      <span>Notiz</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onNewFolder?.();
+                        setIsPlusMenuOpen(false);
+                      }}
+                      className="flex items-center gap-3 w-full text-left px-3 py-2 text-[14px] font-medium rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                      style={{ color: theme === 'dark' ? '#9ca3af' : '#4b5563' }}
+                    >
+                      <FolderPlus size={16} className="text-purple-500 shrink-0" />
+                      <span>Ordner</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </>
           )}
-
-          <div className="relative">
-            {!editingTodoId && isPlusMenuOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setIsPlusMenuOpen(false)}
-                />
-                <div
-                  className="absolute bottom-[60px] right-0 rounded-2xl shadow-xl border p-2 flex flex-col w-[170px] z-50 transition-all origin-bottom-right"
-                  style={{
-                    background: theme === 'dark' ? '#1a1e28' : '#ffffff',
-                    borderColor: theme === 'dark' ? '#262b38' : '#f1f2f5',
-                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2)',
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsPlusMenuOpen(false);
-                      setCreateModalMode('event');
-                      setIsCreateModalOpen(true);
-                    }}
-                    className="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
-                    style={{ color: theme === 'dark' ? '#f3f4f6' : '#1f2937' }}
-                  >
-                    <CalendarPlus className="w-5 h-5 text-blue-500 shrink-0" />
-                    <span>Termin</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsPlusMenuOpen(false);
-                      setCreateModalMode('todo');
-                      setIsCreateModalOpen(true);
-                    }}
-                    className="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
-                    style={{ color: theme === 'dark' ? '#f3f4f6' : '#1f2937' }}
-                  >
-                    <CheckSquare className="w-5 h-5 text-green-500 shrink-0" />
-                    <span>To-Do</span>
-                  </button>
-
-                  {activeTab === 'notes' && (
-                    <>
-                      <div
-                        className="h-[1px] my-1"
-                        style={{ background: theme === 'dark' ? '#262b38' : '#f3f4f6' }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onNewNote();
-                          setIsEditingNote(true);
-                          setIsPlusMenuOpen(false);
-                        }}
-                        className="flex items-center gap-3 w-full text-left px-3 py-2 text-[14px] font-medium rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
-                        style={{ color: theme === 'dark' ? '#9ca3af' : '#4b5563' }}
-                      >
-                        <PenLine size={16} className="text-purple-500 shrink-0" />
-                        <span>Notiz</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onNewFolder?.();
-                          setIsPlusMenuOpen(false);
-                        }}
-                        className="flex items-center gap-3 w-full text-left px-3 py-2 text-[14px] font-medium rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
-                        style={{ color: theme === 'dark' ? '#9ca3af' : '#4b5563' }}
-                      >
-                        <FolderPlus size={16} className="text-purple-500 shrink-0" />
-                        <span>Ordner</span>
-                      </button>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-
-            <button
-              onClick={() => {
-                if (editingTodoId) {
-                  window.dispatchEvent(new CustomEvent('tide:new-subtask'));
-                  return;
-                }
-                setIsPlusMenuOpen(prev => !prev);
-              }}
-              className="w-[44px] h-[44px] sm:w-[48px] sm:h-[48px] flex items-center justify-center rounded-[16px] sm:rounded-[18px] bg-gray-900 dark:bg-white hover:bg-black text-white dark:text-gray-900 shadow-md transition-all active:scale-95 shrink-0 cursor-pointer relative z-30"
-              title={editingTodoId ? 'Unteraufgabe hinzufügen' : 'Hinzufügen'}
-            >
-              <Plus
-                size={22}
-                strokeWidth={2.4}
-                className={`transition-transform duration-300 ${isPlusMenuOpen ? 'rotate-45' : ''}`}
-              />
-            </button>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
 
       {pinPromptItem && (
         <PinPromptModal

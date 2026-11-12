@@ -428,13 +428,16 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     // We use a dummy MV if props are missing to satisfy the 'useTransform' requirement (never null)
     const fallbackMV = useMotionValue(0);
 
+    const minuteHeight = hourHeight / 60;
+
     const creationPreviewTop = useTransform(creationEndYMV || fallbackMV, (currentY: number) => {
         if (!creationDrag) return "0px";
         const deltaY = currentY - creationDrag.startY;
         const startMins = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
         let snappoints = Math.floor(deltaY / snapInterval) * snapInterval;
         if (deltaY < 0) snappoints = Math.ceil(deltaY / snapInterval) * snapInterval;
-        return (deltaY < 0 ? Math.max(0, startMins + snappoints) : startMins) + 'px';
+        const topMinutes = deltaY < 0 ? Math.max(0, startMins + snappoints) : startMins;
+        return (topMinutes * minuteHeight) + 'px';
     });
 
     const creationPreviewHeight = useTransform(creationEndYMV || fallbackMV, (currentY: number) => {
@@ -445,10 +448,10 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
         if (deltaY < 0) snappoints = Math.ceil(deltaY / snapInterval) * snapInterval;
         // Clamp: if dragging forward, end can never exceed 1440 min (midnight)
         const rawHeight = Math.max(10, Math.abs(snappoints));
-        const maxHeight = deltaY >= 0
+        const durationMinutes = deltaY >= 0
             ? Math.min(rawHeight, 1440 - startMins) // forward drag: cap at midnight
             : Math.min(rawHeight, startMins);         // backward drag: cap at start-of-day
-        return maxHeight + 'px';
+        return (durationMinutes * minuteHeight) + 'px';
     });
 
     // Live end-time label for the creation preview — driven by the same MotionValue as the ghost block

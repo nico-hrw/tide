@@ -1,5 +1,8 @@
 # AGENTS — Operating Manual for AI Contributors
 
+~ commit: true
+~ push:   true 
+
 > Also valid for Claude Code: this file doubles as `CLAUDE.md` context.
 > Read `web/docs/` and `cloud/docs/` for specific architecture, database, and component documentation.
 
