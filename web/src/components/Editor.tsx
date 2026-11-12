@@ -297,6 +297,15 @@ function CollaborativeEditor(props: EditorProps) {
     });
 
     useEffect(() => {
+        (window as any).__tideEditor = editor;
+        return () => {
+            if ((window as any).__tideEditor === editor) {
+                (window as any).__tideEditor = null;
+            }
+        };
+    }, [editor]);
+
+    useEffect(() => {
         const strokes = cleanInitial?.attrs?.inkStrokes || (initialContent as any)?.attrs?.inkStrokes;
         if (strokes && Array.isArray(strokes)) {
             setInkStrokes(strokes);

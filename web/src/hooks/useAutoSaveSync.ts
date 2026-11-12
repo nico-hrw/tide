@@ -284,14 +284,17 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
 
             if (curFile?.metadata?.unencrypted === true) {
                 try {
-                    const content = editorContentRef.current ?? canvasNoteDataRef.current;
+                    const activeEditor = typeof window !== 'undefined' ? (window as any).__tideEditor : null;
+                    const content = (activeEditor && !activeEditor.isDestroyed)
+                        ? activeEditor.getJSON()
+                        : (editorContentRef.current ?? canvasNoteDataRef.current);
                     let md = "";
                     if (typeof content === "string") {
                         md = content;
                     } else if (content && typeof content === "object") {
                         md = tipTapToMarkdown(content);
                     }
-                    if (md) {
+                    if (md && md.trim().length > 0) {
                         await apiFetch(`/api/v1/files/${noteId}/upload`, {
                             method: "POST",
                             body: new Blob([md], { type: "text/markdown;charset=utf-8" }),

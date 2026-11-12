@@ -369,14 +369,19 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
 
         setIsProcessing(true);
         try {
+            const activeEditor = typeof window !== 'undefined' ? (window as any).__tideEditor : null;
+            const contentToUse = (activeEditor && !activeEditor.isDestroyed)
+                ? activeEditor.getJSON()
+                : noteContent;
+
             let md = '';
-            if (typeof noteContent === 'string') {
-                md = noteContent;
-            } else if (noteContent && typeof noteContent === 'object') {
+            if (typeof contentToUse === 'string') {
+                md = contentToUse;
+            } else if (contentToUse && typeof contentToUse === 'object') {
                 try {
-                    md = tipTapToMarkdown(noteContent);
+                    md = tipTapToMarkdown(contentToUse);
                 } catch {
-                    md = JSON.stringify(noteContent, null, 2);
+                    md = JSON.stringify(contentToUse, null, 2);
                 }
             } else {
                 md = `# ${effectiveTitle}\n\n`;
