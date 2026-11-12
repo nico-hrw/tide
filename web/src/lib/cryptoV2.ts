@@ -707,3 +707,22 @@ export async function testCryptoV2() {
         return false;
     }
 }
+
+/**
+ * Derives a deterministic public DEK for unencrypted/public notes from the noteId.
+ * Allows all sessions and clients to read/write Yjs CRDT frames without key mismatches.
+ */
+export async function derivePublicNoteDEK(noteId: string): Promise<CryptoKey> {
+    const rawKey = await window.crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(`tide-public-note-v1:${noteId}`)
+    );
+    return window.crypto.subtle.importKey(
+        'raw',
+        rawKey,
+        { name: 'AES-GCM' },
+        false,
+        ['encrypt', 'decrypt']
+    );
+}
+

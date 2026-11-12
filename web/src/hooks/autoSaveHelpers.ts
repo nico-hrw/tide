@@ -2,6 +2,7 @@ import { apiFetch } from "@/lib/api";
 import { useDataStore } from "@/store/useDataStore";
 import * as cryptoLib from "@/lib/crypto";
 import * as cryptoV2 from "@/lib/cryptoV2";
+import { derivePublicNoteDEK } from "@/lib/cryptoV2";
 import { createLinePatch, applyLinePatch } from "@/lib/diff";
 
 interface ProseMirrorNodeLike {
@@ -358,7 +359,7 @@ export async function decryptNotePayload(params: {
         }
         const rawText = resBlob.ok ? await resBlob.text() : "";
         const title = parsedTargetMeta?.title || target?.title;
-        return { contentText: ensureTipTapContent(rawText), fileKeyToUse: null, title };
+        return { contentText: ensureTipTapContent(rawText), fileKeyToUse: await derivePublicNoteDEK(fileId), title };
     }
 
     if ((target.version ?? 1) >= 2 && target.access_keys) {
@@ -423,7 +424,7 @@ export async function decryptNotePayload(params: {
             throw new Error("File not found on server (404)");
         }
         const rawText = resBlob.ok ? await resBlob.text() : "";
-        return { contentText: ensureTipTapContent(rawText), fileKeyToUse: null, title: (meta.title || target?.title) as string };
+        return { contentText: ensureTipTapContent(rawText), fileKeyToUse: await derivePublicNoteDEK(fileId), title: (meta.title || target?.title) as string };
     }
     if (!meta.fileKey || typeof meta.fileKey !== 'object' || !(meta.fileKey as any).kty) {
         throw new Error("Invalid or missing FileKey structure.");

@@ -5,6 +5,7 @@ import { EditorContent } from '@tiptap/react';
 import * as Y from 'yjs';
 import { YjsE2EEProvider } from '@/lib/yjsE2EEProvider';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
+import { derivePublicNoteDEK } from '@/lib/cryptoV2';
 
 import type { EditorProps } from './Editor/types';
 import { COLORS } from './Editor/editorConstants';
@@ -44,6 +45,7 @@ function CollaborativeEditor(props: EditorProps) {
         onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick,
         onEventClick, onActiveUsersChange, userProfile, myId, dek, keyEpoch,
     } = props;
+    const fileId = activeTabId;
     const cleanInitial = useMemo(() => getCleanDocContent(initialContent), [initialContent]);
     const [pencilMode, setPencilMode] = useState<PencilInputMode>('text');
     const [activeInkTool, setActiveInkTool] = useState<InkToolType>('pen');
@@ -198,11 +200,14 @@ function CollaborativeEditor(props: EditorProps) {
             }
         } else {
             // Avoid creating temporary random keys while activeDek is loading.
-            // If activeDek does not arrive after 2500ms (fallback for offline/keyless), generate temp key.
+            // If activeDek does not arrive after 2500ms (fallback for offline/keyless), derive or generate key.
             if (!providerRef.current) {
                 tempKeyTimer = setTimeout(() => {
-                    if (isCancelled || providerRef.current || !activeTabId) return;
-                    window.crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt'])
+                    const keyPromise = fileId
+                        ? derivePublicNoteDEK(fileId)
+                        : window.crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+
+                    keyPromise
                         .then((tempKey) => {
                             if (isCancelled || providerRef.current) return;
                             const newProvider = createProvider(tempKey, ydocRef.current, true);
@@ -210,7 +215,7 @@ function CollaborativeEditor(props: EditorProps) {
                                 setProvider(newProvider);
                             }
                         })
-                        .catch(() => {});
+                        .catch((err) => console.error('[Editor] Failed to obtain key for provider:', err));
                 }, 2500);
             }
         }

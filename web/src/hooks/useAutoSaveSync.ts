@@ -8,6 +8,7 @@ import { Tab } from "@/components/Layout/TabList";
 import { apiFetch } from "@/lib/api";
 import * as cryptoLib from "@/lib/crypto";
 import { encryptSnapshot } from "@/lib/e2eeFraming";
+import { tipTapToMarkdown } from "@/lib/bundleImportExport";
 import {
     isDocEmpty,
     countWordsInTipTapJson,
@@ -154,7 +155,7 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
         }
 
         // Handle public files through standard public upload
-        if (curFile?.visibility === "public" || curFile?.metadata?.unencrypted === true) {
+        if (curFile?.visibility === "public") {
             const content = editorContentRef.current ?? canvasNoteDataRef.current;
             if (content) {
                 const contentStr = typeof content === "string" ? content : JSON.stringify(content);
@@ -279,6 +280,26 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
             unsavedNotesRef.current.delete(noteId);
             if (noteId === activeNoteIdRef.current) {
                 setSaveStatus("saved");
+            }
+
+            if (curFile?.metadata?.unencrypted === true) {
+                try {
+                    const content = editorContentRef.current ?? canvasNoteDataRef.current;
+                    let md = "";
+                    if (typeof content === "string") {
+                        md = content;
+                    } else if (content && typeof content === "object") {
+                        md = tipTapToMarkdown(content);
+                    }
+                    if (md) {
+                        await apiFetch(`/api/v1/files/${noteId}/upload`, {
+                            method: "POST",
+                            body: new Blob([md], { type: "text/markdown;charset=utf-8" }),
+                        });
+                    }
+                } catch (err) {
+                    console.warn("[AutoSaveSync] Failed to upload unencrypted markdown blob:", err);
+                }
             }
 
             // Persist updated secured_meta if title/icon/tags changed
