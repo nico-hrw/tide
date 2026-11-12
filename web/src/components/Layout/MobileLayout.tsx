@@ -1959,6 +1959,8 @@ export default function MobileLayout({
             </button>
           </div>
         </div>
+        {/* Workspace selector bar */}
+        <SidebarQuickNotes className="px-3 pb-1 shrink-0" />
         {/* Notes list */}
         <div className="flex-1 overflow-y-auto px-2">
           {(() => {
@@ -2294,29 +2296,24 @@ export default function MobileLayout({
         )}
       </AnimatePresence>
 
-      {/* ── High-presence Bottom Navigation Bar ────────────────── */}
+      {/* ── High-presence Bottom Navigation Bar (Todo Editing Mode) ────────────────── */}
       {editingTodoId ? (
         <div
-          className="fixed left-0 right-0 flex items-center justify-between z-20 px-3 sm:px-5 pt-2.5 sm:pt-3"
+          className="fixed left-0 right-0 px-4 pb-2 sm:pb-2.5 pt-1.5 flex items-center justify-between z-30 pointer-events-none"
           style={{
             bottom: kbOffset > 0 ? kbOffset : 0,
-            background: theme === 'dark' ? 'rgba(15, 20, 30, 0.95)' : 'rgba(255, 255, 255, 0.97)',
-            borderTop: `1px solid ${T.brd}`,
-            paddingBottom: 'max(14px, env(safe-area-inset-bottom))',
+            paddingBottom: kbOffset > 0 ? 8 : 'max(8px, env(safe-area-inset-bottom))',
           }}
         >
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Central Pill: Abbrechen, Löschen, Fertig */}
+          <div className="pointer-events-auto bg-white/85 dark:bg-neutral-900/85 backdrop-blur-md border border-neutral-200/80 dark:border-neutral-800 rounded-full p-1.5 shadow-lg flex items-center gap-1.5">
             <button
+              type="button"
               onClick={() => {
                 setEditingTodoId(null);
                 window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit', { detail: { source: 'mobile' } }));
               }}
-              className="h-10 px-3 flex items-center gap-1.5 rounded-xl sm:rounded-2xl text-xs font-semibold transition-all active:scale-95 shrink-0 cursor-pointer"
-              style={{
-                background: theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
-                color: T.pri,
-                border: '1px solid transparent',
-              }}
+              className="h-10 px-3.5 flex items-center gap-1.5 rounded-full text-xs font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all active:scale-95 shrink-0 cursor-pointer"
               title="Abbrechen"
             >
               <X size={15} />
@@ -2324,48 +2321,44 @@ export default function MobileLayout({
             </button>
 
             <button
+              type="button"
               onClick={() => {
                 const idToDelete = editingTodoId;
                 setEditingTodoId(null);
                 window.dispatchEvent(new CustomEvent('tide:todo-delete', { detail: { id: idToDelete } }));
               }}
-              className="w-10 h-10 flex items-center justify-center rounded-xl sm:rounded-2xl transition-all active:scale-95 shrink-0 cursor-pointer hover:bg-rose-500/10"
-              style={{
-                background: 'transparent',
-                color: '#f43f5e',
-                border: '1px solid transparent',
-              }}
+              className="w-10 h-10 flex items-center justify-center rounded-full text-rose-500 hover:bg-rose-500/10 transition-all active:scale-95 shrink-0 cursor-pointer"
               title="Löschen"
             >
               <Trash2 size={16} />
             </button>
 
             <button
+              type="button"
               onClick={() => {
                 const idToSave = editingTodoId;
                 setEditingTodoId(null);
                 window.dispatchEvent(new CustomEvent('tide:todo-save-edit', { detail: { id: idToSave } }));
               }}
-              className="h-10 px-3 flex items-center gap-1.5 rounded-xl sm:rounded-2xl text-xs font-semibold transition-all active:scale-95 shrink-0 cursor-pointer"
-              style={{
-                background: theme === 'dark' ? '#ffffff' : '#000000',
-                color: theme === 'dark' ? '#000000' : '#ffffff',
-                border: '1px solid transparent',
-              }}
+              className="h-10 px-4 flex items-center gap-1.5 rounded-full text-xs font-semibold bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-sm transition-all active:scale-95 shrink-0 cursor-pointer hover:bg-neutral-800 dark:hover:bg-neutral-100"
               title="Fertig"
             >
               <Check size={15} strokeWidth={2.4} />
               <span>Fertig</span>
             </button>
           </div>
+
+          {/* Right Floating FAB Button */}
           <button
+            type="button"
             onClick={() => {
               window.dispatchEvent(new CustomEvent('tide:new-subtask'));
             }}
-            className="w-[44px] h-[44px] sm:w-[48px] sm:h-[48px] flex items-center justify-center rounded-[16px] sm:rounded-[18px] bg-gray-900 dark:bg-white hover:bg-black text-white dark:text-gray-900 shadow-md transition-all active:scale-95 shrink-0 cursor-pointer"
+            aria-label="Unteraufgabe hinzufügen"
+            className="pointer-events-auto w-[52px] h-[52px] rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 flex items-center justify-center shadow-lg hover:bg-neutral-800 dark:hover:bg-neutral-100 active:scale-95 transition-all cursor-pointer shrink-0"
             title="Unteraufgabe hinzufügen"
           >
-            <Plus size={22} strokeWidth={2.4} />
+            <Plus size={24} />
           </button>
         </div>
       ) : (

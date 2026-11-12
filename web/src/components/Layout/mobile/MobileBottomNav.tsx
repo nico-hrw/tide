@@ -53,7 +53,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   return (
     <nav
       aria-label="Mobile Navigation"
-      className={`fixed bottom-0 left-0 right-0 px-4 pb-6 pt-2 flex items-center justify-between z-20 pointer-events-none ${className}`}
+      className={`fixed bottom-0 left-0 right-0 px-4 pb-2 sm:pb-2.5 pt-1.5 flex items-center justify-between z-20 pointer-events-none ${className}`}
+      style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
     >
       {/* 1. Linke Kapsel: Kalender / Notizen / Aufgaben */}
       <div className={capsuleClass}>

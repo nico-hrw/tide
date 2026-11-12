@@ -511,61 +511,23 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       </span>
                     )}
                     {(!depth || depth < 1) ? (
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (saveEditing) {
-                              saveEditing(task.id, draft);
-                            } else {
-                              updateTask(task.id, {
-                                title: draft.title.trim(),
-                                description: draft.description.trim() || undefined,
-                                scheduledDate: draft.dueDate || undefined,
-                                dueDate: draft.dueDate || undefined,
-                                priority: draft.priority,
-                                folder: draft.folder || undefined,
-                                tags: draft.tags,
-                                recurrence: draft.recurrence,
-                                recurrence_end: draft.recurrenceEnd || undefined,
-                                status: draft.status,
-                                showInCalendar: draft.showInCalendar,
-                              });
-                            }
-                            if (isControlledExpanded === undefined) setLocalExpanded(false);
-                          }}
-                          className={`p-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs ${
-                            isTodayActive
-                              ? 'text-white/80 hover:text-white dark:text-black/80 dark:hover:text-black hover:bg-white/10 dark:hover:bg-black/10'
-                              : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10'
-                          }`}
-                          title="Zuklappen"
-                        >
-                          <span className={`text-[11px] font-medium ${
-                            isTodayActive ? 'text-white/80 dark:text-black/80' : 'text-gray-500 dark:text-gray-400'
-                          }`}>
-                            Zuklappen
-                          </span>
-                          <ChevronUp size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setIsParentMinimized((p) => !p)}
-                          className={`p-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs ${
-                            isTodayActive
-                              ? 'text-white/80 hover:text-white dark:text-black/80 dark:hover:text-black hover:bg-white/10 dark:hover:bg-black/10'
-                              : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10'
-                          }`}
-                          title={isParentMinimized ? "Details anzeigen" : "Details minimieren"}
-                        >
-                          <span className={`text-[11px] font-medium ${
-                            isTodayActive ? 'text-white/80 dark:text-black/80' : 'text-gray-500 dark:text-gray-400'
-                          }`}>
-                            {isParentMinimized ? 'Details einblenden' : 'Minimieren'}
-                          </span>
-                          {isParentMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsParentMinimized((p) => !p)}
+                        className={`p-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs ${
+                          isTodayActive
+                            ? 'text-white/80 hover:text-white dark:text-black/80 dark:hover:text-black hover:bg-white/10 dark:hover:bg-black/10'
+                            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10'
+                        }`}
+                        title={isParentMinimized ? "Details anzeigen" : "Details minimieren"}
+                      >
+                        <span className={`text-[11px] font-medium ${
+                          isTodayActive ? 'text-white/80 dark:text-black/80' : 'text-gray-500 dark:text-gray-400'
+                        }`}>
+                          {isParentMinimized ? 'Details einblenden' : 'Minimieren'}
+                        </span>
+                        {isParentMinimized ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                      </button>
                     ) : (
                       <button
                         type="button"
@@ -965,31 +927,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                   )}
 
                   <div className="flex items-center justify-end gap-2 mt-3 pt-2 border-t border-gray-100 dark:border-white/5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (cancelEditing) cancelEditing();
-                        if (isControlledExpanded === undefined) setLocalExpanded(false);
-                        void deleteTask(task.id);
-                      }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
-                      title="Löschen"
-                    >
-                      <Trash2 size={13} />
-                      <span>Löschen</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (cancelEditing) cancelEditing();
-                        if (isControlledExpanded === undefined) setLocalExpanded(false);
-                      }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
-                      title="Zuklappen"
-                    >
-                      <ChevronUp size={13} />
-                      <span>Zuklappen</span>
-                    </button>
                     <button
                       type="button"
                       onClick={() => {

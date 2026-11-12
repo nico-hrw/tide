@@ -37,6 +37,7 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
   onMonthChange,
 }: AppleDateWheelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const monthContainerRef = useRef<HTMLDivElement>(null);
   const monthLabelRef = useRef<HTMLSpanElement>(null);
   const currentMonthLabelRef = useRef<string>(format(activeDate, 'MMMM yyyy', { locale: de }));
   const onMonthChangeRef = useRef(onMonthChange);
@@ -265,10 +266,29 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
     const container = containerRef.current;
     if (!container) return;
 
+    const showMonth = () => {
+      const el = monthContainerRef.current;
+      if (el) {
+        el.style.maxHeight = '24px';
+        el.style.opacity = '1';
+        el.style.paddingBottom = '4px';
+      }
+    };
+
+    const hideMonth = () => {
+      const el = monthContainerRef.current;
+      if (el) {
+        el.style.maxHeight = '0px';
+        el.style.opacity = '0';
+        el.style.paddingBottom = '0px';
+      }
+    };
+
     const onTouchStart = () => {
       isUserTouching.current = true;
       isProgrammaticScroll.current = false;
       if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
     };
 
     const triggerAutoSelect = () => {
@@ -309,9 +329,7 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
       triggerAutoSelect();
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
       scrollTimeoutRef.current = setTimeout(() => {
-        if (monthLabelRef.current) {
-          monthLabelRef.current.style.opacity = '0';
-        }
+        hideMonth();
       }, 700);
     };
 
@@ -320,15 +338,13 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
       rafId.current = requestAnimationFrame(updateMagnifier);
 
       if (!isProgrammaticScroll.current) {
-        if (monthLabelRef.current) {
-          monthLabelRef.current.style.opacity = '1';
-        }
+        showMonth();
         if (scrollTimeoutRef.current) {
           clearTimeout(scrollTimeoutRef.current);
         }
         scrollTimeoutRef.current = setTimeout(() => {
-          if (!isUserTouching.current && monthLabelRef.current) {
-            monthLabelRef.current.style.opacity = '0';
+          if (!isUserTouching.current) {
+            hideMonth();
           }
         }, 700);
 
@@ -361,21 +377,25 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
     <div className="flex items-center gap-2 px-3 pb-1 w-full min-w-0">
       <div className="flex-1 min-w-0 flex flex-col relative">
         {/* Live Month & Year indicator directly above wheel */}
-        <div className="flex items-center justify-between px-1 pb-1 min-h-[20px]">
-          <div className="flex items-center gap-1.5">
-            <span
-              ref={monthLabelRef}
-              className="text-[11px] font-black tracking-wider uppercase pointer-events-none"
-              style={{
-                color: theme === 'dark' ? '#ffffff' : '#000000',
-                fontWeight: 900,
-                opacity: 0,
-                transition: 'opacity 200ms ease-out',
-              }}
-            >
-              {format(activeDate, 'MMMM yyyy', { locale: de })}
-            </span>
-          </div>
+        <div
+          ref={monthContainerRef}
+          className="w-full flex items-center justify-center text-center overflow-hidden transition-all duration-200 ease-out pointer-events-none px-1"
+          style={{
+            maxHeight: 0,
+            opacity: 0,
+            paddingBottom: 0,
+          }}
+        >
+          <span
+            ref={monthLabelRef}
+            className="text-[11px] font-black tracking-wider uppercase"
+            style={{
+              color: theme === 'dark' ? '#ffffff' : '#000000',
+              fontWeight: 900,
+            }}
+          >
+            {format(activeDate, 'MMMM yyyy', { locale: de })}
+          </span>
         </div>
 
         <div
