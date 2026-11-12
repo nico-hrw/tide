@@ -404,7 +404,15 @@ export default function Sidebar({
 
             {/* Bottom spacer — reserves height for the absolutely-positioned Smart Island.
                 Needs to be >= island height (≈250px) + bottom-6 margin (24px). */}
-            {navigationMode !== 'folders' && <div className="flex-shrink-0 h-[220px]" />}
+            {navigationMode !== 'folders' && (
+                <div
+                    className={`flex-shrink-0 transition-all duration-200 ${
+                        enabledExtensions?.includes('smart_island')
+                            ? (!enabledExtensions || enabledExtensions.includes('todos') ? 'h-[430px]' : 'h-[386px]')
+                            : (!enabledExtensions || enabledExtensions.includes('todos') ? 'h-[270px]' : 'h-[220px]')
+                    }`}
+                />
+            )}
 
             {/* Smart Island — absolutely positioned, extends beyond sidebar */}
             {navigationMode !== 'folders' && (

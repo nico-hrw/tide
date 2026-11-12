@@ -312,17 +312,20 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
         )}
 
         {/* Item View / Options Panel */}
-        <AnimatePresence mode="wait" initial={false}>
+        <AnimatePresence initial={false}>
           {!expanded ? (
             <motion.div
+              layoutId={`todo-card-${task.id}`}
               key={`collapsed-${task.id}`}
               initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              animate={{ opacity: 1, x: swipeOffset }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.18 }}
+              transition={{
+                x: isSwiping ? { duration: 0 } : { type: 'spring', stiffness: 500, damping: 35 },
+                layout: { duration: 0.25, ease: [0.16, 1, 0.3, 1] },
+                opacity: { duration: 0.15 },
+              }}
               style={{
-                transform: `translateX(${swipeOffset}px)`,
-                transition: isSwiping ? 'none' : 'transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)',
                 touchAction: 'pan-y',
               }}
               onTouchStart={handleTouchStart}
@@ -475,11 +478,15 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
             </motion.div>
           ) : (
             <motion.div
+              layoutId={`todo-card-${task.id}`}
               key={`expanded-${task.id}`}
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.18 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{
+                layout: { duration: 0.25, ease: [0.16, 1, 0.3, 1] },
+                opacity: { duration: 0.15 },
+              }}
               onClick={(e) => e.stopPropagation()}
               className={`flex flex-col relative ${expanded && (!depth || depth === 0) ? 'h-full flex-1 min-h-0' : ''} ${expanded ? 'mt-0 mb-0' : 'my-1.5'}`}
             >

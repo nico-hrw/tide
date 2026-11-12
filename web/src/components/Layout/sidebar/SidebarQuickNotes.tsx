@@ -24,9 +24,10 @@ export type QuickNotesProps = Partial<
     >
 > & {
     onImport?: () => void;
+    className?: string;
 };
 
-const SidebarQuickNotes: React.FC<QuickNotesProps> = () => {
+const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className }) => {
     const {
         availableSafes,
         activeSafes,
@@ -48,7 +49,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = () => {
             : 'Kein Workspace';
 
     return (
-        <div className="flex-shrink-0 pt-[max(0.75rem,calc(env(safe-area-inset-top)+8px))] pb-0">
+        <div className={className || "flex-shrink-0 pt-[max(0.75rem,calc(env(safe-area-inset-top)+8px))] pb-0"}>
             {/* Minimalist Archive / Safe full-width button */}
             <button
                 type="button"

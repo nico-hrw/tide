@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom';
 import { Check, Calendar as CalendarIcon, MessageSquare, Bell, TrendingUp, Sparkles, Loader2, FileText, ExternalLink, Calendar, Plus, Clock, Link2, GripVertical, FileEdit, AlarmClock, X, CheckCircle2, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import MiniCalendar from '../../Calendar/MiniCalendar';
+import SmartIslandCalendar from './SmartIslandCalendar';
 import { useIslandStore, IslandView } from './useIslandStore';
 import { useDataStore } from '@/store/useDataStore';
 import { format, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
@@ -836,57 +836,6 @@ const TextCollectorView = ({ payload }: { payload: any }) => {
     );
 };
 
-// ─── In-Meeting Progress Bar (shown below idle calendar) ──────────────────
-
-function InMeetingBar({ events }: { events: Array<{ title: string; start: string; end: string; description?: string; is_all_day?: boolean }> }) {
-    const [now, setNow] = useState(new Date());
-
-    useEffect(() => {
-        const interval = setInterval(() => setNow(new Date()), 15_000);
-        return () => clearInterval(interval);
-    }, []);
-
-    const activeEvent = useMemo(() => {
-        return events.find(e => {
-            try {
-                // Skip all-day events (flagged or duration >= 23h)
-                if ((e as any).is_all_day) return false;
-                const s = new Date(e.start);
-                const en = new Date(e.end);
-                const durationHrs = (en.getTime() - s.getTime()) / (1000 * 60 * 60);
-                if (durationHrs >= 23) return false;
-                return s <= now && en > now;
-            } catch { return false; }
-        });
-    }, [events, now]);
-
-    if (!activeEvent) return null;
-
-    const start = new Date(activeEvent.start);
-    const end = new Date(activeEvent.end);
-    const total = end.getTime() - start.getTime();
-    const elapsed = now.getTime() - start.getTime();
-    const progress = Math.min(1, Math.max(0, elapsed / total));
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 4 }}
-            className="mt-1 px-2 pb-0.5"
-        >
-            <div className="w-full h-[2px] rounded-full bg-white/10 overflow-hidden">
-                <motion.div
-                    className="h-full rounded-full bg-blue-400"
-                    initial={{ width: `${progress * 100}%` }}
-                    animate={{ width: `${progress * 100}%` }}
-                    transition={{ duration: 0.5, ease: 'easeInOut' }}
-                />
-            </div>
-        </motion.div>
-    );
-}
-
 // Decentralized Registry Map
 import EventSuggestionView from './EventSuggestionView';
 
@@ -939,10 +888,8 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
         const sDate = startOfWeek(mStart, { weekStartsOn: 1 });
         const eDate = endOfWeek(mEnd, { weekStartsOn: 1 });
         const days = eachDayOfInterval({ start: sDate, end: eDate });
-        const weeks = Math.round(days.length / 7);
-        if (weeks <= 4) return 'h-[188px]';
-        if (weeks === 5) return 'h-[212px]';
-        return 'h-[236px]';
+        // SmartIslandCalendar renders 42 days (6 rows of 38px) cleanly with header and padding
+        return days.length > 0 ? 'h-[366px]' : 'h-[366px]';
     }, [calendarMonth, selectedDate]);
 
     // Live 1-second interval ticker for countdowns
@@ -998,14 +945,6 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
 
     const animStateRef = useRef<'IDLE' | 'PUFF' | 'SHRUNK' | 'SPINNING' | 'STOPPING' | 'EXPANDING' | 'EXPANDED' | 'COLLAPSING'>('IDLE');
     const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // Build today's events for InMeetingBar (exclude all-day events)
-    const todayEvents = useMemo(() => {
-        const today = new Date();
-        return (storeEvents || []).filter((e: any) => {
-            try { return isSameDay(new Date(e.start), today); } catch { return false; }
-        }).map((e: any) => ({ title: e.title, start: e.start, end: e.end, description: e.description, is_all_day: e.is_all_day }));
-    }, [storeEvents]);
 
     // Active or upcoming event calculation
     const activeOrUpcomingEvent = useMemo(() => {
@@ -1521,7 +1460,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                         <div
                             ref={bgSquareRef}
                             id="si-bgSquare"
-                            className="si-bg-square absolute inset-0 bg-[#1a1c1e] rounded-[24px] shadow-xl border border-white/5 pointer-events-none"
+                            className="si-bg-square absolute inset-0 bg-[#18181b] rounded-[32px] shadow-xl border border-white/5 pointer-events-none"
                         />
 
                         {/* LAYER 3b: Main box with contents */}
@@ -1529,7 +1468,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                             ref={widgetBaseRef}
                             id="si-widgetBase"
                             onDoubleClick={triggerDemoLoading}
-                            className={`bg-[#1a1c1e] dark text-white rounded-[24px] shadow-2xl border border-white/10 transition-all duration-300 ${
+                            className={`bg-[#18181b] dark text-white rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.14)] border border-white/10 transition-all duration-300 ${
                                 isExpandedViewActive
                                     ? 'relative w-full h-auto min-h-[188px] overflow-visible'
                                     : 'absolute inset-0 overflow-hidden'
@@ -1539,9 +1478,9 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                             <div
                                 ref={calendarViewRef}
                                 id="si-calendarView"
-                                className={`w-full pt-2 px-2.5 pb-4 flex flex-col transition-all duration-300 ${
+                                className={`w-full flex flex-col transition-all duration-300 ${
                                     isExpandedViewActive
-                                        ? 'relative h-auto min-h-[188px] overflow-visible'
+                                        ? 'relative h-auto min-h-[188px] overflow-visible p-3'
                                         : 'absolute left-0 top-0 h-full overflow-hidden'
                                 }`}
                             >
@@ -1556,18 +1495,18 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                                         })()}
                                     </div>
                                 ) : (
-                                    <div className="w-full [&>div:first-child]:!p-1 [&>div:first-child]:!py-0 [&_.w-7]:!w-6 [&_.h-7]:!h-6 [&_div.h-px]:!my-1 [&_.text-sm]:!text-xs [&_.grid]:!gap-y-0.5">
-                                        <MiniCalendar
-                                            selectedDate={selectedDate}
-                                            onSelect={(date) => {
-                                                onSelect?.(date);
-                                            }}
-                                            onMonthChange={(date) => {
-                                                setCalendarMonth(date);
-                                            }}
-                                        />
-                                        <InMeetingBar events={todayEvents} />
-                                    </div>
+                                    <SmartIslandCalendar
+                                        selectedDate={selectedDate || new Date()}
+                                        onSelect={(date) => onSelect?.(date)}
+                                        onMonthChange={(date) => setCalendarMonth(date)}
+                                        activeOrUpcomingEvent={activeOrUpcomingEvent ? {
+                                            title: (activeOrUpcomingEvent as { event?: { title: string } }).event?.title ?? activeOrUpcomingEvent.title,
+                                            start: new Date((activeOrUpcomingEvent as { event?: { start_time: string } }).event?.start_time ?? activeOrUpcomingEvent.start),
+                                            end: new Date((activeOrUpcomingEvent as { event?: { end_time: string } }).event?.end_time ?? activeOrUpcomingEvent.end),
+                                            isOngoing: activeOrUpcomingEvent.isOngoing,
+                                        } : null}
+                                        className="!bg-transparent !shadow-none !rounded-none w-full max-w-full"
+                                    />
                                 )}
                             </div>
 

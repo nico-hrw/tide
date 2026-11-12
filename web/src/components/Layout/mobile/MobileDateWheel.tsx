@@ -46,12 +46,19 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
 
   const [wheelAnchor, setWheelAnchor] = useState<Date>(() => now);
   const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isProgrammaticScroll = useRef(false);
   const programmaticTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressActiveDateScrollRef = useRef(false);
   const isUserTouching = useRef(false);
   const rafId = useRef<number | null>(null);
   const mountedRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    };
+  }, []);
 
   const [prevActive, setPrevActive] = useState<Date>(activeDate);
 
@@ -300,6 +307,12 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
     const onTouchEnd = () => {
       isUserTouching.current = false;
       triggerAutoSelect();
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = setTimeout(() => {
+        if (monthLabelRef.current) {
+          monthLabelRef.current.style.opacity = '0';
+        }
+      }, 700);
     };
 
     const onScroll = () => {
@@ -307,6 +320,18 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
       rafId.current = requestAnimationFrame(updateMagnifier);
 
       if (!isProgrammaticScroll.current) {
+        if (monthLabelRef.current) {
+          monthLabelRef.current.style.opacity = '1';
+        }
+        if (scrollTimeoutRef.current) {
+          clearTimeout(scrollTimeoutRef.current);
+        }
+        scrollTimeoutRef.current = setTimeout(() => {
+          if (!isUserTouching.current && monthLabelRef.current) {
+            monthLabelRef.current.style.opacity = '0';
+          }
+        }, 700);
+
         triggerAutoSelect();
       }
     };
@@ -327,6 +352,7 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
       container.removeEventListener('scroll', onScroll);
       if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
       if (programmaticTimerRef.current) clearTimeout(programmaticTimerRef.current);
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
       if (rafId.current) cancelAnimationFrame(rafId.current);
     };
   }, [updateMagnifier]);
@@ -335,14 +361,16 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
     <div className="flex items-center gap-2 px-3 pb-1 w-full min-w-0">
       <div className="flex-1 min-w-0 flex flex-col relative">
         {/* Live Month & Year indicator directly above wheel */}
-        <div className="flex items-center justify-between px-1 pb-1">
+        <div className="flex items-center justify-between px-1 pb-1 min-h-[20px]">
           <div className="flex items-center gap-1.5">
             <span
               ref={monthLabelRef}
-              className="text-[11px] font-black tracking-wider uppercase"
+              className="text-[11px] font-black tracking-wider uppercase pointer-events-none"
               style={{
                 color: theme === 'dark' ? '#ffffff' : '#000000',
                 fontWeight: 900,
+                opacity: 0,
+                transition: 'opacity 200ms ease-out',
               }}
             >
               {format(activeDate, 'MMMM yyyy', { locale: de })}

@@ -310,6 +310,23 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         setEditingTaskId(customEvent.detail.id);
       }
     };
+    const handleScrollToToday = () => {
+      setViewMode((prev) => (prev !== 'tasks' ? 'tasks' : prev));
+      setSelectedDateFilter((prev) => (prev !== null ? null : prev));
+      if (editingTaskIdRef.current) {
+        cancelEditingRef.current(editingTaskIdRef.current);
+      }
+      const doScroll = () => {
+        const todayEl = document.getElementById('todo-section-today');
+        if (todayEl) {
+          todayEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (listScrollRef.current) {
+          listScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      };
+      doScroll();
+      setTimeout(doScroll, 60);
+    };
 
     window.addEventListener('tide:new-todo', handleNewTodoEvent);
     window.addEventListener('tide:toggle-todo-filter', handleToggleFilterEvent);
@@ -319,6 +336,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     window.addEventListener('tide:todo-delete', handleDeleteTask as EventListener);
     window.addEventListener('tide:new-subtask', handleNewSubtask);
     window.addEventListener('tide:select-todo', handleSelectTodo as EventListener);
+    window.addEventListener('tide:scroll-to-today', handleScrollToToday);
     return () => {
       window.removeEventListener('tide:new-todo', handleNewTodoEvent);
       window.removeEventListener('tide:toggle-todo-filter', handleToggleFilterEvent);
@@ -328,6 +346,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       window.removeEventListener('tide:todo-delete', handleDeleteTask as EventListener);
       window.removeEventListener('tide:new-subtask', handleNewSubtask);
       window.removeEventListener('tide:select-todo', handleSelectTodo as EventListener);
+      window.removeEventListener('tide:scroll-to-today', handleScrollToToday);
     };
   }, []);
 

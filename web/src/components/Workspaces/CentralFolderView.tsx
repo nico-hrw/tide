@@ -12,10 +12,14 @@ import {
   FolderPlus,
   Home,
   Check,
-  CheckSquare
+  CheckSquare,
+  Archive,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 import { FOLDER_PALETTE, getFolderColor } from '../../lib/folderColors';
 import type { CountdownEvent } from '../Layout/MobileSmartIsland';
+import { useSafes } from '@/store/useDataStore';
 
 export interface CentralFolderItem {
   id: string;
@@ -62,6 +66,48 @@ export function CentralFolderView({
   const [dragOverItemId, setDragOverItemId] = useState<string | null>(null);
   const [dragOverBreadcrumbId, setDragOverBreadcrumbId] = useState<string | null>(null);
   const [customOrder, setCustomOrder] = useState<string[]>([]);
+
+  const {
+    availableSafes,
+    activeSafes,
+    setActiveSafes,
+    toggleSafe,
+    createSafe,
+    deleteSafe,
+  } = useSafes();
+
+  const [isSafeDropdownOpen, setIsSafeDropdownOpen] = useState(false);
+  const [isCreatingSafe, setIsCreatingSafe] = useState(false);
+  const [newSafeName, setNewSafeName] = useState('');
+  const safeDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  const safeLabel =
+    activeSafes.length === 1
+      ? activeSafes[0]
+      : activeSafes.length > 1
+      ? `${activeSafes.length} Workspaces`
+      : 'Kein Workspace';
+
+  // Click outside to close safe dropdown
+  useEffect(() => {
+    if (!isSafeDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (safeDropdownRef.current && !safeDropdownRef.current.contains(e.target as Node)) {
+        setIsSafeDropdownOpen(false);
+        setIsCreatingSafe(false);
+        setNewSafeName('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isSafeDropdownOpen]);
+
+  // If currentFolderId is no longer in files (e.g. after safe change), reset to root
+  useEffect(() => {
+    if (currentFolderId && !files.some((f) => f.id === currentFolderId)) {
+      setCurrentFolderId(null);
+    }
+  }, [files, currentFolderId]);
 
   // Load persisted order for current folder
   useEffect(() => {
@@ -288,6 +334,151 @@ export function CentralFolderView({
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 shrink-0">
+          {/* Workspace Switcher */}
+          <div className="relative" ref={safeDropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsSafeDropdownOpen((prev) => !prev)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-white/15 transition-all shadow-xs cursor-pointer select-none"
+              title="Workspace wechseln"
+            >
+              <Archive className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <span className="truncate max-w-[110px]">{safeLabel}</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform duration-200 ${
+                  isSafeDropdownOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {isSafeDropdownOpen && (
+              <div className="absolute right-0 top-full mt-2 w-64 p-2 rounded-2xl bg-white dark:bg-[#1a1e28] border border-gray-200 dark:border-white/10 shadow-2xl z-50 space-y-1.5">
+                <div className="flex items-center justify-between px-2 py-0.5 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+                  <span>Workspaces</span>
+                </div>
+                <div className="flex flex-col gap-0.5 max-h-52 overflow-y-auto no-scrollbar">
+                  {availableSafes.map((safe) => {
+                    const isActive = activeSafes.includes(safe);
+                    return (
+                      <div
+                        key={safe}
+                        className={`flex items-center justify-between px-2 py-1.5 rounded-lg group transition-colors ${
+                          isActive
+                            ? 'bg-blue-50/80 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-medium'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveSafes([safe]);
+                            setIsSafeDropdownOpen(false);
+                          }}
+                          className="flex items-center gap-2 flex-1 text-left truncate cursor-pointer min-w-0"
+                          title={`Zu "${safe}" wechseln`}
+                        >
+                          <Archive
+                            size={13}
+                            className={isActive ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-200'}
+                          />
+                          <span className="truncate text-xs">{safe}</span>
+                          {isActive && (
+                            <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300 font-normal shrink-0">
+                              aktiv
+                            </span>
+                          )}
+                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleSafe(safe);
+                            }}
+                            className={`p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer ${
+                              isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'
+                            }`}
+                            title={isActive ? 'Aus Ansicht entfernen' : 'Zusammen laden'}
+                          >
+                            <CheckSquare
+                              size={13}
+                              className={isActive ? 'opacity-100' : 'opacity-40 hover:opacity-80'}
+                            />
+                          </button>
+                          {safe !== 'main' && safe !== 'Standard' && safe !== 'Archiv' && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteSafe(safe);
+                              }}
+                              className="p-1 rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                              title={`Workspace "${safe}" löschen`}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Inline form to create a new safe */}
+                <div className="pt-1.5 border-t border-gray-100 dark:border-white/10">
+                  {isCreatingSafe ? (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (newSafeName.trim()) {
+                          createSafe(newSafeName.trim());
+                          setNewSafeName('');
+                          setIsCreatingSafe(false);
+                        }
+                      }}
+                      className="flex items-center gap-1"
+                    >
+                      <input
+                        type="text"
+                        value={newSafeName}
+                        onChange={(e) => setNewSafeName(e.target.value)}
+                        placeholder="Workspace Name..."
+                        autoFocus
+                        className="w-full text-xs px-2 py-1 rounded-md bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 outline-none text-gray-800 dark:text-gray-200 placeholder:text-gray-400"
+                      />
+                      <button
+                        type="submit"
+                        className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded transition-colors cursor-pointer"
+                        title="Workspace erstellen"
+                      >
+                        <Check size={13} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCreatingSafe(false);
+                          setNewSafeName('');
+                        }}
+                        className="p-1 text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors cursor-pointer"
+                        title="Abbrechen"
+                      >
+                        <X size={13} />
+                      </button>
+                    </form>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsCreatingSafe(true)}
+                      className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors cursor-pointer"
+                    >
+                      <Plus size={13} className="text-blue-500" />
+                      <span>Neuer Workspace</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           {onOpenTodos && (
             <button
               type="button"

@@ -146,14 +146,28 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
   }, [isDateGroupedView, tasksToRender]);
 
   const renderTaskItem = (task: TaskWithChildren | TaskItem) => {
-    const isEditing = task.id === editingTaskId;
+    const isEditing = task.id === editingTaskId || (task as TaskWithChildren).children?.some((c) => c.id === editingTaskId);
     const isOther = Boolean(editingTaskId && !isEditing);
 
     const animateState = editingTaskId
       ? isEditing
-        ? { opacity: 1, y: 0, scale: 1, display: 'block' }
-        : { opacity: 0, display: 'none' }
-      : { opacity: 1, y: 0, scale: 1, display: 'block' };
+        ? { opacity: 1, y: 0, scale: 1, height: 'auto', display: 'flex' }
+        : {
+            opacity: 0,
+            scale: 0.95,
+            y: -10,
+            height: 0,
+            overflow: 'hidden',
+            transitionEnd: { display: 'none' },
+          }
+      : {
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          height: 'auto',
+          display: 'block',
+          overflow: 'visible',
+        };
 
     const itemStyle: React.CSSProperties | undefined = isOther
       ? { pointerEvents: 'none' }
@@ -164,8 +178,12 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
         key={task.id}
         initial={{ opacity: 0, y: -8 }}
         animate={animateState}
-        exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.2, ease: 'easeOut' } }}
-        transition={isOther ? { duration: 0.05, ease: 'easeOut' } : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        exit={{ opacity: 0, scale: 0.95, y: -8, transition: { duration: 0.2, ease: 'easeOut' } }}
+        transition={
+          isOther
+            ? { duration: 0.22, ease: [0.16, 1, 0.3, 1] }
+            : { duration: 0.25, ease: [0.16, 1, 0.3, 1] }
+        }
         style={itemStyle}
         className={isEditing ? 'relative z-20 h-full flex-1 min-h-0 flex flex-col' : undefined}
       >
@@ -285,13 +303,14 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
         <div className={`flex flex-col ${editingTaskId !== null ? 'gap-0 h-full flex-1 min-h-0' : 'gap-3.5 sm:gap-4'}`}>
           {dateSections.map((section) => {
             if (section.tasks.length === 0) return null;
-            const isCollapsed = Boolean(collapsedSections[section.key]) && !section.tasks.some((t) => t.id === editingTaskId);
+            const hasEditingTask = Boolean(editingTaskId && section.tasks.some((t) => t.id === editingTaskId || (t as TaskWithChildren).children?.some((c) => c.id === editingTaskId)));
+            const isCollapsed = Boolean(collapsedSections[section.key]) && !hasEditingTask;
 
             return (
               <div
                 key={section.key}
                 id={section.key === 'today' ? 'todo-section-today' : undefined}
-                className="flex flex-col"
+                className={`flex flex-col ${hasEditingTask ? 'h-full flex-1 min-h-0' : editingTaskId ? 'pointer-events-none' : ''}`}
               >
                 {/* Collapsible Section Header */}
                 <motion.button
@@ -302,7 +321,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                       ? { opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' as const, marginBottom: 0 }
                       : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const, marginBottom: 6 }
                   }
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                   className="flex items-center gap-2 py-1 px-0.5 text-left w-full cursor-pointer select-none group"
                 >
                   <ChevronRight
@@ -327,8 +346,8 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.2, ease: 'easeInOut' }}
-                      className={`flex flex-col ${editingTaskId !== null ? 'gap-0 h-full flex-1 min-h-0' : 'gap-1.5'}`}
+                      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                      className={`flex flex-col ${hasEditingTask ? 'gap-0 h-full flex-1 min-h-0' : editingTaskId !== null ? 'gap-0' : 'gap-1.5'}`}
                     >
                       <AnimatePresence initial={false}>
                         {section.tasks.map(renderTaskItem)}
@@ -407,43 +426,8 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                   transition={{ duration: 0.25, ease: 'easeInOut' }}
                   className="overflow-hidden pt-2 flex flex-col gap-3"
                 >
-                  <AnimatePresence mode="popLayout" initial={false}>
-                    {recentlyCompletedTasks.map((task) => {
-                      const isEditing = task.id === editingTaskId || (task as TaskWithChildren).children?.some((c) => c.id === editingTaskId);
-                      const isOther = Boolean(editingTaskId && !isEditing);
-
-                      const animateState = editingTaskId
-                        ? isEditing
-                          ? { opacity: 1, y: 0, scale: 1, display: 'block' }
-                          : { opacity: 0, display: 'none' }
-                        : { opacity: 1, y: 0, scale: 1, display: 'block' };
-
-                      return (
-                        <motion.div
-                          key={task.id}
-                          layout
-                          initial={{ opacity: 0, y: -8 }}
-                          animate={animateState}
-                          exit={{
-                            opacity: 0,
-                            x: -20,
-                            height: 0,
-                            marginBottom: 0,
-                            scale: 0.95,
-                            transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1] }
-                          }}
-                          transition={
-                            isOther
-                              ? { duration: 0.05, ease: 'easeOut' }
-                              : { layout: { type: 'spring', damping: 26, stiffness: 280 }, duration: 0.2 }
-                          }
-                          style={isOther ? { pointerEvents: 'none' } : undefined}
-                          className={isEditing ? 'relative z-20 h-full flex-1 min-h-0 flex flex-col' : undefined}
-                        >
-                          {renderTask(task as TaskWithChildren)}
-                        </motion.div>
-                      );
-                    })}
+                  <AnimatePresence initial={false}>
+                    {recentlyCompletedTasks.map(renderTaskItem)}
                   </AnimatePresence>
                 </motion.div>
               )}

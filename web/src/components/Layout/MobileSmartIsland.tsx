@@ -639,7 +639,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   return (
     <div
       ref={containerRef}
-      className={`relative shrink-0 w-[92px] h-[92px] select-none ${animState !== 'IDLE' ? 'is-animating' : ''} ${className || ''}`}
+      className={`relative shrink-0 w-[98px] h-[108px] select-none ${animState !== 'IDLE' ? 'is-animating' : ''} ${className || ''}`}
     >
       {/* Visual styles and transitions matching drehendes_quadrat.html */}
       <style>{`
@@ -648,7 +648,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
           inset: 0;
           width: 100%;
           height: 100%;
-          border-radius: 20px;
+          border-radius: 22px;
           transform-origin: center center;
           will-change: transform, opacity;
           contain: layout paint;
@@ -662,9 +662,9 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         .smart-island-base {
           position: absolute;
           top: 0;
-          width: 92px;
-          height: 92px;
-          border-radius: 20px;
+          width: 98px;
+          height: 108px;
+          border-radius: 22px;
           transform-origin: center center;
           will-change: transform, opacity;
           contain: layout paint;
@@ -711,7 +711,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         }
         .smart-island-welcome-hidden {
           opacity: 0;
-          transform: translate3d(-24px, 0, 0) scale(0.96);
+        transform: translate3d(-24px, 0, 0) scale(0.96);
           pointer-events: none;
         }
         .smart-island-welcome-visible {
@@ -721,9 +721,9 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         }
       `}</style>
 
-      {/* Anchor: Concentric 92x92px square geometry */}
+      {/* Anchor: Concentric 98x108px geometry */}
       <div
-        className={`absolute top-0 ${placement === 'bottom-left' ? 'left-0' : 'right-0'} w-[92px] h-[92px] pointer-events-none`}
+        className={`absolute top-0 ${placement === 'bottom-left' ? 'left-0' : 'right-0'} w-[98px] h-[108px] pointer-events-none`}
       >
         {/* Layer 1: Navy Blue (#001f3f) */}
         <div
@@ -822,7 +822,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         >
           {/* Top Left: TERMIN + IN/NOCH/MORGEN/HEUTE */}
           <div className="flex flex-col items-start text-left gap-0 min-w-0 max-w-full">
-            <span className="text-[13px] font-black tracking-tight text-white leading-none truncate max-w-[70px]">
+            <span className="text-[13px] font-black tracking-tight text-white leading-tight truncate max-w-[76px]">
               {displayTitle}
             </span>
             <span className="text-[10px] font-black tracking-widest text-zinc-300 uppercase leading-tight mt-0.5">
@@ -831,14 +831,26 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
           </div>
 
           {/* Bottom Right: Countdown Display (e.g. 3:12h or 45m) */}
-          <div className="w-full flex items-baseline justify-end pb-0 pr-0.5">
+          <div className="w-full flex items-baseline justify-end pb-1 pr-1.5">
             <span
               className={`${
-                timeMain.length >= 5 ? 'text-[26px]' : 'text-[32px]'
-              } font-black tracking-tighter text-white leading-none font-sans`}
+                timeMain.length >= 5
+                  ? 'text-[24px]'
+                  : timeMain.length === 4
+                  ? 'text-[28px]'
+                  : 'text-[32px]'
+              } font-black tracking-tight text-white leading-none font-sans inline-flex items-baseline`}
             >
-              {timeMain}
-              <span className="text-[16px] font-black tracking-tight text-zinc-300 ml-0.5">
+              <span>{timeMain}</span>
+              <span
+                className={`${
+                  timeMain.length >= 5
+                    ? 'text-[14px]'
+                    : timeMain.length === 4
+                    ? 'text-[15px]'
+                    : 'text-[16px]'
+                } font-black tracking-tight text-zinc-300 ml-0.5`}
+              >
                 {timeUnit}
               </span>
             </span>
@@ -848,7 +860,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         {/* Expanded Mode: Springs out to full width */}
         <div
           ref={welcomeTextRef}
-          className={`absolute inset-0 p-2.5 flex flex-col justify-between items-start smart-island-welcome-text ${
+          className={`absolute inset-0 p-3 flex flex-col justify-between items-start smart-island-welcome-text ${
             isExpanded ? 'smart-island-welcome-visible' : 'smart-island-welcome-hidden'
           }`}
         >

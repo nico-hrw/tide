@@ -39,6 +39,7 @@ import {
   getGroupedDayViewItems,
 } from './mobile/MobileAgendaTimeline';
 import { MobileBottomNav, MobileTab } from './mobile/MobileBottomNav';
+import SidebarQuickNotes from './sidebar/SidebarQuickNotes';
 import {
   MobileFilterPopover,
   PriorityOption,
@@ -1286,6 +1287,10 @@ export default function MobileLayout({
               <p className="text-xl font-extrabold" style={{ color: T.pri }}>tide</p>
               <p className="text-xs" style={{ color: T.mut }}>Notizen &amp; Kalender</p>
             </div>
+            {/* Workspace Switcher */}
+            <div className="px-2 pb-1">
+              <SidebarQuickNotes className="flex-shrink-0" />
+            </div>
             <div className="mx-4 mb-2 flex gap-2">
               <button onClick={() => { setIsSidebarOpen(false); onNewNote(); setIsEditingNote(true); }}
                 className="flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl"
@@ -2368,8 +2373,23 @@ export default function MobileLayout({
           <MobileBottomNav
             activeTab={activeTab}
             onTabChange={(tab: MobileTab) => {
-              setActiveTab(tab);
+              if (tab === activeTab) {
+                if (tab === 'calendar') {
+                  handleGoToToday();
+                } else if (tab === 'todos') {
+                  window.dispatchEvent(new CustomEvent('tide:scroll-to-today'));
+                }
+              } else {
+                setActiveTab(tab);
+              }
               setIsPlusMenuOpen(false);
+            }}
+            onTabReclick={(tab: MobileTab) => {
+              if (tab === 'calendar') {
+                handleGoToToday();
+              } else if (tab === 'todos') {
+                window.dispatchEvent(new CustomEvent('tide:scroll-to-today'));
+              }
             }}
             isSearchOpen={isSearchOpen}
             onToggleSearch={() => {

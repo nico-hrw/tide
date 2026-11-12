@@ -3068,8 +3068,8 @@ export default function Dashboard() {
             {/* Mobile Layout Wrapper */}
             <MobileLayout
                 events={events}
-                files={files.filter((f: any) => !f.isGroup && !(f.title || '').startsWith('.') && f.type !== 'event')}
-                folders={files.filter((f: any) => f.type === 'folder' && !f.isGroup)}
+                files={safeFilteredFiles.filter((f: any) => !f.isGroup && !(f.title || '').startsWith('.') && f.type !== 'event')}
+                folders={safeFilteredFiles.filter((f: any) => f.type === 'folder' && !f.isGroup)}
                 onNoteSelect={(id: string, title: string) => {
                     handleFileSelect(id, title);
                 }}

@@ -1,6 +1,6 @@
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, SearchX, X, Calendar, CheckCircle2, FileText, Check } from 'lucide-react';
+import { Search, SearchX, X, Calendar, CheckCircle2, FileText, Check, Sparkles } from 'lucide-react';
 
 export interface SearchEventItem {
   id: string;
@@ -42,6 +42,45 @@ export interface MobileSearchOverlayProps {
   onSelectNote?: (note: SearchNoteItem) => void;
   onToggleTodo?: (id: string) => void;
   placeholder?: string;
+}
+
+type TopResult =
+  | { type: 'event'; item: SearchEventItem; score: number }
+  | { type: 'todo'; item: SearchTodoItem; score: number }
+  | { type: 'note'; item: SearchNoteItem; score: number };
+
+function computeScore(
+  title: string,
+  query: string,
+  tag?: string,
+  preview?: string
+): number {
+  let score = 0;
+  const t = title.toLowerCase();
+  const q = query.toLowerCase();
+
+  // Exact match (+20)
+  if (t === q) {
+    score += 20;
+  }
+  // Title starts with query (+10)
+  if (t.startsWith(q)) {
+    score += 10;
+  }
+  // Title includes query (+5)
+  if (t.includes(q)) {
+    score += 5;
+  }
+  // Tag includes query (+2)
+  if (tag && tag.toLowerCase().includes(q)) {
+    score += 2;
+  }
+  // Preview includes query (+2)
+  if (preview && preview.toLowerCase().includes(q)) {
+    score += 2;
+  }
+
+  return score;
 }
 
 function formatEventTime(start?: string | Date, end?: string | Date): string {
@@ -87,6 +126,130 @@ function renderPriorityBadge(priority?: string) {
   return null;
 }
 
+function EventRow({
+  item,
+  onClick,
+}: {
+  item: SearchEventItem;
+  onClick?: () => void;
+}) {
+  const timeText = item.time || formatEventTime(item.start, item.end);
+  return (
+    <div
+      onClick={onClick}
+      className="flex items-center justify-between hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80 rounded-2xl px-2 py-1.5 transition-colors cursor-pointer"
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span
+          className={`w-2.5 h-2.5 rounded-full ${item.dotColor || 'bg-blue-500'} shrink-0`}
+        />
+        <div className="min-w-0">
+          <p className="text-[13px] font-black text-neutral-900 dark:text-neutral-100 truncate">
+            {item.title}
+          </p>
+          {timeText ? (
+            <p className="text-[11px] font-semibold text-neutral-400 dark:text-neutral-500 truncate">
+              {timeText}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      {item.tag && (
+        <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100/90 dark:bg-neutral-800 px-2 py-0.5 rounded-lg shrink-0">
+          {item.tag}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function TodoRow({
+  item,
+  onClick,
+  onToggle,
+}: {
+  item: SearchTodoItem;
+  onClick?: () => void;
+  onToggle?: (id: string) => void;
+}) {
+  const done = Boolean(item.completed ?? item.isCompleted);
+  return (
+    <div
+      onClick={onClick}
+      className="flex items-center justify-between hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80 rounded-2xl px-2 py-1.5 transition-colors cursor-pointer"
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        <button
+          type="button"
+          aria-label="Toggle status"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle?.(item.id);
+          }}
+          className={`w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+            done
+              ? 'bg-emerald-500 border-emerald-500 text-white'
+              : 'border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800'
+          }`}
+        >
+          {done && <Check className="w-3 h-3 stroke-[3]" />}
+        </button>
+        <span
+          className={`text-[13px] font-bold truncate ${
+            done
+              ? 'line-through text-neutral-400 dark:text-neutral-500'
+              : 'text-neutral-900 dark:text-neutral-100'
+          }`}
+        >
+          {item.title}
+        </span>
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        {renderPriorityBadge(item.priority)}
+        {item.tag && (
+          <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100/90 dark:bg-neutral-800 px-2 py-0.5 rounded-lg">
+            {item.tag}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NoteRow({
+  item,
+  onClick,
+}: {
+  item: SearchNoteItem;
+  onClick?: () => void;
+}) {
+  return (
+    <div
+      onClick={onClick}
+      className="flex items-center justify-between hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80 rounded-2xl px-2 py-1.5 transition-colors cursor-pointer gap-2"
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        <FileText className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
+        <div className="min-w-0">
+          <p className="text-[13px] font-black text-neutral-900 dark:text-neutral-100 truncate">
+            {item.title}
+          </p>
+          {item.preview && (
+            <p className="text-[11px] font-medium text-neutral-400 dark:text-neutral-500 truncate">
+              {item.preview}
+            </p>
+          )}
+        </div>
+      </div>
+      {item.tag && (
+        <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100/90 dark:bg-neutral-800 px-2 py-0.5 rounded-lg shrink-0">
+          {item.tag}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
   isOpen,
   onClose,
@@ -102,13 +265,37 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
   placeholder = 'Termine, Todos & Notizen durchsuchen...',
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [keyboardOffset, setKeyboardOffset] = useState<number>(0);
 
   useEffect(() => {
-    if (isOpen) {
-      const timer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 50);
-      return () => clearTimeout(timer);
+    if (!isOpen) {
+      setKeyboardOffset(0);
+      return;
+    }
+
+    // Immediately focus without delay to trigger keyboard instantly
+    inputRef.current?.focus();
+
+    const updateKeyboardOffset = () => {
+      if (typeof window === 'undefined') return;
+      const vv = window.visualViewport;
+      if (vv) {
+        // Calculate occluded height from the bottom of the window
+        const offset = Math.max(0, window.innerHeight - (vv.height + (vv.offsetTop || 0)));
+        setKeyboardOffset(offset);
+      }
+    };
+
+    updateKeyboardOffset();
+
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener('resize', updateKeyboardOffset);
+      vv.addEventListener('scroll', updateKeyboardOffset);
+      return () => {
+        vv.removeEventListener('resize', updateKeyboardOffset);
+        vv.removeEventListener('scroll', updateKeyboardOffset);
+      };
     }
   }, [isOpen]);
 
@@ -145,9 +332,61 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
     );
   }, [notes, trimmedQuery]);
 
-  const hasEvents = filteredEvents.length > 0;
-  const hasTodos = filteredTodos.length > 0;
-  const hasNotes = filteredNotes.length > 0;
+  // Determine top (most likely) result
+  const topResult = useMemo<TopResult | null>(() => {
+    if (!trimmedQuery) return null;
+
+    let best: TopResult | null = null;
+    let highestScore = -1;
+
+    for (const ev of filteredEvents) {
+      const score = computeScore(ev.title, trimmedQuery, ev.tag);
+      if (score > highestScore) {
+        highestScore = score;
+        best = { type: 'event', item: ev, score };
+      }
+    }
+
+    for (const td of filteredTodos) {
+      const score = computeScore(td.title, trimmedQuery, td.tag);
+      if (score > highestScore) {
+        highestScore = score;
+        best = { type: 'todo', item: td, score };
+      }
+    }
+
+    for (const nt of filteredNotes) {
+      const score = computeScore(nt.title, trimmedQuery, nt.tag, nt.preview);
+      if (score > highestScore) {
+        highestScore = score;
+        best = { type: 'note', item: nt, score };
+      }
+    }
+
+    return best;
+  }, [trimmedQuery, filteredEvents, filteredTodos, filteredNotes]);
+
+  // Exclude topResult from the main list of results to prevent duplication
+  const remainingEvents = useMemo(() => {
+    if (!topResult || topResult.type !== 'event') return filteredEvents;
+    return filteredEvents.filter((e) => e.id !== topResult.item.id);
+  }, [filteredEvents, topResult]);
+
+  const remainingTodos = useMemo(() => {
+    if (!topResult || topResult.type !== 'todo') return filteredTodos;
+    return filteredTodos.filter((t) => t.id !== topResult.item.id);
+  }, [filteredTodos, topResult]);
+
+  const remainingNotes = useMemo(() => {
+    if (!topResult || topResult.type !== 'note') return filteredNotes;
+    return filteredNotes.filter((n) => n.id !== topResult.item.id);
+  }, [filteredNotes, topResult]);
+
+  const hasRemainingEvents = remainingEvents.length > 0;
+  const hasRemainingTodos = remainingTodos.length > 0;
+  const hasRemainingNotes = remainingNotes.length > 0;
+  const hasRemaining = hasRemainingEvents || hasRemainingTodos || hasRemainingNotes;
+
   const totalResults = filteredEvents.length + filteredTodos.length + filteredNotes.length;
   const hasQuery = trimmedQuery.length > 0;
 
@@ -160,7 +399,10 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
-          className="fixed inset-0 z-40 bg-white/70 dark:bg-neutral-950/70 backdrop-blur-xl flex flex-col justify-end p-4 pb-6"
+          className="fixed inset-0 z-40 bg-white/70 dark:bg-neutral-950/70 backdrop-blur-xl flex flex-col justify-end p-4 pb-6 transition-[padding-bottom] duration-150 ease-out"
+          style={{
+            paddingBottom: keyboardOffset > 0 ? `${keyboardOffset + 12}px` : undefined,
+          }}
           onClick={onClose}
         >
           <motion.div
@@ -172,11 +414,16 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
             className="w-full flex flex-col justify-end max-w-lg mx-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Scrollable results area above the search bar */}
-            {totalResults > 0 && (
-              <div className="bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md rounded-3xl border border-neutral-200/80 dark:border-neutral-800 shadow-xl p-4 flex flex-col max-h-[70vh] overflow-y-auto mb-3">
+            {/* Scrollable results area above top result and search bar */}
+            {hasRemaining && (
+              <div
+                style={{
+                  maxHeight: keyboardOffset > 0 ? `calc(100dvh - ${keyboardOffset + 180}px)` : undefined,
+                }}
+                className="bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md rounded-3xl border border-neutral-200/80 dark:border-neutral-800 shadow-xl p-4 flex flex-col max-h-[60vh] overflow-y-auto mb-2.5"
+              >
                 {/* Section 1: Termine */}
-                {hasEvents && (
+                {hasRemainingEvents && (
                   <div className="flex flex-col">
                     <div className="flex items-center justify-between px-1.5 mb-1.5">
                       <div className="flex items-center gap-1.5">
@@ -186,52 +433,26 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
                         </span>
                       </div>
                       <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500">
-                        {filteredEvents.length}
+                        {remainingEvents.length}
                       </span>
                     </div>
                     <div className="flex flex-col gap-1">
-                      {filteredEvents.map((ev) => {
-                        const timeText = ev.time || formatEventTime(ev.start, ev.end);
-                        return (
-                          <div
-                            key={ev.id}
-                            onClick={() => onSelectEvent?.(ev)}
-                            className="flex items-center justify-between hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80 rounded-2xl px-2 py-1.5 transition-colors cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span
-                                className={`w-2.5 h-2.5 rounded-full ${
-                                  ev.dotColor || 'bg-blue-500'
-                                } shrink-0`}
-                              />
-                              <div className="min-w-0">
-                                <p className="text-[13px] font-black text-neutral-900 dark:text-neutral-100 truncate">
-                                  {ev.title}
-                                </p>
-                                {timeText ? (
-                                  <p className="text-[11px] font-semibold text-neutral-400 dark:text-neutral-500 truncate">
-                                    {timeText}
-                                  </p>
-                                ) : null}
-                              </div>
-                            </div>
-                            {ev.tag && (
-                              <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100/90 dark:bg-neutral-800 px-2 py-0.5 rounded-lg shrink-0">
-                                {ev.tag}
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
+                      {remainingEvents.map((ev) => (
+                        <EventRow
+                          key={ev.id}
+                          item={ev}
+                          onClick={() => onSelectEvent?.(ev)}
+                        />
+                      ))}
                     </div>
                   </div>
                 )}
 
                 {/* Section 2: Todos */}
-                {hasTodos && (
+                {hasRemainingTodos && (
                   <div
                     className={`flex flex-col ${
-                      hasEvents ? 'border-t border-neutral-100 dark:border-neutral-800/80 pt-3 mt-1' : ''
+                      hasRemainingEvents ? 'border-t border-neutral-100 dark:border-neutral-800/80 pt-3 mt-1' : ''
                     }`}
                   >
                     <div className="flex items-center justify-between px-1.5 mb-1.5">
@@ -242,64 +463,27 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
                         </span>
                       </div>
                       <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500">
-                        {filteredTodos.length}
+                        {remainingTodos.length}
                       </span>
                     </div>
                     <div className="flex flex-col gap-1">
-                      {filteredTodos.map((td) => {
-                        const done = Boolean(td.completed ?? td.isCompleted);
-                        return (
-                          <div
-                            key={td.id}
-                            onClick={() => onSelectTodo?.(td)}
-                            className="flex items-center justify-between hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80 rounded-2xl px-2 py-1.5 transition-colors cursor-pointer"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <button
-                                type="button"
-                                aria-label="Toggle status"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onToggleTodo?.(td.id);
-                                }}
-                                className={`w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
-                                  done
-                                    ? 'bg-emerald-500 border-emerald-500 text-white'
-                                    : 'border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800'
-                                }`}
-                              >
-                                {done && <Check className="w-3 h-3 stroke-[3]" />}
-                              </button>
-                              <span
-                                className={`text-[13px] font-bold truncate ${
-                                  done
-                                    ? 'line-through text-neutral-400 dark:text-neutral-500'
-                                    : 'text-neutral-900 dark:text-neutral-100'
-                                }`}
-                              >
-                                {td.title}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              {renderPriorityBadge(td.priority)}
-                              {td.tag && (
-                                <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100/90 dark:bg-neutral-800 px-2 py-0.5 rounded-lg">
-                                  {td.tag}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                      {remainingTodos.map((td) => (
+                        <TodoRow
+                          key={td.id}
+                          item={td}
+                          onClick={() => onSelectTodo?.(td)}
+                          onToggle={onToggleTodo}
+                        />
+                      ))}
                     </div>
                   </div>
                 )}
 
                 {/* Section 3: Notizen */}
-                {hasNotes && (
+                {hasRemainingNotes && (
                   <div
                     className={`flex flex-col ${
-                      hasEvents || hasTodos
+                      hasRemainingEvents || hasRemainingTodos
                         ? 'border-t border-neutral-100 dark:border-neutral-800/80 pt-3 mt-1'
                         : ''
                     }`}
@@ -312,35 +496,61 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
                         </span>
                       </div>
                       <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500">
-                        {filteredNotes.length}
+                        {remainingNotes.length}
                       </span>
                     </div>
                     <div className="flex flex-col gap-1">
-                      {filteredNotes.map((nt) => (
-                        <div
+                      {remainingNotes.map((nt) => (
+                        <NoteRow
                           key={nt.id}
+                          item={nt}
                           onClick={() => onSelectNote?.(nt)}
-                          className="flex items-center justify-between hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80 rounded-2xl px-2 py-1.5 transition-colors cursor-pointer gap-2"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-[13px] font-black text-neutral-900 dark:text-neutral-100 truncate">
-                              {nt.title}
-                            </p>
-                            {nt.preview && (
-                              <p className="text-[11px] font-medium text-neutral-400 dark:text-neutral-500 truncate">
-                                {nt.preview}
-                              </p>
-                            )}
-                          </div>
-                          {nt.tag && (
-                            <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100/90 dark:bg-neutral-800 px-2 py-0.5 rounded-lg shrink-0">
-                              {nt.tag}
-                            </span>
-                          )}
-                        </div>
+                        />
                       ))}
                     </div>
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* Top Result ("Bester Treffer") Card - Prominently placed directly above search bar */}
+            {topResult && (
+              <div className="bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md rounded-2xl border border-neutral-200/90 dark:border-neutral-800 shadow-xl p-3 mb-2.5 transition-all">
+                <div className="flex items-center justify-between gap-2 mb-1.5 px-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20" />
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                      Bester Treffer
+                    </span>
+                    <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500">
+                      • {topResult.type === 'event' ? 'Termin' : topResult.type === 'todo' ? 'Todo' : 'Notiz'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
+                    Öffnen
+                  </span>
+                </div>
+
+                {topResult.type === 'event' && (
+                  <EventRow
+                    item={topResult.item}
+                    onClick={() => onSelectEvent?.(topResult.item)}
+                  />
+                )}
+
+                {topResult.type === 'todo' && (
+                  <TodoRow
+                    item={topResult.item}
+                    onClick={() => onSelectTodo?.(topResult.item)}
+                    onToggle={onToggleTodo}
+                  />
+                )}
+
+                {topResult.type === 'note' && (
+                  <NoteRow
+                    item={topResult.item}
+                    onClick={() => onSelectNote?.(topResult.item)}
+                  />
                 )}
               </div>
             )}
@@ -363,17 +573,31 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
               <Search className="w-4 h-4 text-neutral-900 dark:text-neutral-100 shrink-0" />
               <input
                 ref={inputRef}
-                type="text"
+                type="search"
+                name="search"
+                id="mobile-search-input"
                 value={query}
                 onChange={(e) => onQueryChange(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Escape') {
                     onClose();
+                  } else if (e.key === 'Enter' && topResult) {
+                    if (topResult.type === 'event') onSelectEvent?.(topResult.item);
+                    else if (topResult.type === 'todo') onSelectTodo?.(topResult.item);
+                    else if (topResult.type === 'note') onSelectNote?.(topResult.item);
                   }
                 }}
                 placeholder={placeholder}
                 autoComplete="off"
-                className="flex-1 bg-transparent text-[13px] font-semibold text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 outline-none min-w-0"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                inputMode="search"
+                enterKeyHint="search"
+                data-form-type="other"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                className="flex-1 bg-transparent text-[13px] font-semibold text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 outline-none min-w-0 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
               />
               {query.length > 0 && (
                 <button

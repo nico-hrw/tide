@@ -8,6 +8,7 @@ export type MobileTab = 'calendar' | 'notes' | 'todos';
 export interface MobileBottomNavProps {
   activeTab: MobileTab;
   onTabChange: (tab: MobileTab) => void;
+  onTabReclick?: (tab: MobileTab) => void;
   isSearchOpen: boolean;
   onToggleSearch: () => void;
   isFilterOpen: boolean;
@@ -30,6 +31,7 @@ const TABS: { id: MobileTab; label: string; icon: React.ComponentType<{ size?: n
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   activeTab,
   onTabChange,
+  onTabReclick,
   isSearchOpen,
   onToggleSearch,
   isFilterOpen,
@@ -64,7 +66,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <button
               key={tab.id}
               type="button"
-              onClick={() => onTabChange(tab.id)}
+              onClick={() => {
+                if (isActive && onTabReclick) {
+                  onTabReclick(tab.id);
+                }
+                onTabChange(tab.id);
+              }}
               aria-label={tab.label}
               aria-current={isActive ? 'page' : undefined}
               className={getButtonClass(isActive)}
