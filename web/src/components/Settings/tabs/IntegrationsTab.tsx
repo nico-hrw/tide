@@ -8,6 +8,7 @@ import {
     Flame,
     ListTodo,
     Smartphone,
+    Smile,
     Sparkles,
     User,
 } from 'lucide-react';
@@ -16,6 +17,7 @@ import { useMobileConnectionStore } from '@/store/useMobileConnectionStore';
 import MobileConnectionSettings from '../MobileConnectionSettings';
 import { JobPlannerExtensionConfig, JobPlannerExtensionConfigProps } from './JobPlannerExtensionConfig';
 import { SmartIslandExtensionConfig, SmartIslandExtensionConfigProps } from './SmartIslandExtensionConfig';
+import { SurveysExtensionConfig } from './SurveysExtensionConfig';
 import { ReferencesDictionary, REFERENCE_PALETTE, QUICK_EMOJIS } from './ReferencesDictionary';
 
 export {
@@ -68,6 +70,15 @@ const EXTENSIONS: ExtensionItem[] = [
         version: 'v1.0.0',
         updated: 'Aktuell',
         icon: FileText,
+        color: 'text-amber-500',
+    },
+    {
+        id: 'surveys',
+        title: 'Umfragen & Mood-Tracker',
+        desc: 'Regelmäßige Stimmungs-Check-ins und detaillierte Langzeitanalysen.',
+        version: '1.0.0',
+        updated: 'Neu',
+        icon: Smile,
         color: 'text-amber-500',
     },
 ];
@@ -175,6 +186,10 @@ export const IntegrationsTab: React.FC<IntegrationsTabProps> = ({
 
                         {ext.id === 'job_planner' && isEnabled && (
                             <JobPlannerExtensionConfig groups={groups} />
+                        )}
+
+                        {ext.id === 'surveys' && isEnabled && (
+                            <SurveysExtensionConfig />
                         )}
 
                         {ext.id === 'mobile_connection' && isEnabled && (

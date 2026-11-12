@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mobiles Stimmungs-Popup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,500,0,0" />
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* Sanftes Ausblenden nach Auswahl oder Schließen (keine Einflug-Animation) */
+    .mood-card {
+      transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                  transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .mood-card.dismissed {
+      opacity: 0;
+      transform: scale(0.95);
+      pointer-events: none;
+    }
+
+    /* Touch-Feedback der Emoji-Kacheln */
+    .mood-emoji-btn {
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  background-color 0.25s ease,
+                  border-color 0.25s ease,
+                  opacity 0.25s ease;
+    }
+
+    .mood-emoji-btn:active {
+      transform: scale(0.94);
+    }
+
+    /* ==============================================================
+       MS-TEAMS-STYLE CHARAKTER-ANIMATIONEN BEIM ANTIPPEN (.is-playing)
+       ============================================================== */
+
+    /* 1. Schlecht: Trauriges Neigen, zusammengezogene Brauen & fallende Träne */
+    @keyframes sadSway {
+      0% { transform: scale(1) rotate(0deg) translateY(0); }
+      20% { transform: scale(1.16) rotate(-11deg) translateY(0.1rem); }
+      45% { transform: scale(1.14) rotate(9deg) translateY(0.15rem); }
+      70% { transform: scale(1.12) rotate(-6deg) translateY(0.1rem); }
+      100% { transform: scale(1.08) rotate(0deg) translateY(0); }
+    }
+    @keyframes tearDrop {
+      0% { opacity: 0; transform: translateY(-0.15rem) scale(0.5); }
+      25% { opacity: 1; transform: translateY(0.05rem) scale(1.05); }
+      80% { opacity: 0.95; transform: translateY(0.45rem) scale(0.95); }
+      100% { opacity: 0; transform: translateY(0.65rem) scale(0.7); }
+    }
+    @keyframes sadBrowLeft {
+      0%, 100% { transform: rotate(0deg); }
+      40% { transform: rotate(-12deg) translateY(0.06rem); }
+    }
+    @keyframes sadBrowRight {
+      0%, 100% { transform: rotate(0deg); }
+      40% { transform: rotate(12deg) translateY(0.06rem); }
+    }
+
+    .mood-emoji-btn[data-mood="bad"].is-playing .emoji-face {
+      animation: sadSway 1.05s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+      transform-origin: center center;
+    }
+    .mood-emoji-btn[data-mood="bad"].is-playing .sad-tear {
+      animation: tearDrop 1.05s ease-in forwards;
+    }
+    .mood-emoji-btn[data-mood="bad"].is-playing .sad-brow-l {
+      animation: sadBrowLeft 1.05s ease-in-out forwards;
+      transform-origin: 20px 21px;
+    }
+    .mood-emoji-btn[data-mood="bad"].is-playing .sad-brow-r {
+      animation: sadBrowRight 1.05s ease-in-out forwards;
+      transform-origin: 36px 21px;
+    }
+
+    /* 2. Okay: Nachdenkliches Schaukeln, Augenblick nach links/rechts & Mund-Wippen */
+    @keyframes neutralTilt {
+      0% { transform: scale(1) rotate(0deg); }
+      25% { transform: scale(1.16) rotate(-9deg); }
+      55% { transform: scale(1.15) rotate(9deg); }
+      80% { transform: scale(1.10) rotate(-3deg); }
+      100% { transform: scale(1.08) rotate(0deg); }
+    }
+    @keyframes neutralEyesLook {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-2.6px); }
+      60% { transform: translateX(2.6px); }
+    }
+    @keyframes neutralMouthWobble {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(-6deg); }
+      60% { transform: rotate(6deg); }
+    }
+
+    .mood-emoji-btn[data-mood="okay"].is-playing .emoji-face {
+      animation: neutralTilt 1.05s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+      transform-origin: center center;
+    }
+    .mood-emoji-btn[data-mood="okay"].is-playing .neutral-eyes {
+      animation: neutralEyesLook 1.05s ease-in-out forwards;
+    }
+    .mood-emoji-btn[data-mood="okay"].is-playing .neutral-mouth {
+      animation: neutralMouthWobble 1.05s ease-in-out forwards;
+      transform-origin: 28px 36px;
+    }
+
+    /* 3. Super: Fröhliches Hüpfen mit Squash & Stretch + leuchtende Bäckchen */
+    @keyframes happyBounce {
+      0% { transform: translateY(0) scale(1, 1); }
+      20% { transform: translateY(0.15rem) scale(1.12, 0.88); }
+      45% { transform: translateY(-0.45rem) scale(0.96, 1.18); }
+      70% { transform: translateY(0.05rem) scale(1.12, 0.94); }
+      88% { transform: translateY(-0.15rem) scale(1.06, 1.10); }
+      100% { transform: translateY(0) scale(1.08, 1.08); }
+    }
+    @keyframes happyCheeks {
+      0%, 100% { opacity: 0.45; transform: scale(1); }
+      45% { opacity: 0.95; transform: scale(1.28); }
+    }
+
+    .mood-emoji-btn[data-mood="good"].is-playing .emoji-face {
+      animation: happyBounce 1.0s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      transform-origin: center bottom;
+    }
+    .mood-emoji-btn[data-mood="good"].is-playing .happy-cheek {
+      animation: happyCheeks 1.0s ease-in-out forwards;
+      transform-origin: center center;
+    }
+
+    /* Radiale Funken-/Partikel-Explosion beim Antippen */
+    @keyframes sparkBurst {
+      0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) translate(0, 0) scale(0.35);
+      }
+      70% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) scale(1.15);
+      }
+    }
+
+    .mood-spark {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      pointer-events: none;
+      border-radius: 9999px;
+      animation: sparkBurst 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="bg-neutral-100 min-h-[100dvh] w-full flex flex-col items-center justify-center px-[4vw] py-6 select-none">
+
+  <!-- Zentriertes mobiles Stimmungs-Popup (statisch ohne Einflug-Animation, relative Größen) -->
+  <main 
+    id="moodPopup" 
+    role="dialog" 
+    aria-labelledby="moodQuestion"
+    class="mood-card w-full max-w-sm bg-white/95 backdrop-blur-xl border border-neutral-200/90 rounded-[1.75rem] p-[1.125rem] sm:p-5 shadow-2xl shadow-black/10 flex flex-col gap-3.5"
+  >
+    <!-- Header: Nur einladende Frage & Schließen-Button (X) -->
+    <div class="flex items-center justify-between gap-2">
+      <h2 id="moodQuestion" class="text-[0.95rem] sm:text-base font-extrabold tracking-tight text-neutral-900">
+        Wie geht es dir gerade?
+      </h2>
+      <button 
+        id="moodCloseBtn" 
+        type="button" 
+        aria-label="Schließen"
+        class="w-7 h-7 rounded-full bg-neutral-100 active:bg-neutral-200 text-neutral-500 flex items-center justify-center transition-colors flex-shrink-0 cursor-pointer"
+      >
+        <span class="material-symbols-outlined text-[1rem] leading-none">close</span>
+      </button>
+    </div>
+
+    <!-- 3 ausdrucksstarke MS-Teams-Style Emojis (Schlecht -> Okay -> Super) -->
+    <div class="grid grid-cols-3 gap-2.5">
+      
+      <!-- 1. Schlecht -->
+      <button 
+        type="button" 
+        data-mood="bad" 
+        data-label="Schlecht"
+        class="mood-emoji-btn relative flex flex-col items-center justify-center gap-1.5 py-3 px-2 rounded-2xl bg-neutral-50/95 border border-neutral-100 cursor-pointer"
+      >
+        <div class="relative w-[3.25rem] h-[3.25rem] flex items-center justify-center">
+          <svg class="emoji-face w-full h-full overflow-visible drop-shadow-sm" viewBox="0 0 56 56" fill="none">
+            <defs>
+              <radialGradient id="gradSad" cx="35%" cy="30%" r="70%">
+                <stop offset="0%" stop-color="#FFE680"/>
+                <stop offset="65%" stop-color="#FFC436"/>
+                <stop offset="100%" stop-color="#F59E0B"/>
+              </radialGradient>
+            </defs>
+            <circle cx="28" cy="28" r="23" fill="url(#gradSad)"/>
+            <path class="sad-brow-l" d="M15.5 22.5C17.5 20.5 20.5 20 23 20.5" stroke="#78350F" stroke-width="2.4" stroke-linecap="round"/>
+            <path class="sad-brow-r" d="M40.5 22.5C38.5 20.5 35.5 20 33 20.5" stroke="#78350F" stroke-width="2.4" stroke-linecap="round"/>
+            <ellipse cx="20" cy="26.5" rx="2.5" ry="3" fill="#451A03"/>
+            <circle cx="19.2" cy="25.5" r="0.9" fill="#FFFFFF"/>
+            <ellipse cx="36" cy="26.5" rx="2.5" ry="3" fill="#451A03"/>
+            <circle cx="35.2" cy="25.5" r="0.9" fill="#FFFFFF"/>
+            <path d="M21 39.5C23.5 36.2 32.5 36.2 35 39.5" stroke="#78350F" stroke-width="2.8" stroke-linecap="round"/>
+            <path class="sad-tear opacity-0" d="M39.5 30.5C39.5 30.5 42 34 42 35.6C42 37 40.9 38.1 39.5 38.1C38.1 38.1 37 37 37 35.6C37 34 39.5 30.5 39.5 30.5Z" fill="#38BDF8"/>
+          </svg>
+          <div class="spark-container absolute inset-0 pointer-events-none"></div>
+        </div>
+        <span class="mood-label text-[0.75rem] font-bold text-neutral-600 transition-colors">Schlecht</span>
+      </button>
+
+      <!-- 2. Okay -->
+      <button 
+        type="button" 
+        data-mood="okay" 
+        data-label="Okay"
+        class="mood-emoji-btn relative flex flex-col items-center justify-center gap-1.5 py-3 px-2 rounded-2xl bg-neutral-50/95 border border-neutral-100 cursor-pointer"
+      >
+        <div class="relative w-[3.25rem] h-[3.25rem] flex items-center justify-center">
+          <svg class="emoji-face w-full h-full overflow-visible drop-shadow-sm" viewBox="0 0 56 56" fill="none">
+            <defs>
+              <radialGradient id="gradOkay" cx="35%" cy="30%" r="70%">
+                <stop offset="0%" stop-color="#FFE885"/>
+                <stop offset="65%" stop-color="#FACC15"/>
+                <stop offset="100%" stop-color="#EAB308"/>
+              </radialGradient>
+            </defs>
+            <circle cx="28" cy="28" r="23" fill="url(#gradOkay)"/>
+            <path d="M16.5 21.5H23" stroke="#78350F" stroke-width="2.3" stroke-linecap="round"/>
+            <path d="M33 21.5H39.5" stroke="#78350F" stroke-width="2.3" stroke-linecap="round"/>
+            <g class="neutral-eyes">
+              <circle cx="20" cy="26.5" r="2.7" fill="#451A03"/>
+              <circle cx="19.2" cy="25.6" r="0.9" fill="#FFFFFF"/>
+              <circle cx="36" cy="26.5" r="2.7" fill="#451A03"/>
+              <circle cx="35.2" cy="25.6" r="0.9" fill="#FFFFFF"/>
+            </g>
+            <path class="neutral-mouth" d="M21 36.5H35" stroke="#78350F" stroke-width="2.8" stroke-linecap="round"/>
+          </svg>
+          <div class="spark-container absolute inset-0 pointer-events-none"></div>
+        </div>
+        <span class="mood-label text-[0.75rem] font-bold text-neutral-600 transition-colors">Okay</span>
+      </button>
+
+      <!-- 3. Super -->
+      <button 
+        type="button" 
+        data-mood="good" 
+        data-label="Super"
+        class="mood-emoji-btn relative flex flex-col items-center justify-center gap-1.5 py-3 px-2 rounded-2xl bg-neutral-50/95 border border-neutral-100 cursor-pointer"
+      >
+        <div class="relative w-[3.25rem] h-[3.25rem] flex items-center justify-center">
+          <svg class="emoji-face w-full h-full overflow-visible drop-shadow-sm" viewBox="0 0 56 56" fill="none">
+            <defs>
+              <radialGradient id="gradGood" cx="35%" cy="28%" r="72%">
+                <stop offset="0%" stop-color="#FFF099"/>
+                <stop offset="60%" stop-color="#FBBF24"/>
+                <stop offset="100%" stop-color="#F59E0B"/>
+              </radialGradient>
+            </defs>
+            <circle cx="28" cy="28" r="23" fill="url(#gradGood)"/>
+            <ellipse class="happy-cheek opacity-45" cx="14.5" cy="31" rx="3.8" ry="2.4" fill="#FB7185"/>
+            <ellipse class="happy-cheek opacity-45" cx="41.5" cy="31" rx="3.8" ry="2.4" fill="#FB7185"/>
+            <path d="M16.5 25.5C17.8 22.5 22.2 22.5 23.5 25.5" stroke="#451A03" stroke-width="2.8" stroke-linecap="round"/>
+            <path d="M32.5 25.5C33.8 22.5 38.2 22.5 39.5 25.5" stroke="#451A03" stroke-width="2.8" stroke-linecap="round"/>
+            <path d="M18.5 32.5C20.5 39.5 35.5 39.5 37.5 32.5H18.5Z" fill="#78350F"/>
+            <path d="M21.5 36.2C24 38.2 32 38.2 34.5 36.2C33 34.8 23 34.8 21.5 36.2Z" fill="#FB7185"/>
+          </svg>
+          <div class="spark-container absolute inset-0 pointer-events-none"></div>
+        </div>
+        <span class="mood-label text-[0.75rem] font-bold text-neutral-600 transition-colors">Super</span>
+      </button>
+
+    </div>
+
+    <!-- Sanfte Bestätigung nach Antippen -->
+    <div id="moodFeedback" class="hidden items-center justify-center gap-1.5 pt-0.5 text-[0.8rem] font-extrabold text-emerald-600">
+      <span class="material-symbols-outlined text-[1.05rem] leading-none">check_circle</span>
+      <span id="moodFeedbackText">Stimmung gespeichert!</span>
+    </div>
+  </main>
+
+  <!-- Kleiner Test-Button darunter zum erneuten Anzeigen -->
+  <button 
+    id="reopenBtn" 
+    type="button" 
+    class="mt-6 px-4 py-2 rounded-full bg-white border border-neutral-200/90 shadow-sm text-[0.75rem] font-bold text-neutral-600 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+  >
+    <span class="material-symbols-outlined text-[0.95rem] leading-none">refresh</span>
+    <span>Popup erneut anzeigen</span>
+  </button>
+
+  <script>
+    const moodPopup = document.getElementById('moodPopup');
+    const moodCloseBtn = document.getElementById('moodCloseBtn');
+    const reopenBtn = document.getElementById('reopenBtn');
+    const moodFeedback = document.getElementById('moodFeedback');
+    const moodFeedbackText = document.getElementById('moodFeedbackText');
+    const moodEmojiBtns = document.querySelectorAll('.mood-emoji-btn');
+
+    let isSubmitting = false;
+    let hideTimeout = null;
+    let feedbackTimeout = null;
+
+    // Radiale Funken-Partikel beim Antippen erzeugen
+    function triggerSparkBurst(container, moodType) {
+      if (!container) return;
+      container.innerHTML = '';
+
+      const palettes = {
+        bad: ['#38BDF8', '#FB7185', '#FBBF24', '#93C5FD'],
+        okay: ['#FACC15', '#FB923C', '#A3E635', '#FDE047'],
+        good: ['#34D399', '#FBBF24', '#F43F5E', '#60A5FA', '#A78BFA']
+      };
+      const colors = palettes[moodType] || palettes.good;
+      const sparkCount = 12;
+
+      for (let i = 0; i < sparkCount; i++) {
+        const spark = document.createElement('span');
+        spark.className = 'mood-spark';
+
+        const angle = (Math.PI * 2 * i) / sparkCount + (Math.random() - 0.5) * 0.3;
+        const distance = 1.6 + Math.random() * 1.1; // in rem
+        const tx = Math.cos(angle) * distance;
+        const ty = Math.sin(angle) * distance;
+        const size = 0.25 + Math.random() * 0.22; // in rem
+
+        spark.style.setProperty('--tx', `${tx.toFixed(2)}rem`);
+        spark.style.setProperty('--ty', `${ty.toFixed(2)}rem`);
+        spark.style.width = `${size.toFixed(2)}rem`;
+        spark.style.height = `${size.toFixed(2)}rem`;
+        spark.style.backgroundColor = colors[i % colors.length];
+
+        container.appendChild(spark);
+      }
+    }
+
+    // Popup sanft ausblenden
+    function dismissPopup() {
+      moodPopup.classList.add('dismissed');
+    }
+
+    // Popup zurücksetzen und sofort wieder anzeigen
+    function resetAndShowPopup() {
+      clearTimeout(hideTimeout);
+      clearTimeout(feedbackTimeout);
+      isSubmitting = false;
+
+      moodFeedback.classList.add('hidden');
+      moodFeedback.classList.remove('flex');
+
+      moodEmojiBtns.forEach(btn => {
+        btn.classList.remove(
+          'is-playing',
+          'opacity-40',
+          'scale-95',
+          'pointer-events-none',
+          'bg-rose-50',
+          'border-rose-200',
+          'bg-amber-50',
+          'border-amber-200',
+          'bg-emerald-50',
+          'border-emerald-200'
+        );
+        btn.classList.add('bg-neutral-50/95', 'border-neutral-100');
+
+        const label = btn.querySelector('.mood-label');
+        if (label) {
+          label.classList.remove('text-rose-600', 'text-amber-600', 'text-emerald-600');
+          label.classList.add('text-neutral-600');
+        }
+
+        const sparkBox = btn.querySelector('.spark-container');
+        if (sparkBox) sparkBox.innerHTML = '';
+      });
+
+      moodPopup.classList.remove('dismissed');
+    }
+
+    // Klick-/Tap-Logik für die 3 Emoji-Buttons
+    moodEmojiBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (isSubmitting) return;
+        isSubmitting = true;
+
+        const moodType = btn.dataset.mood;
+        const moodLabel = btn.dataset.label;
+        const sparkContainer = btn.querySelector('.spark-container');
+        const labelEl = btn.querySelector('.mood-label');
+
+        const highlightClasses = {
+          bad: { card: ['bg-rose-50', 'border-rose-200'], text: 'text-rose-600' },
+          okay: { card: ['bg-amber-50', 'border-amber-200'], text: 'text-amber-600' },
+          good: { card: ['bg-emerald-50', 'border-emerald-200'], text: 'text-emerald-600' }
+        };
+
+        // Nicht gewählte Emojis sanft zurücknehmen
+        moodEmojiBtns.forEach(other => {
+          other.classList.add('pointer-events-none');
+          if (other !== btn) {
+            other.classList.add('opacity-40', 'scale-95');
+          }
+        });
+
+        // Gewähltes Emoji farblich hervorheben & MS-Teams-Charakter-Animation starten
+        btn.classList.remove('bg-neutral-50/95', 'border-neutral-100');
+        btn.classList.add(...highlightClasses[moodType].card, 'is-playing');
+        if (labelEl) {
+          labelEl.classList.remove('text-neutral-600');
+          labelEl.classList.add(highlightClasses[moodType].text);
+        }
+
+        // Radiale Funken-Explosion zünden
+        triggerSparkBurst(sparkContainer, moodType);
+
+        // Bestätigung einblenden
+        feedbackTimeout = setTimeout(() => {
+          moodFeedbackText.textContent = `„${moodLabel}“ gespeichert ✓`;
+          moodFeedback.classList.remove('hidden');
+          moodFeedback.classList.add('flex');
+        }, 320);
+
+        // Nach Abschluss der Animation sanft ausblenden
+        hideTimeout = setTimeout(() => {
+          dismissPopup();
+        }, 1350);
+      });
+    });
+
+    moodCloseBtn.addEventListener('click', dismissPopup);
+    reopenBtn.addEventListener('click', resetAndShowPopup);
+  </script>
+</body>
+</html>

@@ -8,8 +8,9 @@ import {
   Trash2, GraduationCap, Clock, MapPin,
   X, PenLine, FolderPlus,
   BookOpen, Coffee, RotateCcw, ListTodo, SlidersHorizontal, Check, List, LayoutGrid,
-  CalendarPlus, CheckSquare,
+  CalendarPlus, CheckSquare, Smile,
 } from 'lucide-react';
+import { MoodPopup } from '@/components/Surveys/MoodPopup';
 import { isSameDay, format, startOfWeek, addDays, isAfter } from 'date-fns';
 import { de } from 'date-fns/locale';
 import MiniCalendar from '../Calendar/MiniCalendar';
@@ -62,6 +63,10 @@ const getDayDiff = (d1: Date, d2: Date) => {
 };
 
 const JobPlanner = dynamic(() => import('../JobPlanner/JobPlanner'), {
+  loading: () => <div className="flex-1 flex items-center justify-center p-8 text-sm" style={{ color: 'var(--muted-text)' }}>Lade…</div>,
+});
+
+const SurveyAnalytics = dynamic(() => import('@/components/Surveys/SurveyAnalytics'), {
   loading: () => <div className="flex-1 flex items-center justify-center p-8 text-sm" style={{ color: 'var(--muted-text)' }}>Lade…</div>,
 });
 
@@ -728,6 +733,7 @@ export default function MobileLayout({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [isExamsOpen, setIsExamsOpen] = useState(false);
+  const [isSurveysOpen, setIsSurveysOpen] = useState(false);
   const [activeDate, setActiveDate] = useState(new Date());
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
@@ -1334,6 +1340,7 @@ export default function MobileLayout({
               <div className="flex overflow-x-auto gap-2 px-3 py-3 no-scrollbar">
                 {[
                   { id: 'job_planner', icon: <GraduationCap size={18} />, label: 'Job & Uni', ext: 'job_planner', action: () => { setIsSidebarOpen(false); setIsExamsOpen(true); } },
+                  { id: 'surveys', icon: <Smile size={18} />, label: 'Umfragen', ext: 'surveys', action: () => { setIsSidebarOpen(false); setIsSurveysOpen(true); } },
                   { id: 'settings', icon: <Settings size={18} />, label: 'Optionen', ext: '', action: () => { setIsSidebarOpen(false); setSettingsOpen(true); } },
                 ].map(tab => {
                   const enabled = !tab.ext || enabledExtensions.includes(tab.ext);
@@ -1398,6 +1405,13 @@ export default function MobileLayout({
         {isExamsOpen && (
           <OverlayShell key="job_planner" title="Job & Uni" onBack={() => setIsExamsOpen(false)}>
             <div className="flex-1 overflow-y-auto"><JobPlanner /></div>
+          </OverlayShell>
+        )}
+
+        {/* Surveys & Mood */}
+        {isSurveysOpen && (
+          <OverlayShell key="surveys" title="Umfragen & Mood" onBack={() => setIsSurveysOpen(false)}>
+            <div className="flex-1 overflow-y-auto"><SurveyAnalytics /></div>
           </OverlayShell>
         )}
 
@@ -2491,6 +2505,8 @@ export default function MobileLayout({
           }}
         />
       )}
+
+      <MoodPopup />
     </div>
   );
 }

@@ -18,7 +18,8 @@ import {
     PanelLeft,
     Folder,
     Puzzle,
-    ChevronDown
+    ChevronDown,
+    Smile
 } from 'lucide-react';
 import { useHighlight } from '../HighlightContext';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
@@ -30,7 +31,7 @@ import DT from '@/lib/designTokens';
 export interface Tab {
     id: string;
     title: string;
-    type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash' | 'folders';
+    type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash' | 'folders' | 'surveys';
     content?: any;
     _fileKey?: CryptoKey | null;
     _saveStatus?: "saved" | "unsaved" | "saving";
@@ -92,6 +93,7 @@ export default function TabList({
     const myStatus = useSocialStore(s => s.myStatus);
     const setMyStatus = useSocialStore(s => s.setMyStatus);
     const navigationMode = useDataStore(s => s.navigationMode);
+    const enabledExtensions = useDataStore(s => s.enabledExtensions);
     const scrollRef = useRef<HTMLDivElement>(null);
     const [isPluginMenuOpen, setIsPluginMenuOpen] = useState(false);
     const pluginMenuRef = useRef<HTMLDivElement>(null);
@@ -107,7 +109,7 @@ export default function TabList({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [isPluginMenuOpen]);
 
-    const getTabIcon = (type: string) => {
+    const getTabIcon = (type: Tab['type']) => {
         switch (type) {
             case 'calendar':
                 return <Calendar size={13} />;
@@ -123,6 +125,8 @@ export default function TabList({
             case 'job_planner':
             case 'exams':
                 return <GraduationCap size={13} />;
+            case 'surveys':
+                return <Smile size={13} />;
             case 'trash':
                 return <Trash2 size={13} />;
             case 'folders':
@@ -145,6 +149,7 @@ export default function TabList({
             case 'exams': return 'Job & Uni';
             case 'chat': return 'Chat';
             case 'profile': return 'Profil';
+            case 'surveys': return 'Umfragen';
             case 'trash': return 'Papierkorb';
             case 'folders': return 'Notizen';
             case 'file':
@@ -360,6 +365,24 @@ export default function TabList({
                                     <div className="text-[10px] text-gray-400 font-normal">Task Management</div>
                                 </div>
                             </button>
+
+                            {enabledExtensions?.includes('surveys') && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsPluginMenuOpen(false);
+                                        onTabSelect('surveys', 'surveys');
+                                    }}
+                                    style={{ borderRadius: DT.radius }}
+                                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors text-left cursor-pointer"
+                                >
+                                    <Smile size={15} className="text-amber-500 shrink-0" />
+                                    <div className="truncate">
+                                        <div className="font-medium">Umfragen & Mood</div>
+                                        <div className="text-[10px] text-gray-400 font-normal">Stimmungsbild & Umfragen</div>
+                                    </div>
+                                </button>
+                            )}
 
                             {onOpenSocial && (
                                 <button

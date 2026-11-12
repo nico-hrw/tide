@@ -33,6 +33,8 @@ const Editor = dynamic(() => import('@/components/Editor'), {
 });
 
 const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEditor'), { ssr: false });
+const SurveysWorkspace = dynamic(() => import('@/components/Surveys/SurveysWorkspace'), { ssr: false });
+import { MoodPopup } from "@/components/Surveys/MoodPopup";
 
 import MobileLayout from "@/components/Layout/MobileLayout";
 import { Clock, Settings, LogOut, Users, Trash2, GraduationCap, Copy, ListTodo, GripVertical } from 'lucide-react';
@@ -3561,6 +3563,8 @@ export default function Dashboard() {
                     onOpenSettings={(tab?: any) => setSettingsModalOpen(true, tab || 'extensions')}
                 />
 
+                <SurveysWorkspace isActive={activeTabId === 'surveys'} />
+
                 <div className={`absolute inset-0 z-10 bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto ${activeTabId === 'todos' ? 'block' : 'hidden'}`}>
                     {activeTabId === 'todos' && (!enabledExtensions || enabledExtensions.includes('todos')) && <TodoList initialTaskId={selectedTodoId} />}
                 </div>
@@ -3574,11 +3578,11 @@ export default function Dashboard() {
                 
                 {/* Central Folder View for iPad / Tablet and Folders Tab */}
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${
-                    activeTabId === 'folders' || (navigationMode === 'folders' && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))
+                    activeTabId === 'folders' || (navigationMode === 'folders' && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'surveys' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))
                         ? 'block'
                         : 'hidden'
                 }`}>
-                    {(activeTabId === 'folders' || (navigationMode === 'folders' && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))) && (
+                    {(activeTabId === 'folders' || (navigationMode === 'folders' && !activeNoteId && activeTabId !== 'calendar' && activeTabId !== 'todos' && activeTabId !== 'social' && activeTabId !== 'job_planner' && activeTabId !== 'surveys' && activeTabId !== 'trash' && !activeTabId.startsWith('profile:') && !activeTabId.startsWith('chat-'))) && (
                         <CentralFolderView
                             files={safeFilteredFiles}
                             events={events}
@@ -3750,6 +3754,9 @@ export default function Dashboard() {
                 publicKey={publicKey}
                 myId={myId}
             />
+
+            {/* Mood Tracker Popup */}
+            <MoodPopup />
         </div>
     );
 }

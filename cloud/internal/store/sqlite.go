@@ -614,6 +614,23 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 				"CREATE INDEX IF NOT EXISTS idx_todos_created ON todos(created_at);",
 			},
 		},
+		{
+			version: 11,
+			name:    "surveys_api_table",
+			stmts: []string{
+				`CREATE TABLE IF NOT EXISTS survey_responses (
+					id TEXT PRIMARY KEY,
+					user_id TEXT NOT NULL,
+					survey_id TEXT NOT NULL,
+					data TEXT NOT NULL DEFAULT '{}',
+					created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+				);`,
+				"CREATE INDEX IF NOT EXISTS idx_survey_responses_user ON survey_responses(user_id);",
+				"CREATE INDEX IF NOT EXISTS idx_survey_responses_survey ON survey_responses(survey_id);",
+				"CREATE INDEX IF NOT EXISTS idx_survey_responses_created ON survey_responses(created_at);",
+			},
+		},
 	}
 
 	for _, m := range migrations {

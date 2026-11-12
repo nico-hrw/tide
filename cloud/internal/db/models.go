@@ -207,3 +207,14 @@ type ExternalNote struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// SurveyResponse represents a submitted response to a survey.
+type SurveyResponse struct {
+	ID        string    `json:"id" db:"id"`
+	UserID    string    `json:"user_id" db:"user_id"`
+	SurveyID  string    `json:"survey_id" db:"survey_id"`
+	Data      string    `json:"data" db:"data"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+}
+
