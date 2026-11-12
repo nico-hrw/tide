@@ -4,16 +4,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   format,
   startOfMonth,
+  endOfMonth,
   startOfWeek,
   endOfWeek,
-  addDays,
-  subDays,
+  eachDayOfInterval,
   addMonths,
   subMonths,
   isSameDay,
   isSameMonth,
-  startOfDay,
-  endOfDay,
 } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useDataStore } from '@/store/useDataStore';
@@ -47,28 +45,6 @@ function createPieSectorPath(cx: number, cy: number, r: number, fraction: number
   const y = cy + r * Math.sin(angle);
   const largeArc = clamped > 0.5 ? 1 : 0;
   return `M ${cx} ${cy} L ${cx} ${cy - r} A ${r} ${r} 0 ${largeArc} 1 ${x.toFixed(3)} ${y.toFixed(3)} Z`;
-}
-
-/**
- * Determines corner rounding for seamless violet range ribbons.
- */
-function getVioletCapClass(
-  day: Date,
-  rangeStart: Date,
-  rangeEnd: Date,
-  cellIndex: number
-): string {
-  const col = cellIndex % 7; // 0 = MO, 6 = SO
-  const isRangeStart = isSameDay(day, rangeStart);
-  const isRangeEnd = isSameDay(day, rangeEnd);
-
-  const isRowStart = isRangeStart || col === 0;
-  const isRowEnd = isRangeEnd || col === 6;
-
-  if (isRowStart && isRowEnd) return 'rounded-[12px]';
-  if (isRowStart) return 'rounded-l-[12px]';
-  if (isRowEnd) return 'rounded-r-[12px]';
-  return 'rounded-none';
 }
 
 function resolveActiveOrUpcomingEvent(
@@ -213,31 +189,28 @@ export default function SmartIslandCalendar({
     return createPieSectorPath(8, 8, 7, timerInfo.fraction);
   }, [timerInfo]);
 
-  // Violet window range bounds
-  const { rangeStart, rangeEnd } = useMemo(() => {
+  // Effective visible range (string-based yyyy-MM-dd comparison)
+  const effectiveRange = useMemo(() => {
     if (visibleCalendarRange?.start && visibleCalendarRange?.end) {
-      const s = new Date(visibleCalendarRange.start);
-      const e = new Date(visibleCalendarRange.end);
-      if (!isNaN(s.getTime()) && !isNaN(e.getTime())) {
-        return {
-          rangeStart: startOfDay(s),
-          rangeEnd: endOfDay(e),
-        };
-      }
+      return {
+        start: visibleCalendarRange.start.slice(0, 10),
+        end: visibleCalendarRange.end.slice(0, 10),
+      };
     }
+    const baseDate = selectedDate || new Date();
     return {
-      rangeStart: startOfWeek(selectedDate, { weekStartsOn: 1 }),
-      rangeEnd: endOfWeek(selectedDate, { weekStartsOn: 1 }),
+      start: format(startOfWeek(baseDate, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+      end: format(endOfWeek(baseDate, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
     };
   }, [visibleCalendarRange, selectedDate]);
 
-  // Calendar 42-day grid calculation
+  // Calendar grid calculation (dynamic row count: 35 days for 5-week month, 42 days for 6-week month)
   const calendarDays = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
-    const firstDayOfWeek = monthStart.getDay();
-    const startOffset = (firstDayOfWeek + 6) % 7; // Monday = 0
-    const gridStartDate = subDays(monthStart, startOffset);
-    return Array.from({ length: 42 }, (_, i) => addDays(gridStartDate, i));
+    const monthEnd = endOfMonth(monthStart);
+    const start = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const end = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    return eachDayOfInterval({ start, end });
   }, [currentMonth]);
 
   const handlePrevMonth = () => {
@@ -266,28 +239,34 @@ export default function SmartIslandCalendar({
 
   return (
     <article
-      className={`w-full max-w-[340px] bg-[#18181b] rounded-[32px] pt-[22px] px-[20px] pb-[20px] shadow-[0_20px_40px_rgba(0,0,0,0.14)] select-none font-sans text-white ${
+      className={`w-full max-w-[340px] bg-[#18181b] rounded-[24px] pt-3 px-3 pb-2.5 shadow-[0_20px_40px_rgba(0,0,0,0.14)] select-none font-sans text-white ${
         className || ''
       }`}
       aria-label={`${monthTitle} Kalender-Widget`}
     >
       {/* Header Row */}
       <header className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-[10px] min-w-0">
-          <h2 className="m-0 text-white font-bold text-[16px] tracking-[0.04em] uppercase leading-[1.1] whitespace-nowrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <h2 className="m-0 text-[12px] font-bold uppercase tracking-wider text-white leading-none whitespace-nowrap">
             {monthTitle}
           </h2>
 
           {timerInfo && (
             <div
-              className="inline-flex items-center gap-[5px] bg-transparent border-0 p-0 shrink-0"
+              className="inline-flex items-center gap-1 bg-transparent border-0 p-0 shrink-0"
               aria-label="Verbleibende Terminzeit"
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" className="block shrink-0" aria-hidden="true">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                className="block shrink-0"
+                aria-hidden="true"
+              >
                 <circle cx="8" cy="8" r="7" fill="#27272a" />
                 {timerPath && <path d={timerPath} fill="#3b71f3" />}
               </svg>
-              <span className="text-[#93c5fd] font-semibold text-[13px] leading-none tabular-nums">
+              <span className="text-[11px] font-semibold text-[#93c5fd] tabular-nums leading-none">
                 {timerInfo.displayMinutes} min
               </span>
             </div>
@@ -295,16 +274,15 @@ export default function SmartIslandCalendar({
         </div>
 
         {/* Month Navigation */}
-        <div className="flex items-center gap-[2px] shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0">
           <button
             type="button"
             onClick={handlePrevMonth}
-            className="w-[28px] h-[28px] inline-flex items-center justify-center border-0 bg-transparent text-[#a1a1aa] rounded-[8px] cursor-pointer p-0 hover:text-white hover:bg-white/[0.06] active:scale-[0.92] transition-all"
+            className="w-5 h-5 flex items-center justify-center rounded-md hover:bg-white/10 active:scale-95 text-[#a1a1aa] hover:text-white transition-all cursor-pointer border-0 bg-transparent p-0"
             aria-label="Vorheriger Monat"
           >
             <svg
-              width="15"
-              height="15"
+              className="w-3.5 h-3.5"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -318,12 +296,11 @@ export default function SmartIslandCalendar({
           <button
             type="button"
             onClick={handleNextMonth}
-            className="w-[28px] h-[28px] inline-flex items-center justify-center border-0 bg-transparent text-[#a1a1aa] rounded-[8px] cursor-pointer p-0 hover:text-white hover:bg-white/[0.06] active:scale-[0.92] transition-all"
+            className="w-5 h-5 flex items-center justify-center rounded-md hover:bg-white/10 active:scale-95 text-[#a1a1aa] hover:text-white transition-all cursor-pointer border-0 bg-transparent p-0"
             aria-label="Nächster Monat"
           >
             <svg
-              width="15"
-              height="15"
+              className="w-3.5 h-3.5"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -338,14 +315,14 @@ export default function SmartIslandCalendar({
       </header>
 
       {/* Divider */}
-      <hr className="h-[1px] bg-[#27272a] mt-[12px] mb-[10px] border-0" />
+      <hr className="my-1.5 h-[1px] bg-[#27272a] border-0" />
 
       {/* Weekdays Grid */}
-      <div className="grid grid-cols-7 text-center mb-1" aria-hidden="true">
+      <div className="grid grid-cols-7 text-center mb-0.5" aria-hidden="true">
         {WEEKDAYS.map((name) => (
           <span
             key={name}
-            className="text-[#a1a1aa] text-[11px] font-semibold tracking-[0.03em] leading-[1.2]"
+            className="text-[9px] font-semibold text-[#a1a1aa] tracking-wider text-center py-0.5"
           >
             {name}
           </span>
@@ -353,20 +330,27 @@ export default function SmartIslandCalendar({
       </div>
 
       {/* Days Grid */}
-      <div className="grid grid-cols-7 gap-y-[4px] gap-x-0" role="grid" aria-label={monthTitle}>
+      <div className="grid grid-cols-7 gap-y-[2px] gap-x-0" role="grid" aria-label={monthTitle}>
         {calendarDays.map((day, cellIndex) => {
           const isSelected = isSameDay(day, selectedDate);
           const isToday = isSameDay(day, today);
           const isCurrentMonth = isSameMonth(day, currentMonth);
 
-          const dayStart = startOfDay(day);
-          const isInViolet =
-            rangeStart && rangeEnd ? dayStart >= rangeStart && dayStart <= rangeEnd : false;
-
+          const dayIso = format(day, 'yyyy-MM-dd');
+          const isInViolet = effectiveRange
+            ? dayIso >= effectiveRange.start && dayIso <= effectiveRange.end
+            : false;
+          const col = cellIndex % 7; // 0 = MO, 6 = SO
+          const isStartOfVisible = isInViolet && (effectiveRange?.start === dayIso || col === 0);
+          const isEndOfVisible = isInViolet && (effectiveRange?.end === dayIso || col === 6);
           const violetCapClass =
-            isInViolet && rangeStart && rangeEnd
-              ? getVioletCapClass(day, rangeStart, rangeEnd, cellIndex)
-              : '';
+            isStartOfVisible && isEndOfVisible
+              ? 'rounded-[6px]'
+              : isStartOfVisible
+              ? 'rounded-l-[6px]'
+              : isEndOfVisible
+              ? 'rounded-r-[6px]'
+              : 'rounded-none';
 
           return (
             <button
@@ -376,24 +360,22 @@ export default function SmartIslandCalendar({
               aria-selected={isSelected ? true : undefined}
               aria-current={isToday ? 'date' : undefined}
               onClick={() => handleSelectDay(day)}
-              className={`group relative h-[38px] w-full border-0 bg-transparent p-0 m-0 flex items-center justify-center cursor-pointer outline-none ${
+              className={`group relative h-[24px] w-full border-0 bg-transparent p-0 m-0 flex items-center justify-center cursor-pointer outline-none ${
                 isInViolet ? `bg-[rgba(139,92,246,0.28)] ${violetCapClass}` : ''
               }`}
             >
-              {isSelected || isToday ? (
-                <span
-                  className={`absolute inset-[2px] rounded-[10px] border-0 flex items-center justify-center text-[14px] font-bold leading-none z-[2] transition-transform duration-140 group-active:scale-[0.92] ${
-                    isSelected
-                      ? 'bg-[#3b71f3] text-white shadow-[0_2px_8px_rgba(59,113,243,0.45)]'
-                      : 'bg-[#1d3b8b] text-[#7dd3fc]'
-                  }`}
-                >
+              {isSelected ? (
+                <span className="absolute inset-[1.5px] rounded-[6px] border-0 flex items-center justify-center text-[11px] font-semibold leading-none z-[2] bg-[#3b71f3] text-white shadow-[0_1px_4px_rgba(59,113,243,0.4)] transition-transform duration-140 group-active:scale-[0.92]">
+                  {format(day, 'd')}
+                </span>
+              ) : isToday ? (
+                <span className="absolute inset-[1.5px] rounded-[6px] border-0 flex items-center justify-center text-[11px] font-semibold leading-none z-[2] bg-[#1d3b8b] text-[#7dd3fc] transition-transform duration-140 group-active:scale-[0.92]">
                   {format(day, 'd')}
                 </span>
               ) : (
                 <span
-                  className={`relative z-[2] text-[14px] leading-none pointer-events-none transition-all duration-120 group-hover:scale-[1.08] ${
-                    isCurrentMonth ? 'text-white font-semibold' : 'text-[#63636e] font-medium'
+                  className={`relative z-[2] text-[11px] font-semibold leading-none pointer-events-none transition-all duration-120 group-hover:scale-[1.08] ${
+                    isCurrentMonth ? 'text-white' : 'text-[#63636e]'
                   }`}
                 >
                   {format(day, 'd')}

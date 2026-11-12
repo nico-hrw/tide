@@ -882,15 +882,16 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
     }, [selectedDate]);
 
     const calendarHeightClass = useMemo(() => {
-        const d = calendarMonth || selectedDate || new Date();
-        const mStart = startOfMonth(d);
-        const mEnd = endOfMonth(mStart);
-        const sDate = startOfWeek(mStart, { weekStartsOn: 1 });
-        const eDate = endOfWeek(mEnd, { weekStartsOn: 1 });
-        const days = eachDayOfInterval({ start: sDate, end: eDate });
-        // SmartIslandCalendar renders 42 days (6 rows of 38px) cleanly with header and padding
-        return days.length > 0 ? 'h-[366px]' : 'h-[366px]';
-    }, [calendarMonth, selectedDate]);
+        const monthStart = startOfMonth(calendarMonth);
+        const monthEnd = endOfMonth(monthStart);
+        const start = startOfWeek(monthStart, { weekStartsOn: 1 });
+        const end = endOfWeek(monthEnd, { weekStartsOn: 1 });
+        const days = eachDayOfInterval({ start, end });
+        const weeks = Math.round(days.length / 7);
+        if (weeks <= 4) return 'h-[188px]';
+        if (weeks === 5) return 'h-[208px]';
+        return 'h-[228px]';
+    }, [calendarMonth]);
 
     // Live 1-second interval ticker for countdowns
     const [currentTime, setCurrentTime] = useState(() => new Date());
@@ -1460,7 +1461,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                         <div
                             ref={bgSquareRef}
                             id="si-bgSquare"
-                            className="si-bg-square absolute inset-0 bg-[#18181b] rounded-[32px] shadow-xl border border-white/5 pointer-events-none"
+                            className="si-bg-square absolute inset-0 bg-[#18181b] rounded-[22px] shadow-xl border border-white/5 pointer-events-none"
                         />
 
                         {/* LAYER 3b: Main box with contents */}
@@ -1468,7 +1469,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
                             ref={widgetBaseRef}
                             id="si-widgetBase"
                             onDoubleClick={triggerDemoLoading}
-                            className={`bg-[#18181b] dark text-white rounded-[32px] shadow-[0_20px_40px_rgba(0,0,0,0.14)] border border-white/10 transition-all duration-300 ${
+                            className={`bg-[#18181b] dark text-white rounded-[22px] shadow-[0_20px_40px_rgba(0,0,0,0.14)] border border-white/10 transition-all duration-300 ${
                                 isExpandedViewActive
                                     ? 'relative w-full h-auto min-h-[188px] overflow-visible'
                                     : 'absolute inset-0 overflow-hidden'
