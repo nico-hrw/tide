@@ -337,8 +337,36 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
         await copyApiUrlToClipboard();
     };
 
+    const isCiphertextPattern = (str: string): boolean => {
+        if (!str || typeof str !== 'string') return false;
+        return (
+            str.startsWith('tide:v1:') ||
+            str.startsWith('tide:v2:') ||
+            /^tide:v[12]:/.test(str) ||
+            str.includes('{"ciphertext":') ||
+            str.includes('{"cipherText":') ||
+            str.includes('"ciphertext"') ||
+            str.includes('"cipherText"')
+        );
+    };
+
     const handleConfirmUnencryptedShare = async () => {
         if (!effectiveNoteId) return;
+        if (isUnencrypted) {
+            setShowUnencryptedWarning(false);
+            await copyApiUrlToClipboard();
+            return;
+        }
+
+        if (typeof noteContent === 'string' && isCiphertextPattern(noteContent)) {
+            console.warn('[NoteSettingsMenu] Cannot share note: content is encrypted');
+            if (typeof window !== 'undefined') {
+                alert('Warnung: Die Notiz ist verschlüsselt und kann nicht unverschlüsselt freigegeben werden.');
+            }
+            setShowUnencryptedWarning(false);
+            return;
+        }
+
         setIsProcessing(true);
         try {
             let md = '';
@@ -354,6 +382,16 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 md = `# ${effectiveTitle}\n\n`;
             }
 
+            if (typeof md === 'string' && isCiphertextPattern(md)) {
+                console.warn('[NoteSettingsMenu] Cannot share note: converted content is encrypted');
+                if (typeof window !== 'undefined') {
+                    alert('Warnung: Die Notiz ist verschlüsselt und kann nicht unverschlüsselt freigegeben werden.');
+                }
+                setShowUnencryptedWarning(false);
+                setIsProcessing(false);
+                return;
+            }
+
             // 1. Upload plaintext markdown
             await apiFetch(`/api/v1/files/${effectiveNoteId}/upload`, {
                 method: 'POST',
@@ -363,16 +401,16 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
             // 2. Update file metadata
             const currentFileObj = useDataStore.getState().notes.find((f) => f.id === effectiveNoteId);
             const existingMeta = (currentFileObj?.metadata as Record<string, unknown>) || {};
-            const newMeta = { ...existingMeta, unencrypted: true };
+            const updatedMeta = { ...existingMeta, unencrypted: true };
 
             await apiFetch(`/api/v1/files/${effectiveNoteId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ metadata: newMeta }),
+                body: JSON.stringify({ metadata: updatedMeta }),
             });
 
             // 3. Update store
-            useDataStore.getState().updateFileRaw(effectiveNoteId, { metadata: newMeta });
+            useDataStore.getState().updateFileRaw(effectiveNoteId, { metadata: updatedMeta });
 
             // 4. Copy URL and notify
             setShowUnencryptedWarning(false);
@@ -386,6 +424,10 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
 
     const handleReEncrypt = async () => {
         if (!effectiveNoteId) return;
+        if (!isUnencrypted) {
+            console.warn('[NoteSettingsMenu] Note is already encrypted, aborting re-encryption');
+            return;
+        }
         setIsProcessing(true);
         try {
             const cryptoV2 = await import('@/lib/cryptoV2');
@@ -416,6 +458,15 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
 
             const contentStr = typeof docContent === 'string' ? docContent : JSON.stringify(docContent);
 
+            if (typeof contentStr === 'string' && isCiphertextPattern(contentStr)) {
+                console.error('[NoteSettingsMenu] Note content appears already encrypted, aborting re-encryption');
+                if (typeof window !== 'undefined') {
+                    alert('Fehler: Der Notizinhalt ist bereits verschlüsselt.');
+                }
+                setIsProcessing(false);
+                return;
+            }
+
             // 1. Re-encrypt note using V2 envelope encryption
             const v2Result = await cryptoV2.encryptFileV2(contentStr, publicKey);
             const accessKeysMap = { [myId]: v2Result.encrypted_dek };
@@ -429,14 +480,15 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
 
             // 3. Update metadata via PUT
             const currentFileObj = state.notes.find((f) => f.id === effectiveNoteId);
-            const existingMeta = (currentFileObj?.metadata as Record<string, unknown>) || {};
-            const newMeta = { ...existingMeta, unencrypted: false };
+            const existingMeta = { ...((currentFileObj?.metadata as Record<string, unknown>) || {}) };
+            delete existingMeta.unencrypted;
+            const updatedMeta = { ...existingMeta, unencrypted: false };
 
             await apiFetch(`/api/v1/files/${effectiveNoteId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    metadata: newMeta,
+                    metadata: updatedMeta,
                     access_keys: accessKeysMap,
                     secured_meta: securedMeta,
                 }),
@@ -444,7 +496,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
 
             // 4. Update store
             state.updateFileRaw(effectiveNoteId, {
-                metadata: newMeta,
+                metadata: updatedMeta,
                 access_keys: accessKeysMap,
                 secured_meta: securedMeta,
             });

@@ -154,7 +154,7 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
         }
 
         // Handle public files through standard public upload
-        if (curFile?.visibility === "public") {
+        if (curFile?.visibility === "public" || curFile?.metadata?.unencrypted === true) {
             const content = editorContentRef.current ?? canvasNoteDataRef.current;
             if (content) {
                 const contentStr = typeof content === "string" ? content : JSON.stringify(content);
@@ -297,6 +297,14 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                 const freshPubKey = options.publicKey || freshState.publicKey;
                 if (freshPubKey) {
                     try {
+                        const existingMeta = (curFile?.metadata as Record<string, unknown>) || {};
+                        const mergedMetadata = {
+                            ...existingMeta,
+                            title: currentTitle,
+                            ...(currentIcon !== undefined ? { icon: currentIcon } : {}),
+                            ...(currentTags !== undefined ? { tags: currentTags } : {}),
+                        };
+
                         const metaObj: Record<string, unknown> = { title: currentTitle };
                         if (currentIcon !== undefined) metaObj.icon = currentIcon;
                         if (currentTags !== undefined) metaObj.tags = currentTags;
@@ -304,11 +312,7 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                         const freshSecuredMeta = await cryptoLib.encryptMetadata(metaObj, freshPubKey, `meta-${noteId}`);
                         const metaUpdatePayload = {
                             secured_meta: freshSecuredMeta,
-                            metadata: {
-                                title: currentTitle,
-                                ...(currentIcon !== undefined ? { icon: currentIcon } : {}),
-                                ...(currentTags !== undefined ? { tags: currentTags } : {}),
-                            },
+                            metadata: mergedMetadata,
                         };
 
                         let metaRes = await apiFetch(`/api/v1/files/${noteId}`, {
@@ -333,7 +337,7 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                             useDataStore.getState().updateFileRaw(noteId, {
                                 title: currentTitle,
                                 secured_meta: freshSecuredMeta,
-                                metadata: { title: currentTitle },
+                                metadata: mergedMetadata,
                             });
                         }
                     } catch (mErr) {
