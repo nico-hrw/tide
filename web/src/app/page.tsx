@@ -1622,27 +1622,13 @@ export default function Dashboard() {
                 let encryptedMeta: string;
 
                 if (isV2) {
-                    let fileKeyToUse = activeTabId === fileId ? activeFileKey : null;
-                    if (!fileKeyToUse && privateKey) {
-                        try {
-                            const accessKeys = typeof (target as any).access_keys === 'string'
-                                ? JSON.parse((target as any).access_keys)
-                                : ((target as any).access_keys || {});
-                            const myAccess = accessKeys[myId];
-                            if (myAccess?.wrapped_key) {
-                                const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privateKey);
-                                fileKeyToUse = await cryptoV2.importDEK(rawDek);
-                            }
-                        } catch (dekErr) {
-                            console.warn("[submitRename] Failed to unwrap DEK on-demand, falling back to publicKey", dekErr);
-                        }
+                    if (!publicKey) {
+                        console.warn("[submitRename] publicKey is missing for V2 note encryption");
+                        useDataStore.getState().setUpdatingMetadata(fileId, false);
+                        if (activeTabId === fileId) setSaveStatus("unsaved");
+                        return;
                     }
-
-                    if (fileKeyToUse) {
-                        encryptedMeta = await cryptoLib.encryptMetadata({ title: newTitle, isLocked: false }, fileKeyToUse);
-                    } else {
-                        encryptedMeta = await cryptoLib.encryptMetadata({ title: newTitle, isLocked: false }, publicKey);
-                    }
+                    encryptedMeta = await cryptoLib.encryptMetadata({ title: newTitle, isLocked: false }, publicKey);
                 } else if (target.type === 'folder') {
                     encryptedMeta = await cryptoLib.encryptMetadata({ title: newTitle, isLocked: false }, publicKey);
                 } else {
@@ -1702,7 +1688,6 @@ export default function Dashboard() {
             if (activeTabId === fileId) {
                 setSaveStatus("unsaved");
             }
-            alert("Rename failed");
             useDataStore.getState().setUpdatingMetadata(fileId, false);
             useDataStore.getState().loadedDirectories.clear();
             useDataStore.getState().fetchDirectory(null);

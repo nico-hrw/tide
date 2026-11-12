@@ -7,6 +7,7 @@ import { useActiveNoteStore } from "@/store/activeNoteStore";
 import { Tab } from "@/components/Layout/TabList";
 import { apiFetch } from "@/lib/api";
 import * as cryptoLib from "@/lib/crypto";
+import * as cryptoV2 from "@/lib/cryptoV2";
 import { encryptSnapshot } from "@/lib/e2eeFraming";
 import { tipTapToMarkdown } from "@/lib/bundleImportExport";
 import {
@@ -16,6 +17,7 @@ import {
     decryptNotePayload,
     resolveSaveDEK,
     uploadPublicFile,
+    runClientBackupCascade,
 } from "./autoSaveHelpers";
 
 export interface UseAutoSaveSyncOptions {
@@ -280,6 +282,47 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
             unsavedNotesRef.current.delete(noteId);
             if (noteId === activeNoteIdRef.current) {
                 setSaveStatus("saved");
+            }
+
+            // Run client backup cascade in background (fire-and-forget)
+            const freshPrivKey = options.privateKey || freshState.privateKey;
+            const freshPubKey = options.publicKey || freshState.publicKey;
+            if (freshPrivKey && myUserId) {
+                const activeEditor = typeof window !== 'undefined' ? (window as any).__tideEditor : null;
+                const rawContent = (noteId === activeNoteIdRef.current && activeEditor && !activeEditor.isDestroyed)
+                    ? activeEditor.getJSON()
+                    : (editorContentRef.current ?? canvasNoteDataRef.current);
+
+                if (rawContent && !isDocEmpty(rawContent)) {
+                    const contentString = typeof rawContent === "string" ? rawContent : JSON.stringify(rawContent);
+
+                    (async () => {
+                        let accessKeysMap: Record<string, { wrapped_key: string }> = {};
+                        if (curFile?.access_keys) {
+                            try {
+                                accessKeysMap = typeof curFile.access_keys === 'string'
+                                    ? JSON.parse(curFile.access_keys)
+                                    : (curFile.access_keys || {});
+                            } catch (_) {}
+                        }
+                        if (Object.keys(accessKeysMap).length === 0 && activeDEK && freshPubKey && myUserId) {
+                            try {
+                                const rawDek = await window.crypto.subtle.exportKey('raw', activeDEK);
+                                const wrapped = await cryptoV2.wrapDEKData(rawDek, freshPubKey);
+                                accessKeysMap = { [myUserId]: { wrapped_key: wrapped.ciphertext } };
+                            } catch (_) {}
+                        }
+                        await runClientBackupCascade({
+                            fileId: noteId,
+                            contentString,
+                            dek: activeDEK,
+                            accessKeysMap,
+                            currentFile: { ...curFile, version: curFile?.version ?? 2 },
+                            myId: myUserId,
+                            privateKey: freshPrivKey,
+                        });
+                    })().catch((e) => console.warn("Backup cascade skipped:", e));
+                }
             }
 
             if (curFile?.metadata?.unencrypted === true) {

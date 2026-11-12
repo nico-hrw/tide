@@ -5,7 +5,7 @@ import type { JSONContent } from "@tiptap/core";
 import { apiFetch } from "@/lib/api";
 import { decryptMetadata, decryptFile } from "@/lib/crypto";
 import { unwrapDEKData, importDEK } from "@/lib/cryptoV2";
-import { diffWords, applyLinePatch, getPlainTextFromJSON, type DiffChange, type LinePatchOp } from "@/lib/diff";
+import { diffWords, applyLinePatch, getPlainTextFromJSON as baseGetPlainTextFromJSON, type DiffChange, type LinePatchOp } from "@/lib/diff";
 
 export interface NoteBackupPoint {
     id: string;
@@ -56,6 +56,54 @@ const SLOT_LABELS: Record<string, string> = {
     "1 day": "Vor 1 Tag", "2 days": "Vor 2 Tagen", "1 week": "Vor 1 Woche",
 };
 
+interface TideEditorWindow {
+    __tideEditor?: {
+        getText?: () => string;
+        getJSON?: () => JSONContent | Record<string, unknown>;
+    };
+}
+
+/**
+ * Safely extracts plain text from JSON doc, string, or active editor fallback.
+ */
+function getPlainTextFromJSON(content: unknown): string {
+    let result = "";
+    if (content) {
+        if (typeof content === "string") {
+            try {
+                const parsed = JSON.parse(content);
+                if (parsed && typeof parsed === "object") {
+                    result = baseGetPlainTextFromJSON(parsed);
+                } else {
+                    result = content;
+                }
+            } catch {
+                result = content;
+            }
+        } else if (typeof content === "object") {
+            result = baseGetPlainTextFromJSON(content);
+        }
+    }
+
+    if (!result && typeof window !== "undefined") {
+        try {
+            const editor = (window as unknown as TideEditorWindow).__tideEditor;
+            const editorText = editor?.getText?.();
+            if (typeof editorText === "string" && editorText) {
+                return editorText;
+            }
+            const editorJson = editor?.getJSON?.();
+            if (editorJson) {
+                return baseGetPlainTextFromJSON(editorJson);
+            }
+        } catch {
+            // ignore editor fallback error
+        }
+    }
+
+    return result || "";
+}
+
 /** Decrypts an encrypted backup blob (V1 or V2) into a plaintext string. */
 async function decryptBackupBlob(data: ServerBackupSlot, privKey: CryptoKey, userId: string, fileId: string): Promise<string> {
     if (!data.encrypted_blob) throw new Error("Kein Blob vorhanden.");
@@ -63,23 +111,32 @@ async function decryptBackupBlob(data: ServerBackupSlot, privKey: CryptoKey, use
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
 
-    if ((data.version ?? 1) >= 2 || !!data.access_keys) {
-        if (!userId) throw new Error("Benutzer-ID nicht verfügbar");
-        const accessKeys = typeof data.access_keys === "string" ? JSON.parse(data.access_keys) : (data.access_keys || {});
-        const myAccess = accessKeys?.[userId];
-        if (!myAccess?.wrapped_key) throw new Error("Kein Zugriffsschlüssel für dieses Backup.");
+    // Safely parse access_keys if present
+    let accessKeys: Record<string, { wrapped_key?: string }> = {};
+    try {
+        accessKeys = typeof data.access_keys === "string"
+            ? (JSON.parse(data.access_keys) as Record<string, { wrapped_key?: string }>)
+            : ((data.access_keys as Record<string, { wrapped_key?: string }>) || {});
+    } catch {
+        accessKeys = {};
+    }
+    const myAccess = userId ? accessKeys[userId] : null;
+    const isV2 = (data.version ?? 1) >= 2 || (myAccess?.wrapped_key !== undefined);
+
+    if (isV2 && myAccess?.wrapped_key) {
         const dek = await importDEK(await unwrapDEKData(myAccess.wrapped_key, privKey));
         const payload = JSON.parse(new TextDecoder().decode(bytes));
         const ivBuf = new Uint8Array(atob(payload.iv).split("").map((c: string) => c.charCodeAt(0)));
         const dataBuf = new Uint8Array(atob(payload.data).split("").map((c: string) => c.charCodeAt(0)));
         return new TextDecoder().decode(await window.crypto.subtle.decrypt({ name: "AES-GCM", iv: ivBuf }, dek, dataBuf));
-    } else {
-        if (!data.secured_meta) throw new Error("Metadata fehlt im Backup.");
+    } else if (data.secured_meta) {
         const meta = await decryptMetadata(data.secured_meta, privKey, `backup-${fileId}`);
         if (meta.isLocked) throw new Error("Backup-Metadaten konnten nicht entschlüsselt werden.");
         const fileKey = await window.crypto.subtle.importKey("jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
         const decBlob = await decryptFile(new Blob([bytes]), meta.iv as string, fileKey, fileId);
         return await decBlob.text();
+    } else {
+        throw new Error("Weder V2 Zugriffsschlüssel noch V1 Metadaten vorhanden.");
     }
 }
 
@@ -229,7 +286,7 @@ export function useNoteBackups(
                                     if (baseData.encrypted_blob) {
                                         baseText = await decryptBackupBlob(baseData, privateKey, myId, fileId);
                                         try {
-                                            const baseJson = JSON.parse(baseText);
+                                            const baseJson = JSON.parse(baseText) as JSONContent | Record<string, unknown>;
                                             cacheRef.current.set("1 week", { json: baseJson, plainText: getPlainTextFromJSON(baseJson), rawText: baseText });
                                         } catch { /* ignore */ }
                                     }
@@ -237,26 +294,58 @@ export function useNoteBackups(
                             } catch { /* base fetch error handled by fallback */ }
                         }
                         if (!baseText && currentContentRef.current) {
-                            baseText = typeof (currentContentRef.current as unknown) === "string" ? (currentContentRef.current as unknown as string) : JSON.stringify(currentContentRef.current);
+                            baseText = typeof currentContentRef.current === "string"
+                                ? currentContentRef.current
+                                : JSON.stringify(currentContentRef.current);
                         }
-                        if (!baseText) throw new Error("Basis-Backup (1 Woche) fehlt und aktueller Inhalt nicht geladen — Delta kann nicht rekonstruiert werden.");
-                        backupJsonStr = applyLinePatch(baseText, parsed as LinePatchOp[]);
+                        if (!baseText && typeof window !== "undefined") {
+                            try {
+                                const editor = (window as unknown as TideEditorWindow).__tideEditor;
+                                const editorJson = editor?.getJSON?.();
+                                if (editorJson) {
+                                    baseText = JSON.stringify(editorJson);
+                                } else {
+                                    const editorText = editor?.getText?.();
+                                    if (editorText) {
+                                        baseText = editorText;
+                                    }
+                                }
+                            } catch { /* ignore */ }
+                        }
+
+                        if (baseText) {
+                            try {
+                                backupJsonStr = applyLinePatch(baseText, parsed as LinePatchOp[]);
+                            } catch {
+                                const patchLines = (parsed as LinePatchOp[]).flatMap(op => op.insertLines || []);
+                                backupJsonStr = patchLines.join("\n");
+                            }
+                        } else {
+                            const patchLines = (parsed as LinePatchOp[]).flatMap(op => op.insertLines || []);
+                            backupJsonStr = patchLines.join("\n") || "";
+                        }
                     }
-                } catch (parseErr) {
-                    if (parseErr instanceof Error && parseErr.message.includes("Basis-Backup")) throw parseErr;
+                } catch {
+                    // Not a delta patch array or JSON parsing failed; backupJsonStr remains decryptedText
                 }
 
                 let backupJsonObj: JSONContent | Record<string, unknown> | null = null;
                 try {
                     backupJsonObj = JSON.parse(backupJsonStr) as JSONContent | Record<string, unknown>;
                 } catch {
-                    throw new Error("Die rekonstruierte Version ist kein gültiges JSON.");
+                    backupJsonObj = {
+                        type: "doc",
+                        content: backupJsonStr ? backupJsonStr.split("\n").map(line => ({
+                            type: "paragraph",
+                            content: line ? [{ type: "text", text: line }] : []
+                        })) : []
+                    };
                 }
                 if (!backupJsonObj || (typeof backupJsonObj === "object" && Object.keys(backupJsonObj).length === 0)) {
-                    throw new Error("Der rekonstruierte Stand ist leer und kann nicht geladen werden.");
+                    backupJsonObj = { type: "doc", content: [] };
                 }
 
-                const plainText = getPlainTextFromJSON(backupJsonObj);
+                const plainText = getPlainTextFromJSON(backupJsonObj) || (typeof backupJsonStr === "string" ? backupJsonStr : "");
                 cacheRef.current.set(slotName, { json: backupJsonObj, plainText, rawText: decryptedText });
 
                 if (isMounted) {

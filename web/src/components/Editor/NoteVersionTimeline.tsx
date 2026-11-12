@@ -107,69 +107,39 @@ export default function NoteVersionTimeline({
             role="region"
             aria-label="Versionsverlauf Timeline"
         >
-            {/* Top controls: Action buttons & status (minimal, no card or dividers) */}
-            <div className="shrink-0 flex flex-col gap-2 mb-3 pr-1">
-                <div className="flex items-center justify-between text-xs text-gray-400 dark:text-zinc-500 px-0.5">
-                    <div className="flex items-center gap-1.5 font-medium text-gray-600 dark:text-zinc-300">
-                        <History className="w-3.5 h-3.5 text-gray-500 dark:text-zinc-400" />
-                        <span>Versionsverlauf</span>
-                    </div>
-                    {isLoading ? (
-                        <Loader2 className="w-3 h-3 animate-spin text-gray-500 dark:text-zinc-400" />
-                    ) : (
-                        <span className="text-[10px] text-gray-400 dark:text-zinc-500">
-                            {points.length} {points.length === 1 ? 'Stand' : 'Stände'}
-                        </span>
-                    )}
+            {/* Top controls: Status & Header (minimal, no card or dividers) */}
+            <div className="shrink-0 flex items-center justify-between text-xs text-gray-400 dark:text-zinc-500 px-0.5 mb-2.5">
+                <div className="flex items-center gap-1.5 font-medium text-gray-600 dark:text-zinc-300">
+                    <History className="w-3.5 h-3.5 text-gray-500 dark:text-zinc-400" />
+                    <span>Versionsverlauf</span>
                 </div>
-
-                {(onCancel || onApply) && (
-                    <div className="flex items-center justify-end gap-1.5">
-                        {onCancel && (
-                            <button
-                                type="button"
-                                onClick={onCancel}
-                                className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg text-gray-600 hover:text-gray-900 dark:text-zinc-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
-                                title="Versionsverlauf beenden"
-                            >
-                                <X className="w-3.5 h-3.5" />
-                                <span>Abbrechen</span>
-                            </button>
-                        )}
-                        {onApply && (
-                            <button
-                                type="button"
-                                onClick={onApply}
-                                disabled={isLoading}
-                                className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
-                                title="Ausgewählten Stand übernehmen"
-                            >
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Übernehmen</span>
-                            </button>
-                        )}
-                    </div>
+                {isLoading ? (
+                    <Loader2 className="w-3 h-3 animate-spin text-gray-500 dark:text-zinc-400" />
+                ) : (
+                    <span className="text-[10px] text-gray-400 dark:text-zinc-500">
+                        {points.length} {points.length === 1 ? 'Stand' : 'Stände'}
+                    </span>
                 )}
             </div>
 
             {/* Empty state */}
             {points.length === 0 ? (
-                <div className="py-4 text-right text-xs text-gray-400 dark:text-zinc-500 pr-4">
+                <div className="flex-1 py-4 text-right text-xs text-gray-400 dark:text-zinc-500 pr-4">
                     {isLoading ? "Versionen werden geladen..." : "Keine Versionen vorhanden"}
                 </div>
             ) : (
                 /* Timeline Track */
                 <div
                     ref={trackRef}
-                    className="relative flex-1 min-h-0 overflow-y-auto pr-0 cursor-pointer touch-none select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                    className="relative flex-1 min-h-0 max-h-[calc(100vh-14rem)] overflow-y-auto pr-0 cursor-pointer touch-none select-none [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
                     onPointerDown={handlePointerDown}
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
                     onPointerCancel={handlePointerUp}
                 >
-                    <div className="relative min-h-full py-2">
+                    <div className="relative min-h-full py-1.5">
                         {/* Continuous vertical rail line on the far right edge */}
-                        <div className="w-px bg-gray-200 dark:bg-white/10 absolute right-[7px] top-2 bottom-2 pointer-events-none" />
+                        <div className="w-px bg-gray-200 dark:bg-white/10 absolute right-[7px] top-1.5 bottom-3 pointer-events-none" />
 
                         {/* Points list */}
                         <div className="flex flex-col space-y-4">
@@ -230,6 +200,35 @@ export default function NoteVersionTimeline({
                             })}
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Bottom controls: Action buttons at the bottom-left next to the timeline rail */}
+            {(onCancel || onApply) && (
+                <div className="shrink-0 flex items-center justify-start gap-1.5 pt-2 mt-2 border-t border-gray-200/50 dark:border-zinc-800/50">
+                    {onCancel && (
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg text-gray-600 hover:text-gray-900 dark:text-zinc-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                            title="Versionsverlauf beenden"
+                        >
+                            <X className="w-3.5 h-3.5" />
+                            <span>Abbrechen</span>
+                        </button>
+                    )}
+                    {onApply && (
+                        <button
+                            type="button"
+                            onClick={onApply}
+                            disabled={isLoading}
+                            className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-xs cursor-pointer"
+                            title="Ausgewählten Stand übernehmen"
+                        >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Übernehmen</span>
+                        </button>
+                    )}
                 </div>
             )}
         </div>

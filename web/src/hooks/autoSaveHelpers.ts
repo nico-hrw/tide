@@ -14,21 +14,14 @@ interface ProseMirrorNodeLike {
 export function isDocEmpty(parsed: unknown): boolean {
     if (!parsed) return true;
     if (typeof parsed === 'string') return parsed.trim().length === 0;
-    if (typeof parsed === 'object' && parsed !== null) {
-        const obj = parsed as ProseMirrorNodeLike;
-        if (obj.type === 'doc') {
-            if (!obj.content || obj.content.length === 0) return true;
-            for (const node of obj.content) {
-                if (node.type !== 'paragraph') return false;
-                if (node.content && node.content.length > 0) {
-                    for (const textNode of node.content) {
-                        if (textNode.type && textNode.type !== 'text') return false;
-                        if (textNode.text && textNode.text.trim().length > 0) return false;
-                    }
-                }
-            }
-            return true;
+    if (typeof parsed === 'object' && parsed !== null && (parsed as ProseMirrorNodeLike).type === 'doc') {
+        const content = (parsed as ProseMirrorNodeLike).content;
+        if (!content || content.length === 0) return true;
+        for (const node of content) {
+            if (node.type !== 'paragraph') return false;
+            if (node.content?.some(t => (t.type && t.type !== 'text') || (t.text && t.text.trim().length > 0))) return false;
         }
+        return true;
     }
     return false;
 }
@@ -36,9 +29,7 @@ export function isDocEmpty(parsed: unknown): boolean {
 export function countWordsInTipTapJson(node: any): number {
     if (!node) return 0;
     let count = 0;
-    if (node.text && typeof node.text === 'string') {
-        count += node.text.trim().split(/\s+/).filter(Boolean).length;
-    }
+    if (node.text && typeof node.text === 'string') count += node.text.trim().split(/\s+/).filter(Boolean).length;
     if (node.content && Array.isArray(node.content)) {
         for (const child of node.content) count += countWordsInTipTapJson(child);
     }
@@ -54,37 +45,29 @@ export function recordNoteStats(noteId: string, json: any, lastWordCounts: Recor
             editedNotes.push(noteId);
             localStorage.setItem('tide_stats_edited_notes', JSON.stringify(editedNotes));
         }
-    } catch (e) {
-        console.error("Failed to update edited notes stats", e);
-    }
+    } catch (e) { console.error("Failed to update edited notes stats", e); }
 
     if (json) {
         try {
             const currentWordCount = countWordsInTipTapJson(json);
-            if (lastWordCounts[noteId] === undefined) {
+            const prev = lastWordCounts[noteId];
+            if (prev === undefined) {
                 lastWordCounts[noteId] = currentWordCount;
             } else {
-                const prev = lastWordCounts[noteId];
                 if (currentWordCount > prev) {
-                    const diff = currentWordCount - prev;
                     const total = parseInt(localStorage.getItem('tide_stats_words_written') || '0', 10);
-                    localStorage.setItem('tide_stats_words_written', (total + diff).toString());
+                    localStorage.setItem('tide_stats_words_written', (total + (currentWordCount - prev)).toString());
                 }
                 lastWordCounts[noteId] = currentWordCount;
             }
-        } catch (e) {
-            console.error("Failed to update words written stats", e);
-        }
+        } catch (e) { console.error("Failed to update words written stats", e); }
     }
 }
 
 export async function encryptContentV2(contentString: string, dek: CryptoKey): Promise<string> {
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
     const encrypted = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, dek, new TextEncoder().encode(contentString));
-    return JSON.stringify({
-        data: cryptoLib.arrayBufferToBase64(encrypted),
-        iv: cryptoLib.arrayBufferToBase64(iv.buffer as ArrayBuffer)
-    });
+    return JSON.stringify({ data: cryptoLib.arrayBufferToBase64(encrypted), iv: cryptoLib.arrayBufferToBase64(iv.buffer as ArrayBuffer) });
 }
 
 export async function decryptContentV2(blobText: string, dek: CryptoKey): Promise<string> {
@@ -96,6 +79,13 @@ export async function decryptContentV2(blobText: string, dek: CryptoKey): Promis
     return new TextDecoder().decode(decrypted);
 }
 
+const decodeB64ToBytes = (b64: string): Uint8Array => {
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+};
+
 export async function decryptBackupSlot(
     backupData: any,
     bytes: Uint8Array,
@@ -103,36 +93,43 @@ export async function decryptBackupSlot(
     myId: string,
     fileId: string
 ): Promise<string> {
-    const isV2 = (backupData.version ?? 1) >= 2 || !backupData.access_keys;
-    if (isV2) {
-        const ak = typeof backupData.access_keys === 'string' ? JSON.parse(backupData.access_keys) : (backupData.access_keys || {});
-        const myAccess = ak[myId] || Object.values(ak)[0] as any;
-        if (myAccess?.wrapped_key) {
-            const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privKey);
-            const dek = await cryptoV2.importDEK(rawDek);
-            return decryptContentV2(new TextDecoder().decode(bytes), dek);
-        }
-    } else if (backupData.secured_meta) {
-        const meta = await cryptoLib.decryptMetadata(backupData.secured_meta, privKey, `backup-${fileId}`);
-        if (!meta.isLocked) {
-            const fk = await window.crypto.subtle.importKey("jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
-            const decBlob = await cryptoLib.decryptFile(new Blob([bytes as any]), meta.iv as string, fk, fileId);
-            return decBlob.text();
-        }
+    const ak = typeof backupData.access_keys === 'string' ? JSON.parse(backupData.access_keys) : (backupData.access_keys || {});
+    const hasAccessKeys = Boolean(ak && typeof ak === 'object' && Object.keys(ak).length > 0);
+    const isV2 = (backupData.version ?? 1) >= 2 || hasAccessKeys;
+    if (isV2 && hasAccessKeys) {
+        try {
+            const myAccess = ak[myId] || Object.values(ak)[0] as any;
+            if (myAccess?.wrapped_key) {
+                const dek = await cryptoV2.importDEK(await cryptoV2.unwrapDEKData(myAccess.wrapped_key, privKey));
+                return decryptContentV2(new TextDecoder().decode(bytes), dek);
+            }
+        } catch (_) {}
+    }
+    if (backupData.secured_meta) {
+        try {
+            const meta = await cryptoLib.decryptMetadata(backupData.secured_meta, privKey, `backup-${fileId}`);
+            if (!meta.isLocked && meta.fileKey) {
+                const fk = await window.crypto.subtle.importKey("jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
+                return (await cryptoLib.decryptFile(new Blob([bytes as any]), meta.iv as string, fk, fileId)).text();
+            }
+        } catch (_) {}
     }
     return "";
 }
 
-export async function runClientBackupCascade(params: {
+export interface RunClientBackupCascadeParams {
     fileId: string;
     contentString: string;
     dek: CryptoKey | null;
-    accessKeysMap: Record<string, { wrapped_key: string }>;
+    accessKeysMap?: Record<string, { wrapped_key: string }> | null;
     currentFile: any;
     myId: string;
     privateKey: CryptoKey;
-}): Promise<void> {
-    const { fileId, contentString, dek, accessKeysMap, currentFile, myId, privateKey } = params;
+    publicKey?: CryptoKey | null;
+}
+
+export async function runClientBackupCascade(params: RunClientBackupCascadeParams): Promise<void> {
+    const { fileId, contentString, dek, accessKeysMap, currentFile, myId, privateKey, publicKey } = params;
     try {
         const bListRes = await apiFetch(`/api/v1/files/${fileId}/backups`);
         if (!bListRes.ok) return;
@@ -142,13 +139,70 @@ export async function runClientBackupCascade(params: {
             for (const b of backups) slotMap[b.slot_name.trim()] = b;
         }
 
+        let effectivePubKey = publicKey || null;
+        if (!effectivePubKey && privateKey) {
+            try {
+                const jwk = await window.crypto.subtle.exportKey("jwk", privateKey);
+                if (jwk.n && jwk.e) {
+                    effectivePubKey = await window.crypto.subtle.importKey(
+                        "jwk", { kty: "RSA", n: jwk.n, e: jwk.e, alg: "RSA-OAEP-256", ext: true, key_ops: ["encrypt"] },
+                        { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt"]
+                    );
+                }
+            } catch (_) {}
+        }
+
+        const isV2 = (currentFile?.version ?? 1) >= 2 || Boolean(currentFile?.access_keys);
+        let effectiveAccessKeys: Record<string, { wrapped_key: string }> = accessKeysMap && Object.keys(accessKeysMap).length > 0
+            ? { ...accessKeysMap }
+            : (typeof currentFile?.access_keys === 'string'
+                ? (() => { try { return JSON.parse(currentFile.access_keys); } catch { return {}; } })()
+                : { ...(currentFile?.access_keys || {}) });
+
+        if (!effectiveAccessKeys[myId]?.wrapped_key && dek && effectivePubKey) {
+            try {
+                const rawDek = await window.crypto.subtle.exportKey('raw', dek);
+                effectiveAccessKeys[myId] = { wrapped_key: (await cryptoV2.wrapDEKData(rawDek, effectivePubKey)).ciphertext };
+            } catch (e) {
+                console.warn("[Backup Cascade] Could not wrap DEK for user", e);
+            }
+        }
+        if (myId && !effectiveAccessKeys[myId]?.wrapped_key) {
+            const firstAccess = Object.values(effectiveAccessKeys)[0];
+            if (firstAccess?.wrapped_key) effectiveAccessKeys[myId] = firstAccess;
+        }
+
+        let v1Key: CryptoKey | null = dek;
+        if (!isV2 && !v1Key && currentFile?.secured_meta && privateKey) {
+            try {
+                const meta = await cryptoLib.decryptMetadata(currentFile.secured_meta, privateKey, `backup-v1-${fileId}`);
+                if (meta.fileKey) v1Key = await window.crypto.subtle.importKey("jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
+            } catch (_) {}
+        }
+
+        const encryptSlotPayload = async (text: string) => {
+            if (isV2 && dek) {
+                const cipher = await encryptContentV2(text, dek);
+                return { version: 2, encrypted_blob: btoa(cipher), access_keys: effectiveAccessKeys };
+            }
+            if (v1Key && effectivePubKey) {
+                const enc = await cryptoLib.encryptFile(new Blob([text]), v1Key, fileId);
+                const jwk = await window.crypto.subtle.exportKey("jwk", v1Key);
+                const metaPayload = { fileKey: jwk, iv: enc.iv };
+                const secured_meta = await cryptoLib.encryptMetadata(metaPayload, effectivePubKey, `backup-${fileId}`);
+                const encrypted_blob = cryptoLib.arrayBufferToBase64(await enc.ciphertext.arrayBuffer());
+                return { version: 1, encrypted_blob, secured_meta };
+            }
+            return null;
+        };
+
         if (!slotMap["1 week"]) {
-            if (!dek) return;
-            const baseCiphertext = await encryptContentV2(contentString, dek);
+            const payload = await encryptSlotPayload(contentString);
+            if (!payload) return;
             await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent("1 week")}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ version: 2, encrypted_blob: btoa(baseCiphertext), access_keys: accessKeysMap })
+                body: JSON.stringify(payload)
             });
             return;
         }
@@ -164,15 +218,12 @@ export async function runClientBackupCascade(params: {
             }
         }
 
-        try {
-            if (baseSlot && baseSlot.encrypted_blob) {
-                const bin = atob(baseSlot.encrypted_blob);
-                const bytes = new Uint8Array(bin.length);
-                for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-                basePlainJson = await decryptBackupSlot(baseSlot, bytes, privateKey, myId, fileId);
+        if (baseSlot && baseSlot.encrypted_blob) {
+            try {
+                basePlainJson = await decryptBackupSlot(baseSlot, decodeB64ToBytes(baseSlot.encrypted_blob), privateKey, myId, fileId);
+            } catch (e) {
+                console.warn("[Backup Cascade] Failed to decrypt base slot", e);
             }
-        } catch (e) {
-            console.warn("[Backup Cascade] Failed to decrypt base slot", e);
         }
 
         if (!basePlainJson) return;
@@ -190,22 +241,12 @@ export async function runClientBackupCascade(params: {
             const b = slotMap[slot.name];
             if (!b || (now.getTime() - new Date(b.updated_at).getTime()) > slot.dur) {
                 const patch = createLinePatch(basePlainJson, contentString);
-                const patchStr = JSON.stringify(patch);
-
-                if (currentFile?.version === 2 && dek) {
-                    const patchCiphertext = await encryptContentV2(patchStr, dek);
+                const payload = await encryptSlotPayload(JSON.stringify(patch));
+                if (payload) {
                     await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent(slot.name)}`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ version: 2, encrypted_blob: btoa(patchCiphertext), access_keys: accessKeysMap })
-                    });
-                } else {
-                    const metaStr = typeof currentFile?.secured_meta === 'string'
-                        ? currentFile.secured_meta : JSON.stringify(currentFile?.secured_meta || {});
-                    await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent(slot.name)}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ version: 1, encrypted_blob: btoa(patchStr), secured_meta: metaStr })
+                        body: JSON.stringify(payload)
                     });
                 }
             }
@@ -242,12 +283,7 @@ export async function restoreFromBackupHistory(
             if (bRes.ok) {
                 const backupData = await bRes.json();
                 if (backupData.encrypted_blob) {
-                    const bin = atob(backupData.encrypted_blob);
-                    const bytes = new Uint8Array(bin.length);
-                    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-
-                    const decryptedText = await decryptBackupSlot(backupData, bytes, effectivePrivKey, effectiveMyId, fileId);
-
+                    const decryptedText = await decryptBackupSlot(backupData, decodeB64ToBytes(backupData.encrypted_blob), effectivePrivKey, effectiveMyId, fileId);
                     if (decryptedText) {
                         if (slot.slot_name.trim() === '1 week') basePlainText = decryptedText;
                         let parsedDecrypted: any = null;
@@ -260,10 +296,7 @@ export async function restoreFromBackupHistory(
                                     if (baseRes.ok) {
                                         const bData = await baseRes.json();
                                         if (bData.encrypted_blob) {
-                                            const bBin = atob(bData.encrypted_blob);
-                                            const bBytes = new Uint8Array(bBin.length);
-                                            for (let bi = 0; bi < bBin.length; bi++) bBytes[bi] = bBin.charCodeAt(bi);
-                                            basePlainText = await decryptBackupSlot(bData, bBytes, effectivePrivKey, effectiveMyId, fileId);
+                                            basePlainText = await decryptBackupSlot(bData, decodeB64ToBytes(bData.encrypted_blob), effectivePrivKey, effectiveMyId, fileId);
                                         }
                                     }
                                 } catch (baseErr) {
@@ -271,16 +304,11 @@ export async function restoreFromBackupHistory(
                                 }
                             }
                             if (basePlainText) {
-                                try {
-                                    parsedDecrypted = JSON.parse(applyLinePatch(basePlainText, parsedDecrypted));
-                                } catch {
-                                    continue;
-                                }
+                                try { parsedDecrypted = JSON.parse(applyLinePatch(basePlainText, parsedDecrypted)); } catch { continue; }
                             } else {
                                 continue;
                             }
                         }
-
                         if (!isDocEmpty(parsedDecrypted)) return parsedDecrypted;
                     }
                 }
@@ -292,15 +320,9 @@ export async function restoreFromBackupHistory(
     return null;
 }
 
-const makeDecErrorDoc = (version: string) => JSON.stringify({
+const makeDecErrorDoc = (ver: string) => JSON.stringify({
     type: 'doc',
-    content: [{
-        type: 'paragraph',
-        content: [
-            { type: 'text', marks: [{ type: 'bold' }], text: `⚠️ ${version} DECRYPTION ERROR: ` },
-            { type: 'text', text: 'Content corrupted or key mismatch.' }
-        ]
-    }]
+    content: [{ type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: `⚠️ ${ver} DECRYPTION ERROR: ` }, { type: 'text', text: 'Content corrupted or key mismatch.' }] }]
 });
 
 export interface DecryptedNotePayload {
@@ -315,17 +337,12 @@ function ensureTipTapContent(rawText: string): string {
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
         try {
             const parsed = JSON.parse(rawText);
-            if (parsed && typeof parsed === 'object') {
-                return rawText;
-            }
-        } catch (_) {
-            // Not JSON, format as TipTap doc below
-        }
+            if (parsed && typeof parsed === 'object') return rawText;
+        } catch (_) {}
     }
-    const lines = rawText.split(/\r?\n/);
     return JSON.stringify({
         type: 'doc',
-        content: lines.map(line => ({
+        content: rawText.split(/\r?\n/).map(line => ({
             type: 'paragraph',
             attrs: { blockId: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2) },
             content: line.length > 0 ? [{ type: 'text', text: line }] : []
@@ -351,15 +368,16 @@ export async function decryptNotePayload(params: {
         || target?.is_unencrypted === true
         || parsedTargetMeta?.unencrypted === true;
 
+    const fetchDownload = async () => {
+        const res = await apiFetch(`/api/v1/files/${fileId}/download`);
+        if (res.status === 404) { onNotFound(); throw new Error("File not found on server (404)"); }
+        return res;
+    };
+
     if (isExplicitlyUnencrypted) {
-        const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
-        if (resBlob.status === 404) {
-            onNotFound();
-            throw new Error("File not found on server (404)");
-        }
+        const resBlob = await fetchDownload();
         const rawText = resBlob.ok ? await resBlob.text() : "";
-        const title = parsedTargetMeta?.title || target?.title;
-        return { contentText: ensureTipTapContent(rawText), fileKeyToUse: await derivePublicNoteDEK(fileId), title };
+        return { contentText: ensureTipTapContent(rawText), fileKeyToUse: await derivePublicNoteDEK(fileId), title: parsedTargetMeta?.title || target?.title };
     }
 
     if ((target.version ?? 1) >= 2 && target.access_keys) {
@@ -373,12 +391,9 @@ export async function decryptNotePayload(params: {
             const sessionPin = getSessionPin(fileId);
             if (sessionPin && target.metadata.pwd_salt) {
                 try {
-                    const saltBuffer = cryptoLib.base64ToArrayBuffer(target.metadata.pwd_salt);
-                    const pwdKey = await cryptoLib.deriveKeyFromPassword(sessionPin, saltBuffer);
+                    const pwdKey = await cryptoLib.deriveKeyFromPassword(sessionPin, cryptoLib.base64ToArrayBuffer(target.metadata.pwd_salt));
                     rawDek = await cryptoV2.unwrapDEKData(cryptoLib.arrayBufferToBase64(rawDek), pwdKey, myAccess.pwd_iv);
-                } catch (pwdErr) {
-                    console.warn('[V2-Load] PIN unwrap with session PIN failed:', pwdErr);
-                }
+                } catch (pwdErr) { console.warn('[V2-Load] PIN unwrap with session PIN failed:', pwdErr); }
             }
         }
         const dek = await cryptoV2.importDEK(rawDek);
@@ -396,20 +411,12 @@ export async function decryptNotePayload(params: {
             }
         }
 
-        const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
-        if (resBlob.status === 404) {
-            onNotFound();
-            throw new Error("File not found on server (404)");
-        }
+        const resBlob = await fetchDownload();
         let contentText = "";
         if (resBlob.ok) {
             const blobText = await resBlob.text();
             if (blobText) {
-                try {
-                    contentText = await decryptContentV2(blobText, dek);
-                } catch (_) {
-                    contentText = makeDecErrorDoc("V2");
-                }
+                try { contentText = await decryptContentV2(blobText, dek); } catch (_) { contentText = makeDecErrorDoc("V2"); }
             }
         }
         return { contentText, fileKeyToUse: dek, title };
@@ -418,11 +425,7 @@ export async function decryptNotePayload(params: {
     if (!target.secured_meta) throw new Error("Missing metadata");
     const meta = await cryptoLib.decryptMetadata(target.secured_meta, effectivePrivKey, `load-${fileId}`);
     if (meta?.unencrypted === true) {
-        const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
-        if (resBlob.status === 404) {
-            onNotFound();
-            throw new Error("File not found on server (404)");
-        }
+        const resBlob = await fetchDownload();
         const rawText = resBlob.ok ? await resBlob.text() : "";
         return { contentText: ensureTipTapContent(rawText), fileKeyToUse: await derivePublicNoteDEK(fileId), title: (meta.title || target?.title) as string };
     }
@@ -431,11 +434,7 @@ export async function decryptNotePayload(params: {
     }
     const importedFileKey = await window.crypto.subtle.importKey("jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
 
-    const resBlob = await apiFetch(`/api/v1/files/${fileId}/download`);
-    if (resBlob.status === 404) {
-        onNotFound();
-        throw new Error("File not found on server (404)");
-    }
+    const resBlob = await fetchDownload();
     let contentText = "";
     if (resBlob.ok) {
         const blob = await resBlob.blob();
@@ -461,17 +460,10 @@ export async function resolveSaveDEK(
     let accessKeysMap: Record<string, { wrapped_key: string }> = {};
 
     if (currentFile?.version >= 2 && currentFile?.access_keys) {
-        const existingKeys = typeof currentFile.access_keys === 'string'
-            ? JSON.parse(currentFile.access_keys) : (currentFile.access_keys || {});
-        const myAccess = existingKeys[freshMyId];
+        accessKeysMap = typeof currentFile.access_keys === 'string' ? JSON.parse(currentFile.access_keys) : (currentFile.access_keys || {});
+        const myAccess = accessKeysMap[freshMyId];
         if (myAccess?.wrapped_key) {
-            try {
-                const rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, freshPrivKey);
-                dek = await cryptoV2.importDEK(rawDek);
-                accessKeysMap = existingKeys;
-            } catch (_) {}
-        } else {
-            accessKeysMap = existingKeys;
+            try { dek = await cryptoV2.importDEK(await cryptoV2.unwrapDEKData(myAccess.wrapped_key, freshPrivKey)); } catch (_) {}
         }
     }
 
@@ -486,14 +478,8 @@ export async function resolveSaveDEK(
     return { dek, accessKeysMap, generatedNewDek };
 }
 
-export async function uploadPublicFile(
-    fileId: string,
-    contentString: string,
-    fallbackTitle: string,
-    onNotFound: () => void
-): Promise<void> {
-    const blob = new Blob([contentString], { type: 'application/json' });
-    await apiFetch(`/api/v1/files/${fileId}/upload`, { method: 'POST', body: blob });
+export async function uploadPublicFile(fileId: string, contentString: string, fallbackTitle: string, onNotFound: () => void): Promise<void> {
+    await apiFetch(`/api/v1/files/${fileId}/upload`, { method: 'POST', body: new Blob([contentString], { type: 'application/json' }) });
     const allPublic = [...useDataStore.getState().notes, ...useDataStore.getState().events] as any[];
     const title = allPublic.find((f: any) => f.id === fileId)?.title || fallbackTitle || 'Untitled';
     const putRes = await apiFetch(`/api/v1/files/${fileId}`, {
@@ -501,10 +487,7 @@ export async function uploadPublicFile(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ public_meta: { title } })
     });
-    if (putRes.status === 404) {
-        onNotFound();
-        return;
-    }
+    if (putRes.status === 404) { onNotFound(); return; }
     useDataStore.getState().updateFileRaw(fileId, { public_meta: { title }, title });
     try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
 }

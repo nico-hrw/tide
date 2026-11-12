@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Clock, GraduationCap, Copy, Download, MoreHorizontal, UploadCloud } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
@@ -14,6 +14,7 @@ import SaveStatusMenu from '@/components/Editor/SaveStatusMenu';
 import ShareManagementPanel from '@/components/ShareManagementPanel';
 import type { TextWidgetElement } from '@/types/canvas';
 import type { JSONContent } from '@tiptap/react';
+import { getPlainTextFromJSON } from '@/lib/diff';
 import { useNoteBackups } from '@/hooks/useNoteBackups';
 import NoteVersionTimeline from '@/components/Editor/NoteVersionTimeline';
 import NoteVersionDiffView from '@/components/Editor/NoteVersionDiffView';
@@ -108,12 +109,95 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
 
     const [isHistoryMode, setIsHistoryMode] = useState<boolean>(false);
     const [isDraggingEditorFile, setIsDraggingEditorFile] = useState(false);
+    const [liveEditorContent, setLiveEditorContent] = useState<any>(editorContent);
+
+    useEffect(() => {
+        setLiveEditorContent(editorContent);
+    }, [activeNoteId]);
+
+    const captureLiveContent = useCallback(() => {
+        let latest: any = null;
+        try {
+            const inst = editorInstance || (typeof window !== 'undefined' ? (window as any).__tideEditor : null);
+            if (inst && !inst.isDestroyed && typeof inst.getJSON === 'function') {
+                latest = inst.getJSON();
+            }
+        } catch (e) {
+            console.warn('[CanvasWorkspace] Could not capture live editor content', e);
+        }
+        if (!latest || (latest.type === 'doc' && (!latest.content || latest.content.length === 0))) {
+            if (editorContent && editorContent.content && editorContent.content.length > 0) {
+                latest = editorContent;
+            }
+        }
+        const finalContent = latest || editorContent;
+        setLiveEditorContent(finalContent);
+        return finalContent;
+    }, [editorInstance, editorContent]);
+
+    const effectiveCurrentContent = useMemo(() => {
+        if (liveEditorContent) {
+            const text = getPlainTextFromJSON(liveEditorContent);
+            if (text.trim().length > 0) return liveEditorContent;
+        }
+        try {
+            const inst = editorInstance || (typeof window !== 'undefined' ? (window as any).__tideEditor : null);
+            if (inst && !inst.isDestroyed && typeof inst.getJSON === 'function') {
+                const json = inst.getJSON();
+                if (json) {
+                    const text = getPlainTextFromJSON(json);
+                    if (text.trim().length > 0) return json;
+                }
+            }
+        } catch (_) {}
+        if (editorContent) {
+            const text = getPlainTextFromJSON(editorContent);
+            if (text.trim().length > 0) return editorContent;
+        }
+        try {
+            const inst = editorInstance || (typeof window !== 'undefined' ? (window as any).__tideEditor : null);
+            if (inst && !inst.isDestroyed && typeof inst.getJSON === 'function') {
+                const json = inst.getJSON();
+                if (json) return json;
+            }
+        } catch (_) {}
+        return liveEditorContent || editorContent;
+    }, [liveEditorContent, editorInstance, editorContent]);
+
+    const handleToggleHistory = useCallback(() => {
+        const next = !isHistoryMode;
+        if (next) {
+            captureLiveContent();
+        }
+        setIsHistoryMode(next);
+        setShowBackups?.(next);
+    }, [isHistoryMode, captureLiveContent, setShowBackups]);
 
     useEffect(() => {
         if (typeof showBackups === 'boolean') {
+            if (showBackups) {
+                captureLiveContent();
+            }
             setIsHistoryMode(showBackups);
         }
-    }, [showBackups]);
+    }, [showBackups, captureLiveContent]);
+
+    const handleEditorReadyWrapper = useCallback((editor: any) => {
+        handleEditorReady(editor);
+        try {
+            if (editor && typeof editor.getJSON === 'function') {
+                const json = editor.getJSON();
+                if (json) {
+                    setLiveEditorContent(json);
+                }
+            }
+        } catch (_) {}
+    }, [handleEditorReady]);
+
+    const handleEditorChangeWrapper = useCallback((content: any) => {
+        setLiveEditorContent(content);
+        handleEditorChange(content);
+    }, [handleEditorChange]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -144,7 +228,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
         fileId: activeNoteId,
         privateKey,
         myId,
-        currentContent: editorContent,
+        currentContent: effectiveCurrentContent,
         enabled: isHistoryMode,
     });
 
@@ -159,6 +243,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
         setShowBackups?.(false);
         setActiveIndex(0);
         if (selectedContent) {
+            setLiveEditorContent(selectedContent);
             if (onRestoreBackup) {
                 onRestoreBackup(selectedContent);
             } else {
@@ -406,11 +491,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                     if (!isOwner) return null;
                                                     return (
                                                         <button
-                                                            onClick={() => {
-                                                                const next = !isHistoryMode;
-                                                                setIsHistoryMode(next);
-                                                                setShowBackups?.(next);
-                                                            }}
+                                                            onClick={handleToggleHistory}
                                                             className={`p-1.5 rounded-lg transition-colors ${
                                                                 isHistoryMode
                                                                     ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40'
@@ -551,6 +632,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                         diffChanges={diffChanges}
                                                         isLoading={isBackupLoading}
                                                         error={backupError}
+                                                        rawPlainText={getPlainTextFromJSON(effectiveCurrentContent)}
                                                     />
                                                 </div>
                                             )}
@@ -632,8 +714,8 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                     dek={activeFileKey}
                                                     keyEpoch={useActiveNoteStore.getState().keyEpoch || 1}
                                                     editable={(files.find(f => f.id === activeNoteId) as any)?.permission !== 'view'}
-                                                    onEditorReady={handleEditorReady}
-                                                    onChange={handleEditorChange}
+                                                    onEditorReady={handleEditorReadyWrapper}
+                                                    onChange={handleEditorChangeWrapper}
                                                     onLinkClick={handleMagicLinkClick}
                                                     onForceSave={(json) => {
                                                         const cur = activeNoteId ? files.find(f => f.id === activeNoteId) : null;
