@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -556,5 +559,128 @@ func TestExternalNotesE2EEAndScoping(t *testing.T) {
 	r.ServeHTTP(forbiddenRec, forbiddenReq)
 	if forbiddenRec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 Forbidden for out-of-scope note, got %d", forbiddenRec.Code)
+	}
+}
+
+func TestExternalNoteBinaryVsPlaintext(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	s, err := store.NewSQLiteStore(dbPath)
+	if err != nil {
+		t.Fatalf("failed to create sqlite store: %v", err)
+	}
+	defer s.Close()
+
+	blobDir, err := os.MkdirTemp("", "tide-blob-test-*")
+	if err != nil {
+		t.Fatalf("failed to create blob temp dir: %v", err)
+	}
+	defer os.RemoveAll(blobDir)
+	blobStore := store.NewLocalBlobStore(blobDir)
+
+	userID := "user-blob-test"
+	err = s.CreateUser(context.Background(), &db.User{
+		ID:              userID,
+		EncryptedVault:  []byte("vault"),
+		EncryptedPepper: []byte("pepper"),
+		PublicKey:       "pubkey",
+		CreatedAt:       time.Now(),
+	})
+	if err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	r := chi.NewRouter()
+	apiTokenHandler := api.NewAPITokenHandler(s)
+	externalHandler := api.NewExternalHandler(s, blobStore)
+
+	r.Route("/api-tokens", func(sub chi.Router) {
+		sub.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				ctx := context.WithValue(req.Context(), "user_id", userID)
+				next.ServeHTTP(w, req.WithContext(ctx))
+			})
+		})
+		sub.Post("/", apiTokenHandler.CreateToken)
+	})
+
+	r.Route("/external", externalHandler.RegisterRoutes)
+
+	fullTokenReq, _ := json.Marshal(map[string]interface{}{
+		"name":   "Full Token",
+		"scopes": []string{"notes:read", "notes:write"},
+	})
+	fullRec := httptest.NewRecorder()
+	r.ServeHTTP(fullRec, httptest.NewRequest("POST", "/api-tokens", bytes.NewReader(fullTokenReq)))
+	var fullToken api.CreateAPITokenResponse
+	_ = json.NewDecoder(fullRec.Body).Decode(&fullToken)
+
+	// Note 1: Unencrypted note has binary Yjs data in file.Content, but plaintext in BlobStore
+	noteID := "note-yjs-binary-1"
+	now := time.Now().UTC()
+	plaintext := "# My Note\nThis is markdown text."
+	_ = blobStore.Put(context.Background(), noteID, strings.NewReader(plaintext))
+
+	binaryYjs := []byte{0x00, 0x01, 0x02, 0x03, 0xff, 0x00, 0x7b, 0x7d} // contains null bytes
+	blobPath := noteID
+	err = s.CreateFile(context.Background(), &db.File{
+		ID:         noteID,
+		OwnerID:    userID,
+		Type:       db.FileTypeNote,
+		Size:       int64(len(binaryYjs)),
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		Visibility: "public",
+		Metadata:   []byte(`{"title":"Yjs Note","unencrypted":true}`),
+		PublicMeta: []byte(`{"title":"Yjs Note","unencrypted":true}`),
+		Version:    1,
+		Content:    binaryYjs,
+		BlobPath:   &blobPath,
+	})
+	if err != nil {
+		t.Fatalf("failed to create note: %v", err)
+	}
+
+	// 1. GET note should return plaintext from BlobStore, not binary bytes
+	getReq := httptest.NewRequest("GET", "/external/notes/"+noteID, nil)
+	getReq.Header.Set("Authorization", "Bearer "+fullToken.Token)
+	getRec := httptest.NewRecorder()
+	r.ServeHTTP(getRec, getReq)
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", getRec.Code, getRec.Body.String())
+	}
+	var getResp map[string]interface{}
+	_ = json.NewDecoder(getRec.Body).Decode(&getResp)
+	if getResp["content"] != plaintext {
+		t.Fatalf("expected plaintext markdown %q, got %q", plaintext, getResp["content"])
+	}
+
+	// 2. PUT note updates content: should store in blobStore and return updated plaintext
+	updatedText := "# Updated Note\nNew content here."
+	putBody, _ := json.Marshal(map[string]interface{}{
+		"content": updatedText,
+	})
+	putReq := httptest.NewRequest("PUT", "/external/notes/"+noteID, bytes.NewReader(putBody))
+	putReq.Header.Set("Authorization", "Bearer "+fullToken.Token)
+	putReq.Header.Set("Content-Type", "application/json")
+	putRec := httptest.NewRecorder()
+	r.ServeHTTP(putRec, putReq)
+	if putRec.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d: %s", putRec.Code, putRec.Body.String())
+	}
+	var putResp map[string]interface{}
+	_ = json.NewDecoder(putRec.Body).Decode(&putResp)
+	if putResp["content"] != updatedText {
+		t.Fatalf("expected updated content %q, got %q", updatedText, putResp["content"])
+	}
+
+	// Verify in BlobStore
+	rc, err := blobStore.Get(context.Background(), noteID)
+	if err != nil {
+		t.Fatalf("failed to get blob: %v", err)
+	}
+	b, _ := io.ReadAll(rc)
+	rc.Close()
+	if string(b) != updatedText {
+		t.Fatalf("blobstore content mismatch: expected %q, got %q", updatedText, string(b))
 	}
 }

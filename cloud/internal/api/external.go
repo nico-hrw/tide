@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -470,6 +471,30 @@ func (h *ExternalHandler) ListNotes(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *ExternalHandler) getNoteContent(ctx context.Context, file *db.File) string {
+	contentStr := ""
+	blobKey := file.ID
+	if file.BlobPath != nil && *file.BlobPath != "" {
+		blobKey = *file.BlobPath
+	}
+	if h.BlobStore != nil {
+		if rc, err := h.BlobStore.Get(ctx, blobKey); err == nil {
+			b, errRead := io.ReadAll(rc)
+			rc.Close()
+			if errRead == nil && len(b) > 0 {
+				contentStr = string(b)
+			}
+		}
+	}
+	// Fallback to file.Content ONLY if BlobStore did not yield content and file.Content is valid UTF-8 text (not binary Yjs snapshot)
+	if contentStr == "" && len(file.Content) > 0 {
+		if utf8.Valid(file.Content) && !bytes.ContainsRune(file.Content, 0) {
+			contentStr = string(file.Content)
+		}
+	}
+	return contentStr
+}
+
 func (h *ExternalHandler) GetNote(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value("user_id").(string)
 	if !ok || userID == "" {
@@ -562,14 +587,7 @@ func (h *ExternalHandler) GetNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentStr := string(file.Content)
-	if contentStr == "" && file.BlobPath != nil && h.BlobStore != nil {
-		if rc, err := h.BlobStore.Get(r.Context(), *file.BlobPath); err == nil {
-			b, _ := io.ReadAll(rc)
-			rc.Close()
-			contentStr = string(b)
-		}
-	}
+	contentStr := h.getNoteContent(r.Context(), file)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -843,10 +861,14 @@ func (h *ExternalHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 		contentBytes := []byte(*req.Content)
 		file.Content = contentBytes
 		file.Size = int64(len(contentBytes))
+		blobKey := file.ID
+		if file.BlobPath != nil && *file.BlobPath != "" {
+			blobKey = *file.BlobPath
+		} else {
+			file.BlobPath = &blobKey
+		}
 		if h.BlobStore != nil {
-			_ = h.BlobStore.Put(r.Context(), file.ID, bytes.NewReader(contentBytes))
-			path := file.ID
-			file.BlobPath = &path
+			_ = h.BlobStore.Put(r.Context(), blobKey, bytes.NewReader(contentBytes))
 		}
 	}
 
@@ -924,7 +946,10 @@ func (h *ExternalHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentStr := string(file.Content)
+	contentStr := ""
+	if isUnencrypted {
+		contentStr = h.getNoteContent(r.Context(), file)
+	}
 	title := ""
 	if metaMap != nil {
 		if t, ok := metaMap["title"].(string); ok {
