@@ -102,7 +102,8 @@
 | Component | File | Role |
 |-----------|------|------|
 | SmartIsland (root) | `web/src/components/SmartIsland.tsx` | Shell / entry component |
-| SmartIsland (ext) | `web/src/components/extensions/smart_island/SmartIsland.tsx` | Core island logic |
+| SmartIsland (ext) | `web/src/components/extensions/smart_island/SmartIsland.tsx` | Core desktop island logic: expandable pill, welcome sequence, mode views, search trigger, integrated `SmartIslandCalendar` popover, quick event capture, and sync states. |
+| SmartIslandCalendar | `web/src/components/extensions/smart_island/SmartIslandCalendar.tsx` | Desktop Smart Island calendar widget: month grid with event dots, progress pie sectors for elapsed day time, active/upcoming event countdown complications, and keyboard/wheel month navigation. |
 | MobileSmartIsland | `web/src/components/Layout/MobileSmartIsland.tsx` | Mobile Dynamic Island widget: morphing dual-shape loading spinner, expandable alerts (messages & imminent <=15m events expanding smoothly to the left), and compact 80x80 countdown complication. |
 | EventSuggestionView | `web/src/components/extensions/smart_island/EventSuggestionView.tsx` | AI event suggestion UI |
 | useIslandStore | `web/src/components/extensions/smart_island/useIslandStore.tsx` | Island Zustand store |
