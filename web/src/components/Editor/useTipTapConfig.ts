@@ -25,6 +25,7 @@ import { ResizableImage } from '../extensions/ResizableImage';
 import { DateMentionExtension } from '../extensions/DateMentionExtension';
 import { TaskMentionExtension } from '../extensions/TaskMentionExtension';
 import { CalendarEventMentionExtension } from '../extensions/CalendarEventMentionExtension';
+import McpVisualExtension from '../extensions/McpVisualExtension';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeader } from '@tiptap/extension-table-header';
@@ -293,6 +294,7 @@ export function useTipTapConfig({
             }));
         }
         if (enabledExtensions.includes('references')) base.push(ReferenceScannerMode, ReferenceAutopilotMode);
+        if (enabledExtensions.includes('mcp')) base.push(McpVisualExtension);
         return base;
     }, [enabledExtensions, provider, ydoc, isSynced]);
 

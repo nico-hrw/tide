@@ -10,11 +10,13 @@ import {
     Smartphone,
     Smile,
     Sparkles,
+    Terminal,
     User,
 } from 'lucide-react';
 import { useReferenceStore, ReferenceDisplayMode } from '@/store/useReferenceStore';
 import { useMobileConnectionStore } from '@/store/useMobileConnectionStore';
 import MobileConnectionSettings from '../MobileConnectionSettings';
+import McpExtensionConfig from '../McpExtensionConfig';
 import { JobPlannerExtensionConfig, JobPlannerExtensionConfigProps } from './JobPlannerExtensionConfig';
 import { SmartIslandExtensionConfig, SmartIslandExtensionConfigProps } from './SmartIslandExtensionConfig';
 import { SurveysExtensionConfig } from './SurveysExtensionConfig';
@@ -80,6 +82,15 @@ const EXTENSIONS: ExtensionItem[] = [
         updated: 'Neu',
         icon: Smile,
         color: 'text-amber-500',
+    },
+    {
+        id: 'mcp',
+        title: 'Model Context Protocol (MCP)',
+        desc: 'Verbindet Tide mit lokalen KI-Agenten (Claude Desktop, Cursor etc.) für gezielte Notizen- & Aufgabensteuerung.',
+        version: 'v1.0.0',
+        updated: 'Neu',
+        icon: Terminal,
+        color: 'text-violet-500',
     },
 ];
 
@@ -195,6 +206,12 @@ export const IntegrationsTab: React.FC<IntegrationsTabProps> = ({
                         {ext.id === 'mobile_connection' && isEnabled && (
                             <div className="mt-3 pt-3 border-t border-black/5 dark:border-white/10">
                                 <MobileConnectionSettings />
+                            </div>
+                        )}
+
+                        {ext.id === 'mcp' && isEnabled && (
+                            <div className="mt-3 pt-3 border-t border-black/5 dark:border-white/10">
+                                <McpExtensionConfig />
                             </div>
                         )}
 
