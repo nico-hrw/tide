@@ -5,7 +5,7 @@ use rsa::RsaPrivateKey;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::crypto::{decrypt_aes_gcm, unwrap_dek};
+use crate::crypto::{decrypt_aes_gcm, decrypt_rsa_oaep, unwrap_dek};
 use crate::db::{Database, LocalNote, LocalTodo};
 
 pub const DEFAULT_BASE_URL: &str = "https://hrw.rocks/api/v1";
@@ -448,99 +448,259 @@ impl TideClient {
             synced_notes_count += 1;
         }
 
-        // 2. Sync todos
-        let todos_url = format!("{}/todos", self.base_url);
-        let todos_resp = self
+        // 2. Sync tasks (Tide web tasks stored encrypted at /tasks)
+        let tasks_url = format!("{}/tasks", self.base_url);
+        let tasks_resp = self
             .http
-            .get(&todos_url)
+            .get(&tasks_url)
             .bearer_auth(token)
             .send()
-            .await
-            .with_context(|| format!("Failed to fetch todos from {todos_url}"))?;
+            .await;
 
         let mut synced_todos_count = 0;
-        if todos_resp.status().is_success() {
-            let todos_json: Value = todos_resp
-                .json()
-                .await
-                .context("Failed to parse todos response JSON")?;
-
-            let todos_array = if let Some(arr) = todos_json.as_array() {
-                arr.clone()
-            } else if let Some(arr) = todos_json.get("todos").and_then(|v| v.as_array()) {
-                arr.clone()
-            } else if let Some(arr) = todos_json.get("items").and_then(|v| v.as_array()) {
-                arr.clone()
-            } else {
-                Vec::new()
-            };
-
-            for item in &todos_array {
-                let id = match item.get("id").and_then(|v| v.as_str()) {
-                    Some(id) => id.to_string(),
-                    None => continue,
-                };
-
-                let title = item
-                    .get("title")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("Untitled Todo")
-                    .to_string();
-
-                let description = item
-                    .get("description")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
-                let status = item
-                    .get("status")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("pending")
-                    .to_string();
-
-                let priority = item
-                    .get("priority")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-
-                let due_date = item.get("due_date").and_then(|v| v.as_i64());
-                let scheduled_date = item.get("scheduled_date").and_then(|v| v.as_i64());
-
-                let tags = item.get("tags").map(|t| {
-                    if t.is_string() {
-                        t.as_str().unwrap().to_string()
+        if let Ok(resp) = tasks_resp {
+            if resp.status().is_success() {
+                if let Ok(tasks_json) = resp.json::<Value>().await {
+                    let tasks_array = if let Some(arr) = tasks_json.as_array() {
+                        arr.clone()
+                    } else if let Some(arr) = tasks_json.get("tasks").and_then(|v| v.as_array()) {
+                        arr.clone()
+                    } else if let Some(arr) = tasks_json.get("items").and_then(|v| v.as_array()) {
+                        arr.clone()
                     } else {
-                        t.to_string()
+                        Vec::new()
+                    };
+
+                    for item in &tasks_array {
+                        let id = match item.get("id").and_then(|v| v.as_str()) {
+                            Some(id) => id.to_string(),
+                            None => continue,
+                        };
+
+                        let enc_vault_str = match item
+                            .get("encrypted_vault")
+                            .or_else(|| item.get("encryptedVault"))
+                            .and_then(|v| v.as_str())
+                        {
+                            Some(s) if !s.trim().is_empty() => s.trim(),
+                            _ => continue,
+                        };
+
+                        let ciphertext = match BASE64_STANDARD.decode(enc_vault_str) {
+                            Ok(b) => b,
+                            Err(e) => {
+                                tracing::warn!("Failed to decode base64 encrypted_vault for task {id}: {e}");
+                                continue;
+                            }
+                        };
+
+                        let decrypted_bytes = match crate::crypto::decrypt_rsa_oaep(&ciphertext, private_key) {
+                            Ok(b) => b,
+                            Err(e) => {
+                                tracing::warn!("Failed to decrypt RSA-OAEP task {id}: {e}");
+                                continue;
+                            }
+                        };
+
+                        let task_data: Value = match serde_json::from_slice(&decrypted_bytes) {
+                            Ok(v) => v,
+                            Err(e) => {
+                                tracing::warn!("Failed to parse decrypted task JSON for {id}: {e}");
+                                continue;
+                            }
+                        };
+
+                        let is_completed = task_data
+                            .get("isCompleted")
+                            .or_else(|| task_data.get("is_completed"))
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+
+                        let title = task_data
+                            .get("title")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Untitled Task")
+                            .to_string();
+
+                        let description = task_data
+                            .get("description")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+
+                        let status = task_data
+                            .get("status")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or(if is_completed { "completed" } else { "pending" })
+                            .to_string();
+
+                        let priority = task_data
+                            .get("priority")
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+
+                        let due_date = task_data
+                            .get("dueDate")
+                            .or_else(|| task_data.get("due_date"))
+                            .and_then(|v| {
+                                if let Some(i) = v.as_i64() {
+                                    Some(i)
+                                } else if let Some(s) = v.as_str() {
+                                    s.parse::<i64>().ok()
+                                } else {
+                                    None
+                                }
+                            });
+
+                        let scheduled_date = task_data
+                            .get("scheduledDate")
+                            .or_else(|| task_data.get("scheduled_date"))
+                            .and_then(|v| {
+                                if let Some(i) = v.as_i64() {
+                                    Some(i)
+                                } else if let Some(s) = v.as_str() {
+                                    s.parse::<i64>().ok()
+                                } else {
+                                    None
+                                }
+                            });
+
+                        let tags = task_data.get("tags").map(|v| {
+                            if let Some(s) = v.as_str() {
+                                s.to_string()
+                            } else {
+                                v.to_string()
+                            }
+                        });
+
+                        let updated_at = item
+                            .get("updated_at")
+                            .or_else(|| task_data.get("updatedAt"))
+                            .or_else(|| task_data.get("updated_at"))
+                            .and_then(|u| {
+                                if let Some(i) = u.as_i64() {
+                                    Some(i)
+                                } else if let Some(s) = u.as_str() {
+                                    s.parse::<i64>().ok()
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or(now_millis);
+
+                        let todo = LocalTodo {
+                            id,
+                            title,
+                            description,
+                            status,
+                            priority,
+                            due_date,
+                            scheduled_date,
+                            tags,
+                            is_completed,
+                            updated_at,
+                            dirty: false,
+                        };
+
+                        db.upsert_todo(&todo)
+                            .with_context(|| format!("Failed to upsert task {} into local db", todo.id))?;
+                        synced_todos_count += 1;
                     }
-                });
+                }
+            }
+        }
 
-                let is_completed = item
-                    .get("is_completed")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or_else(|| status == "completed" || status == "done");
+        // 3. Fallback check for /todos
+        if synced_todos_count == 0 {
+            let todos_url = format!("{}/todos", self.base_url);
+            let todos_resp = self
+                .http
+                .get(&todos_url)
+                .bearer_auth(token)
+                .send()
+                .await;
 
-                let updated_at = item
-                    .get("updated_at")
-                    .and_then(|v| v.as_i64())
-                    .unwrap_or(now_millis);
+            if let Ok(resp) = todos_resp {
+                if resp.status().is_success() {
+                    if let Ok(todos_json) = resp.json::<Value>().await {
+                        let todos_array = if let Some(arr) = todos_json.as_array() {
+                            arr.clone()
+                        } else if let Some(arr) = todos_json.get("todos").and_then(|v| v.as_array()) {
+                            arr.clone()
+                        } else if let Some(arr) = todos_json.get("items").and_then(|v| v.as_array()) {
+                            arr.clone()
+                        } else {
+                            Vec::new()
+                        };
 
-                let local_todo = LocalTodo {
-                    id,
-                    title,
-                    description,
-                    status,
-                    priority,
-                    due_date,
-                    scheduled_date,
-                    tags,
-                    is_completed,
-                    updated_at,
-                    dirty: false,
-                };
+                        for item in &todos_array {
+                            let id = match item.get("id").and_then(|v| v.as_str()) {
+                                Some(id) => id.to_string(),
+                                None => continue,
+                            };
 
-                db.upsert_todo(&local_todo)
-                    .with_context(|| format!("Failed to upsert todo {} into local db", local_todo.id))?;
-                synced_todos_count += 1;
+                            let title = item
+                                .get("title")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Untitled Todo")
+                                .to_string();
+
+                            let description = item
+                                .get("description")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+
+                            let status = item
+                                .get("status")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("pending")
+                                .to_string();
+
+                            let priority = item
+                                .get("priority")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string());
+
+                            let due_date = item.get("due_date").and_then(|v| v.as_i64());
+                            let scheduled_date = item.get("scheduled_date").and_then(|v| v.as_i64());
+
+                            let tags = item.get("tags").map(|t| {
+                                if t.is_string() {
+                                    t.as_str().unwrap().to_string()
+                                } else {
+                                    t.to_string()
+                                }
+                            });
+
+                            let is_completed = item
+                                .get("is_completed")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or_else(|| status == "completed" || status == "done");
+
+                            let updated_at = item
+                                .get("updated_at")
+                                .and_then(|v| v.as_i64())
+                                .unwrap_or(now_millis);
+
+                            let local_todo = LocalTodo {
+                                id,
+                                title,
+                                description,
+                                status,
+                                priority,
+                                due_date,
+                                scheduled_date,
+                                tags,
+                                is_completed,
+                                updated_at,
+                                dirty: false,
+                            };
+
+                            db.upsert_todo(&local_todo)
+                                .with_context(|| format!("Failed to upsert todo {} into local db", local_todo.id))?;
+                            synced_todos_count += 1;
+                        }
+                    }
+                }
             }
         }
 

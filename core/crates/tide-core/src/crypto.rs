@@ -5,8 +5,9 @@ use aes_gcm::{
 use anyhow::{Context, Result};
 use base64::prelude::*;
 use rsa::pkcs8::DecodePrivateKey;
-use rsa::RsaPrivateKey;
+use rsa::{Oaep, RsaPrivateKey};
 use serde::Deserialize;
+use sha2::Sha256;
 
 pub const DEFAULT_PBKDF2_ITERATIONS: u32 = 600_000;
 
@@ -139,6 +140,14 @@ pub fn unwrap_dek(
         })?;
 
     Ok(dek)
+}
+
+/// Decrypts ciphertext using RSA-OAEP with SHA-256 padding.
+pub fn decrypt_rsa_oaep(ciphertext: &[u8], private_key: &RsaPrivateKey) -> Result<Vec<u8>> {
+    let padding = Oaep::new::<Sha256>();
+    private_key
+        .decrypt(padding, ciphertext)
+        .map_err(|e| anyhow::anyhow!("RSA-OAEP decryption failed: {}", e))
 }
 
 /// Decrypts note content using AES-256-GCM and converts it to a UTF-8 Markdown string.
