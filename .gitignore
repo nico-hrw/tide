@@ -94,4 +94,10 @@ cloud/server.exe
 
 # Backups (Nutzerdaten niemals committen oder tracken)
 backups/
-tide_backup/
+tide_backup/
+
+# Rust artifacts
+core/dist/
+target/
+**/target/
+
