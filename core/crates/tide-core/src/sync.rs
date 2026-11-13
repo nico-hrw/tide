@@ -20,6 +20,8 @@ pub struct SessionInfo {
     pub base_url: Option<String>,
     #[serde(default)]
     pub encrypted_vault: Option<String>,
+    #[serde(default)]
+    pub pepper: Option<String>,
 }
 
 /// Returns the path to `~/.tide/session.json`.
@@ -87,60 +89,101 @@ impl TideClient {
         self
     }
 
-    /// Logs into the Tide backend, sets `token` and `user_id`, and returns `(user_id, encrypted_vault_json_string)`.
-    pub async fn login(&mut self, email: &str, password: &str) -> Result<(String, String)> {
-        let url = format!("{}/auth/login", self.base_url);
+    /// Requests an OTP code to be sent to the given email address.
+    pub async fn request_otp(&self, email: &str) -> Result<()> {
+        let url = format!("{}/auth/request-otp", self.base_url);
+        let resp = self
+            .http
+            .post(&url)
+            .json(&serde_json::json!({
+                "email": email
+            }))
+            .send()
+            .await
+            .with_context(|| format!("Failed to send request-otp to {url}"))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("Request OTP failed with status {status}: {body}");
+        }
+
+        Ok(())
+    }
+
+    /// Verifies the OTP code, sets `token` and `user_id`, and returns `(user_id, encrypted_vault_json, pepper)`.
+    pub async fn verify_otp(
+        &mut self,
+        email: &str,
+        otp: &str,
+    ) -> Result<(String, String, Option<String>)> {
+        let url = format!("{}/auth/verify-otp", self.base_url);
         let resp = self
             .http
             .post(&url)
             .json(&serde_json::json!({
                 "email": email,
-                "password": password
+                "otp": otp
             }))
             .send()
             .await
-            .with_context(|| format!("Failed to send login request to {url}"))?;
+            .with_context(|| format!("Failed to send verify-otp request to {url}"))?;
 
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("Login failed with status {status}: {body}");
+            anyhow::bail!("Verify OTP failed with status {status}: {body}");
         }
 
         let body: Value = resp
             .json()
             .await
-            .context("Failed to parse login response as JSON")?;
+            .context("Failed to parse verify-otp response as JSON")?;
 
         let token = body
             .get("token")
             .and_then(|v| v.as_str())
-            .context("Login response missing 'token'")?
+            .context("Verify OTP response missing 'token'")?
             .to_string();
 
-        let user = body
-            .get("user")
-            .context("Login response missing 'user' object")?;
-
-        let user_id = user
-            .get("id")
+        let user_id = body
+            .get("user_id")
             .and_then(|v| v.as_str())
-            .context("Login response missing user 'id'")?
+            .or_else(|| {
+                body.get("user")
+                    .and_then(|u| u.get("id"))
+                    .and_then(|v| v.as_str())
+            })
+            .context("Verify OTP response missing user_id or user.id")?
             .to_string();
 
-        let encrypted_vault_val = user
+        let encrypted_vault_val = body
             .get("encrypted_vault")
-            .context("Login response missing user 'encrypted_vault'")?;
+            .or_else(|| {
+                body.get("user")
+                    .and_then(|u| u.get("encrypted_vault"))
+            })
+            .context("Verify OTP response missing 'encrypted_vault'")?;
 
         let encrypted_vault_json = match encrypted_vault_val {
             Value::String(s) => s.clone(),
             other => other.to_string(),
         };
 
+        let pepper = body
+            .get("pepper")
+            .and_then(|v| v.as_str())
+            .or_else(|| {
+                body.get("user")
+                    .and_then(|u| u.get("pepper"))
+                    .and_then(|v| v.as_str())
+            })
+            .map(|s| s.to_string());
+
         self.token = Some(token);
         self.user_id = Some(user_id.clone());
 
-        Ok((user_id, encrypted_vault_json))
+        Ok((user_id, encrypted_vault_json, pepper))
     }
 
     /// Synchronizes notes and todos from the Tide cloud backend to the local database.

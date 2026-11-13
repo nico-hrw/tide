@@ -27,14 +27,16 @@ enum Commands {
         #[arg(long, default_value = "~/.tide/local.db")]
         db_path: String,
     },
-    /// Log in, unlock vault with PIN, and sync notes & todos
+    /// Log in with email OTP, unlock vault with PIN, and sync notes & todos
     Login {
         #[arg(long)]
         email: Option<String>,
         #[arg(long)]
-        password: Option<String>,
+        code: Option<String>,
         #[arg(long)]
         pin: Option<String>,
+        #[arg(long)]
+        token: Option<String>,
         #[arg(long, default_value = "~/.tide/local.db")]
         db_path: String,
     },
@@ -71,28 +73,16 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Login {
             email,
-            password,
+            code,
             pin,
+            token,
             db_path,
         }) => {
             let path = resolve_db_path(&db_path)?;
             ensure_parent_dir(&path)?;
             let db = Database::open(&path)?;
 
-            let email = match email {
-                Some(e) => e,
-                None => prompt_input("Email: ")?,
-            };
-            let password = match password {
-                Some(p) => p,
-                None => prompt_input("Password: ")?,
-            };
-            let pin = match pin {
-                Some(p) => p,
-                None => prompt_input("Vault PIN: ")?,
-            };
-
-            perform_login_and_sync(&email, &password, &pin, &db).await?;
+            perform_login_and_sync(email, code, pin, token, &db).await?;
         }
         Some(Commands::Sync { db_path, pin }) => {
             let path = resolve_db_path(&db_path)?;
@@ -130,7 +120,7 @@ async fn run_interactive_menu() -> Result<()> {
         println!("\n=============================================");
         println!("          TIDE LOCAL HARNESS & MCP           ");
         println!("=============================================");
-        println!("[1] Login & Sync Notes (Email + Password + PIN)");
+        println!("[1] Login & Sync Notes (Email -> Code -> PIN)");
         println!("[2] Sync Notes & Todos (with saved session)");
         println!("[3] Start Stdio MCP Server (for AI agents)");
         println!("[4] Exit");
@@ -143,11 +133,7 @@ async fn run_interactive_menu() -> Result<()> {
 
         match choice {
             "1" => {
-                let email = prompt_input("Email: ")?;
-                let password = prompt_input("Password: ")?;
-                let pin = prompt_input("Vault PIN: ")?;
-
-                if let Err(e) = perform_login_and_sync(&email, &password, &pin, &db).await {
+                if let Err(e) = perform_login_and_sync(None, None, None, None, &db).await {
                     eprintln!("\n[Error during login & sync]: {}", e);
                 }
                 prompt_input("\nPress Enter to continue...")?;
@@ -178,27 +164,62 @@ async fn run_interactive_menu() -> Result<()> {
 }
 
 async fn perform_login_and_sync(
-    email: &str,
-    password: &str,
-    pin: &str,
+    email: Option<String>,
+    code: Option<String>,
+    pin: Option<String>,
+    token: Option<String>,
     db: &Database,
 ) -> Result<()> {
     println!("\nConnecting to Tide Cloud (https://hrw.rocks)...");
     let mut client = TideClient::default();
-    let (user_id, encrypted_vault_json) = client.login(email, password).await?;
-    println!("Login successful! User ID: {}", user_id);
+
+    let (user_id, encrypted_vault_json, pepper, email_saved) = if let Some(tok) = token {
+        client.token = Some(tok.clone());
+        let (uid, vault, pep, em) = if let Ok(Some(existing)) = load_session() {
+            (
+                existing.user_id,
+                existing.encrypted_vault.unwrap_or_default(),
+                existing.pepper,
+                email.or(existing.email),
+            )
+        } else {
+            (String::new(), String::new(), None, email)
+        };
+        client.user_id = Some(uid.clone());
+        (uid, vault, pep, em)
+    } else {
+        let email = match email {
+            Some(e) => e,
+            None => prompt_input("Email: ")?,
+        };
+        client.request_otp(&email).await?;
+        println!("A 6-digit confirmation code has been sent to your email ({}).", email);
+        let code = match code {
+            Some(c) => c,
+            None => prompt_input("Confirmation Code (6 digits): ")?,
+        };
+        let (user_id, encrypted_vault_json, pepper) = client.verify_otp(&email, &code).await?;
+        println!("Login successful! User ID: {}", user_id);
+        (user_id, encrypted_vault_json, pepper, Some(email))
+    };
+
+    let pin = match pin {
+        Some(p) => p,
+        None => prompt_input("Vault PIN: ")?,
+    };
 
     println!("Deriving keys and unlocking RSA Master Vault (600,000 PBKDF2 iterations)...");
-    let private_key = unlock_vault(pin, &encrypted_vault_json)
+    let private_key = unlock_vault(&pin, &encrypted_vault_json)
         .context("Failed to unlock vault. Check your PIN.")?;
     println!("Master Vault unlocked successfully!");
 
     let session = SessionInfo {
-        base_url: Some("https://hrw.rocks/api/v1".to_string()),
-        email: Some(email.to_string()),
+        base_url: Some(client.base_url.clone()),
+        email: email_saved,
         user_id: user_id.clone(),
         token: client.token.clone().unwrap_or_default(),
-        encrypted_vault: Some(encrypted_vault_json.clone()),
+        encrypted_vault: Some(encrypted_vault_json),
+        pepper,
     };
     save_session(&session)?;
 
