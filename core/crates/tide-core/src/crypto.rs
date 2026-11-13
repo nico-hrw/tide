@@ -2,6 +2,7 @@ use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Key, Nonce,
 };
+use anyhow::{Context, Result};
 use base64::prelude::*;
 use rsa::pkcs8::DecodePrivateKey;
 use rsa::RsaPrivateKey;
@@ -53,48 +54,72 @@ pub fn encrypt_aes_gcm(
 }
 
 /// Parses an encrypted vault JSON string containing `{ "salt": "...", "iv": "...", "ciphertext": "..." }`,
-/// derives the KEK using PBKDF2 (600,000 iterations default), decrypts the AES-256-GCM ciphertext,
+/// derives the KEK using PBKDF2 (600,000 iterations default, falling back to 100,000 legacy iterations),
+/// using an optional pepper (base64) or the vault's salt, decrypts the AES-256-GCM ciphertext,
 /// and recovers the user's RSA private key from PKCS#8 DER (or PEM fallback).
-pub fn unlock_vault(pin: &str, encrypted_vault_json: &str) -> anyhow::Result<RsaPrivateKey> {
+pub fn unlock_vault(
+    pin: &str,
+    pepper_base64: Option<&str>,
+    encrypted_vault_json: &str,
+) -> Result<RsaPrivateKey> {
     let payload: EncryptedVaultJson = serde_json::from_str(encrypted_vault_json)
-        .map_err(|e| anyhow::anyhow!("Failed to parse encrypted vault JSON: {e}"))?;
+        .context("Failed to parse encrypted_vault JSON")?;
 
-    let salt = BASE64_STANDARD
-        .decode(payload.salt.trim())
-        .map_err(|e| anyhow::anyhow!("Invalid base64 in vault salt: {e}"))?;
+    let salt = if let Some(pepper) = pepper_base64 {
+        if !pepper.trim().is_empty() {
+            BASE64_STANDARD
+                .decode(pepper.trim())
+                .context("Failed to decode pepper base64")?
+        } else {
+            BASE64_STANDARD
+                .decode(payload.salt.trim())
+                .context("Failed to decode salt base64")?
+        }
+    } else {
+        BASE64_STANDARD
+            .decode(payload.salt.trim())
+            .context("Failed to decode salt base64")?
+    };
 
-    let iv_bytes = BASE64_STANDARD
+    let iv_vec = BASE64_STANDARD
         .decode(payload.iv.trim())
-        .map_err(|e| anyhow::anyhow!("Invalid base64 in vault iv: {e}"))?;
+        .context("Failed to decode iv base64")?;
+    if iv_vec.len() != 12 {
+        anyhow::bail!("Invalid IV length: expected 12 bytes, got {}", iv_vec.len());
+    }
+    let mut iv = [0u8; 12];
+    iv.copy_from_slice(&iv_vec);
 
     let ciphertext = BASE64_STANDARD
         .decode(payload.ciphertext.trim())
-        .map_err(|e| anyhow::anyhow!("Invalid base64 in vault ciphertext: {e}"))?;
+        .context("Failed to decode ciphertext base64")?;
 
-    if iv_bytes.len() != 12 {
-        anyhow::bail!(
-            "Invalid IV length: expected 12 bytes, got {}",
-            iv_bytes.len()
-        );
-    }
-    let mut iv = [0u8; 12];
-    iv.copy_from_slice(&iv_bytes);
-
-    let iterations = payload.iterations.unwrap_or(DEFAULT_PBKDF2_ITERATIONS);
-    let kek = derive_kek(pin, &salt, iterations)?;
-    let private_key_bytes = decrypt_aes_gcm(&ciphertext, &kek, &iv)?;
-
-    let private_key = RsaPrivateKey::from_pkcs8_der(&private_key_bytes)
-        .or_else(|der_err| {
-            if let Ok(pem_str) = std::str::from_utf8(&private_key_bytes) {
-                RsaPrivateKey::from_pkcs8_pem(pem_str).map_err(|_| der_err)
-            } else {
-                Err(der_err)
+    // Try 600,000 iterations first, then fallback to 100,000 legacy iterations
+    let decrypted = match derive_kek(pin, &salt, 600_000) {
+        Ok(kek) => match decrypt_aes_gcm(&ciphertext, &kek, &iv) {
+            Ok(bytes) => bytes,
+            Err(_) => {
+                let kek_legacy = derive_kek(pin, &salt, 100_000)?;
+                decrypt_aes_gcm(&ciphertext, &kek_legacy, &iv)?
             }
-        })
-        .map_err(|e| anyhow::anyhow!("Failed to decode RSA private key (PKCS#8 DER/PEM): {e}"))?;
+        },
+        Err(_) => {
+            let kek_legacy = derive_kek(pin, &salt, 100_000)?;
+            decrypt_aes_gcm(&ciphertext, &kek_legacy, &iv)?
+        }
+    };
 
-    Ok(private_key)
+    if let Ok(key) = RsaPrivateKey::from_pkcs8_der(&decrypted) {
+        return Ok(key);
+    }
+
+    if let Ok(key_pem) = std::str::from_utf8(&decrypted) {
+        if let Ok(key) = RsaPrivateKey::from_pkcs8_pem(key_pem) {
+            return Ok(key);
+        }
+    }
+
+    anyhow::bail!("Failed to parse decrypted private key as PKCS#8 DER or PEM")
 }
 
 /// Decrypts a wrapped 256-bit Document Encryption Key (DEK) using RSA-OAEP with SHA-256.
@@ -185,14 +210,14 @@ mod tests {
     #[test]
     fn test_unlock_vault_invalid_payloads() {
         // Missing fields
-        assert!(unlock_vault("123456", "{\"invalid\": \"json\"}").is_err());
+        assert!(unlock_vault("123456", None, "{\"invalid\": \"json\"}").is_err());
         // Invalid base64
-        assert!(unlock_vault("123456", "{\"salt\": \"???\", \"iv\": \"abc\", \"ciphertext\": \"def\"}").is_err());
+        assert!(unlock_vault("123456", None, "{\"salt\": \"???\", \"iv\": \"abc\", \"ciphertext\": \"def\"}").is_err());
         // Invalid IV length
         let salt = BASE64_STANDARD.encode([1u8; 16]);
         let bad_iv = BASE64_STANDARD.encode([1u8; 8]); // 8 bytes instead of 12
         let ct = BASE64_STANDARD.encode([1u8; 32]);
         let json = format!(r#"{{"salt":"{salt}","iv":"{bad_iv}","ciphertext":"{ct}"}}"#);
-        assert!(unlock_vault("123456", &json).is_err());
+        assert!(unlock_vault("123456", None, &json).is_err());
     }
 }

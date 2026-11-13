@@ -55,9 +55,18 @@ enum Commands {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    let cli = Cli::parse();
+async fn main() {
+    if let Err(e) = run_app().await {
+        eprintln!("\n[Error]: {:#}", e);
+        eprintln!("\nPress Enter to exit...");
+        let mut s = String::new();
+        let _ = std::io::stdin().read_line(&mut s);
+        std::process::exit(1);
+    }
+}
 
+async fn run_app() -> Result<()> {
+    let cli = Cli::parse();
     match cli.command {
         Some(Commands::Mcp { db_path }) => {
             let path = resolve_db_path(&db_path)?;
@@ -81,19 +90,16 @@ async fn main() -> Result<()> {
             let path = resolve_db_path(&db_path)?;
             ensure_parent_dir(&path)?;
             let db = Database::open(&path)?;
-
             perform_login_and_sync(email, code, pin, token, &db).await?;
         }
         Some(Commands::Sync { db_path, pin }) => {
             let path = resolve_db_path(&db_path)?;
             ensure_parent_dir(&path)?;
             let db = Database::open(&path)?;
-
             let pin = match pin {
                 Some(p) => p,
                 None => prompt_input("Vault PIN: ")?,
             };
-
             perform_sync_with_session(&pin, &db).await?;
         }
         Some(Commands::Run { db_path }) => {
@@ -107,7 +113,6 @@ async fn main() -> Result<()> {
             run_interactive_menu().await?;
         }
     }
-
     Ok(())
 }
 
@@ -136,14 +141,14 @@ async fn run_interactive_menu() -> Result<()> {
                 if let Err(e) = perform_login_and_sync(None, None, None, None, &db).await {
                     eprintln!("\n[Error during login & sync]: {}", e);
                 }
-                prompt_input("\nPress Enter to continue...")?;
+                let _ = prompt_input("\nPress Enter to return to menu...");
             }
             "2" => {
                 let pin = prompt_input("Vault PIN: ")?;
                 if let Err(e) = perform_sync_with_session(&pin, &db).await {
                     eprintln!("\n[Error during sync]: {}", e);
                 }
-                prompt_input("\nPress Enter to continue...")?;
+                let _ = prompt_input("\nPress Enter to return to menu...");
             }
             "3" => {
                 println!("\nStarting Stdio MCP Server. Listening for JSON-RPC on stdin...");
@@ -209,7 +214,7 @@ async fn perform_login_and_sync(
     };
 
     println!("Deriving keys and unlocking RSA Master Vault (600,000 PBKDF2 iterations)...");
-    let private_key = unlock_vault(&pin, &encrypted_vault_json)
+    let private_key = unlock_vault(&pin, pepper.as_deref(), &encrypted_vault_json)
         .context("Failed to unlock vault. Check your PIN.")?;
     println!("Master Vault unlocked successfully!");
 
@@ -219,7 +224,7 @@ async fn perform_login_and_sync(
         user_id: user_id.clone(),
         token: client.token.clone().unwrap_or_default(),
         encrypted_vault: Some(encrypted_vault_json),
-        pepper,
+        pepper: pepper.clone(),
     };
     save_session(&session)?;
 
@@ -245,7 +250,7 @@ async fn perform_sync_with_session(pin: &str, db: &Database) -> Result<()> {
         .context("No encrypted vault found in session.")?;
 
     println!("Unlocking RSA Master Vault...");
-    let private_key = unlock_vault(pin, vault_json)
+    let private_key = unlock_vault(pin, session.pepper.as_deref(), vault_json)
         .context("Failed to unlock vault with provided PIN.")?;
 
     println!("Syncing notes and todos...");
