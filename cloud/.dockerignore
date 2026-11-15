@@ -1,0 +1,9 @@
+data/
+*.db*
+*.exe
+bin/
+obj/
+server
+.env*
+.git
+.gitignore
