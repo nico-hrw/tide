@@ -103,4 +103,7 @@ tide_backup/
 core/dist/
 target/
 **/target/
-
+
+# Development worktree clone
+tide-dev/
+
