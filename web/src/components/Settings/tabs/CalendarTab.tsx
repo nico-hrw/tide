@@ -6,6 +6,7 @@ import {
     type CalendarHolidayPackage,
 } from '@/store/useDataStore';
 import { useJobPlannerStore } from '@/store/useJobPlannerStore';
+import CalendarImportModal from '@/components/Calendar/CalendarImportModal';
 
 export interface CalendarGroup {
     id: string;
@@ -183,6 +184,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
     const plannerGroupId = useJobPlannerStore((state) => state.pluginGroupId);
     const isJobPlannerActive = enabledExtensions.includes('job_planner');
     const [newGroupName, setNewGroupName] = useState('');
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
     const handleCreateGroupLocal = async () => {
         if (!newGroupName.trim() || !onCreateGroup) return;
@@ -298,6 +300,22 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
                             </div>
                         )}
                     </div>
+
+                    <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-0.5">Google Kalender importieren</h4>
+                                <p className="text-xs text-gray-500">ICS-Kalenderdatei hochladen oder Google-Kalender-Export importieren.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsImportModalOpen(true)}
+                                className="px-3 py-1.5 bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] text-xs font-semibold transition-colors cursor-pointer"
+                            >
+                                Importieren
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="flex flex-col border border-gray-100 dark:border-white/5 rounded-2xl p-4 bg-gray-50/50 dark:bg-white/[0.02]">
@@ -368,6 +386,12 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
                     )}
                 </div>
             </div>
+
+            <CalendarImportModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                themes={groups}
+            />
         </div>
     );
 };

@@ -140,6 +140,7 @@
 | DailySummary | `web/src/components/Calendar/DailySummary.tsx` | Day summary panel |
 | QuickEventSheet | `web/src/components/Calendar/QuickEventSheet.tsx` | GCal-style quick-add **and edit** bottom sheet. `editEvent` prop pre-fills all fields for "Bearbeiten" flow; `onSave` always called, caller decides create vs update. Date chip opens `InlineCalendar`; **GCal range UX**: first tap = anchor (`pickerFirstClick=true`, picker stays open), second tap forward = extend range (Ganztags+allDay auto-enabled), tap at/before current start = collapse back to single day. Window never auto-closes in start-picker mode. Time row: clock icon independently toggles drum picker per side (side-by-side if both open); pickers use `DT.glass`, close on outside tap. **Calendar picker** next to Ganztags: fetches enabled calendars from `GET /api/v1/integrations/gcal/calendars` on open; only shown when at least one calendar is available; color dot + truncated name; deselectable via "Kalender entfernen". Note-link button: `NotePicker` (folder-organized, `type=note/canvas` only, deselectable, no recents). "Mehr Optionen": freq chips, interval ±stepper, weekday chips, end-condition; "Bis zum" uses `InlineCalendar`. All tokens from `DT`. `onSave` receives `{title, start, end, color, allDay, recurrence_rule?, linkedNoteId?, calendarId?}`. |
 | ScheduleModal | `web/src/components/Calendar/ScheduleModal.tsx` | Batch event builder (group/theme, multi-event, recurrence, import/export) — accessed via SmartIsland edit or direct open |
+| CalendarImportModal | `web/src/components/Calendar/CalendarImportModal.tsx` | Modal dialog for importing Google Calendar / RFC 5545 `.ics` calendar files into Tide's encrypted storage. Supports drag & drop file upload, event parsing preview, category selection, batch encryption/upload with progress feedback, and Google Calendar export instructions. Associated utilities: `web/src/lib/icsParser.ts` (RFC 5545 parser) and `web/src/lib/calendarImporter.ts` (batch encryption and file upload). |
 
 ## Chat
 
@@ -205,6 +206,8 @@
 | searchIndex | `web/src/lib/searchIndex.ts` | Client-side full-text search |
 | shareLogic | `web/src/lib/shareLogic.ts` | Share key wrapping logic |
 | calendarUtils | `web/src/lib/calendarUtils.ts` | Date/time helpers for calendar |
+| icsParser | `web/src/lib/icsParser.ts` | RFC 5545 `.ics` calendar file parser for event import |
+| calendarImporter | `web/src/lib/calendarImporter.ts` | Batch encryption and upload utility for imported calendar events |
 | dateParser | `web/src/lib/dateParser.ts` | Natural language date parsing |
 | timeParser | `web/src/lib/timeParser.ts` | Time string parsing |
 | i18n | `web/src/lib/i18n.ts` | Localisation |

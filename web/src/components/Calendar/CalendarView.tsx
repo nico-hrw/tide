@@ -4,11 +4,12 @@ import DayColumn from "@/components/Calendar/DayColumn";
 import "@/app/calendar/calendar.css";
 import { format, startOfWeek, addWeeks, subWeeks, getMinutes, getHours, addDays, subDays, addMonths, subMonths, startOfMonth, isSameDay } from "date-fns";
 import { de } from "date-fns/locale";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Upload } from "lucide-react";
 import { SearchIndexEntry } from "@/lib/searchIndex";
 import Fuse from "fuse.js";
 import { useHighlight } from "@/components/HighlightContext";
 import { ScheduleModal } from './ScheduleModal';
+import { CalendarImportModal } from './CalendarImportModal';
 import { CalendarWeekTimeGrid } from './CalendarWeekTimeGrid';
 import DesktopMonthView from './DesktopMonthView';
 import DesktopAgendaView from './DesktopAgendaView';
@@ -60,6 +61,7 @@ export default function CalendarView({
 
     // Feature Tracking
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     // Search bar anchor: 0=bottom-left, 1=bottom-center, 2=bottom-right, 3=top-center
     const [searchAnchor, setSearchAnchor] = useState(1);
 
@@ -435,29 +437,41 @@ export default function CalendarView({
                             </h2>
                         </div>
 
-                        {/* Right: View Mode switcher pills */}
-                        <div className="flex items-center gap-1 bg-gray-100/70 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 p-1 rounded-xl">
-                            {([
-                                { id: 'day' as const, label: 'Tag' },
-                                { id: 'week' as const, label: 'Woche' },
-                                { id: 'month' as const, label: 'Monat' },
-                                { id: 'continuous' as const, label: 'Fortlaufend' },
-                            ]).map((mode) => {
-                                const isActive = viewMode === mode.id;
-                                return (
-                                    <button
-                                        key={mode.id}
-                                        onClick={() => handleViewModeChange(mode.id)}
-                                        className={`px-2.5 py-1 text-xs rounded-lg transition-all ${
-                                            isActive
-                                                ? "bg-black dark:bg-white text-white dark:text-black font-bold shadow-sm"
-                                                : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 font-medium"
-                                        }`}
-                                    >
-                                        {mode.label}
-                                    </button>
-                                );
-                            })}
+                        {/* Right: View Mode switcher pills & actions */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setIsImportModalOpen(true)}
+                                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-xl bg-gray-100/70 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer"
+                                title="Google Kalender (.ics) importieren"
+                            >
+                                <Upload size={13} />
+                                <span>Import</span>
+                            </button>
+
+                            <div className="flex items-center gap-1 bg-gray-100/70 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 p-1 rounded-xl">
+                                {([
+                                    { id: 'day' as const, label: 'Tag' },
+                                    { id: 'week' as const, label: 'Woche' },
+                                    { id: 'month' as const, label: 'Monat' },
+                                    { id: 'continuous' as const, label: 'Fortlaufend' },
+                                ]).map((mode) => {
+                                    const isActive = viewMode === mode.id;
+                                    return (
+                                        <button
+                                            key={mode.id}
+                                            onClick={() => handleViewModeChange(mode.id)}
+                                            className={`px-2.5 py-1 text-xs rounded-lg transition-all ${
+                                                isActive
+                                                    ? "bg-black dark:bg-white text-white dark:text-black font-bold shadow-sm"
+                                                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 font-medium"
+                                            }`}
+                                        >
+                                            {mode.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
 
@@ -637,6 +651,14 @@ export default function CalendarView({
                     onClose={() => setIsScheduleModalOpen(false)}
                     onApply={onScheduleApply || (async () => { })}
                     existingThemes={themes}
+                />
+            )}
+
+            {isImportModalOpen && (
+                <CalendarImportModal
+                    isOpen={isImportModalOpen}
+                    onClose={() => setIsImportModalOpen(false)}
+                    themes={themes}
                 />
             )}
 
