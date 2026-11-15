@@ -101,6 +101,19 @@ interface LoginResponseData {
     [key: string]: unknown;
 }
 
+interface DevLoginResponseData {
+    token?: string;
+    pepper?: string;
+    encrypted_vault?: string | cryptoLib.EncryptedPrivateKey;
+    user_id?: string;
+    public_key?: string;
+    username?: string;
+    dev_pin?: string;
+    needs_keys?: boolean;
+    error?: string;
+    message?: string;
+}
+
 interface SegmentedDigitInputProps {
     length: number;
     digits: string[];
@@ -234,6 +247,9 @@ function ActionButton({ loading, disabled, label }: { loading: boolean; disabled
 
 function AuthContent() {
     const router = useRouter();
+
+    const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true" || process.env.NODE_ENV !== "production";
+    const [isDevLoggingIn, setIsDevLoggingIn] = useState(false);
 
     const [step, setStep] = useState<"identifier" | "code" | "pin" | "details">("identifier");
     const [identifier, setIdentifier] = useState("");
@@ -505,6 +521,98 @@ function AuthContent() {
         }
     };
 
+    // ─── Dev / Demo Quick Login ──────────────────────────────────────────────
+    const handleDevQuickLogin = async (type: "disposable" | "persistent", devUsername?: string) => {
+        setIsDevLoggingIn(true);
+        setErrorMessage("");
+        try {
+            const res = await apiFetch("/api/v1/auth/dev-login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ type, username: devUsername }),
+            });
+
+            if (!res.ok) {
+                const text = await res.text().catch(() => "");
+                let msg = "Dev-Login fehlgeschlagen.";
+                try {
+                    const p = JSON.parse(text);
+                    if (p.error || p.message) msg = p.error || p.message;
+                } catch { if (text) msg = text; }
+                setErrorMessage(msg);
+                setIsDevLoggingIn(false);
+                return;
+            }
+
+            let data: DevLoginResponseData = await res.json();
+
+            if (data.needs_keys) {
+                const devPin = data.dev_pin || "000000";
+                const pepperBase64 = data.pepper || "";
+                const { masterKeys, encryptedVault } = await cryptoLib.generateUserVault(devPin, pepperBase64);
+                const publicKeySpki = await cryptoLib.exportPublicKey(masterKeys.publicKey);
+
+                const setupRes = await apiFetch("/api/v1/auth/dev-login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        type,
+                        username: devUsername,
+                        public_key: publicKeySpki,
+                        encrypted_vault: JSON.stringify(encryptedVault),
+                        pepper: pepperBase64,
+                    }),
+                });
+
+                if (!setupRes.ok) {
+                    const text = await setupRes.text().catch(() => "");
+                    let msg = "Dev-Login Schlüssel-Setup fehlgeschlagen.";
+                    try {
+                        const p = JSON.parse(text);
+                        if (p.error || p.message) msg = p.error || p.message;
+                    } catch { if (text) msg = text; }
+                    setErrorMessage(msg);
+                    setIsDevLoggingIn(false);
+                    return;
+                }
+
+                data = await setupRes.json();
+            }
+
+            if (data.encrypted_vault && data.pepper && data.user_id && data.public_key) {
+                const rawVault = typeof data.encrypted_vault === "string"
+                    ? (JSON.parse(data.encrypted_vault) as cryptoLib.EncryptedPrivateKey)
+                    : (data.encrypted_vault as cryptoLib.EncryptedPrivateKey);
+
+                const decryptedKey = await cryptoLib.unlockVault(data.dev_pin || "000000", data.pepper, rawVault);
+                await storeMasterKey(decryptedKey);
+                purgeLegacyKeys();
+
+                const loginUser = data.username || devUsername || "Dev User";
+                localStorage.setItem("tide_user_id", data.user_id);
+                localStorage.setItem(
+                    "tide_user_email",
+                    data.username ? `${data.username.toLowerCase()}@dev.local` : (devUsername ? `${devUsername.toLowerCase()}@dev.local` : "dev@local")
+                );
+                localStorage.setItem("tide_user_name", loginUser);
+                sessionStorage.setItem("tide_user_name", loginUser);
+                localStorage.setItem("tide_user_public_key", data.public_key);
+                if (data.token) {
+                    localStorage.setItem("tide_session_token", data.token);
+                }
+
+                router.push(getHomePath());
+            } else {
+                setErrorMessage("Unvollständige Antwort vom Dev-Login-Server.");
+            }
+        } catch (err) {
+            console.error("Dev quick login error:", err);
+            setErrorMessage("Fehler beim Dev-Login. Bitte Backend-Verbindung prüfen.");
+        } finally {
+            setIsDevLoggingIn(false);
+        }
+    };
+
     return (
         <div className="min-h-screen min-h-[100dvh] flex flex-col justify-center relative overflow-hidden font-sans">
             <style>{`
@@ -643,6 +751,44 @@ function AuthContent() {
                             <p className="text-lg text-gray-500 font-light leading-relaxed max-w-md">
                                 Notizen, Termine und Todos in einer minimalistischen App vereint, um deinen Kopf frei zu halten.
                             </p>
+
+                            {isDevMode && (
+                                <div className="mt-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs">
+                                    <div className="font-bold text-amber-600 dark:text-amber-400 mb-2 flex items-center justify-between">
+                                        <span>🛠️ Dev / Demo Schnellzugriff</span>
+                                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20">Kein OTP / PIN</span>
+                                    </div>
+                                    <p className="text-gray-500 dark:text-gray-400 mb-3 text-[11px]">
+                                        Direkter 1-Klick Login für schnelle Tests und Entwicklung ohne E-Mail.
+                                    </p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDevQuickLogin('disposable')}
+                                            disabled={isDevLoggingIn}
+                                            className="px-2.5 py-2 rounded-xl bg-white dark:bg-white/5 border border-amber-500/30 hover:border-amber-500 font-medium text-gray-800 dark:text-gray-200 transition-colors text-center cursor-pointer"
+                                        >
+                                            ⚡ Einmal-Gast
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDevQuickLogin('persistent', 'Dev Alice')}
+                                            disabled={isDevLoggingIn}
+                                            className="px-2.5 py-2 rounded-xl bg-white dark:bg-white/5 border border-amber-500/30 hover:border-amber-500 font-medium text-gray-800 dark:text-gray-200 transition-colors text-center cursor-pointer"
+                                        >
+                                            👤 Dev Alice
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDevQuickLogin('persistent', 'Dev Bob')}
+                                            disabled={isDevLoggingIn}
+                                            className="px-2.5 py-2 rounded-xl bg-white dark:bg-white/5 border border-amber-500/30 hover:border-amber-500 font-medium text-gray-800 dark:text-gray-200 transition-colors text-center cursor-pointer"
+                                        >
+                                            👥 Dev Bob
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 

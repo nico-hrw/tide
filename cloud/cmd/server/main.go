@@ -204,6 +204,7 @@ func main() {
 		r.With(api.RateLimitMiddleware(otpVerifyLimiter)).Post("/auth/verify-otp", authHandler.VerifyOTP)
 		r.With(api.AuthMiddleware).Get("/auth/me", authHandler.Me)
 		r.With(api.AuthMiddleware).Put("/auth/me", authHandler.UpdateMe)
+		r.Post("/auth/dev-login", authHandler.DevLogin)
 
 		r.Route("/files", fileHandler.RegisterRoutes)
 		r.Route("/links", linkHandler.RegisterRoutes)
@@ -228,6 +229,7 @@ func main() {
 	// CRDT & E2EE aliases for /api/ws/notes and /api/files
 	r.Get("/api/ws/notes/{fileID}", fileHandler.ServeWs)
 	r.Route("/api/files", fileHandler.RegisterRoutes)
+	r.Post("/api/auth/dev-login", authHandler.DevLogin)
 
 	// Quicknotes routes
 	r.Route("/api/v1/quicknotes", func(r chi.Router) {

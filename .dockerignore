@@ -1,0 +1,27 @@
+# Git & Dev worktree
+.git
+.gitignore
+tide-dev/
+
+# Node & Web artifacts
+**/node_modules
+**/.next
+**/out
+**/build
+**/dist
+
+# Go & Cloud artifacts
+**/cloud/data
+**/*.db*
+**/*.exe
+**/bin
+**/obj
+**/tide-server
+
+# Rust artifacts
+**/target
+**/core/dist
+
+# Logs & temp files
+**/*.log
+**/*.tmp

@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  # Tide Cloud Backend (Go API & SQLite Storage)
+  cloud:
+    build:
+      context: ./cloud
+      dockerfile: Dockerfile
+    container_name: tide-cloud
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      - PORT=8080
+      - ENV=development
+      - DEV_MODE=true
+      - JWT_SECRET=dev-secret-super-secure-jwt-key-for-local-development-123456789
+      - SERVER_MASTER_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      - DATA_DIR=/app/data
+    volumes:
+      - ./cloud/data:/app/data
+
+  # Tide Web Frontend (Next.js PWA)
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: tide-web
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - PORT=3000
+      - BACKEND_PORT=8080
+      - NEXT_PUBLIC_DEV_MODE=true
+      - NEXT_PUBLIC_API_URL=http://localhost:8081
+    depends_on:
+      - cloud
