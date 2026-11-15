@@ -1,0 +1,673 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tide.dev/schemas/tide_bundle_schema.json",
+  "title": "Tide Portable Bundle Schema",
+  "description": "Standard JSON Schema (Draft 2020-12) defining the portable bundle interchange format (.tide.json) for TIDE workspace items, including ProseMirror/TipTap note ASTs, tasks, calendar events, folders, and embedded media assets.",
+  "type": "object",
+  "required": [
+    "version",
+    "exportedAt",
+    "vaultInfo"
+  ],
+  "properties": {
+    "version": {
+      "description": "Bundle format version number or semantic version string (e.g. '1.0.0' or 1).",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        }
+      ]
+    },
+    "bundle_id": {
+      "description": "Unique identifier for this export archive (UUID v4).",
+      "type": "string"
+    },
+    "title": {
+      "description": "Human-readable title or workspace name of the bundle.",
+      "type": "string"
+    },
+    "description": {
+      "description": "Optional summary or user export description.",
+      "type": "string"
+    },
+    "author": {
+      "description": "Display name or identifier of exporting user.",
+      "type": "string"
+    },
+    "exportedAt": {
+      "description": "Canonical ISO 8601 UTC timestamp when the bundle was exported.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "created_at": {
+      "description": "Alternative or legacy ISO 8601 timestamp for bundle creation.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "vaultInfo": {
+      "description": "Source vault telemetry and export provenance information.",
+      "type": "object",
+      "required": [
+        "name",
+        "exportScope"
+      ],
+      "properties": {
+        "name": {
+          "description": "Name of the source vault or workspace.",
+          "type": "string"
+        },
+        "vaultName": {
+          "description": "Alternative alias for vault name.",
+          "type": "string"
+        },
+        "exportScope": {
+          "description": "Scope of the export archive.",
+          "type": "string",
+          "enum": [
+            "full",
+            "folder",
+            "selection"
+          ]
+        },
+        "clientVersion": {
+          "description": "TIDE client application release version.",
+          "type": "string"
+        },
+        "sourceVersion": {
+          "description": "Alternative alias for client release version.",
+          "type": "string"
+        },
+        "originHost": {
+          "description": "Origin hostname of the client application.",
+          "type": "string"
+        }
+      }
+    },
+    "items": {
+      "description": "Polymorphic array of unified bundle items (TideBundleItem).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/TideBundleItem"
+      }
+    },
+    "notes": {
+      "description": "Normalized collection of notes containing ProseMirror/TipTap AST content.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/NoteObject"
+      }
+    },
+    "tasks": {
+      "description": "Normalized collection of standalone or note-linked tasks.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/TaskObject"
+      }
+    },
+    "events": {
+      "description": "Normalized collection of calendar events.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CalendarEventObject"
+      }
+    },
+    "folders": {
+      "description": "Normalized collection of directory hierarchy folders.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/FolderObject"
+      }
+    },
+    "assets": {
+      "description": "Key-value map of embedded binary media assets keyed by asset ID or checksum.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/AssetObject"
+      }
+    }
+  },
+  "$defs": {
+    "TideBundleItem": {
+      "description": "Polymorphic item interchange structure representing a note, calendar event, task, or folder.",
+      "type": "object",
+      "required": [
+        "id",
+        "type",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "description": "Relative reference UUID inside the bundle.",
+          "type": "string"
+        },
+        "type": {
+          "description": "Item categorization type.",
+          "type": "string",
+          "enum": [
+            "note",
+            "event",
+            "folder",
+            "task"
+          ]
+        },
+        "title": {
+          "description": "Title or display label of the item.",
+          "type": "string"
+        },
+        "parent_id": {
+          "description": "UUID of the parent folder or linked note, or null for root.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "content": {
+          "description": "ProseMirror/TipTap document AST node or plaintext markdown string.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ProseMirrorNode"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "event_meta": {
+          "description": "Calendar event metadata payload.",
+          "type": "object",
+          "properties": {
+            "start": {
+              "description": "ISO 8601 start date-time.",
+              "type": "string"
+            },
+            "end": {
+              "description": "ISO 8601 end date-time.",
+              "type": "string"
+            },
+            "allDay": {
+              "description": "Whether the event lasts all day.",
+              "type": "boolean"
+            },
+            "color": {
+              "description": "HEX color string or design token.",
+              "type": "string"
+            },
+            "location": {
+              "description": "Physical or virtual location string.",
+              "type": "string"
+            },
+            "description": {
+              "description": "Event detailed description.",
+              "type": "string"
+            },
+            "recurrenceRule": {
+              "description": "iCalendar RRULE string if recurring.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "task_meta": {
+          "description": "Task status and scheduling metadata.",
+          "type": "object",
+          "properties": {
+            "description": {
+              "type": "string"
+            },
+            "color": {
+              "type": "string"
+            },
+            "isCompleted": {
+              "type": "boolean"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "todo",
+                "in_progress",
+                "completed"
+              ]
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "urgent"
+              ]
+            },
+            "scheduledDate": {
+              "type": "string"
+            },
+            "dueDate": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "metadata": {
+          "description": "Arbitrary key-value metadata extensions.",
+          "type": "object"
+        }
+      }
+    },
+    "NoteObject": {
+      "description": "Normalized note document entry.",
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "description": "Unique note identifier.",
+          "type": "string"
+        },
+        "title": {
+          "description": "Plaintext title of the note.",
+          "type": "string"
+        },
+        "content": {
+          "description": "TipTap ProseMirror AST tree root or Markdown string.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ProseMirrorNode"
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "tags": {
+          "description": "Array of user tags attached to this note.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "description": "Creation timestamp.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "description": "Last modification timestamp.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "parentId": {
+          "description": "UUID of parent folder, or null for root.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent_id": {
+          "description": "Alternative alias for parent folder UUID.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metadata": {
+          "description": "Custom user metadata, pinned state, or attributes.",
+          "type": "object"
+        }
+      }
+    },
+    "TaskObject": {
+      "description": "Normalized task item entry.",
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "description": "Unique task identifier.",
+          "type": "string"
+        },
+        "title": {
+          "description": "Actionable task title.",
+          "type": "string"
+        },
+        "priority": {
+          "description": "Task priority level.",
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "urgent"
+          ]
+        },
+        "status": {
+          "description": "Workflow lifecycle status.",
+          "type": "string",
+          "enum": [
+            "todo",
+            "in_progress",
+            "completed"
+          ]
+        },
+        "dueDate": {
+          "description": "Due date timestamp or date string.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scheduledDate": {
+          "description": "Scheduled date (YYYY-MM-DD).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "completed": {
+          "description": "Completion flag.",
+          "type": "boolean"
+        },
+        "isCompleted": {
+          "description": "Alternative completion flag for backward compatibility.",
+          "type": "boolean"
+        },
+        "parentId": {
+          "description": "UUID of linked note or parent context.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent_id": {
+          "description": "Alternative alias for parent context UUID.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "orderIndex": {
+          "description": "Sort order index within lists.",
+          "type": "integer"
+        },
+        "description": {
+          "description": "Task description or notes.",
+          "type": "string"
+        },
+        "color": {
+          "description": "Color token or HEX string.",
+          "type": "string"
+        }
+      }
+    },
+    "CalendarEventObject": {
+      "description": "Normalized calendar appointment entry.",
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "description": "Unique calendar event identifier.",
+          "type": "string"
+        },
+        "title": {
+          "description": "Event headline.",
+          "type": "string"
+        },
+        "startTime": {
+          "description": "Event start ISO 8601 date-time.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "endTime": {
+          "description": "Event end ISO 8601 date-time.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "start": {
+          "description": "Alternative start timestamp string.",
+          "type": "string"
+        },
+        "end": {
+          "description": "Alternative end timestamp string.",
+          "type": "string"
+        },
+        "allDay": {
+          "description": "Indicates whether event is an all-day event.",
+          "type": "boolean"
+        },
+        "color": {
+          "description": "HEX color string or design token.",
+          "type": "string"
+        },
+        "location": {
+          "description": "Physical or virtual location details.",
+          "type": "string"
+        },
+        "recurrenceRule": {
+          "description": "iCalendar RRULE string for recurring events.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "description": "Extended event notes or body.",
+          "type": "string"
+        }
+      }
+    },
+    "FolderObject": {
+      "description": "Normalized workspace folder hierarchy entry.",
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "description": "Unique folder identifier.",
+          "type": "string"
+        },
+        "name": {
+          "description": "Folder display name.",
+          "type": "string"
+        },
+        "title": {
+          "description": "Alternative alias for folder title.",
+          "type": "string"
+        },
+        "parentId": {
+          "description": "UUID of parent folder, or null for root.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "parent_id": {
+          "description": "Alternative alias for parent UUID.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "color": {
+          "description": "Folder accent color.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "icon": {
+          "description": "Emoji or icon identifier.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "AssetObject": {
+      "description": "Embedded binary media payload definition.",
+      "type": "object",
+      "required": [
+        "mimeType"
+      ],
+      "properties": {
+        "mimeType": {
+          "description": "MIME type of the media asset (e.g. 'image/png').",
+          "type": "string"
+        },
+        "checksumSha256": {
+          "description": "Cryptographic SHA-256 digest of the uncompressed asset bytes.",
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "sha256": {
+          "description": "Alternative alias for SHA-256 checksum.",
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{64}$"
+        },
+        "dataUri": {
+          "description": "RFC 2397 Data URI payload (e.g. 'data:image/png;base64,...').",
+          "type": "string"
+        },
+        "base64": {
+          "description": "Raw Base64-encoded binary string.",
+          "type": "string"
+        },
+        "data": {
+          "description": "Data URI or Base64 payload string.",
+          "type": "string"
+        },
+        "sizeBytes": {
+          "description": "Size in bytes.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "size": {
+          "description": "Alternative alias for byte size.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "fileName": {
+          "description": "Original file name of attachment.",
+          "type": "string"
+        }
+      }
+    },
+    "ProseMirrorNode": {
+      "description": "ProseMirror / TipTap Document AST node structure.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "description": "Node type (e.g. 'doc', 'paragraph', 'heading', 'text', 'taskList', 'taskItem', 'calendarEventMention', 'taskMention', 'mathBlock', 'codeBlock').",
+          "type": "string"
+        },
+        "content": {
+          "description": "Child nodes array within this node.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProseMirrorNode"
+          }
+        },
+        "marks": {
+          "description": "Inline formatting and semantic marks applied to text nodes.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProseMirrorMark"
+          }
+        },
+        "attrs": {
+          "description": "Node attributes dictionary (e.g. blockId, level, eventId, taskId, linkedNoteId, checked).",
+          "type": "object",
+          "properties": {
+            "blockId": {
+              "type": "string"
+            },
+            "level": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6
+            },
+            "eventId": {
+              "type": "string"
+            },
+            "taskId": {
+              "type": "string"
+            },
+            "linkedNoteId": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "date": {
+              "type": "string"
+            },
+            "latex": {
+              "type": "string"
+            },
+            "language": {
+              "type": "string"
+            },
+            "checked": {
+              "type": "boolean"
+            },
+            "href": {
+              "type": "string"
+            },
+            "src": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        },
+        "text": {
+          "description": "Plaintext string content for leaf text nodes.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProseMirrorMark": {
+      "description": "ProseMirror inline formatting or reference mark.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "description": "Mark type (e.g. 'bold', 'italic', 'code', 'strike', 'highlight', 'link', 'referenceMark').",
+          "type": "string"
+        },
+        "attrs": {
+          "description": "Mark attributes dictionary (e.g. href, targetId).",
+          "type": "object",
+          "properties": {
+            "href": {
+              "type": "string"
+            },
+            "targetId": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

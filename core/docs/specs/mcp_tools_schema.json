@@ -1,0 +1,766 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tide.app/schemas/mcp_tools_schema.json",
+  "title": "Tide MCP Tools Schema",
+  "description": "Comprehensive JSON Schema defining tool declarations, input arguments, output payloads, and error responses for the Tide Model Context Protocol (MCP) server.",
+  "type": "object",
+  "properties": {
+    "tools": {
+      "type": "array",
+      "description": "List of available Tide MCP tools",
+      "items": {
+        "$ref": "#/$defs/ToolDefinition"
+      }
+    }
+  },
+  "required": ["tools"],
+  "$defs": {
+    "ToolDefinition": {
+      "type": "object",
+      "description": "Definition of an individual MCP tool following the MCP protocol specification",
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": [
+            "tide_search",
+            "tide_get_note_outline",
+            "tide_get_note_section",
+            "tide_get_note_graph",
+            "tide_list_todos",
+            "tide_patch_todo",
+            "tide_get_note",
+            "tide_get_block",
+            "tide_get_focused_blocks",
+            "tide_patch_block"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "inputSchema": {
+          "type": "object",
+          "description": "JSON Schema describing the parameters accepted by this tool"
+        },
+        "outputSchema": {
+          "type": "object",
+          "description": "JSON Schema describing the response data returned by this tool"
+        }
+      },
+      "required": ["name", "description", "inputSchema", "outputSchema"]
+    },
+
+    "ProseMirrorNode": {
+      "type": "object",
+      "description": "A ProseMirror document or sub-tree node representing block or inline content",
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Node type, e.g. doc, paragraph, heading, bullet_list, ordered_list, list_item, code_block, blockquote"
+        },
+        "attrs": {
+          "type": "object",
+          "description": "Optional node attributes, e.g. id, level, language, checked"
+        },
+        "content": {
+          "type": "array",
+          "description": "Child nodes within this node",
+          "items": {
+            "$ref": "#/$defs/ProseMirrorNode"
+          }
+        },
+        "text": {
+          "type": "string",
+          "description": "Text content if this is a text node"
+        },
+        "marks": {
+          "type": "array",
+          "description": "Formatting marks applied to the node (bold, italic, code, link, etc.)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string" },
+              "attrs": { "type": "object" }
+            },
+            "required": ["type"]
+          }
+        }
+      },
+      "required": ["type"]
+    },
+
+    "TideSearch": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "object",
+          "description": "Parameters for searching local notes via full-text search",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Full-text search keyword or query expression"
+            },
+            "limit": {
+              "type": "integer",
+              "description": "Maximum number of search results to return",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "required": ["query"]
+        },
+        "output": {
+          "type": "object",
+          "description": "Search result items matching the query",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "note_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Unique identifier of the matching note"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Title of the note"
+                  },
+                  "snippet": {
+                    "type": "string",
+                    "description": "Extracted relevant text snippet highlighting matching terms"
+                  },
+                  "rank": {
+                    "type": "number",
+                    "description": "Relevance ranking score computed by the search engine"
+                  }
+                },
+                "required": ["note_id", "title", "snippet", "rank"]
+              }
+            },
+            "total": {
+              "type": "integer",
+              "description": "Total number of matching results"
+            }
+          },
+          "required": ["items"]
+        }
+      }
+    },
+
+    "TideGetNoteOutline": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "object",
+          "description": "Parameters for fetching the structural outline of a note",
+          "properties": {
+            "note_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUID of the note whose outline is requested"
+            }
+          },
+          "required": ["note_id"]
+        },
+        "output": {
+          "type": "object",
+          "description": "Structural outline consisting of headings and block identifiers",
+          "properties": {
+            "note_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "headings": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "level": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6,
+                    "description": "Heading depth level (1 for h1, 2 for h2, etc.)"
+                  },
+                  "text": {
+                    "type": "string",
+                    "description": "Heading text title"
+                  },
+                  "block_id": {
+                    "type": "string",
+                    "description": "Identifier of the block corresponding to this heading"
+                  }
+                },
+                "required": ["level", "text", "block_id"]
+              }
+            }
+          },
+          "required": ["headings"]
+        }
+      }
+    },
+
+    "TideGetNoteSection": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "object",
+          "description": "Parameters for retrieving a specific section under a heading in a note",
+          "properties": {
+            "note_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUID of the target note"
+            },
+            "section_heading": {
+              "type": "string",
+              "description": "Exact or partial title of the section heading to retrieve"
+            }
+          },
+          "required": ["note_id", "section_heading"]
+        },
+        "output": {
+          "type": "object",
+          "description": "Extracted section content and associated block IDs",
+          "properties": {
+            "note_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "section_heading": {
+              "type": "string",
+              "description": "Matched heading title"
+            },
+            "content": {
+              "type": "string",
+              "description": "Markdown or plaintext representation of the section content"
+            },
+            "block_ids": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "List of block identifiers encompassed by this section"
+            }
+          },
+          "required": ["content", "block_ids"]
+        }
+      }
+    },
+
+    "TideGetNoteGraph": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "object",
+          "description": "Parameters for retrieving links and backlinks for a note",
+          "properties": {
+            "note_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUID of the target note"
+            },
+            "direction": {
+              "type": "string",
+              "enum": ["in", "out", "both"],
+              "default": "both",
+              "description": "Direction of graph traversal: 'in' for backlinks, 'out' for outgoing links, 'both' for bidirectional"
+            }
+          },
+          "required": ["note_id"]
+        },
+        "output": {
+          "type": "object",
+          "description": "Graph topology around the note",
+          "properties": {
+            "note_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "nodes": {
+              "type": "array",
+              "description": "List of nodes participating in the local graph",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "Node identifier (usually note UUID)"
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Title of the note or entity"
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "Type of node, e.g. note, tag, external_url"
+                  }
+                },
+                "required": ["id", "title"]
+              }
+            },
+            "edges": {
+              "type": "array",
+              "description": "List of directed connections between nodes",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "description": "Source node identifier"
+                  },
+                  "target": {
+                    "type": "string",
+                    "description": "Target node identifier"
+                  },
+                  "type": {
+                    "type": "string",
+                    "description": "Edge relationship type, e.g. wikilink, embed, reference"
+                  }
+                },
+                "required": ["source", "target"]
+              }
+            }
+          },
+          "required": ["nodes", "edges"]
+        }
+      }
+    },
+
+    "TideListTodos": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "object",
+          "description": "Filters for querying todos and tasks across notes",
+          "properties": {
+            "priority": {
+              "type": "string",
+              "enum": ["low", "medium", "high", "urgent"],
+              "description": "Filter by task priority level"
+            },
+            "status": {
+              "type": "string",
+              "enum": ["pending", "completed", "all"],
+              "default": "pending",
+              "description": "Filter by completion status"
+            },
+            "tags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Filter by one or more assigned tags"
+            },
+            "due_before": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Filter todos with due dates on or before this ISO 8601 timestamp"
+            },
+            "due_after": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Filter todos with due dates on or after this ISO 8601 timestamp"
+            }
+          }
+        },
+        "output": {
+          "type": "object",
+          "description": "List of matching todo items",
+          "properties": {
+            "todos": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Unique identifier of the todo item"
+                  },
+                  "text": {
+                    "type": "string",
+                    "description": "Todo description or task text"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["pending", "completed"]
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": ["low", "medium", "high", "urgent"]
+                  },
+                  "due_date": {
+                    "type": ["string", "null"],
+                    "format": "date-time",
+                    "description": "Optional ISO 8601 due date"
+                  },
+                  "tags": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "note_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "UUID of the note containing this todo item"
+                  },
+                  "block_id": {
+                    "type": "string",
+                    "description": "Identifier of the block containing this todo checkbox"
+                  }
+                },
+                "required": ["id", "text", "status", "priority"]
+              }
+            },
+            "count": {
+              "type": "integer",
+              "description": "Count of returned todo items"
+            }
+          },
+          "required": ["todos"]
+        }
+      }
+    },
+
+    "TidePatchTodo": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "object",
+          "description": "Parameters to atomically update properties of a todo item",
+          "properties": {
+            "todo_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUID of the todo item to update"
+            },
+            "patch": {
+              "type": "object",
+              "description": "Fields to update on the target todo item",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "enum": ["pending", "completed"],
+                  "description": "Updated completion status"
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": ["low", "medium", "high", "urgent"],
+                  "description": "Updated priority level"
+                },
+                "due_date": {
+                  "type": ["string", "null"],
+                  "format": "date-time",
+                  "description": "Updated due date in ISO 8601 format, or null to clear"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Updated task text content"
+                }
+              },
+              "minProperties": 1
+            }
+          },
+          "required": ["todo_id", "patch"]
+        },
+        "output": {
+          "type": "object",
+          "description": "Result of applying the todo patch",
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "description": "Whether the patch operation succeeded"
+            },
+            "todo": {
+              "type": "object",
+              "description": "Updated state of the todo item",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["pending", "completed"]
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": ["low", "medium", "high", "urgent"]
+                },
+                "due_date": {
+                  "type": ["string", "null"],
+                  "format": "date-time"
+                }
+              },
+              "required": ["id", "text", "status", "priority"]
+            }
+          },
+          "required": ["success", "todo"]
+        }
+      }
+    },
+
+    "TideGetNote": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "object",
+          "description": "Parameters for retrieving and decrypting a note by UUID or URL slug",
+          "properties": {
+            "note_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUID of the note to retrieve"
+            },
+            "slug": {
+              "type": "string",
+              "description": "URL slug / identifier of the note"
+            }
+          },
+          "anyOf": [
+            { "required": ["note_id"] },
+            { "required": ["slug"] }
+          ]
+        },
+        "output": {
+          "type": "object",
+          "description": "Decrypted note content and metadata with ProseMirror AST",
+          "properties": {
+            "note_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "ast": {
+              "$ref": "#/$defs/ProseMirrorNode",
+              "description": "Decrypted JSON AST representing the note's rich-text document structure"
+            }
+          },
+          "required": ["note_id", "title", "ast"]
+        }
+      }
+    },
+
+    "TideGetBlock": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "object",
+          "description": "Parameters for retrieving a single ProseMirror block by identifier",
+          "properties": {
+            "note_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUID of the containing note"
+            },
+            "block_id": {
+              "type": "string",
+              "description": "Identifier of the specific block"
+            }
+          },
+          "required": ["note_id", "block_id"]
+        },
+        "output": {
+          "type": "object",
+          "description": "Retrieved ProseMirror node representing the requested block",
+          "properties": {
+            "note_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "block_id": {
+              "type": "string"
+            },
+            "block": {
+              "$ref": "#/$defs/ProseMirrorNode",
+              "description": "ProseMirror node data for the block"
+            }
+          },
+          "required": ["note_id", "block_id", "block"]
+        }
+      }
+    },
+
+    "TideGetFocusedBlocks": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "object",
+          "description": "Parameters for retrieving a target block alongside surrounding context blocks",
+          "properties": {
+            "note_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUID of the containing note"
+            },
+            "block_id": {
+              "type": "string",
+              "description": "Identifier of the focal block"
+            },
+            "context_window": {
+              "type": "integer",
+              "default": 2,
+              "minimum": 0,
+              "maximum": 10,
+              "description": "Number of surrounding blocks to fetch before and after the target block"
+            }
+          },
+          "required": ["note_id", "block_id"]
+        },
+        "output": {
+          "type": "object",
+          "description": "Focal block with its preceding and succeeding context blocks",
+          "properties": {
+            "note_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "target_block_id": {
+              "type": "string"
+            },
+            "preceding": {
+              "type": "array",
+              "description": "Blocks immediately preceding the target block in document order",
+              "items": {
+                "$ref": "#/$defs/ProseMirrorNode"
+              }
+            },
+            "target": {
+              "$ref": "#/$defs/ProseMirrorNode",
+              "description": "The requested focal block ProseMirror node"
+            },
+            "succeeding": {
+              "type": "array",
+              "description": "Blocks immediately following the target block in document order",
+              "items": {
+                "$ref": "#/$defs/ProseMirrorNode"
+              }
+            }
+          },
+          "required": ["note_id", "target_block_id", "preceding", "target", "succeeding"]
+        }
+      }
+    },
+
+    "TidePatchBlock": {
+      "type": "object",
+      "properties": {
+        "input": {
+          "type": "object",
+          "description": "Parameters for updating or replacing an existing block's content",
+          "properties": {
+            "note_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "UUID of the containing note"
+            },
+            "block_id": {
+              "type": "string",
+              "description": "Identifier of the block to update"
+            },
+            "content": {
+              "type": "object",
+              "description": "New ProseMirror content object or updated block node attributes",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "attrs": {
+                  "type": "object"
+                },
+                "content": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/ProseMirrorNode"
+                  }
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "required": ["note_id", "block_id", "content"]
+        },
+        "output": {
+          "type": "object",
+          "description": "Result of patching the block",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "note_id": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "block_id": {
+              "type": "string"
+            },
+            "updated_block": {
+              "$ref": "#/$defs/ProseMirrorNode",
+              "description": "The updated block ProseMirror node after patch application"
+            }
+          },
+          "required": ["success", "note_id", "block_id", "updated_block"]
+        }
+      }
+    },
+
+    "ErrorResponse": {
+      "type": "object",
+      "description": "Standardized MCP error response format",
+      "properties": {
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "enum": [
+                "NOTE_NOT_FOUND",
+                "BLOCK_NOT_FOUND",
+                "SECTION_NOT_FOUND",
+                "TODO_NOT_FOUND",
+                "INVALID_ARGUMENT",
+                "UNAUTHORIZED",
+                "DECRYPTION_FAILED",
+                "ENCRYPTION_FAILED",
+                "DATABASE_ERROR",
+                "INTERNAL_ERROR"
+              ],
+              "description": "Machine-readable error code"
+            },
+            "message": {
+              "type": "string",
+              "description": "Human-readable explanation of the error"
+            },
+            "details": {
+              "type": "object",
+              "description": "Optional contextual details or diagnostics about the failure"
+            }
+          },
+          "required": ["code", "message"]
+        }
+      },
+      "required": ["error"]
+    }
+  }
+}

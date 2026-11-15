@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tide.app/schemas/core/data_models.json",
+  "title": "Tide Core Data Models Schema",
+  "description": "Strict JSON Schema (Draft 2020-12) defining the core data models of tide-core.",
+  "$defs": {
+    "LocalNote": {
+      "type": "object",
+      "title": "LocalNote",
+      "description": "Represents a local note entity within Tide Core.",
+      "required": [
+        "id",
+        "title",
+        "content",
+        "created_at",
+        "updated_at",
+        "is_pinned",
+        "is_archived",
+        "is_deleted",
+        "tags"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "title": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "parent_id": {
+          "type": ["string", "null"]
+        },
+        "safe_id": {
+          "type": ["string", "null"]
+        },
+        "is_pinned": {
+          "type": "boolean"
+        },
+        "is_archived": {
+          "type": "boolean"
+        },
+        "is_deleted": {
+          "type": "boolean"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "LocalTodo": {
+      "type": "object",
+      "title": "LocalTodo",
+      "description": "Represents a local todo or task entity within Tide Core.",
+      "required": [
+        "id",
+        "title",
+        "priority",
+        "status",
+        "tags",
+        "order_index"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "title": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "urgent"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "completed", "cancelled"]
+        },
+        "due_date": {
+          "oneOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "parent_id": {
+          "type": ["string", "null"]
+        },
+        "order_index": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "NoteLink": {
+      "type": "object",
+      "title": "NoteLink",
+      "description": "Represents a directional relationship or link between notes or entities.",
+      "required": [
+        "source_id",
+        "target_id",
+        "link_type",
+        "created_at"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "target_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "link_type": {
+          "type": "string",
+          "enum": ["wikilink", "markdown", "embed", "tag", "transclusion"]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "NoteSnippet": {
+      "type": "object",
+      "title": "NoteSnippet",
+      "description": "Represents an indexed snippet or block from a note.",
+      "required": [
+        "id",
+        "note_id",
+        "block_id",
+        "snippet_text",
+        "heading_context",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "type": "integer"
+        },
+        "note_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "block_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "snippet_text": {
+          "type": "string"
+        },
+        "heading_context": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SyncQueueItem": {
+      "type": "object",
+      "title": "SyncQueueItem",
+      "description": "Represents an item in the offline synchronization queue.",
+      "required": [
+        "queue_id",
+        "action",
+        "entity_type",
+        "entity_id",
+        "payload_json",
+        "retry_count",
+        "status",
+        "created_at"
+      ],
+      "properties": {
+        "queue_id": {
+          "type": "integer"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["CREATE", "UPDATE", "DELETE"]
+        },
+        "entity_type": {
+          "type": "string",
+          "enum": ["note", "todo", "link"]
+        },
+        "entity_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "payload_json": {
+          "type": "string"
+        },
+        "retry_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "type": "string",
+          "enum": ["PENDING", "IN_FLIGHT", "FAILED"]
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SessionData": {
+      "type": "object",
+      "title": "SessionData",
+      "description": "Represents active user session and cryptographic keys.",
+      "required": [
+        "user_id",
+        "email",
+        "server_url",
+        "access_token",
+        "refresh_token",
+        "expires_at",
+        "public_key",
+        "wrapped_dek",
+        "salt"
+      ],
+      "properties": {
+        "user_id": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "server_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "access_token": {
+          "type": "string"
+        },
+        "refresh_token": {
+          "type": "string"
+        },
+        "expires_at": {
+          "type": "integer"
+        },
+        "public_key": {
+          "type": "string"
+        },
+        "wrapped_dek": {
+          "type": "string"
+        },
+        "salt": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
