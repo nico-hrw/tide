@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from
 import { addDays, format, getHours, getMinutes, isSameDay } from "date-fns";
 import { useDataStore } from "@/store/useDataStore";
 import { scrollLeftForColumn } from "@/lib/calendarWeeks";
+import { eventTargetDate } from "./eventTargetDate";
 import type { ActivePopover, CalendarEvent, CalendarViewMode } from "./types";
 
 interface UseCalendarScrollParams {
@@ -13,6 +14,8 @@ interface UseCalendarScrollParams {
     weeks: Date[];
     events: CalendarEvent[];
     editingEventId: string | null;
+    /** Fixed one-week mode (a single rendered week). */
+    fixedWeek?: boolean;
 }
 
 interface ScrollToDetail {
@@ -35,6 +38,7 @@ export function useCalendarScroll({
     weeks,
     events,
     editingEventId,
+    fixedWeek = false,
 }: UseCalendarScrollParams) {
     const [todayButtonDir, setTodayButtonDir] = useState<'hidden' | 'left' | 'right'>('hidden');
     const [todayAngle, setTodayAngle] = useState<number>(0);
@@ -144,14 +148,30 @@ export function useCalendarScroll({
     }, [onDateChange, scrollContainerRef]);
 
     // --- Magic Link Navigation Support ---
+    // Fixed one-week mode only renders one week: an event outside it is navigated to first, and
+    // the effect re-runs when the week changed so the element can be found and its popover opened.
+    const fixedWeekKey = fixedWeek ? (weeks[0]?.getTime() ?? 0) : null;
+    const linkNavRef = useRef<{ id: string | null; navigated: boolean; opened: boolean }>({ id: null, navigated: false, opened: false });
+    const latestLink = useRef({ events, onDateChange });
+    useEffect(() => { latestLink.current = { events, onDateChange }; });
     useLayoutEffect(() => {
         if (typeof window !== 'undefined' && window.innerWidth < 768) return;
+        if (linkNavRef.current.id !== editingEventId) {
+            linkNavRef.current = { id: editingEventId, navigated: false, opened: false };
+        }
         if (editingEventId && scrollContainerRef.current) {
             const container = scrollContainerRef.current;
             // Wait for DOM to settle
             const timer = setTimeout(() => {
                 const element = container.querySelector(`#event-${editingEventId}`) as HTMLElement;
-                if (element) {
+                const link = linkNavRef.current;
+                if (!element && fixedWeekKey !== null && !link.navigated) {
+                    link.navigated = true;
+                    const target = eventTargetDate(editingEventId, latestLink.current.events);
+                    if (target) latestLink.current.onDateChange(target);
+                }
+                if (element && !(fixedWeekKey !== null && link.opened)) {
+                    link.opened = true;
                     // Scroll horizontally, centring the day like useWeekWindow does (incl. the
                     // time gutter), so the settled viewport centre stays on the event's day.
                     const dayCol = element.closest('[data-day-col]') as HTMLElement;
@@ -175,7 +195,7 @@ export function useCalendarScroll({
             }, 100);
             return () => clearTimeout(timer);
         }
-    }, [editingEventId, scrollContainerRef]);
+    }, [editingEventId, scrollContainerRef, fixedWeekKey]);
 
     // Initial scroll for day view
     useEffect(() => {

@@ -130,12 +130,16 @@ export default function CalendarView({
     });
 
     // The infinite week view restores the vertical position itself (useWeekWindow); do it here for fixed mode.
+    // A container that already existed before a runtime mode switch keeps its live vertical position.
+    const seenContainerRef = useRef<HTMLDivElement | null>(null);
     useLayoutEffect(() => {
         const container = scrollContainerRef.current;
+        const fresh = seenContainerRef.current !== container;
+        seenContainerRef.current = container;
         if (!isFixedWeek || !container) return;
         container.scrollLeft = 0; // a position left over from the infinite mode would shift the clipped week
-        container.scrollTop = initialScrollTop();
-    }, [isFixedWeek]);
+        if (fresh) container.scrollTop = initialScrollTop();
+    }, [isFixedWeek, viewMode]);
 
     // Auto-update current time
     useEffect(() => {
@@ -159,6 +163,7 @@ export default function CalendarView({
         weeks,
         events,
         editingEventId,
+        fixedWeek: isFixedWeek,
     });
 
     const eventsByDay = useEventsByDay(events, eventsRange, selectedGroupId, themes);

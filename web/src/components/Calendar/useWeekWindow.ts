@@ -210,13 +210,19 @@ export function useWeekWindow({
     if (enabled) positionTo(latest.current.date, 'instant');
   }, [geometryKey, enabled, positionTo]);
 
+  const placedContainerRef = useRef<HTMLDivElement | null>(null);
   // Initial placement whenever the week container (re)mounts.
   useLayoutEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      placedContainerRef.current = scrollContainerRef.current;
+      return;
+    }
     const container = scrollContainerRef.current;
     if (!container) return;
     const { date: d, anchor: a, weekStartsOn: ws } = latest.current;
-    container.scrollTop = initialScrollTop();
+    // A container that already existed (runtime switch from the fixed mode) keeps its live vertical position.
+    if (placedContainerRef.current !== container) container.scrollTop = initialScrollTop();
+    placedContainerRef.current = container;
     if (needsReanchor(d, a, ws)) reanchor(d);
     else positionTo(d, 'instant');
   }, [enabled, positionTo, reanchor, scrollContainerRef]);
