@@ -117,6 +117,28 @@ Anti-Ziele (wäre ein Fehlschlag, selbst wenn es „funktioniert“):
 - Texte: nicht hart codiert, über den bestehenden i18n-Weg (`web/src/lib/i18n.ts`); keine zentrale
   Textsammlung nötig, Texte dürfen lokal zur Komponente liegen.
 
+### 5.5a Wochenansicht: Nachbesserungen (Wünsche des Nutzers)
+
+0. **Farbpalette** der Wochenansicht gefällt nicht. Das gehört zu Teilprojekt 4 (Designsystem). Hier wird nur
+   dafür gesorgt, dass alle Kalenderflächen Tokens statt fester Farben nutzen, damit die Palette später
+   an einer Stelle geändert werden kann.
+1. **Keine „Wand“ beim Scrollen, kein Flackern.** Die Wand verschwindet durch das neue Wochenmodell (5.2):
+   Wochen existieren sofort, nichts wird erst nachgeladen und eingefügt. Für Termine, die noch laden,
+   zeigt ein Tag einen dezenten **Platzhalter** (Skeleton-Balken), bis die Termine da sind. Termine
+   erscheinen **einmal** (stabile Keys, keine erneute Einblend-Animation bei Re-Render), kein erneutes Aufblitzen.
+   Ursache des Flackerns (Neu-Rendern, Animation oder doppeltes Laden) ist im Plan zuerst zu bestätigen.
+2. **Heute und Jetzt deutlicher.** Die Spalte des aktuellen Tages bekommt einen **gestreiften/getönten
+   Hintergrund** (Tokens). Die Jetzt-Linie wird auffälliger, und die aktuelle Uhrzeit wird **auch in der
+   Zeitleiste links** als Marke angezeigt, nicht nur im Raster.
+3. **Klick auf einen Termin bewegt den Kalender nicht mehr.** Der Kalender scrollt nicht automatisch,
+   um Platz für das Popup zu schaffen. Stattdessen positioniert sich das Popup selbst (klemmt an den
+   sichtbaren Bereich, klappt bei Platzmangel zur anderen Seite). Alle Buttons bleiben innerhalb des
+   Popups und des Fensters (bekannter Fehler: einige ragen heraus).
+4. **Aktueller Termin:** Statt Leuchteffekt wird er **invertiert** (dunkle Fläche mit heller Schrift, im Dark
+   Mode analog) und **leicht vergrößert** (ca. 1.02–1.04, ohne das Raster zu verschieben).
+   Vorbild ist die bestehende Mobile-App-Darstellung und der DB Navigator. Die Mobile-Implementierung
+   wird als Referenz gelesen und, wenn sinnvoll, gemeinsam genutzt.
+
 ### 5.6 Dateien
 Bei Berührung enden unter 500 Zeilen: `CalendarView` (→ Gerüst, Kopfzeile/Toolbar, Wochen-Scroller,
 Hook für das Wochenmodell), `DesktopDayView`, `useCalendarScroll`, ggf. `DayColumn`,
