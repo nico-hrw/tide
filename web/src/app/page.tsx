@@ -24,6 +24,7 @@ import type { JSONContent } from '@tiptap/react';
 import { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import { TodoList } from '../components/Todo/TodoList';
 import { getEventGroupIds, getEventsForDate } from '../lib/calendarUtils';
+import { CALENDAR_DATE_STORAGE_KEY, parseStoredCalendarDate, serializeCalendarDate } from '@/lib/calendarWeeks';
 import { MobileSmartIsland } from '@/components/Layout/MobileSmartIsland';
 import { getFolderColor, loadTodoFoldersMeta, isTaskVisibleInCalendar } from '../lib/folderColors';
 
@@ -776,6 +777,16 @@ export default function Dashboard() {
         localStorage.setItem('tide_note_layout', noteLayout);
     }, [openTabs, activeTabId, noteLayout, isRestored]);
 
+    // Persist the calendar date so a reload shows the same week (only after the restore read).
+    useEffect(() => {
+        if (!isRestored) return;
+        try {
+            localStorage.setItem(CALENDAR_DATE_STORAGE_KEY, serializeCalendarDate(calendarDate));
+        } catch {
+            // Ignore quota or private-browsing errors
+        }
+    }, [calendarDate, isRestored]);
+
     // Idle Payload Effect
     useEffect(() => {
         const today = new Date();
@@ -1469,8 +1480,8 @@ export default function Dashboard() {
                     }
                 }
 
-                const savedDate = localStorage.getItem("tide_calendar_date");
-                if (savedDate) setCalendarDate(new Date(savedDate));
+                const savedDate = parseStoredCalendarDate(localStorage.getItem(CALENDAR_DATE_STORAGE_KEY));
+                if (savedDate) setCalendarDate(savedDate);
 
                 // Note: enabledExtensions and noteLayout are already loaded from localStorage
                 // by the Zustand store initializer — no need to call setEnabledExtensions/setNoteLayout here.
