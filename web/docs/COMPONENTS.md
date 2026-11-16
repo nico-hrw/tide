@@ -127,6 +127,8 @@
 | Component | File | Role |
 |-----------|------|------|
 | CalendarView | `web/src/components/Calendar/CalendarView.tsx` | Main month/week view + global drag state |
+| useWeekWindow | `web/src/components/Calendar/useWeekWindow.ts` | Virtual week window for the infinite week view: renders visible weeks ± 2 between spacer divs, scrolls on programmatic `date` changes, reports the center day after 150 ms scroll rest (no feedback loop), re-anchors beyond 26 weeks. Week math in `web/src/lib/calendarWeeks.ts`. |
+| useCalendarScroll | `web/src/components/Calendar/useCalendarScroll.ts` | Popover state + dismissal, `calendar:scroll-to` / `editingEventId` navigation, day-view initial scroll, `tide_calendar_scroll_y` persistence, visible range, directional "Today" button |
 | WeekView | `web/src/components/Calendar/WeekView.tsx` | Week grid |
 | DayColumn | `web/src/components/Calendar/DayColumn.tsx` | Single-day column (pure reflector, no drag logic) |
 | CalendarEventItem | `web/src/components/Calendar/CalendarEventItem.tsx` | Event pill rendering. **Z-index overlap**: `zIndex = 10 + startMinutes` so later-starting events render on top of earlier ones when they overlap. |
