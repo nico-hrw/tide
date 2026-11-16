@@ -1,38 +1,50 @@
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
-import { format, addWeeks, subWeeks, isSameDay } from "date-fns";
+import { addDays, format, getHours, getMinutes, isSameDay } from "date-fns";
 import { useDataStore } from "@/store/useDataStore";
-import type { ActivePopover } from "./types";
+import type { ActivePopover, CalendarEvent, CalendarViewMode } from "./types";
 
 interface UseCalendarScrollParams {
     scrollContainerRef: React.RefObject<HTMLDivElement | null>;
     date: Date;
     onDateChange: (date: Date) => void;
-    loadedWeeks: Date[];
-    setLoadedWeeks: React.Dispatch<React.SetStateAction<Date[]>>;
-    isPrependingRef: React.MutableRefObject<boolean>;
-    activePopover: ActivePopover | null;
-    setActivePopover: React.Dispatch<React.SetStateAction<ActivePopover | null>>;
-    lastPopoverOpenTimeRef: React.MutableRefObject<number>;
+    viewMode: CalendarViewMode;
+    /** Week starts currently rendered (week view: the virtual window). */
+    weeks: Date[];
+    events: CalendarEvent[];
+    editingEventId: string | null;
+}
+
+interface ScrollToDetail {
+    id?: string;
+    start?: string;
 }
 
 /**
- * Infinite horizontal scroll, scroll persistence, popover dismissal on
- * scroll/move/click, 2D wheel panning, prepend scroll compensation and the
- * directional "Today" button tracking.
+ * Scroll glue around the calendar container: vertical scroll persistence,
+ * popover state + dismissal on scroll/move/click, link navigation
+ * (`calendar:scroll-to`, `editingEventId`), the day-view initial scroll, the
+ * store's visible range and the directional "Today" button. Horizontal week
+ * positioning lives in `useWeekWindow`.
  */
 export function useCalendarScroll({
     scrollContainerRef,
     date,
     onDateChange,
-    loadedWeeks,
-    setLoadedWeeks,
-    isPrependingRef,
-    activePopover,
-    setActivePopover,
-    lastPopoverOpenTimeRef,
+    viewMode,
+    weeks,
+    events,
+    editingEventId,
 }: UseCalendarScrollParams) {
     const [todayButtonDir, setTodayButtonDir] = useState<'hidden' | 'left' | 'right'>('hidden');
     const [todayAngle, setTodayAngle] = useState<number>(0);
+    const [activePopover, setActivePopover] = useState<ActivePopover | null>(null);
+    const lastPopoverOpenTimeRef = useRef(0);
+
+    useEffect(() => {
+        if (activePopover) {
+            lastPopoverOpenTimeRef.current = Date.now();
+        }
+    }, [activePopover]);
 
     // Track today column visibility & direction angle to current time
     // Throttled via requestAnimationFrame to avoid forced layout reflows and state churn on every scroll tick
@@ -44,10 +56,19 @@ export function useCalendarScroll({
 
         const check = () => {
             rafId = null;
-            const todayIso = format(new Date(), "yyyy-MM-dd");
+            const now = new Date();
+            const todayIso = format(now, "yyyy-MM-dd");
             const todayCol = container.querySelector(`[data-day-col="${todayIso}"]`) as HTMLElement | null;
             if (!todayCol) {
-                setTodayButtonDir(prev => prev !== 'hidden' ? 'hidden' : prev);
+                // Today is outside the rendered week window: point straight towards it.
+                let farDir: 'hidden' | 'left' | 'right' = 'hidden';
+                if (weeks.length > 0) {
+                    if (now < weeks[0]) farDir = 'left';
+                    else if (now >= addDays(weeks[weeks.length - 1], 7)) farDir = 'right';
+                }
+                setTodayButtonDir(prev => prev !== farDir ? farDir : prev);
+                const farAngle = farDir === 'left' ? 180 : 0;
+                setTodayAngle(prev => prev !== farAngle ? farAngle : prev);
                 return;
             }
             const colRect = todayCol.getBoundingClientRect();
@@ -59,7 +80,6 @@ export function useCalendarScroll({
 
             setTodayButtonDir(prev => prev !== newDir ? newDir : prev);
 
-            const now = new Date();
             const nowMinutes = now.getHours() * 60 + now.getMinutes();
             const todayYInContainer = 50 + nowMinutes;
 
@@ -88,28 +108,112 @@ export function useCalendarScroll({
             if (rafId !== null) cancelAnimationFrame(rafId);
             clearTimeout(t);
         };
-    }, [loadedWeeks, scrollContainerRef.current]);
+    }, [weeks, viewMode, scrollContainerRef]);
 
+    // Horizontal centering on today is done by useWeekWindow once `date` changes; the vertical
+    // scroll starts afterwards so the horizontal re-positioning does not abort it.
     const handleScrollToToday = useCallback(() => {
         const now = new Date();
         onDateChange(now);
-        const container = scrollContainerRef.current;
-        if (!container) return;
-        const todayIso = format(now, "yyyy-MM-dd");
-        const todayCol = container.querySelector(`[data-day-col="${todayIso}"]`) as HTMLElement | null;
-        
-        const nowMinutes = now.getHours() * 60 + now.getMinutes();
-        const targetScrollY = Math.max(0, nowMinutes - 120);
-        container.scrollTo({ top: targetScrollY, behavior: 'smooth' });
+        setTimeout(() => {
+            const container = scrollContainerRef.current;
+            if (!container) return;
+            const nowMinutes = now.getHours() * 60 + now.getMinutes();
+            const targetScrollY = Math.max(0, nowMinutes - 120);
+            container.scrollTo({ top: targetScrollY, behavior: 'smooth' });
+        }, 150);
+    }, [onDateChange, scrollContainerRef]);
 
-        if (todayCol) {
-            const containerWidth = container.clientWidth;
-            const colLeft = todayCol.offsetLeft;
-            const colWidth = todayCol.offsetWidth;
-            const targetScrollX = Math.max(0, colLeft - (containerWidth / 2) + (colWidth / 2));
-            container.scrollTo({ left: targetScrollX, behavior: 'smooth' });
+    // Link navigation: set the date (the week window scrolls), then scroll vertically to the event.
+    useEffect(() => {
+        const handleScrollTo = (e: Event) => {
+            const { id, start } = (e as CustomEvent<ScrollToDetail>).detail ?? {};
+            if (!start) return;
+            onDateChange(new Date(start));
+            setTimeout(() => {
+                const container = scrollContainerRef.current;
+                if (!container) return;
+                const el = id ? document.getElementById(`event-${id}`) : null;
+                const targetTop = el ? Math.max(0, el.offsetTop - 150) : 400;
+                container.scrollTo({ top: targetTop, behavior: 'smooth' });
+            }, 150);
+        };
+        window.addEventListener('calendar:scroll-to', handleScrollTo);
+        return () => window.removeEventListener('calendar:scroll-to', handleScrollTo);
+    }, [onDateChange, scrollContainerRef]);
+
+    // --- Magic Link Navigation Support ---
+    useLayoutEffect(() => {
+        if (typeof window !== 'undefined' && window.innerWidth < 768) return;
+        if (editingEventId && scrollContainerRef.current) {
+            const container = scrollContainerRef.current;
+            // Wait for DOM to settle
+            const timer = setTimeout(() => {
+                const element = container.querySelector(`#event-${editingEventId}`) as HTMLElement;
+                if (element) {
+                    // Scroll horizontally
+                    const dayCol = element.closest('[data-day-col]') as HTMLElement;
+                    if (dayCol) {
+                        const colLeft = dayCol.offsetLeft;
+                        const colWidth = dayCol.offsetWidth;
+                        const containerWidth = container.clientWidth;
+                        const targetScrollX = colLeft - (containerWidth / 2) + (colWidth / 2) - 30;
+                        container.scrollLeft = Math.max(0, targetScrollX);
+                    }
+
+                    // Scroll vertically
+                    const eventTop = element.offsetTop;
+                    container.scrollTop = Math.max(0, eventTop - 150);
+
+                    // Open Popover
+                    const rect = element.getBoundingClientRect();
+                    setActivePopover({ id: editingEventId, rect });
+                }
+            }, 100);
+            return () => clearTimeout(timer);
         }
-    }, [onDateChange]);
+    }, [editingEventId, scrollContainerRef]);
+
+    // Initial scroll for day view
+    useEffect(() => {
+        if (viewMode === 'day') {
+            const timer = setTimeout(() => {
+                if (!scrollContainerRef.current) return;
+                const container = scrollContainerRef.current;
+                const isDateToday = isSameDay(date, new Date());
+                let targetScrollY = 0;
+                if (isDateToday) {
+                    const nowMinutes = getHours(new Date()) * 60 + getMinutes(new Date());
+                    targetScrollY = Math.max(0, nowMinutes - 120);
+                } else {
+                    const dayKey = format(date, "yyyy-MM-dd");
+                    const dayTimedEvents = events.filter(e => {
+                        if (e.allDay) return false;
+                        try {
+                            return format(new Date(e.start), "yyyy-MM-dd") === dayKey;
+                        } catch {
+                            return false;
+                        }
+                    });
+                    if (dayTimedEvents.length > 0) {
+                        let earliestMinutes = 24 * 60;
+                        for (const ev of dayTimedEvents) {
+                            try {
+                                const s = new Date(ev.start);
+                                const m = getHours(s) * 60 + getMinutes(s);
+                                if (m < earliestMinutes) earliestMinutes = m;
+                            } catch {}
+                        }
+                        targetScrollY = Math.max(0, earliestMinutes - 60);
+                    } else {
+                        targetScrollY = Math.max(0, 8 * 60 - 60);
+                    }
+                }
+                container.scrollTop = targetScrollY;
+            }, 60);
+            return () => clearTimeout(timer);
+        }
+    }, [viewMode, date, events, scrollContainerRef]);
 
     // Update the visible date range in the global store
     const updateVisibleRange = useCallback(() => {
@@ -152,18 +256,18 @@ export function useCalendarScroll({
             clearTimeout(t3);
             window.removeEventListener('resize', updateVisibleRange);
         };
-    }, [loadedWeeks, updateVisibleRange]);
+    }, [weeks, viewMode, updateVisibleRange]);
 
-    // Debounced storage helper: persists scroll position 300ms after scrolling stops
-    // to avoid blocking UI thread / scroll frames with synchronous disk I/O.
+    // Debounced storage helper: persists the vertical scroll position 300ms after scrolling
+    // stops to avoid blocking UI thread / scroll frames with synchronous disk I/O.
+    // The horizontal position is derived from `date` and is no longer persisted.
     const saveScrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const debouncedSaveScroll = useCallback((scrollX: number, scrollY: number) => {
+    const debouncedSaveScroll = useCallback((scrollY: number) => {
         if (saveScrollTimeoutRef.current) {
             clearTimeout(saveScrollTimeoutRef.current);
         }
         saveScrollTimeoutRef.current = setTimeout(() => {
             try {
-                localStorage.setItem("tide_calendar_scroll_x", scrollX.toString());
                 localStorage.setItem("tide_calendar_scroll_y", scrollY.toString());
             } catch {
                 // Ignore quota or private-browsing errors
@@ -180,7 +284,7 @@ export function useCalendarScroll({
         };
     }, []);
 
-    // Throttled scroll handler to persist state and trigger infinite loading
+    // Throttled scroll handler: persist vertical position and refresh the visible range
     const lastScrollCallRef = useRef(0);
     const onScroll = useCallback(() => {
         const now = Date.now();
@@ -191,63 +295,9 @@ export function useCalendarScroll({
         if (!container) return;
 
         // Persist scroll position debounced so disk writes never block active scroll frames
-        debouncedSaveScroll(container.scrollLeft, container.scrollTop);
-
-
-        const { scrollLeft, scrollWidth, clientWidth } = container;
-        const threshold = 300;
-        // console.log("Scroll Debug:", { scrollLeft, scrollWidth, clientWidth, threshold });
-
-        if (scrollLeft < threshold) {
-            setLoadedWeeks(prev => {
-                const firstLoaded = prev[0];
-                const newPrev = subWeeks(firstLoaded, 1);
-                if (isSameDay(firstLoaded, newPrev)) return prev;
-                isPrependingRef.current = true;
-                return [newPrev, ...prev];
-            });
-        }
-
-        if (scrollLeft + clientWidth > scrollWidth - threshold) {
-            setLoadedWeeks(prev => {
-                const lastLoaded = prev[prev.length - 1];
-                const newNext = addWeeks(lastLoaded, 1);
-                // Simple debounce check/limit could be added here
-                return [...prev, newNext];
-            });
-        }
-
+        debouncedSaveScroll(container.scrollTop);
         updateVisibleRange();
-
-        // Determine which week/day is in the center and update the month
-        // Each week has 7 days. Total weeks = loadedWeeks.length.
-        // We can find the current index of the week based on scroll percentage.
-        // Or simply query the DOM for the center day column:
-        const centerScrollX = container.scrollLeft + (container.clientWidth / 2);
-        let closestDayCol: HTMLElement | null = null;
-        let minDistance = Infinity;
-
-        const dayCols = container.querySelectorAll('[data-day-col]');
-        dayCols.forEach((el) => {
-            const htmlEl = el as HTMLElement;
-            const colCenter = htmlEl.offsetLeft + (htmlEl.offsetWidth / 2);
-            const dist = Math.abs(colCenter - centerScrollX);
-            if (dist < minDistance) {
-                minDistance = dist;
-                closestDayCol = htmlEl;
-            }
-        });
-
-        if (closestDayCol) {
-            const dayStr = (closestDayCol as HTMLElement).getAttribute('data-day-col');
-            if (dayStr) {
-                const currentCenterDate = new Date(dayStr);
-                if (!isSameDay(currentCenterDate, date)) {
-                    onDateChange(currentCenterDate);
-                }
-            }
-        }
-    }, [onDateChange, date, updateVisibleRange]);
+    }, [scrollContainerRef, debouncedSaveScroll, updateVisibleRange]);
 
     useEffect(() => {
         const container = scrollContainerRef.current;
@@ -354,64 +404,18 @@ export function useCalendarScroll({
             window.removeEventListener('mousedown', globalClickHandler);
             window.removeEventListener('touchend', globalTouchHandler);
         };
-    }, [onScroll, activePopover, scrollContainerRef.current]);
+    }, [onScroll, activePopover, viewMode, scrollContainerRef]);
 
     // Native browser 2D & momentum scrolling:
     // Wheel hijacking with preventDefault has been removed to preserve OS momentum,
     // trackpad inertia, and compositor-driven smooth scrolling.
 
-    // Adjust Scroll Position for Prepending
-    useLayoutEffect(() => {
-        const container = scrollContainerRef.current;
-        if (!container || loadedWeeks.length === 0) return;
-
-        if (isPrependingRef.current) {
-            // Wait for render? UseLayoutEffect fires after DOM mutations but before paint.
-            // We need to ensure children are rendered. This might be tricky if state update is batched.
-
-            if (loadedWeeks.length === 3) {
-                // Center today's column instead of just scrolling to the week start
-                const dayOfWeek = (date.getDay() + 6) % 7; // Mon=0, Tue=1 ... Sun=6
-                const dayCols = container.querySelectorAll('[data-day-col]');
-                if (dayCols.length >= 7 + dayOfWeek) {
-                    // Column 7 = first day of middle week, 7+dayOfWeek = today
-                    const todayCol = dayCols[7 + dayOfWeek] as HTMLElement;
-                    if (todayCol) {
-                        const targetLeft = todayCol.offsetLeft - container.offsetWidth / 2 + todayCol.offsetWidth / 2;
-                        container.scrollLeft = Math.max(0, targetLeft);
-                        isPrependingRef.current = false;
-                        updateVisibleRange();
-                        return;
-                    }
-                }
-                // Fallback: scroll to start of middle week
-                const weekWidth = container.scrollWidth / 3;
-                container.scrollLeft = weekWidth;
-                isPrependingRef.current = false;
-                updateVisibleRange();
-            } else {
-                // Prepend logic: find how much width was added
-                // Count columns in DOM
-                const dayCols = container.querySelectorAll('[data-day-col]');
-                if (dayCols.length >= 7) {
-                    let addedWidth = 0;
-                    // We assume 7 days were added at the start
-                    // We can measure the first 7 columns currently in DOM
-                    for (let i = 0; i < 7; i++) {
-                        const el = dayCols[i] as HTMLElement;
-                        addedWidth += el.offsetWidth;
-                    }
-                    if (addedWidth > 0) {
-                        container.scrollLeft += addedWidth;
-                    }
-                }
-                isPrependingRef.current = false;
-                updateVisibleRange();
-            }
-        } else {
-            updateVisibleRange();
-        }
-    }, [loadedWeeks, date, updateVisibleRange]);
-
-    return { todayButtonDir, todayAngle, handleScrollToToday };
+    return {
+        todayButtonDir,
+        todayAngle,
+        handleScrollToToday,
+        activePopover,
+        setActivePopover,
+        lastPopoverOpenTimeRef,
+    };
 }

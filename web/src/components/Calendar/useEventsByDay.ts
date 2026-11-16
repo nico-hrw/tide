@@ -3,20 +3,22 @@ import { format, addDays, startOfDay } from "date-fns";
 import { getEventGroupIds } from "../../lib/calendarUtils";
 import type { CalendarEvent, CalendarViewProps } from "./types";
 
-/** Expands recurrences and buckets events per day (timed vs all-day). */
+/** Expands recurrences and buckets events per day (timed vs all-day) within `range` (end exclusive). */
 export function useEventsByDay(
     events: CalendarEvent[],
-    loadedWeeks: Date[],
+    range: { start: Date; end: Date },
     selectedGroupId: string | null,
     themes: CalendarViewProps["themes"],
 ) {
+    const rangeStartTime = range.start.getTime();
+    const rangeEndTime = range.end.getTime();
     const eventsByDay = useMemo(() => {
         const timedMap = new Map<string, CalendarEvent[]>();
         const allDayMap = new Map<string, CalendarEvent[]>();
 
-        if (loadedWeeks.length === 0) return { timedMap, allDayMap };
-        const minDate = startOfDay(loadedWeeks[0]);
-        const maxDate = startOfDay(addDays(loadedWeeks[loadedWeeks.length - 1], 7));
+        if (!(rangeEndTime > rangeStartTime)) return { timedMap, allDayMap };
+        const minDate = startOfDay(new Date(rangeStartTime));
+        const maxDate = startOfDay(new Date(rangeEndTime));
 
         const filteredEvents = selectedGroupId
             ? events.filter(e => getEventGroupIds(e).includes(selectedGroupId))
@@ -153,6 +155,6 @@ export function useEventsByDay(
             }
         });
         return { timedMap, allDayMap };
-    }, [events, loadedWeeks, selectedGroupId]);
+    }, [events, rangeStartTime, rangeEndTime, selectedGroupId]);
     return eventsByDay;
 }

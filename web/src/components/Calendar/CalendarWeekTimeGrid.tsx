@@ -9,7 +9,10 @@ import type { CalendarEvent, CalendarViewProps, CreationDrag, DragState, ResizeD
 const EMPTY_ARRAY: CalendarEvent[] = [];
 
 interface CalendarWeekTimeGridProps {
-    loadedWeeks: Date[];
+    /** Rendered week starts (the virtual window); spacers stand in for the rest. */
+    weeks: Date[];
+    leftSpacerPx: number;
+    rightSpacerPx: number;
     eventsByDay: { timedMap: Map<string, CalendarEvent[]>; allDayMap: Map<string, CalendarEvent[]> };
     events: CalendarEvent[];
     currentTime: Date;
@@ -37,9 +40,11 @@ interface CalendarWeekTimeGridProps {
     cursorY: MotionValue<number>;
 }
 
-/** Sticky time column + day columns (all weeks) + custom drag ghost. */
+/** Sticky time column + day columns (rendered weeks between spacers) + custom drag ghost. */
 export function CalendarWeekTimeGrid({
-    loadedWeeks,
+    weeks,
+    leftSpacerPx,
+    rightSpacerPx,
     eventsByDay,
     events,
     currentTime,
@@ -71,7 +76,7 @@ export function CalendarWeekTimeGrid({
 
     // Stable day dates array across renders
     const days = useMemo(() => {
-        return loadedWeeks.flatMap(weekStart =>
+        return weeks.flatMap(weekStart =>
             Array.from({ length: 7 }, (_, i) => {
                 const day = addDays(weekStart, i);
                 return {
@@ -81,7 +86,7 @@ export function CalendarWeekTimeGrid({
                 };
             })
         );
-    }, [loadedWeeks]);
+    }, [weeks]);
 
     // Memoize combined day events per day to prevent new array references every render
     const combinedEventsByDay = useMemo(() => {
@@ -151,8 +156,8 @@ export function CalendarWeekTimeGrid({
 
                 {/* Days Wrapper with Relative positioning for the Time Line */}
                 <div className="flex relative items-start pb-[40px]" ref={gridDaysRef} style={{ '--hour-height': '48px' } as React.CSSProperties}>
-
-
+                {/* Spacers keep the full virtual scroll width; only nearby weeks are rendered. */}
+                <div className="shrink-0" style={{ width: leftSpacerPx }} aria-hidden="true" />
 
                 {
                     days.map(({ day, dayKey, iso }) => {
@@ -199,6 +204,7 @@ export function CalendarWeekTimeGrid({
                         );
                     })
                 }
+                <div className="shrink-0" style={{ width: rightSpacerPx }} aria-hidden="true" />
 
                     {/* Custom-drag ghost - 60fps via MotionValues, no React re-renders */}
                     {draggingId && dragState && (

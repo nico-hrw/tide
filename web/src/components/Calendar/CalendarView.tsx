@@ -1,14 +1,13 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import type { ComponentProps } from "react";
 import DayColumn from "@/components/Calendar/DayColumn";
 import "@/app/calendar/calendar.css";
-import { format, startOfWeek, addWeeks, subWeeks, getMinutes, getHours, addDays, subDays, addMonths, subMonths, startOfMonth, isSameDay } from "date-fns";
+import { format, addDays, addWeeks } from "date-fns";
 import { de } from "date-fns/locale";
 import { ArrowRight, Upload } from "lucide-react";
-import { SearchIndexEntry } from "@/lib/searchIndex";
-import Fuse from "fuse.js";
 import { useHighlight } from "@/components/HighlightContext";
 import { useWeekStartsOn } from "@/store/useDataStore";
+import { startOfCalendarWeek, weeksForViewMode } from "@/lib/calendarWeeks";
 import { ScheduleModal } from './ScheduleModal';
 import { CalendarImportModal } from './CalendarImportModal';
 import { CalendarWeekTimeGrid } from './CalendarWeekTimeGrid';
@@ -20,7 +19,8 @@ import { CalendarEventPopoverHost } from './CalendarEventPopoverHost';
 import { useCalendarDragResize } from './useCalendarDragResize';
 import { useCalendarScroll } from './useCalendarScroll';
 import { useEventsByDay } from './useEventsByDay';
-import type { ActivePopover, CalendarViewProps, CalendarViewMode } from './types';
+import { useWeekWindow } from './useWeekWindow';
+import type { CalendarViewProps, CalendarViewMode } from './types';
 
 export default function CalendarView({
     events,
@@ -38,77 +38,43 @@ export default function CalendarView({
     onViewModeChange,
     themes = [],
     onScheduleApply,
-    onCreateEventGroup,
     enabledExtensions = [],
-    onOpenScheduleThemes,
 }: CalendarViewProps) {
     const weekStartsOn = useWeekStartsOn();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [internalViewMode, setInternalViewMode] = useState<CalendarViewMode>(viewModeProp || 'week');
     const viewMode = viewModeProp ?? internalViewMode;
 
-    const prevViewModeRef = useRef(viewMode);
-    const hasInitializedScroll = useRef(false);
-
     const handleViewModeChange = (mode: CalendarViewMode) => {
-        if (mode === 'week' && viewMode !== 'week') {
-            hasInitializedScroll.current = false;
-        }
         setInternalViewMode(mode);
         onViewModeChange?.(mode);
     };
 
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-    const [isGroupsSidebarOpen, setIsGroupsSidebarOpen] = useState(false);
-
-    // Feature Tracking
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    // Search bar anchor: 0=bottom-left, 1=bottom-center, 2=bottom-right, 3=top-center
-    const [searchAnchor, setSearchAnchor] = useState(1);
-
-    // Filter events based on selected groups/themesHighlight();
-
-    const [loadedWeeks, setLoadedWeeks] = useState<Date[]>(() => {
-        const currentStart = startOfWeek(date, { weekStartsOn });
-        return [
-            subWeeks(currentStart, 1),
-            currentStart,
-            addWeeks(currentStart, 1)
-        ];
-    });
     const [currentTime, setCurrentTime] = useState(new Date());
 
-    const [searchQuery, setSearchQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<SearchIndexEntry[]>([]);
-    const [isSearchOpen, setIsSearchOpen] = useState(false);
-
-    const handleSearchClick = () => {
-        setIsSearchOpen(true);
-    };
-
-    useEffect(() => {
-        if (!searchQuery) {
-            setSearchResults([]);
-            return;
+    // Week view renders a virtual window around `date`; the other views a fixed week list from `date`.
+    const weekWindow = useWeekWindow({
+        scrollContainerRef,
+        date,
+        onDateChange,
+        weekStartsOn,
+        enabled: viewMode === 'week',
+    });
+    const fixedWeeks = useMemo(() => {
+        if (viewMode === 'month' || viewMode === 'continuous') {
+            return weeksForViewMode(date, viewMode, weekStartsOn);
         }
-        const fuse = new Fuse(events, {
-            keys: ['title', 'description'],
-            threshold: 0.4,
-            ignoreLocation: true
-        });
-        const results = fuse.search(searchQuery).map(r => ({
-            id: r.item.id,
-            title: r.item.title,
-            date: r.item.start,
-            type: 'event' as const
-        }));
-        setSearchResults(results);
-    }, [searchQuery, events]);
+        const current = startOfCalendarWeek(date, weekStartsOn);
+        return [addWeeks(current, -1), current, addWeeks(current, 1)];
+    }, [date, viewMode, weekStartsOn]);
+    const weeks = viewMode === 'week' ? weekWindow.weeks : fixedWeeks;
+    const eventsRange = viewMode === 'week'
+        ? weekWindow.range
+        : { start: fixedWeeks[0], end: addDays(fixedWeeks[fixedWeeks.length - 1], 7) };
 
-
-    const lastPopoverOpenTimeRef = useRef(0);
-    const isPrependingRef = useRef(false);
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
 
     useEffect(() => {
@@ -143,231 +109,31 @@ export default function CalendarView({
         handleResizeMouseDown,
     } = useCalendarDragResize({ events, onEventUpdate, onEventCreate, onEventClick, scrollContainerRef });
 
-    useEffect(() => {
-        const handleScrollTo = (e: any) => {
-            const { id, start } = e.detail;
-            if (start) {
-                const targetDate = new Date(start);
-                onDateChange(targetDate);
-
-                // After date change, scroll smoothly to event or date column
-                setTimeout(() => {
-                    const container = scrollContainerRef.current;
-                    const todayIso = format(targetDate, "yyyy-MM-dd");
-                    const dayCol = (id ? document.getElementById(`event-${id}`)?.closest('[data-day-col]') : container?.querySelector(`[data-day-col="${todayIso}"]`)) as HTMLElement | null;
-                    const el = id ? document.getElementById(`event-${id}`) : null;
-
-                    if (container) {
-                        const targetTop = el ? Math.max(0, el.offsetTop - 150) : 400;
-                        let targetLeft = container.scrollLeft;
-
-                        if (dayCol) {
-                            const colLeft = dayCol.offsetLeft;
-                            const colWidth = dayCol.offsetWidth;
-                            const containerWidth = container.clientWidth;
-                            targetLeft = Math.max(0, colLeft - (containerWidth / 2) + (colWidth / 2) - 30);
-                        }
-
-                        container.scrollTo({
-                            left: targetLeft,
-                            top: targetTop,
-                            behavior: 'smooth'
-                        });
-                    }
-                }, 150);
-            }
-        };
-        window.addEventListener('calendar:scroll-to', handleScrollTo);
-        return () => window.removeEventListener('calendar:scroll-to', handleScrollTo);
-    }, [onDateChange]);
-
-    // --- Popover State ---
-    const [activePopover, setActivePopover] = useState<ActivePopover | null>(null);
-
-    useEffect(() => {
-        if (activePopover) {
-            lastPopoverOpenTimeRef.current = Date.now();
-        }
-    }, [activePopover]);
-
-    // Initialize with weeks appropriate for the active view mode
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            const currentStart = startOfWeek(date, { weekStartsOn });
-
-            if (prevViewModeRef.current !== 'week' && viewMode === 'week') {
-                hasInitializedScroll.current = false;
-                setLoadedWeeks([
-                    subWeeks(currentStart, 1),
-                    currentStart,
-                    addWeeks(currentStart, 1)
-                ]);
-                isPrependingRef.current = true;
-                prevViewModeRef.current = viewMode;
-                return;
-            }
-            prevViewModeRef.current = viewMode;
-
-            if (viewMode === 'month') {
-                const mStart = startOfWeek(startOfMonth(date), { weekStartsOn });
-                const weeks: Date[] = [];
-                for (let i = 0; i < 6; i++) {
-                    weeks.push(addWeeks(mStart, i));
-                }
-                setLoadedWeeks(weeks);
-                return;
-            }
-
-            if (viewMode === 'continuous') {
-                const cStart = subWeeks(currentStart, 1);
-                const weeks: Date[] = [];
-                for (let i = 0; i < 8; i++) {
-                    weeks.push(addWeeks(cStart, i));
-                }
-                setLoadedWeeks(weeks);
-                return;
-            }
-
-            // Only reset if the new date is outside our currently loaded range
-            if (loadedWeeks.length > 0) {
-                const firstWeek = loadedWeeks[0];
-                const lastWeek = loadedWeeks[loadedWeeks.length - 1];
-                if (currentStart >= firstWeek && currentStart <= lastWeek) {
-                    return; // Date is already in view, no need to reset
-                }
-            }
-            
-            setLoadedWeeks([
-                subWeeks(currentStart, 1),
-                currentStart,
-                addWeeks(currentStart, 1)
-            ]);
-            isPrependingRef.current = true; // Force initial scroll center
-        }, 0);
-        return () => clearTimeout(timer);
-    }, [date, viewMode, loadedWeeks, weekStartsOn]);
-
-    // Initial scroll for day view
-    useEffect(() => {
-        if (viewMode === 'day') {
-            const timer = setTimeout(() => {
-                if (!scrollContainerRef.current) return;
-                const container = scrollContainerRef.current;
-                const isDateToday = isSameDay(date, new Date());
-                let targetScrollY = 0;
-                if (isDateToday) {
-                    const nowMinutes = getHours(new Date()) * 60 + getMinutes(new Date());
-                    targetScrollY = Math.max(0, nowMinutes - 120);
-                } else {
-                    const dayKey = format(date, "yyyy-MM-dd");
-                    const dayTimedEvents = events.filter(e => {
-                        if (e.allDay) return false;
-                        try {
-                            return format(new Date(e.start), "yyyy-MM-dd") === dayKey;
-                        } catch {
-                            return false;
-                        }
-                    });
-                    if (dayTimedEvents.length > 0) {
-                        let earliestMinutes = 24 * 60;
-                        for (const ev of dayTimedEvents) {
-                            try {
-                                const s = new Date(ev.start);
-                                const m = getHours(s) * 60 + getMinutes(s);
-                                if (m < earliestMinutes) earliestMinutes = m;
-                            } catch {}
-                        }
-                        targetScrollY = Math.max(0, earliestMinutes - 60);
-                    } else {
-                        targetScrollY = Math.max(0, 8 * 60 - 60);
-                    }
-                }
-                container.scrollTop = targetScrollY;
-            }, 60);
-            return () => clearTimeout(timer);
-        }
-    }, [viewMode, date, events]);
-
     // Auto-update current time
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 15000); // 15 seconds to keep the pulse fresh
         return () => clearInterval(timer);
     }, []);
 
-    // --- Initial Scroll ---
-    useEffect(() => {
-        if (viewMode === 'week' && loadedWeeks.length > 0 && !hasInitializedScroll.current && scrollContainerRef.current) {
-            const container = scrollContainerRef.current;
-
-            // Always default to scrolling to current day and time to keep UX snappy
-            const nowMinutes = getHours(new Date()) * 60 + getMinutes(new Date());
-            const targetScrollY = Math.max(0, nowMinutes - 120);
-            container.scrollTop = targetScrollY;
-
-            // Horizontal scroll to selected date or today
-            setTimeout(() => {
-                if (!container) return;
-                const targetIso = format(date, "yyyy-MM-dd");
-                let targetCol = container.querySelector(`[data-day-col="${targetIso}"]`) as HTMLElement;
-                if (!targetCol) targetCol = container.querySelector(`[data-day-col="${format(new Date(), "yyyy-MM-dd")}"]`) as HTMLElement;
-                if (targetCol) {
-                    const containerWidth = container.clientWidth;
-                    const colLeft = targetCol.offsetLeft;
-                    const colWidth = targetCol.offsetWidth;
-                    const targetScrollX = colLeft - (containerWidth / 2) + (colWidth / 2) - 30;
-                    container.scrollLeft = Math.max(0, targetScrollX);
-                }
-            }, 50);
-
-            hasInitializedScroll.current = true;
-        }
-    }, [loadedWeeks, viewMode, date]);
-
-    // --- Magic Link Navigation Support ---
-    useLayoutEffect(() => {
-        if (typeof window !== 'undefined' && window.innerWidth < 768) return;
-        if (editingEventId && scrollContainerRef.current) {
-            const container = scrollContainerRef.current;
-            // Wait for DOM to settle
-            const timer = setTimeout(() => {
-                const element = container.querySelector(`#event-${editingEventId}`) as HTMLElement;
-                if (element) {
-                    // Scroll horizontally
-                    const dayCol = element.closest('[data-day-col]') as HTMLElement;
-                    if (dayCol) {
-                        const colLeft = dayCol.offsetLeft;
-                        const colWidth = dayCol.offsetWidth;
-                        const containerWidth = container.clientWidth;
-                        const targetScrollX = colLeft - (containerWidth / 2) + (colWidth / 2) - 30;
-                        container.scrollLeft = Math.max(0, targetScrollX);
-                    }
-
-                    // Scroll vertically
-                    const eventTop = element.offsetTop;
-                    container.scrollTop = Math.max(0, eventTop - 150);
-
-                    // Open Popover
-                    const rect = element.getBoundingClientRect();
-                    setActivePopover({ id: editingEventId, rect });
-                }
-            }, 100);
-            return () => clearTimeout(timer);
-        }
-    }, [editingEventId]);
-
-    const { todayButtonDir, todayAngle, handleScrollToToday } = useCalendarScroll({
-        scrollContainerRef,
-        date,
-        onDateChange,
-        loadedWeeks,
-        setLoadedWeeks,
-        isPrependingRef,
+    // --- Popover state, link navigation, scroll persistence, "Today" button ---
+    const {
+        todayButtonDir,
+        todayAngle,
+        handleScrollToToday,
         activePopover,
         setActivePopover,
         lastPopoverOpenTimeRef,
+    } = useCalendarScroll({
+        scrollContainerRef,
+        date,
+        onDateChange,
+        viewMode,
+        weeks,
+        events,
+        editingEventId,
     });
 
-    const eventsByDay = useEventsByDay(events, loadedWeeks, selectedGroupId, themes);
+    const eventsByDay = useEventsByDay(events, eventsRange, selectedGroupId, themes);
 
     const handleDayEventClick: ComponentProps<typeof DayColumn>['onEventClick'] = (clickedEvent, rect) => {
             if (!isDraggingRef.current) {
@@ -513,7 +279,9 @@ export default function CalendarView({
                         style={{ touchAction: 'pan-x pan-y', overscrollBehavior: 'none' }}
                     >
                         <CalendarWeekTimeGrid
-                            loadedWeeks={loadedWeeks}
+                            weeks={weekWindow.weeks}
+                            leftSpacerPx={weekWindow.leftSpacerPx}
+                            rightSpacerPx={weekWindow.rightSpacerPx}
                             eventsByDay={eventsByDay}
                             events={events}
                             currentTime={currentTime}
