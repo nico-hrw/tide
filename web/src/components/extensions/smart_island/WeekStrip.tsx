@@ -2,16 +2,17 @@
 
 import React, { useMemo } from 'react';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
-import { useDataStore } from '@/store/useDataStore';
+import { useDataStore, useWeekStartsOn } from '@/store/useDataStore';
 
 export default function WeekStrip() {
     const events = useDataStore(s => s.events) || [];
+    const weekStartsOn = useWeekStartsOn();
     const today = useMemo(() => new Date(), []);
     
-    // Get the start of the current week (Monday)
+    // Get the start of the current week (per calendar setting)
     const weekStart = useMemo(() => {
-        return startOfWeek(today, { weekStartsOn: 1 });
-    }, [today]);
+        return startOfWeek(today, { weekStartsOn });
+    }, [today, weekStartsOn]);
 
     // Generate 7 days of the week
     const days = useMemo(() => {

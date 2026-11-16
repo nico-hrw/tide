@@ -4,6 +4,7 @@
 import { useMemo, useRef, useEffect, useState } from "react";
 import { format, addDays, startOfWeek, isSameDay, getMinutes, getHours, startOfDay } from "date-fns";
 import { useHighlight } from '../HighlightContext';
+import { useWeekStartsOn } from '@/store/useDataStore';
 
 interface CalendarEvent {
     id: string;
@@ -132,7 +133,8 @@ export default function WeekView({
     themes = []
 }: WeekViewProps) {
     // Date State
-    const startOfCurrentWeek = startOfWeek(date, { weekStartsOn: 1 });
+    const weekStartsOn = useWeekStartsOn();
+    const startOfCurrentWeek = startOfWeek(date, { weekStartsOn });
     const days = useMemo(() => {
         return Array.from({ length: 7 }).map((_, i) => addDays(startOfCurrentWeek, i));
     }, [startOfCurrentWeek]);

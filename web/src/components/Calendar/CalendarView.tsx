@@ -8,6 +8,7 @@ import { ArrowRight, Upload } from "lucide-react";
 import { SearchIndexEntry } from "@/lib/searchIndex";
 import Fuse from "fuse.js";
 import { useHighlight } from "@/components/HighlightContext";
+import { useWeekStartsOn } from "@/store/useDataStore";
 import { ScheduleModal } from './ScheduleModal';
 import { CalendarImportModal } from './CalendarImportModal';
 import { CalendarWeekTimeGrid } from './CalendarWeekTimeGrid';
@@ -41,6 +42,7 @@ export default function CalendarView({
     enabledExtensions = [],
     onOpenScheduleThemes,
 }: CalendarViewProps) {
+    const weekStartsOn = useWeekStartsOn();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [internalViewMode, setInternalViewMode] = useState<CalendarViewMode>(viewModeProp || 'week');
     const viewMode = viewModeProp ?? internalViewMode;
@@ -68,7 +70,7 @@ export default function CalendarView({
     // Filter events based on selected groups/themesHighlight();
 
     const [loadedWeeks, setLoadedWeeks] = useState<Date[]>(() => {
-        const currentStart = startOfWeek(date, { weekStartsOn: 1 });
+        const currentStart = startOfWeek(date, { weekStartsOn });
         return [
             subWeeks(currentStart, 1),
             currentStart,
@@ -191,7 +193,7 @@ export default function CalendarView({
     // Initialize with weeks appropriate for the active view mode
     useEffect(() => {
         const timer = setTimeout(() => {
-            const currentStart = startOfWeek(date, { weekStartsOn: 1 });
+            const currentStart = startOfWeek(date, { weekStartsOn });
 
             if (prevViewModeRef.current !== 'week' && viewMode === 'week') {
                 hasInitializedScroll.current = false;
@@ -207,7 +209,7 @@ export default function CalendarView({
             prevViewModeRef.current = viewMode;
 
             if (viewMode === 'month') {
-                const mStart = startOfWeek(startOfMonth(date), { weekStartsOn: 1 });
+                const mStart = startOfWeek(startOfMonth(date), { weekStartsOn });
                 const weeks: Date[] = [];
                 for (let i = 0; i < 6; i++) {
                     weeks.push(addWeeks(mStart, i));
@@ -243,7 +245,7 @@ export default function CalendarView({
             isPrependingRef.current = true; // Force initial scroll center
         }, 0);
         return () => clearTimeout(timer);
-    }, [date, viewMode, loadedWeeks]);
+    }, [date, viewMode, loadedWeeks, weekStartsOn]);
 
     // Initial scroll for day view
     useEffect(() => {

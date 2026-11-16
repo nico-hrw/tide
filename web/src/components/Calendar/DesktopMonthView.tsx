@@ -13,6 +13,7 @@ import { Plus, CheckSquare, Square } from "lucide-react";
 import { getHolidayForDate } from "@/lib/holidays";
 import { getEventGroupIds } from "@/lib/calendarUtils";
 import { useJobPlannerStore } from "@/store/useJobPlannerStore";
+import { useWeekStartsOn } from "@/store/useDataStore";
 import type { CalendarEvent } from "./types";
 
 interface DesktopMonthViewProps {
@@ -38,6 +39,7 @@ export default function DesktopMonthView({
     themes = [],
 }: DesktopMonthViewProps) {
     const jobPluginGroupId = useJobPlannerStore((state) => state.pluginGroupId);
+    const weekStartsOn = useWeekStartsOn();
 
     const isJobOrUniEvent = (e: CalendarEvent) => {
         if (jobPluginGroupId && (e.parent_id === jobPluginGroupId || e.groupIds?.includes(jobPluginGroupId))) {
@@ -51,8 +53,8 @@ export default function DesktopMonthView({
 
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(monthStart);
-    const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
-    const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    const startDate = startOfWeek(monthStart, { weekStartsOn });
+    const endDate = endOfWeek(monthEnd, { weekStartsOn });
 
     const days = eachDayOfInterval({ start: startDate, end: endDate });
 

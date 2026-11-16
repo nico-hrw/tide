@@ -14,7 +14,7 @@ import {
   isSameMonth,
 } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { useDataStore } from '@/store/useDataStore';
+import { useDataStore, useWeekStartsOn } from '@/store/useDataStore';
 
 export interface SmartIslandCalendarProps {
   selectedDate?: Date;
@@ -135,6 +135,7 @@ export default function SmartIslandCalendar({
   }, []);
 
   const visibleCalendarRange = useDataStore((s) => s.visibleCalendarRange);
+  const weekStartsOn = useWeekStartsOn();
   const storeEvents = useDataStore((s) => s.events);
 
   // Active / Upcoming event resolution (prop takes precedence, then store fallback)
@@ -199,19 +200,19 @@ export default function SmartIslandCalendar({
     }
     const baseDate = selectedDate || new Date();
     return {
-      start: format(startOfWeek(baseDate, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
-      end: format(endOfWeek(baseDate, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+      start: format(startOfWeek(baseDate, { weekStartsOn }), 'yyyy-MM-dd'),
+      end: format(endOfWeek(baseDate, { weekStartsOn }), 'yyyy-MM-dd'),
     };
-  }, [visibleCalendarRange, selectedDate]);
+  }, [visibleCalendarRange, selectedDate, weekStartsOn]);
 
   // Calendar grid calculation (dynamic row count: 35 days for 5-week month, 42 days for 6-week month)
   const calendarDays = useMemo(() => {
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(monthStart);
-    const start = startOfWeek(monthStart, { weekStartsOn: 1 });
-    const end = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    const start = startOfWeek(monthStart, { weekStartsOn });
+    const end = endOfWeek(monthEnd, { weekStartsOn });
     return eachDayOfInterval({ start, end });
-  }, [currentMonth]);
+  }, [currentMonth, weekStartsOn]);
 
   const handlePrevMonth = () => {
     const prev = subMonths(currentMonth, 1);
