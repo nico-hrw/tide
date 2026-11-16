@@ -76,6 +76,18 @@ export function scrollLeftForDate(p: {
   return TIME_GUTTER_PX + dayCenterX - viewportWidth / 2;
 }
 
+/**
+ * scrollLeft that centers a rendered day column, given its offsetLeft inside the
+ * days wrapper (i.e. excluding the time gutter). Same convention as scrollLeftForDate.
+ */
+export function scrollLeftForColumn(p: {
+  columnOffsetLeft: number;
+  columnWidth: number;
+  viewportWidth: number;
+}): number {
+  return TIME_GUTTER_PX + p.columnOffsetLeft + p.columnWidth / 2 - p.viewportWidth / 2;
+}
+
 /** Inverse of scrollLeftForDate: the day under the viewport center. */
 export function dateAtViewportCenter(p: {
   scrollLeft: number;
@@ -95,6 +107,21 @@ export function dateAtViewportCenter(p: {
 /** True when `date` is further than MAX_ANCHOR_OFFSET_WEEKS from the anchor. */
 export function needsReanchor(date: Date, anchorWeekStart: Date, weekStartsOn: WeekStart): boolean {
   return Math.abs(weekIndexOf(date, anchorWeekStart, weekStartsOn)) > MAX_ANCHOR_OFFSET_WEEKS;
+}
+
+/** localStorage key holding the last calendar date (restored by page.tsx on load). */
+export const CALENDAR_DATE_STORAGE_KEY = 'tide_calendar_date';
+
+/** Stored calendar date, or null when missing or unparseable. */
+export function parseStoredCalendarDate(raw: string | null): Date | null {
+  if (!raw) return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Value written for CALENDAR_DATE_STORAGE_KEY (ISO string, read back by parseStoredCalendarDate). */
+export function serializeCalendarDate(date: Date): string {
+  return date.toISOString();
 }
 
 /** Week starts for month (6 weeks from the first of the month) or continuous (8 weeks from one week before `date`). */

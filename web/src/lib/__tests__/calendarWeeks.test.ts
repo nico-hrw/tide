@@ -7,6 +7,9 @@ import {
   dateAtViewportCenter,
   dayColumnWidth,
   needsReanchor,
+  parseStoredCalendarDate,
+  scrollLeftForColumn,
+  serializeCalendarDate,
   scrollLeftForDate,
   startOfCalendarWeek,
   visibleWeekRange,
@@ -143,5 +146,45 @@ describe('weeksForViewMode', () => {
     const weeks = weeksForViewMode(new Date(2026, 10, 18), 'continuous', 1);
     expect(weeks).toHaveLength(8);
     expect(ymd(weeks[0])).toBe('2026-11-09');
+  });
+});
+
+describe('scrollLeftForColumn', () => {
+  // Regression: the old DOM formula `colLeft - cw/2 + colW/2 - 30` ignored the 60px gutter,
+  // so at 155px columns the viewport center fell into the previous day.
+  it.each([140, 155, 185, 210])('puts the column day under the viewport center (%ipx columns)', (dayWidth) => {
+    const anchor = startOfCalendarWeek(new Date(2026, 10, 18), 1);
+    const viewportWidth = 900;
+    for (const dayOffset of [-9, 0, 2, 17]) {
+      const day = addDays(anchor, dayOffset);
+      const columnOffsetLeft = (WEEK_RANGE * 7 + dayOffset) * dayWidth;
+      const scrollLeft = scrollLeftForColumn({ columnOffsetLeft, columnWidth: dayWidth, viewportWidth });
+      expect(scrollLeft).toBeCloseTo(scrollLeftForDate({ date: day, anchorWeekStart: anchor, weekStartsOn: 1, dayWidth, viewportWidth }));
+      const center = dateAtViewportCenter({ scrollLeft, viewportWidth, dayWidth, anchorWeekStart: anchor, weekStartsOn: 1 });
+      expect(ymd(center)).toBe(ymd(day));
+    }
+  });
+
+  it('differs from the old formula, which lands on the previous day at 155px', () => {
+    const anchor = startOfCalendarWeek(new Date(2026, 10, 18), 1);
+    const dayWidth = 155;
+    const viewportWidth = 900;
+    const columnOffsetLeft = WEEK_RANGE * 7 * dayWidth;
+    const oldScrollLeft = columnOffsetLeft - viewportWidth / 2 + dayWidth / 2 - 30;
+    const oldCenter = dateAtViewportCenter({ scrollLeft: oldScrollLeft, viewportWidth, dayWidth, anchorWeekStart: anchor, weekStartsOn: 1 });
+    expect(ymd(oldCenter)).toBe(ymd(addDays(anchor, -1)));
+  });
+});
+
+describe('stored calendar date', () => {
+  it('round-trips through serialize/parse', () => {
+    const d = new Date(2026, 11, 9, 14, 30);
+    expect(parseStoredCalendarDate(serializeCalendarDate(d))?.getTime()).toBe(d.getTime());
+  });
+
+  it('returns null for missing or invalid values', () => {
+    expect(parseStoredCalendarDate(null)).toBeNull();
+    expect(parseStoredCalendarDate('')).toBeNull();
+    expect(parseStoredCalendarDate('not a date')).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import { addDays, format, getHours, getMinutes, isSameDay } from "date-fns";
 import { useDataStore } from "@/store/useDataStore";
+import { scrollLeftForColumn } from "@/lib/calendarWeeks";
 import type { ActivePopover, CalendarEvent, CalendarViewMode } from "./types";
 
 interface UseCalendarScrollParams {
@@ -151,13 +152,15 @@ export function useCalendarScroll({
             const timer = setTimeout(() => {
                 const element = container.querySelector(`#event-${editingEventId}`) as HTMLElement;
                 if (element) {
-                    // Scroll horizontally
+                    // Scroll horizontally, centring the day like useWeekWindow does (incl. the
+                    // time gutter), so the settled viewport centre stays on the event's day.
                     const dayCol = element.closest('[data-day-col]') as HTMLElement;
                     if (dayCol) {
-                        const colLeft = dayCol.offsetLeft;
-                        const colWidth = dayCol.offsetWidth;
-                        const containerWidth = container.clientWidth;
-                        const targetScrollX = colLeft - (containerWidth / 2) + (colWidth / 2) - 30;
+                        const targetScrollX = scrollLeftForColumn({
+                            columnOffsetLeft: dayCol.offsetLeft,
+                            columnWidth: dayCol.offsetWidth,
+                            viewportWidth: container.clientWidth,
+                        });
                         container.scrollLeft = Math.max(0, targetScrollX);
                     }
 
