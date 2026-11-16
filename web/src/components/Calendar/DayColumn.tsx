@@ -3,6 +3,7 @@ import { format, isSameDay, getHours, getMinutes } from "date-fns";
 import { useHighlight } from "@/components/HighlightContext";
 import { motion, useTransform, MotionValue, useMotionValue } from "framer-motion";
 import { CalendarEventItem } from './CalendarEventItem';
+import { DayEventsSkeleton } from './DayEventsSkeleton';
 import { useDataStore } from "@/store/useDataStore";
 import { extractTimeFromText } from "@/lib/timeParser";
 import { getHolidayForDate } from "@/lib/holidays";
@@ -320,6 +321,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     }, []);
 
     const activeParentId = useDataStore(state => state.activeParentId);
+    const showSkeleton = useDataStore(state => !state.eventsLoaded) && events.length === 0;
     const tasks = useDataStore(state => state.tasks);
     const [todosExpanded, setTodosExpanded] = useState(false);
 
@@ -994,6 +996,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         onMouseLeave={() => onHourHover && onHourHover(null)}
                     ></div>
                 ))}
+
+                {showSkeleton && <DayEventsSkeleton hourHeight={hourHeight} />}
 
                 {/* Events */}
                 {timedEvents.map(event => {

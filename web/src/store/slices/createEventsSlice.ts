@@ -54,6 +54,7 @@ function loadWeekStartsOn(): WeekStart {
 
 export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
     events: loadCachedEvents(),
+    eventsLoaded: false,
     eventMentionStyle:
         (typeof window !== 'undefined' &&
             (localStorage.getItem('tide_event_mention_style') as EventMentionStyle)) ||
@@ -92,6 +93,8 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
         saveEventsToOfflineCache(events);
         set({ events });
     },
+
+    setEventsLoaded: (loaded: boolean) => set({ eventsLoaded: loaded }),
 
     setEventMentionStyle: (style: EventMentionStyle) => {
         if (typeof window !== 'undefined') {

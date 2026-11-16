@@ -1,7 +1,29 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { format, addDays, startOfDay } from "date-fns";
 import { getEventGroupIds } from "../../lib/calendarUtils";
 import type { CalendarEvent, CalendarViewProps } from "./types";
+
+type DayCache = Map<string, { sig: string; events: CalendarEvent[] }>;
+
+/**
+ * Swaps each day's array for the previously returned one when its content is unchanged, so
+ * memoised DayColumns skip re-rendering. The signature is the full serialised occurrence, which
+ * covers every field the event element can render. Entries not present in `map` are dropped,
+ * which keeps the cache bounded by the current range.
+ */
+function stabiliseDays(map: Map<string, CalendarEvent[]>, prefix: string, cache: DayCache, seen: Set<string>) {
+    map.forEach((events, dayKey) => {
+        const cacheKey = prefix + dayKey;
+        const sig = events.map(e => JSON.stringify(e)).join('|');
+        const hit = cache.get(cacheKey);
+        seen.add(cacheKey);
+        if (hit && hit.sig === sig) {
+            map.set(dayKey, hit.events);
+        } else {
+            cache.set(cacheKey, { sig, events });
+        }
+    });
+}
 
 /** Expands recurrences and buckets events per day (timed vs all-day) within `range` (end exclusive). */
 export function useEventsByDay(
@@ -12,6 +34,7 @@ export function useEventsByDay(
 ) {
     const rangeStartTime = range.start.getTime();
     const rangeEndTime = range.end.getTime();
+    const dayCacheRef = useRef<DayCache>(new Map());
     const eventsByDay = useMemo(() => {
         const timedMap = new Map<string, CalendarEvent[]>();
         const allDayMap = new Map<string, CalendarEvent[]>();
@@ -154,6 +177,12 @@ export function useEventsByDay(
                 }
             }
         });
+
+        const cache = dayCacheRef.current;
+        const seen = new Set<string>();
+        stabiliseDays(timedMap, 't:', cache, seen);
+        stabiliseDays(allDayMap, 'a:', cache, seen);
+        cache.forEach((_, k) => { if (!seen.has(k)) cache.delete(k); });
         return { timedMap, allDayMap };
     }, [events, rangeStartTime, rangeEndTime, selectedGroupId]);
     return eventsByDay;

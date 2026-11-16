@@ -104,6 +104,8 @@ export interface NotesSlice {
 
 export interface EventsSlice {
     events: DataItem[];
+    /** True once the first server events response arrived (or the request failed). */
+    eventsLoaded: boolean;
     eventMentionStyle: EventMentionStyle;
     eventMentionPreview: EventMentionPreview;
     calendarColorPalette: CalendarColorPalette;
@@ -115,6 +117,7 @@ export interface EventsSlice {
     calendarHolidayPackage: CalendarHolidayPackage;
 
     setEvents: (events: DataItem[]) => void;
+    setEventsLoaded: (loaded: boolean) => void;
     setEventMentionStyle: (style: EventMentionStyle) => void;
     setEventMentionPreview: (preview: EventMentionPreview) => void;
     setCalendarColorPalette: (palette: CalendarColorPalette) => void;

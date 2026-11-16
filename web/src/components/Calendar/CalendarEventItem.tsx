@@ -537,7 +537,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             id={`event-${event.id}`}
             data-event-id={event.id}
             data-event-start={event.start}
-            initial={{ opacity: 0, scale: 0.98 }}
+            initial={false}
             animate={{ opacity: isCancelled ? 0.4 : 1, scale: 1 }}
             style={{
                 ...style, ...borderRadiusStyle,
