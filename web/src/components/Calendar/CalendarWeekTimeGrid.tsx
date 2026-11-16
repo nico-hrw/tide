@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useRef, useLayoutEffect } from "react";
 import type { ComponentProps } from "react";
 import type { MotionValue } from "framer-motion";
 import { format, addDays, isSameDay } from "date-fns";
@@ -38,7 +38,12 @@ interface CalendarWeekTimeGridProps {
     creationEndYMV: MotionValue<number>;
     cursorX: MotionValue<number>;
     cursorY: MotionValue<number>;
+    /** Fixed one-week mode: columns share the width and a week change slides in (transform only). */
+    fluid?: boolean;
 }
+
+const SLIDE_MS = 180;
+const SLIDE_PX = 28;
 
 /** Sticky time column + day columns (rendered weeks between spacers) + custom drag ghost. */
 export function CalendarWeekTimeGrid({
@@ -70,9 +75,27 @@ export function CalendarWeekTimeGrid({
     creationEndYMV,
     cursorX,
     cursorY,
+    fluid = false,
 }: CalendarWeekTimeGridProps) {
     // --- Hover State ---
     const [hoveredHour, setHoveredHour] = useState<number | null>(null);
+
+    // Fixed mode: slide the new week in from the side it lies on. Transform only, no layout animation.
+    const firstWeekTime = weeks[0]?.getTime() ?? 0;
+    const prevFirstWeekRef = useRef(firstWeekTime);
+    useLayoutEffect(() => {
+        const prev = prevFirstWeekRef.current;
+        prevFirstWeekRef.current = firstWeekTime;
+        const el = gridDaysRef.current;
+        if (!fluid || prev === firstWeekTime || !el || typeof el.animate !== 'function') return;
+        if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+        const from = firstWeekTime > prev ? SLIDE_PX : -SLIDE_PX;
+        const animation = el.animate(
+            [{ transform: `translateX(${from}px)` }, { transform: 'translateX(0)' }],
+            { duration: SLIDE_MS, easing: 'ease-out' },
+        );
+        return () => animation.cancel();
+    }, [firstWeekTime, fluid, gridDaysRef]);
 
     // Stable day dates array across renders
     const days = useMemo(() => {
@@ -155,7 +178,7 @@ export function CalendarWeekTimeGrid({
                 </div>
 
                 {/* Days Wrapper with Relative positioning for the Time Line */}
-                <div className="flex relative items-start pb-[40px]" ref={gridDaysRef} style={{ '--hour-height': '48px' } as React.CSSProperties}>
+                <div className={`flex relative items-start pb-[40px] ${fluid ? 'flex-1 min-w-0' : ''}`} ref={gridDaysRef} style={{ '--hour-height': '48px' } as React.CSSProperties}>
                 {/* Spacers keep the full virtual scroll width; only nearby weeks are rendered. */}
                 <div className="shrink-0" style={{ width: leftSpacerPx }} aria-hidden="true" />
 
@@ -200,6 +223,7 @@ export function CalendarWeekTimeGrid({
                                 cursorX={cursorX}
                                 cursorY={cursorY}
                                 hourHeight={48}
+                                fluid={fluid}
                             />
                         );
                     })

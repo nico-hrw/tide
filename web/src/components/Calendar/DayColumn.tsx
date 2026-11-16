@@ -60,7 +60,11 @@ interface DayColumnProps {
     allEvents?: CalendarEvent[];
     readOnly?: boolean;
     hourHeight?: number;
+    /** Fixed one-week mode: the column shares the available width instead of using a fixed one. */
+    fluid?: boolean;
 }
+
+const FIXED_COLUMN_WIDTH = 'w-[140px] md:w-[155px] lg:w-[185px] xl:w-[210px]';
 
 const TASK_PRIORITY_COLORS: Record<string, string> = {
     high: '#ef4444',
@@ -284,7 +288,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     cursorY,
     allEvents = EMPTY_ALL_EVENTS,
     readOnly = false,
-    hourHeight = 48
+    hourHeight = 48,
+    fluid = false
 }: DayColumnProps) => {
     const { highlight, isHighlighted } = useHighlight();
 
@@ -481,7 +486,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     return (
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
-            className={`w-[140px] md:w-[155px] lg:w-[185px] xl:w-[210px] flex-shrink-0 border-r border-gray-100/80 dark:border-slate-900/50 relative z-[10] bg-transparent`}
+            className={`${fluid ? 'flex-1 min-w-0' : `${FIXED_COLUMN_WIDTH} flex-shrink-0`} border-r border-gray-100/80 dark:border-slate-900/50 relative z-[10] bg-transparent`}
             style={{ '--hour-height': `${hourHeight}px` } as React.CSSProperties}
             onMouseMove={(e) => {
                 physicalMouseRef.current = { x: e.clientX, y: e.clientY };
@@ -629,7 +634,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             {/* All-Day Events Area */}
             {allDayEvents.length > 0 && (
                 <div className="sticky top-[50px] z-[65] w-full h-0 pointer-events-auto">
-                    <div className="absolute top-0 left-0 right-0 w-[140px] md:w-[155px] lg:w-[185px] xl:w-[210px] bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm p-1 flex flex-col gap-1 border-b border-gray-200/60 dark:border-slate-800/60 rounded-b-xl">
+                    <div className={`absolute top-0 left-0 right-0 ${fluid ? '' : FIXED_COLUMN_WIDTH} bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm p-1 flex flex-col gap-1 border-b border-gray-200/60 dark:border-slate-800/60 rounded-b-xl`}>
                         {regularAllDayEvents.map(event => {
                             const theme = getEventTheme(event, calendarColorPalette);
                             const isHighlightedEvent = isHighlighted(event.id, 'event');

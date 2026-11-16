@@ -49,7 +49,7 @@ function currentDayWidth(): number {
 }
 
 /** Restored vertical position, or two hours before now (previous default). */
-function initialScrollTop(): number {
+export function initialScrollTop(): number {
   try {
     const raw = localStorage.getItem(SCROLL_Y_KEY);
     const saved = raw === null ? NaN : Number(raw);

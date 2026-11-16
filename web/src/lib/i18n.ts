@@ -60,6 +60,8 @@ export const translations = {
             weekStartDesc: "Wähle den ersten Tag der Woche.",
             weekStartMonday: "Montag",
             weekStartSunday: "Sonntag",
+            previousWeek: "Vorherige Woche",
+            nextWeek: "Nächste Woche",
         }
     },
     en: {
@@ -119,6 +121,8 @@ export const translations = {
             weekStartDesc: "Choose the first day of the week.",
             weekStartMonday: "Monday",
             weekStartSunday: "Sunday",
+            previousWeek: "Previous week",
+            nextWeek: "Next week",
         }
     }
 } as const;
