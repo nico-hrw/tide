@@ -9,6 +9,12 @@ import {
 
 export type WeekStart = 0 | 1;
 
+/** Rotates a Monday-first label array so it starts with the configured first weekday. */
+export function rotateWeekdayLabels<T>(mondayFirst: readonly T[], weekStartsOn: WeekStart): T[] {
+  const offset = weekStartsOn === 0 ? mondayFirst.length - 1 : 0;
+  return [...mondayFirst.slice(offset), ...mondayFirst.slice(0, offset)];
+}
+
 export const WEEK_RANGE = 520;
 export const RENDER_BUFFER_WEEKS = 2;
 export const MAX_ANCHOR_OFFSET_WEEKS = 26;

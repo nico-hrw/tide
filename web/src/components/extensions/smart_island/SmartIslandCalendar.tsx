@@ -15,6 +15,7 @@ import {
 } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useDataStore, useWeekStartsOn } from '@/store/useDataStore';
+import { rotateWeekdayLabels } from '@/lib/calendarWeeks';
 
 export interface SmartIslandCalendarProps {
   selectedDate?: Date;
@@ -136,6 +137,7 @@ export default function SmartIslandCalendar({
 
   const visibleCalendarRange = useDataStore((s) => s.visibleCalendarRange);
   const weekStartsOn = useWeekStartsOn();
+  const weekdayLabels = rotateWeekdayLabels(WEEKDAYS, weekStartsOn);
   const storeEvents = useDataStore((s) => s.events);
 
   // Active / Upcoming event resolution (prop takes precedence, then store fallback)
@@ -320,7 +322,7 @@ export default function SmartIslandCalendar({
 
       {/* Weekdays Grid */}
       <div className="grid grid-cols-7 text-center mb-0.5" aria-hidden="true">
-        {WEEKDAYS.map((name) => (
+        {weekdayLabels.map((name) => (
           <span
             key={name}
             className="text-[9px] font-semibold text-[#a1a1aa] tracking-wider text-center py-0.5"

@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react';
 import { format, startOfWeek, addDays, isSameDay } from 'date-fns';
 import { useDataStore, useWeekStartsOn } from '@/store/useDataStore';
+import { rotateWeekdayLabels } from '@/lib/calendarWeeks';
 
 export default function WeekStrip() {
     const events = useDataStore(s => s.events) || [];
@@ -31,7 +32,7 @@ export default function WeekStrip() {
         });
     };
 
-    const weekdaysGerman = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    const weekdaysGerman = rotateWeekdayLabels(['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'], weekStartsOn);
 
     return (
         <div className="w-full px-3.5 py-2 border-b border-white/5 select-none font-sans">
