@@ -133,6 +133,7 @@
 | useCalendarScroll | `web/src/components/Calendar/useCalendarScroll.ts` | Popover state + dismissal, `calendar:scroll-to` / `editingEventId` navigation, day-view initial scroll, `tide_calendar_scroll_y` persistence, visible range, directional "Today" button |
 | WeekView | `web/src/components/Calendar/WeekView.tsx` | Week grid |
 | DayColumn | `web/src/components/Calendar/DayColumn.tsx` | Single-day column (pure reflector, no drag logic) |
+| DayEventsSkeleton | `web/src/components/Calendar/DayEventsSkeleton.tsx` | Three pulsing grey bars (fixed positions, `--hover-bg`) shown by `DayColumn` while `eventsLoaded` is false and the day has no events. `eventsLoaded` is set by `fetchDirectory(root)` / `loadAllMetadata` after the first response or on error. |
 | CalendarEventItem | `web/src/components/Calendar/CalendarEventItem.tsx` | Event pill rendering. **Z-index overlap**: `zIndex = 10 + startMinutes` so later-starting events render on top of earlier ones when they overlap. |
 | DragGhost | `web/src/components/Calendar/DragGhost.tsx` | Visual ghost for creation drag |
 | EventDragGhost | `web/src/components/Calendar/EventDragGhost.tsx` | Visual ghost for event move drag |

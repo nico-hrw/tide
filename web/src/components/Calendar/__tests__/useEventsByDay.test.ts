@@ -105,19 +105,33 @@ describe('useEventsByDay identity stability', () => {
   });
 
   it('prunes cache entries outside the range so they come back as new arrays', () => {
-    // Recurring occurrences exist only inside the range; one-off events are not range-filtered.
+    // Recurring occurrences only exist inside the range, so range changes drop days.
     const events = [ev('r', 2, { recurrence: 'weekly' })];
     const first = render(events);
-    const a1 = first.timedMap.get('2026-11-10') ?? first.timedMap.get('2026-11-09');
-    const key = first.timedMap.get('2026-11-09') ? '2026-11-09' : '2026-11-10';
+    const before = first.timedMap.get('2026-11-09');
+    expect(before).toHaveLength(1);
 
-    // Range moves away: day is gone from the result and from the cache.
     const away = render(events, { start: new Date(2027, 0, 1), end: new Date(2027, 0, 20) });
-    expect(away.timedMap.get(key)).toBeUndefined();
+    expect(away.timedMap.get('2026-11-09')).toBeUndefined();
 
     const back = render(events);
-    expect(back.timedMap.get(key)).toEqual(a1);
-    expect(back.timedMap.get(key)).not.toBe(a1);
+    const after = back.timedMap.get('2026-11-09');
+    expect(after).toEqual(before);
+    expect(after).not.toBe(before);
+  });
+
+  it.each([
+    ['color', { color: '#123456' }],
+    ['groupIds', { groupIds: ['g1'] }],
+    ['shading', { shading: 0.5 }],
+    ['is_task', { is_task: true }],
+    ['effect', { effect: 'glow' }],
+    ['description', { description: 'changed' }],
+  ] as [string, Partial<CalendarEvent>][])('detects a change of %s', (_name, patch) => {
+    const first = render([ev('a', 10), ev('b', 12)]);
+    const second = render([ev('a', 10, patch), ev('b', 12)]);
+    expect(second.timedMap.get('2026-11-10')).not.toBe(first.timedMap.get('2026-11-10'));
+    expect(second.timedMap.get('2026-11-12')).toBe(first.timedMap.get('2026-11-12'));
   });
 
   it('keeps all-day maps stable independently of the timed map', () => {
