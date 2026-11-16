@@ -9,6 +9,7 @@ import { createContactsSlice } from './slices/createContactsSlice';
 import { createSafesSlice, loadCachedSafes, loadCachedActiveSafes } from './slices/createSafesSlice';
 import { broadcastSync, subscribeToSync } from './sync/broadcast';
 import type { DataStoreState } from './slices/types';
+import type { WeekStart } from '@/lib/calendarWeeks';
 
 // Re-export all types
 export * from './slices/types';
@@ -60,6 +61,14 @@ if (typeof window !== 'undefined') {
     });
 }
 
+// Non-reactive and reactive accessors for the week start setting
+export function getWeekStartsOn(): WeekStart {
+    return useDataStore.getState().weekStartsOn;
+}
+export function useWeekStartsOn(): WeekStart {
+    return useDataStore((s) => s.weekStartsOn);
+}
+
 // Granular selector hooks
 export const useNotes = () =>
     useDataStore(
@@ -91,6 +100,8 @@ export const useCalendarEvents = () =>
             eventMentionPreview: s.eventMentionPreview,
             calendarColorPalette: s.calendarColorPalette,
             calendarOverlapMode: s.calendarOverlapMode,
+            calendarScrollMode: s.calendarScrollMode,
+            weekStartsOn: s.weekStartsOn,
             visibleCalendarRange: s.visibleCalendarRange,
             calendarHolidaysEnabled: s.calendarHolidaysEnabled,
             calendarHolidayPackage: s.calendarHolidayPackage,
@@ -99,6 +110,8 @@ export const useCalendarEvents = () =>
             setEventMentionPreview: s.setEventMentionPreview,
             setCalendarColorPalette: s.setCalendarColorPalette,
             setCalendarOverlapMode: s.setCalendarOverlapMode,
+            setCalendarScrollMode: s.setCalendarScrollMode,
+            setWeekStartsOn: s.setWeekStartsOn,
             setVisibleCalendarRange: s.setVisibleCalendarRange,
             setCalendarHolidaysEnabled: s.setCalendarHolidaysEnabled,
             setCalendarHolidayPackage: s.setCalendarHolidayPackage,

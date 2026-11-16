@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand';
+import type { WeekStart } from '@/lib/calendarWeeks';
 
 export interface DataItem {
     id: string;
@@ -59,6 +60,7 @@ export type AppTheme = 'light' | 'dark';
 export type AppLanguage = 'en' | 'de';
 export type CalendarColorPalette = 'modern-dark' | 'soft-pastels' | 'classic-tide';
 export type CalendarOverlapMode = 'overlap' | 'stack';
+export type CalendarScrollMode = 'infinite' | 'fixed';
 export type CalendarHolidayPackage = 'DE' | 'AT' | 'CH' | 'US';
 export type EventMentionStyle = 'blue' | 'calendar';
 export type EventMentionPreview = 'always' | 'hover' | 'off';
@@ -106,6 +108,8 @@ export interface EventsSlice {
     eventMentionPreview: EventMentionPreview;
     calendarColorPalette: CalendarColorPalette;
     calendarOverlapMode: CalendarOverlapMode;
+    calendarScrollMode: CalendarScrollMode;
+    weekStartsOn: WeekStart;
     visibleCalendarRange?: { start: string; end: string } | null;
     calendarHolidaysEnabled: boolean;
     calendarHolidayPackage: CalendarHolidayPackage;
@@ -115,6 +119,8 @@ export interface EventsSlice {
     setEventMentionPreview: (preview: EventMentionPreview) => void;
     setCalendarColorPalette: (palette: CalendarColorPalette) => void;
     setCalendarOverlapMode: (mode: CalendarOverlapMode) => void;
+    setCalendarScrollMode: (mode: CalendarScrollMode) => void;
+    setWeekStartsOn: (w: WeekStart) => void;
     setVisibleCalendarRange: (range: { start: string; end: string } | null) => void;
     setCalendarHolidaysEnabled: (enabled: boolean) => void;
     setCalendarHolidayPackage: (pkg: CalendarHolidayPackage) => void;
