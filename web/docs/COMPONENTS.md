@@ -102,6 +102,8 @@
 | Component | File | Role |
 |-----------|------|------|
 | SidebarIsland | `web/src/components/Layout/sidebar/SidebarIsland.tsx` | Tide 2 Desktop-Island unten links in der Seitenleiste. Zeigt immer nur einen Zustand: laufender Termin ("endet in X Min") oder sonst den Mini-Kalender. Kein Umschalten per Icon. Nutzt `getEventsForDate` für heute. |
+| CalendarDetailPanel | `web/src/components/Calendar/CalendarDetailPanel.tsx` | Tide 2 Detailspalte des Desktop-Kalenders (Tag und Fortlaufend), immer sichtbar. Ohne Auswahl: Titel, ein Satz und bis zu drei Kennzahlen. Mit Auswahl: Bereich, Titel, Zeit, Beschreibung, Tags, Aufgaben-Status, Buttons Bearbeiten/Löschen. Flach mit linker Linie, wie die Todo-Details. |
+| DesktopAgendaView (Fortlaufend) | `web/src/components/Calendar/DesktopAgendaView.tsx` | Tide 2: Liste links in fester Breite (520 px), `CalendarDetailPanel` rechts. Ganzfarbige Termin-Karten mit Zeitspalte, Punkt und Linie in der Schiene, Pausen ("30 Min. frei") als gestrichelte Schiene, Todos als Pillen (ganztägig unter dem Tageskopf, zeitgebunden als eigene Zeile). Wochenkennzahlen im Ruhezustand. |
 | SmartIsland (root) | `web/src/components/SmartIsland.tsx` | Shell / entry component |
 | SmartIsland (ext) | `web/src/components/extensions/smart_island/SmartIsland.tsx` | Core desktop island logic: expandable pill, welcome sequence, mode views, search trigger, integrated `SmartIslandCalendar` popover, quick event capture, and sync states. |
 | SmartIslandCalendar | `web/src/components/extensions/smart_island/SmartIslandCalendar.tsx` | Desktop Smart Island calendar widget: month grid with event dots, progress pie sectors for elapsed day time, active/upcoming event countdown complications, and keyboard/wheel month navigation. |
