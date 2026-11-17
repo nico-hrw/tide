@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useDataStore } from '@/store/useDataStore';
+import { paletteFor, type PaletteEntry } from './eventPalette';
+import { AllDayTodoPills, TimedTodoRow, FreeGap, formatFree } from './AgendaParts';
 
 const T = {
   bg: 'var(--background)', card: 'var(--sidebar-bg)', pri: 'var(--foreground)',
@@ -53,25 +55,24 @@ function getEvInfo(ev: any, now: Date, isToday: boolean, nextUpcomingId: string 
   return { evStart, evEnd, durM, durStr, isActive, isNext, remStr, startStr, color: ev.color || T.accent };
 }
 
-function getCardStyle(isActive: boolean, isEven: boolean, theme: string, extra?: React.CSSProperties): React.CSSProperties {
+function getCardStyle(pal: PaletteEntry, isActive: boolean, extra?: React.CSSProperties): React.CSSProperties {
   return {
-    background: isActive ? (theme === 'dark' ? '#09090b' : '#18181b') : isEven ? (theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#f4f4f5') : (theme === 'dark' ? 'rgba(255,255,255,0.095)' : '#e4e4e7'),
-    transform: isActive ? 'scale(1.025)' : 'scale(1)', zIndex: isActive ? 10 : 1, border: 'none',
-    boxShadow: isActive ? (theme === 'dark' ? '0 10px 28px -4px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.15)' : '0 12px 28px -6px rgba(0,0,0,0.35)') : 'none',
-    transition: 'transform 0.2s ease, box-shadow 0.2s ease', ...extra,
+    background: pal.bg, color: pal.ink, border: 'none',
+    boxShadow: isActive ? '0 8px 22px -8px rgba(0,0,0,0.35)' : 'none',
+    transition: 'box-shadow 0.2s ease', ...extra,
   };
 }
 
-function EventActions({ ev, isActive, theme, onDeleteEvent, onEditEvent, compact }: { ev: any; isActive: boolean; theme: string; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; compact?: boolean }) {
+function EventActions({ ev, isActive, ink, theme, onDeleteEvent, onEditEvent, compact }: { ev: any; isActive: boolean; ink?: string; theme: string; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; compact?: boolean }) {
   return (
     <>
       {ev.location && (
-        <div className={`flex items-center gap-1.5 text-xs font-medium ${compact ? 'mb-1.5' : 'mb-2'}`} style={{ color: isActive ? 'rgba(255,255,255,0.9)' : T.sec }}>
+        <div className={`flex items-center gap-1.5 text-xs font-medium ${compact ? 'mb-1.5' : 'mb-2'}`} style={{ color: ink ?? T.sec }}>
           <MapPin size={compact ? 12 : 13} className="shrink-0" /><span className="truncate">{ev.location}</span>
         </div>
       )}
       {ev.description && (
-        <p className={`text-xs whitespace-pre-wrap leading-relaxed ${compact ? 'mb-2.5' : 'mb-3'}`} style={{ color: isActive ? 'rgba(255,255,255,0.85)' : T.sec }}>{ev.description}</p>
+        <p className={`text-xs whitespace-pre-wrap leading-relaxed ${compact ? 'mb-2.5' : 'mb-3'}`} style={{ color: ink ?? T.sec }}>{ev.description}</p>
       )}
       <div className="flex items-center gap-1.5 pt-1">
         <button
@@ -84,7 +85,7 @@ function EventActions({ ev, isActive, theme, onDeleteEvent, onEditEvent, compact
             }
           }}
           className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-semibold active:scale-95 transition-transform ${compact ? 'text-[11px]' : 'text-xs'}`}
-          style={{ background: isActive ? 'rgba(255, 255, 255, 0.2)' : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)', color: isActive ? '#ffffff' : T.pri }}
+          style={{ background: ink ? 'rgba(128,128,128,0.25)' : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)', color: ink ?? T.pri }}
         >
           <PenLine size={compact ? 11 : 12} /> Bearbeiten
         </button>
@@ -102,35 +103,17 @@ function EventActions({ ev, isActive, theme, onDeleteEvent, onEditEvent, compact
   );
 }
 
-function StatusBadges({ isActive, isNext, remStr, evEnd, evStart, startStr, durStr, theme }: any) {
-  if (isActive) {
-    return (
-      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-        <span
-          className="text-[10px] font-bold px-2.5 py-0.5 rounded-md flex items-center gap-1.5 shrink-0 text-white shadow-xs"
-          style={{ background: '#f97316', border: 'none' }}
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-          Noch {remStr}
-        </span>
-        <span className="text-[10px] font-medium opacity-75 ml-auto shrink-0" style={{ color: '#ffffff' }}>{durStr}</span>
-      </div>
-    );
-  }
-  if (isNext) {
-    return (
-      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-        <span
-          className="text-[10px] font-bold px-2.5 py-0.5 rounded-md flex items-center gap-1 shrink-0 text-white shadow-xs"
-          style={{ background: '#1d4ed8', color: '#ffffff', border: 'none' }}
-        >
-          <Clock size={11} className="text-white" /> Startet in {startStr}
-        </span>
-        <span className="text-[10px] font-medium opacity-75 ml-auto shrink-0" style={{ color: T.mut }}>{durStr}</span>
-      </div>
-    );
-  }
-  return null;
+function StatusBadges({ isActive, remStr, durStr, ink }: { isActive: boolean; remStr: string; durStr: string; ink: string }) {
+  if (!isActive) return null;
+  return (
+    <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+      <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md flex items-center gap-1.5 shrink-0" style={{ background: 'rgba(128,128,128,0.25)', color: ink }}>
+        <span className="w-1.5 h-1.5 rounded-full" style={{ background: ink }} />
+        Noch {remStr}
+      </span>
+      <span className="text-[10px] font-medium opacity-75 ml-auto shrink-0">{durStr}</span>
+    </div>
+  );
 }
 
 function TimelineEventItem({
@@ -140,6 +123,7 @@ function TimelineEventItem({
   isExpanded: boolean; onToggleExpand: () => void; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; onTaskComplete?: (id: string, completed: boolean) => void; isParallel?: boolean; style?: React.CSSProperties;
 }) {
   const info = getEvInfo(ev, now, isToday, nextUpcomingId);
+  const pal = paletteFor(ev.color);
   const pHeight = Math.max(54, Math.min(180, 44 + info.durM * 0.6));
 
   const isTask = !!(ev.is_task || ev.linkedTaskId);
@@ -166,15 +150,15 @@ function TimelineEventItem({
 
   if (isParallel) {
     return (
-      <div id={`ev-${ev.id}`} className="w-full flex flex-col text-left rounded-[14px] transition-all relative overflow-hidden" style={getCardStyle(info.isActive, isEven, theme, style)}>
+      <div id={`ev-${ev.id}`} className="w-full flex flex-col text-left rounded-[14px] transition-all relative overflow-hidden" style={getCardStyle(pal, info.isActive, style)}>
         <button onClick={onToggleExpand} className="w-full flex flex-col text-left p-3 cursor-pointer" style={{ border: 'none', background: 'transparent' }}>
           <div className="flex items-center justify-between gap-1 mb-1.5 w-full">
-            <span className="text-[11px] font-bold" style={{ color: info.isActive ? '#ffffff' : T.pri }}>
+            <span className="text-[11px] font-bold" style={{ color: pal.ink }}>
               {format(info.evStart, 'HH:mm')} – {format(info.evEnd, 'HH:mm')}
             </span>
             <div className="flex items-center gap-1">
-              <span className="text-[10px] font-medium shrink-0 px-1.5 py-0.5 rounded-md" style={{ background: info.isActive ? 'rgba(255, 255, 255, 0.18)' : theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)', color: info.isActive ? '#ffffff' : T.mut }}>{info.durStr}</span>
-              <ChevronDown size={12} style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', color: info.isActive ? '#ffffff' : T.mut, transition: 'transform 0.2s ease' }} />
+              <span className="text-[10px] font-medium shrink-0 px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(128,128,128,0.22)', color: pal.ink }}>{info.durStr}</span>
+              <ChevronDown size={12} style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', color: pal.ink, transition: 'transform 0.2s ease' }} />
             </div>
           </div>
           <div className="flex items-start gap-1.5 min-w-0 w-full mb-1">
@@ -183,7 +167,7 @@ function TimelineEventItem({
                 type="button"
                 onClick={handleToggleTask}
                 className={`w-3.5 h-3.5 mt-0.5 rounded-[4px] border border-current shrink-0 flex items-center justify-center cursor-pointer transition-all active:scale-90 z-20 ${isCompleted ? 'opacity-40' : 'opacity-100'}`}
-                style={{ borderColor: info.isActive ? '#ffffff' : info.color, color: info.isActive ? '#ffffff' : info.color }}
+                style={{ borderColor: pal.ink, color: pal.ink }}
                 title={isCompleted ? "Als unerledigt markieren" : "Als erledigt markieren"}
               >
                 {isCompleted && (
@@ -191,13 +175,13 @@ function TimelineEventItem({
                 )}
               </button>
             ) : (
-              <div className={`w-2.5 h-2.5 rounded-full shrink-0 mt-0.5 ${info.isActive ? 'animate-pulse' : ''}`} style={{ background: info.color }} />
+              <div className={`w-2.5 h-2.5 rounded-full shrink-0 mt-0.5 ${info.isActive ? 'animate-pulse' : ''}`} style={{ background: pal.ink }} />
             )}
-            <span className={`text-xs sm:text-sm font-bold line-clamp-2 flex-1 leading-snug ${isCompleted ? 'line-through opacity-60' : ''}`} style={{ color: info.isActive ? '#ffffff' : T.pri }}>{ev.title}</span>
+            <span className={`text-xs sm:text-sm font-bold line-clamp-2 flex-1 leading-snug ${isCompleted ? 'line-through opacity-60' : ''}`} style={{ color: pal.ink }}>{ev.title}</span>
           </div>
-          <StatusBadges {...info} theme={theme} />
+          <StatusBadges isActive={info.isActive} remStr={info.remStr} durStr={info.durStr} ink={pal.ink} />
           {!isExpanded && ev.description && (
-            <p className="text-[11px] mt-0.5 line-clamp-1 leading-relaxed" style={{ color: info.isActive ? 'rgba(255,255,255,0.85)' : T.sec }}>{ev.description}</p>
+            <p className="text-[11px] mt-0.5 line-clamp-1 leading-relaxed" style={{ color: pal.ink }}>{ev.description}</p>
           )}
         </button>
         <AnimatePresence>
@@ -209,8 +193,8 @@ function TimelineEventItem({
               transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
               className="overflow-hidden"
             >
-              <div className="px-3 pb-3 pt-1 border-t" style={{ borderColor: info.isActive ? 'rgba(255, 255, 255, 0.15)' : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }}>
-                <EventActions ev={ev} isActive={info.isActive} theme={theme} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} compact />
+              <div className="px-3 pb-3 pt-1 border-t" style={{ borderColor: 'rgba(128, 128, 128, 0.25)' }}>
+                <EventActions ev={ev} isActive={info.isActive} ink={pal.ink} theme={theme} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} compact />
               </div>
             </motion.div>
           )}
@@ -220,15 +204,15 @@ function TimelineEventItem({
   }
 
   return (
-    <div id={`ev-${ev.id}`} className="w-full rounded-xl my-1 relative transition-all overflow-hidden" style={getCardStyle(info.isActive, isEven, theme, { minHeight: pHeight, ...style })}>
+    <div id={`ev-${ev.id}`} className="w-full rounded-xl my-1 relative transition-all overflow-hidden" style={getCardStyle(pal, info.isActive, { minHeight: pHeight, ...style })}>
       <button onClick={onToggleExpand} className="w-full flex text-left p-0 transition-all cursor-pointer items-stretch" style={{ border: 'none', background: 'transparent', minHeight: isExpanded ? undefined : pHeight }}>
         <div className="w-[58px] shrink-0 flex flex-col items-end pr-2 pt-3.5">
-          <span className={`font-bold leading-none ${info.isActive ? 'text-[13px]' : 'text-[12px]'}`} style={{ color: info.isActive ? '#ffffff' : T.pri }}>{format(info.evStart, 'HH:mm')}</span>
-          <span className="text-[10px] font-medium mt-1" style={{ color: info.isActive ? 'rgba(255,255,255,0.75)' : T.mut }}>{format(info.evEnd, 'HH:mm')}</span>
+          <span className={`font-bold leading-none ${info.isActive ? 'text-[13px]' : 'text-[12px]'}`} style={{ color: pal.ink }}>{format(info.evStart, 'HH:mm')}</span>
+          <span className="text-[10px] font-medium mt-1" style={{ color: pal.ink }}>{format(info.evEnd, 'HH:mm')}</span>
         </div>
         <div className="w-[24px] shrink-0 flex flex-col items-center pt-3.5 pb-2.5 self-stretch">
-          <div className={`w-3 h-3 rounded-full shrink-0 ${info.isActive ? 'animate-pulse' : ''}`} style={{ background: info.color }} />
-          <div className="w-[2px] flex-1 mt-1.5 mb-1 rounded-full" style={{ minHeight: Math.max(16, pHeight - 48), background: info.isActive ? '#ffffff' : theme === 'dark' ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.18)' }} />
+          <div className={`w-3 h-3 rounded-full shrink-0 ${info.isActive ? 'animate-pulse' : ''}`} style={{ background: pal.ink }} />
+          <div className="w-[2px] flex-1 mt-1.5 mb-1 rounded-full" style={{ minHeight: Math.max(16, pHeight - 48), background: pal.ink, opacity: 0.25 }} />
         </div>
         <div className="flex-1 py-3 pr-3 min-w-0 flex flex-col justify-start">
           <div className="flex items-center justify-between gap-1.5 w-full">
@@ -238,7 +222,7 @@ function TimelineEventItem({
                   type="button"
                   onClick={handleToggleTask}
                   className={`w-3.5 h-3.5 rounded-[4px] border border-current shrink-0 flex items-center justify-center cursor-pointer transition-all active:scale-90 z-20 ${isCompleted ? 'opacity-40' : 'opacity-100'}`}
-                  style={{ borderColor: info.isActive ? '#ffffff' : info.color, color: info.isActive ? '#ffffff' : info.color }}
+                  style={{ borderColor: pal.ink, color: pal.ink }}
                   title={isCompleted ? "Als unerledigt markieren" : "Als erledigt markieren"}
                 >
                   {isCompleted && (
@@ -246,18 +230,18 @@ function TimelineEventItem({
                   )}
                 </button>
               )}
-              <span className={`font-bold truncate flex-1 min-w-0 ${info.isActive ? 'text-sm' : 'text-[13px]'} ${isCompleted ? 'line-through opacity-60' : ''}`} style={{ color: info.isActive ? '#ffffff' : T.pri }}>{ev.title}</span>
+              <span className={`font-bold truncate flex-1 min-w-0 ${info.isActive ? 'text-sm' : 'text-[13px]'} ${isCompleted ? 'line-through opacity-60' : ''}`} style={{ color: pal.ink }}>{ev.title}</span>
             </div>
             <div className="flex items-center gap-1.5 shrink-0 ml-1">
               {!info.isActive && !info.isNext && (
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)', color: T.mut }}>{info.durStr}</span>
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(128,128,128,0.22)', color: pal.ink }}>{info.durStr}</span>
               )}
-              <ChevronDown size={14} className="transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', color: info.isActive ? '#ffffff' : T.mut }} />
+              <ChevronDown size={14} className="transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', color: pal.ink }} />
             </div>
           </div>
-          <StatusBadges {...info} theme={theme} />
+          <StatusBadges isActive={info.isActive} remStr={info.remStr} durStr={info.durStr} ink={pal.ink} />
           {!isExpanded && ev.description && (
-            <p className="text-xs mt-1.5 line-clamp-1 leading-relaxed" style={{ color: info.isActive ? 'rgba(255,255,255,0.85)' : T.sec }}>{ev.description}</p>
+            <p className="text-xs mt-1.5 line-clamp-1 leading-relaxed" style={{ color: pal.ink }}>{ev.description}</p>
           )}
         </div>
       </button>
@@ -270,8 +254,8 @@ function TimelineEventItem({
             transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-3.5 pt-2 border-t ml-[82px] mr-3" style={{ borderColor: info.isActive ? 'rgba(255, 255, 255, 0.15)' : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' }}>
-              <EventActions ev={ev} isActive={info.isActive} theme={theme} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} />
+            <div className="px-4 pb-3.5 pt-2 border-t ml-[82px] mr-3" style={{ borderColor: 'rgba(128, 128, 128, 0.25)' }}>
+              <EventActions ev={ev} isActive={info.isActive} ink={pal.ink} theme={theme} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} />
             </div>
           </motion.div>
         )}
@@ -290,18 +274,10 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
   day, dayEvs, allDayEvs, isToday, now, theme, onNewEvent, onDeleteEvent, onEditEvent, onTaskComplete,
 }: DbTimelineDayProps) {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
-  const [todosOpen, setTodosOpen] = useState(false);
   const tasks = useDataStore(state => state.tasks);
 
   const regularAllDay = useMemo(() => allDayEvs.filter(e => !e.is_task && !e.linkedTaskId), [allDayEvs]);
   const allDayTodos = useMemo(() => allDayEvs.filter(e => e.is_task || e.linkedTaskId), [allDayEvs]);
-
-  const completedCount = useMemo(() => {
-    return allDayTodos.filter(e => {
-      const task = e.linkedTaskId ? tasks?.find(t => t.id === e.linkedTaskId) : undefined;
-      return task ? !!task.isCompleted : !!e.is_completed;
-    }).length;
-  }, [allDayTodos, tasks]);
 
   type TimelineEventItemType = DbTimelineDayProps['allDayEvs'][number];
 
@@ -347,17 +323,21 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
     return result;
   }, [allDayTodos, tasks]);
 
+  const isTodoEv = (e: { is_task?: boolean; linkedTaskId?: string }) => !!(e.is_task || e.linkedTaskId);
+  const realEvs = useMemo(() => dayEvs.filter(e => !isTodoEv(e)), [dayEvs]);
+  const timedTodos = useMemo(() => dayEvs.filter(isTodoEv), [dayEvs]);
+
   const nextUpcomingId = useMemo(() => {
     if (!isToday) return null;
-    const upcoming = dayEvs
+    const upcoming = realEvs
       .filter(e => { try { return new Date(e.start) > now; } catch { return false; } })
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
     return upcoming.length > 0 ? upcoming[0].id : null;
-  }, [dayEvs, isToday, now]);
+  }, [realEvs, isToday, now]);
 
   const clusters = useMemo(() => {
     const list: { events: any[]; clusterStart: Date; clusterEnd: Date }[] = [];
-    for (const ev of dayEvs) {
+    for (const ev of realEvs) {
       const s = new Date(ev.start), e = ev.end ? new Date(ev.end) : new Date(s.getTime() + 3600000);
       const last = list[list.length - 1];
       if (last && s.getTime() < last.clusterEnd.getTime() - 60000) {
@@ -366,7 +346,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
       } else { list.push({ events: [ev], clusterStart: s, clusterEnd: e }); }
     }
     return list;
-  }, [dayEvs]);
+  }, [realEvs]);
 
   if (dayEvs.length === 0 && allDayEvs.length === 0) {
     return (
@@ -381,12 +361,20 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
     );
   }
 
+  // A timed todo sits right before the first event cluster that starts after it (or at the end).
+  const todoSlot = (start: string) => {
+    const ts = new Date(start).getTime();
+    const i = clusters.findIndex(c => c.clusterStart.getTime() > ts);
+    return i === -1 ? clusters.length : i;
+  };
+
   let eventCounter = 0;
 
   return (
     <div className="flex flex-col py-1">
       {allDayEvs.length > 0 && (
         <div className="flex flex-col gap-1.5 mb-2.5 w-full">
+          <AllDayTodoPills todos={sortedAllDayTodos} onTaskComplete={onTaskComplete} />
           {/* Regular all-day events */}
           {regularAllDay.map(ev => {
             const isExp = expandedEventId === ev.id;
@@ -411,132 +399,20 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
             );
           })}
 
-          {/* All-day todos collapsible section */}
-          {allDayTodos.length > 0 && (
-            <div className="w-full rounded-xl overflow-hidden transition-all" style={{ background: theme === 'dark' ? 'rgba(99, 102, 241, 0.08)' : 'rgba(99, 102, 241, 0.05)', border: 'none' }}>
-              <button
-                type="button"
-                onClick={() => setTodosOpen(p => !p)}
-                className="w-full flex items-center justify-between text-left px-3.5 py-2.5 active:scale-[0.99] transition-transform cursor-pointer select-none"
-                style={{ border: 'none', background: 'transparent' }}
-              >
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <CheckSquare size={14} className="text-indigo-500 shrink-0" />
-                  <span className="text-xs sm:text-sm font-bold truncate" style={{ color: T.pri }}>Todos</span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#6366f1' }}>
-                    {completedCount}/{allDayTodos.length}
-                  </span>
-                </div>
-                <ChevronDown
-                  size={14}
-                  style={{
-                    color: T.mut,
-                    transform: todosOpen ? 'rotate(180deg)' : 'none',
-                    transition: 'transform 0.2s ease'
-                  }}
-                />
-              </button>
-
-              {todosOpen && (
-                <div className="flex flex-col gap-1.5 px-2 pb-2.5 pt-0.5" style={{ border: 'none' }}>
-                  {sortedAllDayTodos.map(ev => {
-                    const task = ev.linkedTaskId ? tasks?.find(t => t.id === ev.linkedTaskId) : undefined;
-                    const isSubtask = !!task?.parentId || !!ev.parent_id;
-                    const isCompleted = task ? !!task.isCompleted : !!ev.is_completed;
-                    const isExp = expandedEventId === ev.id;
-
-                    return (
-                      <div
-                        key={`allday-todo-${ev.id}`}
-                        className={`rounded-xl overflow-hidden transition-all ${isSubtask ? 'ml-4 border-l-2 border-indigo-500/40 pl-2.5' : 'w-full'}`}
-                        style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#f4f4f5', border: 'none' }}
-                      >
-                        <div className="w-full flex items-center justify-between text-left px-3.5 py-2.5">
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const nextCompleted = !isCompleted;
-                                if (ev.linkedTaskId) {
-                                  useDataStore.getState().toggleTask(ev.linkedTaskId);
-                                  onTaskComplete?.(ev.id, nextCompleted);
-                                } else if (onTaskComplete) {
-                                  onTaskComplete(ev.id, nextCompleted);
-                                } else {
-                                  useDataStore.setState(s => ({
-                                    events: s.events.map(event =>
-                                      event.id === ev.id ? { ...event, is_completed: nextCompleted } : event
-                                    )
-                                  }));
-                                }
-                              }}
-                              className={`w-4 h-4 rounded-[4px] border border-current flex items-center justify-center shrink-0 cursor-pointer transition-all active:scale-90 ${isCompleted ? 'opacity-40' : 'opacity-100'}`}
-                              style={{ borderColor: ev.color || T.accent, color: ev.color || T.accent }}
-                              title={isCompleted ? "Als unerledigt markieren" : "Als erledigt markieren"}
-                            >
-                              {isCompleted && (
-                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                              )}
-                            </button>
-                            <span className={`text-xs sm:text-sm font-bold truncate ${isCompleted ? 'line-through opacity-60' : ''}`} style={{ color: T.pri }}>
-                              {ev.title}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md" style={{ background: `${ev.color || T.accent}18`, color: ev.color || T.accent }}>Todo</span>
-                            <button
-                              type="button"
-                              onClick={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
-                              className="p-1 rounded active:scale-95 transition-transform cursor-pointer"
-                              style={{ border: 'none', background: 'transparent' }}
-                              title="Aktionen anzeigen"
-                            >
-                              <ChevronDown size={14} style={{ color: T.mut, transform: isExp ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
-                            </button>
-                          </div>
-                        </div>
-                        {isExp && (
-                          <div className="px-3.5 pb-3 pt-1 border-t" style={{ borderColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
-                            <EventActions ev={ev} isActive={false} theme={theme} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
         </div>
       )}
 
       {clusters.map((cluster, cIdx) => {
-        const pauseEl = (() => {
-          if (cIdx === 0) return null;
-          const gapMins = Math.round((cluster.clusterStart.getTime() - clusters[cIdx - 1].clusterEnd.getTime()) / 60_000);
-          if (gapMins <= 0) return null;
-          const gapStr = gapMins >= 60 ? `${Math.floor(gapMins / 60)} Std. ${gapMins % 60 > 0 ? `${gapMins % 60} Min.` : ''}`.trim() : `${gapMins} Min.`;
-          const gapH = Math.min(64, Math.max(30, Math.round(22 + Math.sqrt(gapMins) * 3.2)));
-          return (
-            <div className="w-full flex items-center my-1.5" style={{ minHeight: gapH }}>
-              <div className="w-[58px] shrink-0" />
-              <div className="w-[24px] shrink-0 flex items-center justify-center">
-                <div className="w-0 border-l-[1.5px] border-dashed" style={{ height: Math.max(16, gapH - 12), borderColor: theme === 'dark' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.15)' }} />
-              </div>
-              <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-xl my-0.5 border border-dashed" style={{ background: theme === 'dark' ? 'rgba(255, 255, 255, 0.025)' : 'rgba(0, 0, 0, 0.02)', borderColor: theme === 'dark' ? 'rgba(255, 255, 255, 0.10)' : 'rgba(0, 0, 0, 0.08)' }}>
-                <Coffee size={13} style={{ color: T.mut, flexShrink: 0 }} />
-                <span className="text-[11px] font-semibold truncate" style={{ color: T.sec }}>Pause · {gapStr}</span>
-                <span className="text-[10px] ml-auto shrink-0 font-medium" style={{ color: T.mut }}>bis {format(cluster.clusterStart, 'HH:mm')}</span>
-              </div>
-            </div>
-          );
-        })();
+        const gapLabel = cIdx === 0 ? null : formatFree(Math.round((cluster.clusterStart.getTime() - clusters[cIdx - 1].clusterEnd.getTime()) / 60_000));
+        const pauseEl = gapLabel ? <FreeGap label={gapLabel} /> : null;
+        const todosBefore = timedTodos.filter(t => todoSlot(t.start) === cIdx);
+        const todoEls = todosBefore.map(t => <TimedTodoRow key={`tt-${t.id}`} ev={t} onTaskComplete={onTaskComplete} />);
 
         if (cluster.events.length === 1) {
           const ev = cluster.events[0];
           return (
             <React.Fragment key={ev.id}>
+              {todoEls}
               {pauseEl}
               <TimelineEventItem
                 ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
@@ -550,6 +426,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
         const lanes = packLanes(cluster.events, cluster.clusterStart);
         return (
           <React.Fragment key={`cluster-${cluster.clusterStart.toISOString()}-${cIdx}`}>
+            {todoEls}
             {pauseEl}
             <div className="w-full flex gap-2 my-1 items-start overflow-x-auto no-scrollbar">
               {lanes.map((laneItems, laneIdx) => {
@@ -574,6 +451,9 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
           </React.Fragment>
         );
       })}
+      {timedTodos
+        .filter(t => todoSlot(t.start) === clusters.length)
+        .map(t => <TimedTodoRow key={`tt-${t.id}`} ev={t} onTaskComplete={onTaskComplete} />)}
     </div>
   );
 });

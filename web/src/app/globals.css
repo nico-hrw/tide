@@ -1051,3 +1051,9 @@ span.task-mention-pill,
 
 
 
+
+/* Tide 2 mobile: today's todo card is Balsam green – force white text over the desktop dark-mode variants */
+.tide-m-today [class*="dark:text-black"],
+.tide-m-today [class*="text-gray-"] {
+  color: #fff !important;
+}
