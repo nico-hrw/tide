@@ -6,6 +6,7 @@ import { useLinkStore } from '@/store/useLinkStore';
 import { useDataStore } from '@/store/useDataStore';
 import { Layers, Globe, Lock, Users } from 'lucide-react';
 import { useSocialStore } from '@/store/useSocialStore';
+import type { CalendarColorPalette } from '@/store/slices/types';
 import { getEventGroupIds } from '../../lib/calendarUtils';
 
 // Assuming types and getEventTheme are available here, either imported or defined
@@ -86,7 +87,7 @@ export const resolveEventColor = (rawColor?: string): string | undefined => {
     return undefined;
 };
 
-export const getEventTheme = (evt: CalendarEvent, palette: 'modern-dark' | 'soft-pastels' | 'classic-tide' = 'modern-dark') => {
+export const getEventTheme = (evt: CalendarEvent, palette: CalendarColorPalette = 'balsam') => {
     const resolvedColor = resolveEventColor(evt.color);
     let col = resolvedColor?.toLowerCase() || '';
     
@@ -95,6 +96,16 @@ export const getEventTheme = (evt: CalendarEvent, palette: 'modern-dark' | 'soft
     const isBlue = col === 'blue' || col.startsWith('#3b') || col.startsWith('#25') || col.startsWith('#1d') || col.startsWith('#63') || col.startsWith('#4f');
     const isGreen = col === 'green' || col.startsWith('#10') || col.startsWith('#22') || col.startsWith('#15');
     const isOrange = col === 'orange' || col.startsWith('#f5') || col.startsWith('#f9') || col.startsWith('#fb') || col.startsWith('#d9');
+
+    // Tide 2 Terminfarben (Palette Nr. 1). Farbgruppen werden auf die fünf Kategorien abgebildet:
+    // Standard/Grün = Balsam, Blau = Aquatone, Orange = Artemis, Rot = Korall, Pink = Kupfer.
+    if (palette === 'balsam') {
+        if (isPink || evt.effect === 'pink') return { bg: '#A9623F', text: '#FFFFFF', border: '#A9623F' };
+        if (isBlue || evt.effect === 'sky') return { bg: '#A6B7A8', text: '#1C2622', border: '#A6B7A8' };
+        if (isOrange || evt.effect === 'orange') return { bg: '#D2A96A', text: '#2A1E0B', border: '#D2A96A' };
+        if (isRed || evt.effect === 'red') return { bg: '#D39D87', text: '#2E1810', border: '#D39D87' };
+        return { bg: '#5C6E6C', text: '#FFFFFF', border: '#5C6E6C' };
+    }
 
     if (palette === 'soft-pastels') {
         if (isPink || evt.effect === 'pink') return { bg: '#EDE9FE', text: '#1F2937', border: '#EDE9FE' };

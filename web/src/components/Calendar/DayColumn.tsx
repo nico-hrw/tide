@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import { format, isSameDay, getHours, getMinutes } from "date-fns";
 import { useHighlight } from "@/components/HighlightContext";
 import { motion, useTransform, MotionValue, useMotionValue } from "framer-motion";
-import { CalendarEventItem } from './CalendarEventItem';
+import { CalendarEventItem, getEventTheme } from './CalendarEventItem';
 import { useDataStore } from "@/store/useDataStore";
 import { extractTimeFromText } from "@/lib/timeParser";
 import { getHolidayForDate } from "@/lib/holidays";
@@ -195,42 +195,6 @@ const arrangeEvents = (timedEvents: CalendarEvent[], day: Date, allEvents: Calen
     });
 
     return layout;
-};
-
-const getEventTheme = (evt: CalendarEvent, palette: 'modern-dark' | 'soft-pastels' | 'classic-tide' = 'modern-dark') => {
-    let col = evt.color?.toLowerCase() || '';
-    
-    const isPink = col === 'pink' || col.startsWith('#ec') || col.startsWith('#d9') || col.startsWith('#e8') || col.startsWith('#f4') || col.startsWith('#f0');
-    const isRed = col === 'red' || col.startsWith('#ef') || col.startsWith('#f8') || col.startsWith('#ea') || col.startsWith('#eb');
-    const isBlue = col === 'blue' || col.startsWith('#3b') || col.startsWith('#25') || col.startsWith('#1d') || col.startsWith('#63') || col.startsWith('#4f');
-    const isGreen = col === 'green' || col.startsWith('#10') || col.startsWith('#22') || col.startsWith('#15');
-    const isOrange = col === 'orange' || col.startsWith('#f5') || col.startsWith('#f9') || col.startsWith('#fb') || col.startsWith('#d9');
-
-    if (palette === 'soft-pastels') {
-        if (isPink || evt.effect === 'pink') return { bg: '#EDE9FE', text: '#1F2937', border: '#EDE9FE' };
-        if (isBlue || evt.effect === 'sky') return { bg: '#E2E8F0', text: '#1F2937', border: '#E2E8F0' };
-        if (isGreen || evt.effect === 'green') return { bg: '#D1FAE5', text: '#1F2937', border: '#D1FAE5' };
-        if (isOrange || evt.effect === 'orange') return { bg: '#FEF3C7', text: '#1F2937', border: '#FEF3C7' };
-        if (isRed || evt.effect === 'red') return { bg: '#FEE2E2', text: '#1F2937', border: '#FEE2E2' };
-        return { bg: '#F1F5F9', text: '#1F2937', border: '#F1F5F9' };
-    }
-
-    if (palette === 'classic-tide') {
-        if (isPink || evt.effect === 'pink') return { bg: '#6366F1', text: '#FFFFFF', border: '#6366F1' };
-        if (isBlue || evt.effect === 'sky') return { bg: '#3B82F6', text: '#FFFFFF', border: '#3B82F6' };
-        if (isGreen || evt.effect === 'green') return { bg: '#10B981', text: '#FFFFFF', border: '#10B981' };
-        if (isOrange || evt.effect === 'orange') return { bg: '#F97316', text: '#FFFFFF', border: '#F97316' };
-        if (isRed || evt.effect === 'red') return { bg: '#EF4444', text: '#FFFFFF', border: '#EF4444' };
-        return { bg: '#475569', text: '#FFFFFF', border: '#475569' };
-    }
-
-    // Default: 'modern-dark' (rich colors with white text)
-    if (isPink || evt.effect === 'pink') return { bg: '#7C3AED', text: '#FFFFFF', border: '#7C3AED' };
-    if (isBlue || evt.effect === 'sky') return { bg: '#0284C7', text: '#FFFFFF', border: '#0284C7' };
-    if (isGreen || evt.effect === 'green') return { bg: '#059669', text: '#FFFFFF', border: '#059669' };
-    if (isOrange || evt.effect === 'orange') return { bg: '#D97706', text: '#FFFFFF', border: '#D97706' };
-    if (isRed || evt.effect === 'red') return { bg: '#DC2626', text: '#FFFFFF', border: '#DC2626' };
-    return { bg: '#64748B', text: '#FFFFFF', border: '#64748B' };
 };
 
 const EMPTY_ALL_EVENTS: CalendarEvent[] = [];
