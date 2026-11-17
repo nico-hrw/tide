@@ -160,7 +160,7 @@ export default function TabList({
 
     return (
         <div 
-            className="w-full flex-shrink-0 min-h-[calc(4.25rem+env(safe-area-inset-top,0px))] bg-gray-100/70 dark:bg-slate-950/60 border-b border-gray-200/80 dark:border-white/10 flex items-center justify-between px-3 gap-2 select-none z-30 pt-[env(safe-area-inset-top,0px)]"
+            className="w-full flex-shrink-0 min-h-[calc(3.25rem+env(safe-area-inset-top,0px))] bg-t2-bg border-b border-t2-line-soft flex items-center justify-between px-3 gap-2 select-none z-30 pt-[env(safe-area-inset-top,0px)]"
         >
             {/* Zone 1: Left balanced zone (Sidebar toggle) */}
             <div className={`flex items-center justify-start gap-2 min-w-0 shrink-0 ${navigationMode === 'folders' ? 'hidden' : 'flex-1'}`}>
