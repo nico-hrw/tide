@@ -43,6 +43,8 @@ import {
 } from './mobile/MobileAgendaTimeline';
 import { MobileBottomNav, MobileTab } from './mobile/MobileBottomNav';
 import { MobileNoteCard } from './mobile/MobileNoteCard';
+import { useAnimatedEmojiEnabled, setAnimatedEmojiEnabled } from '@/lib/animatedEmoji';
+import { getNotePreview, preloadNotePreviews, subscribeNotePreviews } from '@/lib/notePreview';
 import SidebarQuickNotes from './sidebar/SidebarQuickNotes';
 import {
   MobileFilterPopover,
@@ -101,15 +103,10 @@ export interface MobileLayoutProps {
   themes?: Array<{ id: string; title: string; color?: string; effect?: string }>;
 }
 
-/** Kurzer Textauszug aus dem Suchindex (wird nach jeder Entschlüsselung geschrieben). */
+/** Kurzer Textauszug der Notiz, vorab entschlüsselt (nur im Arbeitsspeicher). */
 function readNotePreview(id: string): string | undefined {
-  try {
-    const raw = localStorage.getItem(`tide_search_${id}`);
-    const text = (raw || '').replace(/\s+/g, ' ').trim();
-    return text ? text.slice(0, 180) : undefined;
-  } catch {
-    return undefined;
-  }
+  const text = getNotePreview(id);
+  return text ? text.slice(0, 180) : undefined;
 }
 
 const NoteRow = React.memo(function NoteRow(props: {
@@ -919,6 +916,18 @@ export default function MobileLayout({
 
   const enabledExtensions = useDataStore(s => s.enabledExtensions);
   const setSettingsOpen = useDataStore(s => s.setSettingsModalOpen);
+  const animatedEmojiOn = useAnimatedEmojiEnabled();
+  // Vorschau der zuletzt bearbeiteten Notizen: vorab entschlüsseln und bei Fertigstellung neu zeichnen.
+  const [, setPreviewTick] = useState(0);
+  useEffect(() => subscribeNotePreviews(() => setPreviewTick((t) => t + 1)), []);
+  useEffect(() => {
+    const latest = (files || [])
+      .filter((f: any) => f.type !== 'folder')
+      .slice()
+      .sort((a: any, b: any) => new Date(b.updated_at || b.updatedAt || b.created_at || b.createdAt || 0).getTime() - new Date(a.updated_at || a.updatedAt || a.created_at || a.createdAt || 0).getTime())
+      .slice(0, 3);
+    void preloadNotePreviews(latest as Array<Record<string, unknown>>);
+  }, [files]);
   const theme = useDataStore(s => s.theme);
 
   // Synchronize mobile status bar / safe-area theme color with the active app theme
@@ -1367,6 +1376,20 @@ export default function MobileLayout({
                     </button>
                   );
                 })}
+              </div>
+              <div className="flex items-center justify-between gap-3 px-4 pb-4">
+                <span className="text-[13px] font-semibold" style={{ color: T.pri }}>Animierte Emojis</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={animatedEmojiOn}
+                  aria-label="Animierte Emojis"
+                  onClick={() => setAnimatedEmojiEnabled(!animatedEmojiOn)}
+                  className="relative h-6 w-11 shrink-0 rounded-full transition-colors"
+                  style={{ background: animatedEmojiOn ? T.accent : T.brd }}
+                >
+                  <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${animatedEmojiOn ? 'translate-x-5' : ''}`} />
+                </button>
               </div>
             </div>
           </motion.aside>

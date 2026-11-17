@@ -57,6 +57,7 @@ export function SwipeRow({
   return (
     <div
       className="relative overflow-hidden rounded-[18px]"
+      style={{ touchAction: 'pan-y' }}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}

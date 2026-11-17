@@ -2,6 +2,7 @@ import React from 'react';
 import { Sun, Settings, Moon, Check } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import type { NoteLayout } from '@/store/slices/types';
+import { useAnimatedEmojiEnabled, setAnimatedEmojiEnabled } from '@/lib/animatedEmoji';
 
 export interface AppearanceTabProps {
     noteLayout?: NoteLayout;
@@ -13,10 +14,28 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({
     onSetNoteLayout,
 }) => {
     const { themePreference, setThemePreference, language, setLanguage, navigationMode, setNavigationMode } = useDataStore();
+    const animatedEmoji = useAnimatedEmojiEnabled();
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Interface Options</h3>
+
+            <div className="p-6 bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl mb-6 flex items-center justify-between gap-4">
+                <div className="min-w-0">
+                    <h4 className="text-sm font-bold text-gray-900 dark:text-white">Animierte Emojis</h4>
+                    <p className="text-xs text-gray-500 mt-1">Spielt die Animation bei Hover und alle 20 Sekunden ab.</p>
+                </div>
+                <button
+                    type="button"
+                    role="switch"
+                    aria-checked={animatedEmoji}
+                    aria-label="Animierte Emojis"
+                    onClick={() => setAnimatedEmojiEnabled(!animatedEmoji)}
+                    className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${animatedEmoji ? 'bg-gray-900 dark:bg-white' : 'bg-gray-300 dark:bg-zinc-700'}`}
+                >
+                    <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white dark:bg-zinc-900 shadow transition-transform ${animatedEmoji ? 'translate-x-5' : ''}`} />
+                </button>
+            </div>
 
             <div className="p-6 bg-white dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl mb-6">
                 <div className="mb-4">

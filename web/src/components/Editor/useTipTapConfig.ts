@@ -15,6 +15,7 @@ import Color from '@tiptap/extension-color';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Highlight } from '../extensions/Highlight';
 import { FontSize } from '../extensions/FontSize';
+import { AnimatedEmoji } from '../extensions/AnimatedEmoji';
 import Mention from '@tiptap/extension-mention';
 import mentionSuggestion from '../extensions/mentionSuggestion';
 import { InlineCommentNode } from '../extensions/InlineCommentNode';
@@ -219,7 +220,7 @@ export function useTipTapConfig({
             TiptapItalic.extend({ addInputRules: () => [], addPasteRules: () => [] }).configure({ HTMLAttributes: { class: 'italic' } }),
             TiptapBold.extend({ addInputRules: () => [], addPasteRules: () => [] }).configure({ HTMLAttributes: { class: 'font-bold' } }),
             TiptapStrike.extend({ addInputRules: () => [], addPasteRules: () => [] }).configure({ HTMLAttributes: { class: 'line-through' } }),
-            TextStyle, Color, Highlight.configure({ multicolor: true }), FontSize,
+            TextStyle, Color, Highlight.configure({ multicolor: true }), FontSize, AnimatedEmoji,
             Mention.extend({
                 addAttributes: () => ({
                     id: { default: null, parseHTML: el => el.getAttribute('data-id') },

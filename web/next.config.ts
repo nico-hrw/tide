@@ -68,7 +68,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self' data:; connect-src 'self' https: http: wss: ws: *; object-src 'none'; base-uri 'self'; frame-ancestors 'none';",
+            value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://cdn.jsdelivr.net https://media.githubusercontent.com https://objects.githubusercontent.com; font-src 'self' data:; connect-src 'self' https: http: wss: ws: *; object-src 'none'; base-uri 'self'; frame-ancestors 'none';",
           },
           {
             key: 'X-Content-Type-Options',
