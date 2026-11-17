@@ -75,6 +75,18 @@ export const DT = {
     danger: '#b42318',
 };
 
+/**
+ * Tide 2 – Terminfarben (Palette Nr. 1). Werte müssen mit den CSS-Variablen
+ * `--cal-*` in globals.css übereinstimmen.
+ */
+export const calendarPalette = {
+    praktikum: { bg: 'var(--cal-praktikum)', ink: 'var(--cal-praktikum-ink)' },
+    studium: { bg: 'var(--cal-studium)', ink: 'var(--cal-studium-ink)' },
+    social: { bg: 'var(--cal-social)', ink: 'var(--cal-social-ink)' },
+    uni: { bg: 'var(--cal-uni)', ink: 'var(--cal-uni-ink)' },
+    geb: { bg: 'var(--cal-geb)', ink: 'var(--cal-geb-ink)' },
+} as const;
+
 export const glass = DT.glass;
 export const chip = DT.chip;
 export const tokens = DT;

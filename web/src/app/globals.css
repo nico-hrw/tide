@@ -118,6 +118,35 @@
   --radius-lg: 14px;
   --radius-modal: 24px;
 
+  /* Tide 2 – Entwurfs-Tokens (siehe web/docs/design/mockups/index.html) */
+  --t2-bg: #FFFFFF;
+  --t2-surface: #FFFFFF;
+  --t2-sub: #F6F6F7;
+  --t2-ink: #0E0E10;
+  --t2-ink-2: #5E5E66;
+  --t2-ink-3: #9A9AA3;
+  --t2-line: #E9E9EC;
+  --t2-line-soft: #F1F1F3;
+  --t2-hover: #F1F1F3;
+  --t2-blue: #2563EB;
+  --t2-now: #E5484D;
+  --t2-late: #C4443F;
+  --t2-stage: #EDEDF0;
+  --t2-r: 10px;
+  --t2-r-lg: 14px;
+
+  /* Terminfarben (Palette Nr. 1) */
+  --cal-praktikum: #5C6E6C;
+  --cal-praktikum-ink: #FFFFFF;
+  --cal-studium: #A6B7A8;
+  --cal-studium-ink: #1C2622;
+  --cal-social: #D2A96A;
+  --cal-social-ink: #2A1E0B;
+  --cal-uni: #D39D87;
+  --cal-uni-ink: #2E1810;
+  --cal-geb: #A9623F;
+  --cal-geb-ink: #FFFFFF;
+
   /* Nordic Minimalist Event Colors */
   --event-default-bg: #EAE6FF;
   --event-default-text: #5A4FCF;
@@ -176,6 +205,21 @@
 }
 
 .dark {
+  /* Tide 2 – Dark */
+  --t2-bg: #0B0B0D;
+  --t2-surface: #131316;
+  --t2-sub: #1A1A1E;
+  --t2-ink: #F4F4F5;
+  --t2-ink-2: #A1A1AA;
+  --t2-ink-3: #6E6E78;
+  --t2-line: #26262B;
+  --t2-line-soft: #1D1D21;
+  --t2-hover: #222226;
+  --t2-blue: #6E9BFF;
+  --t2-now: #FF6369;
+  --t2-late: #F0777A;
+  --t2-stage: #050506;
+
   --background: #0F172A; /* Slate 900 */
   --foreground: #F8FAFC; /* Slate 50 */
 
