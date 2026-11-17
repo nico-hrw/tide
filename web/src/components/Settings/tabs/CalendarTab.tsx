@@ -34,12 +34,14 @@ const EFFECT_OPTIONS = [
 const COLOR_SWATCHES = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#64748b'];
 
 const PALETTE_COLORS: Record<string, Record<string, string>> = {
+    'balsam': { blue: '#A6B7A8', pink: '#A9623F', green: '#5C6E6C', text: '#FFFFFF' },
     'soft-pastels': { blue: '#E2E8F0', pink: '#EDE9FE', green: '#D1FAE5', text: '#1F2937' },
     'classic-tide': { blue: '#3B82F6', pink: '#6366F1', green: '#10B981', text: '#FFFFFF' },
     'modern-dark':  { blue: '#0284C7', pink: '#7C3AED', green: '#059669', text: '#FFFFFF' },
 };
 
 const PALETTE_OPTIONS = [
+    { id: 'balsam' as CalendarColorPalette, label: 'Balsam', desc: 'Tide 2 Terminfarben, gedeckt und ganzflächig' },
     { id: 'modern-dark' as CalendarColorPalette, label: 'Modern Dark', desc: 'Richer solid colors with white text' },
     { id: 'soft-pastels' as CalendarColorPalette, label: 'Soft Pastels', desc: 'Pale backgrounds with dark text' },
     { id: 'classic-tide' as CalendarColorPalette, label: 'Classic Tide', desc: 'Tide classic colors with white text' },

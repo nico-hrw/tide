@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     format,
     addDays,
@@ -7,11 +7,15 @@ import {
     isTomorrow,
     isYesterday,
     differenceInMinutes,
+    startOfWeek,
 } from "date-fns";
 import { de } from "date-fns/locale";
-import { Plus, CheckSquare, Square, Trash2 } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import { getHolidayForDate } from "@/lib/holidays";
 import { getEventGroupIds } from "@/lib/calendarUtils";
+import { useDataStore } from "@/store/useDataStore";
+import { getEventTheme } from "./CalendarEventItem";
+import CalendarDetailPanel from "./CalendarDetailPanel";
 import type { CalendarEvent } from "./types";
 
 interface DesktopAgendaViewProps {
@@ -22,6 +26,51 @@ interface DesktopAgendaViewProps {
     onEventDelete?: (id: string) => Promise<void>;
     onTaskToggle?: (id: string, currentIsCompleted: boolean) => void;
     themes?: { id: string; title: string; effect?: string; color?: string }[];
+}
+
+/** Feines, schräg gestricheltes Muster für Todo-Blobs (siehe Mockup). */
+const HATCH =
+    "repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--t2-ink) 7%, transparent) 7px 8px)";
+/** Gestrichelte Schiene für Pausen zwischen Terminen. */
+const DASHED_RAIL =
+    "repeating-linear-gradient(to bottom, var(--t2-ink-3) 0 3px, transparent 3px 7px)";
+
+const formatDuration = (minutes: number) =>
+    minutes >= 60 ? `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${minutes % 60} Min` : ""}` : `${minutes} Min`;
+
+function TodoPill({
+    event,
+    block,
+    onToggle,
+}: {
+    event: CalendarEvent;
+    block?: boolean;
+    onToggle?: (id: string, completed: boolean) => void;
+}) {
+    const done = !!event.is_completed;
+    return (
+        <span
+            className={`inline-flex items-center rounded-full bg-t2-surface text-t2-ink shadow-[0_0_0_1px_var(--t2-line)] ${
+                block ? "min-h-[46px] w-full gap-2.5 rounded-[10px] px-3 text-[14.5px] font-medium" : "gap-2 py-1 pl-[7px] pr-[11px] text-[13px]"
+            } ${done ? "text-t2-ink-3 line-through" : ""}`}
+            style={{ backgroundImage: HATCH }}
+        >
+            <button
+                type="button"
+                aria-label={done ? "Als offen markieren" : "Als erledigt markieren"}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onToggle?.(event.id, done);
+                }}
+                className={`grid shrink-0 place-items-center rounded-full ${block ? "h-[19px] w-[19px]" : "h-[15px] w-[15px]"} ${
+                    done ? "bg-t2-ink text-t2-bg" : "shadow-[inset_0_0_0_1.5px_var(--t2-ink-3)]"
+                }`}
+            >
+                {done && <Check size={10} strokeWidth={3} />}
+            </button>
+            <span className="truncate">{event.title || "Ohne Titel"}</span>
+        </span>
+    );
 }
 
 export default function DesktopAgendaView({
@@ -35,6 +84,8 @@ export default function DesktopAgendaView({
 }: DesktopAgendaViewProps) {
     const todayRef = useRef<HTMLDivElement>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const calendarColorPalette = useDataStore((s) => s.calendarColorPalette || "balsam");
+    const [selectedId, setSelectedId] = useState<string | null>(null);
 
     // Render 42 days (6 weeks) starting from 3 days in the past
     const days = Array.from({ length: 42 }).map((_, i) => addDays(subDays(currentDate, 3), i));
@@ -58,211 +109,252 @@ export default function DesktopAgendaView({
         onEventCreate(start, end, false);
     };
 
+    const selectedEvent = useMemo(() => {
+        if (!selectedId) return null;
+        for (const list of [...eventsByDay.timedMap.values(), ...eventsByDay.allDayMap.values()]) {
+            const hit = list.find((e) => e.id === selectedId);
+            if (hit) return hit;
+        }
+        return null;
+    }, [selectedId, eventsByDay]);
+
+    const selectedTheme = selectedEvent
+        ? themes.find((t) => getEventGroupIds(selectedEvent).includes(t.id))
+        : undefined;
+
+    // Kennzahlen der aktuellen Woche für den Ruhezustand der Detailspalte
+    const week = useMemo(() => {
+        const first = startOfWeek(currentDate, { weekStartsOn: 1 });
+        let count = 0;
+        let minutes = 0;
+        let openTodos = 0;
+        for (let i = 0; i < 7; i++) {
+            const key = format(addDays(first, i), "yyyy-MM-dd");
+            const list = [...(eventsByDay.allDayMap.get(key) || []), ...(eventsByDay.timedMap.get(key) || [])];
+            for (const e of list) {
+                if (e.is_cancelled) continue;
+                if (e.is_task) {
+                    if (!e.is_completed) openTodos++;
+                    continue;
+                }
+                count++;
+                if (!e.allDay) minutes += Math.max(0, differenceInMinutes(new Date(e.end), new Date(e.start)));
+            }
+        }
+        return { count, minutes, openTodos };
+    }, [currentDate, eventsByDay]);
+
     return (
-        <div
-            ref={scrollContainerRef}
-            className="flex-1 h-full overflow-y-auto px-6 py-6 max-w-4xl mx-auto w-full select-none"
-        >
-            <div className="flex flex-col gap-6">
+        <div className="flex h-full min-h-0 flex-1 gap-10 px-4 py-4 sm:px-6 lg:px-10">
+            <div ref={scrollContainerRef} className="w-full shrink-0 select-none overflow-y-auto pb-10 md:w-[520px]">
                 {days.map((day) => {
                     const dayKey = format(day, "yyyy-MM-dd");
                     const isTod = isToday(day);
-                    const isTom = isTomorrow(day);
-                    const isYest = isYesterday(day);
                     const holiday = getHolidayForDate(dayKey);
 
-                    const timed = eventsByDay.timedMap.get(dayKey) || [];
-                    const allDay = eventsByDay.allDayMap.get(dayKey) || [];
-                    const allEventsForDay = [...allDay, ...timed];
+                    const timed = (eventsByDay.timedMap.get(dayKey) || []).filter((e) => !e.is_cancelled);
+                    const allDay = (eventsByDay.allDayMap.get(dayKey) || []).filter((e) => !e.is_cancelled);
+                    const allDayTodos = allDay.filter((e) => e.is_task);
+                    const allDayEvents = allDay.filter((e) => !e.is_task);
+                    const items = [...timed].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 
-                    // Header title logic
-                    let dayLabel = format(day, "EEEE, d. MMMM yyyy", { locale: de });
-                    if (isTod) {
-                        dayLabel = `Heute • ${format(day, "EEEE, d. MMMM", { locale: de })}`;
-                    } else if (isTom) {
-                        dayLabel = `Morgen • ${format(day, "EEEE, d. MMMM", { locale: de })}`;
-                    } else if (isYest) {
-                        dayLabel = `Gestern • ${format(day, "EEEE, d. MMMM", { locale: de })}`;
-                    }
+                    const prefix = isTod ? "Heute" : isTomorrow(day) ? "Morgen" : isYesterday(day) ? "Gestern" : null;
+                    const weekday = format(day, "EEEE", { locale: de });
+                    const dateText = format(day, "d. MMMM", { locale: de });
+                    let prevEnd: number | null = null;
 
                     return (
-                        <div
-                            key={day.toISOString()}
-                            ref={isTod ? todayRef : undefined}
-                            className="flex flex-col gap-2 scroll-mt-6"
-                        >
-                            {/* Day Header */}
-                            <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/80 dark:border-white/10">
-                                <div className="flex items-center gap-2">
-                                    {isTod && (
-                                        <span className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse shrink-0" />
-                                    )}
-                                    <h3
-                                        className={`text-sm font-bold tracking-tight ${
-                                            isTod
-                                                ? "text-blue-600 dark:text-blue-400 font-extrabold text-base"
-                                                : "text-gray-900 dark:text-gray-100"
-                                        }`}
-                                    >
-                                        {dayLabel}
-                                    </h3>
-                                    {holiday && (
-                                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/30">
-                                            {holiday.name}
-                                        </span>
-                                    )}
-                                </div>
-
+                        <div key={day.toISOString()} ref={isTod ? todayRef : undefined} className="scroll-mt-0">
+                            {/* Tageskopf */}
+                            <div className="sticky top-0 z-10 flex items-baseline gap-2.5 bg-t2-bg pb-1.5 pt-4">
+                                {prefix ? (
+                                    isTod ? (
+                                        <b className="rounded-full bg-t2-ink px-2.5 py-0.5 text-[13px] font-bold text-t2-bg">{prefix}</b>
+                                    ) : (
+                                        <b className="text-[15px] font-bold text-t2-ink">{prefix}</b>
+                                    )
+                                ) : (
+                                    <b className="text-[15px] font-bold text-t2-ink">{weekday}</b>
+                                )}
+                                <span className="text-[13px] text-t2-ink-3">
+                                    {prefix ? `${weekday}, ${dateText}` : dateText}
+                                </span>
+                                {holiday && (
+                                    <span className="rounded-full bg-t2-sub px-2 py-0.5 text-[11.5px] text-t2-ink-2">{holiday.name}</span>
+                                )}
                                 <button
                                     onClick={() => handleCreateOnDay(day)}
-                                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                                    className="ml-auto flex items-center gap-1 rounded-[8px] px-2 py-1 text-[12px] text-t2-ink-3 transition-colors hover:bg-t2-hover hover:text-t2-ink"
                                     title="Termin erstellen"
                                 >
-                                    <Plus size={14} />
+                                    <Plus size={13} />
                                     <span>Termin</span>
                                 </button>
                             </div>
 
-                            {/* Events List */}
-                            {allEventsForDay.length === 0 ? (
+                            {/* Ganztägige Todos als Pillen */}
+                            {allDayTodos.length > 0 && (
+                                <div className="my-1 mb-1.5 flex flex-wrap gap-1.5">
+                                    {allDayTodos.map((t) => (
+                                        <span key={t.id} onClick={() => setSelectedId(t.id)} className="cursor-pointer">
+                                            <TodoPill event={t} onToggle={onTaskToggle} />
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Ganztägige Termine */}
+                            {allDayEvents.map((ev) => {
+                                const theme = getEventTheme(ev, calendarColorPalette);
+                                return (
+                                    <div
+                                        key={ev.id}
+                                        onClick={() => setSelectedId(ev.id)}
+                                        className="my-1.5 flex cursor-pointer items-center gap-2.5 rounded-[14px] px-3.5 py-2.5 text-[13.5px] font-semibold transition-[filter] hover:brightness-[0.97]"
+                                        style={{ background: theme.bg, color: theme.text }}
+                                    >
+                                        <i className="h-2.5 w-2.5 rounded-full bg-current opacity-85" />
+                                        {ev.title || "Ohne Titel"}
+                                    </div>
+                                );
+                            })}
+
+                            {allDay.length === 0 && items.length === 0 && (
                                 <div
                                     onClick={() => handleCreateOnDay(day)}
-                                    className="py-3 px-4 rounded-xl border border-dashed border-gray-200 dark:border-white/10 text-xs text-gray-400 dark:text-gray-500 hover:border-gray-300 dark:hover:border-white/20 hover:text-gray-600 dark:hover:text-gray-300 transition-colors cursor-pointer flex items-center justify-between"
+                                    className="my-1.5 flex cursor-pointer items-center justify-between rounded-[10px] border border-dashed border-t2-line px-4 py-3 text-[12.5px] text-t2-ink-3 transition-colors hover:text-t2-ink-2"
                                 >
                                     <span>Keine Termine</span>
                                     <Plus size={13} />
                                 </div>
-                            ) : (
-                                <div className="flex flex-col gap-2">
-                                    {allEventsForDay.map((ev) => {
-                                        const isCompleted = !!ev.is_completed;
-                                        const isCancelled = !!ev.is_cancelled;
-                                        const eventColor = ev.color || "#3b82f6";
-                                        const isTimed = !ev.allDay;
+                            )}
 
-                                        const startDate = new Date(ev.start);
-                                        const endDate = new Date(ev.end);
-                                        const durationMin = Math.max(15, differenceInMinutes(endDate, startDate));
-                                        const durationStr =
-                                            durationMin >= 60
-                                                ? `${Math.floor(durationMin / 60)}h ${
-                                                      durationMin % 60 > 0 ? `${durationMin % 60}m` : ""
-                                                  }`.trim()
-                                                : `${durationMin}m`;
+                            {/* Zeitgebundene Termine und Todos in zeitlicher Reihenfolge, mit Pausen */}
+                            {items.map((ev) => {
+                                const start = new Date(ev.start);
+                                const end = new Date(ev.end);
+                                const gapMin = prevEnd === null ? 0 : Math.round((start.getTime() - prevEnd) / 60000);
+                                prevEnd = Math.max(prevEnd ?? 0, ev.is_task ? start.getTime() : end.getTime());
 
-                                        // Matching theme
-                                        const groupIds = getEventGroupIds(ev);
-                                        const matchedTheme = themes.find((t) => groupIds.includes(t.id));
+                                const gap =
+                                    gapMin >= 15 ? (
+                                        <div key={`${ev.id}-gap`} className="flex h-[34px] text-[12.5px] text-t2-ink-3">
+                                            <div className="w-16 shrink-0" />
+                                            <div className="flex w-[22px] shrink-0 justify-center">
+                                                <i className="h-full w-[1.5px] opacity-55" style={{ backgroundImage: DASHED_RAIL }} />
+                                            </div>
+                                            <span className="self-center pl-1.5">{formatDuration(gapMin)} frei</span>
+                                        </div>
+                                    ) : null;
 
-                                        return (
-                                            <div
-                                                key={ev.id}
-                                                onClick={(e) => {
-                                                    onEventClick(ev, e.currentTarget.getBoundingClientRect());
-                                                }}
-                                                className={`group flex items-center justify-between p-3.5 rounded-xl bg-white dark:bg-white/[0.04] border border-gray-200/80 dark:border-white/10 hover:border-blue-500/40 dark:hover:border-blue-400/40 hover:shadow-sm transition-all cursor-pointer ${
-                                                    isCancelled ? "opacity-50 line-through" : ""
-                                                } ${isCompleted ? "opacity-60" : ""}`}
-                                            >
-                                                {/* Left: Color bar + Time + Title */}
-                                                <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                                                    <div
-                                                        style={{ backgroundColor: eventColor }}
-                                                        className="w-1.5 self-stretch rounded-full shrink-0 min-h-[40px]"
-                                                    />
+                                const isSel = selectedId === ev.id;
+                                const timeCol = (
+                                    <div className={`w-16 shrink-0 pr-2 text-right ${ev.is_task ? "pt-[15px]" : "pt-3"}`}>
+                                        <b className="block text-[12.5px] font-bold leading-none">{format(start, "HH:mm")}</b>
+                                        {isSel && !ev.is_task && (
+                                            <small className="mt-1 block text-[11px] opacity-85">{format(end, "HH:mm")}</small>
+                                        )}
+                                    </div>
+                                );
 
-                                                    {/* Time Box */}
-                                                    <div className="w-24 shrink-0 flex flex-col">
-                                                        {isTimed ? (
-                                                            <>
-                                                                <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
-                                                                    {format(startDate, "HH:mm")}
-                                                                </span>
-                                                                <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500">
-                                                                    {format(endDate, "HH:mm")} ({durationStr})
-                                                                </span>
-                                                            </>
-                                                        ) : (
-                                                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 w-fit">
-                                                                Ganztägig
-                                                            </span>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Task checkbox if applicable */}
-                                                    {ev.is_task && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                onTaskToggle?.(ev.id, isCompleted);
-                                                            }}
-                                                            className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors shrink-0"
-                                                        >
-                                                            {isCompleted ? (
-                                                                <CheckSquare size={16} className="text-green-500" />
-                                                            ) : (
-                                                                <Square size={16} />
-                                                            )}
-                                                        </button>
-                                                    )}
-
-                                                    {/* Title & Description */}
-                                                    <div className="min-w-0 flex-1">
-                                                        <h4
-                                                            className={`text-sm font-semibold truncate text-gray-900 dark:text-gray-100 ${
-                                                                isCompleted ? "line-through text-gray-400 dark:text-gray-500" : ""
-                                                            }`}
-                                                        >
-                                                            {ev.title || "Ohne Titel"}
-                                                        </h4>
-                                                        {ev.description && (
-                                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
-                                                                {ev.description}
-                                                            </p>
-                                                        )}
-                                                    </div>
+                                if (ev.is_task) {
+                                    return (
+                                        <React.Fragment key={ev.id}>
+                                            {gap}
+                                            <div className="my-1 flex cursor-pointer text-t2-ink" onClick={() => setSelectedId(ev.id)}>
+                                                {timeCol}
+                                                <div className="flex w-[22px] shrink-0 flex-col items-center pt-[19px]">
+                                                    <i className="h-2.5 w-2.5 rounded-full shadow-[inset_0_0_0_1.5px_currentColor]" />
                                                 </div>
-
-                                                {/* Right: Theme badge + Delete Action */}
-                                                <div className="flex items-center gap-2 shrink-0">
-                                                    {matchedTheme && (
-                                                        <span
-                                                            style={{
-                                                                borderColor: matchedTheme.color || "rgba(0,0,0,0.1)",
-                                                            }}
-                                                            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-gray-300"
-                                                        >
-                                                            {matchedTheme.color && (
-                                                                <span
-                                                                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                                                                    style={{ backgroundColor: matchedTheme.color }}
-                                                                />
-                                                            )}
-                                                            {matchedTheme.title}
-                                                        </span>
-                                                    )}
-
-                                                    {onEventDelete && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                onEventDelete(ev.id);
-                                                            }}
-                                                            title="Termin löschen"
-                                                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-all"
-                                                        >
-                                                            <Trash2 size={14} />
-                                                        </button>
-                                                    )}
+                                                <div className="min-w-0 flex-1 py-[3px] pl-1.5">
+                                                    <TodoPill event={ev} block onToggle={onTaskToggle} />
                                                 </div>
                                             </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                                        </React.Fragment>
+                                    );
+                                }
+
+                                const theme = getEventTheme(ev, calendarColorPalette);
+                                const matchedTheme = themes.find((t) => getEventGroupIds(ev).includes(t.id));
+                                const durationMin = Math.max(15, differenceInMinutes(end, start));
+                                return (
+                                    <React.Fragment key={ev.id}>
+                                        {gap}
+                                        <div
+                                            data-agenda-id={ev.id}
+                                            onClick={() => setSelectedId(ev.id)}
+                                            className={`my-1.5 flex cursor-pointer rounded-[14px] transition-[filter] hover:brightness-[0.97] ${
+                                                isSel ? "shadow-[0_0_0_2px_var(--t2-bg),0_0_0_4px_var(--t2-ink)]" : ""
+                                            } ${ev.is_completed ? "opacity-60" : ""}`}
+                                            style={{ background: theme.bg, color: theme.text }}
+                                        >
+                                            {timeCol}
+                                            <div className="flex w-[22px] shrink-0 flex-col items-center pb-3 pt-[13px]">
+                                                <i className="h-2.5 w-2.5 shrink-0 rounded-full bg-current opacity-85" />
+                                                <i className="mt-1.5 min-h-[6px] w-[2px] flex-1 rounded-sm bg-current opacity-15" />
+                                            </div>
+                                            <div className="min-w-0 flex-1 py-2.5 pl-1.5 pr-3.5">
+                                                <div className="flex items-center gap-2">
+                                                    <b className="min-w-0 flex-1 truncate text-[14px] font-bold">{ev.title || "Ohne Titel"}</b>
+                                                    <span
+                                                        className="rounded-[6px] px-[7px] py-px text-[11.5px] font-semibold"
+                                                        style={{ backgroundColor: "color-mix(in srgb, currentColor 18%, transparent)" }}
+                                                    >
+                                                        {formatDuration(durationMin)}
+                                                    </span>
+                                                </div>
+                                                {matchedTheme && <div className="mt-px text-[12.5px] opacity-90">{matchedTheme.title}</div>}
+                                            </div>
+                                        </div>
+                                    </React.Fragment>
+                                );
+                            })}
                         </div>
                     );
                 })}
+            </div>
+
+            {/* Rechte Spalte: immer offen (Wochenkennzahlen oder Termindetails) */}
+            <div className="hidden min-w-0 flex-1 md:flex">
+                <CalendarDetailPanel
+                    idleTitle="Diese Woche"
+                    idleMessage={
+                        week.count > 0
+                            ? `${week.count} ${week.count === 1 ? "Termin" : "Termine"}, ${formatDuration(week.minutes)} verplant.`
+                            : "Diese Woche ist noch leer."
+                    }
+                    stats={[
+                        { value: String(week.count), label: "Termine" },
+                        { value: week.count ? formatDuration(week.minutes) : "–", label: "Geplant" },
+                        { value: String(week.openTodos), label: "Todos offen" },
+                    ]}
+                    event={selectedEvent}
+                    themeTitle={selectedTheme?.title}
+                    onClose={() => setSelectedId(null)}
+                    onEdit={
+                        selectedEvent
+                            ? () =>
+                                  onEventClick(
+                                      selectedEvent,
+                                      document.querySelector(`[data-agenda-id="${selectedEvent.id}"]`)?.getBoundingClientRect() ??
+                                          new DOMRect()
+                                  )
+                            : undefined
+                    }
+                    onDelete={
+                        selectedEvent && onEventDelete
+                            ? () => {
+                                  void onEventDelete(selectedEvent.id);
+                                  setSelectedId(null);
+                              }
+                            : undefined
+                    }
+                    onToggleDone={
+                        selectedEvent && selectedEvent.is_task
+                            ? () => onTaskToggle?.(selectedEvent.id, !!selectedEvent.is_completed)
+                            : undefined
+                    }
+                />
             </div>
         </div>
     );

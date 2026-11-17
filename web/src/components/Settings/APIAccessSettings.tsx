@@ -432,7 +432,7 @@ export const APIAccessSettings: React.FC = () => {
                 <div className="p-3 bg-gray-900 text-gray-200 rounded-xl font-mono text-xs overflow-x-auto space-y-1.5">
                     <div className="text-gray-400"># {isDe ? 'Alle anstehenden Termine abrufen' : 'Get upcoming events'}</div>
                     <div className="text-emerald-400">curl -H &quot;Authorization: Bearer tide_pat_...&quot; \</div>
-                    <div className="pl-4 text-gray-300">https://go-tide.app/api/v1/external/events?start=2026-10-01</div>
+                    <div className="pl-4 text-gray-300">https://hrw.rocks/api/v1/external/events?start=2026-10-01</div>
                 </div>
             </div>
 
