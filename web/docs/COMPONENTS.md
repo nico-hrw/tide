@@ -320,3 +320,16 @@ Full reverse mapping (TIDE → GCal) lives in `gcal.go`.
 | NOTE_SPECIFICATION | `web/docs/NOTE_SPECIFICATION.md` | Complete specification of supported TipTap ProseMirror schema, blocks, marks, custom mention chips (`dateMention`, `calendarEventMention`, `taskMention`), math, and `.tide.json` bundle format. |
 | bundleImportExport | `web/src/lib/bundleImportExport.ts` | Complete TIDE bundle import/export engine. Supports AST reference rewriting (`rewriteTipTapReferences`), ID remapping for inter-connected notes, folders, and calendar events, Markdown conversion (`tipTapToMarkdown`, `markdownToTipTap`), and V2 DEK encryption. |
 
+
+## Todos – Desktop (Tide 2)
+
+`<TodoList variant="desktop">` (used by `app/page.tsx`) renders the two-column view; the default variant (used by `MobileLayout`) keeps the inline-edit list unchanged.
+
+| Component | File | Role |
+|-----------|------|------|
+| TodoDesktopView | `web/src/components/Todo/TodoDesktopView.tsx` | Layout: fixed 520px list column + detail pane, 40px gap/side padding. Groups Überfällig / Heute / Morgen / Demnächst / Ohne Datum, plus collapsible "Kürzlich erledigt" and Archiv. Owns `selectedId` / `expandedId`. Click rule: card with subtasks → first click expands all subtasks, second click selects into the detail pane; without subtasks → select immediately. No search field. |
+| TodoCard | `web/src/components/Todo/TodoCard.tsx` | Card (grey tint `color-mix(#5C6E6C 8%, --t2-bg)`; today = `cal-praktikum` with white text; selected = faint ring only). Peek: up to 3 open subtasks + "+ n weitere"; ticking fades the row for 420ms, then toggles and the next one rotates in. Overdue: no red, grey clock icon + "Überfällig". |
+| TodoCardParts | `web/src/components/Todo/TodoCardParts.tsx` | `TodoPriorityIcon` (lucide ChevronUp/Minus/ChevronDown; high `#A9623F`, medium `#C0893A`, low `#7E9A83`) and `TodoCheckbox`. |
+| TodoDetailPane | `web/src/components/Todo/TodoDetailPane.tsx` | Right pane: folder label, editable 28px title, rows Fällig / Priorität / Ordner / Notiz, "Untertodos · x von y" with checkable rows and "Untertodo hinzufügen". Remount via `key={task.id}`. |
+
+Known gaps vs. the old inline editor in the desktop variant: description, tags, recurrence and "in Kalender anzeigen" are not editable in the detail pane yet; the date-filter strip is not shown.

@@ -3566,7 +3566,7 @@ export default function Dashboard() {
                 <SurveysWorkspace isActive={activeTabId === 'surveys'} />
 
                 <div className={`absolute inset-0 z-10 bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto ${activeTabId === 'todos' ? 'block' : 'hidden'}`}>
-                    {activeTabId === 'todos' && (!enabledExtensions || enabledExtensions.includes('todos')) && <TodoList initialTaskId={selectedTodoId} />}
+                    {activeTabId === 'todos' && (!enabledExtensions || enabledExtensions.includes('todos')) && <TodoList variant="desktop" initialTaskId={selectedTodoId} />}
                 </div>
 
                 <div className={`absolute inset-0 z-10 bg-[var(--background)] overflow-y-auto ${activeTabId === 'trash' ? 'block' : 'hidden'}`}>
