@@ -19,6 +19,8 @@ export interface TodoListProps {
   className?: string;
   onSelectTask?: (task: TaskItem) => void;
   initialTaskId?: string | null;
+  /** 'desktop' = Tide-2-Zweispaltenansicht (Liste + Detail). Standard: bisherige Inline-Ansicht (Mobil). */
+  variant?: 'default' | 'desktop';
 }
 
 export interface TaskCreateDraft {

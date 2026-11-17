@@ -20,6 +20,7 @@ import TodoDateFilterStrip from './TodoDateFilterStrip';
 import TodoFolderModal from './TodoFolderModal';
 import TodoCreateCard, { TaskCreateDraft } from './TodoCreateCard';
 import TodoFocusedGroupView from './TodoFocusedGroupView';
+import TodoDesktopView from './TodoDesktopView';
 import { buildTaskTree } from './treeUtils';
 import { loadTodoFoldersMeta, saveTodoFoldersMeta } from '../../lib/folderColors';
 import {
@@ -35,8 +36,9 @@ export {
   getTaskCompletionTime, isTaskArchived, getTaskArchiveTier,
 } from './types';
 
-export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask, initialTaskId }) => {
+export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask, initialTaskId, variant = 'default' }) => {
   const { tasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useDataStore();
+  const isDesktopVariant = variant === 'desktop';
 
   const [viewMode, setViewMode] = useState<'tasks' | 'folders'>('tasks');
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
@@ -772,7 +774,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   ]);
 
   return (
-    <div className={`w-full h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] relative overflow-hidden ${className || ''}`}>
+    <div className={`w-full h-full flex flex-col ${isDesktopVariant ? 'bg-t2-bg' : 'bg-[#f8f9fa] dark:bg-[#121212]'} relative overflow-hidden ${className || ''}`}>
       <TodoListHeader
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -808,6 +810,59 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             onAssignTaskFolder={(taskId, folderName) => updateTask(taskId, { folder: folderName || undefined })}
           />
         </div>
+      ) : isDesktopVariant ? (
+        <TodoDesktopView
+          tasks={tasks}
+          tasksToRender={tasksToRender}
+          recentlyCompletedTasks={recentlyCompletedTasks}
+          archivedTasks={archivedTasks}
+          archivedByTier={archivedByTier}
+          filterStatus={filterStatus}
+          showCompleted={showCompleted}
+          showArchive={showArchive}
+          setShowCompleted={setShowCompleted}
+          setShowArchive={setShowArchive}
+          folders={allFolders}
+          completingTaskIds={completingTaskIds}
+          initialTaskId={initialTaskId}
+          onSelectTask={onSelectTask}
+          onToggleTask={handleToggleTask}
+          onToggleSubtask={(id) => { void toggleTask(id); }}
+          onUpdateTask={updateTask}
+          onDeleteTask={deleteTask}
+          onAddSubtask={async (title, parent) => {
+            await addTask({
+              title,
+              parentId: parent.id,
+              folder: parent.folder,
+              tags: parent.tags ? [...parent.tags] : [],
+              priority: parent.priority || 'medium',
+              isCompleted: false,
+              status: 'todo',
+              order: tasks.filter((t) => t.parentId === parent.id).length,
+            });
+          }}
+          topSlot={(
+            <>
+              <TodoFolderBanner
+                setViewMode={setViewMode}
+                selectedFolder={selectedFolder}
+                setSelectedFolder={setSelectedFolder}
+                selectedFolderActiveCount={selectedFolderActiveCount}
+              />
+              {isCreateOpen && (
+                <TodoCreateCard
+                  draft={draft} setDraft={setDraft} titleInputRef={titleInputRef}
+                  newTagInput={newTagInput} setNewTagInput={setNewTagInput}
+                  allTags={allTags} customTags={customTags} allFolders={allFolders}
+                  isSubmitting={isSubmitting} handleAddTask={handleAddTask}
+                  handleAddCustomTag={handleAddCustomTag} handleRemoveCustomTag={handleRemoveCustomTag}
+                  onClose={() => setIsCreateOpen(false)}
+                />
+              )}
+            </>
+          )}
+        />
       ) : (
         /* Center container */
         <div className={`w-full max-w-2xl lg:max-w-3xl mx-auto flex-1 flex flex-col min-h-0 relative px-0 sm:px-2 ${editingTaskId !== null ? 'h-full' : ''}`}>
@@ -967,7 +1022,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                         </div>
                       </div>
 
-                      {/* Search Input */}
+                      {!isDesktopVariant && (
+                      <>
                       <div className="relative">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                         <input
@@ -987,6 +1043,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                           </button>
                         )}
                       </div>
+                      </>
+                      )}
 
                       {/* View Mode Switcher */}
                       <div>
