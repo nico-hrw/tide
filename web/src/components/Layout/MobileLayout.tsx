@@ -2141,7 +2141,7 @@ export default function MobileLayout({
                 {/* Zuletzt */}
                 {recentFiles.length > 0 && (
                   <div>
-                    <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Mach weiter wo du aufgehört hast</p>
+                    <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Zuletzt bearbeitet</p>
                     {notesViewMode === 'grid' ? (
                       <div className="grid grid-cols-3 min-[480px]:grid-cols-4 gap-2 p-1">
                         {recentFiles.map(f => (
