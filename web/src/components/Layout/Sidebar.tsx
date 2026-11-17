@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import SmartIsland from "../extensions/smart_island/SmartIsland";
-import MiniCalendar from "../Calendar/MiniCalendar";
+import SidebarIsland from "./sidebar/SidebarIsland";
 import { ListTodo } from "lucide-react";
 import { useDataStore } from "@/store/useDataStore";
 import { apiFetch } from "@/lib/api";
@@ -293,7 +292,6 @@ export default function Sidebar({
     const storedName = typeof window !== 'undefined' ? (localStorage.getItem('tide_user_name') || sessionStorage.getItem('tide_user_name')) : null;
     const emailPrefix = (userProfile?.email || '').split('@')[0];
     const validUsername = userProfile?.username && userProfile.username !== emailPrefix ? userProfile.username : null;
-    const effectiveUserName = (userProfile as any)?.displayName || (userProfile as any)?.name || validUsername || storedName || userProfile?.username || emailPrefix || "User";
 
     const handleImport = (targetFolderId: string | null = null) => actions.handleImport(onFileSelect, targetFolderId);
     const handleExport = (itemId: string, format: 'bundle' | 'markdown') => actions.handleExport(files, itemId, format);
@@ -431,17 +429,7 @@ export default function Sidebar({
                         </div>
                     )}
 
-                    {enabledExtensions?.includes('smart_island') ? (
-                        <SmartIsland
-                            selectedDate={selectedDate || new Date()}
-                            onSelect={(date: Date) => onDateSelect && onDateSelect(date)}
-                            userName={effectiveUserName}
-                        />
-                    ) : (
-                        <div className="px-2 pb-2">
-                            <MiniCalendar selectedDate={selectedDate} onSelect={onDateSelect} />
-                        </div>
-                    )}
+                    <SidebarIsland selectedDate={selectedDate} onSelect={onDateSelect} />
                 </div>
             )}
 

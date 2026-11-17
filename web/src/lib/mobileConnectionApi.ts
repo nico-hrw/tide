@@ -2,10 +2,10 @@
  * Whisper Hub Mobile Connection API Client
  *
  * Provides functions to dispatch push notifications and Glance widget updates
- * to Android terminals via Whisper Hub (https://go-tide.app/whisper/api).
+ * to Android terminals via Whisper Hub (https://hrw.rocks/whisper/api).
  */
 
-export const WHISPER_API_BASE = 'https://go-tide.app/whisper/api';
+export const WHISPER_API_BASE = 'https://hrw.rocks/whisper/api';
 
 export interface WhisperNotificationPayload {
   channel_id?: string;

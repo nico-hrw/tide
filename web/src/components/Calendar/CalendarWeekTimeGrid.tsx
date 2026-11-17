@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from "react";
 import type { ComponentProps } from "react";
 import type { MotionValue } from "framer-motion";
-import { format, addDays, isSameDay } from "date-fns";
+import { format, addDays, isSameDay, startOfDay } from "date-fns";
 import DayColumn from "@/components/Calendar/DayColumn";
 import { DragGhost } from "./DragGhost";
 import type { CalendarEvent, CalendarViewProps, CreationDrag, DragState, ResizeDragState } from "./types";
@@ -69,6 +69,9 @@ export function CalendarWeekTimeGrid({
     // --- Hover State ---
     const [hoveredHour, setHoveredHour] = useState<number | null>(null);
 
+    // --- Start-/Ende-Linien des angeklickten Termins ---
+    const [selectedSpan, setSelectedSpan] = useState<{ id: string; start: Date; end: Date } | null>(null);
+
     // Stable day dates array across renders
     const days = useMemo(() => {
         return loadedWeeks.flatMap(weekStart =>
@@ -134,6 +137,28 @@ export function CalendarWeekTimeGrid({
         }
     }, [onEventUpdate]);
 
+    const handleEventClick = useCallback(
+        (...args: Parameters<NonNullable<typeof onDayEventClick>>) => {
+            const [clicked] = args;
+            const ev = typeof clicked === "string" ? events.find((e) => e.id === clicked) : (clicked as CalendarEvent);
+            if (ev && !ev.allDay) {
+                setSelectedSpan((prev) =>
+                    prev?.id === ev.id ? null : { id: ev.id, start: new Date(ev.start), end: new Date(ev.end) }
+                );
+            }
+            onDayEventClick?.(...args);
+        },
+        [events, onDayEventClick]
+    );
+
+    // Pixelhöhe: 50 px Kopfzeile + 48 px pro Stunde. Endet ein Termin an einem anderen Tag, endet die Linie bei 24:00.
+    const spanLines = useMemo(() => {
+        if (!selectedSpan) return [];
+        const dayStart = startOfDay(selectedSpan.start).getTime();
+        const toY = (d: Date) => 50 + Math.min(1440, Math.max(0, (d.getTime() - dayStart) / 60000)) * (48 / 60);
+        return [selectedSpan.start, selectedSpan.end].map((t) => ({ y: toY(t), label: format(t, "HH:mm") }));
+    }, [selectedSpan]);
+
     return (
         <>
                 {/* Time Column (Sticky Left) */}
@@ -147,6 +172,15 @@ export function CalendarWeekTimeGrid({
                             </div>
                         ))
                     }
+                    {spanLines.map((l, i) => (
+                        <span
+                            key={i}
+                            className="absolute left-1 z-[420] -translate-y-1/2 rounded-[5px] bg-t2-ink px-1.5 text-[11px] font-bold leading-[18px] text-t2-bg pointer-events-none"
+                            style={{ top: l.y }}
+                        >
+                            {l.label}
+                        </span>
+                    ))}
                 </div>
 
                 {/* Days Wrapper with Relative positioning for the Time Line */}
@@ -170,7 +204,7 @@ export function CalendarWeekTimeGrid({
                                 currentTime={isToday ? currentTime : undefined}
                                 hoveredHour={hoveredHour}
                                 onHourHover={setHoveredHour}
-                                onEventClick={onDayEventClick}
+                                onEventClick={handleEventClick}
                                 onEventCreate={onEventCreate}
                                 onEventShare={onEventShare}
                                 onEventDelete={onEventDelete ? handleEventDelete : undefined}
@@ -199,6 +233,15 @@ export function CalendarWeekTimeGrid({
                         );
                     })
                 }
+
+                    {/* Start-/Ende-Linien über die ganze Breite */}
+                    {spanLines.map((l, i) => (
+                        <div
+                            key={i}
+                            className="absolute left-0 right-0 z-[300] border-t-[1.5px] border-t2-ink pointer-events-none"
+                            style={{ top: l.y }}
+                        />
+                    ))}
 
                     {/* Custom-drag ghost - 60fps via MotionValues, no React re-renders */}
                     {draggingId && dragState && (
