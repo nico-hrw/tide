@@ -101,6 +101,7 @@
 
 | Component | File | Role |
 |-----------|------|------|
+| SidebarIsland | `web/src/components/Layout/sidebar/SidebarIsland.tsx` | Tide 2 Desktop-Island unten links in der Seitenleiste. Zeigt immer nur einen Zustand: laufender Termin ("endet in X Min") oder sonst den Mini-Kalender. Kein Umschalten per Icon. Nutzt `getEventsForDate` für heute. |
 | SmartIsland (root) | `web/src/components/SmartIsland.tsx` | Shell / entry component |
 | SmartIsland (ext) | `web/src/components/extensions/smart_island/SmartIsland.tsx` | Core desktop island logic: expandable pill, welcome sequence, mode views, search trigger, integrated `SmartIslandCalendar` popover, quick event capture, and sync states. |
 | SmartIslandCalendar | `web/src/components/extensions/smart_island/SmartIslandCalendar.tsx` | Desktop Smart Island calendar widget: month grid with event dots, progress pie sectors for elapsed day time, active/upcoming event countdown complications, and keyboard/wheel month navigation. |
