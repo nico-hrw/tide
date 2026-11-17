@@ -173,7 +173,7 @@ export const MobileConnectionSettings: React.FC = () => {
             <span>API-Token</span>
           </label>
           <a
-            href="https://go-tide.app/whisper/"
+            href="https://hrw.rocks/whisper/"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
