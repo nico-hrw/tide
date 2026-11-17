@@ -58,6 +58,8 @@ export type ThemePreference = 'light' | 'dark' | 'system';
 export type AppTheme = 'light' | 'dark';
 export type AppLanguage = 'en' | 'de';
 export type CalendarColorPalette = 'balsam' | 'modern-dark' | 'soft-pastels' | 'classic-tide';
+/** Wochenansicht: 'infinite' scrollt endlos weiter, 'single' zeigt genau eine Woche. */
+export type CalendarWeekScroll = 'infinite' | 'single';
 export type CalendarOverlapMode = 'overlap' | 'stack';
 export type CalendarHolidayPackage = 'DE' | 'AT' | 'CH' | 'US';
 export type EventMentionStyle = 'blue' | 'calendar';
@@ -105,6 +107,7 @@ export interface EventsSlice {
     eventMentionStyle: EventMentionStyle;
     eventMentionPreview: EventMentionPreview;
     calendarColorPalette: CalendarColorPalette;
+    calendarWeekScroll: CalendarWeekScroll;
     calendarOverlapMode: CalendarOverlapMode;
     visibleCalendarRange?: { start: string; end: string } | null;
     calendarHolidaysEnabled: boolean;
@@ -114,6 +117,7 @@ export interface EventsSlice {
     setEventMentionStyle: (style: EventMentionStyle) => void;
     setEventMentionPreview: (preview: EventMentionPreview) => void;
     setCalendarColorPalette: (palette: CalendarColorPalette) => void;
+    setCalendarWeekScroll: (mode: CalendarWeekScroll) => void;
     setCalendarOverlapMode: (mode: CalendarOverlapMode) => void;
     setVisibleCalendarRange: (range: { start: string; end: string } | null) => void;
     setCalendarHolidaysEnabled: (enabled: boolean) => void;

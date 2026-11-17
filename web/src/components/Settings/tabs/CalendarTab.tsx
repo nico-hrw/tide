@@ -171,6 +171,8 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
     const {
         calendarColorPalette,
         setCalendarColorPalette,
+        calendarWeekScroll,
+        setCalendarWeekScroll,
         calendarOverlapMode,
         setCalendarOverlapMode,
         calendarHolidaysEnabled,
@@ -240,6 +242,15 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
                                     {palette === p.id && <Check className="w-4 h-4 shrink-0 text-white dark:text-zinc-900" />}
                                 </button>
                             ))}
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">Week view</h4>
+                        <p className="text-xs text-gray-500 mb-3">Scroll endlessly through weeks, or show exactly one week at a time.</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <OptionCard id="infinite" label="Infinite scroll" desc="Weeks load as you scroll" active={calendarWeekScroll === 'infinite'} onClick={setCalendarWeekScroll} />
+                            <OptionCard id="single" label="One week" desc="Navigate week by week" active={calendarWeekScroll === 'single'} onClick={setCalendarWeekScroll} />
                         </div>
                     </div>
 

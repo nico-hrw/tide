@@ -1,6 +1,7 @@
 import { apiFetch } from '@/lib/api';
 import type {
     CalendarColorPalette,
+    CalendarWeekScroll,
     CalendarHolidayPackage,
     CalendarOverlapMode,
     DataItem,
@@ -46,6 +47,10 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
                   'tide_calendar_color_palette'
               ) as CalendarColorPalette) || 'balsam')
             : 'balsam',
+    calendarWeekScroll:
+        typeof window !== 'undefined' && localStorage.getItem('tide_calendar_week_scroll') === 'single'
+            ? 'single'
+            : 'infinite',
     calendarOverlapMode:
         typeof window !== 'undefined'
             ? ((localStorage.getItem(
@@ -89,6 +94,14 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
                 localStorage.setItem('tide_calendar_color_palette', palette);
             }
             return { calendarColorPalette: palette };
+        }),
+
+    setCalendarWeekScroll: (mode: CalendarWeekScroll) =>
+        set(() => {
+            if (typeof window !== 'undefined') {
+                localStorage.setItem('tide_calendar_week_scroll', mode);
+            }
+            return { calendarWeekScroll: mode };
         }),
 
     setCalendarOverlapMode: (mode: CalendarOverlapMode) =>

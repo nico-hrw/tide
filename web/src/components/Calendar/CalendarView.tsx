@@ -8,6 +8,7 @@ import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Plus, Upload } from
 import { SearchIndexEntry } from "@/lib/searchIndex";
 import Fuse from "fuse.js";
 import { useHighlight } from "@/components/HighlightContext";
+import { useDataStore } from "@/store/useDataStore";
 import { ScheduleModal } from './ScheduleModal';
 import { CalendarImportModal } from './CalendarImportModal';
 import { CalendarWeekTimeGrid } from './CalendarWeekTimeGrid';
@@ -98,8 +99,17 @@ export default function CalendarView({
 
     // Filter events based on selected groups/themesHighlight();
 
+    // Week view: 'single' shows exactly one week, 'infinite' loads weeks while scrolling.
+    const weekScroll = useDataStore((s) => s.calendarWeekScroll);
+    const singleWeek = viewMode === 'week' && weekScroll === 'single';
+    // Set when the visible date comes from scrolling, so the loaded window is left alone.
+    const scrollDrivenDateRef = useRef(false);
+    // Day (yyyy-MM-dd) to center horizontally once its column is rendered.
+    const centerRequestRef = useRef<string | null>(format(date, "yyyy-MM-dd"));
+
     const [loadedWeeks, setLoadedWeeks] = useState<Date[]>(() => {
         const currentStart = startOfWeek(date, { weekStartsOn: 1 });
+        if (singleWeek) return [currentStart];
         return [
             subWeeks(currentStart, 1),
             currentStart,
@@ -219,19 +229,20 @@ export default function CalendarView({
         }
     }, [activePopover]);
 
-    // Initialize with weeks appropriate for the active view mode
-    useEffect(() => {
-        const timer = setTimeout(() => {
+    // Initialize with weeks appropriate for the active view mode.
+    // Layout effect, so a window change and its centering land before the next paint.
+    useLayoutEffect(() => {
+        const sync = () => {
             const currentStart = startOfWeek(date, { weekStartsOn: 1 });
 
             if (prevViewModeRef.current !== 'week' && viewMode === 'week') {
                 hasInitializedScroll.current = false;
-                setLoadedWeeks([
+                centerRequestRef.current = format(date, "yyyy-MM-dd");
+                setLoadedWeeks(singleWeek ? [currentStart] : [
                     subWeeks(currentStart, 1),
                     currentStart,
                     addWeeks(currentStart, 1)
                 ]);
-                isPrependingRef.current = true;
                 prevViewModeRef.current = viewMode;
                 return;
             }
@@ -257,24 +268,43 @@ export default function CalendarView({
                 return;
             }
 
-            // Only reset if the new date is outside our currently loaded range
-            if (loadedWeeks.length > 0) {
-                const firstWeek = loadedWeeks[0];
-                const lastWeek = loadedWeeks[loadedWeeks.length - 1];
-                if (currentStart >= firstWeek && currentStart <= lastWeek) {
-                    return; // Date is already in view, no need to reset
-                }
+            // Week view. The visible date is the single source of truth:
+            // - one week: always just the week of `date`
+            // - infinite: a date that came from scrolling is already in the window, so keep it;
+            //   any other jump re-centers, loading a new window only if it is out of range
+            if (singleWeek) {
+                centerRequestRef.current = format(date, "yyyy-MM-dd");
+                setLoadedWeeks([currentStart]);
+                return;
             }
-            
-            setLoadedWeeks([
-                subWeeks(currentStart, 1),
-                currentStart,
-                addWeeks(currentStart, 1)
-            ]);
-            isPrependingRef.current = true; // Force initial scroll center
-        }, 0);
-        return () => clearTimeout(timer);
-    }, [date, viewMode, loadedWeeks]);
+            if (scrollDrivenDateRef.current) {
+                scrollDrivenDateRef.current = false;
+                return;
+            }
+            centerRequestRef.current = format(date, "yyyy-MM-dd");
+            setLoadedWeeks((prev) => {
+                const firstWeek = prev[0];
+                const lastWeek = prev[prev.length - 1];
+                if (firstWeek && lastWeek && currentStart >= firstWeek && currentStart <= lastWeek) {
+                    return prev;
+                }
+                return [subWeeks(currentStart, 1), currentStart, addWeeks(currentStart, 1)];
+            });
+        };
+        sync();
+    }, [date, viewMode, singleWeek]);
+
+    // Center the requested day column once it is rendered. Replaces the old
+    // timer-based horizontal scrolling, which raced with the week window updates.
+    useLayoutEffect(() => {
+        const container = scrollContainerRef.current;
+        const iso = centerRequestRef.current;
+        if (!container || !iso || viewMode !== 'week') return;
+        const col = container.querySelector(`[data-day-col="${iso}"]`) as HTMLElement | null;
+        if (!col) return; // not rendered yet, keep the request
+        centerRequestRef.current = null;
+        container.scrollLeft = Math.max(0, col.offsetLeft - container.clientWidth / 2 + col.offsetWidth / 2 - 30);
+    }, [loadedWeeks, viewMode, date]);
 
     // Initial scroll for day view
     useEffect(() => {
@@ -333,21 +363,7 @@ export default function CalendarView({
             const targetScrollY = Math.max(0, nowMinutes - 120);
             container.scrollTop = targetScrollY;
 
-            // Horizontal scroll to selected date or today
-            setTimeout(() => {
-                if (!container) return;
-                const targetIso = format(date, "yyyy-MM-dd");
-                let targetCol = container.querySelector(`[data-day-col="${targetIso}"]`) as HTMLElement;
-                if (!targetCol) targetCol = container.querySelector(`[data-day-col="${format(new Date(), "yyyy-MM-dd")}"]`) as HTMLElement;
-                if (targetCol) {
-                    const containerWidth = container.clientWidth;
-                    const colLeft = targetCol.offsetLeft;
-                    const colWidth = targetCol.offsetWidth;
-                    const targetScrollX = colLeft - (containerWidth / 2) + (colWidth / 2) - 30;
-                    container.scrollLeft = Math.max(0, targetScrollX);
-                }
-            }, 50);
-
+            // Horizontal centering happens in the layout effect below (centerRequestRef).
             hasInitializedScroll.current = true;
         }
     }, [loadedWeeks, viewMode, date]);
@@ -387,6 +403,8 @@ export default function CalendarView({
     const { todayButtonDir, todayAngle, handleScrollToToday } = useCalendarScroll({
         scrollContainerRef,
         date,
+        singleWeek,
+        scrollDrivenDateRef,
         onDateChange,
         loadedWeeks,
         setLoadedWeeks,

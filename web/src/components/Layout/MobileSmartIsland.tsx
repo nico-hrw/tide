@@ -78,13 +78,29 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   const current = useMemo(() => findCurrent(events, now), [events, now]);
   const minutes = current ? Math.max(1, Math.ceil((current.endMs - now) / 60000)) : null;
   const pal = current ? paletteFor(current.event.color) : null;
-  const title = current ? (current.event.title || 'Termin').toUpperCase() : 'KEIN TERMIN';
+  const title = current ? (current.event.title || 'Termin').toUpperCase() : '';
 
   const bg = pal ? pal.bg : 'var(--t2-ink)';
   const ink = pal ? pal.ink : 'var(--t2-bg)';
   const bigSize = minutes !== null && minutes >= 100 ? 40 : 52;
 
-  const content = (
+  // Ohne laufenden Termin zeigt die Island das heutige Datum statt eines Platzhalters.
+  const nowDate = new Date(now);
+  const dayTile = (
+    <div className="h-full flex flex-col justify-between">
+      <small className="block text-[10px] font-bold uppercase leading-tight tracking-[0.09em]">
+        {nowDate.toLocaleDateString('de-DE', { weekday: 'long' })}
+      </small>
+      <div className="flex items-end justify-between">
+        <b className="font-bold leading-[0.9] tracking-[-0.05em]" style={{ fontSize: 52 }}>{nowDate.getDate()}</b>
+        <small className="text-[10px] font-bold uppercase tracking-[0.09em] opacity-55">
+          {nowDate.toLocaleDateString('de-DE', { month: 'short' })}
+        </small>
+      </div>
+    </div>
+  );
+
+  const content = !current ? dayTile : (
     <div className="h-full flex flex-col justify-between">
       <div>
         <small className="block truncate text-[10px] font-bold uppercase leading-tight tracking-[0.09em]">{title}</small>

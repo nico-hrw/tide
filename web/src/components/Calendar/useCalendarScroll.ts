@@ -13,6 +13,10 @@ interface UseCalendarScrollParams {
     activePopover: ActivePopover | null;
     setActivePopover: React.Dispatch<React.SetStateAction<ActivePopover | null>>;
     lastPopoverOpenTimeRef: React.MutableRefObject<number>;
+    /** Single-week mode: no edge loading and no scroll-driven date changes. */
+    singleWeek: boolean;
+    /** Set right before a scroll-driven date change so the window is not reset. */
+    scrollDrivenDateRef: React.MutableRefObject<boolean>;
 }
 
 /**
@@ -30,6 +34,8 @@ export function useCalendarScroll({
     activePopover,
     setActivePopover,
     lastPopoverOpenTimeRef,
+    singleWeek,
+    scrollDrivenDateRef,
 }: UseCalendarScrollParams) {
     const [todayButtonDir, setTodayButtonDir] = useState<'hidden' | 'left' | 'right'>('hidden');
     const [todayAngle, setTodayAngle] = useState<number>(0);
@@ -198,6 +204,8 @@ export function useCalendarScroll({
         const threshold = 300;
         // console.log("Scroll Debug:", { scrollLeft, scrollWidth, clientWidth, threshold });
 
+        if (singleWeek) return; // exactly one week: nothing to load, the date only changes via navigation
+
         if (scrollLeft < threshold) {
             setLoadedWeeks(prev => {
                 const firstLoaded = prev[0];
@@ -243,11 +251,12 @@ export function useCalendarScroll({
             if (dayStr) {
                 const currentCenterDate = new Date(dayStr);
                 if (!isSameDay(currentCenterDate, date)) {
+                    scrollDrivenDateRef.current = true;
                     onDateChange(currentCenterDate);
                 }
             }
         }
-    }, [onDateChange, date, updateVisibleRange]);
+    }, [onDateChange, date, updateVisibleRange, singleWeek, scrollDrivenDateRef]);
 
     useEffect(() => {
         const container = scrollContainerRef.current;

@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Calendar, FileText, CheckSquare, Search, SlidersHorizontal, Plus } from 'lucide-react';
+import { Calendar, FileText, CheckSquare, Plus } from 'lucide-react';
 
 export type MobileTab = 'calendar' | 'notes' | 'todos';
 
@@ -32,10 +32,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   activeTab,
   onTabChange,
   onTabReclick,
-  isSearchOpen,
-  onToggleSearch,
-  isFilterOpen,
-  onToggleFilter,
   onFabClick,
   badges,
   className = '',
@@ -86,29 +82,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             </button>
           );
         })}
-      </div>
-
-      {/* 2. Mittlere Kapsel: Suche & Filter */}
-      <div className={capsuleClass}>
-        <button
-          type="button"
-          onClick={onToggleSearch}
-          aria-label="Suche umschalten"
-          aria-expanded={isSearchOpen}
-          className={getButtonClass(isSearchOpen)}
-        >
-          <Search size={20} />
-        </button>
-
-        <button
-          type="button"
-          onClick={onToggleFilter}
-          aria-label="Filter umschalten"
-          aria-expanded={isFilterOpen}
-          className={getButtonClass(isFilterOpen)}
-        >
-          <SlidersHorizontal size={20} />
-        </button>
       </div>
 
       {/* 3. Rechte Kapsel: Floating Action Button (+) */}
