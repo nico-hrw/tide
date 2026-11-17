@@ -16,6 +16,8 @@ export interface NoteBackupPoint {
     formattedTime: string;
     isCurrent: boolean;
     timestamp?: string;
+    /** Collaborator name when the save point came from someone else; unset = automatic. */
+    authorName?: string;
 }
 
 export interface UseNoteBackupsOptions {

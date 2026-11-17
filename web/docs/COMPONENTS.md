@@ -96,6 +96,12 @@
 | FontSize | `web/src/components/extensions/FontSize.ts` | Font size override |
 | PencilInkExtension | `web/src/components/extensions/PencilInkExtension.ts` | TipTap document-level attribute extension (`inkStrokes`) persisting freehand Apple Pencil vector strokes in ProseMirror JSON. |
 | HighlightContext | `web/src/components/HighlightContext.tsx` | React context for active highlight |
+| NoteOutline | `web/src/components/Editor/NoteOutline.tsx` | Tide 2 outline (Gliederung): H2/H3 bars at the top left beside the text (current section longer + `t2-blue`), hover card lists headings, click scrolls. Mounted inside the scroll container in `CanvasWorkspace`. |
+| SaveStateIcon | `web/src/components/Editor/SaveStateIcon.tsx` | Animated stroke-only save indicator (saved check draws, saving arc spins, failed `!` shakes, shared-live two-people pulses) + tooltip. State logic stays in `CanvasWorkspace` (`saveStatus`). |
+| NoteHistoryLabel | `web/src/components/Editor/NoteHistoryLabel.tsx` | "Zuletzt bearbeitet vor …" in the note header; toggles the on-page version timeline (replaces the clock button). |
+| NoteHistoryTimeline | `web/src/components/Editor/NoteHistoryTimeline.tsx` | On-page vertical timeline at the right edge (line grows, points at heights proportional to age). Selecting a point shows **Ansehen** (opens `NoteVersionDiffView`, state `isViewingVersion`) and **Wiederherstellen** (`handleApplyHistory`). Content column shifts left via `lg:pr-[300px]` on the scroll container. Replaces the removed `NoteVersionTimeline`. |
+| NoteBreadcrumb | `web/src/components/Editor/NoteBreadcrumb.tsx` | Small pale folder path above the note title (`text-t2-ink-3`). |
+| noteChrome.css | `web/src/components/Editor/noteChrome.css` | Keyframes/styles for the three components above, using `--t2-*` tokens. |
 
 ## Smart Island
 
