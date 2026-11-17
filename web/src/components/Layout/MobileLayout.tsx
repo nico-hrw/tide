@@ -331,7 +331,9 @@ const FolderItem = React.memo(function FolderItem({
         <span className="text-sm font-semibold flex-1 text-left truncate" style={{ color: isOver ? T.accent : T.pri }}>
           {displayTitle}
         </span>
-        {children.length > 0 && (
+        {isLocked ? (
+          <Lock size={13} className="shrink-0" style={{ color: T.mut }} aria-label="PIN-geschützt" />
+        ) : children.length > 0 && (
           <span className="text-[12px] tabular-nums shrink-0" style={{ color: T.mut }}>{children.length}</span>
         )}
       </button>
@@ -1939,44 +1941,25 @@ export default function MobileLayout({
       /* ── Notes tab ── */
       <div className="flex flex-col" style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}>
         {/* Notes header */}
-        <div className="px-5 py-3 flex items-center justify-between">
-          <span className="text-lg font-extrabold" style={{ color: T.pri }}>Notizen</span>
-          <div
-            className="flex items-center p-0.5 rounded-xl border"
-            style={{
-              background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
-              borderColor: T.brd,
-            }}
-          >
+        <div className="px-5 pt-3 pb-1">
+          <span className="block text-[28px] font-bold tracking-[-0.025em] leading-tight text-t2-ink">Notizen</span>
+        </div>
+        {/* Segment: Liste / Kacheln, links wie im Mockup */}
+        <div className="flex gap-1 px-5 pb-2" role="tablist" aria-label="Ansicht">
+          {([['list', 'Liste'], ['grid', 'Kacheln']] as const).map(([mode, label]) => (
             <button
-              onClick={() => { setNotesViewMode('list'); try { localStorage.setItem('tide_notes_view', 'list'); } catch {} }}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer"
-              style={{
-                background: notesViewMode === 'list'
-                  ? (theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)')
-                  : 'transparent',
-                color: notesViewMode === 'list' ? T.pri : T.mut,
-              }}
-              title="Liste"
+              key={mode}
+              type="button"
+              role="tab"
+              aria-selected={notesViewMode === mode}
+              onClick={() => { setNotesViewMode(mode); try { localStorage.setItem('tide_notes_view', mode); } catch {} }}
+              className={`px-3 py-1.5 rounded-full text-[13.5px] transition-colors ${
+                notesViewMode === mode ? 'bg-t2-sub font-semibold text-t2-ink' : 'font-medium text-t2-ink-3'
+              }`}
             >
-              <List size={14} />
-              <span>Liste</span>
+              {label}
             </button>
-            <button
-              onClick={() => { setNotesViewMode('grid'); try { localStorage.setItem('tide_notes_view', 'grid'); } catch {} }}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all active:scale-95 cursor-pointer"
-              style={{
-                background: notesViewMode === 'grid'
-                  ? (theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)')
-                  : 'transparent',
-                color: notesViewMode === 'grid' ? T.pri : T.mut,
-              }}
-              title="Kacheln"
-            >
-              <LayoutGrid size={14} />
-              <span>Kacheln</span>
-            </button>
-          </div>
+          ))}
         </div>
         {/* Workspace selector bar */}
         <SidebarQuickNotes className="px-3 pb-1 shrink-0" />

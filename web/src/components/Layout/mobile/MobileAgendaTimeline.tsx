@@ -282,45 +282,12 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
   type TimelineEventItemType = DbTimelineDayProps['allDayEvs'][number];
 
   const sortedAllDayTodos = useMemo(() => {
-    const rootTodos: TimelineEventItemType[] = [];
-    const childrenMap = new Map<string, TimelineEventItemType[]>();
-
-    allDayTodos.forEach(e => {
+    // Only top-level todos appear in the calendar. Subtodos are never shown on their own;
+    // they belong to their parent and appear when the parent is expanded.
+    return allDayTodos.filter(e => {
       const task = e.linkedTaskId ? tasks?.find(t => t.id === e.linkedTaskId) : undefined;
-      const parentId = task?.parentId || e.parent_id;
-      if (parentId) {
-        if (!childrenMap.has(parentId)) childrenMap.set(parentId, []);
-        childrenMap.get(parentId)!.push(e);
-      } else {
-        rootTodos.push(e);
-      }
+      return !(task?.parentId || e.parent_id);
     });
-
-    const result: TimelineEventItemType[] = [];
-    const visited = new Set<string>();
-
-    rootTodos.forEach(root => {
-      result.push(root);
-      visited.add(root.id);
-      const taskId = root.linkedTaskId || root.id;
-      const children = (childrenMap.get(taskId) || []).concat(childrenMap.get(root.id) || []);
-      const uniqueChildren = Array.from(new Set(children));
-      uniqueChildren.forEach(child => {
-        if (!visited.has(child.id)) {
-          result.push(child);
-          visited.add(child.id);
-        }
-      });
-    });
-
-    allDayTodos.forEach(e => {
-      if (!visited.has(e.id)) {
-        result.push(e);
-        visited.add(e.id);
-      }
-    });
-
-    return result;
   }, [allDayTodos, tasks]);
 
   const isTodoEv = (e: { is_task?: boolean; linkedTaskId?: string }) => !!(e.is_task || e.linkedTaskId);
