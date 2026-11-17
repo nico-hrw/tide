@@ -1745,16 +1745,17 @@ export default function MobileLayout({
                   );
                 })}
               </div>
-              <button
-                onClick={handleGoToToday}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all active:scale-95 shrink-0 cursor-pointer ${
-                  isSameDay(activeDate, now) ? 'bg-t2-sub text-t2-ink-3' : 'bg-t2-ink text-t2-bg'
-                }`}
-                title="Zum heutigen Tag springen"
-              >
-                <RotateCcw size={11} />
-                <span>Heute</span>
-              </button>
+              {/* Heute-Knopf nur, wenn der Kalender nicht auf heute steht */}
+              {!isSameDay(activeDate, now) && (
+                <button
+                  onClick={handleGoToToday}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all active:scale-95 shrink-0 cursor-pointer bg-t2-ink text-t2-bg"
+                  title="Zum heutigen Tag springen"
+                >
+                  <RotateCcw size={11} />
+                  <span>Heute</span>
+                </button>
+              )}
             </div>
           )}
           </div>

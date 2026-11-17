@@ -65,7 +65,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
         <button
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-t2-sub text-t2-ink-2 text-[13px] font-medium cursor-pointer select-none max-w-[11rem]"
+            className="flex items-center gap-1 px-1 py-1.5 bg-transparent text-t2-ink-2 text-[13px] font-semibold cursor-pointer select-none max-w-[12rem]"
             title="Workspace wechseln"
             aria-expanded={isOpen}
         >
@@ -108,7 +108,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
                         className={compact
-                            ? 'absolute right-0 top-full z-50 mt-1.5 w-60 p-1.5 rounded-xl bg-[var(--sidebar-bg)] border border-black/5 dark:border-white/10 shadow-xl space-y-1 overflow-hidden'
+                            ? 'absolute right-0 top-full z-50 mt-2 w-60 p-1.5 rounded-2xl bg-[var(--sidebar-bg)] border border-black/5 dark:border-white/10 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] space-y-0.5 overflow-hidden'
                             : 'mx-2 mb-2 p-1.5 rounded-lg bg-[var(--sidebar-bg)] border border-black/5 dark:border-white/5 space-y-1 overflow-hidden'}
                     >
                         {/* List of safes */}
