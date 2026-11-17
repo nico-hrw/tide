@@ -53,6 +53,7 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
   const isUserTouching = useRef(false);
   const rafId = useRef<number | null>(null);
   const mountedRef = useRef(false);
+  const lastUserInputRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -284,6 +285,7 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
     };
 
     const onTouchStart = () => {
+      lastUserInputRef.current = Date.now();
       isUserTouching.current = true;
       isProgrammaticScroll.current = false;
       if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
@@ -336,8 +338,9 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
       if (rafId.current) cancelAnimationFrame(rafId.current);
       rafId.current = requestAnimationFrame(updateMagnifier);
 
+      // Monat nur einblenden, wenn der Nutzer gerade scrollt (nicht beim automatischen Zentrieren).
       if (!isProgrammaticScroll.current) {
-        showMonth();
+        if (isUserTouching.current || Date.now() - lastUserInputRef.current < 1500) showMonth();
         if (scrollTimeoutRef.current) {
           clearTimeout(scrollTimeoutRef.current);
         }

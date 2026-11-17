@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { Calendar, FileText, CheckSquare, Plus } from 'lucide-react';
+import { Calendar, FileText, CheckSquare, MoreHorizontal, Plus } from 'lucide-react';
 
 export type MobileTab = 'calendar' | 'notes' | 'todos';
 
@@ -9,10 +9,8 @@ export interface MobileBottomNavProps {
   activeTab: MobileTab;
   onTabChange: (tab: MobileTab) => void;
   onTabReclick?: (tab: MobileTab) => void;
-  isSearchOpen: boolean;
-  onToggleSearch: () => void;
-  isFilterOpen: boolean;
-  onToggleFilter: () => void;
+  /** „Mehr“ öffnet die Seitenleiste mit Optionen und Erweiterungen. */
+  onMoreClick?: () => void;
   onFabClick: () => void;
   badges?: {
     calendar?: number;
@@ -22,76 +20,80 @@ export interface MobileBottomNavProps {
   className?: string;
 }
 
-const TABS: { id: MobileTab; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+const TABS: { id: MobileTab; label: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }> }[] = [
   { id: 'calendar', label: 'Kalender', icon: Calendar },
   { id: 'notes', label: 'Notizen', icon: FileText },
-  { id: 'todos', label: 'Aufgaben', icon: CheckSquare },
+  { id: 'todos', label: 'Todos', icon: CheckSquare },
 ];
 
+/**
+ * Untere Leiste: ruhige Fläche mit vier Bereichen, der aktive zeigt seinen Namen.
+ * Der Erstellen-Knopf steht getrennt rechts daneben.
+ */
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   activeTab,
   onTabChange,
   onTabReclick,
+  onMoreClick,
   onFabClick,
   badges,
   className = '',
 }) => {
-  const capsuleClass =
-    'pointer-events-auto bg-white/85 dark:bg-neutral-900/85 backdrop-blur-md border border-neutral-200/80 dark:border-neutral-800 rounded-full p-1.5 shadow-lg flex items-center gap-1';
+  const itemBase =
+    'relative h-11 min-w-[40px] px-2.5 rounded-2xl flex items-center justify-center gap-1.5 text-[12px] font-semibold whitespace-nowrap transition-colors active:scale-95';
 
-  const getButtonClass = (isActive: boolean) =>
-    `relative w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 ${
-      isActive
-        ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-sm'
-        : 'text-neutral-400 dark:text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800'
-    }`;
+  const renderTab = (tab: (typeof TABS)[number]) => {
+    const Icon = tab.icon;
+    const isActive = activeTab === tab.id;
+    const badgeCount = badges?.[tab.id];
+    return (
+      <button
+        key={tab.id}
+        type="button"
+        onClick={() => {
+          if (isActive && onTabReclick) onTabReclick(tab.id);
+          onTabChange(tab.id);
+        }}
+        aria-label={tab.label}
+        aria-current={isActive ? 'page' : undefined}
+        className={`${itemBase} ${isActive ? 'bg-t2-sub text-t2-ink' : 'text-t2-ink-3'}`}
+      >
+        <Icon size={20} strokeWidth={1.7} />
+        {isActive && <span>{tab.label}</span>}
+        {typeof badgeCount === 'number' && badgeCount > 0 && (
+          <span className="absolute -top-1 -right-0.5 min-w-[18px] h-[18px] px-1 bg-t2-late text-white text-[10px] font-bold rounded-full flex items-center justify-center pointer-events-none">
+            {badgeCount > 99 ? '99+' : badgeCount}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
     <nav
       aria-label="Mobile Navigation"
-      className={`fixed bottom-0 left-0 right-0 px-4 pb-2 sm:pb-2.5 pt-1.5 flex items-center justify-between z-20 pointer-events-none ${className}`}
-      style={{ paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}
+      className={`fixed bottom-0 left-0 right-0 px-4 pt-1.5 flex items-center gap-2 z-20 pointer-events-none ${className}`}
+      style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}
     >
-      {/* 1. Linke Kapsel: Kalender / Notizen / Aufgaben */}
-      <div className={capsuleClass}>
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          const badgeCount = badges?.[tab.id];
-
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => {
-                if (isActive && onTabReclick) {
-                  onTabReclick(tab.id);
-                }
-                onTabChange(tab.id);
-              }}
-              aria-label={tab.label}
-              aria-current={isActive ? 'page' : undefined}
-              className={getButtonClass(isActive)}
-            >
-              <Icon size={20} />
-              {typeof badgeCount === 'number' && badgeCount > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center pointer-events-none">
-                  {badgeCount > 99 ? '99+' : badgeCount}
-                </span>
-              )}
-            </button>
-          );
-        })}
+      <div className="pointer-events-auto flex-1 min-w-0 h-[62px] rounded-[24px] bg-t2-bg border border-t2-line shadow-[0_6px_18px_-10px_rgba(0,0,0,0.25)] flex items-center justify-between px-2">
+        {TABS.map(renderTab)}
+        <button
+          type="button"
+          onClick={onMoreClick}
+          aria-label="Mehr"
+          className={`${itemBase} text-t2-ink-3`}
+        >
+          <MoreHorizontal size={20} strokeWidth={1.7} />
+        </button>
       </div>
 
-      {/* 3. Rechte Kapsel: Floating Action Button (+) */}
       <button
         type="button"
         onClick={onFabClick}
         aria-label="Neues Element erstellen"
-        className="pointer-events-auto w-[52px] h-[52px] rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 flex items-center justify-center shadow-lg hover:bg-neutral-800 dark:hover:bg-neutral-100 active:scale-95 transition-all"
+        className="pointer-events-auto w-[52px] h-[52px] shrink-0 rounded-full bg-cal-praktikum text-white flex items-center justify-center shadow-[0_6px_18px_-10px_rgba(0,0,0,0.35)] active:scale-95 transition-transform"
       >
-        <Plus size={24} />
+        <Plus size={22} />
       </button>
     </nav>
   );

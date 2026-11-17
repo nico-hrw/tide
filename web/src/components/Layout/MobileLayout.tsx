@@ -1546,6 +1546,7 @@ export default function MobileLayout({
             key={`edit-${editingEvent.id}`}
             event={editingEvent}
             themes={resolvedThemes}
+            onDelete={(id) => onEventDelete?.(id)}
             onSave={(id, start, end, meta) => {
               if (onEventSave) {
                 onEventSave(id, {
@@ -2415,15 +2416,7 @@ export default function MobileLayout({
                 window.dispatchEvent(new CustomEvent('tide:scroll-to-today'));
               }
             }}
-            isSearchOpen={isSearchOpen}
-            onToggleSearch={() => {
-              if (!isSearchOpen) setSearchQuery('');
-              setIsSearchOpen((prev) => !prev);
-            }}
-            isFilterOpen={isFilterOpen}
-            onToggleFilter={() => {
-              setIsFilterOpen((prev) => !prev);
-            }}
+            onMoreClick={() => setIsSidebarOpen(true)}
             onFabClick={() => {
               setIsPlusMenuOpen((prev) => !prev);
             }}
