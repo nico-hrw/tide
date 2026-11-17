@@ -3,14 +3,15 @@
 import React, { useMemo, useState } from 'react';
 import { useDataStore } from '@/store/useDataStore';
 import type { TaskItem } from '@/store/slices/types';
-import { parseDateSafe, getTaskPriority, PRIORITY_CONFIG } from './types';
+import { getTaskPriority, PRIORITY_OPTIONS, type Priority } from './types';
 import { TodoProgressRing, CheckMark } from './MobileTodoParts';
 
-/** Vollansicht eines Todos am Handy: Fakten, großer Ring und alle Untertodos. */
+/** Vollansicht eines Todos am Handy: Eigenschaften bearbeitbar, großer Ring und alle Untertodos. */
 export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () => void }) {
   const tasks = useDataStore((s) => s.tasks) as TaskItem[];
   const toggleTask = useDataStore((s) => s.toggleTask);
   const addTask = useDataStore((s) => s.addTask);
+  const updateTask = useDataStore((s) => s.updateTask);
   const deleteTask = useDataStore((s) => s.deleteTask);
   const [draft, setDraft] = useState('');
 
@@ -19,7 +20,6 @@ export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () 
     [tasks, task.id],
   );
   const done = children.filter((c) => c.isCompleted).length;
-  const due = parseDateSafe(task.dueDate || task.scheduledDate);
   const priority = getTaskPriority(task);
 
   const toggleAll = () => {
@@ -41,6 +41,27 @@ export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () 
     onBack();
   };
 
+  const saveTitle = (value: string) => {
+    const title = value.trim();
+    if (!title || title === task.title) return;
+    void updateTask(task.id, { title });
+  };
+
+  const saveDate = (value: string) => {
+    const v = value || undefined;
+    void updateTask(task.id, { dueDate: v, scheduledDate: v });
+  };
+
+  const savePriority = (value: string) => {
+    void updateTask(task.id, { priority: value as Priority });
+  };
+
+  const saveFolder = (value: string) => {
+    const folder = value.trim() || undefined;
+    if (folder === (task.folder || undefined)) return;
+    void updateTask(task.id, { folder });
+  };
+
   return (
     <div className="flex flex-col h-full min-h-0 bg-t2-bg">
       <div className="flex items-center gap-2 px-3 pt-3 pb-1">
@@ -50,15 +71,50 @@ export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () 
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 pb-10">
-        <div className="text-[13px] text-t2-ink-3">{task.folder || 'Ohne Ordner'}</div>
-        <h2 className={`mt-1 text-[26px] font-bold leading-tight tracking-[-0.02em] text-t2-ink ${task.isCompleted ? 'line-through opacity-50' : ''}`}>
-          {task.title}
-        </h2>
+        <input
+          key={`title-${task.id}-${task.title}`}
+          defaultValue={task.title}
+          onBlur={(e) => saveTitle(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          aria-label="Titel"
+          enterKeyHint="done"
+          className={`mt-1 w-full bg-transparent text-[26px] font-bold leading-tight tracking-[-0.02em] text-t2-ink outline-none ${task.isCompleted ? 'line-through opacity-50' : ''}`}
+        />
 
         <div className="mt-4 flex flex-col">
-          <Fact label="Fällig" value={due ? due.toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: 'long' }) : 'Kein Datum'} />
-          <Fact label="Priorität" value={PRIORITY_CONFIG[priority].label} />
-          <Fact label="Ordner" value={task.folder || '–'} />
+          <Fact label="Fällig">
+            <input
+              type="date"
+              defaultValue={task.dueDate || task.scheduledDate || ''}
+              onChange={(e) => saveDate(e.target.value)}
+              aria-label="Fälligkeitsdatum"
+              className="w-full bg-transparent text-right text-t2-ink outline-none"
+            />
+          </Fact>
+          <Fact label="Priorität">
+            <select
+              value={priority}
+              onChange={(e) => savePriority(e.target.value)}
+              aria-label="Priorität"
+              className="w-full bg-transparent text-right text-t2-ink outline-none"
+            >
+              {PRIORITY_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </Fact>
+          <Fact label="Ordner">
+            <input
+              key={`folder-${task.id}-${task.folder ?? ''}`}
+              defaultValue={task.folder || ''}
+              placeholder="Kein Ordner"
+              onBlur={(e) => saveFolder(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+              aria-label="Ordner"
+              enterKeyHint="done"
+              className="w-full bg-transparent text-right text-t2-ink outline-none placeholder:text-t2-ink-3"
+            />
+          </Fact>
         </div>
 
         <div className="mt-6 flex items-center gap-3">
@@ -101,12 +157,12 @@ export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () 
   );
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 border-b border-t2-line-soft py-3 text-[14.5px]">
+    <label className="flex items-center gap-3 border-b border-t2-line-soft py-3 text-[14.5px]">
       <span className="w-[90px] shrink-0 text-[13px] text-t2-ink-3">{label}</span>
-      <span className="flex-1 min-w-0 truncate text-t2-ink">{value}</span>
-    </div>
+      <span className="flex-1 min-w-0">{children}</span>
+    </label>
   );
 }
 

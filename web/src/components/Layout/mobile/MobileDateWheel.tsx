@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { format, addDays, isSameDay, isAfter } from 'date-fns';
+import { format, addDays, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { ArrowRight, ArrowLeft } from 'lucide-react';
 
 const T = {
   bg:     'var(--background)',
@@ -492,20 +491,6 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
         </div>
       </div>
 
-      {!isSameDay(activeDate, now) && (
-        <button
-          onClick={() => onSelectDate(now)}
-          className="w-8 h-8 flex items-center justify-center rounded-xl shrink-0 transition-transform active:scale-90"
-          style={{
-            background: theme === 'dark' ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
-            color: theme === 'dark' ? '#9ca3af' : '#4b5563',
-            border: `1px solid ${T.brd}`,
-          }}
-          title={isAfter(now, activeDate) ? 'Vor zu Heute' : 'Zurück zu Heute'}
-        >
-          {isAfter(now, activeDate) ? <ArrowRight size={16} /> : <ArrowLeft size={16} />}
-        </button>
-      )}
     </div>
   );
 });

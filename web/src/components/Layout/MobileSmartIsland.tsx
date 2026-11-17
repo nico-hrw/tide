@@ -78,11 +78,11 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
   const current = useMemo(() => findCurrent(events, now), [events, now]);
   const minutes = current ? Math.max(1, Math.ceil((current.endMs - now) / 60000)) : null;
   const pal = current ? paletteFor(current.event.color) : null;
-  const title = current ? (current.event.title || 'Termin').toUpperCase() : '';
+  const title = current ? (current.event.title || 'Termin') : '';
 
   const bg = pal ? pal.bg : 'var(--t2-ink)';
   const ink = pal ? pal.ink : 'var(--t2-bg)';
-  const bigSize = minutes !== null && minutes >= 100 ? 40 : 52;
+  const bigSize = minutes !== null && minutes >= 100 ? 34 : 42;
 
   // Ohne laufenden Termin zeigt die Island das heutige Datum statt eines Platzhalters.
   const nowDate = new Date(now);
@@ -92,7 +92,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         {nowDate.toLocaleDateString('de-DE', { weekday: 'long' })}
       </small>
       <div className="flex items-end justify-between">
-        <b className="font-bold leading-[0.9] tracking-[-0.05em]" style={{ fontSize: 52 }}>{nowDate.getDate()}</b>
+        <b className="font-bold leading-[0.9] tracking-[-0.05em]" style={{ fontSize: 42 }}>{nowDate.getDate()}</b>
         <small className="text-[10px] font-bold uppercase tracking-[0.09em] opacity-55">
           {nowDate.toLocaleDateString('de-DE', { month: 'short' })}
         </small>
@@ -102,21 +102,18 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
 
   const content = !current ? dayTile : (
     <div className="h-full flex flex-col justify-between">
-      <div>
-        <small className="block truncate text-[10px] font-bold uppercase leading-tight tracking-[0.09em]">{title}</small>
-        <small className="block text-[10px] font-bold uppercase leading-tight tracking-[0.09em] opacity-55">IN</small>
+      <span className="block truncate text-[12.5px] font-bold leading-tight">{title}</span>
+      <div className="flex items-baseline gap-1">
+        <b className="font-bold leading-[0.9] tracking-[-0.05em]" style={{ fontSize: bigSize }}>{minutes ?? '–'}</b>
+        {minutes !== null && <span className="text-[12px] font-semibold">min</span>}
       </div>
-      <b className="font-bold leading-[0.9] tracking-[-0.05em]" style={{ fontSize: bigSize }}>
-        {minutes ?? '–'}
-        {minutes !== null && <i className="not-italic text-[16px] font-semibold tracking-normal"> min</i>}
-      </b>
     </div>
   );
 
   const fmt = (ms: number) => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
   return (
-    <div ref={ref} className={`relative shrink-0 ${className ?? ''}`} style={{ width: 112, height: 104 }}>
+    <div ref={ref} className={`relative shrink-0 ${className ?? ''}`} style={{ width: 96, height: 92 }}>
       <div
         role="button"
         tabIndex={0}
@@ -124,11 +121,11 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
         onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && current) setOpen(o => !o); }}
         className="absolute top-0 right-0 cursor-pointer select-none active:scale-[0.98] transition-transform"
         style={{
-          width: open ? 240 : 112,
-          height: open ? 'auto' : 104,
-          minHeight: 104,
-          padding: open ? '16px 16px 14px' : '13px 14px',
-          borderRadius: 24,
+          width: open ? 240 : 96,
+          height: open ? 'auto' : 92,
+          minHeight: 92,
+          padding: open ? '16px 16px 14px' : '11px 12px',
+          borderRadius: 20,
           background: bg,
           color: ink,
           zIndex: open ? 50 : 1,
@@ -137,7 +134,7 @@ export const MobileSmartIsland = React.memo(function MobileSmartIsland({
       >
         {open && current ? (
           <div className="flex flex-col gap-3">
-            <div style={{ height: 80 }}>{content}</div>
+            <div style={{ height: 72 }}>{content}</div>
             <div className="text-[13px] font-semibold leading-snug">{current.event.title || 'Termin'}</div>
             <div className="flex items-center justify-between text-[12px] opacity-80">
               <span>{fmt(current.startMs)} – {fmt(current.endMs)} Uhr</span>

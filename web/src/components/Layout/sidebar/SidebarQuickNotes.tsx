@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
     Plus,
     Archive,
@@ -9,7 +9,7 @@ import {
     X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useSafes } from "@/store/useDataStore";
+import { useSafes, useDataStore } from "@/store/useDataStore";
 import type { SidebarProps } from "./types";
 
 export type QuickNotesProps = Partial<
@@ -25,9 +25,11 @@ export type QuickNotesProps = Partial<
 > & {
     onImport?: () => void;
     className?: string;
+    /** Mobile: nur eine kleine Pille, die Liste öffnet sich als Popover nach rechts unten. */
+    compact?: boolean;
 };
 
-const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className }) => {
+const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = false }) => {
     const {
         availableSafes,
         activeSafes,
@@ -36,6 +38,17 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className }) => {
         createSafe,
         deleteSafe,
     } = useSafes();
+    const notes = useDataStore((s) => s.notes);
+
+    // Alle Workspaces: die gespeicherte Liste plus alle, die an Notizen hängen (z. B. von anderen Geräten).
+    const allSafes = useMemo(() => {
+        const set = new Set<string>(['main', ...availableSafes]);
+        notes.forEach((n) => {
+            const s = n.safe || (n.metadata as { safe?: string } | undefined)?.safe;
+            if (s) set.add(s === 'Standard' ? 'main' : s);
+        });
+        return Array.from(set);
+    }, [availableSafes, notes]);
 
     const [isOpen, setIsOpen] = useState(false);
     const [isCreatingSafe, setIsCreatingSafe] = useState(false);
@@ -48,30 +61,45 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className }) => {
             ? `${activeSafes.length} Workspaces aktiv`
             : 'Kein Workspace';
 
-    return (
-        <div className={className || "flex-shrink-0 pt-[max(0.75rem,calc(env(safe-area-inset-top)+8px))] pb-0"}>
-            {/* Minimalist Archive / Safe full-width button */}
-            <button
-                type="button"
-                onClick={() => setIsOpen((prev) => !prev)}
-                className="w-[calc(100%-1rem)] mx-2 mb-2 px-3 py-2 rounded-lg bg-[var(--hover-bg)] dark:bg-white/[0.05] border border-black/5 dark:border-white/5 flex items-center justify-between cursor-pointer select-none transition-colors hover:bg-black/5 dark:hover:bg-white/10"
-                title="Workspace wechseln"
-            >
-                <div className="flex items-center gap-2 min-w-0">
-                    <Archive size={15} className="shrink-0 text-[var(--text-muted)]" />
-                    <span className="text-xs font-semibold text-[var(--text-body)] truncate">
-                        {safeLabel}
-                    </span>
-                </div>
-                <ChevronDown
-                    size={14}
-                    className={`shrink-0 text-[var(--text-muted)] transition-transform duration-200 ${
-                        isOpen ? 'rotate-180' : ''
-                    }`}
-                />
-            </button>
+    const toggleButton = compact ? (
+        <button
+            type="button"
+            onClick={() => setIsOpen((prev) => !prev)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-t2-sub text-t2-ink-2 text-[13px] font-medium cursor-pointer select-none max-w-[11rem]"
+            title="Workspace wechseln"
+            aria-expanded={isOpen}
+        >
+            <Archive size={14} className="shrink-0 text-t2-ink-3" />
+            <span className="truncate">{safeLabel}</span>
+            <ChevronDown size={14} className={`shrink-0 text-t2-ink-3 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+    ) : (
+        <button
+            type="button"
+            onClick={() => setIsOpen((prev) => !prev)}
+            className="w-[calc(100%-1rem)] mx-2 mb-2 px-3 py-2 rounded-lg bg-[var(--hover-bg)] dark:bg-white/[0.05] border border-black/5 dark:border-white/5 flex items-center justify-between cursor-pointer select-none transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+            title="Workspace wechseln"
+        >
+            <div className="flex items-center gap-2 min-w-0">
+                <Archive size={15} className="shrink-0 text-[var(--text-muted)]" />
+                <span className="text-xs font-semibold text-[var(--text-body)] truncate">
+                    {safeLabel}
+                </span>
+            </div>
+            <ChevronDown
+                size={14}
+                className={`shrink-0 text-[var(--text-muted)] transition-transform duration-200 ${
+                    isOpen ? 'rotate-180' : ''
+                }`}
+            />
+        </button>
+    );
 
-            {/* Inline collapsible safe list */}
+    return (
+        <div className={compact ? 'relative shrink-0' : (className || "flex-shrink-0 pt-[max(0.75rem,calc(env(safe-area-inset-top)+8px))] pb-0")}>
+            {toggleButton}
+
+            {/* Safe list: inline in der Seitenleiste, als Popover in der kompakten Variante */}
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
@@ -79,11 +107,13 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className }) => {
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
-                        className="mx-2 mb-2 p-1.5 rounded-lg bg-[var(--sidebar-bg)] border border-black/5 dark:border-white/5 space-y-1 overflow-hidden"
+                        className={compact
+                            ? 'absolute right-0 top-full z-50 mt-1.5 w-60 p-1.5 rounded-xl bg-[var(--sidebar-bg)] border border-black/5 dark:border-white/10 shadow-xl space-y-1 overflow-hidden'
+                            : 'mx-2 mb-2 p-1.5 rounded-lg bg-[var(--sidebar-bg)] border border-black/5 dark:border-white/5 space-y-1 overflow-hidden'}
                     >
                         {/* List of safes */}
                         <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto no-scrollbar">
-                            {availableSafes.map((safe, idx) => {
+                            {allSafes.map((safe, idx) => {
                                 const isActive = activeSafes.includes(safe);
                                 return (
                                     <motion.div

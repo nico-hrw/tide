@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, CheckCheck, ListTodo } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import type { TaskItem } from '@/store/slices/types';
 import { buildTaskTree } from './treeUtils';
 import { TaskWithChildren, isTaskArchived, parseDateSafe } from './types';
 import { MobileTodoDetail } from './MobileTodoDetail';
-import { TodoProgressRing, CheckMark } from './MobileTodoParts';
+import { TodoProgressRing, CheckMark, SwipeRow } from './MobileTodoParts';
+import { MobilePriorityIcon } from './MobileTodoStyle';
 
 const kids = (t: TaskWithChildren): TaskWithChildren[] => t.children ?? [];
 
@@ -16,6 +18,11 @@ function startOfToday(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+function isDueToday(t: TaskWithChildren): boolean {
+  const due = parseDateSafe(t.dueDate || t.scheduledDate);
+  return !!due && due.toDateString() === new Date().toDateString();
 }
 
 /** Heute, überfällig oder ohne Datum. Erledigte und archivierte Todos gehören nicht in die Gruppen. */
@@ -62,9 +69,8 @@ function dateBlock(t: TaskWithChildren, isToday: boolean): React.ReactNode {
   const due = parseDateSafe(t.dueDate || t.scheduledDate);
   if (isToday) return <div className="w-[44px] shrink-0 text-center text-[13px] font-bold">Heute</div>;
   if (!due) return <div className="w-[44px] shrink-0" />;
-  const overdue = due < startOfToday();
   return (
-    <div className={`w-[44px] shrink-0 text-center leading-[1.15] ${overdue ? 'text-t2-late' : 'text-t2-ink-3'}`}>
+    <div className="w-[44px] shrink-0 text-center leading-[1.15] text-t2-ink">
       <b className="block text-[15px] font-bold">{due.getDate()}.</b>
       <small className="text-[11px] font-semibold uppercase tracking-wide">
         {due.toLocaleDateString('de-DE', { month: 'short' }).replace('.', '')}
@@ -76,9 +82,15 @@ function dateBlock(t: TaskWithChildren, isToday: boolean): React.ReactNode {
 export const MobileTodoView: React.FC = () => {
   const tasks = useDataStore((s) => s.tasks) as TaskItem[];
   const toggleTask = useDataStore((s) => s.toggleTask);
+  const deleteTask = useDataStore((s) => s.deleteTask);
   const [mode, setMode] = useState<'list' | 'folders'>('list');
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  /** Ids, deren Untertodo-Liste umgeschaltet wurde (heute: zugeklappt, sonst: aufgeklappt). */
+  const [toggled, setToggled] = useState<Set<string>>(new Set());
+  const [showCompleted, setShowCompleted] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const todayRef = useRef<HTMLDivElement>(null);
+  const scrolledRef = useRef(false);
 
   const roots = useMemo<TaskWithChildren[]>(
     () => buildTaskTree(tasks).map((t) => ({ ...t, children: kids(t) ?? [] })),
@@ -88,8 +100,24 @@ export const MobileTodoView: React.FC = () => {
     () => (mode === 'list' ? groupOpenTodos(roots) : groupByFolder(roots)),
     [roots, mode],
   );
-  const completedCount = useMemo(() => roots.filter((t) => t.isCompleted).length, [roots]);
+  const todayAll = useMemo(() => roots.filter(isDueToday), [roots]);
+  const completedRoots = useMemo(
+    () => roots
+      .filter((t) => t.isCompleted)
+      .sort((a, b) => String(b.completedAt ?? '').localeCompare(String(a.completedAt ?? ''))),
+    [roots],
+  );
   const archivedCount = useMemo(() => roots.filter((t) => isTaskArchived(t)).length, [roots]);
+
+  // Beim Öffnen auf „Heute“ scrollen, damit überfällige Todos darüber nur kurz stören.
+  useEffect(() => {
+    if (scrolledRef.current || mode !== 'list') return;
+    const box = scrollRef.current;
+    const el = todayRef.current;
+    if (!box || !el) return;
+    scrolledRef.current = true;
+    box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
+  }, [mode, sections]);
 
   const toggleOne = (id: string) => { void toggleTask(id); };
 
@@ -101,74 +129,81 @@ export const MobileTodoView: React.FC = () => {
   };
 
   const toggleExpanded = (id: string) => {
-    setExpanded((prev) => {
+    setToggled((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
 
-  const onCardTap = (t: TaskWithChildren, isToday: boolean) => {
-    if (isToday || !kids(t).length) { setDetailId(t.id); return; }
-    if (expanded.has(t.id)) setDetailId(t.id);     // zweiter Tipp: ganze Seite
-    else toggleExpanded(t.id);                     // erster Tipp: aufklappen
-  };
-
   const renderCard = (t: TaskWithChildren, isToday: boolean) => {
-    const openChildren = kids(t).filter((c) => !c.isCompleted);
-    const isOpen = expanded.has(t.id);
-    const showChildren = isToday ? openChildren.slice(0, 3) : (isOpen ? kids(t) : []);
-    const hidden = isToday ? Math.max(0, openChildren.length - 3) : 0;
+    const kidList = kids(t);
+    const hasKids = kidList.length > 0;
+    const openKids = kidList.filter((c) => !c.isCompleted);
+    const doneKids = kidList.length - openKids.length;
+    const isOpen = hasKids && (isToday ? !toggled.has(t.id) : toggled.has(t.id));
+    const shown = isOpen ? (isToday ? openKids : kidList) : [];
     const due = parseDateSafe(t.dueDate || t.scheduledDate);
     const isOverdue = !isToday && !t.isCompleted && !!due && due < startOfToday();
 
     return (
-      <div
+      <SwipeRow
         key={t.id}
-        role="button"
-        tabIndex={0}
-        onClick={() => onCardTap(t, isToday)}
-        onKeyDown={(e) => { if (e.key === 'Enter') onCardTap(t, isToday); }}
-        className={`flex items-start gap-3 rounded-[18px] p-3.5 cursor-pointer ${
-          isToday ? 'bg-cal-praktikum text-white' :'bg-[color-mix(in_srgb,#5C6E6C_8%,var(--t2-bg))] text-t2-ink'
-        }`}
+        completeLabel={t.isCompleted ? 'Wieder öffnen' : 'Erledigen'}
+        onComplete={() => toggleOne(t.id)}
+        onDelete={() => { void deleteTask(t.id); }}
       >
-        {dateBlock(t, isToday)}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={`flex-1 min-w-0 truncate text-[16px] font-semibold leading-[22px] ${t.isCompleted ? 'line-through opacity-50' : ''}`}>
-              {t.title}
-            </span>
-            {isOverdue && <span className="shrink-0 rounded-full bg-t2-late px-2 py-0.5 text-[11px] font-bold text-white">Überfällig</span>}
-            <span onClick={(e) => { e.stopPropagation(); toggleAll(t); }} role="presentation">
-              <TodoProgressRing segments={kids(t).length ? kids(t).map((c) => c.isCompleted) : [t.isCompleted]} inverted={isToday} />
-            </span>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setDetailId(t.id)}
+          onKeyDown={(e) => { if (e.key === 'Enter') setDetailId(t.id); }}
+          className={`flex items-start gap-3 p-3.5 cursor-pointer ${
+            isToday ? 'bg-cal-praktikum text-white' : 'bg-[color-mix(in_srgb,#5C6E6C_8%,var(--t2-bg))] text-t2-ink'
+          }`}
+        >
+          {dateBlock(t, isToday)}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span
+                onClick={hasKids ? (e) => { e.stopPropagation(); toggleExpanded(t.id); } : undefined}
+                className={`flex-1 min-w-0 truncate text-[16px] font-semibold leading-[22px] ${t.isCompleted ? 'line-through opacity-50' : ''}`}
+              >
+                {t.title}
+              </span>
+              {isOverdue && <span className="shrink-0 rounded-full bg-t2-late px-2 py-0.5 text-[11px] font-bold text-white">Überfällig</span>}
+              <span onClick={(e) => { e.stopPropagation(); toggleAll(t); }} role="presentation">
+                <TodoProgressRing segments={hasKids ? kidList.map((c) => c.isCompleted) : [t.isCompleted]} inverted={isToday} />
+              </span>
+            </div>
+            <div className={`mt-0.5 flex items-center gap-2 text-[12.5px] ${isToday ? 'opacity-80' : 'text-t2-ink-3'}`}>
+              {t.priority && <MobilePriorityIcon priority={t.priority} />}
+              {t.folder && <span className="truncate">{t.folder}</span>}
+              {hasKids && (
+                <span className="inline-flex shrink-0 items-center gap-1">
+                  {doneKids === kidList.length ? <CheckCheck size={14} strokeWidth={2.2} /> : <ListTodo size={14} strokeWidth={2.2} />}
+                  {doneKids}/{kidList.length}
+                </span>
+              )}
+            </div>
+
+            {shown.length > 0 && (
+              <div className="mt-2 flex flex-col gap-2">
+                {shown.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={(e) => { e.stopPropagation(); toggleOne(c.id); }}
+                    className={`flex items-center gap-2.5 text-[14px] ${c.isCompleted ? 'opacity-50 line-through' : ''}`}
+                  >
+                    <CheckMark checked={c.isCompleted} inverted={isToday} size={18} />
+                    <span className="truncate">{c.title}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          {t.folder && <div className={`text-[12.5px] ${isToday ? 'opacity-70' : 'text-t2-ink-3'}`}>{t.folder}</div>}
-
-          {showChildren.length > 0 && (
-            <div className="mt-2 flex flex-col gap-2">
-              {showChildren.map((c) => (
-                <div
-                  key={c.id}
-                  onClick={(e) => { e.stopPropagation(); toggleOne(c.id); }}
-                  className={`flex items-center gap-2.5 text-[14px] ${c.isCompleted ? 'opacity-50 line-through' : ''}`}
-                >
-                  <CheckMark checked={c.isCompleted} inverted={isToday} size={18} />
-                  <span className="truncate">{c.title}</span>
-                </div>
-              ))}
-              {hidden > 0 && <div className="pl-7 text-[12.5px] opacity-70">+ {hidden} weitere</div>}
-            </div>
-          )}
-
-          {!isToday && kids(t).length > 0 && !isOpen && (
-            <div className="mt-1.5 text-[12.5px] text-t2-ink-3">
-              {openChildren.length === 0 ? 'Alle Untertodos erledigt' : `${openChildren.length} Untertodos`}
-            </div>
-          )}
         </div>
-      </div>
+      </SwipeRow>
     );
   };
 
@@ -179,30 +214,43 @@ export const MobileTodoView: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      <div className="px-5 pt-3 pb-1">
-        <div className="text-[28px] font-bold leading-tight tracking-[-0.025em] text-t2-ink">Todos</div>
-        <div className="mt-3 flex gap-1" role="tablist" aria-label="Ansicht">
-          {([['list', 'Liste'], ['folders', 'Ordner']] as const).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={mode === key}
-              onClick={() => setMode(key)}
-              className={`rounded-full px-3 py-1.5 text-[13.5px] transition-colors ${
-                mode === key ? 'bg-t2-sub font-semibold text-t2-ink' : 'font-medium text-t2-ink-3'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      <div className="flex items-center gap-3 px-5 pt-3 pb-1">
+        <div className="flex-1 min-w-0">
+          <div className="text-[28px] font-bold leading-tight tracking-[-0.025em] text-t2-ink">Todos</div>
+          <div className="mt-3 flex gap-1" role="tablist" aria-label="Ansicht">
+            {([['list', 'Liste'], ['folders', 'Ordner']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={mode === key}
+                onClick={() => setMode(key)}
+                className={`rounded-full px-3 py-1.5 text-[13.5px] transition-colors ${
+                  mode === key ? 'bg-t2-sub font-semibold text-t2-ink' : 'font-medium text-t2-ink-3'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
+        {mode === 'list' && todayAll.length > 0 && (
+          <div className="relative grid shrink-0 place-items-center" aria-label={`Heute: ${todayAll.filter((t) => t.isCompleted).length} von ${todayAll.length} erledigt`}>
+            <TodoProgressRing segments={todayAll.map((t) => t.isCompleted)} size={60} />
+            <span className="absolute text-[13px] font-bold text-t2-ink">
+              {todayAll.filter((t) => t.isCompleted).length}/{todayAll.length}
+            </span>
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3.5 pb-28 flex flex-col gap-2">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3.5 pb-28 flex flex-col gap-2">
         {sections.map((s) => (
           <React.Fragment key={s.key}>
-            <div className="mt-3.5 mb-0.5 flex items-center gap-2 px-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-t2-ink-3">
+            <div
+              ref={s.key === 'today' ? todayRef : undefined}
+              className="mt-3.5 mb-0.5 flex items-center gap-2 px-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-t2-ink-3"
+            >
               {s.title}
               <em className="not-italic font-medium">{s.items.length}</em>
               <span className="h-px flex-1 bg-t2-line-soft" />
@@ -213,13 +261,30 @@ export const MobileTodoView: React.FC = () => {
 
         {mode === 'list' && (
           <>
-            <div className="mt-3.5 mb-0.5 flex items-center gap-2 px-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-t2-ink-3">
-              Kürzlich erledigt <em className="not-italic font-medium">{completedCount}</em>
+            <button
+              type="button"
+              onClick={() => setShowCompleted((p) => !p)}
+              aria-expanded={showCompleted}
+              className="mt-3.5 mb-0.5 flex w-full items-center gap-2 px-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-t2-ink-3"
+            >
+              Kürzlich erledigt <em className="not-italic font-medium">{completedRoots.length}</em>
               <span className="h-px flex-1 bg-t2-line-soft" />
-            </div>
-            <div className="mt-1 flex items-center gap-3 rounded-[14px] bg-t2-sub px-3.5 py-3 text-[14px] text-t2-ink-2">
-              {completedCount} erledigte Todos
-            </div>
+              <ChevronDown size={14} className={`transition-transform ${showCompleted ? 'rotate-180' : ''}`} />
+            </button>
+            {showCompleted && completedRoots.length === 0 && (
+              <div className="px-1.5 py-2 text-[13px] text-t2-ink-3">Noch nichts erledigt</div>
+            )}
+            {showCompleted && completedRoots.slice(0, 30).map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setDetailId(t.id)}
+                className="flex items-center gap-3 rounded-[14px] bg-t2-sub px-3.5 py-2.5 text-left text-[14px] text-t2-ink-2"
+              >
+                <CheckMark checked size={18} />
+                <span className="flex-1 min-w-0 truncate line-through opacity-70">{t.title}</span>
+              </button>
+            ))}
             <div className="mt-3.5 mb-0.5 flex items-center gap-2 px-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-t2-ink-3">
               Archiv <em className="not-italic font-medium">{archivedCount}</em>
               <span className="h-px flex-1 bg-t2-line-soft" />

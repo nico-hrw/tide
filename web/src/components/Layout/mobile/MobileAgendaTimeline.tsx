@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { format, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import {
-  Calendar as CalendarIcon, Clock, ChevronDown, MapPin, PenLine, Trash2, Coffee, RotateCcw, Plus, CheckSquare,
+  Calendar as CalendarIcon, Clock, ChevronDown, MapPin, Coffee, Plus, CheckSquare,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useDataStore } from '@/store/useDataStore';
@@ -63,6 +63,18 @@ function getCardStyle(pal: PaletteEntry, isActive: boolean, extra?: React.CSSPro
   };
 }
 
+/** Gefüllte Icons ohne Hintergrund (Material-Stil), in der Farbe des Termins. */
+const EDIT_PATH = 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z';
+const DELETE_PATH = 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z';
+
+function FilledIcon({ d, size }: { d: string; size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d={d} />
+    </svg>
+  );
+}
+
 function EventActions({ ev, isActive, ink, theme, onDeleteEvent, onEditEvent, compact }: { ev: any; isActive: boolean; ink?: string; theme: string; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; compact?: boolean }) {
   return (
     <>
@@ -74,8 +86,10 @@ function EventActions({ ev, isActive, ink, theme, onDeleteEvent, onEditEvent, co
       {ev.description && (
         <p className={`text-xs whitespace-pre-wrap leading-relaxed ${compact ? 'mb-2.5' : 'mb-3'}`} style={{ color: ink ?? T.sec }}>{ev.description}</p>
       )}
-      <div className="flex items-center gap-1.5 pt-1">
+      <div className="flex items-center gap-5 pt-1">
         <button
+          type="button"
+          aria-label="Bearbeiten"
           onClick={e => {
             e.stopPropagation();
             if (onEditEvent) {
@@ -84,18 +98,20 @@ function EventActions({ ev, isActive, ink, theme, onDeleteEvent, onEditEvent, co
               window.dispatchEvent(new CustomEvent('mobile_edit_event', { detail: { id: ev.id } }));
             }
           }}
-          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-semibold active:scale-95 transition-transform ${compact ? 'text-[11px]' : 'text-xs'}`}
-          style={{ background: ink ? 'rgba(128,128,128,0.25)' : theme === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)', color: ink ?? T.pri }}
+          className="p-1 active:scale-90 transition-transform"
+          style={{ color: ink ?? T.pri }}
         >
-          <PenLine size={compact ? 11 : 12} /> Bearbeiten
+          <FilledIcon d={EDIT_PATH} size={compact ? 20 : 22} />
         </button>
         {onDeleteEvent && (
           <button
+            type="button"
+            aria-label="Löschen"
             onClick={e => { e.stopPropagation(); onDeleteEvent(ev.id); }}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-semibold active:scale-95 transition-transform ${compact ? 'text-[11px]' : 'text-xs'}`}
-            style={{ background: 'rgba(239, 68, 68, 0.14)', color: '#ef4444' }}
+            className="p-1 active:scale-90 transition-transform"
+            style={{ color: '#ef4444' }}
           >
-            <Trash2 size={compact ? 11 : 12} /> Löschen
+            <FilledIcon d={DELETE_PATH} size={compact ? 20 : 22} />
           </button>
         )}
       </div>
@@ -123,7 +139,9 @@ function TimelineEventItem({
   isExpanded: boolean; onToggleExpand: () => void; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; onTaskComplete?: (id: string, completed: boolean) => void; isParallel?: boolean; style?: React.CSSProperties;
 }) {
   const info = getEvInfo(ev, now, isToday, nextUpcomingId);
-  const pal = paletteFor(ev.color);
+  // Der laufende Termin ist invertiert: Hintergrund in der Textfarbe, Text in der Hintergrundfarbe.
+  const basePal = paletteFor(ev.color);
+  const pal = info.isActive ? { bg: basePal.ink, ink: basePal.bg } : basePal;
   const pHeight = Math.max(54, Math.min(180, 44 + info.durM * 0.6));
 
   const isTask = !!(ev.is_task || ev.linkedTaskId);
@@ -464,7 +482,6 @@ export interface MobileAgendaTimelineProps {
 
 export const MobileAgendaTimeline = React.memo(function MobileAgendaTimeline({
   dayViewDays, events, now, theme, onNewEvent, onDeleteEvent, onEditEvent, onTaskComplete, dayViewSentinelRef,
-  onSelectDate, onTodayClick,
 }: MobileAgendaTimelineProps) {
   const groupedDayViewItems = useMemo(() => getGroupedDayViewItems(dayViewDays, events, now), [dayViewDays, events, now]);
 
@@ -484,13 +501,10 @@ export const MobileAgendaTimeline = React.memo(function MobileAgendaTimeline({
             ) : (
               <div id={`day-${format(item.date, 'yyyy-MM-dd')}`} className="mb-4">
                 <div className="flex items-center gap-3 py-2.5">
-                  {item.isToday && (
-                    <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full shrink-0 text-white shadow-sm" style={{ background: 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 50%, #9333ea 100%)', boxShadow: '0 2px 8px rgba(126, 34, 206, 0.35)' }}>Heute</span>
-                  )}
-                  <span className="text-[11px] uppercase tracking-wider" style={{ color: item.isToday ? (theme === 'dark' ? '#d8b4fe' : '#7e22ce') : T.sec, fontWeight: item.isToday ? 900 : 700, textShadow: item.isToday ? (theme === 'dark' ? '0 0 10px rgba(168, 85, 247, 0.4)' : 'none') : 'none' }}>
+                  <span className="text-[11px] uppercase tracking-wider" style={{ color: item.isToday ? T.pri : T.sec, fontWeight: item.isToday ? 800 : 700 }}>
                     {format(item.date, 'EEEE d. MMMM', { locale: de })}
                   </span>
-                  <div className="flex-1 h-px" style={{ background: item.isToday ? 'linear-gradient(90deg, rgba(168, 85, 247, 0.5), transparent)' : T.brd }} />
+                  <div className="flex-1 h-px" style={{ background: T.brd }} />
                 </div>
                 <DbTimelineDay day={item.date} dayEvs={item.events} allDayEvs={item.allDayEvents} isToday={item.isToday} now={now} theme={theme} onNewEvent={onNewEvent} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} />
               </div>
@@ -500,29 +514,6 @@ export const MobileAgendaTimeline = React.memo(function MobileAgendaTimeline({
         {dayViewSentinelRef && <div ref={dayViewSentinelRef} style={{ height: 1 }} />}
       </div>
 
-      <button
-        onClick={() => {
-          if (onTodayClick) {
-            onTodayClick();
-          } else if (onSelectDate) {
-            onSelectDate(now);
-          }
-          requestAnimationFrame(() => {
-            const el = document.getElementById(`day-${format(now, 'yyyy-MM-dd')}`);
-            el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          });
-        }}
-        className="absolute bottom-4 right-4 z-30 flex items-center gap-1.5 px-3.5 py-2 rounded-full shadow-lg active:scale-95 transition-all text-white cursor-pointer"
-        style={{
-          background: 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 50%, #9333ea 100%)',
-          boxShadow: '0 4px 14px -2px rgba(126, 34, 206, 0.5), inset 0 1px 1px 0 rgba(255, 255, 255, 0.35)',
-          border: '1px solid rgba(216, 180, 254, 0.35)',
-        }}
-        title="Zum heutigen Tag springen"
-      >
-        <RotateCcw size={13} />
-        <span className="text-xs font-bold">Heute</span>
-      </button>
     </div>
   );
 });

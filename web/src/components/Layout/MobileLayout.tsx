@@ -101,6 +101,17 @@ export interface MobileLayoutProps {
   themes?: Array<{ id: string; title: string; color?: string; effect?: string }>;
 }
 
+/** Kurzer Textauszug aus dem Suchindex (wird nach jeder Entschlüsselung geschrieben). */
+function readNotePreview(id: string): string | undefined {
+  try {
+    const raw = localStorage.getItem(`tide_search_${id}`);
+    const text = (raw || '').replace(/\s+/g, ' ').trim();
+    return text ? text.slice(0, 180) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 const NoteRow = React.memo(function NoteRow(props: {
   file: any;
   isActive?: boolean;
@@ -322,11 +333,6 @@ const FolderItem = React.memo(function FolderItem({
             <FolderOpen size={15} />
           ) : (
             <Folder size={15} />
-          )}
-          {isLocked && (
-            <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[1px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
-              <Lock size={8} className="text-amber-500" strokeWidth={2.5} />
-            </span>
           )}
         </div>
         <span className="text-sm font-semibold flex-1 text-left truncate" style={{ color: isOver ? T.accent : T.pri }}>
@@ -1717,14 +1723,9 @@ export default function MobileLayout({
               </div>
               <button
                 onClick={handleGoToToday}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all active:scale-95 shrink-0 cursor-pointer"
-                style={{
-                  background: isSameDay(activeDate, now)
-                    ? (theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)')
-                    : 'linear-gradient(135deg, #4c1d95 0%, #7e22ce 100%)',
-                  color: isSameDay(activeDate, now) ? T.mut : '#ffffff',
-                  boxShadow: isSameDay(activeDate, now) ? 'none' : '0 2px 6px rgba(126, 34, 206, 0.3)',
-                }}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-all active:scale-95 shrink-0 cursor-pointer ${
+                  isSameDay(activeDate, now) ? 'bg-t2-sub text-t2-ink-3' : 'bg-t2-ink text-t2-bg'
+                }`}
                 title="Zum heutigen Tag springen"
               >
                 <RotateCcw size={11} />
@@ -1946,24 +1947,26 @@ export default function MobileLayout({
           <span className="block text-[28px] font-bold tracking-[-0.025em] leading-tight text-t2-ink">Notizen</span>
         </div>
         {/* Segment: Liste / Kacheln, links wie im Mockup */}
-        <div className="flex gap-1 px-5 pb-2" role="tablist" aria-label="Ansicht">
-          {([['list', 'Liste'], ['grid', 'Kacheln']] as const).map(([mode, label]) => (
-            <button
-              key={mode}
-              type="button"
-              role="tab"
-              aria-selected={notesViewMode === mode}
-              onClick={() => { setNotesViewMode(mode); try { localStorage.setItem('tide_notes_view', mode); } catch {} }}
-              className={`px-3 py-1.5 rounded-full text-[13.5px] transition-colors ${
-                notesViewMode === mode ? 'bg-t2-sub font-semibold text-t2-ink' : 'font-medium text-t2-ink-3'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="flex items-center justify-between gap-2 px-5 pb-2">
+          <div className="flex gap-1" role="tablist" aria-label="Ansicht">
+            {([['list', 'Liste'], ['grid', 'Kacheln']] as const).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                role="tab"
+                aria-selected={notesViewMode === mode}
+                onClick={() => { setNotesViewMode(mode); try { localStorage.setItem('tide_notes_view', mode); } catch {} }}
+                className={`px-3 py-1.5 rounded-full text-[13.5px] transition-colors ${
+                  notesViewMode === mode ? 'bg-t2-sub font-semibold text-t2-ink' : 'font-medium text-t2-ink-3'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* Workspace-Auswahl rechts neben Liste/Kacheln */}
+          <SidebarQuickNotes compact />
         </div>
-        {/* Workspace selector bar */}
-        <SidebarQuickNotes className="px-3 pb-1 shrink-0" />
         {/* Notes list */}
         <div className="flex-1 overflow-y-auto px-2">
           {(() => {
@@ -2015,7 +2018,8 @@ export default function MobileLayout({
               .filter(f => f.type !== 'folder')
               .slice()
               .sort((a, b) => new Date(b.updated_at || b.updatedAt || b.created_at || b.createdAt || 0).getTime() - new Date(a.updated_at || a.updatedAt || a.created_at || a.createdAt || 0).getTime())
-              .slice(0, 3);
+              .slice(0, 3)
+              .map(f => ({ ...f, previewText: readNotePreview(f.id) }));
             const recentIds = new Set(recentFiles.map(f => f.id));
             const rootFolders = folders.filter(f => !f.parent_id && !sharedIds.has(f.id));
             const rootNotes = nonSharedFiles.filter(f => !f.parent_id && f.type !== 'folder' && !recentIds.has(f.id));
@@ -2178,7 +2182,7 @@ export default function MobileLayout({
                         ))}
                       </div>
                     ) : (
-                      <div className="space-y-0.5">
+                      <div className="divide-y divide-t2-line-soft">
                         {rootFolders.map(folder => (
                           <FolderItem
                             key={folder.id}
@@ -2218,7 +2222,7 @@ export default function MobileLayout({
                         ))}
                       </div>
                     ) : (
-                      <div className="space-y-0.5">
+                      <div className="divide-y divide-t2-line-soft">
                         {rootNotes.map(f => (
                           <NoteRow
                             key={f.id}
