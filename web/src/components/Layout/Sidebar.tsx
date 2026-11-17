@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import SidebarIsland from "./sidebar/SidebarIsland";
-import { ListTodo } from "lucide-react";
+import { GraduationCap, ListTodo } from "lucide-react";
 import { useDataStore } from "@/store/useDataStore";
 import { apiFetch } from "@/lib/api";
 import SecuritySettingsModal from "@/components/Security/SecuritySettingsModal";
@@ -307,6 +307,26 @@ export default function Sidebar({
                 setSidebarContextMenu({ x: e.clientX, y: e.clientY });
             }}
         >
+            <nav aria-label="Bereiche" className={`flex flex-col gap-0.5 px-2 pt-2 transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
+                <button
+                    type="button"
+                    onClick={() => onOpenCalendar?.()}
+                    className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left text-[14px] text-t2-ink-2 transition-colors hover:bg-t2-hover"
+                >
+                    <GraduationCap size={16} />
+                    Studium
+                </button>
+                <button
+                    type="button"
+                    onClick={() => (onToggleTodos ? onToggleTodos() : onOpenTodos?.())}
+                    className={`flex items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left text-[14px] transition-colors hover:bg-t2-hover ${
+                        isTodosActive || activeTabId === 'todos' ? 'bg-t2-hover font-semibold text-t2-ink' : 'text-t2-ink-2'
+                    }`}
+                >
+                    <ListTodo size={16} />
+                    Todos
+                </button>
+            </nav>
             <div className={`transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
                 <SidebarQuickNotes
                     activeTabId={activeTabId}
@@ -413,22 +433,6 @@ export default function Sidebar({
             {/* Smart Island — absolutely positioned, extends beyond sidebar */}
             {navigationMode !== 'folders' && (
                 <div className="absolute bottom-4 left-4 z-[500] flex flex-col gap-2 w-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] pointer-events-none [&>*]:pointer-events-auto">
-                    {(!enabledExtensions || enabledExtensions.includes('todos')) && (
-                        <div className={`flex items-center justify-start px-1 transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
-                            <button
-                                onClick={() => onToggleTodos ? onToggleTodos() : onOpenTodos?.()}
-                                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all cursor-pointer ${
-                                    isTodosActive || activeTabId === 'todos'
-                                        ? 'bg-blue-600 text-white shadow-md'
-                                        : 'border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 shadow-sm'
-                                }`}
-                                title="Todos"
-                            >
-                                <ListTodo size={18} />
-                            </button>
-                        </div>
-                    )}
-
                     <SidebarIsland selectedDate={selectedDate} onSelect={onDateSelect} />
                 </div>
             )}
