@@ -1057,3 +1057,21 @@ span.task-mention-pill,
 .tide-m-today [class*="text-gray-"] {
   color: #fff !important;
 }
+
+/* Eigene Titelleiste (Desktop-App mit window-controls-overlay): Tab-Leiste zieht das Fenster, Fensterknöpfe bleiben rechts. */
+@media (display-mode: window-controls-overlay) {
+  .wco-drag {
+    -webkit-app-region: drag;
+    app-region: drag;
+    min-height: env(titlebar-area-height, 40px) !important;
+    padding-left: calc(env(titlebar-area-x, 0px) + 8px) !important;
+    padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 8px) !important;
+  }
+  .wco-drag button,
+  .wco-drag a,
+  .wco-drag input,
+  .wco-drag [role="tab"] {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+  }
+}
