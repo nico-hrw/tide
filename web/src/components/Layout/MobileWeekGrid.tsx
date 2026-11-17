@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
+import { paletteFor } from './mobile/eventPalette';
+
+const withAlpha = (c: string, pct: number) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
 import { flushSync } from 'react-dom';
 import { format, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -480,10 +483,10 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
         evDragRef.current = drag;
         flushSync(() => { setEvHoverPillId(null); setEvDrag({ ...drag }); });
         if (pillRect && pillRect.width > 0) {
-          const color = ev.color || '#3B82F6';
+          const color = paletteFor(ev.color).bg;
           const overlay = document.createElement('div');
-          overlay.style.cssText = `position:fixed;left:${pillRect.left}px;top:${pillRect.top}px;width:${pillRect.width}px;height:${pillRect.height}px;background:${color}EE;border-radius:7px;border:2px solid ${color};box-shadow:0 8px 28px ${color}55;z-index:9999;pointer-events:none;padding:4px;overflow:hidden;will-change:transform;`;
-          overlay.innerHTML = `<div style="font-size:10px;font-weight:700;color:#fff;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ev.title.replace(/</g, '&lt;')}</div>`;
+          overlay.style.cssText = `position:fixed;left:${pillRect.left}px;top:${pillRect.top}px;width:${pillRect.width}px;height:${pillRect.height}px;background:${withAlpha(color, 93)};border-radius:7px;border:2px solid ${color};box-shadow:0 8px 28px ${withAlpha(color, 33)};z-index:9999;pointer-events:none;padding:4px;overflow:hidden;will-change:transform;`;
+          overlay.innerHTML = `<div style="font-size:10px;font-weight:700;color:${paletteFor(ev.color).ink};line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ev.title.replace(/</g, '&lt;')}</div>`;
           document.body.appendChild(overlay);
           dragOverlayRef.current = overlay;
         }
@@ -648,7 +651,7 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
                   const evEnd = ghostEv.end ? new Date(ghostEv.end) : new Date(evStart.getTime() + 3_600_000);
                   const top = (evStart.getHours() + evStart.getMinutes() / 60) * hourH;
                   const height = Math.max(minsToPx(SNAP_MINS, hourH), ((evEnd.getTime() - evStart.getTime()) / 3_600_000) * hourH);
-                  return <div key={`ghost-${ghostEv.id}`} style={{ position: 'absolute', top, height, left: 2, right: 2, zIndex: 3, background: (ghostEv.color || '#3B82F6') + '33', borderRadius: 7, border: `1.5px dashed ${ghostEv.color || '#3B82F6'}66`, pointerEvents: 'none' }} />;
+                  return <div key={`ghost-${ghostEv.id}`} style={{ position: 'absolute', top, height, left: 2, right: 2, zIndex: 3, background: withAlpha(paletteFor(ghostEv.color).bg, 20), borderRadius: 7, border: `1.5px dashed ${withAlpha(paletteFor(ghostEv.color).bg, 40)}`, pointerEvents: 'none' }} />;
                 })()}
 
                 {/* Events — lower cascade lanes first, then longest-first; dragged event always last (on top) */}
@@ -684,7 +687,8 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
                   const pos = layout.get(ev.id) || { left: 0, width: 100, lane: 0 };
 
                   const isSelected = selectedId === ev.id;
-                  const color = ev.color || '#3B82F6';
+                  const pal = paletteFor(ev.color);
+                  const color = pal.bg;
                   const borderRadiusVal = `${isContinuation ? 0 : 7}px ${isContinuation ? 0 : 7}px ${isContinued ? 0 : 7}px ${isContinued ? 0 : 7}px`;
 
                   const handleH = height >= 48 ? 10 : height >= 32 ? 6 : 0;
@@ -694,7 +698,7 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
 
                   const isHovered = evHoverPillId === ev.id;
                   const isCascaded = pos.lane > 0;
-                  const baseShadow = isBeingDragged ? `0 8px 28px ${color}55` : isHovered ? `0 10px 28px ${color}88` : isSelected ? `0 2px 8px ${color}44` : 'none';
+                  const baseShadow = isBeingDragged ? `0 8px 28px ${withAlpha(color, 33)}` : isHovered ? `0 10px 28px ${withAlpha(color, 53)}` : isSelected ? `0 2px 8px ${withAlpha(color, 27)}` : 'none';
                   // Cascaded pills get a thin outline in the background color to separate them from the pill underneath
                   const pillShadow = isCascaded
                     ? (baseShadow === 'none' ? '0 0 0 1.5px var(--background)' : `0 0 0 1.5px var(--background), ${baseShadow}`)
@@ -702,7 +706,7 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
                   return (
                     <div key={`${ev.id}-${isContinuation ? 'cont' : 'orig'}`}
                       style={{ position: 'absolute', top, height, left: `calc(${pos.left}% + 1px)`, width: `calc(${pos.width}% - 2px)`, zIndex: isBeingDragged ? 20 : 4 + pos.lane,
-                        background: color + (isBeingDragged ? 'EE' : isSelected ? 'DD' : isCascaded ? 'F0' : 'CC'),
+                        background: withAlpha(color, isBeingDragged ? 93 : isSelected ? 87 : isCascaded ? 94 : 80),
                         borderRadius: borderRadiusVal, overflow: 'hidden',
                         borderTop:    isContinuation ? '2px dashed rgba(255,255,255,0.4)' : ((isSelected || isBeingDragged) ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.2)'),
                         borderRight:  (isSelected || isBeingDragged) ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.2)',
@@ -725,7 +729,7 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
                       <div style={{ position: 'absolute', top: bodyTop, left: 0, right: 0, bottom: bodyBot, padding: `${handleH > 0 && !isContinuation ? handleH + 1 : 2}px 4px ${handleH > 0 && !isContinued ? handleH + 1 : 2}px`, overflow: 'hidden', touchAction: isBeingDragged ? 'none' : 'pan-y' }}
                         onTouchStart={e => !isContinuation && evTouchStart(e, ev.id, 'move', colIdx)}
                         onClick={e => { e.stopPropagation(); setSelectedId(isSelected ? null : ev.id); onEventTap(ev.id); }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: '#fff', lineHeight: 1.25, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: pal.ink, lineHeight: 1.25, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                           {isContinuation ? '↑ ' : ''}{ev.title}
                         </div>
                         {height - handleH * 2 > 26 && (

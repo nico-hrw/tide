@@ -408,30 +408,33 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
           );
         }
 
+        // Überlappende Termine liegen übereinander, jeder Ebene um ein Stück nach rechts versetzt.
+        // Nicht nebeneinander und nicht über die volle Breite.
         const lanes = packLanes(cluster.events, cluster.clusterStart);
+        const placed = lanes.flatMap((laneItems, laneIdx) => laneItems.map((item) => ({ ...item, laneIdx })));
+        const clusterH = placed.reduce((m, it) => Math.max(m, it.desiredTop + it.height), 0);
+        const laneCount = lanes.length;
+        const OFFSET = 14;
         return (
           <React.Fragment key={`cluster-${cluster.clusterStart.toISOString()}-${cIdx}`}>
             {todoEls}
             {pauseEl}
-            <div className="w-full flex gap-2 my-1 items-start overflow-x-auto no-scrollbar">
-              {lanes.map((laneItems, laneIdx) => {
-                let laneCursor = 0;
-                return (
-                  <div key={laneIdx} className={`flex-1 ${lanes.length > 2 ? 'min-w-[140px]' : 'min-w-0'} flex flex-col`}>
-                    {laneItems.map(({ event: ev, desiredTop, height }) => {
-                      const marginTop = Math.max(0, desiredTop - laneCursor);
-                      laneCursor = desiredTop + height + 6;
-                      return (
-                        <TimelineEventItem
-                          key={ev.id} ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
-                          theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
-                          onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} isParallel style={{ marginTop, minHeight: height }}
-                        />
-                      );
-                    })}
-                  </div>
-                );
-              })}
+            <div className="relative w-full my-1" style={{ height: clusterH }}>
+              {placed.map(({ event: ev, desiredTop, height, laneIdx }) => (
+                <TimelineEventItem
+                  key={ev.id} ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
+                  theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
+                  onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} isParallel
+                  style={{
+                    position: 'absolute',
+                    top: desiredTop,
+                    left: laneIdx * OFFSET,
+                    width: `calc(100% - ${laneCount * OFFSET + 8}px)`,
+                    minHeight: height,
+                    zIndex: laneIdx + 1,
+                  }}
+                />
+              ))}
             </div>
           </React.Fragment>
         );
