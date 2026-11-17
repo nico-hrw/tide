@@ -756,10 +756,6 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     <span className={`text-[11px] font-bold leading-none truncate shrink min-w-0 pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}
                     </span>
-                    <span className="text-[10px] opacity-75 font-semibold shrink-0 whitespace-nowrap ml-auto pointer-events-none group-hover:opacity-0 transition-opacity">
-                        {format(start, "HH:mm")}
-                        {durationMinutes >= 20 ? ` - ${format(end, "HH:mm")}` : ''}
-                    </span>
                 </div>
             ) : (
             /* Normal event contents */
@@ -847,14 +843,6 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     </div>
                 )}
 
-                {/* Conditional time rendering */}
-                {durationMinutes > 30 && (
-                    <div className="text-[10px] opacity-75 pointer-events-none mt-auto pb-0.5 flex justify-end">
-                        <span className="font-semibold">
-                            {format(start, "HH:mm")} - {format(end, "HH:mm")}
-                        </span>
-                    </div>
-                )}
             </div>
             )} {/* end isTimePoint conditional */}
 
