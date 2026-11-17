@@ -475,6 +475,14 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             // Dimmed effect: slightly reduce opacity of the whole block
             ...(event.effect === 'dimmed' ? { opacity: 0.55 } : {}),
         };
+        if (event.is_task && !isTimePoint) {
+            // Tide 2 Todo-Blob: helle Fläche mit schräg gestricheltem Muster, etwas eckiger als Termine
+            style.backgroundColor = 'var(--t2-surface)';
+            style.backgroundImage = 'repeating-linear-gradient(135deg, transparent 0 7px, color-mix(in srgb, var(--t2-ink) 7%, transparent) 7px 8px)';
+            style.boxShadow = 'inset 0 0 0 1px var(--t2-line)';
+            style.color = 'var(--t2-ink)';
+            style.borderRadius = '6px';
+        }
         if (isCancelled) {
             style.backgroundColor = '#94a3b8'; // gray-400
             style.color = '#475569'; // gray-600

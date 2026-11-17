@@ -678,15 +678,9 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                         e.stopPropagation();
                                         setTodosExpanded(prev => !prev);
                                     }}
-                                    className="flex items-center justify-between w-full px-2 py-1 rounded bg-slate-100/80 dark:bg-slate-800/80 hover:bg-slate-200/80 dark:hover:bg-slate-700/80 text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors cursor-pointer select-none"
+                                    className="inline-flex items-center gap-1 self-center px-2.5 py-0.5 rounded-[7px] bg-t2-sub hover:bg-t2-hover text-[12px] font-medium text-t2-ink-2 transition-colors cursor-pointer select-none"
                                 >
-                                    <div className="flex items-center gap-1.5 min-w-0">
-                                        <CheckSquare size={12} className="text-indigo-500 shrink-0" />
-                                        <span className="truncate text-[11px]">Todos</span>
-                                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
-                                            {completedCount}/{allDayTodos.length}
-                                        </span>
-                                    </div>
+                                    <span className="truncate">{allDayTodos.length} {allDayTodos.length === 1 ? 'Todo' : 'Todos'}</span>
                                     <ChevronDown
                                         size={12}
                                         className={`shrink-0 transition-transform duration-200 ${todosExpanded ? 'rotate-180' : ''}`}
