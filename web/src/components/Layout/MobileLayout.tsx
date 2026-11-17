@@ -41,6 +41,7 @@ import {
   getGroupedDayViewItems,
 } from './mobile/MobileAgendaTimeline';
 import { MobileBottomNav, MobileTab } from './mobile/MobileBottomNav';
+import { MobileNoteCard } from './mobile/MobileNoteCard';
 import SidebarQuickNotes from './sidebar/SidebarQuickNotes';
 import {
   MobileFilterPopover,
@@ -330,6 +331,9 @@ const FolderItem = React.memo(function FolderItem({
         <span className="text-sm font-semibold flex-1 text-left truncate" style={{ color: isOver ? T.accent : T.pri }}>
           {displayTitle}
         </span>
+        {children.length > 0 && (
+          <span className="text-[12px] tabular-nums shrink-0" style={{ color: T.mut }}>{children.length}</span>
+        )}
       </button>
       <AnimatePresence>
         {open && (
@@ -2155,14 +2159,13 @@ export default function MobileLayout({
                         ))}
                       </div>
                     ) : (
-                      <div className="space-y-0.5">
+                      <div className="flex flex-col gap-2 px-1">
                         {recentFiles.map(f => (
-                          <NoteRow
+                          <MobileNoteCard
                             key={f.id}
                             file={f}
                             isActive={activeNoteId === f.id}
                             onOpen={() => openNote(f.id, f.title || 'Untitled')}
-                            onDragStart={handleNoteDragStart}
                             onContextMenu={f => setContextMenu({ type: 'note', id: f.id, title: f.title || 'Untitled', parentId: f.parent_id })}
                           />
                         ))}
