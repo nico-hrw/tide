@@ -19,6 +19,7 @@ import { useDataStore } from '@/store/useDataStore';
 import dynamic from 'next/dynamic';
 import { pickGreetingTemplate, formatGreeting, NextEventCountdown, fireConfetti } from './MobileHeaderWidgets';
 import TodoList from '../Todo/TodoList';
+import MobileTodoView from '../Todo/MobileTodoView';
 import { MobileTodoStyleProvider } from '../Todo/MobileTodoStyle';
 import { isItemUnlocked, ItemSecuritySettings } from '@/lib/pinSecurity';
 import PinPromptModal from '@/components/Security/PinPromptModal';
@@ -2258,7 +2259,7 @@ export default function MobileLayout({
           }
         `}</style>
         <MobileTodoStyleProvider>
-          <TodoList className="w-full flex-1 min-h-0" />
+          <MobileTodoView />
         </MobileTodoStyleProvider>
       </div>
       )}
