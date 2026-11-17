@@ -1,5 +1,6 @@
 "use client";
 
+import { clearNotePreviews } from '@/lib/notePreview';
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
@@ -858,6 +859,7 @@ export default function Dashboard() {
 
     const handleLogout = async () => {
         sessionStorage.clear();
+        clearNotePreviews();
         await clearMasterKey();
         localStorage.removeItem("tide_session_key");
         localStorage.removeItem("tide_session_token");

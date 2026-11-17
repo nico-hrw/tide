@@ -21,7 +21,6 @@ export type EmojiIndex = Record<string, EmojiIndexEntry>;
 const SETTING_KEY = 'tide_animated_emoji';
 const CHANGE_EVENT = 'tide-animated-emoji-change';
 const ANIMATED_BASE = 'https://media.githubusercontent.com/media/microsoft/fluentui-emoji-animated/main/';
-const STATIC_BASE = 'https://cdn.jsdelivr.net/gh/microsoft/fluentui-emoji@main/';
 /** Wie lange eine Animation läuft, bevor wieder das statische Bild gezeigt wird. */
 const PLAY_MS = 3000;
 /** Alle wie viele Millisekunden jede Emoji-Animation von selbst abspielt. */
@@ -89,7 +88,9 @@ export function lookupEmoji(glyph: string): EmojiIndexEntry | undefined {
 }
 
 const encodePath = (p: string) => p.split('/').map(encodeURIComponent).join('/');
-const staticUrl = (e: EmojiIndexEntry) => (e.s ? STATIC_BASE + encodePath(e.s) : '');
+/** Statische Bilder liegen selbst gehostet unter /emoji/static/<codepoints>.svg. */
+const cpName = (glyph: string) => [...stripVs(glyph)].map((c) => c.codePointAt(0)!.toString(16)).join('-');
+const staticUrl = (glyph: string) => `/emoji/static/${cpName(glyph)}.svg`;
 const animatedUrl = (e: EmojiIndexEntry) => (e.a ? ANIMATED_BASE + encodePath(e.a) : '');
 
 /**
@@ -110,7 +111,7 @@ export function createAnimatedEmojiElement(glyph: string): HTMLElement {
   img.alt = glyph;
   img.draggable = false;
   img.decoding = 'async';
-  img.src = staticUrl(entry);
+  img.src = staticUrl(glyph);
   span.textContent = '';
   span.appendChild(img);
 
@@ -122,7 +123,7 @@ export function createAnimatedEmojiElement(glyph: string): HTMLElement {
     if (reduceMotion || !entry.a) return;
     img.src = animatedUrl(entry);
     window.clearTimeout(restore);
-    restore = window.setTimeout(() => { img.src = staticUrl(entry); }, PLAY_MS);
+    restore = window.setTimeout(() => { img.src = staticUrl(glyph); }, PLAY_MS);
   };
 
   span.addEventListener('mouseenter', play);
