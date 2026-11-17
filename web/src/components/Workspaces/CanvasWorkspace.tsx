@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { Clock, GraduationCap, Copy, Download, MoreHorizontal, UploadCloud } from 'lucide-react';
+import { GraduationCap, Copy, Download, MoreHorizontal, UploadCloud } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useDataStore } from '@/store/useDataStore';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
@@ -16,7 +16,11 @@ import type { TextWidgetElement } from '@/types/canvas';
 import type { JSONContent } from '@tiptap/react';
 import { getPlainTextFromJSON } from '@/lib/diff';
 import { useNoteBackups } from '@/hooks/useNoteBackups';
-import NoteVersionTimeline from '@/components/Editor/NoteVersionTimeline';
+import SaveStateIcon from '@/components/Editor/SaveStateIcon';
+import NoteOutline from '@/components/Editor/NoteOutline';
+import NoteHistoryLabel from '@/components/Editor/NoteHistoryLabel';
+import NoteHistoryTimeline from '@/components/Editor/NoteHistoryTimeline';
+import NoteBreadcrumb from '@/components/Editor/NoteBreadcrumb';
 import NoteVersionDiffView from '@/components/Editor/NoteVersionDiffView';
 import NoteSettingsMenuComponent from './NoteSettingsMenu';
 const NoteSettingsMenu = NoteSettingsMenuComponent as React.ComponentType<any>;
@@ -108,6 +112,8 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     } = props;
 
     const [isHistoryMode, setIsHistoryMode] = useState<boolean>(false);
+    // Timeline open = isHistoryMode; the old-version preview (replaces the editor) = isViewingVersion
+    const [isViewingVersion, setIsViewingVersion] = useState<boolean>(false);
     const [isDraggingEditorFile, setIsDraggingEditorFile] = useState(false);
     const [liveEditorContent, setLiveEditorContent] = useState<any>(editorContent);
 
@@ -169,6 +175,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
         if (next) {
             captureLiveContent();
         }
+        if (!next) { setIsViewingVersion(false); setActiveIndex(0); }
         setIsHistoryMode(next);
         setShowBackups?.(next);
     }, [isHistoryMode, captureLiveContent, setShowBackups]);
@@ -234,12 +241,14 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
 
     const handleCancelHistory = useCallback(() => {
         setIsHistoryMode(false);
+        setIsViewingVersion(false);
         setShowBackups?.(false);
         setActiveIndex(0);
     }, [setShowBackups, setActiveIndex]);
 
     const handleApplyHistory = useCallback(() => {
         setIsHistoryMode(false);
+        setIsViewingVersion(false);
         setShowBackups?.(false);
         setActiveIndex(0);
         if (selectedContent) {
@@ -296,7 +305,21 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     const isHidden = isActive !== undefined ? !isActive : (NON_EDITOR_TABS.has(activeTabId) || activeTabId.startsWith('chat-') || activeTabId.startsWith('profile:'));
 
     return (
-        <div className={`flex-1 min-h-0 relative overflow-y-auto ${isHidden ? 'hidden' : 'block'}`}>
+        <div className={`flex-1 min-h-0 relative overflow-y-auto transition-[padding] duration-300 ${isHistoryMode ? 'lg:pr-[300px]' : ''} ${isHidden ? 'hidden' : 'block'}`}>
+            {!isHidden && !isLoadingContent && <NoteOutline editor={editorInstance} />}
+            {!isHidden && !isLoadingContent && (
+                <NoteHistoryTimeline
+                    open={isHistoryMode}
+                    points={points}
+                    activeIndex={activeIndex}
+                    onSelectIndex={setActiveIndex}
+                    isLoading={isBackupLoading}
+                    error={backupError}
+                    onView={() => setIsViewingVersion(true)}
+                    onRestore={handleApplyHistory}
+                    canRestore={!!selectedContent && activeIndex > 0}
+                />
+            )}
             {isLoadingContent ? (
                 <div className="flex items-center justify-center h-full text-gray-400">Loading content...</div>
             ) : (
@@ -431,6 +454,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                             );
                                         })()}
 
+                                        <NoteBreadcrumb noteId={activeNoteId} files={files} />
                                         <div className="flex items-center gap-2 mb-6">
                                             <input
                                                 id="note-title-input"
@@ -490,17 +514,11 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                     const isOwner = !isRecipient && (!af?.owner_id || af?.owner_id === myId || af?.share_status === 'owner');
                                                     if (!isOwner) return null;
                                                     return (
-                                                        <button
-                                                            onClick={handleToggleHistory}
-                                                            className={`p-1.5 rounded-lg transition-colors ${
-                                                                isHistoryMode
-                                                                    ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40'
-                                                                    : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-400 hover:text-indigo-600'
-                                                            }`}
-                                                            title="Versionsverlauf / Backups"
-                                                        >
-                                                            <Clock size={16} />
-                                                        </button>
+                                                        <NoteHistoryLabel
+                                                            lastEdited={af?.updated_at || af?.updatedAt}
+                                                            open={isHistoryMode}
+                                                            onToggle={handleToggleHistory}
+                                                        />
                                                     );
                                                 })()}
                                                 <div className="relative flex items-center justify-center">
@@ -516,21 +534,11 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
 
                                                         return (
                                                             <>
-                                                                <button
+                                                                <SaveStateIcon
+                                                                    saveStatus={saveStatus}
+                                                                    isLiveShared={isShared && activeCollaborators.length > 0}
                                                                     onClick={() => setShowSaveStatusMenu(prev => !prev)}
-                                                                    title={saveStatus === 'saving' ? 'Wird gespeichert…' : saveStatus === 'unsaved' ? 'Nicht gespeichert – Klick für Details' : 'Gespeichert – Klick für Details'}
-                                                                    className="p-1.5 rounded-lg transition-colors cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center"
-                                                                >
-                                                                    {saveStatus === 'saved' && (
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={isShared ? "text-sky-400 opacity-80 hover:opacity-100" : "text-emerald-500 opacity-80 hover:opacity-100"}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-                                                                    )}
-                                                                    {saveStatus === 'saving' && (
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500 opacity-80 animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
-                                                                    )}
-                                                                    {saveStatus === 'unsaved' && (
-                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500 opacity-80"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                                                                    )}
-                                                                </button>
+                                                                />
                                                                 {showSaveStatusMenu && af && (
                                                                     <SaveStatusMenu
                                                                         fileId={activeNoteId}
@@ -625,7 +633,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                         </div>
                                     ) : (
                                         <>
-                                            {isHistoryMode && (
+                                            {isViewingVersion && (
                                                 <div className="flex-1 min-w-0">
                                                     <NoteVersionDiffView
                                                         point={selectedPoint}
@@ -637,7 +645,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 </div>
                                             )}
                                             <div
-                                                className={isHistoryMode ? 'hidden' : 'relative flex-1 min-w-0 flex flex-col'}
+                                                className={isViewingVersion ? 'hidden' : 'relative flex-1 min-w-0 flex flex-col'}
                                                 onDragOver={(e) => {
                                                     if (e.dataTransfer?.types?.includes('Files')) {
                                                         e.preventDefault();
@@ -763,18 +771,6 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                         </div>
                     </CanvasLayer>
                 </div>
-            )}
-            {isHistoryMode && (
-                <aside className="fixed right-3 sm:right-6 top-14 bottom-4 z-30 pointer-events-auto select-none">
-                    <NoteVersionTimeline
-                        points={points}
-                        activeIndex={activeIndex}
-                        onSelectIndex={setActiveIndex}
-                        isLoading={isBackupLoading}
-                        onCancel={handleCancelHistory}
-                        onApply={handleApplyHistory}
-                    />
-                </aside>
             )}
         </div>
     );
