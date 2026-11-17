@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import type { ComponentProps } from "react";
 import DayColumn from "@/components/Calendar/DayColumn";
 import "@/app/calendar/calendar.css";
-import { format, startOfWeek, addWeeks, subWeeks, getMinutes, getHours, addDays, subDays, addMonths, subMonths, startOfMonth, isSameDay } from "date-fns";
+import { format, startOfWeek, addWeeks, subWeeks, getMinutes, getHours, addDays, subDays, addMonths, subMonths, startOfMonth, isSameDay, getISOWeek } from "date-fns";
 import { de } from "date-fns/locale";
-import { ArrowRight, Upload } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Plus, Upload } from "lucide-react";
 import { SearchIndexEntry } from "@/lib/searchIndex";
 import Fuse from "fuse.js";
 import { useHighlight } from "@/components/HighlightContext";
@@ -20,6 +20,20 @@ import { useCalendarDragResize } from './useCalendarDragResize';
 import { useCalendarScroll } from './useCalendarScroll';
 import { useEventsByDay } from './useEventsByDay';
 import type { ActivePopover, CalendarViewProps, CalendarViewMode } from './types';
+
+const VIEW_LABELS: Record<CalendarViewMode, string> = {
+    day: 'Tag',
+    week: 'Woche',
+    month: 'Monat',
+    continuous: 'Fortlaufend',
+};
+
+const VIEW_OPTIONS: { id: CalendarViewMode; label: string }[] = [
+    { id: 'day', label: 'Tag' },
+    { id: 'week', label: 'Woche' },
+    { id: 'month', label: 'Monat' },
+    { id: 'continuous', label: 'Fortlaufend' },
+];
 
 export default function CalendarView({
     events,
@@ -48,6 +62,22 @@ export default function CalendarView({
     const prevViewModeRef = useRef(viewMode);
     const hasInitializedScroll = useRef(false);
 
+    const stepDate = (dir: 1 | -1) => {
+        if (viewMode === 'month') return dir > 0 ? addMonths(date, 1) : subMonths(date, 1);
+        if (viewMode === 'day') return addDays(date, dir);
+        return addDays(date, 7 * dir);
+    };
+
+    // Termin ab 9:00 am gewählten Tag, 1 Stunde (wie in der Fortlaufend-Ansicht)
+    const handleCreateNow = () => {
+        if (!onEventCreate) return;
+        const start = new Date(date);
+        start.setHours(9, 0, 0, 0);
+        const end = new Date(start);
+        end.setHours(10, 0, 0, 0);
+        onEventCreate(start, end, false);
+    };
+
     const handleViewModeChange = (mode: CalendarViewMode) => {
         if (mode === 'week' && viewMode !== 'week') {
             hasInitializedScroll.current = false;
@@ -62,6 +92,7 @@ export default function CalendarView({
     // Feature Tracking
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [viewMenuOpen, setViewMenuOpen] = useState(false);
     // Search bar anchor: 0=bottom-left, 1=bottom-center, 2=bottom-right, 3=top-center
     const [searchAnchor, setSearchAnchor] = useState(1);
 
@@ -423,55 +454,87 @@ export default function CalendarView({
                 className="h-full flex flex-col bg-transparent select-none relative z-0"
                 style={{}}
             >
+                {/* Kopfzeile nach Tide-2-Mockup: Titel mit KW, Navigation, Ansichtsmenü, Termin */}
+                {/* (Helfer für Navigation und Ansichtsmenü) */}
                 {/* Toolbar — position:relative + zIndex:500 creates a stacking context above
                     all sticky calendar elements (time col z-[160], day headers z-[150]). */}
                 <div className="flex flex-col bg-transparent border-b border-gray-200/60 dark:border-white/10" style={{ position: 'relative', zIndex: 500 }}>
-                    {/* Row 1 (Main Controls) */}
+                    {/* Row 1: Titel mit Kalenderwoche, Navigation, Ansichtsmenü und Termin-Button */}
                     <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                        {/* Left: Date Title */}
-                        <div className="flex items-center gap-3">
-                            <h2 className="text-base sm:text-lg md:text-xl font-extrabold text-[#1F2937] dark:text-[#E2E8F0] tracking-tight">
-                                {viewMode === 'day' 
-                                    ? format(date, "EEEE, d. MMMM yyyy", { locale: de }) 
+                        <div className="flex items-center gap-2">
+                            <h2 className="text-lg font-bold tracking-tight text-t2-ink sm:text-xl">
+                                {viewMode === 'day'
+                                    ? format(date, "EEEE, d. MMMM yyyy", { locale: de })
                                     : format(date, "MMMM yyyy", { locale: de })}
                             </h2>
+                            <span className="text-[13px] text-t2-ink-3">KW {getISOWeek(date)}</span>
+                            <div className="ml-2 flex items-center">
+                                <button type="button" onClick={() => onDateChange(stepDate(-1))} aria-label="Zurück" className="rounded-[8px] p-1.5 text-t2-ink-2 transition-colors hover:bg-t2-hover">
+                                    <ChevronLeft size={16} />
+                                </button>
+                                <button type="button" onClick={() => onDateChange(new Date())} className="rounded-[8px] px-2.5 py-1 text-[13px] text-t2-ink-2 transition-colors hover:bg-t2-hover">
+                                    Heute
+                                </button>
+                                <button type="button" onClick={() => onDateChange(stepDate(1))} aria-label="Weiter" className="rounded-[8px] p-1.5 text-t2-ink-2 transition-colors hover:bg-t2-hover">
+                                    <ChevronRight size={16} />
+                                </button>
+                            </div>
                         </div>
 
-                        {/* Right: View Mode switcher pills & actions */}
                         <div className="flex items-center gap-2">
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMenuOpen((open) => !open)}
+                                    className="flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-[13.5px] text-t2-ink-2 transition-colors hover:bg-t2-hover"
+                                    aria-haspopup="menu"
+                                    aria-expanded={viewMenuOpen}
+                                >
+                                    {VIEW_LABELS[viewMode]}
+                                    <ChevronDown size={14} />
+                                </button>
+                                {viewMenuOpen && (
+                                    <div role="menu" className="absolute right-0 top-full z-[600] mt-1 flex w-44 flex-col gap-0.5 rounded-[12px] bg-t2-surface p-1.5 shadow-[0_0_0_1px_var(--t2-line)]">
+                                        {VIEW_OPTIONS.map((opt) => (
+                                            <button
+                                                key={opt.id}
+                                                type="button"
+                                                role="menuitem"
+                                                onClick={() => {
+                                                    handleViewModeChange(opt.id);
+                                                    setViewMenuOpen(false);
+                                                }}
+                                                className={`flex items-center justify-between rounded-[8px] px-2.5 py-1.5 text-left text-[13.5px] transition-colors hover:bg-t2-hover ${
+                                                    viewMode === opt.id ? "font-semibold text-t2-ink" : "text-t2-ink-2"
+                                                }`}
+                                            >
+                                                {opt.label}
+                                                {viewMode === opt.id && <span className="text-t2-ink-3">✓</span>}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
                             <button
                                 type="button"
                                 onClick={() => setIsImportModalOpen(true)}
-                                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-xl bg-gray-100/70 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 text-gray-700 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/10 transition-all cursor-pointer"
+                                className="rounded-[10px] p-1.5 text-t2-ink-3 transition-colors hover:bg-t2-hover hover:text-t2-ink-2"
                                 title="Google Kalender (.ics) importieren"
+                                aria-label="Importieren"
                             >
-                                <Upload size={13} />
-                                <span>Import</span>
+                                <Upload size={15} />
                             </button>
 
-                            <div className="flex items-center gap-1 bg-gray-100/70 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 p-1 rounded-xl">
-                                {([
-                                    { id: 'day' as const, label: 'Tag' },
-                                    { id: 'week' as const, label: 'Woche' },
-                                    { id: 'month' as const, label: 'Monat' },
-                                    { id: 'continuous' as const, label: 'Fortlaufend' },
-                                ]).map((mode) => {
-                                    const isActive = viewMode === mode.id;
-                                    return (
-                                        <button
-                                            key={mode.id}
-                                            onClick={() => handleViewModeChange(mode.id)}
-                                            className={`px-2.5 py-1 text-xs rounded-lg transition-all ${
-                                                isActive
-                                                    ? "bg-black dark:bg-white text-white dark:text-black font-bold shadow-sm"
-                                                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 font-medium"
-                                            }`}
-                                        >
-                                            {mode.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
+                            <button
+                                type="button"
+                                onClick={handleCreateNow}
+                                disabled={!onEventCreate}
+                                className="flex items-center gap-1.5 rounded-[10px] bg-t2-ink px-3.5 py-1.5 text-[13.5px] font-semibold text-t2-bg transition-opacity hover:opacity-90 disabled:opacity-40"
+                            >
+                                <Plus size={14} />
+                                Termin
+                            </button>
                         </div>
                     </div>
 
