@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Clock } from 'lucide-react';
 import { format, isToday, isBefore, startOfDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { TaskItem } from '@/store/useDataStore';
@@ -75,8 +74,8 @@ export const TodoCard: React.FC<TodoCardProps> = ({
           <b className="block text-[15px] font-bold">Heute</b>
         ) : (
           <>
-            <b className="block text-[15px] font-bold text-t2-ink">{format(due, 'd', { locale: de })}.</b>
-            <small className="text-[11px] font-semibold tracking-wide uppercase">{format(due, 'MMM', { locale: de })}</small>
+            <b className={`block text-[15px] font-bold ${overdue ? 'text-t2-late' : 'text-t2-ink'}`}>{format(due, 'd', { locale: de })}.</b>
+            <small className={`text-[11px] font-semibold tracking-wide uppercase ${overdue ? 'text-t2-late' : ''}`}>{format(due, 'MMM', { locale: de })}</small>
           </>
         ))}
       </div>
@@ -92,7 +91,12 @@ export const TodoCard: React.FC<TodoCardProps> = ({
         <TodoPriorityIcon priority={priority} size={16} inherit={dark} className={dark ? 'text-white/85' : undefined} />
       </span>
       <div className="flex-1 min-w-0">
-        <b className={`block text-[15px] font-medium leading-5 ${task.isCompleted ? 'line-through opacity-60' : ''}`}>{task.title}</b>
+        <div className="flex items-center gap-2">
+          <b className={`flex-1 min-w-0 block text-[15px] font-medium leading-5 ${task.isCompleted ? 'line-through opacity-60' : ''}`}>{task.title}</b>
+          {overdue && (
+            <span className="shrink-0 rounded-full bg-t2-late px-2 py-0.5 text-[11px] font-bold text-white">Überfällig</span>
+          )}
+        </div>
         {task.folder && <small className={`block text-[12.5px] ${muted}`}>{task.folder}</small>}
         {subs.length > 0 && (
           <div className="mt-2.5 flex flex-col gap-[7px]">
@@ -115,11 +119,6 @@ export const TodoCard: React.FC<TodoCardProps> = ({
           </div>
         )}
       </div>
-      {overdue && (
-        <span className="inline-flex items-center gap-[5px] text-xs font-medium text-t2-ink-3 mt-px shrink-0">
-          <Clock size={13} />Überfällig
-        </span>
-      )}
     </div>
   );
 };
