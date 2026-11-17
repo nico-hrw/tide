@@ -9,6 +9,7 @@ import {
 import { format, addDays } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
 import TodoSplitModal from './TodoSplitModal';
+import { useMobileTodoStyle, mobileCardStyle, MobilePriorityIcon, MobileOverdue } from './MobileTodoStyle';
 import { TodoPriorityBadge } from './TodoPriorityBadge';
 import {
   RecurrenceType, TaskWithChildren, TaskEditDraft,
@@ -166,6 +167,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
   const isOverdue = deadline?.status === 'overdue' && !isTaskCompleted;
   const isTodayDate = deadline?.status === 'today';
   const isTodayActive = isTodayDate && !isTaskCompleted && (!depth || depth === 0);
+  const isMobileT2 = useMobileTodoStyle();
 
   const handleTouchStart = (e: React.TouchEvent) => {
     const target = e.target as HTMLElement | null;
@@ -327,6 +329,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
               }}
               style={{
                 touchAction: 'pan-y',
+                ...(isMobileT2 ? mobileCardStyle(isTaskCompleted, isTodayActive) : {}),
               }}
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
@@ -335,6 +338,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
               className={`flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 my-0.5 sm:my-1 backdrop-blur-xs rounded-xl sm:rounded-2xl relative pr-3 sm:pr-4 cursor-pointer group transition-all ${
                 isTaskCompleted
                   ? 'opacity-40 grayscale-[30%] bg-gray-50/50 dark:bg-white/[0.02] text-gray-500 dark:text-gray-400 border border-gray-200/60 dark:border-white/[0.06]'
+                  : isMobileT2
+                    ? (isTodayActive ? 'tide-m-today' : '')
                   : isTodayActive
                     ? 'bg-[#27272a] text-white border border-[#27272a] shadow-md dark:bg-white dark:text-black dark:border-white dark:shadow-md'
                     : 'bg-white/90 dark:bg-[#181818]/90 text-gray-900 dark:text-gray-100 border border-gray-200/80 dark:border-white/[0.08] hover:border-gray-300 dark:hover:border-white/20 shadow-[0_1px_3px_rgba(0,0,0,0.03)] dark:shadow-none'
@@ -398,7 +403,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       {isTaskCompleted && <Check size={12} strokeWidth={3} />}
                     </button>
                     <div className={`shrink-0 flex items-center justify-center ${isTaskCompleted ? 'opacity-50 grayscale' : ''}`}>
-                      <TodoPriorityBadge priority={task.priority} />
+                      {isMobileT2 ? <MobilePriorityIcon priority={task.priority} /> : <TodoPriorityBadge priority={task.priority} />}
                     </div>
                     <span
                       className={`font-medium text-[15px] leading-tight truncate ${
@@ -414,7 +419,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    {isOverdue && (
+                    {isOverdue && isMobileT2 && <MobileOverdue />}
+                    {isOverdue && !isMobileT2 && (
                       <span className="text-[11px] font-medium bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded whitespace-nowrap">
                         Überfällig
                       </span>
