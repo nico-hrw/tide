@@ -9,7 +9,7 @@ const PUBLIC_PATHS = ["/", "/auth", "/verify"];
 
 const isPublic = (path: string) => {
   const clean = normalizePath(path);
-  return PUBLIC_PATHS.includes(clean) || clean === "/notes" || clean.startsWith("/notes/") || clean.startsWith("/files/public/");
+  return PUBLIC_PATHS.includes(clean) || clean === "/notes" || clean.startsWith("/notes/") || clean.startsWith("/files/public/") || clean === "/docs/api" || clean.startsWith("/docs/api/");
 };
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
