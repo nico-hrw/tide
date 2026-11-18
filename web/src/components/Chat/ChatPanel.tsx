@@ -73,11 +73,11 @@ function ProfileTree({ items, parentId, onSelect, level = 0 }: ProfileTreeProps)
                         <div key={f.id} className="flex flex-col">
                             <div
                                 onClick={() => setExpandedFolders(prev => ({ ...prev, [f.id]: !prev[f.id] }))}
-                                className="flex items-center gap-1 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer group"
+                                className="flex items-center gap-1 p-1 hover:bg-t2-hover  rounded cursor-pointer group"
                                 style={{ paddingLeft: `${level * 12 + 4}px` }}
                             >
                                 {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                                <Folder size={14} className="text-blue-500" />
+                                <Folder size={14} className="text-t2-accent" />
                                 <span className="text-xs font-semibold truncate">{title}</span>
                             </div>
                             {isExpanded && (
@@ -91,10 +91,10 @@ function ProfileTree({ items, parentId, onSelect, level = 0 }: ProfileTreeProps)
                     <div
                         key={f.id}
                         onClick={() => onSelect(f)}
-                        className="flex items-center gap-2 p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded cursor-pointer group"
+                        className="flex items-center gap-2 p-1 hover:bg-t2-hover  rounded cursor-pointer group"
                         style={{ paddingLeft: `${level * 12 + 20}px` }}
                     >
-                        <FileText size={14} className="text-gray-400 group-hover:text-black dark:group-hover:text-white" />
+                        <FileText size={14} className="text-t2-ink-3 group-hover:text-black dark:group-hover:text-white" />
                         <span className="text-xs truncate group-hover:text-black dark:group-hover:text-white">{title}</span>
                     </div>
                 );
@@ -866,32 +866,32 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                 {/* Header */}
                 <div className="p-4 border-b border-white/40">
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Contacts</h2>
+                        <h2 className="text-lg font-bold text-t2-ink ">Contacts</h2>
                         <div className="flex gap-1 relative" ref={dropdownRef}>
                             <button
                                 onClick={() => setShowActionsMenu(!showActionsMenu)}
-                                className="relative p-2 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-lg transition-colors"
+                                className="relative p-2 hover:bg-t2-hover  rounded-lg transition-colors"
                                 title="Actions"
                             >
-                                <UserPlus size={18} className="text-gray-600 dark:text-gray-400" />
+                                <UserPlus size={18} className="text-t2-ink-2 " />
                             </button>
                             <button
                                 onClick={() => setView(view === 'shared' ? 'contacts' : 'shared')}
-                                className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-lg transition-colors ${view === 'shared' ? 'bg-gray-100 dark:bg-gray-900' : ''}`}
+                                className={`p-2 hover:bg-t2-hover  rounded-lg transition-colors ${view === 'shared' ? 'bg-t2-hover ' : ''}`}
                                 title="Shared Files"
                             >
-                                {view === 'shared' ? <X size={18} className="text-gray-600 dark:text-gray-400" /> : <FolderOpen size={18} className="text-gray-600 dark:text-gray-400" />}
+                                {view === 'shared' ? <X size={18} className="text-t2-ink-2 " /> : <FolderOpen size={18} className="text-t2-ink-2 " />}
                             </button>
 
                             {/* Dropdown Menu */}
                             {showActionsMenu && (
-                                <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg shadow-xl z-50">
+                                <div className="absolute top-full right-0 mt-2 w-48 bg-t2-surface  border border-t2-line  rounded-lg shadow-xl z-50">
                                     <button
                                         onClick={() => {
                                             setView('search');
                                             setShowActionsMenu(false);
                                         }}
-                                        className="w-full px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-2 text-sm"
+                                        className="w-full px-4 py-3 text-left hover:bg-t2-hover  transition-colors flex items-center gap-2 text-sm"
                                     >
                                         <Search size={16} />
                                         Add Contact
@@ -908,11 +908,11 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                         <div className="p-2">
                             {contacts.length === 0 ? (
                                 <div className="text-center py-12 px-4">
-                                    <MessageSquare size={48} className="mx-auto mb-4 text-gray-300 dark:text-gray-700" />
-                                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">No contacts yet</p>
+                                    <MessageSquare size={48} className="mx-auto mb-4 text-t2-ink-3 " />
+                                    <p className="text-sm text-t2-ink-2  mb-2">No contacts yet</p>
                                     <button
                                         onClick={() => setView('search')}
-                                        className="text-sm text-gray-900 dark:text-gray-100 underline hover:no-underline"
+                                        className="text-sm text-t2-ink  underline hover:no-underline"
                                     >
                                         Add your first contact
                                     </button>
@@ -922,8 +922,8 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                     <div
                                         key={c.contact_row_id}
                                         className={`p-3 mb-1 rounded-lg cursor-pointer transition-all ${partner?.id === c.partner.id
-                                            ? 'bg-gray-800/90 dark:bg-gray-200/90 text-white dark:text-black'
-                                            : 'hover:bg-gray-100 dark:hover:bg-gray-900'
+                                            ? 'bg-gray-800/90 dark:bg-gray-200/90 text-t2-bg'
+                                            : 'hover:bg-t2-hover '
                                             }`}
                                     >
                                         <div className="flex items-center gap-3">
@@ -935,7 +935,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                 }}
                                                 title="View Profile"
                                             >
-                                                <Avatar seed={(c.partner.avatar_seed || c.partner.id) + (c.partner.avatar_salt || '')} size={40} className="border border-gray-200 dark:border-gray-800" />
+                                                <Avatar seed={(c.partner.avatar_seed || c.partner.id) + (c.partner.avatar_salt || '')} size={40} className="border border-t2-line " />
                                             </div>
                                             <div className="flex-1 overflow-hidden" onClick={() => {
                                                 if (onChatSelect) {
@@ -945,7 +945,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                 }
                                             }}>
                                                 <div className="font-semibold text-sm truncate">{c.partner.username}</div>
-                                                <div className={`text-xs truncate ${partner?.id === c.partner.id ? 'text-gray-300 dark:text-gray-600' : 'text-gray-500 dark:text-gray-400'}`}>{c.partner.email}</div>
+                                                <div className={`text-xs truncate ${partner?.id === c.partner.id ? 'text-t2-ink-3 ' : 'text-t2-ink-2 '}`}>{c.partner.email}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -957,13 +957,13 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                         <div className="p-4">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="font-semibold text-sm">Find Contacts</h3>
-                                <button onClick={() => setView('contacts')} className="text-xs text-gray-500 hover:text-gray-900 dark:hover:text-gray-100">
+                                <button onClick={() => setView('contacts')} className="text-xs text-t2-ink-2 hover:text-t2-ink ">
                                     Back
                                 </button>
                             </div>
                             <div className="flex gap-2 mb-4">
                                 <input
-                                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg text-sm bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-800 dark:focus:ring-gray-200"
+                                    className="flex-1 px-3 py-2 border border-t2-line  rounded-lg text-sm bg-t2-surface  focus:outline-none focus:ring-2 focus:ring-t2-ink-3 "
                                     placeholder="Email address"
                                     value={searchEmail}
                                     onChange={e => setSearchEmail(e.target.value)}
@@ -971,7 +971,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                 />
                                 <button
                                     onClick={handleSearch}
-                                    className="px-4 py-2 bg-gray-800 dark:bg-gray-200 text-white dark:text-black rounded-lg text-sm font-medium hover:opacity-80 transition-opacity"
+                                    className="px-4 py-2 bg-t2-ink  text-t2-bg rounded-lg text-sm font-medium hover:opacity-80 transition-opacity"
                                 >
                                     Search
                                 </button>
@@ -980,19 +980,19 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                             {searchResult.map(res => {
                                 if (res.type === 'profile') {
                                     return (
-                                        <div key={`profile-${res.owner_id}`} className="p-3 mb-2 border border-gray-200 dark:border-gray-800 rounded-lg flex flex-col gap-2">
+                                        <div key={`profile-${res.owner_id}`} className="p-3 mb-2 border border-t2-line  rounded-lg flex flex-col gap-2">
                                             <div className="flex items-center gap-2">
                                                 <div className="font-semibold text-sm">{res.title || "User"}</div>
                                                 {res.owner_is_verified && <CheckCircle size={14} className="text-green-500" />}
                                             </div>
-                                            <div className="text-xs text-gray-500">{res.bio}</div>
+                                            <div className="text-xs text-t2-ink-2">{res.bio}</div>
 
                                             <div className="flex gap-2 mt-1">
                                                 <button
                                                     onClick={() => {
                                                         if (onOpenProfile) onOpenProfile(res.owner_id, res.title || "User");
                                                     }}
-                                                    className="w-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-900 dark:text-white py-2 rounded-lg text-xs font-bold transition-all"
+                                                    className="w-full bg-t2-hover hover:bg-t2-stage   text-t2-ink  py-2 rounded-lg text-xs font-bold transition-all"
                                                 >
                                                     View Profile
                                                 </button>
@@ -1001,17 +1001,17 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                     );
                                 } else {
                                     return (
-                                        <div key={`note-${res.id}`} className="p-3 mb-2 border border-gray-200 dark:border-gray-800 rounded-lg flex flex-col gap-2 bg-gray-50 dark:bg-black/20">
+                                        <div key={`note-${res.id}`} className="p-3 mb-2 border border-t2-line  rounded-lg flex flex-col gap-2 bg-t2-sub ">
                                             <div className="flex items-center gap-2">
-                                                <FileText size={16} className="text-blue-500" />
+                                                <FileText size={16} className="text-t2-accent" />
                                                 <div className="font-semibold text-sm truncate">{res.title}</div>
                                             </div>
-                                            <div className="text-xs text-gray-500 flex items-center gap-1">
-                                                Owner verified: {res.owner_is_verified ? <CheckCircle size={12} className="text-green-500" /> : <XCircle size={12} className="text-gray-400 dark:text-slate-500" />}
+                                            <div className="text-xs text-t2-ink-2 flex items-center gap-1">
+                                                Owner verified: {res.owner_is_verified ? <CheckCircle size={12} className="text-green-500" /> : <XCircle size={12} className="text-t2-ink-3 " />}
                                             </div>
                                             <button
                                                 onClick={() => onOpenFile(res.id, res.title, null)}
-                                                className="mt-1 w-full border border-blue-500 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 py-2 rounded-lg text-xs font-bold transition-colors"
+                                                className="mt-1 w-full border border-t2-accent text-t2-accent  hover:bg-t2-sub  py-2 rounded-lg text-xs font-bold transition-colors"
                                             >
                                                 View Public File
                                             </button>
@@ -1024,10 +1024,10 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                         <div className="p-4">
                             <div className="mb-4">
                                 <h3 className="font-semibold text-sm">Shared Files</h3>
-                                <p className="text-xs text-gray-500 mt-1">Files shared with you by contacts</p>
+                                <p className="text-xs text-t2-ink-2 mt-1">Files shared with you by contacts</p>
                             </div>
                             {allSharedFiles.length === 0 ? (
-                                <p className="text-sm text-gray-500 text-center py-8">No shared files</p>
+                                <p className="text-sm text-t2-ink-2 text-center py-8">No shared files</p>
                             ) : (
                                 <div className="space-y-2">
                                     {allSharedFiles.map(f => {
@@ -1040,17 +1040,17 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                 key={f.id}
                                                 className={`p-3 border rounded-lg transition-colors group ${(f.share_status || 'owner') === 'pending'
                                                     ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
-                                                    : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer'
+                                                    : 'bg-t2-surface  border-t2-line  hover:bg-t2-sub  cursor-pointer'
                                                     }`}
                                                 onClick={() => (f.share_status || 'owner') !== 'pending' && onOpenFile(f.id, f.title)}
                                             >
                                                 <div className="flex items-start gap-2">
-                                                    <FileText size={16} className={`${(f.share_status || 'owner') === 'pending' ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-600 dark:text-gray-400'} mt-0.5 flex-shrink-0`} />
+                                                    <FileText size={16} className={`${(f.share_status || 'owner') === 'pending' ? 'text-yellow-600 dark:text-yellow-400' : 'text-t2-ink-2 '} mt-0.5 flex-shrink-0`} />
                                                     <div className="flex-1 overflow-hidden">
                                                         <div className="text-sm font-medium truncate">{f.title || "Untitled"}</div>
-                                                        <div className="text-xs text-gray-500 truncate">From: {senderName}</div>
+                                                        <div className="text-xs text-t2-ink-2 truncate">From: {senderName}</div>
                                                         <div className="flex justify-between items-center mt-1">
-                                                            <div className="text-xs text-gray-400">{f.type}</div>
+                                                            <div className="text-xs text-t2-ink-3">{f.type}</div>
                                                             {(f.share_status || 'owner') === 'pending' && (
                                                                 <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                                                                     <button
@@ -1072,7 +1072,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                             {(f.share_status || 'owner') !== 'pending' && (
                                                                 <button
                                                                     onClick={(e) => { e.stopPropagation(); handleDecline(f.id); }}
-                                                                    className="p-1 text-gray-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                                    className="p-1 text-t2-ink-3 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                                                                     title="Remove Share"
                                                                 >
                                                                     <XCircle size={12} />
@@ -1106,26 +1106,26 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                         onClick={() => { if (onOpenProfile && partner) onOpenProfile(partner.id, partner.username); }}
                                         title="View Profile"
                                     >
-                                        <Avatar seed={(partner?.avatar_seed || partner?.id || "Unknown") + (partner?.avatar_salt || '')} size={40} className="border border-gray-200 dark:border-gray-800" />
+                                        <Avatar seed={(partner?.avatar_seed || partner?.id || "Unknown") + (partner?.avatar_salt || '')} size={40} className="border border-t2-line " />
                                     </div>
                                     <div>
-                                        <h3 className="font-semibold text-gray-900 dark:text-gray-100">{partner?.username}</h3>
-                                        <p className="text-xs text-gray-500">{partner?.email}</p>
+                                        <h3 className="font-semibold text-t2-ink ">{partner?.username}</h3>
+                                        <p className="text-xs text-t2-ink-2">{partner?.email}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={handleDeleteConversation}
-                                        className="p-2 hover:bg-red-50 dark:hover:bg-red-950/30 text-gray-400 hover:text-red-500 rounded-lg transition-colors"
+                                        className="p-2 hover:bg-red-50 dark:hover:bg-red-950/30 text-t2-ink-3 hover:text-red-500 rounded-lg transition-colors"
                                         title="Delete Conversation"
                                     >
                                         <Trash size={18} />
                                     </button>
                                     <button
                                         onClick={() => setPartner(null)}
-                                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-900 rounded-lg transition-colors"
+                                        className="p-2 hover:bg-t2-hover  rounded-lg transition-colors"
                                     >
-                                        <X size={18} className="text-gray-600 dark:text-gray-400" />
+                                        <X size={18} className="text-t2-ink-2 " />
                                     </button>
                                 </div>
                             </div>
@@ -1144,7 +1144,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                         >
                             <div className="max-w-4xl mx-auto w-full py-6 space-y-4">
                                 {messages.length === 0 ? (
-                                    <div className="h-full flex items-center justify-center text-gray-400 text-sm py-20">
+                                    <div className="h-full flex items-center justify-center text-t2-ink-3 text-sm py-20">
                                         Keine Nachrichten vorhanden. Schreib etwas!
                                     </div>
                                 ) : (
@@ -1201,22 +1201,22 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                             <div key={m.id || idx} className="w-full">
                                                 {isNewDay && (
                                                     <div className="flex items-center gap-3 my-6">
-                                                        <div className="flex-1 h-[1px] bg-gray-200/60 dark:bg-white/10"></div>
-                                                        <span className="px-3 py-0.5 rounded-full text-[10px] font-semibold tracking-wider text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-white/5 border border-gray-200/50 dark:border-white/10 whitespace-nowrap">
+                                                        <div className="flex-1 h-[1px] bg-t2-stage "></div>
+                                                        <span className="px-3 py-0.5 rounded-full text-[10px] font-semibold tracking-wider text-t2-ink-2  bg-t2-hover  border border-t2-line  whitespace-nowrap">
                                                             {getDateLabel(mDate)}
                                                         </span>
-                                                        <div className="flex-1 h-[1px] bg-gray-200/60 dark:bg-white/10"></div>
+                                                        <div className="flex-1 h-[1px] bg-t2-stage "></div>
                                                     </div>
                                                 )}
                                                 <div className={`flex ${isMe ? 'justify-end' : 'justify-start'} w-full mb-1.5`}>
                                                     {isShareRequest && shareData ? (
-                                                        <div className={`w-full max-w-[340px] rounded-2xl border border-gray-200/80 dark:border-white/10 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-md shadow-md overflow-hidden text-gray-900 dark:text-white transition-all ${isMe ? 'rounded-br-md' : 'rounded-bl-md'}`}>
+                                                        <div className={`w-full max-w-[340px] rounded-2xl border border-t2-line  bg-t2-surface  backdrop-blur-md shadow-md overflow-hidden text-t2-ink  transition-all ${isMe ? 'rounded-br-md' : 'rounded-bl-md'}`}>
                                                             {/* Distinctive Header */}
-                                                            <div className="flex items-center justify-between px-3.5 pt-3 pb-2.5 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.02]">
+                                                            <div className="flex items-center justify-between px-3.5 pt-3 pb-2.5 border-b border-t2-line-soft  bg-t2-sub ">
                                                                 {shareData.file_type === 'event' ? (
-                                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-500/10 border border-blue-200/60 dark:border-blue-500/20">
-                                                                        <Calendar size={13} className="text-blue-500" />
-                                                                        <span className="text-[10px] uppercase font-bold tracking-wider text-blue-600 dark:text-blue-400">Termin</span>
+                                                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-t2-sub  border border-t2-line ">
+                                                                        <Calendar size={13} className="text-t2-accent" />
+                                                                        <span className="text-[10px] uppercase font-bold tracking-wider text-t2-accent ">Termin</span>
                                                                     </div>
                                                                 ) : (
                                                                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20">
@@ -1227,13 +1227,13 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                 {shareData.permission ? (
                                                                     <span className={`text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full border ${
                                                                         shareData.permission === 'view'
-                                                                            ? 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200/70 dark:border-white/10'
+                                                                            ? 'bg-t2-hover  text-t2-ink-2  border-t2-line '
                                                                             : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20'
                                                                     }`}>
                                                                         {shareData.permission === 'view' ? 'Nur Lesen' : 'Bearbeiten'}
                                                                     </span>
                                                                 ) : (
-                                                                    <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">
+                                                                    <span className="text-[10px] font-mono text-t2-ink-3 ">
                                                                         {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                     </span>
                                                                 )}
@@ -1278,14 +1278,14 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                 return (
                                                                     <div className="p-3.5 space-y-2.5">
                                                                         <div className="flex items-start gap-2.5">
-                                                                            <div className={`p-2 rounded-xl shrink-0 ${isEvent ? 'bg-blue-100/80 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400' : 'bg-amber-100/80 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'}`}>
+                                                                            <div className={`p-2 rounded-xl shrink-0 ${isEvent ? 'bg-t2-sub  text-t2-accent ' : 'bg-amber-100/80 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'}`}>
                                                                                 {isEvent ? <Calendar size={18} /> : <FileText size={18} />}
                                                                             </div>
                                                                             <div className="flex-1 min-w-0 pt-0.5">
-                                                                                <h4 className="font-bold text-sm text-gray-900 dark:text-white truncate" title={shareData.file_name}>
+                                                                                <h4 className="font-bold text-sm text-t2-ink  truncate" title={shareData.file_name}>
                                                                                     {shareData.file_name}
                                                                                 </h4>
-                                                                                <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                                                                                <div className="flex items-center gap-2 mt-0.5 text-[11px] text-t2-ink-2 ">
                                                                                     <span>{isEvent ? 'Kalender-Termin' : 'Tresor-Notiz'}</span>
                                                                                 </div>
                                                                             </div>
@@ -1293,8 +1293,8 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
 
                                                                         {/* Event Date / Time preview box */}
                                                                         {isEvent && (dateFormatted || timeFormatted) && (
-                                                                            <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-blue-50/70 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 text-xs text-blue-900 dark:text-blue-100">
-                                                                                <Clock size={15} className="shrink-0 text-blue-500 dark:text-blue-400" />
+                                                                            <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-t2-sub  border border-t2-line  text-xs text-t2-accent ">
+                                                                                <Clock size={15} className="shrink-0 text-t2-accent " />
                                                                                 <div className="min-w-0">
                                                                                     {dateFormatted && <div className="font-semibold text-[12px]">{dateFormatted}</div>}
                                                                                     {timeFormatted && <div className="text-[11px] opacity-80">{timeFormatted} Uhr</div>}
@@ -1304,12 +1304,12 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
 
                                                                         {/* Note preview snippet or pill */}
                                                                         {previewSnippet ? (
-                                                                            <p className="text-xs text-gray-600 dark:text-gray-300 italic line-clamp-2 leading-relaxed bg-gray-50/80 dark:bg-white/[0.03] p-2.5 rounded-xl border border-gray-100 dark:border-white/5">
+                                                                            <p className="text-xs text-t2-ink-2  italic line-clamp-2 leading-relaxed bg-t2-sub  p-2.5 rounded-xl border border-t2-line-soft ">
                                                                                 &ldquo;{previewSnippet}&rdquo;
                                                                             </p>
                                                                         ) : (!isEvent ? (
-                                                                            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-gray-100 dark:bg-white/5 border border-gray-200/50 dark:border-white/5 text-[11px]">
+                                                                            <div className="flex items-center gap-1.5 text-xs text-t2-ink-2 ">
+                                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-t2-hover  border border-t2-line  text-[11px]">
                                                                                     Notizdokument
                                                                                 </span>
                                                                             </div>
@@ -1319,7 +1319,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                             })()}
 
                                                             {/* Actions / Status Footer */}
-                                                            <div className="px-3.5 pb-3.5 pt-2 border-t border-gray-100 dark:border-white/5 bg-gray-50/30 dark:bg-white/[0.01]">
+                                                            <div className="px-3.5 pb-3.5 pt-2 border-t border-t2-line-soft  bg-t2-sub ">
                                                                 {isMe ? (
                                                                     /* SENDER VIEW */
                                                                     <div className="space-y-2">
@@ -1344,9 +1344,9 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                                 </span>
                                                                             </div>
                                                                         ) : (
-                                                                            <div className="flex items-center justify-between text-[11px] text-gray-600 dark:text-gray-300 bg-gray-100/70 dark:bg-white/5 px-3 py-2 rounded-xl border border-gray-200/40 dark:border-white/5">
+                                                                            <div className="flex items-center justify-between text-[11px] text-t2-ink-2  bg-t2-hover  px-3 py-2 rounded-xl border border-t2-line ">
                                                                                 <span className="truncate">
-                                                                                    Gesendet an <strong className="font-semibold text-gray-800 dark:text-white">{partner?.username || "Kontakt"}</strong>
+                                                                                    Gesendet an <strong className="font-semibold text-t2-ink ">{partner?.username || "Kontakt"}</strong>
                                                                                 </span>
                                                                                 <span className="shrink-0 text-[10px] uppercase font-bold tracking-wider text-amber-500 dark:text-amber-400 ml-2">
                                                                                     Warte auf Annahme
@@ -1356,12 +1356,12 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                         <div className="flex items-center justify-between pt-0.5">
                                                                             <button
                                                                                 onClick={() => onOpenFile(shareData.file_id, shareData.file_name)}
-                                                                                className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5 transition-colors"
+                                                                                className="text-xs font-semibold text-t2-accent  hover:underline flex items-center gap-1.5 transition-colors"
                                                                             >
                                                                                 <FolderOpen size={13} />
                                                                                 Datei anzeigen
                                                                             </button>
-                                                                            <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">
+                                                                            <span className="text-[10px] font-mono text-t2-ink-3 ">
                                                                                 {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                             </span>
                                                                         </div>
@@ -1382,7 +1382,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                                 </div>
                                                                                 <button
                                                                                     onClick={() => shareData && handleAccept(shareData.file_id, m.id, shareData.file_type, shareData.file_name)}
-                                                                                    className="px-3 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 text-xs font-semibold transition-colors shrink-0"
+                                                                                    className="px-3 py-2 rounded-xl bg-t2-hover hover:bg-t2-stage   text-t2-ink  text-xs font-semibold transition-colors shrink-0"
                                                                                     title="Öffnen"
                                                                                 >
                                                                                     Öffnen
@@ -1397,7 +1397,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                                     <XCircle size={14} />
                                                                                     <span>Anfrage abgelehnt</span>
                                                                                 </div>
-                                                                                <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">
+                                                                                <span className="text-[10px] font-mono text-t2-ink-3 ">
                                                                                     {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                                 </span>
                                                                             </div>
@@ -1408,7 +1408,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                             {/* Primary Button */}
                                                                             <button
                                                                                 onClick={() => shareData && handleClone(shareData.file_id, m.id, shareData.file_name)}
-                                                                                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white text-xs font-semibold shadow-sm transition-all"
+                                                                                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-t2-accent hover:opacity-90 active:scale-[0.98] text-t2-accent-ink text-xs font-semibold shadow-sm transition-all"
                                                                             >
                                                                                 {shareData.file_type === 'event' ? <CalendarPlus size={14} /> : <Download size={14} />}
                                                                                 <span>
@@ -1421,20 +1421,20 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                             <div className="flex items-center gap-2">
                                                                                 <button
                                                                                     onClick={() => shareData && handleAccept(shareData.file_id, m.id, shareData.file_type, shareData.file_name)}
-                                                                                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 text-xs font-medium transition-colors"
+                                                                                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl bg-t2-hover hover:bg-t2-stage   text-t2-ink  text-xs font-medium transition-colors"
                                                                                 >
                                                                                     <FolderOpen size={13} />
                                                                                     Öffnen
                                                                                 </button>
                                                                                 <button
                                                                                     onClick={() => shareData && handleDecline(shareData.file_id, m.id)}
-                                                                                    className="py-1.5 px-3 rounded-xl text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-medium transition-colors"
+                                                                                    className="py-1.5 px-3 rounded-xl text-t2-ink-2 hover:text-red-600  dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 text-xs font-medium transition-colors"
                                                                                 >
                                                                                     Ablehnen
                                                                                 </button>
                                                                             </div>
                                                                             <div className="flex justify-end pt-0.5">
-                                                                                <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">
+                                                                                <span className="text-[10px] font-mono text-t2-ink-3 ">
                                                                                     {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                                 </span>
                                                                             </div>
@@ -1448,14 +1448,14 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                         <div
                                                             className={`max-w-[75%] px-4 py-2.5 rounded-2xl shadow-sm transition-all ${
                                                                 isMe
-                                                                    ? 'bg-blue-600 text-white rounded-br-[4px]'
-                                                                    : 'bg-gray-100/90 dark:bg-white/[0.08] text-gray-900 dark:text-gray-100 border border-gray-200/50 dark:border-white/5 rounded-bl-[4px]'
+                                                                    ? 'bg-t2-accent text-t2-accent-ink rounded-br-[4px]'
+                                                                    : 'bg-t2-hover  text-t2-ink  border border-t2-line  rounded-bl-[4px]'
                                                             }`}
                                                         >
-                                                            <div className="text-[14.5px] leading-relaxed font-normal break-words whitespace-pre-wrap selection:bg-blue-300 selection:text-blue-900">
+                                                            <div className="text-[14.5px] leading-relaxed font-normal break-words whitespace-pre-wrap selection:bg-t2-hover selection:text-t2-accent">
                                                                 {isE2EEMessage(m.content) ? (decryptedTexts[m.id] ?? "...") : m.content}
                                                             </div>
-                                                            <div className={`text-[10px] mt-1.5 flex items-center justify-between gap-3 select-none ${isMe ? 'text-blue-100/80' : 'text-gray-400 dark:text-slate-500'}`}>
+                                                            <div className={`text-[10px] mt-1.5 flex items-center justify-between gap-3 select-none ${isMe ? 'text-t2-accent' : 'text-t2-ink-3 '}`}>
                                                                 {isE2EEMessage(m.content) ? (
                                                                     <span
                                                                         className={`inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md ${
@@ -1499,7 +1499,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                 <button
                                     onClick={handleSend}
                                     disabled={!newMessage.trim()}
-                                    className="w-11 h-11 shrink-0 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 dark:disabled:bg-gray-800 disabled:cursor-not-allowed text-white rounded-full flex items-center justify-center transition-all shadow-md active:scale-95"
+                                    className="w-11 h-11 shrink-0 bg-t2-accent hover:opacity-90 disabled:bg-t2-ink-3  disabled:cursor-not-allowed text-t2-accent-ink rounded-full flex items-center justify-center transition-all shadow-md active:scale-95"
                                 >
                                     <Send size={18} className={newMessage.trim() ? "ml-1" : ""} />
                                 </button>
@@ -1507,9 +1507,9 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                         </div>
                     </>
                 ) : (
-                    <div className="h-full flex items-center justify-center text-gray-400">
+                    <div className="h-full flex items-center justify-center text-t2-ink-3">
                         <div className="text-center">
-                            <MessageSquare size={64} className="mx-auto mb-4 text-gray-300 dark:text-gray-700" />
+                            <MessageSquare size={64} className="mx-auto mb-4 text-t2-ink-3 " />
                             <p className="text-lg font-medium mb-2">Select a conversation</p>
                             <p className="text-sm">Choose a contact from the list to start messaging</p>
                         </div>

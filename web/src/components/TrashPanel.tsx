@@ -107,11 +107,11 @@ export default function TrashPanel() {
         <div className="max-w-4xl mx-auto py-12 px-8">
             <div className="flex justify-between items-center mb-8">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-3">
+                    <h1 className="text-2xl font-bold text-t2-ink  flex items-center gap-3">
                         <Trash2 className="text-rose-500" />
                         Papierkorb
                     </h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 flex items-center gap-1.5">
+                    <p className="text-sm text-t2-ink-2  mt-2 flex items-center gap-1.5">
                         <AlertCircle size={14} className="text-amber-500" />
                         Inhalte im Papierkorb werden nach einer Woche automatisch unwiderruflich gelöscht.
                     </p>
@@ -128,19 +128,19 @@ export default function TrashPanel() {
             </div>
 
             {loading && trashedItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-gray-400">
-                    <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+                <div className="flex flex-col items-center justify-center py-20 text-t2-ink-3">
+                    <div className="w-8 h-8 border-2 border-t2-accent border-t-transparent rounded-full animate-spin mb-4" />
                     <span>Papierkorb wird geladen...</span>
                 </div>
             ) : trashedItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-24 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl bg-gray-50/50 dark:bg-gray-900/10">
-                    <Trash2 size={48} className="text-gray-300 dark:text-gray-700 mb-4" />
-                    <span className="font-semibold text-gray-900 dark:text-gray-100 text-lg">Der Papierkorb ist leer</span>
-                    <span className="text-sm text-gray-400 mt-1">Gelöschte Notizen und Ordner landen hier</span>
+                <div className="flex flex-col items-center justify-center py-24 text-t2-ink-3 border-2 border-dashed border-t2-line  rounded-2xl bg-t2-sub ">
+                    <Trash2 size={48} className="text-t2-ink-3  mb-4" />
+                    <span className="font-semibold text-t2-ink  text-lg">Der Papierkorb ist leer</span>
+                    <span className="text-sm text-t2-ink-3 mt-1">Gelöschte Notizen und Ordner landen hier</span>
                 </div>
             ) : (
-                <div className="bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm">
-                    <div className="divide-y divide-gray-100 dark:divide-slate-800">
+                <div className="bg-t2-surface  border border-t2-line  rounded-2xl overflow-hidden shadow-sm">
+                    <div className="divide-y divide-t2-line-soft ">
                         {trashedItems.map(item => {
                             const deletedAt = item.metadata.deleted_at 
                                 ? new Date(item.metadata.deleted_at).toLocaleString() 
@@ -148,16 +148,16 @@ export default function TrashPanel() {
                             const isFolder = item.type === 'folder';
 
                             return (
-                                <div key={item.id} className="flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-slate-800/40 transition-colors">
+                                <div key={item.id} className="flex items-center justify-between p-4 hover:bg-t2-sub  transition-colors">
                                     <div className="flex items-center gap-3 min-w-0 flex-1">
-                                        <div className="text-gray-400 shrink-0">
-                                            {isFolder ? <Folder size={20} className="text-blue-400" /> : <FileText size={20} />}
+                                        <div className="text-t2-ink-3 shrink-0">
+                                            {isFolder ? <Folder size={20} className="text-t2-accent" /> : <FileText size={20} />}
                                         </div>
                                         <div className="truncate pr-4">
-                                            <p className="font-semibold text-gray-900 dark:text-gray-100 truncate text-sm">
+                                            <p className="font-semibold text-t2-ink  truncate text-sm">
                                                 {item.title}
                                             </p>
-                                            <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                                            <p className="text-xs text-t2-ink-3 mt-1 flex items-center gap-1">
                                                 <Calendar size={12} />
                                                 Gelöscht am: {deletedAt}
                                             </p>
@@ -168,7 +168,7 @@ export default function TrashPanel() {
                                             onClick={() => handleRestore(item.id)}
                                             disabled={actionId !== null}
                                             title="Wiederherstellen"
-                                            className="p-2 text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 rounded-lg transition-colors disabled:opacity-50"
+                                            className="p-2 text-t2-ink-2 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 rounded-lg transition-colors disabled:opacity-50"
                                         >
                                             <RotateCcw size={16} />
                                         </button>
@@ -176,7 +176,7 @@ export default function TrashPanel() {
                                             onClick={() => handlePermanentDelete(item.id, item.title)}
                                             disabled={actionId !== null}
                                             title="Endgültig löschen"
-                                            className="p-2 text-gray-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-colors disabled:opacity-50"
+                                            className="p-2 text-t2-ink-2 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-colors disabled:opacity-50"
                                         >
                                             <Trash2 size={16} />
                                         </button>

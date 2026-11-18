@@ -579,7 +579,7 @@ export default function CanvasLayer({
             )}
             {/* Binding mode toast */}
             {isBindingMode && (
-                <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2 rounded-full bg-[#000080]/90 text-white text-sm shadow-xl pointer-events-none backdrop-blur-sm">
+                <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2 rounded-full bg-t2-ink text-t2-bg text-sm shadow-xl pointer-events-none">
                     {rebindTarget.current ? 'Select text → Connect to change anchor · Esc to cancel' : 'Click an image to connect it · Esc to cancel'}
                 </div>
             )}

@@ -77,7 +77,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
         <button
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
-            className="w-[calc(100%-1rem)] mx-2 mb-2 px-3 py-2 rounded-lg bg-[var(--hover-bg)] dark:bg-white/[0.05] border border-black/5 dark:border-white/5 flex items-center justify-between cursor-pointer select-none transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+            className="w-[calc(100%-1rem)] mx-2 mb-2 px-3 py-2 rounded-lg bg-[var(--hover-bg)] dark:bg-white/[0.05] border border-t2-line  flex items-center justify-between cursor-pointer select-none transition-colors hover:bg-t2-hover "
             title="Workspace wechseln"
         >
             <div className="flex items-center gap-2 min-w-0">
@@ -108,8 +108,8 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
                         className={compact
-                            ? 'absolute right-0 top-full z-50 mt-2 w-60 p-1.5 rounded-2xl bg-[var(--sidebar-bg)] border border-black/5 dark:border-white/10 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] space-y-0.5 overflow-hidden'
-                            : 'mx-2 mb-2 p-1.5 rounded-lg bg-[var(--sidebar-bg)] border border-black/5 dark:border-white/5 space-y-1 overflow-hidden'}
+                            ? 'absolute right-0 top-full z-50 mt-2 w-60 p-1.5 rounded-2xl bg-[var(--sidebar-bg)] border border-t2-line  shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] space-y-0.5 overflow-hidden'
+                            : 'mx-2 mb-2 p-1.5 rounded-lg bg-[var(--sidebar-bg)] border border-t2-line  space-y-1 overflow-hidden'}
                     >
                         {/* List of safes */}
                         <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto no-scrollbar">
@@ -129,8 +129,8 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                         }}
                                         className={`flex items-center justify-between px-2 py-1.5 rounded-lg group transition-colors ${
                                             isActive
-                                                ? 'bg-blue-50/80 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-medium'
-                                                : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
+                                                ? 'bg-t2-sub  text-t2-accent  font-medium'
+                                                : 'text-t2-ink  hover:bg-t2-hover '
                                         }`}
                                     >
                                         <button
@@ -146,13 +146,13 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                                 size={13}
                                                 className={
                                                     isActive
-                                                        ? 'text-blue-500'
+                                                        ? 'text-t2-accent'
                                                         : 'text-[var(--text-muted)] group-hover:text-[var(--text-body)]'
                                                 }
                                             />
                                             <span className="truncate text-xs">{safe}</span>
                                             {isActive && (
-                                                <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300 font-normal shrink-0">
+                                                <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-t2-sub  text-t2-accent  font-normal shrink-0">
                                                     aktiv
                                                 </span>
                                             )}
@@ -166,10 +166,10 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                                     e.stopPropagation();
                                                     toggleSafe(safe);
                                                 }}
-                                                className={`p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer ${
+                                                className={`p-1 rounded hover:bg-t2-hover  transition-colors cursor-pointer ${
                                                     isActive
-                                                        ? 'text-blue-600 dark:text-blue-400'
-                                                        : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
+                                                        ? 'text-t2-accent '
+                                                        : 'text-t2-ink-3  hover:text-t2-ink-2 '
                                                 }`}
                                                 title={
                                                     isActive
@@ -197,7 +197,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                                             e.stopPropagation();
                                                             deleteSafe(safe);
                                                         }}
-                                                        className="p-1 rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                                                        className="p-1 rounded text-t2-ink-3 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                                                         title={`Workspace "${safe}" löschen`}
                                                     >
                                                         <Trash2 size={12} />
@@ -210,7 +210,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                         </div>
 
                         {/* Inline input to create a new safe */}
-                        <div className="pt-1 border-t border-black/5 dark:border-white/5">
+                        <div className="pt-1 border-t border-t2-line ">
                             {isCreatingSafe ? (
                                 <form
                                     onSubmit={(e) => {
@@ -231,11 +231,11 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                         }
                                         placeholder="Workspace Name..."
                                         autoFocus
-                                        className="w-full text-xs px-2 py-1 rounded-md bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 outline-none text-[var(--text-body)] placeholder:text-[var(--text-muted)]"
+                                        className="w-full text-xs px-2 py-1 rounded-md bg-t2-hover  border border-t2-line  outline-none text-[var(--text-body)] placeholder:text-[var(--text-muted)]"
                                     />
                                     <button
                                         type="submit"
-                                        className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded transition-colors cursor-pointer"
+                                        className="p-1 text-t2-accent hover:bg-t2-sub  rounded transition-colors cursor-pointer"
                                         title="Workspace erstellen"
                                     >
                                         <Check size={13} />
@@ -246,7 +246,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                             setIsCreatingSafe(false);
                                             setNewSafeName('');
                                         }}
-                                        className="p-1 text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors cursor-pointer"
+                                        className="p-1 text-t2-ink-3 hover:bg-t2-hover  rounded transition-colors cursor-pointer"
                                         title="Abbrechen"
                                     >
                                         <X size={13} />
@@ -256,9 +256,9 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                 <button
                                     type="button"
                                     onClick={() => setIsCreatingSafe(true)}
-                                    className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-body)] hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors cursor-pointer"
+                                    className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-[var(--text-muted)] hover:text-[var(--text-body)] hover:bg-t2-hover  rounded-md transition-colors cursor-pointer"
                                 >
-                                    <Plus size={13} className="text-blue-500" />
+                                    <Plus size={13} className="text-t2-accent" />
                                     <span>Neuer Workspace</span>
                                 </button>
                             )}

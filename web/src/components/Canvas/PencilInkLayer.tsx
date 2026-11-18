@@ -390,9 +390,9 @@ export const PencilInkLayer: React.FC<PencilInkLayerProps> = ({
         {lassoPoints.length > 1 && (
           <polygon
             points={lassoPolygonPoints}
-            fill={DT.accent}
+            fill="var(--t2-accent)"
             fillOpacity={0.08}
-            stroke={DT.accent}
+            stroke="var(--t2-accent)"
             strokeWidth={1.5}
             strokeDasharray="5 4"
           />
@@ -405,9 +405,9 @@ export const PencilInkLayer: React.FC<PencilInkLayerProps> = ({
             width={Math.max(selectionBounds.maxX - selectionBounds.minX, 4)}
             height={Math.max(selectionBounds.maxY - selectionBounds.minY, 4)}
             rx={DT.radius}
-            fill={DT.accent}
+            fill="var(--t2-accent)"
             fillOpacity={0.04}
-            stroke={DT.accent}
+            stroke="var(--t2-accent)"
             strokeWidth={1.5}
             strokeDasharray="6 4"
           />

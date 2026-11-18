@@ -38,25 +38,25 @@ const MONTHS_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep
 
 const KNOWN_TAG_COLORS: Record<string, string> = {
   pflegen: 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300',
-  erledigen: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300',
+  erledigen: 'bg-t2-sub text-t2-accent  ',
   vorbereiten: 'bg-yellow-50 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300',
   aufräumen: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
-  lernen: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+  lernen: 'bg-t2-sub text-t2-accent  ',
   routine: 'bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300',
-  arbeit: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300',
+  arbeit: 'bg-t2-sub text-t2-accent  ',
   kleidung: 'bg-pink-50 text-pink-700 dark:bg-pink-950/40 dark:text-pink-300',
   pflanzen: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
 };
 
 const COLOR_PALETTE = [
   'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
-  'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300',
-  'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+  'bg-t2-sub text-t2-accent  ',
+  'bg-t2-sub text-t2-accent  ',
   'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
   'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
   'bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300',
   'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
-  'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300',
+  'bg-t2-sub text-t2-accent  ',
 ];
 
 function getTagColorClass(tag: string): string {
@@ -337,22 +337,22 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
               onClick={handleClick}
               className={`flex items-start gap-3 sm:gap-4 p-3.5 sm:p-4 my-0.5 sm:my-1 backdrop-blur-xs rounded-xl sm:rounded-2xl relative pr-3 sm:pr-4 cursor-pointer group transition-all ${
                 isTaskCompleted
-                  ? 'opacity-40 grayscale-[30%] bg-gray-50/50 dark:bg-white/[0.02] text-gray-500 dark:text-gray-400 border border-gray-200/60 dark:border-white/[0.06]'
+                  ? 'opacity-40 grayscale-[30%] bg-t2-sub  text-t2-ink-2  border border-t2-line '
                   : isMobileT2
                     ? (isTodayActive ? 'tide-m-today' : '')
                   : isTodayActive
                     ? 'bg-[#27272a] text-white border border-[#27272a] shadow-md dark:bg-white dark:text-black dark:border-white dark:shadow-md'
-                    : 'bg-white/90 dark:bg-[#181818]/90 text-gray-900 dark:text-gray-100 border border-gray-200/80 dark:border-white/[0.08] hover:border-gray-300 dark:hover:border-white/20 shadow-[0_1px_3px_rgba(0,0,0,0.03)] dark:shadow-none'
+                    : 'bg-t2-surface  text-t2-ink  border border-t2-line  hover:border-t2-line  shadow-[0_1px_3px_rgba(0,0,0,0.03)] dark:shadow-none'
               }`}
             >
               {/* Left Date Column */}
               {parsedDate ? (
                 isOverdue ? (
                   <div className={`w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2 ${isTaskCompleted ? 'opacity-50' : ''}`}>
-                    <span className={`text-[14px] font-bold leading-tight ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-black dark:text-white'}`}>
+                    <span className={`text-[14px] font-bold leading-tight ${isTaskCompleted ? 'text-t2-ink-3 ' : 'text-t2-ink'}`}>
                       {format(parsedDate, 'd.')}
                     </span>
-                    <span className={`text-[10px] font-semibold uppercase tracking-widest ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-black dark:text-white'}`}>
+                    <span className={`text-[10px] font-semibold uppercase tracking-widest ${isTaskCompleted ? 'text-t2-ink-3 ' : 'text-t2-ink'}`}>
                       {MONTHS_DE[parsedDate.getMonth()].toUpperCase()}
                     </span>
                   </div>
@@ -360,20 +360,20 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                   <div className={`w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2 ${isTaskCompleted ? 'opacity-50' : ''}`}>
                     <span className={`text-[13px] font-bold leading-tight ${
                       isTaskCompleted
-                        ? 'text-gray-400 dark:text-gray-500'
+                        ? 'text-t2-ink-3 '
                         : isTodayActive
-                          ? 'text-white dark:text-black'
-                          : 'text-black dark:text-white'
+                          ? 'text-t2-bg'
+                          : 'text-t2-ink'
                     }`}>
                       Heute
                     </span>
                   </div>
                 ) : (
                   <div className={`w-12 shrink-0 self-center flex flex-col items-center justify-center text-center ml-1 sm:ml-2 ${isTaskCompleted ? 'opacity-50' : ''}`}>
-                    <span className={`text-[14px] font-bold leading-tight ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-black dark:text-white'}`}>
+                    <span className={`text-[14px] font-bold leading-tight ${isTaskCompleted ? 'text-t2-ink-3 ' : 'text-t2-ink'}`}>
                       {format(parsedDate, 'd.')}
                     </span>
-                    <span className={`text-[10px] uppercase tracking-widest ${isTaskCompleted ? 'text-gray-400 dark:text-gray-500' : 'text-black dark:text-white'}`}>
+                    <span className={`text-[10px] uppercase tracking-widest ${isTaskCompleted ? 'text-t2-ink-3 ' : 'text-t2-ink'}`}>
                       {MONTHS_DE[parsedDate.getMonth()]}
                     </span>
                   </div>
@@ -396,7 +396,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       className={`w-5 h-5 rounded-full border-2 hidden [@media(hover:hover)_and_(pointer:fine)]:flex items-center justify-center shrink-0 transition-all cursor-pointer ${
                         isTaskCompleted
                           ? 'bg-emerald-500 border-emerald-500 text-white'
-                          : 'border-gray-300 dark:border-white/20 hover:border-emerald-500'
+                          : 'border-t2-line  hover:border-emerald-500'
                       }`}
                       title={isTaskCompleted ? "Als unerledigt markieren" : "Als erledigt markieren"}
                     >
@@ -408,10 +408,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                     <span
                       className={`font-medium text-[15px] leading-tight truncate ${
                         isTaskCompleted
-                          ? 'line-through text-gray-400 dark:text-gray-500'
+                          ? 'line-through text-t2-ink-3 '
                           : isTodayActive
-                            ? 'text-white dark:text-black'
-                            : 'text-gray-900 dark:text-gray-100'
+                            ? 'text-t2-bg'
+                            : 'text-t2-ink '
                       }`}
                     >
                       {task.title}
@@ -434,8 +434,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                     {Boolean(depth && depth > 0) && (
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                         isTaskCompleted
-                          ? 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500'
-                          : 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'
+                          ? 'bg-t2-hover  text-t2-ink-3 '
+                          : 'bg-t2-sub  text-t2-accent '
                       }`}>
                         Teilaufgabe
                       </span>
@@ -449,10 +449,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         }}
                         className={`text-[12px] font-medium cursor-pointer hover:underline ${
                           isTaskCompleted
-                            ? 'text-gray-400 dark:text-gray-500'
+                            ? 'text-t2-ink-3 '
                             : isTodayActive
-                              ? 'text-gray-300 dark:text-gray-700'
-                              : 'text-gray-500 dark:text-gray-400'
+                              ? 'text-t2-ink-3 '
+                              : 'text-t2-ink-2 '
                         }`}
                         title={`Nach Ordner "${task.folder}" filtern`}
                       >
@@ -470,7 +470,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         }}
                         className={`text-[11px] px-1.5 py-0.5 rounded font-medium cursor-pointer transition-opacity hover:opacity-80 ${
                           isTaskCompleted
-                            ? 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 grayscale'
+                            ? 'bg-t2-hover  text-t2-ink-3  grayscale'
                             : getTagColorClass(tag)
                         }`}
                         title={`Nach #${tag} filtern`}
@@ -502,16 +502,16 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                 <div className={`p-4 sm:p-5 rounded-2xl border flex flex-col shrink-0 z-20 ${
                   isTodayActive
                     ? 'bg-[#27272a] text-white border border-[#27272a] dark:bg-white dark:text-black dark:border-white shadow-md'
-                    : 'bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white border-gray-200 dark:border-white/10 shadow-sm'
+                    : 'bg-t2-surface  text-t2-ink  border-t2-line  shadow-sm'
                 }`}>
                   <div className="flex items-center justify-between mb-2">
                     {depth && depth > 0 ? (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-t2-sub  text-t2-accent ">
                         Teilaufgabe
                       </span>
                     ) : (
                       <span className={`text-[11px] font-semibold uppercase tracking-wider ${
-                        isTodayActive ? 'text-white/60 dark:text-black/60' : 'text-gray-400 dark:text-gray-500'
+                        isTodayActive ? 'text-white/60 ' : 'text-t2-ink-3 '
                       }`}>
                         {isParentMinimized ? 'Aufgabe minimiert' : 'Aufgabe bearbeiten'}
                       </span>
@@ -523,12 +523,12 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         className={`p-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs ${
                           isTodayActive
                             ? 'text-white/80 hover:text-white dark:text-black/80 dark:hover:text-black hover:bg-white/10 dark:hover:bg-black/10'
-                            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10'
+                            : 'text-t2-ink-3 hover:text-t2-ink-2  hover:bg-t2-hover '
                         }`}
                         title={isParentMinimized ? "Details anzeigen" : "Details minimieren"}
                       >
                         <span className={`text-[11px] font-medium ${
-                          isTodayActive ? 'text-white/80 dark:text-black/80' : 'text-gray-500 dark:text-gray-400'
+                          isTodayActive ? 'text-white/80 ' : 'text-t2-ink-2 '
                         }`}>
                           {isParentMinimized ? 'Details einblenden' : 'Minimieren'}
                         </span>
@@ -543,12 +543,12 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         className={`p-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs ${
                           isTodayActive
                             ? 'text-white/80 hover:text-white dark:text-black/80 dark:hover:text-black hover:bg-white/10 dark:hover:bg-black/10'
-                            : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10'
+                            : 'text-t2-ink-3 hover:text-t2-ink-2  hover:bg-t2-hover '
                         }`}
                         title="Zuklappen"
                       >
                         <span className={`text-[11px] font-medium ${
-                          isTodayActive ? 'text-white/80 dark:text-black/80' : 'text-gray-500 dark:text-gray-400'
+                          isTodayActive ? 'text-white/80 ' : 'text-t2-ink-2 '
                         }`}>
                           Zuklappen
                         </span>
@@ -563,7 +563,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       ? ''
                       : isTodayActive
                         ? 'border-b border-white/20 dark:border-black/20 pb-2 mb-3'
-                        : 'border-b border-gray-200 dark:border-white/10 pb-2 mb-3'
+                        : 'border-b border-t2-line  pb-2 mb-3'
                   }`}>
                     <input
                       value={draft.title}
@@ -598,8 +598,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       placeholder="Titel der Aufgabe..."
                       className={`text-lg font-bold bg-transparent outline-none flex-1 min-w-0 ${
                         isTodayActive
-                          ? 'text-white dark:text-black placeholder-white/40 dark:placeholder-black/40'
-                          : 'text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500'
+                          ? 'text-t2-bg placeholder-white/40 dark:placeholder-black/40'
+                          : 'text-t2-ink  placeholder-t2-ink-3 '
                       }`}
                     />
                     {!isParentMinimized && (
@@ -670,11 +670,11 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
                             isTodayActive
                               ? isDraftNow
-                                ? 'bg-white text-black dark:bg-black dark:text-white shadow-xs'
+                                ? 'bg-t2-surface text-black  dark:text-white shadow-xs'
                                 : 'bg-white/15 text-white hover:bg-white/20 dark:bg-black/10 dark:text-black dark:hover:bg-black/15'
                               : isDraftNow
-                                ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
-                                : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
+                                ? 'bg-t2-ink text-white  dark:text-gray-900 shadow-xs'
+                                : 'bg-t2-hover hover:bg-t2-stage   text-t2-ink '
                           }`}
                         >
                           Jetzt
@@ -685,11 +685,11 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
                             isTodayActive
                               ? isDraftToday
-                                ? 'bg-white text-black dark:bg-black dark:text-white shadow-xs'
+                                ? 'bg-t2-surface text-black  dark:text-white shadow-xs'
                                 : 'bg-white/15 text-white hover:bg-white/20 dark:bg-black/10 dark:text-black dark:hover:bg-black/15'
                               : isDraftToday
-                                ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
-                                : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
+                                ? 'bg-t2-ink text-white  dark:text-gray-900 shadow-xs'
+                                : 'bg-t2-hover hover:bg-t2-stage   text-t2-ink '
                           }`}
                         >
                           Heute
@@ -700,11 +700,11 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
                             isTodayActive
                               ? isDraftTomorrow
-                                ? 'bg-white text-black dark:bg-black dark:text-white shadow-xs'
+                                ? 'bg-t2-surface text-black  dark:text-white shadow-xs'
                                 : 'bg-white/15 text-white hover:bg-white/20 dark:bg-black/10 dark:text-black dark:hover:bg-black/15'
                               : isDraftTomorrow
-                                ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900 shadow-xs'
-                                : 'bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300'
+                                ? 'bg-t2-ink text-white  dark:text-gray-900 shadow-xs'
+                                : 'bg-t2-hover hover:bg-t2-stage   text-t2-ink '
                           }`}
                         >
                           Morgen
@@ -726,10 +726,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                               setDraft((p) => ({ ...p, dueDate: nextVal }));
                               updateTask(task.id, { dueDate: nextVal || undefined, scheduledDate: nextVal || undefined });
                             }}
-                            className={`px-2 py-1 text-xs font-medium rounded-lg border focus:border-blue-500 focus:outline-none cursor-pointer ${
+                            className={`px-2 py-1 text-xs font-medium rounded-lg border focus:border-t2-accent focus:outline-none cursor-pointer ${
                               isTodayActive
-                                ? 'bg-white/15 dark:bg-black/10 text-white dark:text-black border-transparent [color-scheme:dark] dark:[color-scheme:light]'
-                                : 'bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 border-transparent'
+                                ? 'bg-white/15 dark:bg-black/10 text-t2-bg border-transparent [color-scheme:dark] dark:[color-scheme:light]'
+                                : 'bg-t2-hover  text-t2-ink  border-transparent'
                             }`}
                             aria-label="Fälligkeitsdatum auswählen"
                           />
@@ -740,7 +740,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                               className={`ml-1 p-0.5 cursor-pointer ${
                                 isTodayActive
                                   ? 'text-white/60 hover:text-white dark:text-black/60 dark:hover:text-black'
-                                  : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+                                  : 'text-t2-ink-3 hover:text-t2-ink-2 '
                               }`}
                               title="Datum entfernen"
                             >
@@ -768,10 +768,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                                 updateTask(task.id, { dueDate: datePart, scheduledDate: datePart });
                               }
                             }}
-                            className={`px-2 py-1 text-xs font-medium rounded-lg border focus:border-blue-500 focus:outline-none cursor-pointer ${
+                            className={`px-2 py-1 text-xs font-medium rounded-lg border focus:border-t2-accent focus:outline-none cursor-pointer ${
                               isTodayActive
-                                ? 'bg-white/15 dark:bg-black/10 text-white dark:text-black border-transparent [color-scheme:dark] dark:[color-scheme:light]'
-                                : 'bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 border-transparent'
+                                ? 'bg-white/15 dark:bg-black/10 text-t2-bg border-transparent [color-scheme:dark] dark:[color-scheme:light]'
+                                : 'bg-t2-hover  text-t2-ink  border-transparent'
                             }`}
                             aria-label="Fälligkeitszeit auswählen"
                           />
@@ -786,7 +786,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                               className={`ml-1 p-0.5 cursor-pointer ${
                                 isTodayActive
                                   ? 'text-white/60 hover:text-white dark:text-black/60 dark:hover:text-black'
-                                  : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+                                  : 'text-t2-ink-3 hover:text-t2-ink-2 '
                               }`}
                               title="Uhrzeit entfernen"
                             >
@@ -800,9 +800,9 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       {(!depth || depth < 1) && (
                         <div className="grid grid-cols-2 gap-2">
                           <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 min-w-0 ${
-                            isTodayActive ? 'bg-white/15 dark:bg-black/10' : 'bg-gray-100 dark:bg-white/10'
+                            isTodayActive ? 'bg-white/15 ' : 'bg-t2-hover '
                           }`}>
-                            <Folder size={14} className={isTodayActive ? 'text-white/60 dark:text-black/60 shrink-0' : 'text-gray-400 shrink-0'} />
+                            <Folder size={14} className={isTodayActive ? 'text-white/60  shrink-0' : 'text-t2-ink-3 shrink-0'} />
                             <select
                               value={draft.folder}
                               onChange={(e) => {
@@ -811,20 +811,20 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                                 updateTask(task.id, { folder: nextFolder || undefined });
                               }}
                               className={`bg-transparent text-xs font-medium border-none focus:outline-none cursor-pointer w-full truncate pr-1 ${
-                                isTodayActive ? 'text-white dark:text-black' : 'text-gray-800 dark:text-gray-200'
+                                isTodayActive ? 'text-t2-bg' : 'text-t2-ink '
                               }`}
                             >
-                              <option value="" className="bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white">Kein Ordner</option>
+                              <option value="" className="bg-t2-surface  text-t2-ink ">Kein Ordner</option>
                               {allFolders.map((f) => (
-                                <option key={f} value={f} className="bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white">{f}</option>
+                                <option key={f} value={f} className="bg-t2-surface  text-t2-ink ">{f}</option>
                               ))}
                             </select>
                           </div>
 
                           <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 min-w-0 ${
-                            isTodayActive ? 'bg-white/15 dark:bg-black/10' : 'bg-gray-100 dark:bg-white/10'
+                            isTodayActive ? 'bg-white/15 ' : 'bg-t2-hover '
                           }`}>
-                            <Repeat size={14} className={isTodayActive ? 'text-white/60 dark:text-black/60 shrink-0' : 'text-gray-400 shrink-0'} />
+                            <Repeat size={14} className={isTodayActive ? 'text-white/60  shrink-0' : 'text-t2-ink-3 shrink-0'} />
                             <select
                               value={draft.recurrence}
                               onChange={(e) => {
@@ -833,11 +833,11 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                                 updateTask(task.id, { recurrence: nextRecurrence });
                               }}
                               className={`bg-transparent text-xs font-medium border-none focus:outline-none cursor-pointer w-full truncate pr-1 ${
-                                isTodayActive ? 'text-white dark:text-black' : 'text-gray-800 dark:text-gray-200'
+                                isTodayActive ? 'text-t2-bg' : 'text-t2-ink '
                               }`}
                             >
                               {RECURRENCE_OPTIONS.map((o) => (
-                                <option key={o.value} value={o.value} className="bg-white dark:bg-[#1a1a1a] text-gray-900 dark:text-white">{o.label}</option>
+                                <option key={o.value} value={o.value} className="bg-t2-surface  text-t2-ink ">{o.label}</option>
                               ))}
                             </select>
                           </div>
@@ -848,7 +848,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       <div className={`w-full flex flex-wrap items-center gap-2 p-2.5 rounded-xl border ${
                         isTodayActive
                           ? 'bg-white/10 dark:bg-black/5 border-white/10 dark:border-black/10'
-                          : 'bg-gray-50 dark:bg-white/[0.04] border-gray-100 dark:border-white/5'
+                          : 'bg-t2-sub  border-t2-line-soft '
                       }`}>
                         {draft.tags.map((tag) => (
                           <span
@@ -873,9 +873,9 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         <div className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs border ${
                           isTodayActive
                             ? 'bg-white/15 dark:bg-black/10 border-white/20 dark:border-black/10'
-                            : 'bg-white dark:bg-white/10 border-gray-200/60 dark:border-white/10'
+                            : 'bg-t2-surface  border-t2-line '
                         }`}>
-                          <Tag size={13} className={isTodayActive ? 'text-white/60 dark:text-black/60' : 'text-gray-400'} />
+                          <Tag size={13} className={isTodayActive ? 'text-white/60 ' : 'text-t2-ink-3'} />
                           <input
                             type="text"
                             value={tagInput}
@@ -890,8 +890,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                             placeholder="Tag hinzufügen..."
                             className={`w-28 bg-transparent text-xs focus:outline-none ${
                               isTodayActive
-                                ? 'text-white dark:text-black placeholder-white/50 dark:placeholder-black/50'
-                                : 'text-gray-900 dark:text-white placeholder-gray-400'
+                                ? 'text-t2-bg placeholder-white/50 dark:placeholder-black/50'
+                                : 'text-t2-ink  placeholder-t2-ink-3'
                             }`}
                           />
                           {tagInput.trim() && (
@@ -903,8 +903,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                               }}
                               className={`p-0.5 cursor-pointer ${
                                 isTodayActive
-                                  ? 'text-white dark:text-black hover:opacity-80'
-                                  : 'text-blue-600 dark:text-blue-400 hover:text-blue-700'
+                                  ? 'text-t2-bg hover:opacity-80'
+                                  : 'text-t2-accent  hover:text-t2-accent'
                               }`}
                               title="Tag hinzufügen"
                             >
@@ -925,14 +925,14 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         rows={1}
                         className={`w-full text-xs sm:text-sm rounded-lg p-2.5 border outline-none resize-none transition-colors ${
                           isTodayActive
-                            ? 'bg-white/10 dark:bg-black/5 border-white/10 dark:border-black/10 text-white dark:text-black placeholder-white/40 dark:placeholder-black/40 focus:border-white/30 dark:focus:border-black/30'
-                            : 'bg-gray-50 dark:bg-white/[0.03] border-gray-100 dark:border-white/5 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-600 focus:border-gray-300 dark:focus:border-white/20'
+                            ? 'bg-white/10 dark:bg-black/5 border-white/10 dark:border-black/10 text-t2-bg placeholder-white/40 dark:placeholder-black/40 focus:border-white/30 dark:focus:border-black/30'
+                            : 'bg-t2-sub  border-t2-line-soft  text-t2-ink  placeholder-t2-ink-3  focus:border-t2-line '
                         }`}
                       />
                     </div>
                   )}
 
-                  <div className="flex items-center justify-end gap-2 mt-3 pt-2 border-t border-gray-100 dark:border-white/5">
+                  <div className="flex items-center justify-end gap-2 mt-3 pt-2 border-t border-t2-line-soft ">
                     <button
                       type="button"
                       onClick={() => {
@@ -972,19 +972,19 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       onClick={() => setSubtasksCollapsed((prev) => !prev)}
                       className="w-full flex items-center justify-between px-1 pt-2 cursor-pointer group select-none text-left"
                     >
-                      <span className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors">
+                      <span className="text-xs font-bold uppercase tracking-wider text-t2-ink-3  group-hover:text-t2-ink-2  transition-colors">
                         Unteraufgaben ({completedCount}/{totalCount})
                       </span>
                       <ChevronDown
                         className={cn(
-                          "w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200",
+                          "w-4 h-4 text-t2-ink-3  transition-transform duration-200",
                           subtasksCollapsed && "-rotate-90"
                         )}
                       />
                     </button>
-                    <div className="w-full h-2 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden mt-1.5 mb-2">
+                    <div className="w-full h-2 bg-t2-stage  rounded-full overflow-hidden mt-1.5 mb-2">
                       <div
-                        className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                        className="h-full bg-t2-accent rounded-full transition-all duration-300"
                         style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }}
                       />
                     </div>
@@ -1005,7 +1005,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                             }
                           }}
                           placeholder="Neue Unteraufgabe hinzufügen..."
-                          className="flex-1 px-3 py-1.5 text-xs bg-gray-100 dark:bg-white/10 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none border border-transparent focus:border-blue-500"
+                          className="flex-1 px-3 py-1.5 text-xs bg-t2-hover  rounded-lg text-t2-ink  placeholder-t2-ink-3 focus:outline-none border border-transparent focus:border-t2-accent"
                         />
                         <button
                           type="button"
@@ -1019,7 +1019,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         <button
                           type="button"
                           onClick={() => setShowSubtaskInput(false)}
-                          className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                          className="p-1.5 text-t2-ink-3 hover:text-t2-ink-2  cursor-pointer"
                           title="Schließen"
                         >
                           <X size={14} />
@@ -1076,21 +1076,21 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       />
                     ))
                   ) : (
-                    <div className="text-xs text-gray-400 italic py-2 px-1">Keine Unteraufgaben vorhanden</div>
+                    <div className="text-xs text-t2-ink-3 italic py-2 px-1">Keine Unteraufgaben vorhanden</div>
                   )}
                 </div>
               )}
 
               {/* Action Bar: Centered at Bottom on PC & iPad, No Duplicate on Mobile or Subtasks */}
               {(!depth || depth < 1) && (
-                <div className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-50 items-center gap-2 px-3 py-2 rounded-2xl bg-white/90 dark:bg-[#181818]/90 backdrop-blur-md border border-gray-200/80 dark:border-white/10 shadow-xl">
+                <div className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-50 items-center gap-2 px-3 py-2 rounded-2xl bg-t2-surface  backdrop-blur-md border border-t2-line  shadow-xl">
                   <button
                     type="button"
                     onClick={() => {
                       if (cancelEditing) cancelEditing();
                       if (isControlledExpanded === undefined) setLocalExpanded(false);
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-t2-hover hover:bg-t2-stage   text-t2-ink  transition-colors cursor-pointer"
                     title="Abbrechen"
                   >
                     <ArrowLeft size={14} />
@@ -1100,7 +1100,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                   <button
                     type="button"
                     onClick={() => setShowSubtaskInput(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-t2-hover hover:bg-t2-stage   text-t2-ink  transition-colors cursor-pointer"
                     title="Teilaufgabe hinzufügen"
                   >
                     <Plus size={14} />
@@ -1114,7 +1114,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       if (isControlledExpanded === undefined) setLocalExpanded(false);
                       void deleteTask(task.id);
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl text-t2-ink-2 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
                     title="Aufgabe löschen"
                   >
                     <Trash2 size={14} />

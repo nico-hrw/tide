@@ -25,7 +25,7 @@ export default function SmartIsland({ onConfirm, onEdit }: { onConfirm: (data: a
                     initial={{ opacity: 0, y: -20, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -20, scale: 0.95 }}
-                    className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] bg-white/85 dark:bg-gray-800/80 backdrop-blur-xl border border-[var(--border-ui)] rounded-[var(--radius-lg)] p-5 flex items-center gap-4 max-w-sm w-full"
+                    className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] bg-t2-surface  backdrop-blur-xl border border-[var(--border-ui)] rounded-[var(--radius-lg)] p-5 flex items-center gap-4 max-w-sm w-full"
                     style={{ boxShadow: 'var(--shadow-float)' }}
                 >
                     <div className="flex-1 min-w-0">

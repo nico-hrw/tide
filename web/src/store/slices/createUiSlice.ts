@@ -1,5 +1,7 @@
+import { applyPalette, getStoredPalette, isPalette, PALETTE_STORAGE_KEY } from '@/lib/palette';
 import type {
     AppLanguage,
+    AppPalette,
     AppTheme,
     DataStoreSlice,
     NavigationMode,
@@ -55,6 +57,13 @@ function getInitialTheme(): AppTheme {
     return resolved;
 }
 
+function getInitialPalette(): AppPalette {
+    const palette = getStoredPalette();
+    // Applied immediately, like the theme class, so the first paint already has the right colours
+    applyPalette(palette);
+    return palette;
+}
+
 function getInitialThemePreference(): ThemePreference {
     if (typeof window === 'undefined') return 'system';
     return (localStorage.getItem('tide_theme_preference') as ThemePreference | null) || 'system';
@@ -100,6 +109,7 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     enabledExtensions: getInitialExtensions(),
     theme: getInitialTheme(),
     themePreference: getInitialThemePreference(),
+    appPalette: getInitialPalette(),
     language: getInitialLanguage(),
     navigationMode: getInitialNavigationMode(),
     paperPattern: getInitialPaperPattern(),
@@ -157,6 +167,18 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
             }
             applyThemeClass(resolvedTheme);
             return { themePreference: pref, theme: resolvedTheme };
+        }),
+
+    setAppPalette: (palette: AppPalette) =>
+        set(() => {
+            if (!isPalette(palette)) return {};
+            try {
+                localStorage.setItem(PALETTE_STORAGE_KEY, palette);
+            } catch (e) {
+                console.warn('Failed to save palette to localStorage', e);
+            }
+            applyPalette(palette);
+            return { appPalette: palette };
         }),
 
     setLanguage: (lang: AppLanguage) =>

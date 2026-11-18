@@ -391,10 +391,10 @@ const MentionList = forwardRef((props: any, ref) => {
     }));
 
     return (
-        <div className="flex flex-col p-1 w-[290px] max-h-[340px] overflow-y-auto bg-white/90 dark:bg-[#1a1a1a]/90 backdrop-blur-md border border-gray-200 dark:border-white/10 shadow-lg rounded-xl text-sm z-[9999]">
+        <div className="flex flex-col p-1 w-[290px] max-h-[340px] overflow-y-auto bg-t2-surface  backdrop-blur-md border border-t2-line  shadow-lg rounded-xl text-sm z-[9999]">
             {activeGroup ? (
                 <>
-                    <div className="p-1 border-b border-gray-100 dark:border-white/10 mb-1">
+                    <div className="p-1 border-b border-t2-line-soft  mb-1">
                         <button
                             type="button"
                             onMouseDown={(e) => {
@@ -403,12 +403,12 @@ const MentionList = forwardRef((props: any, ref) => {
                                 setActiveGroup(null);
                                 setSelectedIndex(prevGroupIndexRef.current);
                             }}
-                            className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium w-full px-1.5 py-1 rounded cursor-pointer"
+                            className="flex items-center gap-1.5 text-xs text-t2-accent  hover:underline font-medium w-full px-1.5 py-1 rounded cursor-pointer"
                         >
                             <ArrowLeft size={13} />
                             <span className="truncate">Zurück zu allen Ergebnissen</span>
                         </button>
-                        <div className="flex items-center gap-1.5 px-1.5 py-0.5 text-[11px] text-gray-500 dark:text-gray-400 font-semibold truncate">
+                        <div className="flex items-center gap-1.5 px-1.5 py-0.5 text-[11px] text-t2-ink-2  font-semibold truncate">
                             <span
                                 className="w-2 h-2 rounded-full flex-shrink-0"
                                 style={{ backgroundColor: activeGroup.color || '#3b82f6' }}
@@ -423,8 +423,8 @@ const MentionList = forwardRef((props: any, ref) => {
                                 ref={(el) => { itemRefs.current[index] = el; }}
                                 className={`flex items-center gap-2 px-2 py-1.5 text-left rounded-lg transition-colors w-full ${
                                     index === selectedIndex
-                                        ? 'bg-black/5 dark:bg-white/10 text-black dark:text-white'
-                                        : 'text-gray-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'
+                                        ? 'bg-t2-hover  text-t2-ink'
+                                        : 'text-t2-ink-2  hover:bg-t2-hover '
                                 }`}
                                 onMouseDown={(e) => {
                                     e.preventDefault();
@@ -438,11 +438,11 @@ const MentionList = forwardRef((props: any, ref) => {
                                 <div className="flex-1 font-medium text-xs truncate">
                                     {eventItem.formattedDate || 'Kein Datum'}
                                 </div>
-                                <CalendarIcon size={13} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                                <CalendarIcon size={13} className="text-t2-ink-3  flex-shrink-0" />
                             </button>
                         ))
                     ) : (
-                        <div className="px-2 py-2 text-gray-500 text-xs">Keine Termine</div>
+                        <div className="px-2 py-2 text-t2-ink-2 text-xs">Keine Termine</div>
                     )}
                 </>
             ) : (
@@ -454,8 +454,8 @@ const MentionList = forwardRef((props: any, ref) => {
                                 ref={(el) => { itemRefs.current[index] = el; }}
                                 className={`flex items-center gap-2 px-2 py-1.5 text-left rounded-lg transition-colors w-full ${
                                     index === selectedIndex
-                                        ? 'bg-black/5 dark:bg-white/10 text-black dark:text-white'
-                                        : 'text-gray-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'
+                                        ? 'bg-t2-hover  text-t2-ink'
+                                        : 'text-t2-ink-2  hover:bg-t2-hover '
                                 }`}
                                 onMouseDown={(e) => {
                                     e.preventDefault();
@@ -470,11 +470,11 @@ const MentionList = forwardRef((props: any, ref) => {
                                         />
                                         <div className="flex items-center justify-between min-w-0 flex-1 gap-1.5">
                                             <span className="font-medium truncate">{item.title || item.label}</span>
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 font-medium flex-shrink-0">
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  font-medium flex-shrink-0">
                                                 {item.count} Termine
                                             </span>
                                         </div>
-                                        <ChevronRight size={15} className="text-gray-500 dark:text-gray-400 flex-shrink-0 ml-0.5" />
+                                        <ChevronRight size={15} className="text-t2-ink-2  flex-shrink-0 ml-0.5" />
                                     </>
                                 ) : item.type === 'event' ? (
                                     <>
@@ -485,28 +485,28 @@ const MentionList = forwardRef((props: any, ref) => {
                                         <div className="flex items-center justify-between min-w-0 flex-1 gap-1.5">
                                             <span className="font-medium truncate">{item.label || item.title}</span>
                                             {item.formattedDate && (
-                                                <span className="text-[11px] text-gray-400 dark:text-gray-500 flex-shrink-0 font-normal">
+                                                <span className="text-[11px] text-t2-ink-3  flex-shrink-0 font-normal">
                                                     {item.formattedDate}
                                                 </span>
                                             )}
                                         </div>
-                                        <CalendarIcon size={14} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                                        <CalendarIcon size={14} className="text-t2-ink-3  flex-shrink-0" />
                                     </>
                                 ) : item.type === 'task' ? (
                                     <>
                                         <CheckSquare
                                             size={14}
-                                            className="text-blue-500 dark:text-blue-400 flex-shrink-0"
+                                            className="text-t2-accent  flex-shrink-0"
                                             style={item.color ? { color: item.color } : undefined}
                                         />
                                         <div className="flex items-center justify-between min-w-0 flex-1 gap-1.5">
-                                            <span className={`font-medium truncate ${item.isCompleted ? 'line-through text-gray-400 dark:text-gray-500' : ''}`}>
-                                                <span className="text-xs text-gray-400 dark:text-gray-500 font-normal mr-1.5 no-underline">Todo:</span>
+                                            <span className={`font-medium truncate ${item.isCompleted ? 'line-through text-t2-ink-3 ' : ''}`}>
+                                                <span className="text-xs text-t2-ink-3  font-normal mr-1.5 no-underline">Todo:</span>
                                                 {item.label || item.title}
                                             </span>
                                             <div className="flex items-center gap-1.5 flex-shrink-0">
                                                 {item.formattedDate && (
-                                                    <span className="text-[11px] text-gray-400 dark:text-gray-500 font-normal">
+                                                    <span className="text-[11px] text-t2-ink-3  font-normal">
                                                         {item.formattedDate}
                                                     </span>
                                                 )}
@@ -520,25 +520,25 @@ const MentionList = forwardRef((props: any, ref) => {
                                     </>
                                 ) : item.id === 'NEW_TASK' ? (
                                     <>
-                                        <CheckSquare size={14} className="text-blue-500 dark:text-blue-400 flex-shrink-0" />
+                                        <CheckSquare size={14} className="text-t2-accent  flex-shrink-0" />
                                         <div className="font-medium truncate flex-1">{item.label || item.title}</div>
-                                        <Plus size={14} className="text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                                        <Plus size={14} className="text-t2-ink-3  flex-shrink-0" />
                                     </>
                                 ) : item.safe && item.type === 'note' ? (
                                     <>
                                         <div className="flex items-center gap-1.5 truncate flex-1 min-w-0">
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 font-semibold tracking-wide shrink-0">
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  font-semibold tracking-wide shrink-0">
                                                 {item.safe}
                                             </span>
                                             <span className="font-medium truncate">{item.title || item.label}</span>
                                         </div>
-                                        <FileText size={14} className="text-gray-400 dark:text-gray-500 shrink-0" />
+                                        <FileText size={14} className="text-t2-ink-3  shrink-0" />
                                     </>
                                 ) : (
                                     <>
                                         <div className="font-medium truncate flex-1">{item.label || item.title}</div>
                                         {item.type && (
-                                            <div className="flex-shrink-0 text-gray-400 dark:text-gray-500">
+                                            <div className="flex-shrink-0 text-t2-ink-3 ">
                                                 {item.type === 'note' && <FileText size={14} />}
                                                 {item.type === 'file' && <Paperclip size={14} />}
                                                 {item.type === 'action' && <Plus size={14} />}
@@ -549,7 +549,7 @@ const MentionList = forwardRef((props: any, ref) => {
                             </button>
                         ))
                     ) : (
-                        <div className="px-2 py-2 text-gray-500 text-xs">No results</div>
+                        <div className="px-2 py-2 text-t2-ink-2 text-xs">No results</div>
                     )}
                 </>
             )}

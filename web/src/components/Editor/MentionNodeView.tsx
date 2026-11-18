@@ -79,9 +79,9 @@ export const MentionNodeView = ({ node }: any) => {
     };
 
     if (isFile) {
-        colorClass = 'bg-blue-50/80 text-blue-700 hover:bg-blue-100/90 border-blue-200/80 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-800/40 dark:hover:bg-blue-900/40';
+        colorClass = 'bg-t2-sub text-t2-accent hover:bg-t2-sub border-t2-line    ';
     } else if (isGhost) {
-        colorClass = 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600 border-gray-200 dark:border-slate-600';
+        colorClass = 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage  border-t2-line ';
     } else if (isEvent) {
         if (eventMentionStyle === 'calendar' && (ev?.color || liveFile?.color)) {
             const eventColor = ev?.color || liveFile?.color;
@@ -92,10 +92,10 @@ export const MentionNodeView = ({ node }: any) => {
                 color: eventColor,
             };
         } else {
-            colorClass = 'bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700/50';
+            colorClass = 'bg-t2-sub text-t2-accent hover:bg-t2-sub border-t2-line   ';
         }
     } else {
-        colorClass = 'bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:hover:bg-purple-900/40';
+        colorClass = 'bg-t2-sub text-t2-accent hover:bg-t2-sub border-t2-line   ';
     }
 
     if (isAlwaysBox) {
@@ -178,7 +178,7 @@ export const MentionNodeView = ({ node }: any) => {
                                 e.stopPropagation();
                                 window.dispatchEvent(new CustomEvent('event-task:toggle', { detail: { id, is_completed: !isCompleted } }));
                             }}
-                            className="w-3.5 h-3.5 rounded-sm cursor-pointer border-blue-300 dark:border-blue-600 focus:ring-0 m-0"
+                            className="w-3.5 h-3.5 rounded-sm cursor-pointer border-t2-line  focus:ring-0 m-0"
                             style={(ev?.color || liveFile?.color) ? { accentColor: ev?.color || liveFile?.color, marginTop: '-1px' } : { marginTop: '-1px' }}
                         />
                     )}

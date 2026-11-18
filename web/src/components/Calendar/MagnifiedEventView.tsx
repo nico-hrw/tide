@@ -48,12 +48,12 @@ const Ruler = ({ activeMinute, cursorY }: { activeMinute: number, cursorY: Motio
 
         lines.push(
             <div key={m} className="absolute left-7 right-0 flex items-center gap-2" style={{ top: yPos - 10, height: 20 }}>
-                <span className={`text-[12px] w-9 text-right font-bold tracking-tighter ${isCurrent ? 'opacity-100 text-blue-600 dark:text-blue-400 text-[13px] drop-shadow-sm' : isFive ? 'opacity-90 text-t2-ink ' : 'opacity-40 text-t2-ink-2'
+                <span className={`text-[12px] w-9 text-right font-bold tracking-tighter ${isCurrent ? 'opacity-100 text-t2-accent  text-[13px] drop-shadow-sm' : isFive ? 'opacity-90 text-t2-ink ' : 'opacity-40 text-t2-ink-2'
                     }`}>
                     {isCurrent || isFive ? `${h.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}` : ''}
                 </span>
 
-                <div className={`h-[2px] rounded-full bg-t2-ink-3  ${isCurrent ? 'w-6 bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' : mins % 15 === 0 ? 'w-4' : isFive ? 'w-2' : 'w-1 opacity-50'}`}></div>
+                <div className={`h-[2px] rounded-full bg-t2-ink-3  ${isCurrent ? 'w-6 bg-t2-accent shadow-[0_0_8px_rgba(59,130,246,0.6)]' : mins % 15 === 0 ? 'w-4' : isFive ? 'w-2' : 'w-1 opacity-50'}`}></div>
 
                 {isCurrent && (
                     <div className="absolute left-10 right-[-300px] h-[1.5px] pointer-events-none z-0" style={{ background: 'rgba(59,130,246,0.9)', boxShadow: '0 0 8px rgba(59,130,246,0.6)' }}></div>

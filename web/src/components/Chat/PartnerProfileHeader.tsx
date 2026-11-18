@@ -71,22 +71,22 @@ export default function PartnerProfileHeader({ partner, expanded, onOpenProfile,
 
     return (
         <div
-            className="overflow-hidden transition-all duration-300 border-b border-gray-100 dark:border-white/10 bg-white dark:bg-[#1a1c1e]"
+            className="overflow-hidden transition-all duration-300 border-b border-t2-line-soft  bg-t2-surface "
             style={{ maxHeight: expanded ? '360px' : '56px' }}
         >
             {/* Compact view — always visible */}
             <div
-                className="flex items-center gap-3 px-4 h-14 shrink-0 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors select-none"
+                className="flex items-center gap-3 px-4 h-14 shrink-0 cursor-pointer hover:bg-t2-sub  transition-colors select-none"
                 onClick={onToggle}
             >
                 <Avatar seed={seed} style={partner.avatar_style as any} size={28} />
-                <span className="font-semibold text-sm text-gray-900 dark:text-white truncate flex-1">
+                <span className="font-semibold text-sm text-t2-ink  truncate flex-1">
                     {partner.username}
                     {details?.is_verified && <CheckCircle2 className="inline w-3.5 h-3.5 fill-green-500 text-white ml-1 mb-0.5" />}
                 </span>
                 <button
                     onClick={(e) => { e.stopPropagation(); onOpenProfile(partner.id, partner.username); }}
-                    className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 transition-colors shrink-0"
+                    className="p-1.5 rounded-lg hover:bg-t2-hover  text-t2-ink-3 transition-colors shrink-0"
                     title="Profil ansehen"
                 >
                     <ExternalLink size={14} />
@@ -99,26 +99,26 @@ export default function PartnerProfileHeader({ partner, expanded, onOpenProfile,
                 <div className="flex flex-col items-center gap-1.5">
                     <Avatar seed={seed} style={partner.avatar_style as any} size={52} />
                     {details?.title && (
-                        <p className="text-[10px] text-gray-400 dark:text-slate-500 font-bold uppercase tracking-widest">{details.title}</p>
+                        <p className="text-[10px] text-t2-ink-3  font-bold uppercase tracking-widest">{details.title}</p>
                     )}
                     {details?.bio && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center line-clamp-2">{details.bio}</p>
+                        <p className="text-xs text-t2-ink-2  text-center line-clamp-2">{details.bio}</p>
                     )}
                 </div>
 
                 {/* Public files section */}
                 {publicFiles.length > 0 && (
                     <div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 dark:text-slate-500 mb-1.5">Öffentliche Notizen</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-t2-ink-3  mb-1.5">Öffentliche Notizen</p>
                         <div className="flex flex-col gap-0.5">
                             {publicFiles.map(f => (
                                 <button
                                     key={f.id}
                                     onClick={(e) => { e.stopPropagation(); onOpenProfile(partner.id, partner.username); }}
-                                    className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors text-left w-full"
+                                    className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-t2-hover  transition-colors text-left w-full"
                                 >
-                                    <FileText size={12} className="text-gray-400 dark:text-slate-500 shrink-0" />
-                                    <span className="text-xs text-gray-700 dark:text-gray-300 truncate">{f.title}</span>
+                                    <FileText size={12} className="text-t2-ink-3  shrink-0" />
+                                    <span className="text-xs text-t2-ink  truncate">{f.title}</span>
                                 </button>
                             ))}
                         </div>
@@ -126,7 +126,7 @@ export default function PartnerProfileHeader({ partner, expanded, onOpenProfile,
                 )}
 
                 {publicFiles.length === 0 && hasFetched && (
-                    <p className="text-[11px] text-gray-400 dark:text-slate-500 text-center">Keine öffentlichen Notizen</p>
+                    <p className="text-[11px] text-t2-ink-3  text-center">Keine öffentlichen Notizen</p>
                 )}
             </div>
         </div>

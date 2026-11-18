@@ -243,12 +243,12 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
                 }
             }}
             className={`group flex items-center justify-between w-full px-2 py-1 min-h-[28px] rounded-lg cursor-pointer transition-all duration-150
-                ${isCalendarDropTarget ? 'ring-2 ring-violet-400 bg-violet-50 dark:bg-violet-900/20' : ''}
+                ${isCalendarDropTarget ? 'ring-2 ring-t2-accent bg-t2-sub ' : ''}
                 ${isActive
-                    ? 'bg-gray-200/80 dark:bg-white/10 text-gray-950 dark:text-gray-100 font-semibold ring-1 ring-gray-300/50 dark:ring-white/15'
+                    ? 'bg-t2-stage  text-t2-ink  font-semibold ring-1 ring-t2-line '
                     : isOpen
-                        ? 'bg-gray-100/70 dark:bg-white/5 text-gray-800 dark:text-gray-200 font-medium'
-                        : 'hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover text-gray-700 dark:text-gray-300'
+                        ? 'bg-t2-hover  text-t2-ink  font-medium'
+                        : 'hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover text-t2-ink '
                 }`}
         >
             <div className="flex items-center gap-2 truncate flex-1 flex-shrink-0">
@@ -258,9 +258,9 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
                             size={15}
                             className={`shrink-0 ${
                                 isActive
-                                    ? 'text-gray-950 dark:text-white'
+                                    ? 'text-t2-ink '
                                     : isOpen
-                                        ? 'text-gray-800 dark:text-gray-200'
+                                        ? 'text-t2-ink '
                                         : ''
                             }`}
                             style={!isActive && !isOpen ? { color: safeColor } : undefined}
@@ -270,22 +270,22 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
                             size={15}
                             className={`shrink-0 ${
                                 isActive
-                                    ? 'text-gray-950 dark:text-white'
+                                    ? 'text-t2-ink '
                                     : isOpen
-                                        ? 'text-gray-800 dark:text-gray-200'
+                                        ? 'text-t2-ink '
                                         : ''
                             }`}
                             style={!isActive && !isOpen ? { color: safeColor } : undefined}
                         />
                     )}
                     {isLocked && (
-                        <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[1px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
-                            <Lock size={8} className="text-zinc-900 dark:text-zinc-100" strokeWidth={2.5} />
+                        <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[1px] bg-t2-surface  rounded-full shadow-xs">
+                            <Lock size={8} className="text-t2-ink " strokeWidth={2.5} />
                         </span>
                     )}
                 </div>
                 {(file as any).share_status === 'shared' && (
-                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-sky-400" title="Geteilte Notiz" />
+                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-t2-accent" title="Geteilte Notiz" />
                 )}
                 {editingId === file.id ? (
                     <input
@@ -295,15 +295,15 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
                         onClick={(e) => e.stopPropagation()}
                         onBlur={(e) => onRenameSubmit?.(file.id, e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && onRenameSubmit?.(file.id, e.currentTarget.value)}
-                        className="w-full bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded px-1 text-sm outline-none text-gray-900 dark:text-gray-100"
+                        className="w-full bg-t2-surface  border border-t2-line  rounded px-1 text-sm outline-none text-t2-ink "
                     />
                 ) : (
                     <span className={`text-sm truncate transition-colors ${
                         isActive
-                            ? 'text-gray-950 dark:text-gray-100 font-semibold'
+                            ? 'text-t2-ink  font-semibold'
                             : isOpen
-                                ? 'text-gray-800 dark:text-gray-200 font-medium'
-                                : 'text-gray-700 dark:text-gray-300 font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100'
+                                ? 'text-t2-ink  font-medium'
+                                : 'text-t2-ink  font-medium group-hover:text-t2-ink '
                     } ${file.owner_id && myId && file.owner_id !== myId ? 'purple-shimmer-text' : ''}`}>
                         {(highlight.isSelectingLink || isHighlighted(file.id, 'file')) ? <AnimatedLinkingText text={file.title.startsWith('#') ? file.title.slice(1).trim() : file.title} index={index} /> : (file.title.startsWith('#') ? file.title.slice(1).trim() : file.title)}
                     </span>

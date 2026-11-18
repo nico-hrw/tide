@@ -167,8 +167,8 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
             {/* Events List — first */}
             <div className="flex-1 overflow-y-auto p-6 space-y-3 max-h-[50vh]">
                 {events.map((event, index) => (
-                    <div key={event.id} className="group relative flex flex-col md:flex-row items-start md:items-center gap-3 bg-t2-sub dark:bg-[#151515] border border-t2-line  rounded-2xl p-3 pl-4 transition-all hover:border-t2-line ">
-                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-t2-stage  rounded-l-2xl group-hover:bg-blue-400 dark:group-hover:bg-blue-600 transition-colors"></div>
+                    <div key={event.id} className="group relative flex flex-col md:flex-row items-start md:items-center gap-3 bg-t2-sub  border border-t2-line  rounded-2xl p-3 pl-4 transition-all hover:border-t2-line ">
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-t2-stage  rounded-l-2xl group-hover:opacity-90  transition-colors"></div>
 
                         <span className="text-xs font-bold text-t2-ink-3 w-5 shrink-0 select-none">{index + 1}.</span>
 
@@ -177,14 +177,14 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                 type="text"
                                 placeholder="Event Title..."
                                 value={event.title}
-                                className="col-span-1 md:col-span-1 bg-t2-surface  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-full"
+                                className="col-span-1 md:col-span-1 bg-t2-surface  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-t2-accent w-full"
                                 onChange={(e) => updateEvent(event.id, { title: e.target.value })}
                             />
                             <input
                                 type="text"
                                 placeholder="Description (optional)"
                                 value={event.description}
-                                className="col-span-1 md:col-span-1 bg-transparent border border-dashed border-t2-line  rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500/50 focus:bg-t2-surface  w-full"
+                                className="col-span-1 md:col-span-1 bg-transparent border border-dashed border-t2-line  rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-t2-accent focus:bg-t2-surface  w-full"
                                 onChange={(e) => updateEvent(event.id, { description: e.target.value })}
                             />
 
@@ -202,7 +202,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                 </button>
 
                                 {activeDateSettings === event.id && (
-                                    <div className="w-full bg-t2-surface dark:bg-[#1A1A1A] border border-t2-line  rounded-2xl p-4 flex flex-col gap-3 transition-all">
+                                    <div className="w-full bg-t2-surface  border border-t2-line  rounded-2xl p-4 flex flex-col gap-3 transition-all">
                                         <div className="flex justify-between items-center pb-2 border-b border-t2-line-soft ">
                                             <span className="text-xs font-bold text-t2-ink-2 uppercase tracking-widest">Zeit & Datum</span>
                                         </div>
@@ -213,14 +213,14 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                                 type="date"
                                                 value={event.dateOverride || ''}
                                                 onChange={(e) => updateEvent(event.id, { dateOverride: e.target.value })}
-                                                className="mt-1 bg-t2-sub  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                className="mt-1 bg-t2-sub  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-t2-accent"
                                             />
                                         </label>
 
                                         <label className="flex items-center gap-2 p-2 bg-t2-sub  rounded-xl border border-t2-line-soft  cursor-pointer">
                                             <input
                                                 type="checkbox"
-                                                className="h-4 w-4 rounded border-t2-line text-blue-600 focus:ring-blue-500 accent-blue-500"
+                                                className="h-4 w-4 rounded border-t2-line text-t2-accent focus:ring-t2-accent accent-t2-accent"
                                                 checked={event.allDay}
                                                 onChange={(e) => updateEvent(event.id, { allDay: e.target.checked })}
                                             />
@@ -232,7 +232,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                             <select
                                                 value={event.recurrence}
                                                 onChange={(e) => updateEvent(event.id, { recurrence: e.target.value as any })}
-                                                className="mt-1 bg-t2-sub  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                className="mt-1 bg-t2-sub  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-t2-accent"
                                             >
                                                 <option value="none">Nie</option>
                                                 <option value="daily">Täglich</option>
@@ -257,7 +257,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                                             updateEvent(event.id, { recurrenceEnd: undefined });
                                                         }
                                                     }}
-                                                    className="mt-1 bg-t2-sub  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                    className="mt-1 bg-t2-sub  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-t2-accent"
                                                 />
                                             </label>
                                         )}
@@ -300,14 +300,14 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
             <div className="px-6 py-3 border-t border-t2-line-soft  flex flex-col gap-2">
                 <button
                     onClick={addEvent}
-                    className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-t2-line  hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 dark:hover:border-blue-500/50 rounded-2xl text-sm font-bold text-t2-ink-2 hover:text-blue-600  dark:hover:text-blue-400 transition-all cursor-pointer"
+                    className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-t2-line  hover:border-t2-accent hover:bg-t2-sub   rounded-2xl text-sm font-bold text-t2-ink-2 hover:text-t2-accent   transition-all cursor-pointer"
                 >
                     <Plus size={16} /> Add Event
                 </button>
                 <button
                     onClick={handleApply}
                     disabled={isSaving}
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-blue-500 hover:bg-blue-600 disabled:opacity-60 rounded-2xl text-sm font-bold text-white transition-colors"
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-t2-accent hover:opacity-90 disabled:opacity-60 rounded-2xl text-sm font-bold text-t2-accent-ink transition-colors"
                 >
                     {isSaving ? 'Saving…' : 'Apply Schedule'}
                 </button>
@@ -320,7 +320,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                     <select
                         value={noteLinkId}
                         onChange={e => setNoteLinkId(e.target.value)}
-                        className="flex-1 bg-t2-sub  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        className="flex-1 bg-t2-sub  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-t2-accent"
                     >
                         <option value="">Keine</option>
                         {notes.map(n => (
@@ -345,7 +345,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                 <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
                     <div className="flex-1 w-full max-w-sm">
                         <select
-                            className="w-full bg-t2-sub  border border-t2-line  rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                            className="w-full bg-t2-sub  border border-t2-line  rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-t2-accent"
                             value={theme}
                             onChange={(e) => setTheme(e.target.value)}
                         >
@@ -364,7 +364,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                     maxLength={30}
                                     value={themeName}
                                     onChange={(e) => setThemeName(e.target.value)}
-                                    className="w-full bg-t2-surface dark:bg-[#2A2A2A] border border-t2-line  rounded-xl px-4 py-2 text-sm font-semibold focus:outline-none focus:border-blue-500 shadow-sm"
+                                    className="w-full bg-t2-surface  border border-t2-line  rounded-xl px-4 py-2 text-sm font-semibold focus:outline-none focus:border-t2-accent shadow-sm"
                                 />
 
                                 <div className="flex flex-col md:flex-row gap-4">
@@ -375,7 +375,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                                 <button
                                                     key={c}
                                                     onClick={() => setThemeColor(c)}
-                                                    className={`w-6 h-6 rounded-full transition-all border-2 ${themeColor === c ? 'border-blue-500 scale-110 shadow-md ring-2 ring-blue-500/20' : 'border-transparent hover:scale-105'}`}
+                                                    className={`w-6 h-6 rounded-full transition-all border-2 ${themeColor === c ? 'border-t2-accent scale-110 shadow-md ring-2 ring-t2-accent' : 'border-transparent hover:scale-105'}`}
                                                     style={{ backgroundColor: c }}
                                                 />
                                             ))}
@@ -387,7 +387,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                         <select
                                             value={themeEffect}
                                             onChange={(e) => setThemeEffect(e.target.value)}
-                                            className="w-full bg-t2-surface dark:bg-[#2A2A2A] border border-t2-line  rounded-xl px-3 py-2 text-xs font-bold outline-none cursor-pointer"
+                                            className="w-full bg-t2-surface  border border-t2-line  rounded-xl px-3 py-2 text-xs font-bold outline-none cursor-pointer"
                                         >
                                             <option value="none">Kein Muster</option>
                                             <option value="stripes">Gestreift</option>
@@ -422,7 +422,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                         </label>
                         <button
                             onClick={exportToJSON}
-                            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl text-sm font-semibold hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+                            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-t2-sub  text-t2-accent  rounded-xl text-sm font-semibold hover:bg-t2-sub  transition-colors"
                         >
                             <Download size={16} /> Export
                         </button>
@@ -453,12 +453,12 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
     return (
         <div className="fixed inset-0 z-[500] flex items-center justify-center pointer-events-auto">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose}></div>
-            <div className="relative bg-t2-surface dark:bg-[#1A1A1A] w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-float flex flex-col m-4 border border-t2-line ">
+            <div className="relative bg-t2-surface  w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-float flex flex-col m-4 border border-t2-line ">
 
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-t2-line-soft ">
                     <h2 className="text-xl font-bold tracking-tight text-t2-ink  flex items-center gap-2">
-                        <ListPlus size={22} className="text-blue-500" />
+                        <ListPlus size={22} className="text-t2-accent" />
                         Schedule Builder
                     </h2>
                     <button onClick={onClose} className="p-2 text-t2-ink-3 hover:text-t2-ink-2  rounded-full hover:bg-t2-hover  transition-colors">

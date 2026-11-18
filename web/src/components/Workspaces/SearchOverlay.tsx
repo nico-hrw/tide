@@ -137,7 +137,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
     const getItemIcon = (type: string) => {
         if (type === 'event') return <Calendar className="w-4 h-4 text-emerald-500 shrink-0" />;
         if (type === 'task') return <CheckSquare className="w-4 h-4 text-amber-500 shrink-0" />;
-        return <FileText className="w-4 h-4 text-blue-500 shrink-0" />;
+        return <FileText className="w-4 h-4 text-t2-accent shrink-0" />;
     };
 
     return (
@@ -163,16 +163,16 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
                                 onChange={(e) => setQuery(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 placeholder="Search files, events, tasks... (Cmd+K)"
-                                className="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-gray-400"
+                                className="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-t2-ink-3"
                                 style={{ color: DT.primaryText(isDark) }}
                             />
-                            {loadingIndex && <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" />}
+                            {loadingIndex && <Loader2 className="w-4 h-4 animate-spin text-t2-accent shrink-0" />}
                             {query ? (
-                                <button onClick={() => setQuery('')} className="p-1 rounded hover:bg-gray-200 dark:hover:bg-zinc-800 transition-colors">
+                                <button onClick={() => setQuery('')} className="p-1 rounded hover:bg-t2-stage  transition-colors">
                                     <X className="w-4 h-4" style={{ color: DT.mutedText(isDark) }} />
                                 </button>
                             ) : (
-                                <kbd className="px-2 py-0.5 text-xs font-mono rounded border text-gray-500 dark:text-gray-400" style={{ borderColor: DT.borderColor }}>
+                                <kbd className="px-2 py-0.5 text-xs font-mono rounded border text-t2-ink-2 " style={{ borderColor: DT.borderColor }}>
                                     ESC
                                 </kbd>
                             )}
@@ -194,8 +194,8 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
                                             onMouseEnter={() => setSelectedIndex(idx)}
                                             className={`w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg text-left text-sm transition-colors ${
                                                 isSelected
-                                                    ? 'bg-blue-500/10 dark:bg-blue-400/15 text-blue-600 dark:text-blue-400'
-                                                    : 'hover:bg-gray-100 dark:hover:bg-zinc-800/60'
+                                                    ? 'bg-t2-sub  text-t2-accent '
+                                                    : 'hover:bg-t2-hover '
                                             }`}
                                         >
                                             <div className="flex items-center gap-2.5 min-w-0">

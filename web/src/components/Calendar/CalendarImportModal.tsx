@@ -189,13 +189,13 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
             onClick={() => { if (step !== 'importing') onClose(); }}
         >
             <div
-                className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl border border-t2-line  bg-t2-surface dark:bg-[#1A1A1A] text-t2-ink  shadow-2xl overflow-hidden"
+                className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl border border-t2-line  bg-t2-surface  text-t2-ink  shadow-2xl overflow-hidden"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-t2-line-soft ">
                     <div className="flex items-center space-x-3">
-                        <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
+                        <div className="p-2 rounded-xl bg-t2-sub  text-t2-accent ">
                             <Calendar className="w-5 h-5" />
                         </div>
                         <div>
@@ -238,12 +238,12 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                                 onClick={() => fileInputRef.current?.click()}
                                 className={`cursor-pointer border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center transition-colors ${
                                     isDragging
-                                        ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20'
-                                        : 'border-t2-line  hover:border-blue-400 dark:hover:border-blue-600 bg-t2-sub '
+                                        ? 'border-t2-accent bg-t2-sub '
+                                        : 'border-t2-line  hover:border-t2-accent  bg-t2-sub '
                                 }`}
                             >
                                 <input type="file" ref={fileInputRef} onChange={handleFileInputChange} accept=".ics,text/calendar" className="hidden" />
-                                <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 mb-3">
+                                <div className="p-3 rounded-2xl bg-t2-sub  text-t2-accent  mb-3">
                                     <UploadCloud className="w-8 h-8" />
                                 </div>
                                 <h3 className="font-semibold text-base mb-1">.ics-Datei hier ablegen oder klicken</h3>
@@ -260,7 +260,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                                     className="w-full flex items-center justify-between p-4 text-left font-medium text-sm text-t2-ink  hover:text-t2-ink "
                                 >
                                     <span className="flex items-center space-x-2">
-                                        <HelpCircle className="w-4 h-4 text-blue-500" />
+                                        <HelpCircle className="w-4 h-4 text-t2-accent" />
                                         <span>Wie exportiere ich meinen Google-Kalender?</span>
                                     </span>
                                     {isHelpOpen ? <ChevronUp className="w-4 h-4 text-t2-ink-3" /> : <ChevronDown className="w-4 h-4 text-t2-ink-3" />}
@@ -269,7 +269,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                                     <div className="px-4 pb-4 text-xs text-t2-ink-2  border-t border-t2-line-soft  pt-3 space-y-2">
                                         <ol className="list-decimal list-inside space-y-1.5 leading-relaxed">
                                             <li>
-                                                In Google Kalender (<a href="https://calendar.google.com" target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">calendar.google.com</a>) rechts oben auf das Zahnrad &gt; Einstellungen klicken.
+                                                In Google Kalender (<a href="https://calendar.google.com" target="_blank" rel="noreferrer" className="text-t2-accent hover:underline">calendar.google.com</a>) rechts oben auf das Zahnrad &gt; Einstellungen klicken.
                                             </li>
                                             <li>Im Menü links &apos;Importieren &amp; Exportieren&apos; wählen.</li>
                                             <li>Auf &apos;Exportieren&apos; klicken und die heruntergeladene .zip-Datei entpacken (oder die .ics-Datei auswählen).</li>
@@ -294,7 +294,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                                     <button
                                         type="button"
                                         onClick={toggleSelectAll}
-                                        className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                                        className="text-xs font-medium text-t2-accent  hover:underline"
                                     >
                                         {selectedUids.size === parsedEvents.length ? 'Alle abwählen' : 'Alle auswählen'}
                                     </button>
@@ -302,7 +302,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                                         <select
                                             value={selectedGroupId}
                                             onChange={(e) => setSelectedGroupId(e.target.value)}
-                                            className="text-xs rounded-xl border border-t2-line  bg-t2-surface  px-3 py-1.5 text-t2-ink  focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                            className="text-xs rounded-xl border border-t2-line  bg-t2-surface  px-3 py-1.5 text-t2-ink  focus:outline-none focus:ring-1 focus:ring-t2-accent"
                                         >
                                             <option value="">Standard-Kategorie</option>
                                             {themes.map((th) => (
@@ -325,7 +325,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                                             onClick={() => toggleEventSelection(id)}
                                             className={`flex items-start space-x-3 p-3 rounded-2xl border cursor-pointer transition-colors ${
                                                 isSelected
-                                                    ? 'border-blue-200 dark:border-blue-900/60 bg-blue-50/40 dark:bg-blue-950/20'
+                                                    ? 'border-t2-line  bg-t2-sub '
                                                     : 'border-t2-line  hover:bg-t2-sub  opacity-70'
                                             }`}
                                         >
@@ -333,7 +333,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                                                 type="checkbox"
                                                 checked={isSelected}
                                                 onChange={() => {}}
-                                                className="mt-1 h-4 w-4 rounded border-t2-line text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                className="mt-1 h-4 w-4 rounded border-t2-line text-t2-accent focus:ring-t2-accent cursor-pointer"
                                             />
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center space-x-2">
@@ -341,7 +341,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                                                         {ev.title || 'Ohne Titel'}
                                                     </h4>
                                                     {ev.allDay && (
-                                                        <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                                                        <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-t2-sub  text-t2-accent ">
                                                             Ganztägig
                                                         </span>
                                                     )}
@@ -369,7 +369,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                     {/* STEP 3: IMPORTING */}
                     {step === 'importing' && (
                         <div className="py-12 flex flex-col items-center justify-center text-center space-y-4">
-                            <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                            <Loader2 className="w-10 h-10 text-t2-accent animate-spin" />
                             <div>
                                 <h3 className="text-base font-semibold">Termine werden importiert...</h3>
                                 <p className="text-xs text-t2-ink-2  mt-1">
@@ -378,7 +378,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                             </div>
                             <div className="w-full max-w-md bg-t2-hover  rounded-full h-2.5 overflow-hidden">
                                 <div
-                                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-200"
+                                    className="bg-t2-accent h-2.5 rounded-full transition-all duration-200"
                                     style={{
                                         width: `${importProgress.total > 0 ? Math.min(100, Math.round((importProgress.current / importProgress.total) * 100)) : 0}%`,
                                     }}
@@ -420,14 +420,14 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                                 type="button"
                                 onClick={handleStartImport}
                                 disabled={selectedUids.size === 0}
-                                className="px-5 py-2 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none shadow-sm transition-colors"
+                                className="px-5 py-2 rounded-xl text-sm font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none shadow-sm transition-colors"
                             >
                                 Importieren ({selectedUids.size})
                             </button>
                         </>
                     ) : step === 'done' ? (
                         <div className="w-full flex justify-end">
-                            <button type="button" onClick={onClose} className="px-6 py-2 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition-colors">
+                            <button type="button" onClick={onClose} className="px-6 py-2 rounded-xl text-sm font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 shadow-sm transition-colors">
                                 Fertig
                             </button>
                         </div>

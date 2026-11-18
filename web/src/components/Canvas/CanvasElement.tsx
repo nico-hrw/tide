@@ -114,8 +114,8 @@ function AnchorLine({ anchorBlockId, elementRef }: {
             style={{ zIndex: 9998, width: '100vw', height: '100vh', top: 0, left: 0 }}>
             <defs>
                 <linearGradient id="magicAnchorGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#818cf8" stopOpacity="0.5" />
-                    <stop offset="100%" stopColor="#6366f1" stopOpacity="0.2" />
+                    <stop offset="0%" stopColor="var(--t2-accent)" stopOpacity="0.5" />
+                    <stop offset="100%" stopColor="var(--t2-accent)" stopOpacity="0.2" />
                 </linearGradient>
             </defs>
 
@@ -132,17 +132,17 @@ function AnchorLine({ anchorBlockId, elementRef }: {
             />
 
             {/* Outer Glow Path */}
-            <path d={pathData.d} fill="none" stroke="#818cf8" strokeWidth="3" strokeLinecap="round" opacity={isHovered ? 0.4 : 0.15} style={{ transition: 'opacity 0.2s' }} />
+            <path d={pathData.d} fill="none" stroke="var(--t2-accent)" strokeWidth="3" strokeLinecap="round" opacity={isHovered ? 0.4 : 0.15} style={{ transition: 'opacity 0.2s' }} />
             {/* Main Decorative Path */}
             <path d={pathData.d} fill="none" stroke="url(#magicAnchorGradient)"
                 strokeWidth="1.5" strokeLinecap="round" strokeDasharray="5 4" opacity={isHovered ? 1 : 0.7} style={{ transition: 'opacity 0.2s' }} />
 
             {/* Start Dot (Anchor side) - Appears only on hover */}
-            <circle cx={pathData.sx} cy={pathData.sy} r="3" fill="#6366f1" opacity={isHovered ? 1 : 0} style={{ transition: 'opacity 0.2s, transform 0.2s', transformOrigin: `${pathData.sx}px ${pathData.sy}px`, transform: isHovered ? 'scale(1.2)' : 'scale(0.8)' }} />
+            <circle cx={pathData.sx} cy={pathData.sy} r="3" fill="var(--t2-accent)" opacity={isHovered ? 1 : 0} style={{ transition: 'opacity 0.2s, transform 0.2s', transformOrigin: `${pathData.sx}px ${pathData.sy}px`, transform: isHovered ? 'scale(1.2)' : 'scale(0.8)' }} />
 
             {/* Pulsing ring on hover */}
             {isHovered && (
-                <circle cx={pathData.sx} cy={pathData.sy} r="4" fill="none" stroke="#818cf8" strokeWidth="1.5" className="animate-ping" style={{ transformOrigin: `${pathData.sx}px ${pathData.sy}px` }} />
+                <circle cx={pathData.sx} cy={pathData.sy} r="4" fill="none" stroke="var(--t2-accent)" strokeWidth="1.5" className="animate-ping" style={{ transformOrigin: `${pathData.sx}px ${pathData.sy}px` }} />
             )}
         </svg>
     );
@@ -237,23 +237,23 @@ function TextWidget({ element, onUpdate }: { element: TextWidgetElement; onUpdat
                 <div className="absolute -bottom-10 left-0 hidden group-hover/text:flex items-center gap-1.5 p-1 rounded-lg bg-gray-900/90 border border-white/10 backdrop-blur-md z-[1001] shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
                     <button 
                         onClick={() => onUpdate(element.id, { colorMode: 'black' })}
-                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 ${colorMode === 'black' ? 'ring-2 ring-indigo-500 ring-offset-1 ring-offset-gray-900' : ''}`}
+                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 ${colorMode === 'black' ? 'ring-2 ring-t2-accent ring-offset-1 ring-offset-gray-900' : ''}`}
                         style={{ background: '#000' }}
                         title="Black"
                     />
                     <button 
                         onClick={() => onUpdate(element.id, { colorMode: 'white' })}
-                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 ${colorMode === 'white' ? 'ring-2 ring-indigo-500 ring-offset-1 ring-offset-gray-900' : ''}`}
+                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 ${colorMode === 'white' ? 'ring-2 ring-t2-accent ring-offset-1 ring-offset-gray-900' : ''}`}
                         style={{ background: '#fff' }}
                         title="White"
                     />
                     <button 
                         onClick={() => onUpdate(element.id, { colorMode: 'inverse' })}
-                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 flex items-center justify-center overflow-hidden group/inv ${colorMode === 'inverse' ? 'ring-2 ring-indigo-500 ring-offset-1 ring-offset-gray-900' : ''}`}
+                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 flex items-center justify-center overflow-hidden group/inv ${colorMode === 'inverse' ? 'ring-2 ring-t2-accent ring-offset-1 ring-offset-gray-900' : ''}`}
                         title="Smart Inverse"
                     >
                         <div className="w-full h-full flex flex-col">
-                            <div className="flex-1 bg-white" />
+                            <div className="flex-1 bg-t2-surface" />
                             <div className="flex-1 bg-black" />
                         </div>
                     </button>
@@ -267,7 +267,7 @@ function TextWidget({ element, onUpdate }: { element: TextWidgetElement; onUpdat
                 onFocus={() => setIsEditing(true)}
                 onBlur={handleBlur}
                 style={textStyle}
-                className={`transition-all duration-200 ${isEditing ? 'ring-1 ring-indigo-500/50 bg-indigo-500/[0.02]' : 'hover:ring-1 hover:ring-white/10'}`}
+                className={`transition-all duration-200 ${isEditing ? 'ring-1 ring-t2-accent bg-t2-sub' : 'hover:ring-1 hover:ring-white/10'}`}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.currentTarget.blur();
@@ -500,7 +500,7 @@ export default function CanvasElementComponent({
         : { position: 'absolute', top: 0, left: 0, pointerEvents: 'none', opacity: 0 };
     const mobileStyle: React.CSSProperties = { display: 'block', position: 'static', width: '100%', margin: '8px 0', pointerEvents: 'auto' };
     const bindingStyle: React.CSSProperties = isBindingMode
-        ? { outline: '2px solid #000080', outlineOffset: 3, animation: 'canvasPulse 1.2s ease-in-out infinite', borderRadius: 8 }
+        ? { outline: '2px solid var(--t2-accent)', outlineOffset: 3, animation: 'canvasPulse 1.2s ease-in-out infinite', borderRadius: 8 }
         : {};
 
     const showLine = !isMobile && !isUnbound && (showAnchorLine || hovered) && !!element.anchorBlockId;
@@ -548,11 +548,11 @@ export default function CanvasElementComponent({
             >
                 {!isMobile && pos !== null && !isBindingMode && (
                     <div className="absolute -top-7 left-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity
-            bg-gray-900/80 backdrop-blur-sm rounded-lg px-1.5 py-0.5 border border-white/10 z-10 whitespace-nowrap">
-                        <GripVertical size={12} className="text-gray-400 dark:text-slate-500" />
-                        <span className="text-xs text-gray-400 select-none">{isImageElement(element) ? 'Image' : 'Text'}</span>
-                        {isUnbound && <span className="text-xs text-amber-400 ml-1">· unbound</span>}
-                        <button className="ml-1 text-gray-400 hover:text-red-400 transition-colors"
+            bg-t2-surface rounded-lg px-1.5 py-0.5 shadow-[0_0_0_1px_var(--t2-line)] z-10 whitespace-nowrap">
+                        <GripVertical size={12} className="text-t2-ink-3 " />
+                        <span className="text-xs text-t2-ink-3 select-none">{isImageElement(element) ? 'Image' : 'Text'}</span>
+                        {isUnbound && <span className="text-xs text-t2-ink-3 ml-1">· unbound</span>}
+                        <button className="ml-1 text-t2-ink-3 hover:text-t2-now transition-colors"
                             onMouseDown={(e) => { e.stopPropagation(); onRemove(element.id); }}>
                             <X size={12} />
                         </button>
@@ -565,7 +565,7 @@ export default function CanvasElementComponent({
                     <div
                         className="absolute bottom-0 right-0 w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity cursor-se-resize z-20"
                         onMouseDown={onResizeMouseDown}
-                        style={{ background: 'linear-gradient(135deg, transparent 50%, rgba(99,102,241,0.8) 50%)', borderRadius: '0 0 4px 0' }}
+                        style={{ background: 'linear-gradient(135deg, transparent 50%, var(--t2-accent) 50%)', borderRadius: '0 0 4px 0' }}
                         title="Resize"
                     />
                 )}
@@ -575,9 +575,9 @@ export default function CanvasElementComponent({
                         className="absolute -top-7 left-1/2 -translate-x-1/2 w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-20 flex items-center justify-center"
                         onMouseDown={onRotateMouseDown}
                         title="Rotate"
-                        style={{ background: 'rgba(99,102,241,0.85)', borderRadius: '50%', boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}
+                        style={{ background: 'var(--t2-accent)', borderRadius: '50%', boxShadow: '0 2px 6px rgba(0,0,0,0.25)' }}
                     >
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--t2-accent-ink)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                             <polyline points="23 4 23 10 17 10" />
                             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
                         </svg>

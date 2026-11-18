@@ -285,14 +285,14 @@ export function CentralFolderView({
   return (
     <div className="flex-1 flex flex-col h-full bg-[var(--background)] overflow-hidden">
       {/* Top Header & Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-gray-200/80 dark:border-white/10 bg-white/50 dark:bg-slate-900/40 backdrop-blur-md shrink-0">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-t2-line  bg-t2-surface  backdrop-blur-md shrink-0">
         {/* Breadcrumb Path & Back Button */}
         <div className="flex items-center gap-2 overflow-x-auto py-1 text-sm">
           {currentFolderId && (
             <button
               type="button"
               onClick={() => setCurrentFolderId(parentFolderId)}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors shrink-0"
+              className="p-1.5 rounded-lg text-t2-ink-2 hover:text-t2-ink   hover:bg-t2-hover  transition-colors shrink-0"
               title="Zurück zum übergeordneten Ordner"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -305,7 +305,7 @@ export function CentralFolderView({
               const isDropTarget = dragOverBreadcrumbId === (crumb.id || '__root__');
               return (
                 <React.Fragment key={crumb.id || '__root__'}>
-                  {idx > 0 && <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />}
+                  {idx > 0 && <ChevronRight className="w-3.5 h-3.5 text-t2-ink-3 shrink-0" />}
                   <button
                     type="button"
                     onClick={() => setCurrentFolderId(crumb.id)}
@@ -317,10 +317,10 @@ export function CentralFolderView({
                     onDrop={(e) => handleDropOnFolder(e, crumb.id)}
                     className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
                       isDropTarget
-                        ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 ring-2 ring-blue-500'
+                        ? 'bg-t2-sub text-t2-accent  ring-2 ring-t2-accent'
                         : isLast
-                        ? 'text-gray-900 dark:text-white font-semibold bg-gray-100/80 dark:bg-white/10'
-                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+                        ? 'text-t2-ink  font-semibold bg-t2-hover '
+                        : 'text-t2-ink-2  hover:text-t2-ink  hover:bg-t2-hover '
                     }`}
                   >
                     {idx === 0 && <Home className="w-3.5 h-3.5" />}
@@ -339,21 +339,21 @@ export function CentralFolderView({
             <button
               type="button"
               onClick={() => setIsSafeDropdownOpen((prev) => !prev)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-white/15 transition-all shadow-xs cursor-pointer select-none"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-t2-hover  text-t2-ink  hover:bg-t2-stage  transition-all shadow-xs cursor-pointer select-none"
               title="Workspace wechseln"
             >
-              <Archive className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <Archive className="w-3.5 h-3.5 text-t2-accent shrink-0" />
               <span className="truncate max-w-[110px]">{safeLabel}</span>
               <ChevronDown
-                className={`w-3.5 h-3.5 text-gray-400 shrink-0 transition-transform duration-200 ${
+                className={`w-3.5 h-3.5 text-t2-ink-3 shrink-0 transition-transform duration-200 ${
                   isSafeDropdownOpen ? 'rotate-180' : ''
                 }`}
               />
             </button>
 
             {isSafeDropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-64 p-2 rounded-2xl bg-white dark:bg-[#1a1e28] border border-gray-200 dark:border-white/10 shadow-2xl z-50 space-y-1.5">
-                <div className="flex items-center justify-between px-2 py-0.5 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+              <div className="absolute right-0 top-full mt-2 w-64 p-2 rounded-2xl bg-t2-surface  border border-t2-line  shadow-2xl z-50 space-y-1.5">
+                <div className="flex items-center justify-between px-2 py-0.5 text-[10px] font-bold text-t2-ink-3  uppercase tracking-wider">
                   <span>Workspaces</span>
                 </div>
                 <div className="flex flex-col gap-0.5 max-h-52 overflow-y-auto no-scrollbar">
@@ -364,8 +364,8 @@ export function CentralFolderView({
                         key={safe}
                         className={`flex items-center justify-between px-2 py-1.5 rounded-lg group transition-colors ${
                           isActive
-                            ? 'bg-blue-50/80 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-medium'
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
+                            ? 'bg-t2-sub  text-t2-accent  font-medium'
+                            : 'text-t2-ink  hover:bg-t2-hover '
                         }`}
                       >
                         <button
@@ -379,11 +379,11 @@ export function CentralFolderView({
                         >
                           <Archive
                             size={13}
-                            className={isActive ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-200'}
+                            className={isActive ? 'text-t2-accent' : 'text-t2-ink-3 group-hover:text-t2-ink-2 '}
                           />
                           <span className="truncate text-xs">{safe}</span>
                           {isActive && (
-                            <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-300 font-normal shrink-0">
+                            <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-t2-sub  text-t2-accent  font-normal shrink-0">
                               aktiv
                             </span>
                           )}
@@ -395,8 +395,8 @@ export function CentralFolderView({
                               e.stopPropagation();
                               toggleSafe(safe);
                             }}
-                            className={`p-1 rounded hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer ${
-                              isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'
+                            className={`p-1 rounded hover:bg-t2-hover  transition-colors cursor-pointer ${
+                              isActive ? 'text-t2-accent ' : 'text-t2-ink-3'
                             }`}
                             title={isActive ? 'Aus Ansicht entfernen' : 'Zusammen laden'}
                           >
@@ -412,7 +412,7 @@ export function CentralFolderView({
                                 e.stopPropagation();
                                 deleteSafe(safe);
                               }}
-                              className="p-1 rounded text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                              className="p-1 rounded text-t2-ink-3 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                               title={`Workspace "${safe}" löschen`}
                             >
                               <Trash2 size={12} />
@@ -424,7 +424,7 @@ export function CentralFolderView({
                   })}
                 </div>
                 {/* Inline form to create a new safe */}
-                <div className="pt-1.5 border-t border-gray-100 dark:border-white/10">
+                <div className="pt-1.5 border-t border-t2-line-soft ">
                   {isCreatingSafe ? (
                     <form
                       onSubmit={(e) => {
@@ -443,11 +443,11 @@ export function CentralFolderView({
                         onChange={(e) => setNewSafeName(e.target.value)}
                         placeholder="Workspace Name..."
                         autoFocus
-                        className="w-full text-xs px-2 py-1 rounded-md bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 outline-none text-gray-800 dark:text-gray-200 placeholder:text-gray-400"
+                        className="w-full text-xs px-2 py-1 rounded-md bg-t2-hover  border border-t2-line  outline-none text-t2-ink  placeholder:text-t2-ink-3"
                       />
                       <button
                         type="submit"
-                        className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded transition-colors cursor-pointer"
+                        className="p-1 text-t2-accent hover:bg-t2-sub  rounded transition-colors cursor-pointer"
                         title="Workspace erstellen"
                       >
                         <Check size={13} />
@@ -458,7 +458,7 @@ export function CentralFolderView({
                           setIsCreatingSafe(false);
                           setNewSafeName('');
                         }}
-                        className="p-1 text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 rounded transition-colors cursor-pointer"
+                        className="p-1 text-t2-ink-3 hover:bg-t2-hover  rounded transition-colors cursor-pointer"
                         title="Abbrechen"
                       >
                         <X size={13} />
@@ -468,9 +468,9 @@ export function CentralFolderView({
                     <button
                       type="button"
                       onClick={() => setIsCreatingSafe(true)}
-                      className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors cursor-pointer"
+                      className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-t2-ink-2  hover:text-t2-ink  hover:bg-t2-hover  rounded-md transition-colors cursor-pointer"
                     >
-                      <Plus size={13} className="text-blue-500" />
+                      <Plus size={13} className="text-t2-accent" />
                       <span>Neuer Workspace</span>
                     </button>
                   )}
@@ -493,15 +493,15 @@ export function CentralFolderView({
           <button
             type="button"
             onClick={() => setShowNewFolderModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-white/15 transition-all shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-t2-hover  text-t2-ink  hover:bg-t2-stage  transition-all shadow-xs"
           >
-            <FolderPlus className="w-3.5 h-3.5 text-blue-500" />
+            <FolderPlus className="w-3.5 h-3.5 text-t2-accent" />
             <span>Neuer Ordner</span>
           </button>
           <button
             type="button"
             onClick={() => onCreateNote(currentFolderId)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-all shadow-xs"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-t2-accent hover:opacity-90 text-t2-accent-ink transition-all shadow-xs"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Neue Notiz</span>
@@ -514,7 +514,7 @@ export function CentralFolderView({
         {/* Folders Section */}
         {sortedFolders.length > 0 && (
           <div>
-            <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4 px-1">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-t2-ink-2  mb-4 px-1">
               Ordner ({sortedFolders.length})
             </h2>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-y-7 gap-x-4 justify-items-center">
@@ -558,10 +558,10 @@ export function CentralFolderView({
                     onDrop={(e) => handleDropOnFolder(e, folder.id)}
                     className={`group relative flex flex-col items-center cursor-pointer select-none p-2 rounded-2xl transition-all ${
                       isDragHover
-                        ? 'ring-2 ring-blue-500 bg-blue-500/10 scale-105 shadow-md'
+                        ? 'ring-2 ring-t2-accent bg-t2-sub scale-105 shadow-md'
                         : isItemHover
-                        ? 'ring-2 ring-blue-400/80 bg-blue-400/10 scale-105'
-                        : 'hover:bg-gray-100/50 dark:hover:bg-white/5'
+                        ? 'ring-2 ring-t2-accent bg-t2-sub scale-105'
+                        : 'hover:bg-t2-hover '
                     }`}
                   >
                     <div className="relative flex flex-col items-center">
@@ -581,7 +581,7 @@ export function CentralFolderView({
                       )}
 
                       {/* Floating Actions on Hover */}
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity absolute -top-1.5 -right-1.5 z-10 bg-white/95 dark:bg-slate-800/95 shadow-md rounded-full p-0.5 border border-gray-200/80 dark:border-white/10">
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity absolute -top-1.5 -right-1.5 z-10 bg-t2-surface  shadow-md rounded-full p-0.5 border border-t2-line ">
                         <button
                           type="button"
                           title="Farbe ändern"
@@ -589,7 +589,7 @@ export function CentralFolderView({
                             e.stopPropagation();
                             setColorPickerFolderId(isColorPickerOpen ? null : folder.id);
                           }}
-                          className="p-1 rounded-full text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                          className="p-1 rounded-full text-t2-ink-3 hover:text-t2-ink  hover:bg-t2-hover  transition-colors"
                         >
                           <Palette className="w-3.5 h-3.5" />
                         </button>
@@ -601,7 +601,7 @@ export function CentralFolderView({
                               e.stopPropagation();
                               onDeleteFile(folder.id);
                             }}
-                            className="p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            className="p-1 rounded-full text-t2-ink-3 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -620,7 +620,7 @@ export function CentralFolderView({
                         if (dragOverItemId === folder.id) setDragOverItemId(null);
                       }}
                       onDrop={(e) => handleDropOnItem(e, folder.id)}
-                      className="text-xs font-semibold text-center line-clamp-2 max-w-[100px] mt-2 text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
+                      className="text-xs font-semibold text-center line-clamp-2 max-w-[100px] mt-2 text-t2-ink  group-hover:text-t2-accent  transition-colors"
                     >
                       {folder.title || 'Unbenannter Ordner'}
                     </span>
@@ -629,7 +629,7 @@ export function CentralFolderView({
                     {isColorPickerOpen && (
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="absolute left-1/2 -translate-x-1/2 top-20 z-30 p-2 rounded-xl bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 shadow-xl grid grid-cols-3 gap-1.5 w-28"
+                        className="absolute left-1/2 -translate-x-1/2 top-20 z-30 p-2 rounded-xl bg-t2-surface  border border-t2-line  shadow-xl grid grid-cols-3 gap-1.5 w-28"
                       >
                         {FOLDER_PALETTE.map((pal) => (
                           <button
@@ -658,7 +658,7 @@ export function CentralFolderView({
         {/* Files / Notes Section */}
         {sortedNotes.length > 0 && (
           <div>
-            <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-4 px-1">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-t2-ink-2  mb-4 px-1">
               Notizen & Dokumente ({sortedNotes.length})
             </h2>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-y-7 gap-x-4 justify-items-center">
@@ -691,13 +691,13 @@ export function CentralFolderView({
                     onDrop={(e) => handleDropOnItem(e, note.id)}
                     className={`group relative flex flex-col items-center cursor-pointer select-none p-2 rounded-2xl transition-all ${
                       isItemHover
-                        ? 'ring-2 ring-blue-400/80 bg-blue-400/10 scale-105'
-                        : 'hover:bg-gray-100/50 dark:hover:bg-white/5'
+                        ? 'ring-2 ring-t2-accent bg-t2-sub scale-105'
+                        : 'hover:bg-t2-hover '
                     }`}
                   >
                     <div className="relative flex flex-col items-center">
                       <FileText
-                        className="w-14 h-16 text-slate-500 dark:text-slate-400 group-hover:text-blue-500 transition-all group-hover:scale-105"
+                        className="w-14 h-16 text-t2-ink-2  group-hover:text-t2-accent transition-all group-hover:scale-105"
                         fill="currentColor"
                         fillOpacity={0.06}
                         strokeWidth={1.25}
@@ -710,14 +710,14 @@ export function CentralFolderView({
                             e.stopPropagation();
                             onDeleteFile(note.id);
                           }}
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all absolute -top-1.5 -right-1.5 z-10 bg-white/95 dark:bg-slate-800/95 shadow-md border border-gray-200/80 dark:border-white/10"
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded-full text-t2-ink-3 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all absolute -top-1.5 -right-1.5 z-10 bg-t2-surface  shadow-md border border-t2-line "
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
                     </div>
 
-                    <span className="text-xs font-semibold text-center line-clamp-2 max-w-[100px] mt-2 text-gray-800 dark:text-gray-200 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    <span className="text-xs font-semibold text-center line-clamp-2 max-w-[100px] mt-2 text-t2-ink  group-hover:text-t2-accent  transition-colors">
                       {note.title || 'Neue Notiz'}
                     </span>
                   </div>
@@ -730,27 +730,27 @@ export function CentralFolderView({
         {/* Empty State */}
         {currentFolders.length === 0 && currentNotes.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-16 h-16 rounded-3xl bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-400 dark:text-gray-500 mb-4">
+            <div className="w-16 h-16 rounded-3xl bg-t2-hover  flex items-center justify-center text-t2-ink-3  mb-4">
               <Folder className="w-8 h-8" />
             </div>
-            <h3 className="text-base font-semibold text-gray-700 dark:text-gray-200">
+            <h3 className="text-base font-semibold text-t2-ink ">
               Dieser Ordner ist noch leer
             </h3>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 max-w-sm">
+            <p className="text-xs text-t2-ink-3  mt-1 max-w-sm">
               Erstelle einen neuen Ordner oder lege eine Notiz an. Du kannst Dokumente per Drag & Drop hierher verschieben.
             </p>
             <div className="flex items-center gap-3 mt-6">
               <button
                 type="button"
                 onClick={() => setShowNewFolderModal(true)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-gray-800 dark:text-gray-200 transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-t2-hover  hover:bg-t2-stage  text-t2-ink  transition-colors"
               >
                 + Neuer Ordner
               </button>
               <button
                 type="button"
                 onClick={() => onCreateNote(currentFolderId)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-t2-accent hover:opacity-90 text-t2-accent-ink transition-colors"
               >
                 + Neue Notiz
               </button>
@@ -764,11 +764,11 @@ export function CentralFolderView({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
           <form
             onSubmit={handleCreateFolderSubmit}
-            className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 p-5 shadow-2xl space-y-4"
+            className="w-full max-w-sm rounded-2xl bg-t2-surface  border border-t2-line  p-5 shadow-2xl space-y-4"
           >
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white">Neuen Ordner erstellen</h3>
+            <h3 className="text-sm font-bold text-t2-ink ">Neuen Ordner erstellen</h3>
             <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+              <label className="block text-xs font-medium text-t2-ink-2  mb-1">
                 Name des Ordners
               </label>
               <input
@@ -777,12 +777,12 @@ export function CentralFolderView({
                 value={newFolderName}
                 onChange={(e) => setNewFolderName(e.target.value)}
                 placeholder="z. B. Arbeit, Privates, Studium..."
-                className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-white/15 bg-transparent text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 rounded-xl border border-t2-line  bg-transparent text-sm focus:outline-hidden focus:ring-2 focus:ring-t2-accent"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+              <label className="block text-xs font-medium text-t2-ink-2  mb-2">
                 Farbe wählen
               </label>
               <div className="flex flex-wrap gap-2">
@@ -801,18 +801,18 @@ export function CentralFolderView({
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 dark:border-white/10">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-t2-line-soft ">
               <button
                 type="button"
                 onClick={() => setShowNewFolderModal(false)}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                className="px-3.5 py-1.5 rounded-xl text-xs font-medium text-t2-ink-2  hover:bg-t2-hover  transition-colors"
               >
                 Abbrechen
               </button>
               <button
                 type="submit"
                 disabled={!newFolderName.trim()}
-                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white transition-colors"
+                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-t2-accent hover:opacity-90 disabled:opacity-50 text-t2-accent-ink transition-colors"
               >
                 Erstellen
               </button>

@@ -339,7 +339,7 @@ export const MoodPopup: React.FC = () => {
         role="dialog"
         aria-labelledby="moodQuestion"
         aria-modal="false"
-        className={`mood-card fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-6 z-50 w-[calc(100%-2rem)] max-w-sm bg-white/95 dark:bg-neutral-900/95 backdrop-blur-xl border border-neutral-200/90 dark:border-neutral-800 rounded-[1.75rem] shadow-2xl p-5 shadow-black/10 flex flex-col gap-3.5 select-none ${
+        className={`mood-card fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:right-6 z-50 w-[calc(100%-2rem)] max-w-sm bg-t2-surface  backdrop-blur-xl border border-t2-line  rounded-[1.75rem] shadow-2xl p-5 shadow-black/10 flex flex-col gap-3.5 select-none ${
           isDismissed ? 'dismissed' : ''
         }`}
       >
@@ -347,7 +347,7 @@ export const MoodPopup: React.FC = () => {
         <div className="flex items-center justify-between gap-2">
           <h2
             id="moodQuestion"
-            className="text-[0.95rem] sm:text-base font-extrabold tracking-tight text-neutral-900 dark:text-neutral-100"
+            className="text-[0.95rem] sm:text-base font-extrabold tracking-tight text-t2-ink "
           >
             Wie geht es dir gerade?
           </h2>
@@ -355,7 +355,7 @@ export const MoodPopup: React.FC = () => {
             type="button"
             onClick={handleDismiss}
             aria-label="Schließen"
-            className="w-7 h-7 rounded-full bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-500 dark:text-neutral-400 flex items-center justify-center transition-colors flex-shrink-0 cursor-pointer"
+            className="w-7 h-7 rounded-full bg-t2-hover hover:bg-t2-stage   text-t2-ink-2  flex items-center justify-center transition-colors flex-shrink-0 cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -367,8 +367,8 @@ export const MoodPopup: React.FC = () => {
             const isSelected = selectedMood === mood.type;
             const isOtherSelected = selectedMood !== null && !isSelected;
 
-            let cardClasses = 'bg-neutral-50/95 dark:bg-neutral-800/80 border-neutral-100 dark:border-neutral-700/80';
-            let labelClasses = 'text-neutral-600 dark:text-neutral-400';
+            let cardClasses = 'bg-t2-sub  border-t2-line-soft ';
+            let labelClasses = 'text-t2-ink-2 ';
 
             if (isSelected) {
               cardClasses = `${HIGHLIGHT_CLASSES[mood.type].card} is-playing`;

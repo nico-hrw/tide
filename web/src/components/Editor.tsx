@@ -31,7 +31,7 @@ export default function Editor(props: EditorProps) {
 
     if (!mounted) {
         return (
-            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-slate-500 h-[50vh] mt-20">
+            <div className="flex-1 flex flex-col items-center justify-center text-t2-ink-3  h-[50vh] mt-20">
                 <span className="font-medium text-sm">Lade Editor...</span>
             </div>
         );

@@ -225,7 +225,7 @@ export default function EventPreview({
             >
                 <div className="flex items-center gap-2 truncate">
                     <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: theme.bg }} />
-                    {isShared && <Users size={12} className="text-indigo-500 shrink-0" />}
+                    {isShared && <Users size={12} className="text-t2-accent shrink-0" />}
                     <span className="text-sm font-medium text-t2-ink  truncate">{title}</span>
                 </div>
                 <div className="flex gap-1" onClick={e => e.stopPropagation()}>
@@ -298,7 +298,7 @@ export default function EventPreview({
 
                 {/* Shared Attribution Badge */}
                 {isShared && (
-                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50/80 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 text-xs font-medium border border-indigo-200/50 dark:border-indigo-800/40">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-t2-sub  text-t2-accent  text-xs font-medium border border-t2-line ">
                         <Users size={13} className="shrink-0" />
                         <span className="truncate">{attributionText}</span>
                     </div>
@@ -359,7 +359,7 @@ export default function EventPreview({
                                     scheduleSave();
                                 }}
                                 title={level === 0 ? 'None' : `Level ${level}`}
-                                className={`w-5 h-5 rounded border transition-all ${shading === level ? 'ring-2 ring-indigo-500 ring-offset-1 scale-110' : 'hover:scale-105'}`}
+                                className={`w-5 h-5 rounded border transition-all ${shading === level ? 'ring-2 ring-t2-accent ring-offset-1 scale-110' : 'hover:scale-105'}`}
                                 style={{
                                     background: level === 0
                                         ? 'transparent'
@@ -388,7 +388,7 @@ export default function EventPreview({
                                 scheduleSave();
                             }}
                             placeholder={`Hinweis ${idx + 1}...`}
-                            className="w-full bg-transparent border border-dashed border-t2-line  rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-indigo-400 text-t2-ink  placeholder:text-t2-ink-3 "
+                            className="w-full bg-transparent border border-dashed border-t2-line  rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-t2-accent text-t2-ink  placeholder:text-t2-ink-3 "
                         />
                     ))}
                 </div>
@@ -418,7 +418,7 @@ export default function EventPreview({
                                         <span
                                             key={i}
                                             onClick={(e) => { e.stopPropagation(); onLinkClick({ id: targetId, type, title: matchTitle }); }}
-                                            className="text-purple-500 bg-purple-500/10 px-1 rounded cursor-pointer hover:bg-purple-500/20 font-medium z-50 relative"
+                                            className="text-t2-accent bg-t2-sub px-1 rounded cursor-pointer hover:bg-t2-sub font-medium z-50 relative"
                                         >
                                             @{matchTitle}
                                         </span>

@@ -94,13 +94,13 @@ export default function EditorGutter({
                                     e.stopPropagation();
                                     onPinClick(block.id);
                                 }}
-                                className={`w-3 h-3 rounded-full border-2 transition-all cursor-pointer flex items-center justify-center ${isActive ? 'border-indigo-600 bg-indigo-600 shadow-[0_0_10px_rgba(99,102,241,0.5)]' :
-                                    isLinkingMode ? 'border-indigo-400 hover:bg-indigo-100' :
+                                className={`w-3 h-3 rounded-full border-2 transition-all cursor-pointer flex items-center justify-center ${isActive ? 'border-t2-accent bg-t2-accent shadow-[0_0_10px_rgba(99,102,241,0.5)]' :
+                                    isLinkingMode ? 'border-t2-accent hover:bg-t2-sub' :
                                         'border-transparent' // REMOVED HOVER CIRCLE STATE here
                                     }`}
                             >
                                 {isActive && (
-                                    <div className="absolute w-3 h-3 rounded-full bg-indigo-600 animate-ping opacity-75" />
+                                    <div className="absolute w-3 h-3 rounded-full bg-t2-accent animate-ping opacity-75" />
                                 )}
                             </div>
 

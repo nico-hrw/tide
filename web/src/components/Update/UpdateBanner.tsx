@@ -279,7 +279,7 @@ export default function UpdateBanner() {
                         );
                         setBannerState('banner');
                     }}
-                    className="fixed z-[10000] pointer-events-none w-9 h-9 rounded-full bg-gray-900 text-white ring-1 ring-white/20 shadow-2xl flex items-center justify-center"
+                    className="fixed z-[10000] pointer-events-none w-9 h-9 rounded-full bg-t2-ink text-white ring-1 ring-white/20 shadow-2xl flex items-center justify-center"
                 >
                     <span className="text-base leading-none select-none">⚡</span>
                 </motion.div>
@@ -292,7 +292,7 @@ export default function UpdateBanner() {
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ opacity: 0, y: 20, scale: 0.95 }}
                     transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                    className="fixed bottom-24 md:bottom-[260px] left-1/2 md:left-4 -translate-x-1/2 md:translate-x-0 z-[10000] w-[90%] md:w-auto md:max-w-md bg-gray-900 text-white rounded-full pl-4 pr-2 py-1.5 flex items-center gap-3 shadow-2xl ring-1 ring-white/10"
+                    className="fixed bottom-24 md:bottom-[260px] left-1/2 md:left-4 -translate-x-1/2 md:translate-x-0 z-[10000] w-[90%] md:w-auto md:max-w-md bg-t2-ink text-white rounded-full pl-4 pr-2 py-1.5 flex items-center gap-3 shadow-2xl ring-1 ring-white/10"
                 >
                     <span className="text-base leading-none select-none">⚡</span>
                     <span className="text-sm font-medium tracking-wide truncate">
@@ -309,7 +309,7 @@ export default function UpdateBanner() {
                     <button
                         onClick={handleDismiss}
                         title="Schließen"
-                        className="text-gray-400 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10 ml-1 shrink-0"
+                        className="text-t2-ink-3 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10 ml-1 shrink-0"
                     >
                         <X size={16} />
                     </button>
@@ -325,7 +325,7 @@ export default function UpdateBanner() {
                     transition={{ type: 'spring', stiffness: 350, damping: 25 }}
                     className="fixed bottom-24 md:bottom-[260px] left-1/2 md:left-4 -translate-x-1/2 md:translate-x-0 z-[10000] pointer-events-auto"
                 >
-                    <div className="bg-gray-900 text-white rounded-full pl-4 pr-4 py-1.5 flex items-center gap-2.5 shadow-2xl ring-1 ring-white/10">
+                    <div className="bg-t2-ink text-white rounded-full pl-4 pr-4 py-1.5 flex items-center gap-2.5 shadow-2xl ring-1 ring-white/10">
                         <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
                         <span className="text-sm font-medium tracking-wide">Erfolgreich geupdated!</span>
                     </div>

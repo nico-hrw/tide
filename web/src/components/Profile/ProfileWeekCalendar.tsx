@@ -466,20 +466,20 @@ export default function ProfileWeekCalendar({
     const isSelectedEventAdopted = selectedEvent ? adoptedIds.has(selectedEvent.id) : false;
 
     return (
-        <div className="w-full bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-xs overflow-hidden flex flex-col transition-all">
+        <div className="w-full bg-t2-surface  border border-t2-line  rounded-2xl shadow-xs overflow-hidden flex flex-col transition-all">
             {/* Calendar Header */}
-            <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/5 gap-3 bg-white dark:bg-[#1a1a1a]">
+            <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-t2-line-soft  gap-3 bg-t2-surface ">
                 <div className="flex items-center gap-3">
-                    <span className="bg-gray-100 dark:bg-white/10 px-2.5 py-1 rounded-lg text-[11px] font-bold text-gray-700 dark:text-gray-300 font-mono">
+                    <span className="bg-t2-hover  px-2.5 py-1 rounded-lg text-[11px] font-bold text-t2-ink  font-mono">
                         KW {weekNumber}
                     </span>
 
                     {/* Navigation Controls */}
-                    <div className="flex items-center gap-1 bg-gray-50 dark:bg-white/5 p-0.5 rounded-xl border border-gray-100 dark:border-white/5">
+                    <div className="flex items-center gap-1 bg-t2-sub  p-0.5 rounded-xl border border-t2-line-soft ">
                         <button
                             type="button"
                             onClick={prevWeek}
-                            className="p-1 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/10 transition-colors cursor-pointer"
+                            className="p-1 rounded-lg text-t2-ink-2 hover:text-t2-ink  hover:bg-t2-surface  transition-colors cursor-pointer"
                             title="Vorherige Woche"
                         >
                             <ChevronLeft size={16} />
@@ -487,38 +487,38 @@ export default function ProfileWeekCalendar({
                         <button
                             type="button"
                             onClick={goToToday}
-                            className="px-2.5 py-1 text-xs font-semibold rounded-lg text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-white/10 transition-colors cursor-pointer"
+                            className="px-2.5 py-1 text-xs font-semibold rounded-lg text-t2-ink  hover:bg-t2-surface  transition-colors cursor-pointer"
                         >
                             Heute
                         </button>
                         <button
                             type="button"
                             onClick={nextWeek}
-                            className="p-1 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/10 transition-colors cursor-pointer"
+                            className="p-1 rounded-lg text-t2-ink-2 hover:text-t2-ink  hover:bg-t2-surface  transition-colors cursor-pointer"
                             title="Nächste Woche"
                         >
                             <ChevronRight size={16} />
                         </button>
                     </div>
 
-                    <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                    <span className="text-xs font-bold text-t2-ink ">
                         {monthYearTitle}
                     </span>
 
-                    <span className="text-xs text-gray-400 dark:text-gray-500 font-mono hidden sm:inline">
+                    <span className="text-xs text-t2-ink-3  font-mono hidden sm:inline">
                         {String(minHour).padStart(2, '0')}:00 – {String(maxHour).padStart(2, '0')}:00 Uhr
                     </span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                    <span className="text-xs text-t2-ink-2  font-medium">
                         {weekEvents.length > 0
                             ? `${weekEvents.length} Termin${weekEvents.length === 1 ? '' : 'e'}`
                             : 'Keine Termine diese Woche'}
                     </span>
                     {ownerName && (
-                        <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/40">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-t2-sub  text-t2-accent  border border-t2-line ">
+                            <span className="w-1.5 h-1.5 rounded-full bg-t2-accent" />
                             <span>{ownerName}</span>
                         </span>
                     )}
@@ -529,8 +529,8 @@ export default function ProfileWeekCalendar({
             <div className="w-full overflow-x-auto">
                 <div className="min-w-[640px] flex flex-col">
                     {/* Day Column Headers */}
-                    <div className="flex border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.02]">
-                        <div className="w-16 shrink-0 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    <div className="flex border-b border-t2-line-soft  bg-t2-sub ">
+                        <div className="w-16 shrink-0 py-2.5 text-center text-[10px] font-bold text-t2-ink-3 uppercase tracking-wider">
                             Zeit
                         </div>
                         {weekDays.map((d, index) => {
@@ -540,15 +540,15 @@ export default function ProfileWeekCalendar({
                             return (
                                 <div
                                     key={index}
-                                    className={`flex-1 py-2 text-center border-l border-gray-100 dark:border-white/5 ${
-                                        isToday ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''
+                                    className={`flex-1 py-2 text-center border-l border-t2-line-soft  ${
+                                        isToday ? 'bg-t2-sub ' : ''
                                     }`}
                                 >
                                     <span
                                         className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold ${
                                             isToday
-                                                ? 'bg-blue-600 text-white shadow-2xs'
-                                                : 'text-gray-700 dark:text-gray-300'
+                                                ? 'bg-t2-accent text-t2-accent-ink shadow-2xs'
+                                                : 'text-t2-ink '
                                         }`}
                                     >
                                         <span>{dayName}</span>
@@ -566,7 +566,7 @@ export default function ProfileWeekCalendar({
                         style={{ height: `${totalHours * ROW_HEIGHT}px` }}
                     >
                         {/* Time labels column */}
-                        <div className="w-16 shrink-0 relative border-r border-gray-100 dark:border-white/5">
+                        <div className="w-16 shrink-0 relative border-r border-t2-line-soft ">
                             {hoursList.map((hour) => {
                                 const offsetPx = (hour - minHour) * ROW_HEIGHT;
                                 return (
@@ -575,7 +575,7 @@ export default function ProfileWeekCalendar({
                                         className="absolute right-3 -translate-y-1/2 pointer-events-none"
                                         style={{ top: `${offsetPx}px` }}
                                     >
-                                        <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 font-mono">
+                                        <span className="text-[11px] font-semibold text-t2-ink-3  font-mono">
                                             {String(hour).padStart(2, '0')}:00
                                         </span>
                                     </div>
@@ -591,7 +591,7 @@ export default function ProfileWeekCalendar({
                                     <div
                                         key={idx}
                                         style={{ height: `${ROW_HEIGHT}px` }}
-                                        className="border-b border-gray-100 dark:border-white/5 w-full"
+                                        className="border-b border-t2-line-soft  w-full"
                                     />
                                 ))}
                             </div>
@@ -613,8 +613,8 @@ export default function ProfileWeekCalendar({
                                 return (
                                     <div
                                         key={dayIdx}
-                                        className={`flex-1 relative border-r border-gray-100 dark:border-white/5 transition-colors ${
-                                            isToday ? 'bg-blue-50/15 dark:bg-blue-900/5' : ''
+                                        className={`flex-1 relative border-r border-t2-line-soft  transition-colors ${
+                                            isToday ? 'bg-t2-sub ' : ''
                                         }`}
                                     >
                                         {/* Current time indicator line on today's column */}
@@ -712,7 +712,7 @@ export default function ProfileWeekCalendar({
                     onClick={() => setSelectedEvent(null)}
                 >
                     <div
-                        className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl sm:rounded-3xl shadow-2xl max-w-md w-full p-6 relative overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col gap-4 text-gray-900 dark:text-white"
+                        className="bg-t2-surface  border border-t2-line  rounded-2xl sm:rounded-3xl shadow-2xl max-w-md w-full p-6 relative overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col gap-4 text-t2-ink "
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Color accent pill & Close button */}
@@ -724,7 +724,7 @@ export default function ProfileWeekCalendar({
                             <button
                                 type="button"
                                 onClick={() => setSelectedEvent(null)}
-                                className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                                className="p-1.5 rounded-xl text-t2-ink-3 hover:text-t2-ink  hover:bg-t2-hover  transition-colors cursor-pointer"
                                 title="Schließen"
                             >
                                 <X size={18} />
@@ -736,8 +736,8 @@ export default function ProfileWeekCalendar({
                             <h3 className="text-xl font-bold leading-tight break-words">
                                 {selectedEvent.title}
                             </h3>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 mt-1">
-                                <CalendarIcon size={13} className="text-blue-500 shrink-0" />
+                            <p className="text-xs text-t2-ink-2  flex items-center gap-1.5 mt-1">
+                                <CalendarIcon size={13} className="text-t2-accent shrink-0" />
                                 <span>
                                     {ownerName
                                         ? `Öffentlicher Termin von ${ownerName}`
@@ -747,15 +747,15 @@ export default function ProfileWeekCalendar({
                         </div>
 
                         {/* Date and Time info card */}
-                        <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/5 flex flex-col gap-2.5 text-xs text-gray-700 dark:text-gray-300">
+                        <div className="p-3.5 rounded-xl bg-t2-sub  border border-t2-line-soft  flex flex-col gap-2.5 text-xs text-t2-ink ">
                             <div className="flex items-center gap-2">
-                                <CalendarIcon size={15} className="text-blue-500 shrink-0" />
+                                <CalendarIcon size={15} className="text-t2-accent shrink-0" />
                                 <span className="font-semibold">
                                     {formatDateFullGerman(selectedEvent.startDate)}
                                 </span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <Clock size={15} className="text-blue-500 shrink-0" />
+                                <Clock size={15} className="text-t2-accent shrink-0" />
                                 <span className="font-mono">
                                     {formatTimeGerman(selectedEvent.startDate)} –{' '}
                                     {formatTimeGerman(selectedEvent.endDate)} Uhr
@@ -766,10 +766,10 @@ export default function ProfileWeekCalendar({
                         {/* Description */}
                         {selectedEvent.description && (
                             <div className="flex flex-col gap-1.5">
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-t2-ink-3">
                                     Beschreibung
                                 </span>
-                                <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/5 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap leading-relaxed max-h-44 overflow-y-auto">
+                                <div className="p-3.5 rounded-xl bg-t2-sub  border border-t2-line-soft  text-sm text-t2-ink  whitespace-pre-wrap leading-relaxed max-h-44 overflow-y-auto">
                                     {selectedEvent.description}
                                 </div>
                             </div>
@@ -792,7 +792,7 @@ export default function ProfileWeekCalendar({
                                     className={`w-full py-3 px-4 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm ${
                                         isSelectedEventAdopted
                                             ? 'bg-emerald-600 text-white cursor-default'
-                                            : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-md active:scale-[0.99]'
+                                            : 'bg-t2-accent hover:opacity-90 text-t2-accent-ink hover:shadow-md active:scale-[0.99]'
                                     } disabled:opacity-85`}
                                 >
                                     {isAdopting ? (
@@ -814,13 +814,13 @@ export default function ProfileWeekCalendar({
                                 </button>
                             ) : (
                                 <div className="flex flex-col gap-2">
-                                    <p className="text-xs text-center text-gray-400">
+                                    <p className="text-xs text-center text-t2-ink-3">
                                         Dies ist dein eigener Termin.
                                     </p>
                                     <button
                                         type="button"
                                         onClick={() => setSelectedEvent(null)}
-                                        className="w-full py-2.5 px-4 rounded-xl font-medium text-sm bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 transition-colors cursor-pointer"
+                                        className="w-full py-2.5 px-4 rounded-xl font-medium text-sm bg-t2-hover hover:bg-t2-stage   text-t2-ink  transition-colors cursor-pointer"
                                     >
                                         Schließen
                                     </button>

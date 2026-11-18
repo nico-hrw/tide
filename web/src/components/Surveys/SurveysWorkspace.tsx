@@ -9,7 +9,7 @@ function cn(...classes: (string | boolean | undefined | null)[]) {
 
 const SurveyAnalytics = dynamic(() => import('@/components/Surveys/SurveyAnalytics'), {
     loading: () => (
-        <div className="flex-1 flex items-center justify-center p-8 text-gray-400">
+        <div className="flex-1 flex items-center justify-center p-8 text-t2-ink-3">
             Loading analytics...
         </div>
     )

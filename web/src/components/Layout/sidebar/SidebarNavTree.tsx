@@ -102,22 +102,22 @@ export default function SidebarNavTree({
                                 className="group flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover transition-colors"
                             >
                                 <div className="flex items-center gap-1.5 truncate flex-1">
-                                    <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300 transition-colors">
+                                    <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 text-t2-ink-3  group-hover:text-t2-ink-2  transition-colors">
                                         {isRelatedFolderOpen ? (
                                             <ChevronDown size={12} className="shrink-0 transition-transform duration-150" />
                                         ) : (
                                             <ChevronRight size={12} className="shrink-0 transition-transform duration-150" />
                                         )}
                                     </span>
-                                    {isRelatedFolderOpen ? <FolderOpen size={15} className="text-blue-500 shrink-0" /> : <Folder size={15} className="text-blue-500 shrink-0" />}
-                                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">Verwandt</span>
-                                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+                                    {isRelatedFolderOpen ? <FolderOpen size={15} className="text-t2-accent shrink-0" /> : <Folder size={15} className="text-t2-accent shrink-0" />}
+                                    <span className="text-sm font-semibold text-t2-ink  truncate">Verwandt</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  ">
                                         {relatedItems.length}
                                     </span>
                                 </div>
                             </button>
                             {isRelatedFolderOpen && (
-                                <div className="relative mt-0.5 ml-3 pl-2.5 border-l border-blue-200/60 dark:border-blue-800/40 space-y-0.5">
+                                <div className="relative mt-0.5 ml-3 pl-2.5 border-l border-t2-line  space-y-0.5">
                                     {relatedItems.map((item) => (
                                         <FileItem
                                             key={item.id}
@@ -152,24 +152,24 @@ export default function SidebarNavTree({
                                 className="group flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover transition-colors"
                             >
                                 <div className="flex items-center gap-1.5 truncate flex-1">
-                                    <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 text-gray-400 dark:text-slate-500 group-hover:text-gray-600 dark:group-hover:text-slate-300 transition-colors">
+                                    <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 text-t2-ink-3  group-hover:text-t2-ink-2  transition-colors">
                                         {isSharedFolderOpen ? (
                                             <ChevronDown size={12} className="shrink-0 transition-transform duration-150" />
                                         ) : (
                                             <ChevronRight size={12} className="shrink-0 transition-transform duration-150" />
                                         )}
                                     </span>
-                                    {isSharedFolderOpen ? <FolderOpen size={15} className="text-violet-400 shrink-0" /> : <Folder size={15} className="text-violet-400 shrink-0" />}
-                                    <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">Geteilt mit mir</span>
+                                    {isSharedFolderOpen ? <FolderOpen size={15} className="text-t2-accent shrink-0" /> : <Folder size={15} className="text-t2-accent shrink-0" />}
+                                    <span className="text-sm font-semibold text-t2-ink  truncate">Geteilt mit mir</span>
                                     {pendingShareCount > 0 && (
-                                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  ">
                                             {pendingShareCount} neu
                                         </span>
                                     )}
                                 </div>
                             </button>
                             {isSharedFolderOpen && (
-                                <div className="relative mt-0.5 ml-3 pl-2.5 border-l border-violet-200/60 dark:border-violet-800/40 space-y-0.5">
+                                <div className="relative mt-0.5 ml-3 pl-2.5 border-l border-t2-line  space-y-0.5">
                                     {(() => {
                                         const topShared = sharedWithMeItems.filter(f => !f.parent_id || !sharedWithMeItems.some(p => p.id === f.parent_id));
                                         return topShared.map((item) => (
@@ -318,7 +318,7 @@ export default function SidebarNavTree({
                             }}
                         >
                             {item.type === 'folder' ? (
-                                <div className={`relative ${dropIndicator?.id === item.id && dropIndicator.zone === 'middle' ? 'ring-2 ring-blue-500 bg-blue-50/50 rounded-lg' : ''}`}>
+                                <div className={`relative ${dropIndicator?.id === item.id && dropIndicator.zone === 'middle' ? 'ring-2 ring-t2-accent bg-t2-sub rounded-lg' : ''}`}>
                                     <FolderItem
                                         folder={item}
                                         allFiles={files}

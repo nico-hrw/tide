@@ -87,6 +87,16 @@ export const calendarPalette = {
     geb: { bg: 'var(--cal-geb)', ink: 'var(--cal-geb-ink)' },
 } as const;
 
+/**
+ * Preview chips for the palette picker in the settings: [background, surface, ink, accent] per mode.
+ * Must mirror the --t2-* values in app/globals.css (tide) and app/palettes.css (the others).
+ */
+export const PALETTE_PREVIEW: Record<'tide' | 'warm' | 'slate', { light: string[]; dark: string[] }> = {
+    tide:  { light: ['#FFFFFF', '#F6F6F7', '#0E0E10', '#2F3138'], dark: ['#0B0B0D', '#131316', '#F4F4F5', '#E4E4E7'] },
+    warm:  { light: ['#FAF9F5', '#F3F1EA', '#1F1E1D', '#C15F3C'], dark: ['#1C1B19', '#262522', '#F2EFE8', '#E08A66'] },
+    slate: { light: ['#FFFFFF', '#F4F6F8', '#0F172A', '#3B5B8C'], dark: ['#0C1018', '#121821', '#EAF0F8', '#8FB0E6'] },
+};
+
 export const glass = DT.glass;
 export const chip = DT.chip;
 export const tokens = DT;

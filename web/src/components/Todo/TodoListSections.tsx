@@ -106,40 +106,40 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
         key: 'overdue',
         title: 'Überfällig',
         tasks: overdue,
-        badgeClass: 'text-gray-400 dark:text-zinc-500',
-        titleColor: 'text-gray-400 dark:text-zinc-500',
+        badgeClass: 'text-t2-ink-3 ',
+        titleColor: 'text-t2-ink-3 ',
         icon: AlertCircle,
       },
       {
         key: 'today',
         title: 'Heute',
         tasks: todayTasks,
-        badgeClass: 'text-gray-400 dark:text-zinc-500',
-        titleColor: 'text-gray-400 dark:text-zinc-500',
+        badgeClass: 'text-t2-ink-3 ',
+        titleColor: 'text-t2-ink-3 ',
         icon: Clock,
       },
       {
         key: 'tomorrow',
         title: 'Morgen',
         tasks: tomorrowTasks,
-        badgeClass: 'text-gray-400 dark:text-zinc-500',
-        titleColor: 'text-gray-400 dark:text-zinc-500',
+        badgeClass: 'text-t2-ink-3 ',
+        titleColor: 'text-t2-ink-3 ',
         icon: Calendar,
       },
       {
         key: 'upcoming',
         title: 'Demnächst',
         tasks: upcoming,
-        badgeClass: 'text-gray-400 dark:text-zinc-500',
-        titleColor: 'text-gray-400 dark:text-zinc-500',
+        badgeClass: 'text-t2-ink-3 ',
+        titleColor: 'text-t2-ink-3 ',
         icon: Calendar,
       },
       {
         key: 'no_date',
         title: 'Ohne Datum',
         tasks: noDate,
-        badgeClass: 'text-gray-400 dark:text-zinc-500',
-        titleColor: 'text-gray-400 dark:text-zinc-500',
+        badgeClass: 'text-t2-ink-3 ',
+        titleColor: 'text-t2-ink-3 ',
         icon: ListTodo,
       },
     ];
@@ -215,7 +215,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
               : { opacity: 1, height: 'auto', marginBottom: 12, pointerEvents: 'auto' as const }
           }
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="text-lg font-bold text-gray-900 dark:text-white mt-1"
+          className="text-lg font-bold text-t2-ink  mt-1"
         >
           {sectionTitle}
         </motion.h2>
@@ -234,13 +234,13 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
           className="flex items-center justify-between mt-1 px-1"
         >
           <div className="flex items-center gap-2">
-            <Calendar size={18} className="text-blue-500" />
-            <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white capitalize">
+            <Calendar size={18} className="text-t2-accent" />
+            <h2 className="text-base sm:text-lg font-bold text-t2-ink  capitalize">
               {isToday(selectedDateFilter)
                 ? 'Heute'
                 : format(selectedDateFilter, 'EEEE, d. MMMM', { locale: de })}
             </h2>
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-semibold">
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-t2-sub  text-t2-accent  font-semibold">
               {tasksToRender.length} {tasksToRender.length === 1 ? 'Aufgabe' : 'Aufgaben'}
             </span>
           </div>
@@ -248,7 +248,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
             <button
               type="button"
               onClick={() => setSelectedDateFilter(null)}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+              className="text-xs text-t2-accent  hover:underline cursor-pointer"
             >
               Alle Aufgaben anzeigen
             </button>
@@ -258,14 +258,14 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
 
       {/* When a specific date is selected and there are no tasks for it */}
       {selectedDateFilter !== null && tasksToRender.length === 0 && (
-        <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 rounded-2xl p-8 text-center flex flex-col items-center justify-center shadow-2xs my-2">
-          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-3">
+        <div className="bg-t2-surface  border border-t2-line  rounded-2xl p-8 text-center flex flex-col items-center justify-center shadow-2xs my-2">
+          <div className="w-12 h-12 rounded-2xl bg-t2-sub text-t2-accent flex items-center justify-center mb-3">
             <Calendar size={24} />
           </div>
-          <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">
+          <h3 className="text-base font-bold text-t2-ink  mb-1">
             {isToday(selectedDateFilter) ? 'Keine Aufgaben für heute' : `Keine Aufgaben am ${format(selectedDateFilter, 'd. MMMM', { locale: de })}`}
           </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mb-4">
+          <p className="text-xs text-t2-ink-2  max-w-sm mb-4">
             {isToday(selectedDateFilter)
               ? 'Für heute sind aktuell keine Aufgaben geplant.'
               : 'Für dieses Datum sind aktuell keine Aufgaben eingetragen.'}
@@ -280,7 +280,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                 }));
                 setIsCreateOpen(true);
               }}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 rounded-xl transition-all shadow-xs cursor-pointer"
             >
               <Plus size={14} />
               <span>Aufgabe für diesen Tag erstellen</span>
@@ -289,7 +289,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
               <button
                 type="button"
                 onClick={() => setSelectedDateFilter(null)}
-                className="px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+                className="px-4 py-2 text-xs font-medium text-t2-ink-2  hover:bg-t2-hover  rounded-xl transition-all cursor-pointer"
               >
                 Alle anzeigen
               </button>
@@ -326,17 +326,17 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                 >
                   <ChevronRight
                     size={13}
-                    className={`text-gray-400 dark:text-zinc-500 group-hover:text-gray-600 dark:group-hover:text-zinc-300 transition-transform duration-200 ${
+                    className={`text-t2-ink-3  group-hover:text-t2-ink-2  transition-transform duration-200 ${
                       !isCollapsed ? 'rotate-90' : ''
                     }`}
                   />
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-zinc-500">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3 ">
                     {section.title}
                   </span>
-                  <span className="text-[10px] font-medium text-gray-400 dark:text-zinc-500">
+                  <span className="text-[10px] font-medium text-t2-ink-3 ">
                     {section.tasks.length}
                   </span>
-                  <div className="h-px flex-1 bg-gray-200/60 dark:bg-white/10" />
+                  <div className="h-px flex-1 bg-t2-stage " />
                 </motion.button>
 
                 {/* Section Tasks */}
@@ -375,7 +375,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                 : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const }
             }
             transition={{ duration: 0.15 }}
-            className="py-4 text-center text-xs text-gray-500 dark:text-gray-400 font-medium"
+            className="py-4 text-center text-xs text-t2-ink-2  font-medium"
           >
             Alle offenen Aufgaben erledigt! 🎉
           </motion.div>
@@ -384,7 +384,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
         {/* Collapsible Completed Tasks Section when filterStatus === 'all' */}
         {filterStatus === 'all' && recentlyCompletedTasks.length > 0 && (
           <motion.div
-            className={`mt-2 pt-3 ${isEditingCompleted ? 'border-t-0' : 'border-t border-gray-200 dark:border-white/10'}`}
+            className={`mt-2 pt-3 ${isEditingCompleted ? 'border-t-0' : 'border-t border-t2-line '}`}
             animate={
               editingTaskId && !isEditingCompleted
                 ? { opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' as const }
@@ -401,7 +401,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                   : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const, marginBottom: 0 }
               }
               transition={{ duration: 0.15 }}
-              className="w-full flex items-center justify-between text-xs font-bold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer py-1.5 select-none"
+              className="w-full flex items-center justify-between text-xs font-bold text-t2-ink-2  hover:text-t2-ink  transition-colors cursor-pointer py-1.5 select-none"
             >
               <div className="flex items-center gap-2">
                 <ChevronRight
@@ -410,9 +410,9 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                 />
                 <CheckCircle2 size={15} className="text-emerald-500" />
                 <span>Kürzlich erledigt</span>
-                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal">(letzte 7 Tage)</span>
+                <span className="text-[10px] text-t2-ink-3  font-normal">(letzte 7 Tage)</span>
               </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-t2-hover  text-t2-ink-2 ">
                 {recentlyCompletedTasks.length}
               </span>
             </motion.button>
@@ -444,7 +444,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                 : { opacity: 1, height: 'auto', pointerEvents: 'auto' as const }
             }
             transition={{ duration: 0.15 }}
-            className="py-3 text-center text-xs text-gray-500 dark:text-gray-400 font-medium"
+            className="py-3 text-center text-xs text-t2-ink-2  font-medium"
           >
             Keine Aufgaben in den letzten 7 Tagen erledigt. Ältere Aufgaben befinden sich im Archiv unten.
           </motion.div>
@@ -453,7 +453,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
         {/* Collapsible Archive Section when filterStatus === 'all' | 'completed' | 'archived' */}
         {(filterStatus === 'all' || filterStatus === 'completed' || filterStatus === 'archived') && archivedTasks.length > 0 && (
           <motion.div
-            className={`mt-3 pt-3 ${isEditingArchived ? 'border-t-0' : 'border-t border-gray-200 dark:border-white/10'}`}
+            className={`mt-3 pt-3 ${isEditingArchived ? 'border-t-0' : 'border-t border-t2-line '}`}
             animate={
               editingTaskId && !isEditingArchived
                 ? { opacity: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' as const }
@@ -464,18 +464,18 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowArchive((prev) => !prev)}
-                  className="w-full flex items-center justify-between text-xs font-bold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer py-1.5 select-none"
+                  className="w-full flex items-center justify-between text-xs font-bold text-t2-ink-2  hover:text-t2-ink  transition-colors cursor-pointer py-1.5 select-none"
                 >
                   <div className="flex items-center gap-2">
                     <ChevronRight
                       size={16}
                       className={`transition-transform duration-200 ${showArchive || filterStatus === 'archived' ? 'rotate-90' : ''}`}
                     />
-                    <Archive size={15} className="text-gray-500 dark:text-gray-400" />
+                    <Archive size={15} className="text-t2-ink-2 " />
                     <span>Archiv</span>
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal">(&gt; 7 Tage)</span>
+                    <span className="text-[10px] text-t2-ink-3  font-normal">(&gt; 7 Tage)</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-t2-hover  text-t2-ink-2 ">
                     {archivedTasks.length}
                   </span>
                 </button>
@@ -498,7 +498,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                         return (
                           <div
                             key={tierCfg.key}
-                            className="rounded-2xl border border-gray-200/80 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.02] p-3 sm:p-3.5 transition-all"
+                            className="rounded-2xl border border-t2-line  bg-t2-sub  p-3 sm:p-3.5 transition-all"
                           >
                             {/* Tier Accordion Header */}
                             <button
@@ -509,21 +509,21 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                               <div className="flex items-center gap-2 sm:gap-2.5">
                                 <ChevronRight
                                   size={14}
-                                  className={`text-gray-400 transition-transform duration-200 ${isTierOpen ? 'rotate-90' : ''}`}
+                                  className={`text-t2-ink-3 transition-transform duration-200 ${isTierOpen ? 'rotate-90' : ''}`}
                                 />
                                 <div className={`p-1.5 rounded-lg ${tierCfg.bg} ${tierCfg.color}`}>
                                   <TierIcon size={14} />
                                 </div>
                                 <div className="flex items-baseline gap-1.5 text-left">
-                                  <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                                  <span className="text-xs font-bold text-t2-ink ">
                                     {tierCfg.label}
                                   </span>
-                                  <span className="text-[10px] text-gray-400 dark:text-gray-500 font-normal">
+                                  <span className="text-[10px] text-t2-ink-3  font-normal">
                                     ({tierCfg.sublabel})
                                   </span>
                                 </div>
                               </div>
-                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white dark:bg-white/10 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/5 shadow-2xs">
+                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-t2-surface  text-t2-ink-2  border border-t2-line  shadow-2xs">
                                 {tierTasks.length}
                               </span>
                             </button>
@@ -574,19 +574,19 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
             )}
 
             {sortedTasks.length === 0 && selectedDateFilter === null && (
-              <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-12 text-center flex flex-col items-center justify-center shadow-2xs">
-                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 text-blue-500 flex items-center justify-center mb-3">
+              <div className="bg-t2-surface  border border-t2-line  rounded-2xl p-12 text-center flex flex-col items-center justify-center shadow-2xs">
+                <div className="w-12 h-12 rounded-2xl bg-t2-sub text-t2-accent flex items-center justify-center mb-3">
                   {filterStatus === 'completed' ? (
                     <CheckCircle2 size={24} />
                   ) : filterStatus === 'in_progress' ? (
                     <Timer size={24} className="text-amber-500" />
                   ) : filterStatus === 'archived' ? (
-                    <Archive size={24} className="text-purple-500" />
+                    <Archive size={24} className="text-t2-accent" />
                   ) : (
                     <ListTodo size={24} />
                   )}
                 </div>
-                <h3 className="text-base font-bold text-gray-900 dark:text-white mb-1">
+                <h3 className="text-base font-bold text-t2-ink  mb-1">
                   {filterStatus === 'completed'
                     ? 'Keine kürzlich erledigten Aufgaben'
                     : filterStatus === 'archived'
@@ -603,7 +603,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     ? `Keine Aufgaben in "${selectedFolder || 'Ohne Ordner'}"`
                     : 'Noch keine Aufgaben'}
                 </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mb-4">
+                <p className="text-xs text-t2-ink-2  max-w-sm mb-4">
                   {searchQuery
                     ? `Für "${searchQuery}" wurden keine passenden Aufgaben gefunden.`
                     : filterStatus === 'archived'
@@ -626,14 +626,14 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                         setDraft((p) => ({ ...p, folder: selectedFolder || '', tags: [selectedTag] }));
                         setIsCreateOpen(true);
                       }}
-                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs cursor-pointer"
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 rounded-xl transition-all shadow-xs cursor-pointer"
                     >
                       <Plus size={14} /><span>Aufgabe mit #{selectedTag} erstellen</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedTag(null)}
-                      className="px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+                      className="px-4 py-2 text-xs font-medium text-t2-ink-2  hover:bg-t2-hover  rounded-xl transition-all cursor-pointer"
                     >
                       Tag-Filter aufheben
                     </button>
@@ -646,14 +646,14 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                         setDraft((p) => ({ ...p, folder: selectedFolder || '' }));
                         setIsCreateOpen(true);
                       }}
-                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs cursor-pointer"
+                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 rounded-xl transition-all shadow-xs cursor-pointer"
                     >
                       <Plus size={14} /><span>Aufgabe in diesem Ordner erstellen</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedFolder(null)}
-                      className="px-4 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 rounded-xl transition-all cursor-pointer"
+                      className="px-4 py-2 text-xs font-medium text-t2-ink-2  hover:bg-t2-hover  rounded-xl transition-all cursor-pointer"
                     >
                       Filter aufheben
                     </button>
@@ -661,7 +661,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                 ) : tasks.length === 0 && !searchQuery ? (
                   <button
                     type="button" onClick={() => setIsCreateOpen(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-all shadow-xs cursor-pointer"
+                    className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 rounded-xl transition-all shadow-xs cursor-pointer"
                   >
                     <Plus size={14} /><span>Erste Aufgabe erstellen</span>
                   </button>

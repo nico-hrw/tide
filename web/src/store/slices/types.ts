@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand';
 import type { WeekStart } from '@/lib/calendarWeeks';
+import type { AppPalette } from '@/lib/palette';
 
 export interface DataItem {
     id: string;
@@ -56,6 +57,7 @@ export type SettingsModalTab =
 export type NoteLayout = 'thin' | 'normal' | 'wide' | 'extra-wide' | 'a4';
 export type PaperPattern = 'blanko' | 'ruled' | 'grid';
 export type ThemePreference = 'light' | 'dark' | 'system';
+export type { AppPalette };
 export type AppTheme = 'light' | 'dark';
 export type AppLanguage = 'en' | 'de';
 export type CalendarColorPalette = 'balsam' | 'modern-dark' | 'soft-pastels' | 'classic-tide';
@@ -152,6 +154,7 @@ export interface UiSlice {
     enabledExtensions: string[];
     theme: AppTheme;
     themePreference: ThemePreference;
+    appPalette: AppPalette;
     language: AppLanguage;
     navigationMode: NavigationMode;
     paperPattern: PaperPattern;
@@ -164,6 +167,7 @@ export interface UiSlice {
         extensions: string[] | ((prev: string[]) => string[])
     ) => void;
     setThemePreference: (pref: ThemePreference) => void;
+    setAppPalette: (palette: AppPalette) => void;
     setLanguage: (lang: AppLanguage) => void;
     setNavigationMode: (mode: NavigationMode) => void;
     setPaperPattern: (pattern: PaperPattern) => void;

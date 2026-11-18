@@ -268,20 +268,20 @@ export default function SecuritySettingsModal({
             className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-[#111827]/20 animate-in fade-in duration-200"
         >
             <div 
-                className="w-full max-w-md rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] border border-[#e5e7eb] dark:border-zinc-800 bg-white dark:bg-[#18181b] overflow-hidden p-6 animate-in zoom-in-95 duration-150 flex flex-col gap-4"
+                className="w-full max-w-md rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] border border-t2-line  bg-t2-surface  overflow-hidden p-6 animate-in zoom-in-95 duration-150 flex flex-col gap-4"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex justify-between items-center border-b border-[#e5e7eb] dark:border-zinc-800 pb-3">
+                <div className="flex justify-between items-center border-b border-t2-line  pb-3">
                     <div className="flex items-center gap-3">
-                        <div className="h-[40px] w-[40px] rounded-[12px] bg-[#f3f4f6] dark:bg-zinc-800 border border-[#e5e7eb] dark:border-zinc-700 flex items-center justify-center text-[#111827] dark:text-zinc-200">
+                        <div className="h-[40px] w-[40px] rounded-[12px] bg-t2-hover  border border-t2-line  flex items-center justify-center text-t2-ink ">
                             <Shield size={18} />
                         </div>
                         <div>
-                            <h2 className="text-[15px] font-bold text-[#111827] dark:text-zinc-100">
+                            <h2 className="text-[15px] font-bold text-t2-ink ">
                                 {isCurrentlyProtected ? 'Sicherheit & PIN verwalten' : 'PIN-Schutz aktivieren'}
                             </h2>
-                            <p className="text-[12px] text-zinc-500 dark:text-zinc-400 truncate max-w-[240px]">
+                            <p className="text-[12px] text-t2-ink-2  truncate max-w-[240px]">
                                 {item.title}
                             </p>
                         </div>
@@ -289,7 +289,7 @@ export default function SecuritySettingsModal({
                     <button 
                         type="button"
                         onClick={onClose}
-                        className="h-[44px] w-[44px] rounded-[12px] bg-[#f9fafb] hover:bg-[#f3f4f6] dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-[#e5e7eb] dark:border-zinc-700 flex items-center justify-center text-[#111827] dark:text-zinc-200 cursor-pointer transition-colors"
+                        className="h-[44px] w-[44px] rounded-[12px] bg-t2-sub hover:bg-t2-hover   border border-t2-line  flex items-center justify-center text-t2-ink  cursor-pointer transition-colors"
                         aria-label="Schließen"
                     >
                         <X size={18} />
@@ -314,15 +314,15 @@ export default function SecuritySettingsModal({
                 <div className="space-y-4">
                     {/* Current PIN verification if changing */}
                     {isCurrentlyProtected && recoveryStep !== 'success' && (
-                        <div className="space-y-1.5 p-3 rounded-[12px] bg-zinc-50 dark:bg-zinc-800/60 border border-[#e5e7eb] dark:border-zinc-700/60">
+                        <div className="space-y-1.5 p-3 rounded-[12px] bg-t2-sub  border border-t2-line ">
                             <div className="flex justify-between items-center">
-                                <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                                <label className="text-xs font-semibold text-t2-ink ">
                                     Aktuelle PIN
                                 </label>
                                 <button
                                     type="button"
                                     onClick={handleRequestRecoveryEmail}
-                                    className="text-[11px] text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:underline font-medium"
+                                    className="text-[11px] text-t2-ink-2  hover:text-t2-ink  hover:underline font-medium"
                                 >
                                     PIN vergessen?
                                 </button>
@@ -332,15 +332,15 @@ export default function SecuritySettingsModal({
                                 value={currentPin}
                                 onChange={e => setCurrentPin(e.target.value)}
                                 placeholder="Aktuelle PIN eingeben..."
-                                className="w-full h-[40px] px-3.5 rounded-[8px] border border-[#e5e7eb] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 transition-colors"
+                                className="w-full h-[40px] px-3.5 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 transition-colors"
                             />
                         </div>
                     )}
 
                     {/* Recovery Flow Banner */}
                     {recoveryStep === 'code_sent' && (
-                        <div className="p-3.5 rounded-[12px] bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-200 dark:border-zinc-700 space-y-2.5">
-                            <p className="text-xs text-zinc-700 dark:text-zinc-300 font-medium">{recoveryMessage}</p>
+                        <div className="p-3.5 rounded-[12px] bg-t2-sub  border border-t2-line  space-y-2.5">
+                            <p className="text-xs text-t2-ink  font-medium">{recoveryMessage}</p>
                             <div className="flex gap-2">
                                 <input
                                     type="text"
@@ -348,7 +348,7 @@ export default function SecuritySettingsModal({
                                     value={recoveryOtp}
                                     onChange={e => setRecoveryOtp(e.target.value)}
                                     placeholder="6-stelliger Code..."
-                                    className="flex-1 h-[40px] px-3 rounded-[8px] border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-mono text-center text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
+                                    className="flex-1 h-[40px] px-3 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs font-mono text-center text-t2-ink  focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
                                 />
                                 <button
                                     type="button"
@@ -364,14 +364,14 @@ export default function SecuritySettingsModal({
                     {/* 1-Field PIN Workflow */}
                     <div className="space-y-1.5">
                         <div className="flex justify-between items-center">
-                            <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                            <label className="text-xs font-semibold text-t2-ink ">
                                 {pinStep === 'enter' ? 'Neue PIN / Passwort festlegen' : 'PIN bestätigen'}
                             </label>
                             {pinStep === 'confirm' && (
                                 <button
                                     type="button"
                                     onClick={() => { setPinStep('enter'); setConfirmPin(''); }}
-                                    className="text-[11px] text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200 flex items-center gap-1 font-medium"
+                                    className="text-[11px] text-t2-ink-2 hover:text-t2-ink  flex items-center gap-1 font-medium"
                                 >
                                     <ArrowLeft size={11} /> Ändern
                                 </button>
@@ -387,7 +387,7 @@ export default function SecuritySettingsModal({
                                     onChange={e => setFirstPin(e.target.value)}
                                     onKeyDown={e => { if (e.key === 'Enter') handleFirstPinSubmit(e); }}
                                     placeholder="PIN / Passwort eingeben..."
-                                    className="flex-1 h-[42px] px-3.5 rounded-[8px] border border-[#e5e7eb] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 transition-colors"
+                                    className="flex-1 h-[42px] px-3.5 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 transition-colors"
                                 />
                                 <button
                                     type="button"
@@ -408,10 +408,10 @@ export default function SecuritySettingsModal({
                                     onChange={e => setConfirmPin(e.target.value)}
                                     onKeyDown={e => { if (e.key === 'Enter' && isMatch) handleSavePin(); }}
                                     placeholder="PIN erneut eingeben..."
-                                    className={`w-full h-[42px] pl-3.5 pr-10 rounded-[8px] border text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none transition-colors ${
+                                    className={`w-full h-[42px] pl-3.5 pr-10 rounded-[8px] border text-xs text-t2-ink  focus:outline-none transition-colors ${
                                         isMatch ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-500/5' :
                                         isMismatch ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/5' :
-                                        'border-[#e5e7eb] dark:border-zinc-700 bg-white dark:bg-zinc-900 focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400'
+                                        'border-t2-line  bg-t2-surface  focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400'
                                     }`}
                                 />
                                 <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
@@ -431,60 +431,60 @@ export default function SecuritySettingsModal({
                     </div>
 
                     {/* Streamlined Frequency Configuration */}
-                    <div className="space-y-2 pt-1 border-t border-[#e5e7eb] dark:border-zinc-800">
-                        <label className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                    <div className="space-y-2 pt-1 border-t border-t2-line ">
+                        <label className="text-xs font-semibold text-t2-ink ">
                             PIN-Abfragehäufigkeit
                         </label>
                         
                         <div className="space-y-1.5 text-xs">
                             {/* Line 1: Always */}
-                            <label className="flex items-center gap-2 p-2 rounded-[8px] hover:bg-zinc-50 dark:hover:bg-zinc-800/60 cursor-pointer transition-colors border border-transparent has-[:checked]:border-zinc-300 dark:has-[:checked]:border-zinc-700 has-[:checked]:bg-zinc-100 dark:has-[:checked]:bg-zinc-800">
+                            <label className="flex items-center gap-2 p-2 rounded-[8px] hover:bg-t2-sub  cursor-pointer transition-colors border border-transparent has-[:checked]:border-t2-line  has-[:checked]:bg-t2-hover ">
                                 <input
                                     type="radio"
                                     name="frequency"
                                     checked={frequencyMode === 'always'}
                                     onChange={() => setFrequencyMode('always')}
-                                    className="w-4 h-4 text-[#111827] focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
+                                    className="w-4 h-4 text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
                                 />
-                                <span className="text-zinc-700 dark:text-zinc-200 font-medium">Jedes Mal beim Öffnen</span>
+                                <span className="text-t2-ink  font-medium">Jedes Mal beim Öffnen</span>
                             </label>
 
                             {/* Line 2: Session & Once */}
                             <div className="grid grid-cols-2 gap-2">
-                                <label className="flex items-center gap-2 p-2 rounded-[8px] hover:bg-zinc-50 dark:hover:bg-zinc-800/60 cursor-pointer transition-colors border border-transparent has-[:checked]:border-zinc-300 dark:has-[:checked]:border-zinc-700 has-[:checked]:bg-zinc-100 dark:has-[:checked]:bg-zinc-800">
+                                <label className="flex items-center gap-2 p-2 rounded-[8px] hover:bg-t2-sub  cursor-pointer transition-colors border border-transparent has-[:checked]:border-t2-line  has-[:checked]:bg-t2-hover ">
                                     <input
                                         type="radio"
                                         name="frequency"
                                         checked={frequencyMode === 'session'}
                                         onChange={() => setFrequencyMode('session')}
-                                        className="w-4 h-4 text-[#111827] focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
+                                        className="w-4 h-4 text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
                                     />
-                                    <span className="text-zinc-700 dark:text-zinc-200 truncate font-medium">Einmal pro Sitzung</span>
+                                    <span className="text-t2-ink  truncate font-medium">Einmal pro Sitzung</span>
                                 </label>
-                                <label className="flex items-center gap-2 p-2 rounded-[8px] hover:bg-zinc-50 dark:hover:bg-zinc-800/60 cursor-pointer transition-colors border border-transparent has-[:checked]:border-zinc-300 dark:has-[:checked]:border-zinc-700 has-[:checked]:bg-zinc-100 dark:has-[:checked]:bg-zinc-800">
+                                <label className="flex items-center gap-2 p-2 rounded-[8px] hover:bg-t2-sub  cursor-pointer transition-colors border border-transparent has-[:checked]:border-t2-line  has-[:checked]:bg-t2-hover ">
                                     <input
                                         type="radio"
                                         name="frequency"
                                         checked={frequencyMode === 'once'}
                                         onChange={() => setFrequencyMode('once')}
-                                        className="w-4 h-4 text-[#111827] focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
+                                        className="w-4 h-4 text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
                                     />
-                                    <span className="text-zinc-700 dark:text-zinc-200 truncate font-medium">Einmal auf diesem Gerät</span>
+                                    <span className="text-t2-ink  truncate font-medium">Einmal auf diesem Gerät</span>
                                 </label>
                             </div>
 
                             {/* Line 3: Custom Interval */}
                             <div className={`flex items-center gap-2 p-2 rounded-[8px] border transition-all ${
-                                frequencyMode === 'custom' ? 'border-zinc-400 dark:border-zinc-600 bg-zinc-100 dark:bg-zinc-800' : 'border-[#e5e7eb] dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
+                                frequencyMode === 'custom' ? 'border-t2-ink-3  bg-t2-hover ' : 'border-t2-line  hover:bg-t2-sub '
                             }`}>
                                 <input
                                     type="radio"
                                     name="frequency"
                                     checked={frequencyMode === 'custom'}
                                     onChange={() => setFrequencyMode('custom')}
-                                    className="w-4 h-4 text-[#111827] focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
+                                    className="w-4 h-4 text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
                                 />
-                                <span className="text-zinc-700 dark:text-zinc-200 font-medium">Alle</span>
+                                <span className="text-t2-ink  font-medium">Alle</span>
                                 <input
                                     type="number"
                                     min={1}
@@ -492,13 +492,13 @@ export default function SecuritySettingsModal({
                                     disabled={frequencyMode !== 'custom'}
                                     value={frequencyValue}
                                     onChange={e => setFrequencyValue(parseInt(e.target.value, 10) || 1)}
-                                    className="w-14 px-2 py-1 text-center font-bold rounded-[6px] border border-[#e5e7eb] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
+                                    className="w-14 px-2 py-1 text-center font-bold rounded-[6px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
                                 />
                                 <select
                                     disabled={frequencyMode !== 'custom'}
                                     value={customUnit}
                                     onChange={e => setCustomUnit(e.target.value as any)}
-                                    className="flex-1 px-2 py-1 rounded-[6px] border border-[#e5e7eb] dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
+                                    className="flex-1 px-2 py-1 rounded-[6px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
                                 >
                                     <option value="timeout_minutes">Minuten</option>
                                     <option value="every_x_times">Öffnungen</option>
@@ -509,19 +509,19 @@ export default function SecuritySettingsModal({
                     </div>
 
                     {/* Require for shares checkbox */}
-                    <label className="flex items-center gap-2.5 pt-1 text-xs cursor-pointer text-zinc-700 dark:text-zinc-300 font-medium">
+                    <label className="flex items-center gap-2.5 pt-1 text-xs cursor-pointer text-t2-ink  font-medium">
                         <input
                             type="checkbox"
                             checked={requireForShares}
                             onChange={e => setRequireForShares(e.target.checked)}
-                            className="w-4 h-4 rounded text-[#111827] focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
+                            className="w-4 h-4 rounded text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
                         />
                         <span>PIN auch für freigegebene Empfänger verlangen</span>
                     </label>
                 </div>
 
                 {/* Actions Footer */}
-                <div className="flex items-center justify-between pt-2 border-t border-[#e5e7eb] dark:border-zinc-800">
+                <div className="flex items-center justify-between pt-2 border-t border-t2-line ">
                     {isCurrentlyProtected ? (
                         <button
                             type="button"
@@ -538,7 +538,7 @@ export default function SecuritySettingsModal({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="bg-white dark:bg-zinc-800 text-[#111827] dark:text-white border border-[#e5e7eb] dark:border-zinc-700 rounded-[8px] h-[44px] px-4 font-semibold text-[14px] hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-colors"
+                            className="bg-t2-surface  text-t2-ink  border border-t2-line  rounded-[8px] h-[44px] px-4 font-semibold text-[14px] hover:bg-t2-sub  transition-colors"
                         >
                             Abbrechen
                         </button>

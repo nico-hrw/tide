@@ -58,16 +58,16 @@ export default function ConfirmModal({
                         initial={{ scale: 0.95, opacity: 0, y: 10 }}
                         animate={{ scale: 1, opacity: 1, y: 0 }}
                         exit={{ scale: 0.95, opacity: 0, y: 10 }}
-                        className="relative w-full max-w-sm rounded-modal shadow-modal border border-border bg-white dark:bg-[#18181b] p-6 overflow-hidden"
+                        className="relative w-full max-w-sm rounded-modal shadow-modal border border-border bg-t2-surface  p-6 overflow-hidden"
                     >
                         <div className="flex flex-col items-center text-center">
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${isDestructive ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400' : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'}`}>
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 ${isDestructive ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400' : 'bg-t2-hover text-t2-ink-2  '}`}>
                                 <AlertTriangle className="w-6 h-6" />
                             </div>
-                            <h3 className="text-xl font-semibold text-[#111827] dark:text-white mb-2">
+                            <h3 className="text-xl font-semibold text-t2-ink  mb-2">
                                 {title}
                             </h3>
-                            <p className="text-[15px] leading-relaxed text-[#596170] dark:text-zinc-400 mb-6">
+                            <p className="text-[15px] leading-relaxed text-t2-ink-2  mb-6">
                                 {message}
                             </p>
 
@@ -75,7 +75,7 @@ export default function ConfirmModal({
                                 <button
                                     type="button"
                                     onClick={onCancel}
-                                    className="flex-1 bg-white dark:bg-zinc-800 text-[#111827] dark:text-white border border-border hover:bg-[#f9fafb] dark:hover:bg-zinc-700 rounded-ui h-[44px] px-5 font-semibold text-[14px] transition-colors"
+                                    className="flex-1 bg-t2-surface  text-t2-ink  border border-border hover:bg-t2-sub  rounded-ui h-[44px] px-5 font-semibold text-[14px] transition-colors"
                                 >
                                     {cancelText}
                                 </button>

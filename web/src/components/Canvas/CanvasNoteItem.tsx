@@ -105,8 +105,8 @@ function ImageWidget({
     }, [assetId, ydoc, imageBlobCache]);
 
     if (loading) return (
-        <div style={{ width: item.width, height: 120 }} className="flex items-center justify-center rounded-xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10">
-            <div className="w-5 h-5 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
+        <div style={{ width: item.width, height: 120 }} className="flex items-center justify-center rounded-xl bg-t2-hover  border border-t2-line ">
+            <div className="w-5 h-5 rounded-full border-2 border-t2-accent border-t-transparent animate-spin" />
         </div>
     );
     if (error || !src) return (

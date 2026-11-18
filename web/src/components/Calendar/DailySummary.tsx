@@ -77,13 +77,13 @@ export default function DailySummary({
                     animate={{ scale: 1, opacity: 1, y: 0 }}
                     exit={{ scale: 0.8, opacity: 0, y: 50 }}
                     transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                    className="relative w-full max-w-sm bg-t2-surface dark:bg-[#18181b] rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] overflow-hidden border border-[#e5e7eb] dark:border-zinc-800 p-8 flex flex-col items-center pointer-events-auto"
+                    className="relative w-full max-w-sm bg-t2-surface  rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] overflow-hidden border border-t2-line  p-8 flex flex-col items-center pointer-events-auto"
                 >
                     {/* Close Button */}
                     <button
                         onClick={onClose}
                         aria-label="Close"
-                        className="absolute top-6 right-6 h-[44px] w-[44px] rounded-[12px] bg-[#f9fafb] hover:bg-[#f3f4f6] dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-[#e5e7eb] dark:border-zinc-700 flex items-center justify-center text-[#111827] dark:text-zinc-200 cursor-pointer transition-colors"
+                        className="absolute top-6 right-6 h-[44px] w-[44px] rounded-[12px] bg-t2-sub hover:bg-t2-hover   border border-t2-line  flex items-center justify-center text-t2-ink  cursor-pointer transition-colors"
                     >
                         <X className="w-5 h-5" />
                     </button>
@@ -135,10 +135,10 @@ export default function DailySummary({
 
                     {/* Stats Grid */}
                     <div className="grid grid-cols-2 gap-4 w-full mb-8">
-                        <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-3xl border border-blue-100 dark:border-blue-500/20 flex flex-col items-center gap-1">
-                            <Calendar className="w-5 h-5 text-blue-500 mb-1" />
+                        <div className="bg-t2-sub  p-4 rounded-3xl border border-t2-line  flex flex-col items-center gap-1">
+                            <Calendar className="w-5 h-5 text-t2-accent mb-1" />
                             <span className="text-lg font-bold text-t2-ink ">{eventsToday}</span>
-                            <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tighter">Events Today</span>
+                            <span className="text-[10px] font-bold text-t2-accent  uppercase tracking-tighter">Events Today</span>
                         </div>
                         <div className="bg-emerald-50 dark:bg-emerald-500/10 p-4 rounded-3xl border border-emerald-100 dark:border-emerald-500/20 flex flex-col items-center gap-1">
                             <CheckCircle2 className="w-5 h-5 text-emerald-500 mb-1" />
