@@ -208,32 +208,14 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
                     setManuallyOpened(true);
                     setIsMinimized(false);
                 }}
-                title="Apple Pencil & Zeichenwerkzeuge öffnen"
-                className="fixed bottom-4 right-4 z-[110] flex items-center gap-2 px-3 py-1.5 text-xs font-medium transition-transform active:scale-95 shadow-sm"
-                style={{
-                    backgroundColor: 'var(--surface-card, var(--sidebar-bg))',
-                    backdropFilter: 'blur(' + DT.blur + ')',
-                    WebkitBackdropFilter: 'blur(' + DT.blur + ')',
-                    borderRadius: DT.radius,
-                    boxShadow: DT.shadowFloat,
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--foreground)',
-                }}
+                title="Zeichenwerkzeuge öffnen"
+                aria-label="Zeichenwerkzeuge öffnen"
+                className={`${FLOAT} fixed right-4 z-[110] flex h-11 items-center gap-2 rounded-full px-4 text-[13px] font-medium text-t2-ink active:scale-95 transition-transform`}
+                style={{ bottom: 'max(16px, env(safe-area-inset-bottom))' }}
             >
-                <Pencil size={14} style={{ color: mode === 'draw' ? DT.accent : undefined }} />
-                <span>Pencil</span>
-                {strokeCount > 0 && (
-                    <span
-                        className="px-1.5 py-0.5 text-[10px] font-semibold"
-                        style={{
-                            borderRadius: DT.radiusSm,
-                            backgroundColor: DT.status.info.bg,
-                            color: DT.foreground,
-                        }}
-                    >
-                        {strokeCount}
-                    </span>
-                )}
+                <Pencil size={16} className={mode === 'draw' ? 'text-t2-blue' : ''} />
+                Stift
+                {strokeCount > 0 && <span className="rounded-full bg-t2-sub px-1.5 text-[11px] text-t2-ink-2">{strokeCount}</span>}
             </button>
         );
     }
@@ -241,62 +223,36 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
     return (
         <div
             role="toolbar"
-            aria-label="Apple Pencil und Zeichen-Werkzeugleiste"
+            aria-label="Zeichenwerkzeuge"
             onPointerDown={(e) => e.stopPropagation()}
-            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[120] flex flex-wrap items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 max-w-[96vw] select-none"
-            style={{
-                backgroundColor: 'var(--surface-card, var(--sidebar-bg))',
-                backdropFilter: 'blur(' + DT.blur + ')',
-                WebkitBackdropFilter: 'blur(' + DT.blur + ')',
-                borderRadius: DT.cardRadius,
-                boxShadow: DT.shadowFloat,
-                border: '1px solid var(--border-color)',
-                color: 'var(--foreground)',
-            }}
+            className={`${FLOAT} fixed left-1/2 z-[120] flex max-w-[96vw] -translate-x-1/2 items-center gap-1 rounded-[18px] p-1.5 text-t2-ink select-none`}
+            style={{ bottom: 'max(16px, env(safe-area-inset-bottom))' }}
         >
-            {/* Left: Mode Switcher (Scribble Text vs Freehand Draw) */}
-            <div
-                className="flex items-center p-0.5"
-                style={{
-                    backgroundColor: 'var(--sidebar-bg)',
-                    borderRadius: DT.radius,
-                    border: '1px solid var(--border-color)',
-                }}
-            >
+            {/* Mode: handwriting converted to text vs. free drawing */}
+            <div className="flex items-center gap-0.5 rounded-[12px] bg-t2-sub p-0.5">
                 <button
                     type="button"
                     onClick={() => onModeChange('text')}
-                    title="Text (Scribble) — Handschrift wird automatisch in Text umgewandelt"
-                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium transition-colors"
-                    style={{
-                        borderRadius: DT.radiusSm,
-                        backgroundColor: mode === 'text' ? DT.accent : 'transparent',
-                        color: mode === 'text' ? '#ffffff' : 'var(--foreground)',
-                    }}
+                    title="Schreiben: Handschrift wird zu Text"
+                    aria-pressed={mode === 'text'}
+                    className={`${TOUCH} rounded-[10px] ${mode === 'text' ? ACTIVE : IDLE}`}
                 >
-                    <Type size={14} />
-                    <span className="hidden sm:inline">Text (Scribble)</span>
+                    <Type size={17} />
                 </button>
                 <button
                     type="button"
                     onClick={() => onModeChange('draw')}
-                    title="Malen / Schreiben — Freihand-Skizzen & Handschrift auf der Notiz"
-                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium transition-colors"
-                    style={{
-                        borderRadius: DT.radiusSm,
-                        backgroundColor: mode === 'draw' ? DT.accent : 'transparent',
-                        color: mode === 'draw' ? '#ffffff' : 'var(--foreground)',
-                    }}
+                    title="Zeichnen: Freihand auf der Notiz"
+                    aria-pressed={mode === 'draw'}
+                    className={`${TOUCH} rounded-[10px] ${mode === 'draw' ? ACTIVE : IDLE}`}
                 >
-                    <Pencil size={14} />
-                    <span className="hidden sm:inline">Malen / Schreiben</span>
+                    <Pencil size={17} />
                 </button>
             </div>
 
-            <div className="h-5 w-px" style={{ backgroundColor: 'var(--border-color)' }} />
+            <Divider />
 
-            {/* Center: Drawing Tools (Pen, Marker, Eraser, Lasso Select) */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
                 {DRAWING_TOOLS.map((tool) => {
                     const Icon = tool.icon;
                     const isSelected = mode === 'draw' && activeTool === tool.id;
@@ -306,49 +262,47 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
                             type="button"
                             onClick={() => handleSelectDrawingTool(tool.id)}
                             title={tool.title}
-                            className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 transition-all"
-                            style={{
-                                borderRadius: DT.radius,
-                                backgroundColor: isSelected ? DT.accent : 'transparent',
-                                color: isSelected ? '#ffffff' : 'var(--foreground)',
-                            }}
+                            aria-pressed={isSelected}
+                            className={`${TOUCH} rounded-[12px] ${isSelected ? ACTIVE : IDLE}`}
                         >
-                            <Icon size={15} />
+                            <Icon size={17} />
                         </button>
                     );
                 })}
             </div>
 
-            <div className="h-5 w-px" style={{ backgroundColor: 'var(--border-color)' }} />
+            <Divider />
 
-            {/* Right: Color Presets, Stroke Thickness, Undo/Redo, Selection Delete, Minimize */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center">
                 {COLOR_PRESETS.map((preset) => {
-                    const isCurrentColor =
-                        strokeColor.toLowerCase() === preset.value.toLowerCase();
+                    const isCurrentColor = strokeColor.toLowerCase() === preset.value.toLowerCase();
                     return (
                         <button
                             key={preset.value}
                             type="button"
                             onClick={() => handleSelectColor(preset.value)}
                             title={`Farbe: ${preset.label}`}
-                            className="w-5 h-5 rounded-full flex items-center justify-center transition-transform"
-                            style={{
-                                backgroundColor: preset.value,
-                                transform: isCurrentColor ? 'scale(1.18)' : 'scale(1)',
-                                boxShadow: isCurrentColor
-                                    ? `0 0 0 2px var(--background), 0 0 0 3.5px ${DT.accent}`
-                                    : `inset 0 0 0 1px ${DT.modal.scrim}`,
-                            }}
-                        />
+                            aria-pressed={isCurrentColor}
+                            className="flex h-9 w-8 items-center justify-center"
+                        >
+                            <span
+                                className="block h-[18px] w-[18px] rounded-full transition-transform"
+                                style={{
+                                    backgroundColor: preset.value,
+                                    transform: isCurrentColor ? 'scale(1.15)' : 'scale(1)',
+                                    boxShadow: isCurrentColor
+                                        ? '0 0 0 2px var(--t2-surface), 0 0 0 3.5px var(--t2-ink)'
+                                        : 'inset 0 0 0 1px rgba(0,0,0,0.12)',
+                                }}
+                            />
+                        </button>
                     );
                 })}
             </div>
 
-            <div className="h-5 w-px" style={{ backgroundColor: 'var(--border-color)' }} />
+            <Divider />
 
-            {/* 3 Stroke Thickness Presets */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center">
                 {SIZE_PRESETS.map((preset) => {
                     const isCurrentSize = strokeSize === preset.value;
                     return (
@@ -357,85 +311,57 @@ export const PencilToolbox: React.FC<PencilToolboxProps> = ({
                             type="button"
                             onClick={() => handleSelectSize(preset.value)}
                             title={`Strichstärke: ${preset.label}`}
-                            className="w-7 h-7 flex items-center justify-center transition-colors"
-                            style={{
-                                borderRadius: DT.radius,
-                                backgroundColor: isCurrentSize
-                                    ? 'var(--sidebar-bg)'
-                                    : 'transparent',
-                                border: isCurrentSize
-                                    ? `1px solid ${DT.accent}`
-                                    : '1px solid transparent',
-                            }}
+                            aria-pressed={isCurrentSize}
+                            className={`flex h-10 w-9 items-center justify-center rounded-[12px] ${isCurrentSize ? 'bg-t2-sub' : 'hover:bg-t2-hover'}`}
                         >
                             <span
-                                className="rounded-full"
-                                style={{
-                                    width: `${preset.dotSize}px`,
-                                    height: `${preset.dotSize}px`,
-                                    backgroundColor: 'var(--foreground)',
-                                    display: 'block',
-                                }}
+                                className="block rounded-full bg-t2-ink"
+                                style={{ width: preset.dotSize, height: preset.dotSize, opacity: isCurrentSize ? 1 : 0.55 }}
                             />
                         </button>
                     );
                 })}
             </div>
 
-            <div className="h-5 w-px" style={{ backgroundColor: 'var(--border-color)' }} />
+            <Divider />
 
-            {/* Undo / Redo / Selection Delete / Minimize */}
-            <div className="flex items-center gap-0.5 sm:gap-1">
-                <button
-                    type="button"
-                    onClick={onUndo}
-                    disabled={!canUndo}
-                    title="Rückgängig"
-                    className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center transition-opacity disabled:opacity-35"
-                    style={{ borderRadius: DT.radius }}
-                >
-                    <Undo2 size={15} />
+            <div className="flex items-center gap-0.5">
+                <button type="button" onClick={onUndo} disabled={!canUndo} title="Rückgängig" aria-label="Rückgängig" className={`${TOUCH} rounded-[12px] ${IDLE} disabled:opacity-30 disabled:hover:bg-transparent`}>
+                    <Undo2 size={17} />
                 </button>
-                <button
-                    type="button"
-                    onClick={onRedo}
-                    disabled={!canRedo}
-                    title="Wiederholen"
-                    className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center transition-opacity disabled:opacity-35"
-                    style={{ borderRadius: DT.radius }}
-                >
-                    <Redo2 size={15} />
+                <button type="button" onClick={onRedo} disabled={!canRedo} title="Wiederholen" aria-label="Wiederholen" className={`${TOUCH} rounded-[12px] ${IDLE} disabled:opacity-30 disabled:hover:bg-transparent`}>
+                    <Redo2 size={17} />
                 </button>
 
                 {selectedCount > 0 && (
                     <button
                         type="button"
                         onClick={onDeleteSelected}
-                        title={`Ausgewählte Elemente löschen (${selectedCount})`}
-                        className="flex items-center gap-1 px-2 h-7 sm:h-8 text-xs font-medium transition-opacity hover:opacity-90"
-                        style={{
-                            borderRadius: DT.radius,
-                            backgroundColor: DT.status.danger.bg,
-                            color: DT.status.danger.fg,
-                        }}
+                        title={`Auswahl löschen (${selectedCount})`}
+                        className="flex h-10 items-center gap-1.5 rounded-[12px] px-3 text-[13px] font-medium text-t2-now hover:bg-t2-hover"
                     >
-                        <Trash2 size={13} />
-                        <span>{selectedCount}</span>
+                        <Trash2 size={15} />
+                        {selectedCount}
                     </button>
                 )}
 
-                <button
-                    type="button"
-                    onClick={() => setIsMinimized(true)}
-                    title="Werkzeugleiste minimieren"
-                    className="w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center opacity-70 hover:opacity-100 transition-opacity"
-                    style={{ borderRadius: DT.radius }}
-                >
-                    <ChevronDown size={15} />
+                <button type="button" onClick={() => setIsMinimized(true)} title="Leiste minimieren" aria-label="Leiste minimieren" className={`${TOUCH} rounded-[12px] text-t2-ink-3 hover:bg-t2-hover`}>
+                    <ChevronDown size={17} />
                 </button>
             </div>
         </div>
     );
 };
+
+// Shared look: solid surface with a hairline ring, no blur, so it stays smooth while drawing.
+const FLOAT = 'bg-t2-surface shadow-[0_0_0_1px_var(--t2-line),0_10px_30px_rgba(0,0,0,0.10)]';
+// 40px touch targets for the Pencil and fingers.
+const TOUCH = 'flex h-10 w-10 items-center justify-center transition-colors';
+const ACTIVE = 'bg-t2-ink text-t2-bg';
+const IDLE = 'text-t2-ink-2 hover:bg-t2-hover hover:text-t2-ink';
+
+function Divider() {
+    return <div className="mx-1 h-6 w-px bg-t2-line" />;
+}
 
 export default PencilToolbox;
