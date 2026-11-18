@@ -71,6 +71,7 @@ export default function Sidebar({
     onTabClose,
     onTabsReorder,
     onOpenCalendar,
+    onOpenStudium,
     onOpenSocial,
     onOpenExams,
     onNewCanvasNote,
@@ -310,7 +311,7 @@ export default function Sidebar({
             <nav aria-label="Bereiche" className={`flex flex-col gap-0.5 px-2 pt-2 transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
                 <button
                     type="button"
-                    onClick={() => onOpenCalendar?.()}
+                    onClick={() => (onOpenStudium ? onOpenStudium() : onOpenCalendar?.())}
                     className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left text-[14px] text-t2-ink-2 transition-colors hover:bg-t2-hover"
                 >
                     <GraduationCap size={16} />

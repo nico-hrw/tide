@@ -111,7 +111,10 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
         showBackups, onRestoreBackup,
     } = props;
 
-    const [isHistoryMode, setIsHistoryMode] = useState<boolean>(false);
+    // The version timeline belongs to one note. It is open only for the note it was opened on,
+    // so switching notes never carries it along.
+    const [historyNoteId, setHistoryNoteId] = useState<string | null>(null);
+    const isHistoryMode = !!activeNoteId && historyNoteId === activeNoteId;
     // Timeline open = isHistoryMode; the old-version preview (replaces the editor) = isViewingVersion
     const [isViewingVersion, setIsViewingVersion] = useState<boolean>(false);
     const [isDraggingEditorFile, setIsDraggingEditorFile] = useState(false);
@@ -176,18 +179,15 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
             captureLiveContent();
         }
         if (!next) { setIsViewingVersion(false); setActiveIndex(0); }
-        setIsHistoryMode(next);
+        setHistoryNoteId(next ? (activeNoteId ?? null) : null);
         setShowBackups?.(next);
     }, [isHistoryMode, captureLiveContent, setShowBackups]);
 
+    // Notes switch the timeline off on their own; the viewed version belongs to the note it was opened on.
     useEffect(() => {
-        if (typeof showBackups === 'boolean') {
-            if (showBackups) {
-                captureLiveContent();
-            }
-            setIsHistoryMode(showBackups);
-        }
-    }, [showBackups, captureLiveContent]);
+        setIsViewingVersion(false);
+        setActiveIndex(0);
+    }, [activeNoteId]);
 
     const handleEditorReadyWrapper = useCallback((editor: any) => {
         handleEditorReady(editor);
@@ -240,14 +240,14 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     });
 
     const handleCancelHistory = useCallback(() => {
-        setIsHistoryMode(false);
+        setHistoryNoteId(null);
         setIsViewingVersion(false);
         setShowBackups?.(false);
         setActiveIndex(0);
     }, [setShowBackups, setActiveIndex]);
 
     const handleApplyHistory = useCallback(() => {
-        setIsHistoryMode(false);
+        setHistoryNoteId(null);
         setIsViewingVersion(false);
         setShowBackups?.(false);
         setActiveIndex(0);

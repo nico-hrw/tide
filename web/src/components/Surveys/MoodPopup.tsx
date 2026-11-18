@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { X, CheckCircle2 } from 'lucide-react';
 import { useSurveyStore } from '@/store/useSurveyStore';
+import { useDataStore } from '@/store/useDataStore';
 import type { MoodType } from '@/types/surveys';
 
 interface SparkItem {
@@ -55,6 +56,10 @@ export const MoodPopup: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isDismissed, setIsDismissed] = useState<boolean>(false);
   const [sparks, setSparks] = useState<SparkItem[]>([]);
+  // The popup belongs to the "Umfragen" extension. Its own toggle defaults to on, so the extension
+  // switch has to gate it too, otherwise mood prompts show up while the extension is off.
+  const surveysEnabled = useDataStore((s) => s.enabledExtensions?.includes('surveys') ?? false);
+  const promptsActive = surveysEnabled && isMoodTrackerEnabled;
 
   const feedbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -62,7 +67,7 @@ export const MoodPopup: React.FC = () => {
 
   // Periodic prompt check (on mount and every 60s)
   useEffect(() => {
-    if (!isMoodTrackerEnabled) return;
+    if (!promptsActive) return;
 
     const check = () => {
       if (checkShouldPrompt()) {
@@ -73,7 +78,7 @@ export const MoodPopup: React.FC = () => {
     check();
     const interval = setInterval(check, 60000);
     return () => clearInterval(interval);
-  }, [isMoodTrackerEnabled, checkShouldPrompt, setIsPopupOpen]);
+  }, [promptsActive, checkShouldPrompt, setIsPopupOpen]);
 
   // Cleanup timeouts on unmount
   useEffect(() => {
@@ -150,7 +155,7 @@ export const MoodPopup: React.FC = () => {
     }, 350);
   };
 
-  if (!isPopupOpen && !isSubmitting && !isDismissed) {
+  if (!promptsActive || (!isPopupOpen && !isSubmitting && !isDismissed)) {
     return null;
   }
 

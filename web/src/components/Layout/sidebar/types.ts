@@ -79,6 +79,8 @@ export interface SidebarProps {
     onTabClose?: (e: React.MouseEvent, id: string) => void;
     onTabsReorder?: (newTabs: Tab[]) => void;
     onOpenCalendar?: () => void;
+    /** Studium button: opens the Job & Studium planner. Falls back to the calendar when not set. */
+    onOpenStudium?: () => void;
     onOpenSocial?: () => void;
     onOpenExams?: () => void;
     onNewCanvasNote?: () => void;
