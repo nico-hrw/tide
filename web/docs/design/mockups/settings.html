@@ -38,7 +38,9 @@
 }
 :root{--t2-r:10px;--t2-r-lg:14px;
   --cal-praktikum:#5C6E6C;--cal-studium:#A6B7A8;--cal-social:#D2A96A;--cal-uni:#D39D87;--cal-geb:#A9623F;
-  --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  --ok:#4CAF7A;
+  --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--t2-stage);color:var(--t2-ink);font:14px/1.45 var(--font);-webkit-font-smoothing:antialiased;min-height:100vh}
@@ -48,6 +50,7 @@ svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;str
 svg.i.s{width:15px;height:15px}
 :focus-visible{outline:2px solid var(--t2-blue);outline-offset:2px}
 small{font-size:12.5px;color:var(--t2-ink-3)}
+code{font:12.5px var(--mono)}
 
 /* ── Mockup-Rahmen (nicht Teil der App) ── */
 .chrome{position:sticky;top:0;z-index:50;background:var(--t2-surface);border-bottom:1px solid var(--t2-line)}
@@ -57,7 +60,7 @@ small{font-size:12.5px;color:var(--t2-ink-3)}
 .note{padding:0 16px 12px;color:var(--t2-ink-2);font-size:13px;max-width:900px}
 .note b{color:var(--t2-ink)}
 .stage{padding:24px 16px 48px}
-.frame{width:min(1100px,100%);height:680px;margin:0 auto;border-radius:16px;overflow:hidden;border:1px solid var(--t2-line);background:var(--t2-bg);box-shadow:0 8px 32px rgba(0,0,0,.08);transition:width .25s}
+.frame{width:min(1100px,100%);height:700px;margin:0 auto;border-radius:16px;overflow:hidden;border:1px solid var(--t2-line);background:var(--t2-bg);box-shadow:0 8px 32px rgba(0,0,0,.08);transition:width .25s}
 .frame.mobile{width:min(390px,100%);height:780px;border-radius:32px;border-width:6px;border-color:var(--t2-ink)}
 
 /* ── Bedienelemente ── */
@@ -83,10 +86,11 @@ small{font-size:12.5px;color:var(--t2-ink-3)}
 .btn.danger{color:var(--t2-late)}
 .btn.ghost{box-shadow:none;background:none;color:var(--t2-ink-2);padding:6px 8px}
 .btn.ghost:hover{background:var(--t2-hover);color:var(--t2-ink)}
+.btn.ghost.danger{color:var(--t2-late)}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:99px;background:var(--t2-sub);font-size:12.5px;color:var(--t2-ink-2);white-space:nowrap}
-.chip i{width:7px;height:7px;border-radius:50%;background:#4CAF7A}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--ok)}
 .chip.warn i{background:var(--cal-social)}
-.chip.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
+.chip.mono{font-family:var(--mono);font-size:12px}
 
 /* ── App-Gerüst (Container Queries: bis 640 px mobil) ── */
 .app{container-type:inline-size;height:100%;background:var(--t2-bg)}
@@ -103,10 +107,12 @@ small{font-size:12.5px;color:var(--t2-ink-3)}
 .nav button.on{background:var(--t2-hover);color:var(--t2-ink);font-weight:600}
 .nav .go{margin-left:auto;display:none;color:var(--t2-ink-3)}
 .list .foot{margin-top:auto;padding:4px 0;display:flex;flex-direction:column;gap:2px}
-.foot button{display:flex;gap:10px;align-items:center;color:var(--t2-ink-3);font-size:13px;padding:7px 10px;border-radius:var(--t2-r)}
+.foot button{display:flex;gap:10px;align-items:center;color:var(--t2-ink-3);font-size:13px;padding:7px 10px;border-radius:var(--t2-r);text-align:left}
 .foot button:hover,.foot button.on{color:var(--t2-ink);background:var(--t2-hover)}
+.foot .go{margin-left:auto;display:none}
 .content{overflow:auto;min-height:0;position:relative}
 .col{max-width:660px;margin:0 auto;padding:36px 40px 80px}
+.docmode .col{max-width:940px}
 .top{display:none;align-items:center;padding:8px 6px;position:sticky;top:0;z-index:5;background:var(--t2-bg);border-bottom:1px solid var(--t2-line-soft);min-height:48px}
 .top button{display:flex;align-items:center;gap:2px;padding:6px 8px;border-radius:var(--t2-r);color:var(--t2-blue);font-weight:500}
 .top b{position:absolute;left:50%;transform:translateX(-50%);font-weight:600;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -114,9 +120,17 @@ small{font-size:12.5px;color:var(--t2-ink-3)}
 .sec{display:none;margin-bottom:44px}
 .sec.on,.searching .sec{display:block}
 .sec>h2,.subpage>h2{font-size:22px;letter-spacing:-.02em;line-height:1.2}
-.lead{color:var(--t2-ink-3);margin:2px 0 18px}
+.lead{color:var(--t2-ink-3);margin:2px 0 8px}
+
+/* Sektionen: kleine Überschrift, Hilfszeile, Trennlinie, klarer Abstand */
+.sg{padding:22px 0 0}
+.sg+.sg{margin-top:28px;border-top:1px solid var(--t2-line)}
+.sg:first-of-type{padding-top:14px}
+.sg>h3{font-size:14px;font-weight:600;letter-spacing:-.005em}
+.sg>.sh{font-size:12.5px;color:var(--t2-ink-3);margin-top:1px}
+.sg>h3+.row,.sg>.sh+.row,.sg>h3+.block,.sg>.sh+.block,.sg>h3+.who,.sg>.sh+.who{border-top:0}
+.sg>h3+*,.sg>.sh+*{margin-top:6px}
 .row{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 0;border-top:1px solid var(--t2-line-soft)}
-.lead+.row,.lead+.block,.lead+.who,.lead+.subhead{border-top:0}
 .row .rt{min-width:0}
 .row .rt b{font-weight:500;display:block}
 .row .rt small{display:block;margin-top:1px}
@@ -124,13 +138,6 @@ small{font-size:12.5px;color:var(--t2-ink-3)}
 .block{padding:14px 0;border-top:1px solid var(--t2-line-soft)}
 .block>.bh{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
 .block>.bh b{font-weight:500;display:block}
-details.more{border-top:1px solid var(--t2-line-soft)}
-details.more>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;padding:13px 0;color:var(--t2-ink-2);font-size:13.5px;border-radius:6px}
-details.more>summary::-webkit-details-marker{display:none}
-details.more>summary svg{transition:transform .18s}
-details.more[open]>summary svg{transform:rotate(90deg)}
-details.more>summary:hover{color:var(--t2-ink)}
-details.more .row:first-of-type{border-top:0}
 
 /* Paletten-Karten */
 .pals{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
@@ -155,7 +162,7 @@ details.more .row:first-of-type{border-top:0}
 .sw i{width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
 
 /* Konto */
-.who{display:flex;align-items:center;gap:14px;padding:4px 0 18px}
+.who{display:flex;align-items:center;gap:14px;padding:10px 0 12px}
 .av{width:48px;height:48px;border-radius:50%;background:var(--t2-ink);color:var(--t2-bg);display:grid;place-items:center;font-weight:700;flex:none}
 .who b{font-size:16px;font-weight:600;display:block}
 
@@ -169,54 +176,110 @@ details.more .row:first-of-type{border-top:0}
 .grow .ib:hover{background:var(--t2-hover);color:var(--t2-ink)}
 .grow.off .gn{opacity:.5}
 
-/* Erweiterungen: Liste + Unterseiten */
-.row.ext{padding:0;gap:8px}
-.row.ext .extmain{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:14px 0;text-align:left;border-radius:8px}
-.row.ext .extmain:hover .chev{color:var(--t2-ink);transform:translateX(2px)}
-.row.ext .chev{color:var(--t2-ink-3);margin-left:auto;transition:transform .15s}
-.row.ext .rt.plain{padding:14px 0;flex:1}
-.ei{width:34px;height:34px;border-radius:10px;background:var(--t2-sub);display:grid;place-items:center;color:var(--t2-ink-2);flex:none}
+/* Erweiterungen: gruppierte Karten, Status sichtbar */
+.xs{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:var(--t2-r);background:var(--t2-sub);box-shadow:inset 0 0 0 1px var(--t2-line);color:var(--t2-ink-3);margin:14px 0 4px}
+.xs input{border:0;outline:0;background:none;flex:1;min-width:0;color:var(--t2-ink)}
+.xs input::placeholder{color:var(--t2-ink-3)}
+.xs:focus-within{box-shadow:0 0 0 2px var(--t2-blue)}
+.xc{border-radius:var(--t2-r-lg);box-shadow:0 0 0 1px var(--t2-line);background:var(--t2-surface);margin-top:12px;overflow:hidden}
+.xr{display:flex;align-items:center;gap:12px;padding:0 16px 0 0;border-top:1px solid var(--t2-line-soft)}
+.xr:first-child{border-top:0}
+.xmain{flex:1;min-width:0;display:flex;align-items:center;gap:14px;padding:14px 0 14px 16px;text-align:left}
+button.xmain:hover .go{color:var(--t2-ink);transform:translateX(2px)}
+button.xmain:hover .xl b{text-decoration:underline;text-decoration-color:var(--t2-line);text-underline-offset:3px}
+.xmain .go{color:var(--t2-ink-3);margin-left:auto;transition:transform .15s,color .15s;flex:none}
+.ei{width:38px;height:38px;border-radius:11px;background:var(--t2-sub);display:grid;place-items:center;color:var(--t2-ink-2);flex:none;transition:opacity .15s}
+.xr.is-off .ei{opacity:.55}
+.xt{min-width:0;flex:1}
+.xl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.xl b{font-weight:550}
+.xt small{display:block;margin-top:1px;line-height:1.35}
+.st{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:500;color:var(--t2-ink-2);padding:1px 8px;border-radius:99px;background:var(--t2-sub)}
+.st::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ok)}
+.st.off{color:var(--t2-ink-3)}
+.st.off::before{background:var(--t2-ink-3);opacity:.5}
+.st.warn::before{background:var(--cal-social)}
+.xconf{padding:14px 16px 16px;background:var(--t2-sub);border-top:1px solid var(--t2-line)}
+.xconf b{font-weight:600;display:block}
+.xconf p{color:var(--t2-ink-2);margin:3px 0 12px;font-size:13px;max-width:46ch}
+.xconf .acts{display:flex;gap:8px}
+.subhead+.xconf{border-radius:var(--t2-r-lg);margin:-2px 0 6px;border:1px solid var(--t2-line)}
+
+/* Unterseiten */
 .subpage{display:none}
 .subpage.on{display:block}
-.insub .extlist,.insub .sec[data-g=ext]>h2,.insub .sec[data-g=ext]>.lead{display:none}
+.insub .mainlist,.insub .sec>h2,.insub .sec>.lead{display:none}
 .crumb{display:flex;align-items:center;gap:4px;color:var(--t2-ink-3);margin-bottom:14px;font-size:13.5px}
 .crumb button{color:var(--t2-ink-2);padding:2px 6px;margin-left:-6px;border-radius:6px;display:flex;align-items:center;gap:2px}
 .crumb button:hover{background:var(--t2-hover);color:var(--t2-ink)}
 .subhead{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 14px;border-radius:var(--t2-r-lg);background:var(--t2-sub);margin-bottom:6px}
 .subhead b{font-weight:500;display:block}
-.sech{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--t2-ink-3);padding:20px 0 2px}
-.code{position:relative;border-radius:var(--t2-r-lg);background:#101114;color:#E6E7EA;padding:14px 16px;font:12.5px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow-x:auto;white-space:pre}
+.code{position:relative;border-radius:var(--t2-r-lg);background:#101114;color:#E6E7EA;padding:14px 16px;font:12.5px/1.6 var(--mono);overflow-x:auto;white-space:pre}
 .code .c{color:#7C8088}.code .g{color:#7FD1A3}
 .code-w{position:relative}
 .code-w .btn{position:absolute;top:8px;right:8px;background:#1C1E22;color:#E6E7EA;box-shadow:none;font-size:12px;padding:4px 9px}
 .code-w .btn:hover{background:#26292E}
-.tools{display:grid;gap:0}
 .tools div{display:flex;gap:12px;padding:8px 0;border-top:1px solid var(--t2-line-soft);align-items:baseline}
 .tools div:first-child{border-top:0}
-.tools code{font:12.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--t2-ink);white-space:nowrap}
+.tools code{color:var(--t2-ink);white-space:nowrap}
 .tools span{color:var(--t2-ink-3);font-size:13px}
 .opts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .opt{padding:10px 12px;border-radius:var(--t2-r);box-shadow:0 0 0 1px var(--t2-line);text-align:left}
 .opt b{display:block;font-weight:500}
 .opt[aria-checked=true]{box-shadow:0 0 0 2px var(--t2-accent)}
 
-/* Zugriff / Tokens */
-.tok{display:flex;gap:14px;align-items:flex-start;padding:14px 0;border-top:1px solid var(--t2-line-soft)}
-.tok:first-child{border-top:0}
-.tok .tb{flex:1;min-width:0}
-.tok .tb b{font-weight:500}
-.tok .meta{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;color:var(--t2-ink-3);font-size:12.5px}
-.tok .scopes{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
-.tok.exp{opacity:.55}
-.panel{border-radius:var(--t2-r-lg);box-shadow:0 0 0 1px var(--t2-line);background:var(--t2-surface);padding:18px;margin-bottom:14px}
-.panel h3{font-size:15px;font-weight:600;margin-bottom:12px}
+/* Zugriff: ruhige Tokenliste */
+.tk{display:flex;align-items:center;gap:16px;padding:13px 0;border-top:1px solid var(--t2-line-soft)}
+.tk:first-child{border-top:0}
+.tk .tb{flex:1;min-width:0}
+.tk .tn{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.tk .tn b{font-weight:500}
+.tk .tn code{font-size:11.5px;color:var(--t2-ink-3)}
+.tk .tr{color:var(--t2-ink-2);font-size:13px;margin-top:2px}
+.tk .tm{color:var(--t2-ink-3);font-size:12.5px;margin-top:1px}
+.tk.exp .tb{opacity:.55}
+.panel{border-radius:var(--t2-r-lg);box-shadow:0 0 0 1px var(--t2-line);background:var(--t2-surface);padding:18px;margin:6px 0 14px}
+.panel h4{font-size:15px;font-weight:600;margin-bottom:12px}
 .fld{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
 .fld>span{color:var(--t2-ink-2)}
-.scope{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--t2-line-soft);cursor:pointer}
+.rg{font-size:12px;font-weight:600;color:var(--t2-ink-3);letter-spacing:.04em;text-transform:uppercase;margin:16px 0 2px}
+.scope{display:flex;gap:10px;align-items:flex-start;padding:7px 0;cursor:pointer}
 .scope input{margin-top:3px;accent-color:var(--t2-accent);width:15px;height:15px}
 .scope b{font-weight:500;display:block}
 .scope.dis{opacity:.5}
-.secret{display:flex;gap:8px;align-items:center;padding:10px 12px;border-radius:var(--t2-r);background:var(--t2-sub);box-shadow:inset 0 0 0 1px var(--t2-line);font:12.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all}
+.secret{display:flex;gap:8px;align-items:center;padding:10px 12px;border-radius:var(--t2-r);background:var(--t2-sub);box-shadow:inset 0 0 0 1px var(--t2-line);font:12.5px var(--mono);word-break:break-all}
+.linkrow{display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:var(--t2-r-lg);box-shadow:0 0 0 1px var(--t2-line);margin-top:10px;text-align:left;width:100%}
+.linkrow:hover{background:var(--t2-hover)}
+.linkrow .rt{flex:1;min-width:0}
+.linkrow .rt b{font-weight:550;display:block}
+.linkrow .go{color:var(--t2-ink-3)}
+
+/* Dokumentation (öffentliche Seite) */
+.doc{border-radius:var(--t2-r-lg);box-shadow:0 0 0 1px var(--t2-line);overflow:hidden;background:var(--t2-bg);margin-top:10px}
+.doc-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--t2-sub);border-bottom:1px solid var(--t2-line);flex-wrap:wrap}
+.doc-bar .url{flex:1;min-width:180px;background:var(--t2-surface);box-shadow:inset 0 0 0 1px var(--t2-line);border-radius:8px;padding:5px 10px;font:12.5px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;gap:7px;align-items:center;color:var(--t2-ink-2)}
+.doc-body{display:grid;grid-template-columns:160px minmax(0,1fr);gap:32px;padding:26px 26px 32px}
+.toc{position:sticky;top:8px;align-self:start;display:flex;flex-direction:column;gap:1px;font-size:13px}
+.toc small{padding:0 8px 6px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;font-size:11px}
+.toc button{padding:5px 8px;border-radius:6px;color:var(--t2-ink-2);text-align:left}
+.toc button:hover{background:var(--t2-hover);color:var(--t2-ink)}
+.art h1{font-size:26px;letter-spacing:-.025em;line-height:1.15}
+.art .lede{color:var(--t2-ink-2);font-size:15px;margin:8px 0 0;max-width:60ch}
+.art h2{font-size:18px;letter-spacing:-.015em;margin:36px 0 8px;padding-top:24px;border-top:1px solid var(--t2-line);scroll-margin-top:8px}
+.art h2:first-of-type{border-top:0;padding-top:0;margin-top:30px}
+.art h3{font-size:13.5px;margin:18px 0 4px}
+.art p{color:var(--t2-ink-2);margin:6px 0;max-width:68ch}
+.art ul{color:var(--t2-ink-2);margin:6px 0 6px 18px}
+.art .code{margin:10px 0}
+.art code.i{background:var(--t2-sub);padding:1px 6px;border-radius:5px;color:var(--t2-ink)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0}
+.tbl th,.tbl td{text-align:left;padding:8px 10px 8px 0;border-top:1px solid var(--t2-line-soft);vertical-align:top;color:var(--t2-ink-2)}
+.tbl th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--t2-ink-3);border-top:0;font-weight:600}
+.tbl td:first-child{color:var(--t2-ink);white-space:nowrap}
+.tbl-w{overflow-x:auto}
+.callout{padding:12px 14px;border-radius:var(--t2-r);background:var(--t2-sub);box-shadow:inset 0 0 0 1px var(--t2-line);color:var(--t2-ink-2);font-size:13px;margin:12px 0;max-width:68ch}
+.callout b{color:var(--t2-ink)}
+
 .hide{display:none!important}
 .empty{display:none;padding:40px 0;color:var(--t2-ink-3);text-align:center}
 .empty.show{display:block}
@@ -224,10 +287,9 @@ details.more .row:first-of-type{border-top:0}
 /* ── Mobil ── */
 @container (max-width:640px){
   .shell{grid-template-columns:1fr;overflow:hidden}
-  .col{padding:18px 20px 60px}
+  .col,.docmode .col{padding:18px 20px 60px;max-width:none}
   .sec>h2,.subpage>h2,.crumb{display:none}
   .row{flex-wrap:wrap;gap:10px}
-  .row.ext{flex-wrap:nowrap}
   .row .rc{max-width:100%}
   .row.wide .rc,.row.wide .seg{width:100%}
   .row.wide .seg button{flex:1;justify-content:center;padding:7px 4px}
@@ -235,14 +297,19 @@ details.more .row:first-of-type{border-top:0}
   .fld{flex-direction:column;align-items:stretch;gap:6px}
   .opts{grid-template-columns:1fr}
   .pals{gap:8px}.pal{padding:6px}.mini{height:64px}.pal small{display:none}.pal b{padding-top:6px}
+  .xr{padding-right:12px}.xmain{padding-left:12px;gap:12px}.ei{width:34px;height:34px}
+  .tk{align-items:flex-start}
+  .doc-body{grid-template-columns:minmax(0,1fr);gap:14px;padding:16px}
+  .toc{position:static;flex-direction:row;flex-wrap:wrap;gap:4px}
+  .toc small{display:none}
+  .toc button{box-shadow:inset 0 0 0 1px var(--t2-line);border-radius:99px;padding:3px 10px;font-size:12.5px}
+  .art h1{font-size:22px}
   .list{padding:18px 16px}
   .list h1{font-size:28px;padding:6px 4px}
-  .nav{background:var(--t2-surface);border-radius:var(--t2-r-lg);box-shadow:0 0 0 1px var(--t2-line);padding:4px}
-  .nav button{padding:12px}
+  .nav,.foot{background:var(--t2-surface);border-radius:var(--t2-r-lg);box-shadow:0 0 0 1px var(--t2-line);padding:4px!important}
+  .nav button,.foot button{padding:12px;font-size:14px;color:var(--t2-ink-2)}
   .nav button.on{background:none;font-weight:400;color:var(--t2-ink-2)}
-  .nav .go{display:block}
-  .foot{background:var(--t2-surface);border-radius:var(--t2-r-lg);box-shadow:0 0 0 1px var(--t2-line);padding:4px!important}
-  .foot button{padding:12px}
+  .nav .go,.foot .go{display:block}
   .list .foot{margin-top:0}
   .app[data-m=list] .content{display:none}
   .app[data-m=page] .list{display:none}
@@ -263,7 +330,7 @@ details.more .row:first-of-type{border-top:0}
     <div class="grp">Modus <div class="seg" role="radiogroup" aria-label="Modus" data-k="theme"><button role="radio" data-v="light">Hell</button><button role="radio" data-v="dark">Dunkel</button></div></div>
     <div class="grp">Ansicht <div class="seg" role="radiogroup" aria-label="Ansicht" data-k="frame"><button role="radio" data-v="desktop">Desktop</button><button role="radio" data-v="mobile">Mobil</button></div></div>
   </div>
-  <p class="note"><b>Gedanke:</b> Links die Gruppen, rechts immer nur eine ruhige Spalte. Jede Zeile ist ein Name mit einem Satz und genau einem Bedienelement, Seltenes steckt hinter „Mehr …“. Erweiterungen haben je eine eigene Unterseite, Zugriff verwaltet persönliche Tokens. Mobil: Liste, dann Unterseite wie in iOS.</p>
+  <p class="note"><b>Gedanke:</b> Links die Gruppen, rechts immer nur eine ruhige Spalte. Jede Seite ist in kleine Sektionen gegliedert, jede Zeile hat einen Namen, einen Satz und genau ein Bedienelement. Erweiterungen haben je eine Unterseite, Zugriff verwaltet Tokens und führt zur öffentlichen API-Dokumentation. Mobil: Liste, dann Unterseite wie in iOS.</p>
 </header>
 <main class="stage"><div class="frame" id="frame"><div class="app" id="app"></div></div></main>
 
@@ -281,7 +348,7 @@ const P={search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',chev
  moon:'<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>',
  mon:'<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/>',ck:'<path d="m5 12.5 4.5 4.5L19 7.5"/>',
- wrench:'<path d="M14.5 6.5a4 4 0 0 0 5 5L9 22l-3-3z" transform="translate(0 -3)"/>',
+ wrench:'<path d="M14.5 3.5a4.5 4.5 0 0 0-3.8 6.3L3.5 17a2 2 0 0 0 3 3l7.2-7.2a4.5 4.5 0 0 0 6.3-3.8l-3 3-2.5-.5-.5-2.5z"/>',
  eye:'<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
  eyeoff:'<path d="M3 3l18 18M10.5 5.2A9.6 9.6 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4M6.2 6.8A16 16 0 0 0 2 12s3.5 7 10 7a9 9 0 0 0 4-1"/>',
  share:'<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.2 10.8 7.6-3.6M8.2 13.2l7.6 3.6"/>',
@@ -289,6 +356,8 @@ const P={search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',chev
  lock:'<rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
  copy:'<rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
  plus:'<path d="M12 5v14M5 12h14"/>',
+ globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+ book:'<path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h10"/>',
  sparkle:'<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',
  term:'<rect x="3" y="4" width="18" height="16" rx="3"/><path d="m7 10 3 2-3 2M13 15h4"/>',
  bkm:'<path d="M7 4h10v17l-5-4-5 4z"/>',
@@ -313,21 +382,20 @@ const st={theme:'light',palette:'tide',frame:'desktop',evstyle:'balsam',pattern:
  survMood:true,refAuto:true,
  mobPre:true,mobGlance:true,mobMorning:false,
  grp_praktikum:true,grp_studium:true,grp_social:true,grp_uni:true,grp_geb:false};
-const tokens=[
- {id:1,name:'Home-Dashboard',pre:'tide_pat_9f3a…c21e',scopes:['events:read','todos:read'],exp:'18. Feb. 2027',used:'Heute, 08:12'},
- {id:2,name:'Alter Skript-Test',pre:'tide_pat_71bd…04aa',scopes:['events:read'],exp:'3. Okt. 2026',used:'Nie',expired:true}
-];
+
+/* Rechte in Klartext (Schlüssel nur intern und in der Doku) */
 const SCOPES=[
- ['events:read','Termine abfragen','Kalendereinträge und Termine lesen',1],
- ['events:write','Termine verwalten','Termine erstellen, ändern, löschen',0],
- ['notes:read','Notizen abfragen','Notizen über die API abrufen',0],
- ['notes:write','Notizen verwalten','Notizen erstellen und bearbeiten',0],
- ['storage:expand','Upload-Speicher erweitern','Uploads über 250 MB',1],
- ['todos:read','Aufgaben abfragen','Todos lesen',1],
- ['todos:create','Aufgaben erstellen','Neue Todos anlegen',1],
- ['todos:edit','Aufgaben bearbeiten','Bestehende Todos ändern',1],
- ['todos:delete','Aufgaben löschen','Todos entfernen',1],
- ['todos:write','Aufgaben voll verwalten','Alle Todo-Rechte in einem',1]];
+ ['Termine',[['events:read','Termine lesen','Kalendereinträge abrufen',1],['events:write','Termine ändern','Erstellen, bearbeiten und löschen',0]]],
+ ['Notizen',[['notes:read','Notizen lesen','Notizen abrufen und durchsuchen',0],['notes:write','Notizen ändern','Erstellen, bearbeiten und löschen',0]]],
+ ['Aufgaben',[['todos:read','Aufgaben lesen','Todos abrufen und filtern',1],['todos:create','Aufgaben erstellen','Neue Todos anlegen',1],['todos:edit','Aufgaben bearbeiten','Bestehende Todos ändern, abhaken',1],['todos:delete','Aufgaben löschen','Todos entfernen',1],['todos:write','Aufgaben vollständig verwalten','Alle vier Aufgabenrechte in einem',1]]],
+ ['Speicher',[['storage:expand','Größere Uploads','Dateien über 250 MB hochladen',1]]]];
+const SN={};SCOPES.forEach(([,l])=>l.forEach(([k,t])=>SN[k]=t));
+const scopeLine=a=>{const n=a.map(k=>SN[k]||(k.startsWith('safe:')?`nur Bereich „${k.slice(5)}“`:k));return n.length>3?n.slice(0,3).join(' · ')+` · +${n.length-3}`:n.join(' · ')};
+const tokens=[
+ {id:1,name:'Home-Dashboard',pre:'tide_pat_9f3a…',scopes:['events:read','todos:read'],exp:'18. Feb. 2027',used:'heute, 08:12'},
+ {id:2,name:'Notiz-Backup',pre:'tide_pat_52c0…',scopes:['notes:read','notes:write','safe:work'],exp:'kein Ablauf',used:'vor 3 Tagen'},
+ {id:3,name:'Alter Skript-Test',pre:'tide_pat_71bd…',scopes:['events:read'],exp:'3. Okt. 2026',used:'nie',expired:true}
+];
 
 const O={
  theme:[['light','Hell','sun'],['dark','Dunkel','moon'],['system','System','mon']],
@@ -353,30 +421,36 @@ const O={
 };
 const seg=k=>`<div class="seg" role="radiogroup" data-k="${k}">${O[k].map(([v,l,i])=>`<button role="radio" data-v="${v}">${i?ic(i,'s'):''}${l}</button>`).join('')}</div>`;
 const sel=(k,label)=>`<select class="sel" data-k="${k}" aria-label="${label||k}">${O[k].map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select>`;
-const tog=(k,label,dis)=>`<button class="tog" role="switch" data-k="${k}" aria-label="${label}" ${dis?'disabled':''}></button>`;
+const tog=(k,label,dis,ext)=>`<button class="tog" role="switch" data-k="${k}" ${ext?`data-ext="${ext}"`:''} aria-label="${label}" ${dis?'disabled':''}></button>`;
 const row=(t,d,c,w)=>`<div class="row ${w?'wide':''}" data-s="${(t+' '+d).toLowerCase()}"><div class="rt"><b>${t}</b>${d?`<small>${d}</small>`:''}</div><div class="rc">${c}</div></div>`;
-const more=(t,inner)=>`<details class="more"><summary>${ic('chev','s')}${t}</summary>${inner}</details>`;
+const sg=(t,h,inner)=>`<div class="sg" data-s="${(t+' '+h).toLowerCase()}"><h3>${t}</h3>${h?`<p class="sh">${h}</p>`:''}${inner}</div>`;
 const pal=(id,n,d)=>`<button class="pal" data-pal="${id}" aria-pressed="false"><span class="mini" data-palette="${id}"><i class="ms"><u></u><u></u><u></u></i><i class="mm"><u class="e1"></u><u class="e2"></u><u class="e3"></u><u class="bt"></u></i></span><b>${n}${ic('ck','s')}</b><small>${d}</small></button>`;
 const swatches=`<span class="sw" aria-hidden="true"><i style="background:var(--cal-praktikum)"></i><i style="background:var(--cal-studium)"></i><i style="background:var(--cal-social)"></i><i style="background:var(--cal-uni)"></i><i style="background:var(--cal-geb)"></i></span>`;
 const copyBtn=(id,t='Kopieren')=>`<button class="btn" data-copy="${id}">${ic('copy','s')}<span>${t}</span></button>`;
 
-/* ── Erweiterungen (wie IntegrationsTab) ── */
+/* ── Erweiterungen (Inhalt wie IntegrationsTab) ── */
 const EXT=[
- {id:'todos',k:'xTodos',t:'Todos & Tasks',d:'Aufgaben mit Fälligkeiten, Wiederholungen und Kalender-Sync',ic:'chk'},
- {id:'job',k:'xJob',t:'Job & Study Planner',d:'Arbeitszeiten, Stundenplan, Semester und Quick-Links',ic:'brief',sub:1},
- {id:'summary',k:'xSummary',t:'Daily Summary',d:'Tagesrückblick und Serien',ic:'flame'},
- {id:'island',k:'xIsland',t:'Smart Island',d:'Fester Platz für Jetzt, Heute und Vorschläge',ic:'sparkle',sub:1},
- {id:'date',k:'xDate',t:'Smart Date Detection',d:'Erkennt Datum und Uhrzeit beim Tippen und schlägt Termine vor',ic:'sparkle'},
- {id:'ref',k:'xRef',t:'References',d:'Definitionen automatisch in Notizen verlinken',ic:'bkm',sub:1},
- {id:'mobile',k:'xMobile',t:'Mobile Connection',d:'Push und Glance-Widgets über Whisper Hub',ic:'phone',sub:1},
- {id:'files',k:'xFiles',t:'Erweiterte Dateiformate',d:'Export und Import für DOCX, Markdown, PDF+ und Notizen-Bundles',ic:'file'},
- {id:'survey',k:'xSurvey',t:'Umfragen & Mood-Tracker',d:'Stimmungs-Check-ins und Langzeitanalysen',ic:'smile',sub:1},
- {id:'mcp',k:'xMcp',t:'Model Context Protocol (MCP)',d:'Lokale KI-Agenten wie Claude Desktop oder Cursor anbinden',ic:'term',sub:1},
- {id:'msg',k:'',t:'Messenger',d:'In Wartung',ic:'msg',off:1}
+ {id:'todos',k:'xTodos',t:'Todos & Tasks',d:'Aufgaben mit Fälligkeiten, Wiederholungen und Kalender-Sync.',ic:'chk',g:'Produktivität',cons:'Die Todo-Ansicht und Aufgaben im Kalender werden ausgeblendet. Alle Aufgaben bleiben gespeichert.'},
+ {id:'job',k:'xJob',t:'Job & Study Planner',d:'Arbeitszeiten, Stundenplan, Semester und Quick-Links.',ic:'brief',sub:1,g:'Produktivität',cons:'Stundenplan und Schichten werden ausgeblendet. Die geschützte Kalendergruppe und deine Einträge bleiben bestehen.'},
+ {id:'summary',k:'xSummary',t:'Daily Summary',d:'Tagesrückblick mit Serien, kurz und ohne Druck.',ic:'flame',g:'Produktivität',cons:'Der Tagesrückblick erscheint nicht mehr. Deine bisherigen Serien bleiben erhalten.'},
+ {id:'survey',k:'xSurvey',t:'Umfragen & Mood-Tracker',d:'Stimmungs-Check-ins und Langzeitanalysen.',ic:'smile',sub:1,g:'Produktivität',cons:'Es kommen keine Check-ins mehr. Bisherige Auswertungen bleiben gespeichert.'},
+ {id:'island',k:'xIsland',t:'Smart Island',d:'Fester Platz für Jetzt, Heute und Vorschläge in der Seitenleiste.',ic:'sparkle',sub:1,g:'Smarte Helfer',cons:'Die Island verschwindet aus der Seitenleiste. Termine und Hinweise erreichen dich weiter über die normalen Ansichten.'},
+ {id:'date',k:'xDate',t:'Smart Date Detection',d:'Erkennt Datum und Uhrzeit beim Tippen und schlägt Termine vor.',ic:'sparkle',g:'Smarte Helfer',cons:'Beim Tippen gibt es keine Terminvorschläge mehr. Bestehende Termine bleiben unverändert.'},
+ {id:'ref',k:'xRef',t:'References',d:'Definitionen automatisch in Notizen verlinken.',ic:'bkm',sub:1,g:'Smarte Helfer',cons:'Automatische Verlinkungen verschwinden aus dem Text. Dein Wörterbuch bleibt erhalten.'},
+ {id:'mobile',k:'xMobile',t:'Mobile Connection',d:'Push-Hinweise und Glance-Widgets über Whisper Hub.',ic:'phone',sub:1,g:'Verbindungen',cons:'Push-Hinweise und Glance-Widgets stoppen. Dein Verbindungsschlüssel bleibt gespeichert.'},
+ {id:'mcp',k:'xMcp',t:'Model Context Protocol (MCP)',d:'Lokale KI-Agenten wie Claude Desktop oder Cursor anbinden.',ic:'term',sub:1,g:'Verbindungen',cons:'Verbundene KI-Agenten verlieren den Zugriff, bis du MCP wieder einschaltest. Notizen und Todos bleiben unverändert.'},
+ {id:'files',k:'xFiles',t:'Erweiterte Dateiformate',d:'Export und Import für DOCX, Markdown, PDF+ und Notizen-Bundles.',ic:'file',g:'Verbindungen',cons:'Die zusätzlichen Formate verschwinden aus Export und Import. Bereits exportierte Dateien bleiben.'},
+ {id:'msg',k:'',t:'Messenger',d:'Wird gerade überarbeitet und ist vorübergehend nicht verfügbar.',ic:'msg',off:1,g:'In Wartung'}
 ];
+const XG=[['Produktivität','Aufgaben, Planung und Rückblick.'],['Smarte Helfer','Erkennen, vorschlagen, verknüpfen.'],['Verbindungen','Andere Geräte, Programme und Dateiformate.'],['In Wartung','']];
+const stChip=e=>e.off?`<span class="st warn">Wartung</span>`:`<span class="st" data-st="${e.k}">Aktiv</span>`;
 const extRow=e=>{
-  const left=`<span class="ei">${ic(e.ic)}</span><span class="rt"><b>${e.t}${e.off?' <span class="chip warn" style="margin-left:6px"><i></i>Wartung</span>':''}</b><small>${e.d}</small></span>`;
-  return `<div class="row ext" data-s="${(e.t+' '+e.d).toLowerCase()}">${e.sub?`<button class="extmain" data-sub="${e.id}" aria-label="${e.t}: Optionen öffnen">${left}<span class="chev">${ic('chev','s')}</span></button>`:`<div class="extmain" style="cursor:default">${left}</div>`}${tog(e.k||'x_none',e.t+' ein oder aus',e.off)}</div>`};
+  const body=`<span class="ei">${ic(e.ic)}</span><span class="xt"><span class="xl"><b>${e.t}</b>${stChip(e)}</span><small>${e.d}</small></span>${e.sub?`<span class="go">${ic('chev','s')}</span>`:''}`;
+  return `<div class="xr" data-x="${e.id}" data-s="${(e.t+' '+e.d+' '+e.g).toLowerCase()}">${e.sub?`<button class="xmain" data-sub="${e.id}" aria-label="${e.t}: Optionen öffnen">${body}</button>`:`<div class="xmain">${body}</div>`}${tog(e.k||'x_none',e.t+' ein- oder ausschalten',e.off,e.off?'':e.id)}</div>`};
+const extList=()=>`<div class="xs">${ic('search','s')}<input id="xq" type="search" placeholder="Erweiterungen durchsuchen" aria-label="Erweiterungen durchsuchen"></div>
+ ${XG.map(([g,h])=>`<div class="sg xg" data-xg="${g}"><h3>${g}</h3>${h?`<p class="sh">${h}</p>`:''}<div class="xc">${EXT.filter(e=>e.g===g).map(extRow).join('')}</div></div>`).join('')}
+ <p class="empty" id="xe">Keine Erweiterung gefunden.</p>`;
+
 const MCPJ=`{
   "mcpServers": {
     "tide": {
@@ -385,108 +459,175 @@ const MCPJ=`{
     }
   }
 }`;
-const sub=(e,lead,body)=>`<div class="subpage" data-sub="${e.id}"><div class="crumb"><button data-subback>${ic('back','s')}Erweiterungen</button><span>/</span><span>${e.t}</span></div><h2>${e.t}</h2><p class="lead">${lead}</p>
- <div class="subhead"><div><b>Erweiterung aktiv</b><small>Optionen gelten nur, solange sie an ist.</small></div>${tog(e.k,e.t+' aktiv')}</div>${body}</div>`;
+const sub=(e,lead,body,parent='Erweiterungen')=>`<div class="subpage" data-sub="${e.id}"><div class="crumb"><button data-subback>${ic('back','s')}${parent}</button><span>/</span><span>${e.t}</span></div><h2>${e.t}</h2><p class="lead">${lead}</p>
+ <div class="subhead"><div><b>Erweiterung aktiv</b><small>Die Optionen gelten, solange sie an ist.</small></div>${tog(e.k,e.t+' aktiv',0,e.id)}</div>${body}</div>`;
 const X=id=>EXT.find(e=>e.id===id);
+
+/* ── API-Dokumentation (öffentliche Seite) ── */
+const DOCS=[['d-start','Überblick'],['d-auth','Authentifizierung'],['d-rights','Rechte'],['d-notes','Notizen'],['d-todos','Todos'],['d-events','Termine'],['d-errors','Fehlercodes'],['d-limits','Limits'],['d-e2e','Verschlüsselung']];
+const DOC=`<div class="subpage" data-sub="apidoc"><div class="crumb"><button data-subback>${ic('back','s')}Zugriff</button><span>/</span><span>Dokumentation</span></div>
+ <div class="doc">
+  <div class="doc-bar"><span class="url">${ic('globe','s')}<span id="docurl">go-tide.app/docs/api</span></span><span class="chip"><i></i>Öffentlich, ohne Login erreichbar</span>${copyBtn('docurl','Link kopieren')}</div>
+  <div class="doc-body">
+   <nav class="toc" aria-label="Inhalt"><small>Inhalt</small>${DOCS.map(([id,t])=>`<button data-toc="${id}">${t}</button>`).join('')}</nav>
+   <article class="art">
+    <h1>Tide API</h1>
+    <p class="lede">Lies und ändere Notizen, Todos und Termine aus eigenen Skripten, Automationen oder KI-Agenten. Diese Seite braucht kein Konto und darf verlinkt werden.</p>
+
+    <h2 id="d-start">Überblick</h2>
+    <p>Die API ist eine REST-Schnittstelle mit JSON. Alle Routen liegen unter <code class="i">/api/v1</code>.</p>
+    <div class="tbl-w"><table class="tbl"><tr><th>Basis-URL</th><th></th></tr><tr><td>Produktion</td><td><code>https://go-tide.app/api/v1</code></td></tr></table></div>
+    <div class="tbl-w"><table class="tbl"><tr><th>Ressource</th><th>Pfad</th></tr>
+     <tr><td>Notizen</td><td><code>/external/notes</code></td></tr>
+     <tr><td>Todos</td><td><code>/todos</code> (Alias <code>/external/todos</code>)</td></tr>
+     <tr><td>Termine</td><td><code>/external/events</code></td></tr></table></div>
+
+    <h2 id="d-auth">Authentifizierung</h2>
+    <p>Jede Anfrage braucht einen persönlichen Token. Du erstellst ihn in Tide unter <b>Einstellungen, Zugriff, Neuer Token</b>, wählst die Rechte und die Gültigkeit und kopierst ihn sofort. Er beginnt mit <code class="i">tide_pat_</code> und ist danach nicht mehr sichtbar.</p>
+    <h3>Empfohlen: Authorization-Header</h3>
+<div class="code">Authorization: Bearer tide_pat_…</div>
+    <h3>Alternativ</h3>
+    <p>Der Header <code class="i">X-API-Key: tide_pat_…</code> funktioniert ebenso. Wenn keine Header möglich sind, geht auch der Parameter <code class="i">?api_token=tide_pat_…</code>, zum Beispiel für Widgets und Webhooks. Er kann in Logs landen, nutze ihn nur wenn nötig.</p>
+
+    <h2 id="d-rights">Rechte</h2>
+    <p>Ein Token darf nur, was du ihm erlaubst. Fehlt ein Recht, antwortet die API mit <code class="i">403</code>.</p>
+    <div class="tbl-w"><table class="tbl"><tr><th>Recht</th><th>Erlaubt</th><th>Name</th></tr>
+     <tr><td>Termine lesen</td><td>Termine abrufen</td><td><code>events:read</code></td></tr>
+     <tr><td>Termine ändern</td><td>Erstellen, bearbeiten, löschen (in Vorbereitung)</td><td><code>events:write</code></td></tr>
+     <tr><td>Notizen lesen</td><td>Notizen abrufen und suchen</td><td><code>notes:read</code></td></tr>
+     <tr><td>Notizen ändern</td><td>Erstellen, bearbeiten, löschen</td><td><code>notes:write</code></td></tr>
+     <tr><td>Aufgaben lesen</td><td>Todos abrufen und filtern</td><td><code>todos:read</code></td></tr>
+     <tr><td>Aufgaben erstellen</td><td>Neue Todos anlegen</td><td><code>todos:create</code></td></tr>
+     <tr><td>Aufgaben bearbeiten</td><td>Todos ändern und abhaken</td><td><code>todos:edit</code></td></tr>
+     <tr><td>Aufgaben löschen</td><td>Todos entfernen</td><td><code>todos:delete</code></td></tr>
+     <tr><td>Aufgaben vollständig verwalten</td><td>Alle Aufgabenrechte</td><td><code>todos:write</code></td></tr>
+     <tr><td>Alles</td><td>Voller Zugriff auf alle Ressourcen</td><td><code>*</code></td></tr></table></div>
+    <p>Mit <code class="i">safe:&lt;name&gt;</code> lässt sich ein Token auf einen Bereich (Safe) beschränken, zum Beispiel <code class="i">safe:work</code>.</p>
+
+    <h2 id="d-notes">Notizen</h2>
+    <div class="tbl-w"><table class="tbl"><tr><th>Methode</th><th>Pfad</th><th>Recht</th></tr>
+     <tr><td>GET</td><td><code>/external/notes</code></td><td>Notizen lesen</td></tr>
+     <tr><td>POST</td><td><code>/external/notes</code></td><td>Notizen ändern</td></tr>
+     <tr><td>GET</td><td><code>/external/notes/{id}</code></td><td>Notizen lesen</td></tr>
+     <tr><td>PUT, PATCH</td><td><code>/external/notes/{id}</code></td><td>Notizen ändern</td></tr>
+     <tr><td>DELETE</td><td><code>/external/notes/{id}</code></td><td>Notizen ändern</td></tr></table></div>
+    <p>Suche per <code class="i">q</code>, Begrenzung per <code class="i">limit</code> (Standard 100, höchstens 500). Eine Notiz hat <code class="i">id</code>, <code class="i">title</code>, <code class="i">content</code>, <code class="i">parent_id</code>, <code class="i">created_at</code> und <code class="i">updated_at</code>.</p>
+<div class="code"><span class="c"># Notizen durchsuchen</span>
+curl "https://go-tide.app/api/v1/external/notes?q=seminar&amp;limit=10" \
+  -H "Authorization: Bearer tide_pat_…"</div>
+
+    <h2 id="d-todos">Todos</h2>
+    <p>Lesen, erstellen, ändern und löschen unter <code class="i">/todos</code>. Filter: <code class="i">date</code>, <code class="i">priority</code> (low, medium, high), <code class="i">tag</code>, <code class="i">q</code>, <code class="i">overdue</code>, <code class="i">status</code> (todo, in_progress, completed), <code class="i">completed</code>, dazu <code class="i">limit</code> und <code class="i">offset</code> zum Blättern.</p>
+<div class="code"><span class="c"># Offene Todos mit hoher Priorität</span>
+curl "https://go-tide.app/api/v1/todos?priority=high&amp;completed=false" \
+  -H "Authorization: Bearer tide_pat_…"</div>
+
+    <h2 id="d-events">Termine</h2>
+    <p><code class="i">GET /external/events</code> liefert Termine in zeitlicher Reihenfolge. Filter: <code class="i">start</code>, <code class="i">end</code>, <code class="i">q</code>, <code class="i">limit</code>. Ein einzelner Termin kommt über <code class="i">GET /external/events/{id}</code>. Felder: <code class="i">id</code>, <code class="i">title</code>, <code class="i">start</code>, <code class="i">end</code>, <code class="i">all_day</code>, <code class="i">color</code>, <code class="i">description</code>, <code class="i">location</code>.</p>
+<div class="code"><span class="c"># Termine im November</span>
+curl "https://go-tide.app/api/v1/external/events?start=2026-11-01&amp;end=2026-11-30" \
+  -H "Authorization: Bearer tide_pat_…"</div>
+
+    <h2 id="d-errors">Fehlercodes</h2>
+    <div class="tbl-w"><table class="tbl"><tr><th>Code</th><th>Bedeutung</th></tr>
+     <tr><td>200, 201, 204</td><td>Erfolgreich, erstellt, gelöscht (ohne Inhalt)</td></tr>
+     <tr><td>400</td><td>Anfrage ungültig, zum Beispiel fehlendes Pflichtfeld</td></tr>
+     <tr><td>401</td><td>Token fehlt, ist ungültig oder abgelaufen</td></tr>
+     <tr><td>403</td><td>Dem Token fehlt das nötige Recht</td></tr>
+     <tr><td>404</td><td>Eintrag nicht gefunden oder gehört dir nicht</td></tr>
+     <tr><td>500</td><td>Unerwarteter Fehler auf dem Server</td></tr></table></div>
+<div class="code">{ "error": "Forbidden", "message": "Token lacks required scope" }</div>
+
+    <h2 id="d-limits">Limits</h2>
+    <ul><li>Pro Anfrage höchstens 500 Einträge, Standard sind 100.</li><li>Tokens laufen nach der gewählten Dauer ab (30 Tage bis kein Ablauf) und lassen sich jederzeit widerrufen.</li><li>Eine feste Rate-Begrenzung ist nicht zugesagt. Bitte frage nicht im Sekundentakt ab.</li></ul>
+
+    <h2 id="d-e2e">Verschlüsselung</h2>
+    <div class="callout"><b>Entwurf, Wortlaut mit dem Backend abstimmen.</b> Notizen sind Ende-zu-Ende verschlüsselt. Ein Token kann nur ausliefern, was für externen Zugriff freigegeben ist, verschlüsselte Inhalte können deshalb fehlen oder nur als Metadaten erscheinen.</div>
+    <p>Behandle Tokens wie Passwörter: nicht in Repositories, Screenshots oder Chats einfügen. Der Server speichert nur einen Hash, ein verlorener Token lässt sich nicht wiederherstellen, nur ersetzen.</p>
+   </article>
+  </div>
+ </div></div>`;
+
 const SUBS=()=>[
- sub(X('island'),'Wie sich die Island verhält und welche Hinweise sie zeigt.',`
-  <div class="sech">Allgemein</div>
-  ${row('Breite bei Hinweisen','Island dehnt sich bei Benachrichtigungen aus.',tog('islExpand','Breitenausdehnung'))}
-  ${row('Anzeigedauer','Wie lange ein Hinweis stehen bleibt.',sel('islDur','Anzeigedauer'))}
-  ${row('Fokus','Welche Hinweise dich erreichen.',seg('islFocus'),1)}
-  ${row('Tageszusammenfassung','',sel('islSummary','Tageszusammenfassung'))}
-  <div class="sech">Chat-Nachrichten</div>
-  <div class="block" style="border-top:0" data-s="nachrichtenvorschau chat social vollständig vorschau absender"><div class="bh"><div><b>Nachrichtenvorschau</b><small>Wie viel von einer Nachricht in der Island erscheint.</small></div><span class="chip"><i></i>Social aktiv</span></div>
-   <div class="opts" role="radiogroup" data-opt="islChat">${[['full','Vollständig','Ganze Nachricht'],['preview','Kurze Vorschau','Erste Zeile'],['sender','Nur Absender','Diskret']].map(([v,t,d])=>`<button class="opt" role="radio" data-v="${v}"><b>${t}</b><small>${d}</small></button>`).join('')}</div></div>`),
- sub(X('mcp'),'Tide für lokale KI-Agenten öffnen, ohne dass Daten die Maschine verlassen.',`
-  <div class="sech">Einrichtung</div>
-  <div class="block" style="border-top:0"><div class="bh"><div><b>Claude Desktop &amp; Cursor</b><small>In <code>claude_desktop_config.json</code> oder die MCP-Einstellung einfügen.</small></div><span class="chip"><i></i>Aktiv</span></div>
-   <div class="code-w"><div class="code" id="mcpj">${MCPJ}</div>${copyBtn('mcpj','Konfiguration kopieren')}</div></div>
-  <div class="sech">Agenten-Funktionen</div>
-  ${row('Zeilen-Markierung','Gelesene Zeilen werden im Editor markiert.',tog('mcpLines','Zeilen-Markierung'))}
-  ${row('Block-ID-Adressierung','Blöcke über stabile IDs ansprechen.',tog('mcpBlock','Block-ID Adressierung'))}
-  ${row('Gezieltes Senden','Nur markierte Abschnitte an den Agenten geben.',tog('mcpTarget','Gezieltes Senden'))}
-  ${more('Verfügbare Werkzeuge',`<div class="tools">${[['tide_search','Volltext- und Tag-Suche über Notizen'],['tide_get_note_outline','Dokumentstruktur und Überschriften'],['tide_get_block','Einzelnen Block per ID lesen'],['tide_get_focused_blocks','Aktive Zeilen und Kontext'],['tide_patch_block','Atomare Änderungen an Blöcken'],['tide_list_todos','Todos mit Status abfragen']].map(([n,d])=>`<div><code>${n}</code><span>${d}</span></div>`).join('')}</div>`)}`),
- sub(X('job'),'Stundenplan und Arbeitszeiten.',`
-  ${row('Wochenende im Stundenplan','Samstag und Sonntag anzeigen.',tog('jobWeekend','Wochenende'))}
-  ${row('Zugeordnete Terminart','Welcher Kalendergruppe Schichten und Vorlesungen angehören.',sel('jobType','Terminart'))}`),
- sub(X('ref'),'Begriffe in Notizen automatisch verknüpfen.',`
-  ${row('Autopilot-Scanner','Prüft neue Notizen auf bekannte Begriffe.',tog('refAuto','Autopilot'))}
-  ${row('Wörterbuch','Deine Definitionen verwalten.','<button class="btn">Öffnen</button>')}`),
- sub(X('mobile'),'Verbindet Tide mit Whisper Hub für Push und Glance-Widgets.',`
-  ${row('Verbindungsschlüssel','Aus der Whisper-Hub-App kopieren.','<input class="inp" placeholder="wsp_live_…" aria-label="Verbindungsschlüssel">')}
-  ${row('Vorab-Hinweis','30 Minuten vor einem Termin.',tog('mobPre','Vorab-Hinweis'))}
-  ${row('Glance-Widget','Nächster Termin auf dem Sperrbildschirm.',tog('mobGlance','Glance-Widget'))}
-  ${row('Morgendliche Tagesübersicht','Push am Morgen.',tog('mobMorning','Tagesübersicht'))}`),
- sub(X('survey'),'Kurze Check-ins, keine Pflicht.',`
-  ${row('Mood-Tracker','Vier kurze Fragen pro Tag.',tog('survMood','Mood-Tracker'))}
-  ${row('Auswertung','Verlauf der letzten Wochen ansehen.','<button class="btn">Öffnen</button>')}`)
+ sub(X('island'),'Wie sich die Island verhält und welche Hinweise sie zeigt.',
+  sg('Verhalten','Wie lange und wie breit Hinweise erscheinen.',row('Breite bei Hinweisen','Island dehnt sich bei Benachrichtigungen aus.',tog('islExpand','Breitenausdehnung'))+row('Anzeigedauer','Wie lange ein Hinweis stehen bleibt.',sel('islDur','Anzeigedauer')))+
+  sg('Benachrichtigungen','Was dich in der Island erreicht.',row('Fokus','Welche Hinweise dich erreichen.',seg('islFocus'),1)+row('Tageszusammenfassung','Wann die Übersicht erscheint.',sel('islSummary','Tageszusammenfassung')))+
+  sg('Chat-Nachrichten','Wie viel von einer Nachricht in der Island erscheint.',`<div class="block" data-s="nachrichtenvorschau chat social vollständig vorschau absender"><div class="bh"><div><b>Nachrichtenvorschau</b></div><span class="chip"><i></i>Social aktiv</span></div>
+   <div class="opts" role="radiogroup" data-opt="islChat">${[['full','Vollständig','Ganze Nachricht'],['preview','Kurze Vorschau','Erste Zeile'],['sender','Nur Absender','Diskret']].map(([v,t,d])=>`<button class="opt" role="radio" data-v="${v}"><b>${t}</b><small>${d}</small></button>`).join('')}</div></div>`)),
+ sub(X('mcp'),'Tide für lokale KI-Agenten öffnen, ohne dass Daten die Maschine verlassen.',
+  sg('Einrichtung','Einmal in Claude Desktop oder Cursor eintragen.',`<div class="block"><div class="bh"><div><b>Konfiguration</b><small>In <code>claude_desktop_config.json</code> oder die MCP-Einstellung einfügen.</small></div><span class="chip"><i></i>Aktiv</span></div>
+   <div class="code-w"><div class="code" id="mcpj">${MCPJ}</div>${copyBtn('mcpj','Kopieren')}</div></div>`)+
+  sg('Agenten-Funktionen','Wie der Agent in deinen Notizen arbeitet.',row('Zeilen-Markierung','Gelesene Zeilen werden im Editor markiert.',tog('mcpLines','Zeilen-Markierung'))+row('Block-ID-Adressierung','Blöcke über stabile IDs ansprechen.',tog('mcpBlock','Block-ID Adressierung'))+row('Gezieltes Senden','Nur markierte Abschnitte an den Agenten geben.',tog('mcpTarget','Gezieltes Senden')))+
+  sg('Verfügbare Werkzeuge','Was ein Agent aufrufen darf.',`<div class="tools">${[['tide_search','Volltext- und Tag-Suche über Notizen'],['tide_get_note_outline','Dokumentstruktur und Überschriften'],['tide_get_block','Einzelnen Block per ID lesen'],['tide_get_focused_blocks','Aktive Zeilen und Kontext'],['tide_patch_block','Atomare Änderungen an Blöcken'],['tide_list_todos','Todos mit Status abfragen']].map(([n,d])=>`<div><code>${n}</code><span>${d}</span></div>`).join('')}</div>`)),
+ sub(X('job'),'Stundenplan und Arbeitszeiten.',
+  sg('Stundenplan','Was im Wochenplan erscheint.',row('Wochenende im Stundenplan','Samstag und Sonntag anzeigen.',tog('jobWeekend','Wochenende')))+
+  sg('Zuordnung','Wohin Schichten und Vorlesungen gehören.',row('Zugeordnete Terminart','Kalendergruppe für Einträge des Planners.',sel('jobType','Terminart')))),
+ sub(X('ref'),'Begriffe in Notizen automatisch verknüpfen.',
+  sg('Automatik','Wann Tide Begriffe erkennt.',row('Autopilot-Scanner','Prüft neue Notizen auf bekannte Begriffe.',tog('refAuto','Autopilot')))+
+  sg('Wörterbuch','Deine Definitionen.',row('Definitionen verwalten','Begriffe anlegen, ändern, löschen.','<button class="btn">Öffnen</button>'))),
+ sub(X('mobile'),'Verbindet Tide mit Whisper Hub für Push und Glance-Widgets.',
+  sg('Verbindung','Schlüssel aus der Whisper-Hub-App.',row('Verbindungsschlüssel','Einmal einfügen, dann gekoppelt.','<input class="inp" placeholder="wsp_live_…" aria-label="Verbindungsschlüssel">'))+
+  sg('Hinweise','Was auf dein Handy kommt.',row('Vorab-Hinweis','30 Minuten vor einem Termin.',tog('mobPre','Vorab-Hinweis'))+row('Glance-Widget','Nächster Termin auf dem Sperrbildschirm.',tog('mobGlance','Glance-Widget'))+row('Morgendliche Tagesübersicht','Push am Morgen.',tog('mobMorning','Tagesübersicht')))),
+ sub(X('survey'),'Kurze Check-ins, keine Pflicht.',
+  sg('Check-ins','Wie oft du gefragt wirst.',row('Mood-Tracker','Vier kurze Fragen pro Tag.',tog('survMood','Mood-Tracker')))+
+  sg('Auswertung','Rückblick auf deine Stimmung.',row('Verlauf ansehen','Die letzten Wochen im Überblick.','<button class="btn">Öffnen</button>')))
 ].join('');
 
-/* ── Gruppen ── */
+/* ── Gruppen (Reihenfolge: Konto zuerst, Debug ganz unten) ── */
 const GRP=[['praktikum','Praktikum','var(--cal-praktikum)'],['studium','Studium','var(--cal-studium)'],['social','Social','var(--cal-social)'],['uni','Uni','var(--cal-uni)'],['geb','Geburtstage','var(--cal-geb)']];
 const G=[
+ {id:'acc',t:'Konto',ic:'user',lead:'Profil, Sicherheit und Anmeldung.',
+  html:()=>
+  sg('Profil','So erscheinst du anderen.',`<div class="who"><span class="av">NH</span><div><b>Nico Heerwagen</b><small>nico@example.de</small></div></div>`+row('Name','',`<input class="inp" value="Nico Heerwagen" aria-label="Name">`)+row('Titel / Rolle','',`<input class="inp" value="Student" aria-label="Titel">`)+row('Kurzbeschreibung','',`<input class="inp" placeholder="Ein Satz über dich" aria-label="Bio">`)+row('Kontakt-E-Mail','',`<input class="inp" value="nico@example.de" aria-label="E-Mail">`)+row('Avatar-Stil','',sel('avatar','Avatar'))+row('Profilsichtbarkeit','Wer dein Profil sehen darf.',sel('vis','Sichtbarkeit')))+
+  sg('Sicherheit','Schlüssel und Passwort.',row('Verschlüsselung','Ende-zu-Ende, der Tresor ist entsperrt.',`<span class="chip"><i></i>Entsperrt</span><button class="btn">Verwalten</button>`)+row('Passwort','',`<button class="btn">Ändern</button>`)+row('Angemeldete Geräte','3 Geräte.',`<button class="btn">Ansehen</button>`))+
+  sg('Synchronisierung','Deine Daten auf allen Geräten.',row('Automatisch synchronisieren','Zuletzt vor 2 Minuten.',tog('sync','Synchronisierung')))+
+  sg('Sitzung','',row('Abmelden','Auf diesem Gerät.',`<button class="btn danger">Abmelden</button>`))},
  {id:'look',t:'Darstellung',ic:'palette',lead:'Wie Tide aussieht. Änderungen sind sofort sichtbar.',
-  html:()=>`
-  ${row('Modus','Hell, Dunkel oder wie dein Gerät.',seg('theme'),1)}
-  <div class="block" data-s="palette farbe design tide warm slate"><div class="bh"><div><b>Palette</b><small>Tippe auf eine Palette, die ganze Seite wechselt sofort.</small></div></div>
-   <div class="pals" role="group" aria-label="Palette">${pal('tide','Tide','Kühl, neutral')}${pal('warm','Warm','Papier, Terrakotta')}${pal('slate','Slate','Klar, Stahlblau')}</div></div>
-  ${row('Terminfarben','Farbpalette der Termin-Karten.',`${swatches}${sel('evstyle','Terminfarben')}`)}
-  ${more('Mehr Darstellung',row('Terminmuster','Füllung der Karten.',sel('pattern','Terminmuster'))+row('Notiz-Layout','Breite des Editors.',sel('noteLayout','Notiz-Layout'))+row('Dichte','Abstände in Listen und Seitenleiste.',seg('dense'))+row('Animierte Emojis','Emojis in Notizen bewegen sich.',tog('emoji','Animierte Emojis')))}`},
+  html:()=>
+  sg('Erscheinungsbild','Modus und Palette der ganzen App.',row('Modus','Hell, Dunkel oder wie dein Gerät.',seg('theme'),1)+`<div class="block" data-s="palette farbe design tide warm slate"><div class="bh"><div><b>Palette</b><small>Tippe auf eine Palette, die ganze Seite wechselt sofort.</small></div></div>
+   <div class="pals" role="group" aria-label="Palette">${pal('tide','Tide','Kühl, neutral')}${pal('warm','Warm','Papier, Terrakotta')}${pal('slate','Slate','Klar, Stahlblau')}</div></div>`)+
+  sg('Termine','Farben und Füllung der Termin-Karten.',row('Terminfarben','Farbpalette der Karten.',`${swatches}${sel('evstyle','Terminfarben')}`)+row('Terminmuster','Füllung der Karten.',sel('pattern','Terminmuster')))+
+  sg('Oberfläche','Dichte und Details.',row('Notiz-Layout','Breite des Editors.',sel('noteLayout','Notiz-Layout'))+row('Dichte','Abstände in Listen und Seitenleiste.',seg('dense'))+row('Animierte Emojis','Emojis in Notizen bewegen sich.',tog('emoji','Animierte Emojis')))},
  {id:'cal',t:'Kalender',ic:'cal',lead:'Gruppen, Ansicht und Feiertage.',
-  html:()=>`
-  <div class="block" data-s="kalendergruppen gruppe sichtbarkeit teilen"><div class="bh"><div><b>Kalendergruppen</b><small>Auge blendet aus, Teilen lädt andere ein.</small></div><button class="btn">${ic('plus','s')}Neue Gruppe</button></div>
+  html:()=>
+  sg('Kalendergruppen','Das Auge blendet aus, Teilen lädt andere ein.',`<div class="block" data-s="kalendergruppen gruppe sichtbarkeit teilen"><div class="bh"><b>Deine Gruppen</b><button class="btn">${ic('plus','s')}Neue Gruppe</button></div>
    ${GRP.map(([id,n,c])=>`<div class="grow" data-grp="${id}"><i class="gd" style="background:${c}"></i><span class="gn">${n}</span><button class="ib" data-eye="${id}" aria-label="${n} ein- oder ausblenden"></button><button class="ib" aria-label="${n} teilen">${ic('share','s')}</button><button class="ib" aria-label="${n} löschen">${ic('trash','s')}</button></div>`).join('')}
-   <div class="grow"><i class="gd" style="background:var(--t2-ink-3)"></i><span class="gn">Job Planner<small>vom Plugin geschützt</small></span><span class="ib">${ic('lock','s')}</span></div></div>
-  ${row('Wochenstart','',sel('weekStart','Wochenstart'))}
-  ${row('Ansicht beim Start','',sel('startView','Startansicht'))}
-  ${row('Gesetzliche Feiertage','Im Kalender anzeigen.',tog('holidays','Feiertage'))}
-  ${row('Kalender importieren','Eine .ics-Datei, zum Beispiel aus Google Kalender.',`<button class="btn">Datei wählen</button>`)}
-  ${more('Mehr Kalender',row('Scrollen','Wie du zwischen den Wochen wechselst.',sel('scroll','Scrollen'))+row('Gleichzeitige Termine','Wie sie sich im Raster anordnen.',sel('overlap','Überlappung')))}`},
+   <div class="grow"><i class="gd" style="background:var(--t2-ink-3)"></i><span class="gn">Job Planner<small>vom Plugin geschützt</small></span><span class="ib">${ic('lock','s')}</span></div></div>`)+
+  sg('Ansicht','Wie der Kalender startet und scrollt.',row('Wochenstart','',sel('weekStart','Wochenstart'))+row('Ansicht beim Start','',sel('startView','Startansicht'))+row('Scrollen','Wie du zwischen den Wochen wechselst.',sel('scroll','Scrollen'))+row('Gleichzeitige Termine','Wie sie sich im Raster anordnen.',sel('overlap','Überlappung')))+
+  sg('Feiertage & Import','Zusätzliche Termine im Kalender.',row('Gesetzliche Feiertage','Im Kalender anzeigen.',tog('holidays','Feiertage'))+row('Kalender importieren','Eine .ics-Datei, zum Beispiel aus Google Kalender.',`<button class="btn">Datei wählen</button>`))},
  {id:'notes',t:'Notizen',ic:'note',lead:'Schrift und Terminlinks im Text.',
-  html:()=>`
-  ${row('Schrift','',seg('font'))}
-  ${row('Rechtschreibung prüfen','',tog('spell','Rechtschreibung'))}
-  ${row('Termine im Text','Wann ein Termin als Karte erscheint.',sel('preview','Vorschau'))}
-  ${more('Mehr Notizen',row('Farbe der Terminlinks','',sel('mcolor','Farbe')))}`},
+  html:()=>
+  sg('Editor','Wie Text im Editor aussieht.',row('Schrift','',seg('font'))+row('Rechtschreibung prüfen','',tog('spell','Rechtschreibung')))+
+  sg('Termine im Text','Wie verlinkte Termine erscheinen.',row('Vorschau','Wann ein Termin als Karte erscheint.',sel('preview','Vorschau'))+row('Farbe der Terminlinks','',sel('mcolor','Farbe')))},
  {id:'todo',t:'Todos',ic:'chk',lead:'Wie Aufgaben erscheinen und verschwinden.',
-  html:()=>`
-  ${row('Überfällige hervorheben','Rot markiert, damit nichts untergeht.',tog('late','Überfällige hervorheben'))}
-  ${row('Erledigte ausblenden','',sel('hideDone','Erledigte ausblenden'))}
-  ${more('Mehr Todos',row('Standard-Priorität','Für neue Todos.',sel('prio','Priorität'))+row('Todos mit Uhrzeit','Im Zeitraster des Kalenders zeigen.',tog('inGrid','Im Zeitraster')))}`},
- {id:'acc',t:'Konto',ic:'user',lead:'Profil, Schlüssel und Anmeldung.',
-  html:()=>`
-  <div class="who"><span class="av">NH</span><div><b>Nico Heerwagen</b><small>nico@example.de</small></div></div>
-  ${row('Name','',`<input class="inp" value="Nico Heerwagen" aria-label="Name">`)}
-  ${row('Titel / Rolle','',`<input class="inp" value="Student" aria-label="Titel">`)}
-  ${row('Profilsichtbarkeit','Wer dein Profil sehen darf.',sel('vis','Sichtbarkeit'))}
-  ${row('Verschlüsselung','Ende-zu-Ende, der Tresor ist entsperrt.',`<span class="chip"><i></i>Entsperrt</span><button class="btn">Verwalten</button>`)}
-  ${row('Synchronisierung','Zuletzt vor 2 Minuten.',tog('sync','Synchronisierung'))}
-  ${more('Mehr Konto',row('Kontakt-E-Mail','',`<input class="inp" value="nico@example.de" aria-label="E-Mail">`)+row('Kurzbeschreibung','',`<input class="inp" placeholder="Ein Satz über dich" aria-label="Bio">`)+row('Avatar-Stil','',sel('avatar','Avatar'))+row('Passwort','',`<button class="btn">Ändern</button>`)+row('Geräte','3 angemeldet.',`<button class="btn">Ansehen</button>`))}
-  ${row('Abmelden','',`<button class="btn danger">Abmelden</button>`)}`},
+  html:()=>
+  sg('Anzeige','Was auffallen und was verschwinden soll.',row('Überfällige hervorheben','Rot markiert, damit nichts untergeht.',tog('late','Überfällige hervorheben'))+row('Erledigte ausblenden','',sel('hideDone','Erledigte ausblenden')))+
+  sg('Neue Todos','Voreinstellungen beim Anlegen.',row('Standard-Priorität','Für neue Todos.',sel('prio','Priorität'))+row('Todos mit Uhrzeit','Im Zeitraster des Kalenders zeigen.',tog('inGrid','Im Zeitraster')))},
  {id:'ext',t:'Erweiterungen',ic:'puz',lead:'Zusätze, die du bei Bedarf einschaltest. Tippe auf eine Zeile für ihre Optionen.',
-  html:()=>`<div class="extlist">${EXT.map(extRow).join('')}</div><div class="subs">${SUBS()}</div>`},
- {id:'access',t:'Zugriff',ic:'key',lead:'Persönliche Tokens für eigene Skripte und Werkzeuge über die externe API.',
-  html:()=>`
-  <div class="block" style="border-top:0" data-s="token zugriff api persönliche"><div class="bh"><div><b>Persönliche Tokens</b><small>Ein Token ist ein Passwort mit genau den Rechten, die du auswählst.</small></div><button class="btn pri" data-newtok>${ic('plus','s')}Neuer Token</button></div>
-   <div class="panel hide" id="newtok"><h3>Neuer Token</h3>
+  html:()=>`<div class="mainlist">${extList()}</div><div class="subs">${SUBS()}</div>`},
+ {id:'access',t:'Zugriff',ic:'key',lead:'Persönliche Tokens und die öffentliche API-Dokumentation.',
+  html:()=>
+  `<div class="mainlist">`+
+  sg('Persönliche Tokens','Ein Token ist wie ein Passwort mit genau den Rechten, die du auswählst.',`
+   <div style="margin:8px 0 4px"><button class="btn pri" data-newtok>${ic('plus','s')}Neuer Token</button></div>
+   <div class="panel hide" id="newtok"><h4>Neuer Token</h4>
     <label class="fld"><span>Name</span><input class="inp" id="tn" placeholder="z. B. Home-Dashboard"></label>
-    <label class="fld"><span>Gültigkeit</span><select class="sel" id="te"><option>30 Tage</option><option selected>90 Tage</option><option>1 Jahr</option><option>Kein Ablauf</option></select></label>
-    <div style="margin:4px 0 2px;color:var(--t2-ink-2)">Rechte</div>
-    ${SCOPES.map(([k,t,d,ok],i)=>`<label class="scope ${ok?'':'dis'}"><input type="checkbox" value="${k}" ${i===0?'checked':''} ${ok?'':'disabled'}><span><b>${t}${ok?'':' <span class="chip" style="margin-left:6px">bald</span>'}</b><small>${d} · <code>${k}</code></small></span></label>`).join('')}
+    <label class="fld"><span>Gültigkeit</span><select class="sel" id="te"><option>30 Tage</option><option selected>90 Tage</option><option>1 Jahr</option><option>kein Ablauf</option></select></label>
+    <div style="color:var(--t2-ink-2);margin-top:6px">Was darf der Token?</div>
+    ${SCOPES.map(([g,l])=>`<div class="rg">${g}</div>${l.map(([k,t,d,ok],i)=>`<label class="scope ${ok?'':'dis'}"><input type="checkbox" value="${k}" ${k==='events:read'?'checked':''} ${ok?'':'disabled'}><span><b>${t}${ok?'':' <span class="chip" style="margin-left:6px">bald</span>'}</b><small>${d}</small></span></label>`).join('')}`).join('')}
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn ghost" data-canceltok>Abbrechen</button><button class="btn pri" data-mktok>Token erstellen</button></div></div>
-   <div class="panel hide" id="newsec"><h3>Token erstellt</h3><p class="lead" style="margin:0 0 10px">Kopiere ihn jetzt. Danach ist er nicht mehr sichtbar.</p><div class="secret"><span id="secv" style="flex:1"></span>${copyBtn('secv')}</div><div style="text-align:right;margin-top:12px"><button class="btn" data-closesec>Fertig</button></div></div>
-   <div id="toklist"></div></div>
-  <div class="block" data-s="beispiel aufruf curl api"><div class="bh"><div><b>Beispiel-Aufruf</b><small>Token im Authorization-Header mitsenden.</small></div></div>
-   <div class="code-w"><div class="code" id="curl"><span class="c"># Anstehende Termine abrufen</span>
-curl -H <span class="g">"Authorization: Bearer tide_pat_…"</span> \\
-  https://hrw.rocks/api/v1/external/events?start=2026-10-01</div>${copyBtn('curl')}</div></div>`},
+   <div class="panel hide" id="newsec"><h4>Token erstellt</h4><p class="lead" style="margin:0 0 10px">Kopiere ihn jetzt. Danach ist er nicht mehr sichtbar.</p><div class="secret"><span id="secv" style="flex:1"></span>${copyBtn('secv')}</div><div style="text-align:right;margin-top:12px"><button class="btn" data-closesec>Fertig</button></div></div>
+   <div id="toklist"></div>`)+
+  sg('Dokumentation','Für Skripte, Automationen und KI-Agenten.',`<button class="linkrow" data-sub="apidoc"><span class="ei">${ic('book')}</span><span class="rt"><b>API-Dokumentation</b><small>Öffentliche Seite, ohne Login erreichbar. Gib den Link einer KI oder einem Skript.</small></span><span class="go">${ic('chev','s')}</span></button>`)+
+  `</div><div class="subs">${DOC}</div>`},
  {id:'info',t:'Über Tide',ic:'info',lead:'Version und Hilfe.',
-  html:()=>`${row('Version','Tide 2.0 · Entwurf','')}${row('Hilfe & Feedback','','<button class="btn">Öffnen</button>')}`},
+  html:()=>sg('Version','',row('Tide','Version 2.0 · Entwurf',''))+sg('Hilfe','',row('Hilfe & Feedback','Fragen, Ideen, Fehler.','<button class="btn">Öffnen</button>'))},
  {id:'debug',t:'Debug & Diagnose',ic:'wrench',lead:'Für Fehlersuche. Nichts hier ist für den Alltag nötig.',
-  html:()=>`${row('Gelöschte Daten','Papierkorb der Synchronisierung ansehen.','<button class="btn">Öffnen</button>')}${row('Rohdaten (JSON)','Einen Eintrag im Rohformat zeigen.','<button class="btn">Öffnen</button>')}${row('Test-Download','Prüft, ob Dateien korrekt geladen werden.','<button class="btn">Starten</button>')}`}
+  html:()=>sg('Daten prüfen','',row('Gelöschte Daten','Papierkorb der Synchronisierung ansehen.','<button class="btn">Öffnen</button>')+row('Rohdaten (JSON)','Einen Eintrag im Rohformat zeigen.','<button class="btn">Öffnen</button>'))+sg('Tests','',row('Test-Download','Prüft, ob Dateien korrekt geladen werden.','<button class="btn">Starten</button>'))}
 ];
 const MAIN=G.filter(g=>!['info','debug'].includes(g.id));
+const PARENT={apidoc:'Zugriff'};
+const subName=id=>id==='apidoc'?'Dokumentation':X(id).t.replace('Model Context Protocol (MCP)','MCP');
 
 const app=$('#app');
 function build(){
@@ -495,12 +636,12 @@ function build(){
    <aside class="list"><h1>Einstellungen</h1>
     <label class="q">${ic('search','s')}<input id="q" type="search" placeholder="Einstellung suchen" aria-label="Einstellung suchen"></label>
     <nav class="nav" aria-label="Gruppen">${MAIN.map(g=>`<button data-g="${g.id}">${ic(g.ic)}${g.t}<span class="go">${ic('chev','s')}</span></button>`).join('')}</nav>
-    <div class="foot">${['info','debug'].map(id=>{const g=G.find(x=>x.id===id);return `<button data-g="${id}">${ic(g.ic,'s')}${g.t}</button>`}).join('')}</div>
+    <div class="foot">${['info','debug'].map(id=>{const g=G.find(x=>x.id===id);return `<button data-g="${id}">${ic(g.ic,'s')}${g.t}<span class="go">${ic('chev','s')}</span></button>`}).join('')}</div>
    </aside>
    <div class="content" id="content"><div class="top"><button data-back>${ic('back','s')}<span id="bk">Einstellungen</span></button><b id="ttl"></b></div>
     <div class="col">${G.map(g=>`<section class="sec" data-g="${g.id}" id="g-${g.id}"><h2>${g.t}</h2><p class="lead">${g.lead}</p>${g.html()}</section>`).join('')}
      <p class="empty">Keine Einstellung gefunden.</p></div></div></div>`;
-  renderTokens();activate('look');sync();
+  renderTokens();activate('acc');sync();
 }
 function activate(id){
   app.dataset.g=id;closeSub(true);
@@ -509,15 +650,16 @@ function activate(id){
   $('#content').scrollTop=0;topbar();
 }
 function openSub(id){
-  app.dataset.sub=id;app.classList.add('insub');
+  clearConf();
+  app.dataset.sub=id;app.classList.add('insub');app.classList.toggle('docmode',id==='apidoc');
   $$('.subpage',app).forEach(s=>s.classList.toggle('on',s.dataset.sub===id));
   $('#content').scrollTop=0;topbar();
 }
-function closeSub(silent){app.dataset.sub='';app.classList.remove('insub');$$('.subpage',app).forEach(s=>s.classList.remove('on'));if(!silent){$('#content').scrollTop=0;topbar()}}
+function closeSub(silent){clearConf();app.dataset.sub='';app.classList.remove('insub','docmode');$$('.subpage',app).forEach(s=>s.classList.remove('on'));if(!silent){$('#content').scrollTop=0;topbar()}}
 function topbar(){
   const sub=app.dataset.sub;
-  $('#bk').textContent=sub?'Erweiterungen':'Einstellungen';
-  $('#ttl').textContent=sub?X(sub).t.replace('Model Context Protocol (MCP)','MCP'):G.find(x=>x.id===app.dataset.g).t;
+  $('#bk').textContent=sub?(PARENT[sub]||'Erweiterungen'):'Einstellungen';
+  $('#ttl').textContent=sub?subName(sub):G.find(x=>x.id===app.dataset.g).t;
 }
 function sync(){
   const d=document.documentElement.dataset;
@@ -527,30 +669,44 @@ function sync(){
   $$('.seg[data-k]').forEach(s=>{const v=String(st[s.dataset.k]);$$('button',s).forEach(b=>b.setAttribute('aria-checked',b.dataset.v===v))});
   $$('select[data-k]').forEach(s=>s.value=String(st[s.dataset.k]));
   $$('.tog[data-k]').forEach(t=>t.setAttribute('aria-checked',String(!!st[t.dataset.k])));
+  $$('[data-st]').forEach(c=>{const on=!!st[c.dataset.st];c.textContent=on?'Aktiv':'Aus';c.classList.toggle('off',!on);c.closest('.xr').classList.toggle('is-off',!on)});
   $$('[data-opt]').forEach(g=>$$('.opt',g).forEach(b=>b.setAttribute('aria-checked',b.dataset.v===st[g.dataset.opt])));
   $$('.pal').forEach(p=>p.setAttribute('aria-pressed',p.dataset.pal===st.palette));
   $$('[data-eye]').forEach(b=>{const on=st['grp_'+b.dataset.eye];b.innerHTML=ic(on?'eye':'eyeoff','s');b.closest('.grow').classList.toggle('off',!on)});
 }
+/* Deaktivieren: doppelte Bestätigung */
+function clearConf(){$$('.xconf').forEach(x=>x.remove())}
+function askOff(tg){
+  clearConf();const e=X(tg.dataset.ext);
+  const anchor=tg.closest('.xr')||tg.closest('.subhead');
+  const box=document.createElement('div');box.className='xconf';box.setAttribute('role','alertdialog');
+  box.innerHTML=`<b>${e.t} wirklich deaktivieren?</b><p>${e.cons} Deine Daten und Einstellungen bleiben erhalten, du kannst die Erweiterung jederzeit wieder einschalten.</p><div class="acts"><button class="btn" data-conf="no">Abbrechen</button><button class="btn danger" data-conf="yes" data-k="${e.k}">Deaktivieren</button></div>`;
+  anchor.after(box);$('[data-conf=no]',box).focus();
+}
 function renderTokens(){
-  $('#toklist').innerHTML=tokens.length?tokens.map(t=>`<div class="tok ${t.expired?'exp':''}"><div class="tb"><b>${t.name}</b> ${t.expired?'<span class="chip warn"><i></i>Abgelaufen</span>':''}
-   <div style="margin-top:2px"><span class="chip mono">${t.pre}</span></div>
-   <div class="scopes">${t.scopes.map(s=>`<span class="chip mono">${s}</span>`).join('')}</div>
-   <div class="meta"><span>Gültig bis ${t.exp}</span><span>Zuletzt genutzt: ${t.used}</span></div></div>
-   <button class="btn danger" data-revoke="${t.id}">Widerrufen</button></div>`).join(''):'<p class="lead" style="margin:6px 0">Noch keine Tokens.</p>';
+  $('#toklist').innerHTML=tokens.length?tokens.map(t=>`<div class="tk ${t.expired?'exp':''}"><div class="tb"><div class="tn"><b>${t.name}</b><code>${t.pre}</code>${t.expired?'<span class="st warn">Abgelaufen</span>':''}</div>
+   <div class="tr">${scopeLine(t.scopes)}</div><div class="tm">Zuletzt benutzt ${t.used} · läuft ab ${t.exp}</div></div>
+   <button class="btn ghost danger" data-revoke="${t.id}">Widerrufen</button></div>`).join(''):'<p class="lead" style="margin:10px 0">Noch keine Tokens.</p>';
 }
 function copy(id,btn){
-  const el=$('#'+id,app)||document.getElementById(id);const txt=el.innerText;
-  const done=()=>{const sp=$('span',btn);const o=sp.textContent;sp.textContent='Kopiert';setTimeout(()=>sp.textContent=o,1600)};
+  const el=document.getElementById(id);const txt=el.innerText;
+  const done=()=>{const sp=$('span:last-child',btn)||btn;const o=sp.textContent;sp.textContent='Kopiert';setTimeout(()=>sp.textContent=o,1600)};
   try{navigator.clipboard.writeText(txt).then(done,done)}catch(e){done()}
 }
 document.addEventListener('click',e=>{
   const sg=e.target.closest('.seg button');
   if(sg){const k=sg.parentNode.dataset.k;st[k]=sg.dataset.v;if(k==='frame'){app.dataset.m='list';closeSub(true)}sync();return}
-  const t=e.target.closest('.tog');if(t&&!t.disabled){st[t.dataset.k]=!st[t.dataset.k];sync();return}
+  const cf=e.target.closest('[data-conf]');
+  if(cf){if(cf.dataset.conf==='yes')st[cf.dataset.k]=false;clearConf();sync();return}
+  const t=e.target.closest('.tog');
+  if(t&&!t.disabled){
+    if(t.dataset.ext&&st[t.dataset.k]){askOff(t);return}
+    st[t.dataset.k]=!st[t.dataset.k];sync();return}
   const o=e.target.closest('.opt');if(o){st[o.parentNode.dataset.opt]=o.dataset.v;sync();return}
   const p=e.target.closest('.pal');if(p){st.palette=p.dataset.pal;sync();return}
   const eye=e.target.closest('[data-eye]');if(eye){const k='grp_'+eye.dataset.eye;st[k]=!st[k];sync();return}
   const cp=e.target.closest('[data-copy]');if(cp){copy(cp.dataset.copy,cp);return}
+  const toc=e.target.closest('[data-toc]');if(toc){document.getElementById(toc.dataset.toc).scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});return}
   const sb=e.target.closest('[data-sub]');if(sb&&sb.tagName==='BUTTON'){openSub(sb.dataset.sub);return}
   if(e.target.closest('[data-subback]')){closeSub();return}
   const g=e.target.closest('button[data-g]');
@@ -561,10 +717,10 @@ document.addEventListener('click',e=>{
   if(e.target.closest('[data-closesec]')){$('#newsec').classList.add('hide');return}
   if(e.target.closest('[data-mktok]')){
     const name=$('#tn').value.trim()||'Neuer Token';const sc=$$('#newtok input:checked').map(i=>i.value);
-    if(!sc.length){$('#newtok h3').textContent='Neuer Token: bitte mindestens ein Recht wählen';return}
+    if(!sc.length){$('#newtok h4').textContent='Neuer Token: bitte mindestens ein Recht wählen';return}
     const rnd=[...crypto.getRandomValues(new Uint8Array(16))].map(b=>b.toString(16).padStart(2,'0')).join('');
-    tokens.unshift({id:Date.now(),name,pre:'tide_pat_'+rnd.slice(0,4)+'…'+rnd.slice(-4),scopes:sc,exp:'in '+$('#te').value.replace('Kein Ablauf','unbegrenzt'),used:'Nie'});
-    $('#secv').textContent='tide_pat_'+rnd;$('#newtok').classList.add('hide');$('#newsec').classList.remove('hide');$('#newtok h3').textContent='Neuer Token';$('#tn').value='';renderTokens();return}
+    tokens.unshift({id:Date.now(),name,pre:'tide_pat_'+rnd.slice(0,4)+'…',scopes:sc,exp:$('#te').value==='kein Ablauf'?'nie':'in '+$('#te').value,used:'nie'});
+    $('#secv').textContent='tide_pat_'+rnd;$('#newtok').classList.add('hide');$('#newsec').classList.remove('hide');$('#newtok h4').textContent='Neuer Token';$('#tn').value='';renderTokens();return}
   const rv=e.target.closest('[data-revoke]');
   if(rv){if(rv.dataset.sure){const i=tokens.findIndex(t=>String(t.id)===rv.dataset.revoke);tokens.splice(i,1);renderTokens()}else{rv.dataset.sure=1;rv.textContent='Wirklich widerrufen?';setTimeout(()=>{if(rv.isConnected){delete rv.dataset.sure;rv.textContent='Widerrufen'}},3000)}}
 });
@@ -574,13 +730,19 @@ function filter(){
   if(q)closeSub(true);
   let any=false;
   $$('.sec',app).forEach(sec=>{let n=0;
-    $$('.row,.block',sec).forEach(r=>{if(r.closest('.subpage'))return;const m=!q||(r.dataset.s||'').includes(q);r.classList.toggle('hide',!m);if(m)n++});
-    $$('details.more',sec).forEach(d=>{d.open=!!q&&$$('.row',d).some(r=>(r.dataset.s||'').includes(q))});
+    $$('.row,.block,.xr',sec).forEach(r=>{if(r.closest('.subpage'))return;const m=!q||(r.dataset.s||'').includes(q);r.classList.toggle('hide',!m);if(m)n++});
+    $$('.sg',sec).forEach(g=>{if(g.closest('.subpage'))return;g.classList.toggle('hide',!!q&&!$$('.row:not(.hide),.block:not(.hide),.xr:not(.hide)',g).length)});
     sec.classList.toggle('hide',!!q&&!n);if(!q||n)any=true});
-  $('.empty').classList.toggle('show',!any);
+  $('.col>.empty').classList.toggle('show',!any);
   if(q)app.dataset.m='page';
 }
-document.addEventListener('input',e=>{if(e.target.id==='q')filter()});
+function xfilter(){
+  const q=$('#xq').value.trim().toLowerCase();let any=false;
+  $$('.xr').forEach(r=>{const m=!q||r.dataset.s.includes(q);r.classList.toggle('hide',!m)});
+  $$('.xg').forEach(g=>{const n=$$('.xr:not(.hide)',g).length;g.classList.toggle('hide',!n);if(n)any=true});
+  $('#xe').classList.toggle('show',!any);
+}
+document.addEventListener('input',e=>{if(e.target.id==='q')filter();if(e.target.id==='xq')xfilter()});
 matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>{if(st.theme==='system')sync()});
 build();
 </script>

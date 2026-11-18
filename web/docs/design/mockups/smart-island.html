@@ -58,26 +58,38 @@ small{font-size:12px}
 .seg button[aria-checked=true]{background:var(--t2-surface);color:var(--t2-ink);font-weight:600;box-shadow:0 0 0 1px var(--t2-line),0 1px 2px rgba(0,0,0,.06)}
 .note{padding:0 16px 12px;color:var(--t2-ink-2);font-size:13px;max-width:920px}
 .note b{color:var(--t2-ink)}
-.stage{padding:24px 16px 32px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;max-width:1280px;margin:0 auto}
+.stage{padding:24px 16px 32px;display:flex;flex-wrap:wrap;justify-content:center;gap:28px 24px;max-width:1280px;margin:0 auto}
 .hint{text-align:center;color:var(--t2-ink-3);font-size:12.5px;padding:0 16px 40px}
 
 /* ── Geräte-Ausschnitte ── */
-.dv{display:flex;flex-direction:column;gap:10px;min-width:0}
-.dv>h3{font-size:13px;font-weight:600;color:var(--t2-ink-2);display:flex;justify-content:space-between;gap:8px;max-width:380px;width:100%;margin:0 auto}
+.dv{display:flex;flex-direction:column;gap:10px;min-width:0;flex:1 1 320px;max-width:380px}
+.dv.wide{flex:1 1 560px;max-width:700px}
+.dv>h3{font-size:13px;font-weight:600;color:var(--t2-ink-2);display:flex;justify-content:space-between;gap:8px;width:100%;margin:0 auto}
 .dv>h3 span{font-weight:400;color:var(--t2-ink-3)}
-.scr{container-type:size;position:relative;height:480px;border-radius:18px;overflow:hidden;background:var(--t2-bg);box-shadow:0 0 0 1px var(--t2-line),0 8px 28px rgba(0,0,0,.07);max-width:380px;width:100%;margin:0 auto}
-.dsk{--cw:220px;--mw:188px}
+.scr{container-type:size;position:relative;height:480px;border-radius:18px;overflow:hidden;background:var(--t2-bg);box-shadow:0 0 0 1px var(--t2-line),0 8px 28px rgba(0,0,0,.07);width:100%}
+.dsk{--cw:340px;--mw:188px}
 .tab{--cw:280px;--mw:200px}
 .phn{--cw:min(318px,calc(100cqw - 28px));--mw:min(252px,calc(100cqw - 28px))}
 .scr.dsk{display:grid;grid-template-columns:244px 1fr}
-.side{background:var(--t2-sub);padding:12px;display:flex;flex-direction:column;gap:10px;position:relative}
+.side{background:var(--t2-sub);padding:12px;display:flex;flex-direction:column;gap:6px;position:relative;box-shadow:inset -1px 0 0 var(--t2-line)}
 .side .ws{display:flex;align-items:center;gap:9px;padding:4px 6px;font-weight:600}
 .side .ws i{width:24px;height:24px;border-radius:50%;background:var(--t2-ink);color:var(--t2-bg);font-style:normal;font-size:10.5px;display:grid;place-items:center}
 .side .ni{padding:7px 10px;border-radius:var(--t2-r);color:var(--t2-ink-2);display:flex;gap:9px;align-items:center}
 .side .ni.on{background:var(--t2-hover);color:var(--t2-ink);font-weight:600}
 .side .tr{color:var(--t2-ink-3);font-size:13px;padding:5px 10px}
-.main{padding:14px 0 0 12px;display:flex;gap:6px;overflow:hidden}
-.main i{flex:1;border-radius:8px 0 0 0;background:var(--t2-line-soft)}
+.side .sl{color:var(--t2-ink-3);font-size:12px;font-weight:500;padding:8px 10px 0}
+.side .tr.l1{padding-left:28px}
+.side .ws .chev{margin-left:auto;color:var(--t2-ink-3)}
+.main{display:flex;flex-direction:column;min-width:0;overflow:hidden;background:var(--t2-bg)}
+.mhd{display:flex;align-items:center;gap:8px;padding:16px 16px 12px}
+.mhd b{font-size:16px;letter-spacing:-.02em;margin-right:4px}
+.mhd .sp{flex:1}
+.pill{padding:4px 10px;border-radius:8px;font-size:12.5px;color:var(--t2-ink-2);box-shadow:inset 0 0 0 1px var(--t2-line)}
+.wkg{flex:1;display:grid;grid-template-columns:30px repeat(4,1fr);margin:0 0 0 8px;min-height:0;background-image:repeating-linear-gradient(to bottom,transparent 0,transparent 43px,var(--t2-line-soft) 43px,var(--t2-line-soft) 44px)}
+.hrs{display:flex;flex-direction:column;font-size:10.5px;color:var(--t2-ink-3)}
+.hrs span{height:44px;padding-top:2px}
+.dc{position:relative;border-left:1px solid var(--t2-line-soft)}
+.dc u{position:absolute;left:3px;right:5px;border-radius:7px;opacity:.92}
 .cal{position:absolute;inset:0;padding:16px 14px 0;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-content:start}
 .cal .h{height:30px;border-radius:8px;background:var(--t2-sub)}
 .cal .col{position:relative;height:400px;border-radius:8px;background:var(--t2-line-soft)}
@@ -197,7 +209,7 @@ small{font-size:12px}
     <div class="grp">Modus <div class="seg" role="radiogroup" aria-label="Modus" data-k="theme"><button role="radio" data-val="light">Hell</button><button role="radio" data-val="dark">Dunkel</button></div></div>
     <div class="grp">Palette <div class="seg" role="radiogroup" aria-label="Palette" data-k="palette"><button role="radio" data-val="tide">Tide</button><button role="radio" data-val="warm">Warm</button><button role="radio" data-val="slate">Slate</button></div></div>
   </div>
-  <p class="note"><b>Gedanke:</b> Die Island ist ein festes Quadrat mit dem Monat und wächst nur dann zu einer Karte, wenn es etwas zu sagen gibt. Ruhige Papier-Optik in den Tokens der Seitenleiste, die Eventfarbe erscheint nur als dünner Strich. Auf dem Handy bleibt sie ein Quadrat in der Farbe des Termins und öffnet sich per Tippen.</p>
+  <p class="note"><b>Gedanke:</b> Die Island ist ein festes Quadrat mit dem Monat und wächst nur dann zu einer Karte, wenn es etwas zu sagen gibt. Am Desktop bleibt die Seitenleiste so breit wie sie ist: die Karte wächst vom Quadrat aus nach oben und über die Seitenleisten-Grenze in den Hauptbereich. Ruhige Papier-Optik in den Tokens der Seitenleiste, die Eventfarbe erscheint nur als dünner Strich. Auf dem Handy bleibt sie ein Quadrat in der Farbe des Termins und öffnet sich per Tippen.</p>
   <div class="bar" style="padding-top:0">
     <div class="grp">Zustand <div class="seg" role="radiogroup" aria-label="Zustand" data-k="state">
       <button role="radio" data-val="ruhe">Ruhe</button><button role="radio" data-val="laufend">Laufender Termin</button><button role="radio" data-val="naechster">Nächster Termin</button><button role="radio" data-val="tag">Tagesübersicht</button><button role="radio" data-val="erfassen">Schnell-Erfassung</button><button role="radio" data-val="hinweis">Benachrichtigung</button></div></div>
@@ -206,11 +218,19 @@ small{font-size:12px}
 </header>
 
 <main class="stage">
-  <section class="dv"><h3>Desktop <span>unten links in der Seitenleiste</span></h3>
+  <section class="dv wide"><h3>Desktop <span>Quadrat in der Seitenleiste, Karte wächst in den Hauptbereich</span></h3>
     <div class="scr dsk" data-d="dsk">
-      <div class="side"><div class="ws"><i>NH</i>Nico</div><div class="ni on">Studium</div><div class="ni">Todos</div><div class="tr">Notizen</div><div class="tr">▸ tide</div><div class="tr">▾ med</div><div class="tr" style="padding-left:24px">Mails</div>
+      <div class="side"><div class="ws"><i>NH</i>Nico<span class="chev">⌄</span></div>
+        <div class="ni on">Studium</div><div class="ni">Todos</div>
+        <div class="sl">Notizen</div>
+        <div class="tr">▸ tide</div><div class="tr">▾ med</div><div class="tr l1">Mails</div><div class="tr l1">Konzept</div><div class="tr l1">Ablauf</div><div class="tr">▸ privat</div>
         <div class="slot"></div></div>
-      <div class="main"><i></i><i></i></div>
+      <div class="main"><div class="mhd"><b>Woche 47</b><span class="pill">Heute</span><span class="sp"></span><span class="pill">Woche ⌄</span></div>
+        <div class="wkg"><div class="hrs"><span>09</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span></div>
+          <div class="dc"><u style="top:12px;height:70px;background:var(--cal-studium)"></u><u style="top:210px;height:120px;background:var(--cal-praktikum)"></u></div>
+          <div class="dc"><u style="top:70px;height:60px;background:var(--cal-uni)"></u></div>
+          <div class="dc"><u style="top:12px;height:90px;background:var(--cal-studium)"></u><u style="top:250px;height:60px;background:var(--cal-social)"></u></div>
+          <div class="dc"><u style="top:130px;height:100px;background:var(--cal-praktikum)"></u></div></div></div>
     </div></section>
   <section class="dv"><h3>Tablet <span>schwebend, Seitenleiste eingeklappt</span></h3>
     <div class="scr tab" data-d="tab"><div class="cal"><div class="h"></div><div class="h"></div><div class="h"></div><div class="h"></div>
