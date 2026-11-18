@@ -100,6 +100,10 @@ describe('detectCapture', () => {
         expect(r.reason).toBe('time');
         expect(r.startMins).toBe(14 * 60);
         expect(r.date?.getDate()).toBe(19);
+        expect(r.title).toBe('Lernen mit Jette');
+    });
+    it('keeps the full title when the time sits at the end', () => {
+        expect(detectCapture('Lernen mit Jette 14 Uhr', NOW).title).toBe('Lernen mit Jette');
     });
     it('detects an event from a bare explicit time', () => {
         const r = detectCapture('Treffen 18.30 Uhr', NOW);

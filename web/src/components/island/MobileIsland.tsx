@@ -5,7 +5,7 @@ import { Bell, Plus } from 'lucide-react';
 import { paletteFor } from '@/components/Layout/mobile/eventPalette';
 import { useIslandModel, type IslandModel } from './useIslandModel';
 import { useIslandText, type IslandText } from './islandText';
-import { onActivateKey, useIslandDismiss, useIslandFlip } from './islandMotion';
+import { onActivateKey, useIslandDismiss, useIslandFlip, useSlotRect } from './islandMotion';
 import IslandBody from './IslandBody';
 
 const SMALL = 'text-[9.5px] font-bold uppercase leading-none tracking-[0.08em] opacity-80';
@@ -64,6 +64,17 @@ function SquareFace({ model, text }: { model: IslandModel; text: IslandText }) {
  * Tippen öffnet die Karte, weiteres Tippen wechselt zwischen den Zuständen, außerhalb tippen schließt.
  */
 export default function MobileIsland({ className }: { className?: string }) {
+    const hostRef = useRef<HTMLDivElement>(null);
+    const rect = useSlotRect(hostRef);
+    // Bei Desktop-/Tablet-Breite ist das Handy-Layout ausgeblendet: dann kein zweites Modell mounten.
+    return (
+        <div ref={hostRef} className={`relative h-[92px] w-24 shrink-0 ${className ?? ''}`}>
+            {rect?.visible && <MobilePanel />}
+        </div>
+    );
+}
+
+function MobilePanel() {
     const model = useIslandModel('mobile');
     const text = useIslandText();
     const panelRef = useRef<HTMLDivElement>(null);
@@ -82,7 +93,7 @@ export default function MobileIsland({ className }: { className?: string }) {
         : 'h-[92px] w-24';
 
     return (
-        <div className={`relative h-[92px] w-24 shrink-0 ${className ?? ''}`}>
+        <>
             <div
                 ref={panelRef}
                 data-island-state={model.state}
@@ -101,6 +112,6 @@ export default function MobileIsland({ className }: { className?: string }) {
             >
                 {open ? <IslandBody model={model} text={text} /> : <SquareFace model={model} text={text} />}
             </div>
-        </div>
+        </>
     );
 }

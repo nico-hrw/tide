@@ -213,7 +213,11 @@ export function detectCapture(text: string, now: Date = new Date()): CaptureDete
     const timeHit = EXPLICIT_TIME.test(trimmed) ? extractTimeFromText(trimmed) : null;
 
     if (parsed || timeHit) {
-        let title = parsed?.titleHint || timeHit?.title || trimmed;
+        // Titel: der Text ohne die erkannte Datums-/Zeit-Passage (der Titelvorschlag des Parsers ist zu knapp)
+        const stripped = parsed
+            ? `${trimmed.slice(0, parsed.span[0])} ${trimmed.slice(parsed.span[1])}`.replace(/\s+/g, ' ').trim()
+            : '';
+        let title = stripped || parsed?.titleHint || timeHit?.title || trimmed;
         const startMins = parsed
             ? parsed.proposedStart.getHours() * 60 + parsed.proposedStart.getMinutes()
             : timeHit?.startMins ?? null;

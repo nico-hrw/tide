@@ -1,6 +1,11 @@
 'use client';
 
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+
+const subscribeNever = () => () => undefined;
+
+/** true erst nach dem Mounten im Browser (für Portale). */
+export const useIsClient = (): boolean => useSyncExternalStore(subscribeNever, () => true, () => false);
 
 const EASE = 'cubic-bezier(.32,.72,0,1)';
 
@@ -72,4 +77,49 @@ export function onActivateKey(handler: () => void) {
             handler();
         }
     };
+}
+
+export interface Rect { left: number; top: number; width: number; height: number }
+
+/**
+ * Verfolgt Position und Sichtbarkeit des Platzhalters. "Sichtbar" heißt: nicht per display:none,
+ * Deckkraft 0 oder Überlauf (z. B. eingeklappte Seitenleiste) komplett ausgeblendet.
+ */
+export function useSlotRect(ref: React.RefObject<HTMLElement | null>): (Rect & { visible: boolean }) | null {
+    const [state, setState] = useState<(Rect & { visible: boolean }) | null>(null);
+    useLayoutEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        let inView = true;
+        const update = () => {
+            const r = el.getBoundingClientRect();
+            const shown =
+                r.width > 0 &&
+                inView &&
+                (typeof el.checkVisibility !== 'function' || el.checkVisibility({ opacityProperty: true, visibilityProperty: true }));
+            setState((p) =>
+                p && p.left === r.left && p.top === r.top && p.width === r.width && p.height === r.height && p.visible === shown
+                    ? p
+                    : { left: r.left, top: r.top, width: r.width, height: r.height, visible: shown }
+            );
+        };
+        const io = new IntersectionObserver((entries) => {
+            inView = entries.some((e) => e.isIntersecting);
+            update();
+        });
+        io.observe(el);
+        const ro = new ResizeObserver(update);
+        ro.observe(el);
+        ro.observe(document.documentElement);
+        window.addEventListener('resize', update);
+        const poll = window.setInterval(update, 500);
+        update();
+        return () => {
+            io.disconnect();
+            ro.disconnect();
+            window.removeEventListener('resize', update);
+            window.clearInterval(poll);
+        };
+    }, [ref]);
+    return state;
 }
