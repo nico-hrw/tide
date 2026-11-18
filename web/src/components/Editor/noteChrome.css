@@ -46,9 +46,10 @@
     display: block; height: 3px; border-radius: 2px; background: var(--t2-ink-3); opacity: 0.45;
     transition: width 0.15s, background 0.15s, opacity 0.15s;
 }
-.t2-ol-bars i.l2 { width: 22px; }
+.t2-ol-bars i.l1 { width: 28px; }
+.t2-ol-bars i.l2 { width: 21px; }
 .t2-ol-bars i.l3 { width: 14px; }
-.t2-ol-bars i.on { background: var(--t2-blue); opacity: 1; width: 30px; }
+.t2-ol-bars i.on { background: var(--t2-blue); opacity: 1; width: 34px; }
 .t2-outline:hover .t2-ol-card, .t2-outline:focus-within .t2-ol-card { display: block; }
 .t2-outline:hover .t2-ol-bars, .t2-outline:focus-within .t2-ol-bars { visibility: hidden; }
 

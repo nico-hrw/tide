@@ -21,6 +21,7 @@ import { useReferenceStore } from '@/store/useReferenceStore';
 import { extractTimeFromText } from '@/lib/timeParser';
 
 import { COLORS, REFERENCE_COLORS, REFERENCE_QUICK_EMOJIS } from './editorConstants';
+import TextStyleButtons from './TextStyleButtons';
 
 export { COLORS, REFERENCE_COLORS, REFERENCE_QUICK_EMOJIS };
 
@@ -194,6 +195,9 @@ export function EditorBubbleMenu({
             className="flex bg-white dark:bg-gray-800 border border-[var(--border-ui)] rounded-[var(--radius)] overflow-visible p-1 gap-1 items-center"
             style={{ boxShadow: 'var(--shadow-float)' }}
         >
+            <TextStyleButtons editor={editor} />
+            <div className="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1" />
+
             <button onClick={() => editor.chain().focus().toggleBold().run()} className={`${btnBase} ${editor.isActive('bold') ? btnActive : btnInactive}`} title="Bold">
                 <Bold size={16} />
             </button>

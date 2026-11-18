@@ -4,14 +4,14 @@ import React, { useCallback, useEffect, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import "./noteChrome.css";
 
-interface OutlineItem { pos: number; level: 2 | 3; text: string; }
+interface OutlineItem { pos: number; level: 1 | 2 | 3; text: string; }
 
 interface NoteOutlineProps { editor: Editor | null; }
 
 function readHeadings(editor: Editor): OutlineItem[] {
     const items: OutlineItem[] = [];
     editor.state.doc.descendants((node, pos) => {
-        if (node.type.name === "heading" && (node.attrs.level === 2 || node.attrs.level === 3)) {
+        if (node.type.name === "heading" && (node.attrs.level === 1 || node.attrs.level === 2 || node.attrs.level === 3)) {
             items.push({ pos, level: node.attrs.level, text: node.textContent.trim() || "Ohne Titel" });
         }
     });
@@ -84,7 +84,7 @@ export default function NoteOutline({ editor }: NoteOutlineProps) {
             <nav aria-label="Gliederung" className="t2-outline absolute left-4 lg:left-7 top-5 pl-1 pr-2 py-1.5">
                 <div className="t2-ol-bars flex flex-col gap-[9px]">
                     {items.map((it, i) => (
-                        <i key={it.pos} className={`${it.level === 2 ? "l2" : "l3"}${i === active ? " on" : ""}`} />
+                        <i key={it.pos} className={`${it.level === 1 ? "l1" : it.level === 2 ? "l2" : "l3"}${i === active ? " on" : ""}`} />
                     ))}
                 </div>
                 <div className="t2-ol-card hidden absolute -left-1 -top-1.5 min-w-[250px] max-w-[320px] py-2.5 px-2 rounded-[14px] bg-t2-surface shadow-lg ring-1 ring-t2-line">
@@ -94,7 +94,7 @@ export default function NoteOutline({ editor }: NoteOutlineProps) {
                             type="button"
                             onClick={() => goTo(it)}
                             className={`block w-full text-left py-1.5 pr-3 rounded-lg truncate hover:bg-t2-hover ${
-                                it.level === 3 ? "pl-7 text-[13px]" : "pl-3 text-[13.5px]"
+                                it.level === 3 ? "pl-8 text-[13px]" : it.level === 2 ? "pl-5 text-[13.5px]" : "pl-3 text-[14px] font-medium"
                             } ${i === active ? "text-t2-blue font-semibold" : "text-t2-ink-2"}`}
                         >
                             {it.text}

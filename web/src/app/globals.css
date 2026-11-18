@@ -850,17 +850,26 @@ span.task-mention-pill,
   word-break: break-word;
 }
 
+/* Tailwind's preflight resets headings to body size, so the scale is set here. */
 .ProseMirror h1,
 .ProseMirror h2,
 .ProseMirror h3 {
-  color: #111111;
+  color: var(--t2-ink, #111111);
   margin-bottom: 0.25em;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
 }
+.ProseMirror h1 { font-size: 1.875rem; font-weight: 700; margin-top: 1.1em; }
+.ProseMirror h2 { font-size: 1.5rem; font-weight: 650; margin-top: 0.95em; }
+.ProseMirror h3 { font-size: 1.2rem; font-weight: 600; margin-top: 0.8em; }
+.ProseMirror h1:first-child,
+.ProseMirror h2:first-child,
+.ProseMirror h3:first-child { margin-top: 0; }
 
 .dark .ProseMirror h1,
 .dark .ProseMirror h2,
 .dark .ProseMirror h3 {
-  color: #F1F5F9;
+  color: var(--t2-ink, #F1F5F9);
 }
 
 /* ─── Table Redesign ─────────────────────────────────────────────────────── */

@@ -45,12 +45,18 @@ export default function NoteHistoryTimeline({
     const [height, setHeight] = useState(600);
 
     useEffect(() => {
-        const parent = wrapRef.current?.parentElement;
-        if (!parent) return;
-        const measure = () => setHeight(parent.clientHeight);
+        // The direct parent is a zero-height sticky anchor, so measure the scrolling container around it.
+        let host: HTMLElement | null = wrapRef.current?.parentElement?.parentElement ?? null;
+        for (let el = wrapRef.current?.parentElement ?? null; el; el = el.parentElement) {
+            const oy = getComputedStyle(el).overflowY;
+            if (oy === "auto" || oy === "scroll") { host = el; break; }
+        }
+        if (!host) return;
+        const target = host;
+        const measure = () => setHeight(target.clientHeight);
         measure();
         const ro = new ResizeObserver(measure);
-        ro.observe(parent);
+        ro.observe(target);
         return () => ro.disconnect();
     }, []);
 

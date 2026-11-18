@@ -462,7 +462,9 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 autoFocus
                                                 value={fileName}
                                                 readOnly={(files.find(f => f.id === (titleInputNoteIdRef.current || activeNoteId)) as any)?.permission === 'view'}
-                                                onFocus={() => {
+                                                onFocus={(e) => {
+                                                    // A fresh note: the placeholder title is selected, so typing replaces it
+                                                    if (/^(Untitled|Neue Notiz|New Note)$/i.test(fileName.trim())) e.currentTarget.select();
                                                     isEditingTitleRef.current = true;
                                                     titleInputNoteIdRef.current = activeNoteId || (!NON_EDITOR_TABS.has(activeTabId) ? activeTabId : null);
                                                     if (!lastSubmittedTitleRef.current) {
@@ -500,7 +502,10 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                         e.preventDefault();
                                                         (e.target as HTMLInputElement).blur();
                                                         if (editorInstance && !editorInstance.isDestroyed && editorInstance.commands) {
-                                                            editorInstance.commands.focus();
+                                                            editorInstance.commands.focus('start');
+                                                        } else {
+                                                            // Editor still mounting: fall back to the DOM element
+                                                            document.querySelector<HTMLElement>('.ProseMirror[contenteditable="true"]')?.focus();
                                                         }
                                                     }
                                                 }}

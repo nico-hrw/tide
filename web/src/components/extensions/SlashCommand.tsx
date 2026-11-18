@@ -91,6 +91,13 @@ const getSuggestionItems = ({ query }: { query: string }) => {
             },
         },
         {
+            title: 'Heading 3',
+            icon: <Heading2 size={16} />,
+            command: ({ editor, range }: any) => {
+                editor.chain().focus().deleteRange(range).setNode('heading', { level: 3 }).run();
+            },
+        },
+        {
             title: 'Task List',
             aliases: ['todo'],
             icon: <ListTodo size={16} />,
