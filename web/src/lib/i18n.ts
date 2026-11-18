@@ -1,4 +1,10 @@
 import { useDataStore } from '@/store/useDataStore';
+import { settingsCoreDe } from './i18n/settingsCore.de';
+import { settingsCoreEn } from './i18n/settingsCore.en';
+import { settingsExtDe } from './i18n/settingsExt.de';
+import { settingsExtEn } from './i18n/settingsExt.en';
+import { settingsMiscDe } from './i18n/settingsMisc.de';
+import { settingsMiscEn } from './i18n/settingsMisc.en';
 
 export type Language = 'de' | 'en';
 
@@ -39,6 +45,9 @@ export const translations = {
             holidaysDesc: "Zeige öffentliche Feiertage im Kalender und in der Suche an.",
             holidayPackage: "Feiertagspaket",
             holidayPackageDesc: "Wähle das Land für gesetzliche Feiertage.",
+            ...settingsCoreDe,
+            ...settingsExtDe,
+            ...settingsMiscDe,
         },
         calendar: {
             createGroup: "Gruppe erstellen",
@@ -100,6 +109,9 @@ export const translations = {
             holidaysDesc: "Show public holidays in the calendar and search.",
             holidayPackage: "Holiday Package",
             holidayPackageDesc: "Choose the country package for public holidays.",
+            ...settingsCoreEn,
+            ...settingsExtEn,
+            ...settingsMiscEn,
         },
         calendar: {
             createGroup: "Create Group",
@@ -128,6 +140,15 @@ export const translations = {
 } as const;
 
 export type TranslationKey = keyof typeof translations.de.common | keyof typeof translations.de.settings | keyof typeof translations.de.calendar;
+
+/** Alle Schluessel der Kategorie `settings` (de ist die Referenz, en wird per Typ gleichgezogen). */
+export type SettingsKey = keyof typeof translations.de.settings;
+
+/** Ersetzt {name}-Platzhalter; fehlende Werte bleiben als Platzhalter sichtbar. */
+export function formatMessage(template: string, vars?: Record<string, string | number>): string {
+    if (!vars) return template;
+    return template.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match));
+}
 
 export function getTranslation(lang: Language, category: 'common' | 'settings' | 'calendar', key: string): string {
     const dict = translations[lang] || translations.de;

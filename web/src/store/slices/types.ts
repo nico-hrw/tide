@@ -49,8 +49,11 @@ export type SettingsModalTab =
     | 'account'
     | 'calendar'
     | 'appearance'
+    | 'notes'
+    | 'todos'
     | 'extensions'
     | 'access'
+    | 'about'
     | 'info'
     | 'debug';
 
