@@ -10,16 +10,16 @@ export default function DocToc({ items }: { items: TocItem[] }) {
 
   useEffect(() => {
     const els = items.map((i) => document.getElementById(i.id)).filter((e): e is HTMLElement => !!e);
-    if (!els.length || typeof IntersectionObserver === 'undefined') return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActive(visible[0].target.id);
-      },
-      { rootMargin: '-96px 0px -65% 0px' },
-    );
-    els.forEach((e) => io.observe(e));
-    return () => io.disconnect();
+    if (!els.length) return;
+    // Active = last section whose top has passed the reading line below the sticky chip bar.
+    const update = () => {
+      let current = els[0].id;
+      for (const el of els) if (el.getBoundingClientRect().top <= 140) current = el.id;
+      setActive(current);
+    };
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    return () => window.removeEventListener('scroll', update);
   }, [items]);
 
   const link = (i: TocItem, chip: boolean) => {

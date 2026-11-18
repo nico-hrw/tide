@@ -26,7 +26,7 @@ export default function ApiDocsView({ doc }: { doc: ApiDoc }) {
               <FileText className="h-3.5 w-3.5" aria-hidden />
               Als Markdown
             </a>
-            <CopyButton text={() => window.location.href.split('#')[0]} label="Link kopieren" copiedLabel="Link kopiert" />
+            <CopyButton currentUrl label="Link kopieren" copiedLabel="Link kopiert" />
           </div>
         </header>
 

@@ -4,19 +4,21 @@ import { useCallback, useRef, useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 
 interface CopyButtonProps {
-  /** Text to copy. Pass a function to resolve it at click time (e.g. window.location.href). */
-  text: string | (() => string);
+  /** Text to copy. Omit together with `currentUrl` to copy nothing. */
+  text?: string;
+  /** Copy the page address (without hash), resolved at click time. */
+  currentUrl?: boolean;
   label?: string;
   copiedLabel?: string;
   className?: string;
 }
 
-export default function CopyButton({ text, label = 'Kopieren', copiedLabel = 'Kopiert', className = '' }: CopyButtonProps) {
+export default function CopyButton({ text = '', currentUrl = false, label = 'Kopieren', copiedLabel = 'Kopiert', className = '' }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onClick = useCallback(async () => {
-    const value = typeof text === 'function' ? text() : text;
+    const value = currentUrl ? window.location.href.split('#')[0] : text;
     try {
       await navigator.clipboard.writeText(value);
     } catch {
@@ -32,7 +34,7 @@ export default function CopyButton({ text, label = 'Kopieren', copiedLabel = 'Ko
     setCopied(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopied(false), 1600);
-  }, [text]);
+  }, [text, currentUrl]);
 
   return (
     <button
