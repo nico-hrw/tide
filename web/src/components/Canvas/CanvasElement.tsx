@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { CanvasElement, ImageElement, TextWidgetElement, isImageElement, isTextWidget } from '@/types/canvas';
 import { CanvasImageWidget } from './CanvasImageWidget';
+import { PageEdgeHatch } from './PageEdgeHatch';
+import { snapToPage, resolveSnappedLeft, type SnapEdge } from '@/lib/canvasSnap';
 import { X, GripVertical, Shuffle, MoveUp, MoveDown } from 'lucide-react';
 
 interface CanvasElementProps {
@@ -292,6 +294,9 @@ export default function CanvasElementComponent({
     const elRef = useRef<HTMLDivElement>(null);
     const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
     const [hovered, setHovered] = useState(false);
+    // Page edges the element touches; hatched while dragging and on hover.
+    const [dragEdges, setDragEdges] = useState<SnapEdge[] | null>(null);
+    const [pageWidth, setPageWidth] = useState(0);
     const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
     const dragState = useRef<{ startX: number; startY: number; initOX: number; initOY: number } | null>(null);
     const resizeState = useRef<{ startX: number; initWidth: number } | null>(null);
@@ -315,7 +320,11 @@ export default function CanvasElementComponent({
         if (isUnbound) {
             const shell = elRef.current?.closest<HTMLElement>('.canvas-shell');
             if (!shell) return;
-            setPos({ top: element.offsetY || 40, left: element.offsetX || shell.getBoundingClientRect().width + 24 });
+            const shellW = shell.getBoundingClientRect().width;
+            const ownW = elRef.current?.offsetWidth ?? 0;
+            const rawLeft = element.offsetX || shellW + 24;
+            setPageWidth((w) => (w === shellW ? w : shellW));
+            setPos({ top: element.offsetY || 40, left: resolveSnappedLeft(element.snapX, rawLeft, ownW, shellW) });
             return;
         }
 
@@ -343,8 +352,11 @@ export default function CanvasElementComponent({
         // snap the element back to its stored properties.
         if (dragState.current) return;
 
+        // An element snapped to a page edge stays on it when the page width changes.
+        left = resolveSnappedLeft(element.snapX, left, elRef.current?.offsetWidth ?? 0, sr.width);
+        setPageWidth((w) => (w === sr.width ? w : sr.width));
         setPos(prev => (prev?.top === top && prev?.left === left) ? prev : { top, left });
-    }, [element.anchorBlockId, element.offsetX, element.offsetY, isMobile, isUnbound]);
+    }, [element.anchorBlockId, element.offsetX, element.offsetY, element.snapX, isMobile, isUnbound]);
 
     useEffect(() => {
         const tick = () => { computePosition(); rafRef.current = requestAnimationFrame(tick); };
@@ -360,28 +372,45 @@ export default function CanvasElementComponent({
         if (isMobile || isBindingMode || e.button !== 0) return;
         e.preventDefault();
         dragState.current = { startX: e.clientX, startY: e.clientY, initOX: element.offsetX, initOY: element.offsetY };
+        const startLeft = pos?.left ?? 0;
+        const startTop = pos?.top ?? 0;
+        const own = elRef.current;
+        const shellW = own?.closest<HTMLElement>('.canvas-shell')?.getBoundingClientRect().width ?? 0;
+        const ownW = own?.offsetWidth ?? 0;
+
+        // Where the element would end up for a given pointer position: kept inside the page, pulled onto an edge.
+        const target = (clientX: number, clientY: number) => {
+            const rawLeft = startLeft + (clientX - dragState.current!.startX);
+            const rawTop = startTop + (clientY - dragState.current!.startY);
+            return shellW > 0 ? snapToPage(rawLeft, rawTop, ownW, shellW) : { left: rawLeft, top: rawTop, edges: [] as SnapEdge[] };
+        };
 
         const onMv = (me: MouseEvent) => {
             if (!dragState.current || !elRef.current) return;
-            const dx = me.clientX - dragState.current.startX;
-            const dy = me.clientY - dragState.current.startY;
+            const t = target(me.clientX, me.clientY);
             // Apply translate via DOM directly. Keep existing rotation in the transform string.
-            elRef.current.style.transform = `translate(${dx}px, ${dy}px) rotate(${rotation}deg)`;
+            elRef.current.style.transform = `translate(${t.left - startLeft}px, ${t.top - startTop}px) rotate(${rotation}deg)`;
+            setDragEdges((prev) => (prev && prev.join() === t.edges.join() ? prev : t.edges));
         };
         const onUp = (me: MouseEvent) => {
             if (!dragState.current || !elRef.current) return;
             // Clear the inline transform so React's style (which has rotate-only) takes over.
             elRef.current.style.transform = '';
-            onMove(element.id,
-                dragState.current.initOX + (me.clientX - dragState.current.startX),
-                dragState.current.initOY + (me.clientY - dragState.current.startY));
+            const t = target(me.clientX, me.clientY);
+            const snapX = t.edges.includes('left') ? 'left' : t.edges.includes('right') ? 'right' : undefined;
+            onUpdate(element.id, {
+                offsetX: dragState.current.initOX + (t.left - startLeft),
+                offsetY: dragState.current.initOY + (t.top - startTop),
+                snapX,
+            } as Partial<CanvasElement>);
             dragState.current = null;
+            setDragEdges(null);
             window.removeEventListener('mousemove', onMv);
             window.removeEventListener('mouseup', onUp);
         };
         window.addEventListener('mousemove', onMv);
         window.addEventListener('mouseup', onUp);
-    }, [element.id, element.offsetX, element.offsetY, isMobile, isBindingMode, onMove, rotation]);
+    }, [element.id, element.offsetX, element.offsetY, isMobile, isBindingMode, onUpdate, pos, rotation]);
 
     // ── Rotate ───────────────────────────────────────────────────────────────
     const onRotateMouseDown = useCallback((e: React.MouseEvent) => {
@@ -479,6 +508,16 @@ export default function CanvasElementComponent({
     return (
         <>
             {showLine && <AnchorLine anchorBlockId={element.anchorBlockId} elementRef={elRef} />}
+            {!isMobile && pos !== null && isImageElement(element) && (dragEdges !== null || hovered) && (
+                <PageEdgeHatch
+                    edges={dragEdges ?? (element.snapX ? [element.snapX] : [])}
+                    left={pos.left}
+                    top={pos.top}
+                    width={elRef.current?.offsetWidth ?? 0}
+                    height={elRef.current?.offsetHeight ?? 0}
+                    pageWidth={pageWidth}
+                />
+            )}
             {ctxMenu && (
                 <ContextMenu x={ctxMenu.x} y={ctxMenu.y}
                     onChangeAnchor={() => { const rect = elRef.current?.getBoundingClientRect() ?? null; onRequestRebind(element.id, rect); }}

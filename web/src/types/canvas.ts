@@ -31,6 +31,8 @@ interface BaseCanvasElement {
     height?: number;
     /** Layering priority (higher = in front) */
     zIndex?: number;
+    /** Set when the element sits against the left or right page edge; it then follows that edge. */
+    snapX?: 'left' | 'right';
 }
 
 /**
