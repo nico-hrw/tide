@@ -1,0 +1,84 @@
+/*
+ * Tide palettes.
+ *
+ * The default palette ("tide") lives in globals.css (:root = light, .dark = dark).
+ * Every other palette overrides the same --t2-* tokens here, once for light and once for dark:
+ *
+ *   :root[data-palette="name"]       light
+ *   :root[data-palette="name"].dark  dark
+ *
+ * Only the tokens listed below may differ between palettes. Legacy variables (--background,
+ * --sidebar-bg, --border-color ...) and --t2-blue are derived from them in globals.css, so a new
+ * palette never has to touch components. Calendar event colours (--cal-*) are a separate setting.
+ *
+ * To add a palette: copy a block pair, change the values, add the id to web/src/lib/palette.ts and
+ * its preview chips to PALETTE_PREVIEW in web/src/lib/designTokens.ts.
+ */
+
+/* ── warm: off-white paper, quiet terracotta accent ─────────────────────── */
+:root[data-palette="warm"] {
+  --t2-bg: #FAF9F5;
+  --t2-surface: #FFFFFF;
+  --t2-sub: #F3F1EA;
+  --t2-ink: #1F1E1D;
+  --t2-ink-2: #6B665C;
+  --t2-ink-3: #A29D90;
+  --t2-line: #E8E4DA;
+  --t2-line-soft: #EFECE3;
+  --t2-hover: #EFECE3;
+  --t2-stage: #ECE8DD;
+  --t2-now: #D9534F;
+  --t2-late: #B8453F;
+  --t2-accent: #C15F3C;
+  --t2-accent-ink: #FFFFFF;
+}
+:root[data-palette="warm"].dark {
+  --t2-bg: #1C1B19;
+  --t2-surface: #262522;
+  --t2-sub: #2B2A27;
+  --t2-ink: #F2EFE8;
+  --t2-ink-2: #B3AEA2;
+  --t2-ink-3: #7C776C;
+  --t2-line: #3A3834;
+  --t2-line-soft: #302F2B;
+  --t2-hover: #34332F;
+  --t2-stage: #141311;
+  --t2-now: #FF7A6E;
+  --t2-late: #F0877D;
+  --t2-accent: #E08A66;
+  --t2-accent-ink: #1C1B19;
+}
+
+/* ── slate: cool and crisp, muted steel accent ──────────────────────────── */
+:root[data-palette="slate"] {
+  --t2-bg: #FFFFFF;
+  --t2-surface: #FFFFFF;
+  --t2-sub: #F4F6F8;
+  --t2-ink: #0F172A;
+  --t2-ink-2: #546074;
+  --t2-ink-3: #94A0B2;
+  --t2-line: #E2E7EE;
+  --t2-line-soft: #EEF1F5;
+  --t2-hover: #EEF1F5;
+  --t2-stage: #E8ECF1;
+  --t2-now: #E5484D;
+  --t2-late: #C4443F;
+  --t2-accent: #3B5B8C;
+  --t2-accent-ink: #FFFFFF;
+}
+:root[data-palette="slate"].dark {
+  --t2-bg: #0C1018;
+  --t2-surface: #121821;
+  --t2-sub: #171E29;
+  --t2-ink: #EAF0F8;
+  --t2-ink-2: #9AA6B8;
+  --t2-ink-3: #66738A;
+  --t2-line: #243042;
+  --t2-line-soft: #1B2432;
+  --t2-hover: #1E2836;
+  --t2-stage: #070A10;
+  --t2-now: #FF6369;
+  --t2-late: #F0777A;
+  --t2-accent: #8FB0E6;
+  --t2-accent-ink: #0C1018;
+}

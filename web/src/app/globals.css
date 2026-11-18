@@ -92,12 +92,13 @@
 }
 
 :root {
-  --background: #FFFFFF;
-  --foreground: #0E0E10;
+  /* Legacy variables are derived from the palette tokens (--t2-*), never set directly */
+  --background: var(--t2-bg);
+  --foreground: var(--t2-ink);
 
-  --sidebar-bg: #F6F6F7;
-  --border-color: #E9E9EC;
-  --muted-text: #5E5E66;
+  --sidebar-bg: var(--t2-sub);
+  --border-color: var(--t2-line);
+  --muted-text: var(--t2-ink-2);
 
   /* Typography */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -105,12 +106,12 @@
   /* Surfaces & Boxes */
   --surface-card: var(--sidebar-bg);
   --surface-card-border: var(--border-color);
-  --surface-modal: var(--background);
-  --surface-modal-border: var(--border-color);
+  --surface-modal: var(--t2-surface);
+  --surface-modal-border: var(--t2-line);
 
   /* Form Elements */
-  --input-text: #111827;
-  --input-placeholder: #9CA3AF;
+  --input-text: var(--t2-ink);
+  --input-placeholder: var(--t2-ink-3);
 
   /* Radii */
   --radius-sm: 6px;
@@ -128,7 +129,10 @@
   --t2-line: #E9E9EC;
   --t2-line-soft: #F1F1F3;
   --t2-hover: #F1F1F3;
-  --t2-blue: #2563EB;
+  /* Accent: replaces the old hard blue for active states, highlights, focus. --t2-blue follows it. */
+  --t2-accent: #2F3138;
+  --t2-accent-ink: #FFFFFF;
+  --t2-blue: var(--t2-accent);
   --t2-now: #E5484D;
   --t2-late: #C4443F;
   --t2-stage: #EDEDF0;
@@ -215,27 +219,29 @@
   --t2-line: #26262B;
   --t2-line-soft: #1D1D21;
   --t2-hover: #222226;
-  --t2-blue: #6E9BFF;
+  --t2-accent: #E4E4E7;
+  --t2-accent-ink: #0B0B0D;
+  --t2-blue: var(--t2-accent);
   --t2-now: #FF6369;
   --t2-late: #F0777A;
   --t2-stage: #050506;
 
-  --background: #0B0B0D; /* Tide 2 dark */
-  --foreground: #F4F4F5;
+  --background: var(--t2-bg);
+  --foreground: var(--t2-ink);
 
-  --sidebar-bg: #131316;
-  --border-color: #26262B;
-  --muted-text: #A1A1AA;
+  --sidebar-bg: var(--t2-surface);
+  --border-color: var(--t2-line);
+  --muted-text: var(--t2-ink-2);
 
   /* Surfaces & Boxes */
   --surface-card: var(--sidebar-bg);
   --surface-card-border: var(--border-color);
-  --surface-modal: #18181b;
-  --surface-modal-border: #27272a;
+  --surface-modal: var(--t2-surface);
+  --surface-modal-border: var(--t2-line);
 
   /* Form Elements */
-  --input-text: #F8FAFC;
-  --input-placeholder: #475569;
+  --input-text: var(--t2-ink);
+  --input-placeholder: var(--t2-ink-3);
 
   /* Nordic Minimalist Event Colors - Dark Mode */
   --event-default-bg: #1E293B;

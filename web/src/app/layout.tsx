@@ -3,7 +3,9 @@ import AuthGuard from "@/components/AuthGuard";
 import { HighlightProvider } from "@/components/HighlightContext";
 import { IslandProvider } from "@/components/extensions/smart_island/useIslandStore";
 import UpdateBanner from "@/components/Update/UpdateBanner";
+import { PALETTE_BOOT_SCRIPT } from "@/lib/palette";
 import "./globals.css";
+import "./palettes.css";
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -40,7 +42,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: PALETTE_BOOT_SCRIPT }} />
+      </head>
       <body>
         {/* Global SVG filter for Liquid Glass distortion effect */}
         <svg style={{ position: 'absolute', width: 0, height: 0, pointerEvents: 'none', overflow: 'hidden' }} aria-hidden="true">

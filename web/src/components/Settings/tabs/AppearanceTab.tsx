@@ -3,6 +3,8 @@ import { Sun, Settings, Moon, Check } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import type { NoteLayout } from '@/store/slices/types';
 import { useAnimatedEmojiEnabled, setAnimatedEmojiEnabled } from '@/lib/animatedEmoji';
+import { PALETTES } from '@/lib/palette';
+import { PALETTE_PREVIEW } from '@/lib/designTokens';
 
 export interface AppearanceTabProps {
     noteLayout?: NoteLayout;
@@ -13,7 +15,7 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({
     noteLayout,
     onSetNoteLayout,
 }) => {
-    const { themePreference, setThemePreference, language, setLanguage, navigationMode, setNavigationMode } = useDataStore();
+    const { themePreference, setThemePreference, appPalette, setAppPalette, theme, language, setLanguage, navigationMode, setNavigationMode } = useDataStore();
     const animatedEmoji = useAnimatedEmojiEnabled();
 
     return (
@@ -73,6 +75,42 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({
                         <Moon className="w-4 h-4" />
                         Dark
                     </button>
+                </div>
+            </div>
+
+            <div className="p-6 bg-t2-surface border border-t2-line rounded-2xl mb-6">
+                <div className="mb-4">
+                    <h4 className="text-sm font-bold text-t2-ink">Farbpalette</h4>
+                    <p className="text-xs text-t2-ink-2 mt-1">Bestimmt Hintergründe, Linien und die Akzentfarbe der ganzen App. Termin-Farben stellst du im Kalender ein.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3" role="radiogroup" aria-label="Farbpalette">
+                    {PALETTES.map((p) => {
+                        const active = appPalette === p.id;
+                        const chips = PALETTE_PREVIEW[p.id][theme === 'dark' ? 'dark' : 'light'];
+                        return (
+                            <button
+                                key={p.id}
+                                type="button"
+                                role="radio"
+                                aria-checked={active}
+                                onClick={() => setAppPalette(p.id)}
+                                className={`flex flex-col gap-3 rounded-[12px] border p-3 text-left transition-colors ${active ? 'border-t2-ink bg-t2-sub' : 'border-t2-line hover:bg-t2-hover'}`}
+                            >
+                                <span className="flex overflow-hidden rounded-[8px] ring-1 ring-t2-line" aria-hidden>
+                                    {chips.map((c, i) => (
+                                        <span key={i} className="h-8 flex-1" style={{ backgroundColor: c }} />
+                                    ))}
+                                </span>
+                                <span>
+                                    <span className="flex items-center justify-between text-[13px] font-semibold text-t2-ink">
+                                        {p.label}
+                                        {active && <Check className="h-3.5 w-3.5" />}
+                                    </span>
+                                    <span className="block text-[11px] text-t2-ink-2">{p.desc}</span>
+                                </span>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
