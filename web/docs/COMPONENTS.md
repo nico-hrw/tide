@@ -1,4 +1,4 @@
-﻿<!-- AI COMPONENT INDEX — tables not bullets, file paths are absolute from repo root -->
+<!-- AI COMPONENT INDEX — tables not bullets, file paths are absolute from repo root -->
 <!-- ⚠️ MANDATORY: Update this file in EVERY session that touches components, lib utilities, or design. No exceptions. -->
 # TIDE — Component Index
 
@@ -200,8 +200,8 @@
 
 | Component | File | Role |
 |-----------|------|------|
-| SettingsModal | `web/src/components/Settings/SettingsModal.tsx` | App settings modal. Accepts `onCalendarToggle?: (calendarId, enabled) => void` — called after successful `PATCH /calendars/{id}` so caller can update its disabled-calendar filter immediately. Tabs include Account, Calendar, Appearance, Extensions, Access (Zugriff), and Info. |
-| APIAccessSettings | `web/src/components/Settings/APIAccessSettings.tsx` | Personal Access Token (PAT) management UI in Settings/Zugriff. Allows creating tokens with configurable scopes (`events:read`, `events:write`, `notes:read`, `notes:write`) and expiration, viewing active tokens, one-time plaintext copy with visual feedback, and revoking tokens. |
+| SettingsModal | `web/src/components/Settings/SettingsModal.tsx` | Settings shell: sidebar groups (Persoenlich: Konto, Darstellung; Arbeitsbereich: Kalender, Notizen, Todos; Erweitert: Erweiterungen, Zugriff) plus separate bottom entry "Ueber Tide" (incl. Debug section). Mobile: list, then page with back. Pages in `Settings/pages/*`, building blocks in `Settings/ui/` (SettingsPage, SettingsSection, SettingsCard, SettingsRow, SettingsLinkRow, Toggle, Segmented, SelectField, ConfirmButton). Nav data and legacy tab mapping: `settingsPages.ts`. Texts: `lib/i18n/settings*.{de,en}.ts` (typed SettingsKey, `useT`). Extensions: `Settings/extensions/` (catalog + search filter, list, subpage shell, `configs/*`; disabling needs a confirm step). Access: `Settings/access/` (scope plain-text mapping, token hooks/form), links to public `/docs/api`. |
+| AccessPage | `web/src/components/Settings/pages/AccessPage.tsx` | PAT management (Zugriff): plain-language rights (technical scope names unchanged in requests), calm token list, one-time secret copy, two-step revoke, link to `/docs/api`. events:write is marked planned (server has no write endpoints); notes:read/write are implemented. |
 | BackupHistory | `web/src/components/BackupHistory.tsx` | Backup/restore UI |
 
 ## Stores (Zustand)

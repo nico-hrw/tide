@@ -14,8 +14,8 @@ export interface ScopeDefinition {
 export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
     { key: 'events:read', group: 'events', implemented: true },
     { key: 'events:write', group: 'events', implemented: false },
-    { key: 'notes:read', group: 'notes', implemented: false },
-    { key: 'notes:write', group: 'notes', implemented: false },
+    { key: 'notes:read', group: 'notes', implemented: true },
+    { key: 'notes:write', group: 'notes', implemented: true },
     { key: 'todos:read', group: 'todos', implemented: true },
     { key: 'todos:create', group: 'todos', implemented: true },
     { key: 'todos:edit', group: 'todos', implemented: true },
