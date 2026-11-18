@@ -552,6 +552,35 @@ func TestExternalNotesE2EEAndScoping(t *testing.T) {
 		t.Fatalf("expected exactly 1 note matching safe:Uni, got %d", listResp.Count)
 	}
 
+	// A read-only token that is restricted to a safe must stay read-only: the safe restriction narrows
+	// what it sees, it must not grant write access.
+	roTokenReq, _ := json.Marshal(map[string]interface{}{
+		"name":   "Read-only Uni Token",
+		"scopes": []string{"notes:read", "safe:Uni"},
+	})
+	roRec := httptest.NewRecorder()
+	r.ServeHTTP(roRec, httptest.NewRequest("POST", "/api-tokens", bytes.NewReader(roTokenReq)))
+	var roToken api.CreateAPITokenResponse
+	_ = json.NewDecoder(roRec.Body).Decode(&roToken)
+
+	roListReq := httptest.NewRequest("GET", "/external/notes", nil)
+	roListReq.Header.Set("Authorization", "Bearer "+roToken.Token)
+	roListRec := httptest.NewRecorder()
+	r.ServeHTTP(roListRec, roListReq)
+	if roListRec.Code != http.StatusOK {
+		t.Fatalf("read-only safe token should still list notes, got %d", roListRec.Code)
+	}
+
+	roWriteBody, _ := json.Marshal(map[string]interface{}{"title": "Should not be created", "content": "x"})
+	roWriteReq := httptest.NewRequest("POST", "/external/notes", bytes.NewReader(roWriteBody))
+	roWriteReq.Header.Set("Authorization", "Bearer "+roToken.Token)
+	roWriteReq.Header.Set("Content-Type", "application/json")
+	roWriteRec := httptest.NewRecorder()
+	r.ServeHTTP(roWriteRec, roWriteReq)
+	if roWriteRec.Code != http.StatusForbidden {
+		t.Fatalf("read-only safe token must not create notes, expected 403, got %d", roWriteRec.Code)
+	}
+
 	// Uni token trying to GET e2eeNoteID (safe: main) should return 403 Forbidden
 	forbiddenReq := httptest.NewRequest("GET", "/external/notes/"+e2eeNoteID, nil)
 	forbiddenReq.Header.Set("Authorization", "Bearer "+uniToken.Token)

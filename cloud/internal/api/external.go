@@ -105,8 +105,10 @@ func APITokenAuth(s *store.SQLiteStore, requiredScopes ...string) func(http.Hand
 						hasScope = true
 						break
 					}
-					// If required scope is notes:read or notes:write, safe:... or folder:... can qualify
-					if strings.HasPrefix(req, "notes:") && (strings.HasPrefix(sc, "safe:") || strings.HasPrefix(sc, "folder:")) {
+					// safe:... and folder:... only narrow what a token may see, so they may stand in for
+					// read access. They must never grant write access: before, a read-only token that was
+					// restricted to a safe passed the notes:write check as well.
+					if req == "notes:read" && (strings.HasPrefix(sc, "safe:") || strings.HasPrefix(sc, "folder:")) {
 						hasScope = true
 						break
 					}
