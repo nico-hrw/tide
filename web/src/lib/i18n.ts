@@ -62,6 +62,48 @@ export const translations = {
             weekStartSunday: "Sonntag",
             previousWeek: "Vorherige Woche",
             nextWeek: "Nächste Woche",
+        },
+        island: {
+            monthOverview: "Monatsübersicht",
+            runningNow: "Läuft jetzt",
+            minutesLeft: "Min. verbleibend",
+            hoursLeft: "Std. verbleibend",
+            nextEvent: "Nächster Termin",
+            untilStartMin: "Min. bis Beginn",
+            untilStartHrs: "Std. bis Beginn",
+            thenNext: "danach {title} um {time}",
+            allDay: "ganztägig",
+            noEventsToday: "Heute keine Termine",
+            weekShort: "KW {n}",
+            dayOverview: "Tagesübersicht",
+            quickCapture: "Schnell erfassen",
+            capturePlaceholder: "Termin, Notiz oder Todo eingeben",
+            captureWhat: "Was soll daraus entstehen?",
+            kindEvent: "Termin",
+            kindNote: "Notiz",
+            kindTodo: "Todo",
+            hintTime: "Uhrzeit erkannt: {v}",
+            hintDate: "Datum erkannt: {v}",
+            hintTodo: "Handlung erkannt: Aufgabe",
+            hintNone: "Kein Datum erkannt",
+            hintChosen: "Von dir gewählt",
+            chipNewNote: "Neue Notiz",
+            chipToday: "Heute",
+            create: "Anlegen",
+            edit: "Bearbeiten",
+            close: "Schließen",
+            open: "Öffnen",
+            createdEvent: "Termin angelegt",
+            createdNote: "Notiz gespeichert",
+            createdTodo: "Todo angelegt",
+            noticeNew: "Neu · gerade eben",
+            noticeBadge: "{n} neu",
+            noticeSoon: "Beginnt gleich",
+            noticeShared: "Geteilt",
+            noticeSomeone: "Jemand",
+            suggestion: "Termin erkannt",
+            minUnit: "min",
+            untitledEvent: "Termin",
         }
     },
     en: {
@@ -123,13 +165,57 @@ export const translations = {
             weekStartSunday: "Sunday",
             previousWeek: "Previous week",
             nextWeek: "Next week",
+        },
+        island: {
+            monthOverview: "Month overview",
+            runningNow: "Happening now",
+            minutesLeft: "min left",
+            hoursLeft: "hrs left",
+            nextEvent: "Next event",
+            untilStartMin: "min until start",
+            untilStartHrs: "hrs until start",
+            thenNext: "then {title} at {time}",
+            allDay: "all day",
+            noEventsToday: "No events today",
+            weekShort: "Wk {n}",
+            dayOverview: "Day overview",
+            quickCapture: "Quick capture",
+            capturePlaceholder: "Type an event, note or todo",
+            captureWhat: "What should this become?",
+            kindEvent: "Event",
+            kindNote: "Note",
+            kindTodo: "Todo",
+            hintTime: "Time detected: {v}",
+            hintDate: "Date detected: {v}",
+            hintTodo: "Action detected: task",
+            hintNone: "No date detected",
+            hintChosen: "Chosen by you",
+            chipNewNote: "New note",
+            chipToday: "Today",
+            create: "Create",
+            edit: "Edit",
+            close: "Close",
+            open: "Open",
+            createdEvent: "Event created",
+            createdNote: "Note saved",
+            createdTodo: "Todo created",
+            noticeNew: "New · just now",
+            noticeBadge: "{n} new",
+            noticeSoon: "Starting soon",
+            noticeShared: "Shared",
+            noticeSomeone: "Someone",
+            suggestion: "Event detected",
+            minUnit: "min",
+            untitledEvent: "Event",
         }
     }
 } as const;
 
-export type TranslationKey = keyof typeof translations.de.common | keyof typeof translations.de.settings | keyof typeof translations.de.calendar;
+export type TranslationKey = keyof typeof translations.de.common | keyof typeof translations.de.settings | keyof typeof translations.de.calendar | keyof typeof translations.de.island;
 
-export function getTranslation(lang: Language, category: 'common' | 'settings' | 'calendar', key: string): string {
+export type I18nCategory = 'common' | 'settings' | 'calendar' | 'island';
+
+export function getTranslation(lang: Language, category: I18nCategory, key: string): string {
     const dict = translations[lang] || translations.de;
     const catDict = (dict as any)[category];
     return catDict?.[key] || (translations.de as any)[category]?.[key] || key;
@@ -139,6 +225,6 @@ export function useTranslation() {
     const language = useDataStore(s => s.language || 'de');
     return {
         lang: language,
-        t: (category: 'common' | 'settings' | 'calendar', key: string): string => getTranslation(language, category, key)
+        t: (category: I18nCategory, key: string): string => getTranslation(language, category, key)
     };
 }
