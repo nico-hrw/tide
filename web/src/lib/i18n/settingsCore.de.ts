@@ -193,6 +193,7 @@ export const settingsCoreDe = {
     'notes.editorHint': 'Breite und Bewegung im Editor.',
     'notes.layout': 'Notiz-Layout',
     'notes.layoutDesc': 'Wie breit Notizen im Editor dargestellt werden.',
+    'notes.layout.a4': 'DIN A4 (Seiten-Rolle)',
     'notes.layout.thin': 'Schmal',
     'notes.layout.normal': 'Normal',
     'notes.layout.wide': 'Breit',

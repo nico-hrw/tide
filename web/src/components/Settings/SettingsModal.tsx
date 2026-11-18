@@ -1,17 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { X, User, Puzzle, Palette, Info, KeyRound, Calendar, Wrench } from 'lucide-react';
-import { useDataStore } from '@/store/useDataStore';
-import { NoteLayout } from '@/store/slices/types';
-import { motion, AnimatePresence } from 'framer-motion';
-import DebugPluginSettings from './DebugPluginSettings';
-import { ProfileTab } from './tabs/ProfileTab';
-import { SecurityVaultTab } from './tabs/SecurityVaultTab';
-import { SyncCloudTab } from './tabs/SyncCloudTab';
-import { AppearanceTab } from './tabs/AppearanceTab';
-import { IntegrationsTab } from './tabs/IntegrationsTab';
-import { CalendarTab } from './tabs/CalendarTab';
+import React, { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, X } from 'lucide-react';
+import { motion } from 'framer-motion';
+import type { NoteLayout } from '@/store/slices/types';
+import { DEFAULT_PAGE, resolvePage, type SettingsPageId } from './settingsPages';
+import { SettingsNav } from './SettingsNav';
+import { cx } from './ui/cx';
+import { useT, useTDynamic } from './useT';
+import { AccountPage } from './pages/AccountPage';
+import { AppearancePage } from './pages/AppearancePage';
+import { CalendarPage } from './pages/CalendarPage';
+import { NotesPage } from './pages/NotesPage';
+import { TodosPage } from './pages/TodosPage';
+import { ExtensionsPage } from './pages/ExtensionsPage';
+import { AccessPage } from './pages/AccessPage';
+import { AboutPage } from './pages/AboutPage';
+import type { ProfileUser } from './account/ProfileSections';
+import type { CalendarGroup } from './calendar/CalendarGroupsSection';
 
-type SettingsTabId = 'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access' | 'debug';
+/** Akzeptiert auch die alten Tab-Ids ('info', 'debug'), die auf neue Seiten abgebildet werden. */
+type SettingsTabId = SettingsPageId | 'info' | 'debug';
 
 interface SettingsModalProps {
     isOpen: boolean;
@@ -19,21 +26,31 @@ interface SettingsModalProps {
     initialTab?: SettingsTabId;
     enabledExtensions: string[];
     onToggleExtension: (extensionId: string, enabled: boolean) => void;
-    userProfile?: { id?: string; user_id?: string; username: string; email: string; bio?: string; title?: string; avatar_seed?: string; avatar_salt?: string; avatar_style?: string; is_verified?: boolean; profile_status?: number };
+    userProfile?: ProfileUser;
     onLogout?: () => void;
     noteLayout?: NoteLayout;
     onSetNoteLayout?: (layout: NoteLayout) => void;
-    groups?: { id: string; title: string; effect?: string; color?: string }[];
+    groups?: CalendarGroup[];
     hiddenGroupIds?: string[];
     onToggleGroupVisibility?: (id: string) => void;
-    onUpdateGroup?: (id: string, updates: any) => void;
-    onShareGroup?: (e: any, id: string) => void;
-    onDeleteGroup?: (e: any, id: string) => void;
+    onUpdateGroup?: (id: string, updates: Partial<CalendarGroup>) => void;
+    onShareGroup?: (e: React.MouseEvent, id: string) => void;
+    onDeleteGroup?: (e: React.MouseEvent, id: string) => void;
     onCreateGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 }
 
-export default function SettingsModal({
-    isOpen,
+type MobileView = 'list' | 'page';
+
+/**
+ * Aeusserer Rahmen: der Inhalt wird nur eingehaengt, solange das Modal offen ist, und bei
+ * einem anderen Sprung (initialTab) neu aufgebaut. So startet der Zustand immer sauber.
+ */
+export default function SettingsModal(props: SettingsModalProps) {
+    if (!props.isOpen) return null;
+    return <SettingsModalBody key={props.initialTab ?? DEFAULT_PAGE} {...props} />;
+}
+
+function SettingsModalBody({
     onClose,
     initialTab,
     enabledExtensions,
@@ -48,147 +65,123 @@ export default function SettingsModal({
     onUpdateGroup,
     onShareGroup,
     onDeleteGroup,
-    onCreateGroup
+    onCreateGroup,
 }: SettingsModalProps) {
+    const t = useT();
+    const td = useTDynamic();
+    const [page, setPage] = useState<SettingsPageId>(resolvePage(initialTab));
+    const [subpage, setSubpage] = useState<string | null>(null);
+    // Schmale Breite: erst die Liste, dann die Unterseite. Ein ausdruecklicher Sprung (nicht "account") oeffnet direkt die Seite.
+    const [mobileView, setMobileView] = useState<MobileView>(initialTab && initialTab !== DEFAULT_PAGE ? 'page' : 'list');
 
-    const [activeTab, setActiveTab] = useState<SettingsTabId>(initialTab || 'account');
+    // Beim Seitenwechsel wieder nach oben springen
+    const scrollRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        scrollRef.current?.scrollTo({ top: 0 });
+    }, [page, subpage]);
 
     useEffect(() => {
-        if (initialTab) {
-            setActiveTab(initialTab);
-        }
-    }, [initialTab]);
-
-    const { language } = useDataStore();
-
-    // Reset tab when modal closes
-    useEffect(() => {
-        if (!isOpen) {
-            setActiveTab('account');
-        }
-    }, [isOpen]);
-
-    // Handle Escape key to close modal
-    useEffect(() => {
-        if (!isOpen) return;
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') {
-                onClose();
-            }
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
         };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, onClose]);
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onClose]);
 
-    if (!isOpen) return null;
+    const select = (p: SettingsPageId) => {
+        setPage(p);
+        setSubpage(null);
+        setMobileView('page');
+    };
 
-    const tabs = [
-        { id: 'account', label: 'Account', icon: User },
-        { id: 'calendar', label: 'Calendar', icon: Calendar },
-        { id: 'appearance', label: 'Appearance', icon: Palette },
-        { id: 'extensions', label: 'Extensions', icon: Puzzle },
-        { id: 'access', label: language === 'de' ? 'Zugriff' : 'Access', icon: KeyRound },
-        { id: 'info', label: 'Info', icon: Info },
-        { id: 'debug', label: 'Debug & Diagnose', icon: Wrench },
-    ];
+    const topTitle = mobileView === 'page' ? (subpage ? td(`ext.${subpage}.title`) : t(`nav.${page}`)) : t('title');
+    const mobileBack = () => {
+        if (subpage) setSubpage(null);
+        else setMobileView('list');
+    };
 
     return (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center pointer-events-none p-4 sm:p-0">
+        <div className="pointer-events-none fixed inset-0 z-[1000] flex items-center justify-center sm:p-6">
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={onClose}
-                className="absolute inset-0 bg-[#111827]/20 pointer-events-auto"
+                className="pointer-events-auto absolute inset-0"
+                style={{ backgroundColor: 'color-mix(in srgb, var(--t2-ink) 20%, transparent)' }}
             />
 
             <motion.div
-                layout
-                initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                initial={{ scale: 0.97, opacity: 0, y: 16 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="relative bg-white dark:bg-[#18181b] rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] overflow-hidden border border-[#e5e7eb] dark:border-zinc-800 flex flex-col pointer-events-auto w-full max-w-[900px] h-[85vh] sm:h-[650px]"
-                onClick={e => e.stopPropagation()}
+                transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+                role="dialog"
+                aria-modal="true"
+                aria-label={t('title')}
+                onClick={(e) => e.stopPropagation()}
+                className="pointer-events-auto relative flex h-full w-full max-w-[1060px] overflow-hidden bg-t2-bg text-[14px] leading-[1.45] text-t2-ink shadow-modal ring-1 ring-t2-line sm:h-[min(760px,92vh)] sm:rounded-modal"
             >
-                {/* Close Button */}
-                <button
-                    onClick={onClose}
-                    className="absolute top-6 right-6 h-[44px] w-[44px] rounded-[12px] bg-[#f9fafb] hover:bg-[#f3f4f6] dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-[#e5e7eb] dark:border-zinc-700 flex items-center justify-center text-[#111827] dark:text-zinc-200 cursor-pointer z-10 transition-colors"
-                    aria-label="Close settings"
-                >
-                    <X className="w-5 h-5" />
-                </button>
-
-                <div className="flex flex-col sm:flex-row h-full">
-                    {/* Permanent Sidebar Tab List */}
-                    <div className="w-full sm:w-64 border-b sm:border-b-0 sm:border-r border-[#e5e7eb] dark:border-zinc-800 p-6 flex flex-col gap-2 bg-[#f9fafb] dark:bg-[#18181b]/50">
-                        <div className="mb-8 px-2 hidden sm:block">
-                            <h2 className="text-2xl font-semibold text-[#111827] dark:text-white">Settings</h2>
-                        </div>
-
-                        <div className="flex flex-row sm:flex-col overflow-x-auto sm:overflow-visible gap-2 pb-2 sm:pb-0 custom-scrollbar">
-                            {tabs.map(tab => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as SettingsTabId)}
-                                    className={`flex items-center gap-3 px-4 py-3 rounded-[8px] transition-all whitespace-nowrap sm:whitespace-normal shrink-0 ${activeTab === tab.id ? 'bg-[#111827] text-white dark:bg-white dark:text-zinc-900 font-medium' : 'text-gray-600 dark:text-gray-400 hover:bg-[#f5f5f5] dark:hover:bg-zinc-800 font-medium'}`}
-                                >
-                                    <tab.icon className="w-5 h-5 shrink-0" />
-                                    <span className="font-medium text-sm">{tab.label}</span>
-                                </button>
-                            ))}
-                        </div>
+                {/* Liste der Gruppen */}
+                <aside className={cx('min-h-0 w-full shrink-0 flex-col gap-2.5 overflow-y-auto bg-t2-sub px-4 py-[18px] sm:flex sm:w-[240px] sm:px-2.5 sm:py-3.5', mobileView === 'page' ? 'hidden' : 'flex')}>
+                    <div className="flex items-center justify-between sm:block">
+                        <h1 className="px-1 py-1.5 text-[28px] font-semibold tracking-[-0.02em] sm:px-2.5 sm:pb-0 sm:pt-1 sm:text-[17px]">{t('title')}</h1>
+                        <button type="button" onClick={onClose} aria-label={t('common.close')} className="rounded-ui p-2 text-t2-ink-2 hover:bg-t2-hover sm:hidden">
+                            <X className="h-5 w-5" />
+                        </button>
                     </div>
+                    <SettingsNav active={page} onSelect={select} />
+                </aside>
 
-                    {/* Content Area */}
-                    <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-transparent">
-                        <div className="p-8 pb-4 border-b border-[#e5e7eb] dark:border-zinc-800 hidden sm:block">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{tabs.find(t => t.id === activeTab)?.label}</h2>
-                        </div>
+                {/* Seite */}
+                <div className={cx('relative min-h-0 min-w-0 flex-1 flex-col sm:flex', mobileView === 'list' ? 'hidden' : 'flex')}>
+                    <div className="sticky top-0 z-10 flex min-h-[48px] items-center border-b border-t2-line-soft bg-t2-bg px-1.5 sm:hidden">
+                        <button type="button" onClick={mobileBack} className="flex items-center gap-0.5 rounded-ui px-2 py-1.5 font-medium text-t2-accent">
+                            <ChevronLeft className="h-[15px] w-[15px]" aria-hidden />
+                            {subpage ? t('nav.extensions') : t('title')}
+                        </button>
+                        <b className="pointer-events-none absolute left-1/2 max-w-[40%] -translate-x-1/2 truncate font-semibold">{topTitle}</b>
+                        <button type="button" onClick={onClose} aria-label={t('common.close')} className="ml-auto rounded-ui p-2 text-t2-ink-2 hover:bg-t2-hover">
+                            <X className="h-5 w-5" />
+                        </button>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label={t('common.close')}
+                        className="absolute right-4 top-4 z-10 hidden h-9 w-9 items-center justify-center rounded-ui text-t2-ink-2 transition-colors hover:bg-t2-hover hover:text-t2-ink sm:flex"
+                    >
+                        <X className="h-[18px] w-[18px]" />
+                    </button>
 
-                        <div className="flex-1 overflow-y-auto p-6 sm:p-8 custom-scrollbar relative">
-                            <AnimatePresence mode="wait">
-                                <motion.div
-                                    key={activeTab}
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -10 }}
-                                    transition={{ duration: 0.15 }}
-                                    className="h-full"
-                                >
-                                    {activeTab === 'account' && (
-                                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                            <ProfileTab userProfile={userProfile} onClose={onClose} />
-                                            <SecurityVaultTab userProfile={userProfile} onLogout={onLogout} />
-                                        </div>
-                                    )}
-                                    {activeTab === 'calendar' && (
-                                        <CalendarTab
-                                            groups={groups}
-                                            hiddenGroupIds={hiddenGroupIds}
-                                            onToggleGroupVisibility={onToggleGroupVisibility}
-                                            onUpdateGroup={onUpdateGroup}
-                                            onShareGroup={onShareGroup}
-                                            onDeleteGroup={onDeleteGroup}
-                                            onCreateGroup={onCreateGroup}
-                                            enabledExtensions={enabledExtensions}
-                                        />
-                                    )}
-                                    {activeTab === 'appearance' && (
-                                        <AppearanceTab noteLayout={noteLayout} onSetNoteLayout={onSetNoteLayout} />
-                                    )}
-                                    {activeTab === 'extensions' && (
-                                        <IntegrationsTab
-                                            enabledExtensions={enabledExtensions}
-                                            onToggleExtension={onToggleExtension}
-                                            groups={groups}
-                                        />
-                                    )}
-                                    {activeTab === 'access' && <SyncCloudTab view="access" />}
-                                    {activeTab === 'info' && <SyncCloudTab view="info" />}
-                                    {activeTab === 'debug' && <DebugPluginSettings />}
-                                </motion.div>
-                            </AnimatePresence>
+                    <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+                        <div className="mx-auto max-w-[660px] px-5 pb-20 pt-[18px] sm:px-10 sm:pt-9">
+                            {page === 'account' && <AccountPage userProfile={userProfile} onClose={onClose} onLogout={onLogout} />}
+                            {page === 'appearance' && <AppearancePage />}
+                            {page === 'calendar' && (
+                                <CalendarPage
+                                    groups={groups}
+                                    hiddenGroupIds={hiddenGroupIds}
+                                    onToggleGroupVisibility={onToggleGroupVisibility}
+                                    onUpdateGroup={onUpdateGroup}
+                                    onShareGroup={onShareGroup}
+                                    onDeleteGroup={onDeleteGroup}
+                                    onCreateGroup={onCreateGroup}
+                                    enabledExtensions={enabledExtensions}
+                                />
+                            )}
+                            {page === 'notes' && <NotesPage noteLayout={noteLayout} onSetNoteLayout={onSetNoteLayout} />}
+                            {page === 'todos' && <TodosPage enabledExtensions={enabledExtensions} onToggleExtension={onToggleExtension} />}
+                            {page === 'extensions' && (
+                                <ExtensionsPage
+                                    enabledExtensions={enabledExtensions}
+                                    onToggleExtension={onToggleExtension}
+                                    groups={groups}
+                                    subpage={subpage}
+                                    onSubpage={setSubpage}
+                                />
+                            )}
+                            {page === 'access' && <AccessPage />}
+                            {page === 'about' && <AboutPage />}
                         </div>
                     </div>
                 </div>

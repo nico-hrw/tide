@@ -41,7 +41,7 @@ export interface DashboardModalsProps {
     // Settings Modal
     isSettingsModalOpen: boolean;
     onCloseSettingsModal: () => void;
-    initialSettingsTab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'info' | 'access';
+    initialSettingsTab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'notes' | 'todos' | 'about' | 'info' | 'access' | 'debug';
     enabledExtensions: string[];
     onToggleExtension: (extensionId: string, enabled: boolean) => void;
     userProfile?: {

@@ -63,9 +63,8 @@ export function SettingsCard({ tone = 'default', className, children }: Settings
         <div
             className={cx(
                 'overflow-hidden rounded-card bg-t2-surface shadow-sm [&>*+*]:border-t [&>*+*]:border-t2-line-soft',
-                tone === 'danger'
-                    ? 'ring-1 ring-t2-line shadow-[0_0_0_1px_color-mix(in_srgb,var(--t2-late)_32%,var(--t2-line))]'
-                    : 'ring-1 ring-t2-line',
+                'ring-1',
+                tone === 'danger' ? 'ring-[color-mix(in_srgb,var(--t2-late)_32%,var(--t2-line))]' : 'ring-t2-line',
                 className,
             )}
         >

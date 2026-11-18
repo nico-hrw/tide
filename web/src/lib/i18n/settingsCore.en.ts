@@ -195,6 +195,7 @@ export const settingsCoreEn: Record<keyof typeof settingsCoreDe, string> = {
     'notes.editorHint': 'Width and motion in the editor.',
     'notes.layout': 'Note layout',
     'notes.layoutDesc': 'How wide notes are shown in the editor.',
+    'notes.layout.a4': 'DIN A4 (page roll)',
     'notes.layout.thin': 'Narrow',
     'notes.layout.normal': 'Normal',
     'notes.layout.wide': 'Wide',
