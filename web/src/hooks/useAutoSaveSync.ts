@@ -47,6 +47,7 @@ export interface UseAutoSaveSyncOptions {
 }
 
 const IDLE_COMPACTION_MS = 15000; // 15 seconds idle inactivity trigger
+const OVERLAY_COMPACTION_MS = 3000; // images/strokes are deliberate actions: save sooner
 
 export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
     const [intKey, setIntKey] = useState<CryptoKey | null>(null);
@@ -441,6 +442,23 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
         }
         if (options.setEditorVersion) options.setEditorVersion(v => v + 1);
     }, [setEditorContent, setSaveStatus, options.setEditorVersion, triggerCompaction]);
+
+    // Images and pencil strokes live in the Yjs overlay, not in the editor document, so they never go
+    // through handleEditorChange. Without this they were only saved when text changed as well.
+    useEffect(() => {
+        const onOverlayChanged = () => {
+            const id = activeNoteIdRef.current;
+            if (!id) return;
+            unsavedNotesRef.current.add(id);
+            setSaveStatus("unsaved");
+            if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+            idleTimerRef.current = setTimeout(() => {
+                triggerCompaction(id);
+            }, OVERLAY_COMPACTION_MS);
+        };
+        window.addEventListener("tide:overlay-changed", onOverlayChanged);
+        return () => window.removeEventListener("tide:overlay-changed", onOverlayChanged);
+    }, [setSaveStatus, triggerCompaction]);
 
     // Backward-compatible triggerSave maps to checkpoint compaction
     const triggerSave = useCallback(async (noteId: string, fileKey?: CryptoKey | null, _content?: any) => {

@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { CanvasElement, ImageElement, TextWidgetElement, isImageElement, isTextWidget } from '@/types/canvas';
-import * as cryptoLib from '@/lib/crypto';
-import { apiFetch } from '@/lib/api';
+import { CanvasImageWidget } from './CanvasImageWidget';
 import { X, GripVertical, Shuffle, MoveUp, MoveDown } from 'lucide-react';
 
 interface CanvasElementProps {
@@ -187,71 +186,6 @@ function ContextMenu({ x, y, onChangeAnchor, onMoveLayer, onRemove, onClose }: {
             </button>
         </div>
     );
-}
-
-// ─── Image widget ─────────────────────────────────────────────────────────────
-
-function ImageWidget({ element, userId, privateKey, imageBlobCache }: {
-    element: ImageElement; userId: string; privateKey: CryptoKey | null;
-    imageBlobCache: React.MutableRefObject<Map<string, string>>;
-}) {
-    const [src, setSrc] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(false);
-    const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (element.blobId === '__pending__') { setLoading(true); setSrc(null); setError(false); return; }
-        const cached = imageBlobCache.current.get(element.blobId);
-        if (cached) { setSrc(cached); setLoading(false); return; }
-
-        let cancelled = false;
-        (async () => {
-            try {
-                let fileKey: CryptoKey;
-                    if (!privateKey) return;
-                    const meta = await cryptoLib.decryptMetadata(element.encryptedKey, privateKey);
-                    if (!meta || !meta.fileKey) {
-                        throw new Error('Missing fileKey in metadata');
-                    }
-                    fileKey = await window.crypto.subtle.importKey(
-                        'jwk', meta.fileKey as JsonWebKey, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']
-                    );
-                
-                const res = await apiFetch(`/api/v1/files/${element.blobId}/download`);
-                if (!res.ok) {
-                    const msg = `HTTP ${res.status} for blob ${element.blobId}`;
-                    console.error('[Canvas] Image download failed:', msg);
-                    if (!cancelled) { setError(true); setErrorMsg(msg); setLoading(false); }
-                    return;
-                }
-                const dec = await cryptoLib.decryptFile(await res.blob(), element.iv, fileKey);
-                const url = URL.createObjectURL(new Blob([await dec.arrayBuffer()], { type: element.mimeType }));
-                imageBlobCache.current.set(element.blobId, url);
-                if (!cancelled) { setSrc(url); setLoading(false); }
-            } catch (e: any) {
-                console.error('[Canvas] decrypt:', e);
-                if (!cancelled) { setError(true); setErrorMsg(e?.message || 'Decryption failed'); setLoading(false); }
-            }
-        })();
-        return () => { cancelled = true; };
-    }, [element.blobId, element.encryptedKey, element.iv, element.mimeType, userId, privateKey, imageBlobCache]);
-
-    if (loading) return (
-        <div style={{ width: element.width ?? 200, height: 120 }}
-            className="flex items-center justify-center rounded-xl bg-white/5 border border-white/10">
-            <div className="w-5 h-5 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin" />
-        </div>
-    );
-    if (error || !src) return (
-        <div style={{ width: element.width ?? 200, height: 80 }}
-            className="flex items-center justify-center rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-2 flex-col">
-            <span>Failed to load</span>
-            {errorMsg && <span className="block text-[10px] opacity-50 mt-1 max-w-full truncate">{errorMsg}</span>}
-        </div>
-    );
-    return <img src={src} alt="" draggable={false} className="rounded-lg block select-none"
-        style={{ width: element.width ?? 'auto', maxWidth: 600, maxHeight: 600, objectFit: 'contain' }} />;
 }
 
 // ─── Text widget ──────────────────────────────────────────────────────────────
@@ -585,7 +519,7 @@ export default function CanvasElementComponent({
                         </button>
                     </div>
                 )}
-                {isImageElement(element) && <ImageWidget element={element} userId={userId} privateKey={privateKey} imageBlobCache={imageBlobCache} />}
+                {isImageElement(element) && <CanvasImageWidget element={element} privateKey={privateKey} imageBlobCache={imageBlobCache} />}
                 {isTextWidget(element) && <TextWidget element={element} onUpdate={onUpdate} />}
                 {/* Resize handle for images — only shown on hover, desktop */}
                 {!isMobile && isImageElement(element) && pos !== null && !isBindingMode && (

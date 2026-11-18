@@ -41,8 +41,13 @@ export interface ImageElement extends BaseCanvasElement {
     type: 'image';
     /** ID of the encrypted blob in object storage */
     blobId: string;
-    /** Base64-encoded encrypted AES key (wrapped with the user's RSA public key) */
+    /** Legacy: base64 AES key wrapped with the owner's RSA public key. Empty for new images. */
     encryptedKey: string;
+    /**
+     * Base64 per-image key (BEK). Stored inside the encrypted sidecar, so everyone who can read the
+     * note can open the image. Present on every image created after the unified upload path.
+     */
+    bek?: string;
     /** Base64-encoded AES-GCM IV used to encrypt the blob */
     iv: string;
     /** Original MIME type of the image e.g. "image/png" */

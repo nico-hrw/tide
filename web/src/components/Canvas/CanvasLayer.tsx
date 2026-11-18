@@ -5,8 +5,7 @@ import * as Y from 'yjs';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import CanvasElementComponent from './CanvasElement';
 import { CanvasElement, ImageElement } from '@/types/canvas';
-import { apiFetch } from '@/lib/api';
-import * as cryptoLib from '@/lib/crypto';
+import { storeNoteImage } from '@/lib/noteImageAssets';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
 import type { OverlayStroke } from './useStyleFile';
 
@@ -106,7 +105,7 @@ function computeRelativeOffset(elementRect: DOMRect | null, anchorBlockId: strin
 }
 
 export default function CanvasLayer({
-    children, elements, isLoaded: _isLoaded, publicKey, privateKey, userId, noteId,
+    children, elements, isLoaded: _isLoaded, privateKey, userId, noteId,
     onElementMove, onElementAdd, onElementRemove, deletedBlockIds, onSaveAll,
     pendingBindBlockId, onBindingComplete, onUpdate, onInsertAnchor,
     hoveredElementId: _hoveredElementId, setHoveredElementId, isLinkingMode, activeLinkBlockId, onLinkingComplete,
@@ -134,6 +133,16 @@ export default function CanvasLayer({
     const storeDoc = useActiveNoteStore(s => s.activeYDoc);
     const effectiveDoc = propYDoc || storeDoc;
     const effectiveYOverlay = propYOverlay || (effectiveDoc ? effectiveDoc.getMap<Y.Map<unknown>>('overlay') : null);
+
+    // Local edits to the overlay (images, strokes) must trigger a save; see useAutoSaveSync.
+    useEffect(() => {
+        if (!effectiveYOverlay) return;
+        const notify = (_events: unknown, transaction: Y.Transaction) => {
+            if (transaction.local) window.dispatchEvent(new CustomEvent('tide:overlay-changed'));
+        };
+        effectiveYOverlay.observeDeep(notify);
+        return () => effectiveYOverlay.unobserveDeep(notify);
+    }, [effectiveYOverlay]);
 
     const [overlayStrokes, setOverlayStrokes] = useState<OverlayStroke[]>([]);
     const [currentDrawingStroke, setCurrentDrawingStroke] = useState<OverlayStroke | null>(null);
@@ -365,8 +374,12 @@ export default function CanvasLayer({
     }, [deletedBlockIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── Image upload ──────────────────────────────────────────────────────────
+    // One path for every image (see lib/noteImageAssets): the image gets its own key, which is kept
+    // in this note's encrypted sidecar. A failure is reported instead of silently dropping the image.
+    const [uploadError, setUploadError] = useState<string | null>(null);
+
     const uploadImage = useCallback(async (file: File, mouseX?: number, mouseY?: number) => {
-        if (!publicKey || !userId) return;
+        if (!noteId) return; // no note open: nowhere to attach the image
         let initialAnchorId: string | null = null;
         let initialOffsetX = 24, initialOffsetY = 0;
 
@@ -401,39 +414,24 @@ export default function CanvasLayer({
             offsetX: initialOffsetX, offsetY: initialOffsetY,
             blobId: '__pending__', encryptedKey: '', iv: '', mimeType: file.type,
         };
+        setUploadError(null);
         await onElementAdd(placeholder);
         try {
-            const fileKey = await cryptoLib.generateFileKey();
-            const exportedKey = await window.crypto.subtle.exportKey('jwk', fileKey);
-            const { iv, ciphertext } = await cryptoLib.encryptFile(file, fileKey);
-            const encryptedMeta = publicKey ? await cryptoLib.encryptMetadata({ title: `.canvas-img-${elementId}`, fileKey: exportedKey, iv }, publicKey) : '';
-            const createRes = await apiFetch('/api/v1/files', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'canvas-asset',
-                    parent_id: noteId,
-                    size: ciphertext.size,
-                    public_meta: {},
-                    secured_meta: encryptedMeta,
-                    visibility: 'private',
-                }),
-            });
-            if (!createRes.ok) throw new Error('Failed to create image record');
-            const newFile = await createRes.json() as { id: string };
-            await apiFetch(`/api/v1/files/${newFile.id}/upload`, { method: 'POST', body: ciphertext });
+            const stored = await storeNoteImage(noteId, file);
             await onElementRemove(elementId);
             await onElementAdd({
                 id: crypto.randomUUID(), type: 'image',
                 anchorBlockId: initialAnchorId as string,
                 offsetX: initialOffsetX, offsetY: initialOffsetY,
-                blobId: newFile.id, encryptedKey: encryptedMeta, iv, mimeType: file.type, width: 300,
+                blobId: stored.assetId, encryptedKey: '', bek: stored.bekBase64, iv: stored.ivBase64,
+                mimeType: stored.mimeType, width: 300,
             } as ImageElement);
         } catch (err) {
             console.error('[Canvas] Image upload failed:', err);
             await onElementRemove(elementId);
+            setUploadError('Das Bild konnte nicht hochgeladen werden. Bitte versuche es noch einmal.');
         }
-    }, [publicKey, userId, noteId, onElementAdd, onElementRemove, onInsertAnchor]);
+    }, [noteId, onElementAdd, onElementRemove, onInsertAnchor]);
 
     const handleDrop = useCallback(async (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -573,6 +571,12 @@ export default function CanvasLayer({
                 ))}
             </div>
 
+            {uploadError && (
+                <div role="alert" className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 rounded-[12px] bg-t2-surface px-4 py-2.5 text-[13px] text-t2-ink shadow-[0_0_0_1px_var(--t2-line),0_8px_24px_rgba(0,0,0,0.12)]">
+                    {uploadError}
+                    <button type="button" onClick={() => setUploadError(null)} className="text-t2-ink-3 hover:text-t2-ink">Schließen</button>
+                </div>
+            )}
             {/* Binding mode toast */}
             {isBindingMode && (
                 <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2 rounded-full bg-[#000080]/90 text-white text-sm shadow-xl pointer-events-none backdrop-blur-sm">
