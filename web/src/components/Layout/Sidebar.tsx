@@ -420,21 +420,9 @@ export default function Sidebar({
             </div>
 
 
-            {/* Bottom spacer — reserves height for the absolutely-positioned Smart Island.
-                Needs to be >= island height (≈250px) + bottom-6 margin (24px). */}
+            {/* Smart Island: Quadrat in der Seitenleiste, die Karte wächst per Portal darüber hinaus */}
             {navigationMode !== 'folders' && (
-                <div
-                    className={`flex-shrink-0 transition-all duration-200 ${
-                        !enabledExtensions || enabledExtensions.includes('todos') ? 'h-[270px]' : 'h-[220px]'
-                    }`}
-                />
-            )}
-
-            {/* Smart Island — absolutely positioned, extends beyond sidebar */}
-            {navigationMode !== 'folders' && (
-                <div className="absolute bottom-4 left-4 z-[500] flex flex-col gap-2 w-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] pointer-events-none [&>*]:pointer-events-auto">
-                    <SidebarIsland selectedDate={selectedDate} onSelect={onDateSelect} />
-                </div>
+                <SidebarIsland selectedDate={selectedDate} onSelect={onDateSelect} />
             )}
 
             <SidebarContextMenu

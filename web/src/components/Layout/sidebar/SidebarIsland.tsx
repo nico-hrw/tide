@@ -1,8 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
-import MiniCalendar from "@/components/Calendar/MiniCalendar";
-import { useCalendarEvents } from "@/store/useDataStore";
+import DesktopIsland from "@/components/island/DesktopIsland";
 
 interface SidebarIslandProps {
     selectedDate?: Date;
@@ -10,19 +8,13 @@ interface SidebarIslandProps {
 }
 
 /**
- * Smart Island der Seitenleiste (Desktop): dauerhaft der Mini-Kalender.
+ * Smart Island der Seitenleiste (Desktop): ein Quadrat unten links mit dem Monatsraster.
+ * Die Karte wächst aus dem Quadrat über die Seitenleisten-Grenze (Portal in DesktopIsland).
  */
 export default function SidebarIsland({ selectedDate, onSelect }: SidebarIslandProps) {
-    const { events: storeEvents } = useCalendarEvents();
-    // Store-Einträge sind generisch (DataItem); MiniCalendar braucht nur Start und Farbe.
-    const events = useMemo(
-        () => storeEvents as unknown as { start: string; color?: string; allDay?: boolean }[],
-        [storeEvents]
-    );
-
     return (
-        <div className="mt-auto flex-none rounded-[18px] bg-t2-surface p-3 shadow-[0_0_0_1px_var(--t2-line)]">
-            <MiniCalendar selectedDate={selectedDate} onSelect={onSelect} events={events} />
+        <div className="flex-none p-3">
+            <DesktopIsland slotClassName="block aspect-square w-full" selectedDate={selectedDate} onSelectDate={onSelect} />
         </div>
     );
 }
