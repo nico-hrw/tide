@@ -421,7 +421,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                   <div className="flex items-center gap-2 shrink-0">
                     {isOverdue && isMobileT2 && <MobileOverdue />}
                     {isOverdue && !isMobileT2 && (
-                      <span className="text-[11px] font-medium bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded whitespace-nowrap">
+                      <span className="text-[11px] font-medium bg-t2-hover text-t2-ink-2 px-1.5 py-0.5 rounded whitespace-nowrap">
                         Überfällig
                       </span>
                     )}
