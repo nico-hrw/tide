@@ -89,15 +89,15 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
     };
 
     return (
-        <div className="absolute right-0 top-12 w-88 max-w-[calc(100vw-2rem)] bg-white dark:bg-[#1a1a1a] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between bg-gray-50/70 dark:bg-white/[0.03]">
-                <div className="flex items-center gap-2 text-gray-800 dark:text-gray-200 font-semibold text-sm">
-                    <Users size={16} className="text-blue-500" />
+        <div className="absolute right-0 top-12 w-88 max-w-[calc(100vw-2rem)] bg-t2-surface  rounded-2xl shadow-2xl border border-t2-line-soft  z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 border-b border-t2-line-soft  flex items-center justify-between bg-t2-sub ">
+                <div className="flex items-center gap-2 text-t2-ink  font-semibold text-sm">
+                    <Users size={16} className="text-t2-accent" />
                     <span>Geteilter Zugriff</span>
                 </div>
                 <button 
                     onClick={onClose} 
-                    className="p-1 hover:bg-gray-200/60 dark:hover:bg-white/10 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                    className="p-1 hover:bg-t2-stage  rounded-full text-t2-ink-3 hover:text-t2-ink-2  transition-colors"
                 >
                     <X size={16} />
                 </button>
@@ -105,19 +105,19 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
             
             <div className="p-3 max-h-72 overflow-y-auto">
                 {loading ? (
-                    <div className="py-8 flex flex-col items-center justify-center gap-2 text-xs text-gray-400">
-                        <Loader2 size={20} className="animate-spin text-blue-500" />
+                    <div className="py-8 flex flex-col items-center justify-center gap-2 text-xs text-t2-ink-3">
+                        <Loader2 size={20} className="animate-spin text-t2-accent" />
                         <span>Lade Berechtigungen...</span>
                     </div>
                 ) : error ? (
                     <div className="py-6 text-center text-xs text-rose-500 font-medium">{error}</div>
                 ) : !isOwner ? (
                     <div className="p-4 flex flex-col items-center justify-center text-center space-y-2.5">
-                        <ShieldAlert size={32} className="text-blue-500 mb-1 opacity-80" />
-                        <p className="text-xs text-gray-700 dark:text-gray-300">
+                        <ShieldAlert size={32} className="text-t2-accent mb-1 opacity-80" />
+                        <p className="text-xs text-t2-ink ">
                             Der Eigentümer hat dieses Dokument mit dir geteilt.
                         </p>
-                        <div className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                        <div className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-t2-sub text-t2-accent  ">
                             Deine Rolle: {myPermission === 'view' ? 'Lesezugriff' : myPermission === 'edit' ? 'Bearbeiter' : 'Vollzugriff'}
                         </div>
                         {onLeave && (
@@ -130,7 +130,7 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
                         )}
                     </div>
                 ) : shares.length === 0 ? (
-                    <div className="py-6 text-center flex flex-col items-center justify-center text-gray-400 gap-2">
+                    <div className="py-6 text-center flex flex-col items-center justify-center text-t2-ink-3 gap-2">
                         <ShieldAlert size={28} className="opacity-40" />
                         <span className="text-xs">Noch mit niemandem geteilt.</span>
                     </div>
@@ -139,7 +139,7 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
                         {shares.map(share => (
                             <div 
                                 key={share.user_id} 
-                                className="flex items-center justify-between p-2.5 hover:bg-gray-50 dark:hover:bg-white/[0.04] rounded-xl group transition-colors border border-transparent hover:border-gray-100 dark:hover:border-white/5"
+                                className="flex items-center justify-between p-2.5 hover:bg-t2-sub  rounded-xl group transition-colors border border-transparent hover:border-t2-line-soft "
                             >
                                 <div className="flex items-center gap-2.5 min-w-0 pr-2">
                                     <Avatar 
@@ -148,10 +148,10 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
                                         size={32} 
                                     />
                                     <div className="flex flex-col min-w-0">
-                                        <span className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
+                                        <span className="text-xs font-medium text-t2-ink  truncate">
                                             {share.username || 'Unbekannter Nutzer'}
                                         </span>
-                                        <span className="text-[10px] text-gray-400">
+                                        <span className="text-[10px] text-t2-ink-3">
                                             {share.status === 'accepted' ? 'Akzeptiert' : 'Ausstehend'}
                                         </span>
                                     </div>
@@ -160,7 +160,7 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
                                     <select
                                         value={share.permission}
                                         onChange={(e) => handleUpdatePermission(share.user_id, e.target.value)}
-                                        className="text-[11px] bg-gray-100 dark:bg-white/10 hover:bg-gray-200/70 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 font-medium rounded-lg px-2 py-1 border-none focus:ring-1 focus:ring-blue-500 cursor-pointer transition-colors"
+                                        className="text-[11px] bg-t2-hover  hover:bg-t2-stage  text-t2-ink  font-medium rounded-lg px-2 py-1 border-none focus:ring-1 focus:ring-t2-accent cursor-pointer transition-colors"
                                     >
                                         <option value="view">Lesen</option>
                                         <option value="edit">Bearbeiten</option>
@@ -169,7 +169,7 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
                                     <button 
                                         onClick={() => handleRevoke(share.user_id)}
                                         disabled={revokingId === share.user_id}
-                                        className="p-1.5 text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg opacity-0 group-hover:opacity-100 transition-all shrink-0 disabled:opacity-50"
+                                        className="p-1.5 text-t2-ink-3 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg opacity-0 group-hover:opacity-100 transition-all shrink-0 disabled:opacity-50"
                                         title="Zugriff entfernen"
                                     >
                                         <UserMinus size={14} />

@@ -146,10 +146,10 @@ export default function CloudStatusBanner() {
                     </div>
                 </div>
             ) : isSyncing ? (
-                <div className="flex items-center justify-between gap-3 px-3.5 py-2 rounded-2xl bg-purple-500/10 dark:bg-purple-500/15 border border-purple-500/25 backdrop-blur-xl shadow-xl text-purple-900 dark:text-purple-200 text-xs">
+                <div className="flex items-center justify-between gap-3 px-3.5 py-2 rounded-2xl bg-t2-sub  border border-t2-accent backdrop-blur-xl shadow-xl text-t2-accent  text-xs">
                     <div className="flex items-center gap-2.5">
-                        <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                            <RefreshCw size={13} className="animate-spin text-purple-600 dark:text-purple-400" />
+                        <div className="w-6 h-6 rounded-full bg-t2-sub flex items-center justify-center flex-shrink-0">
+                            <RefreshCw size={13} className="animate-spin text-t2-accent " />
                         </div>
                         <span className="font-medium">
                             Synchronisiere {pendingCount} Änderung{pendingCount > 1 ? 'en' : ''} mit der Cloud...

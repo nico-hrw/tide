@@ -158,8 +158,8 @@ export default function JobPlanner({
     return (
         <div className="flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto relative select-none">
             {/* Clean, uncluttered Sticky Header */}
-            <div className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 py-5 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md">
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
+            <div className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 py-5 border-b border-t2-line  bg-t2-surface  backdrop-blur-md">
+                <h1 className="text-xl font-bold text-t2-ink  leading-tight">
                     {headerTitle}
                 </h1>
 
@@ -167,7 +167,7 @@ export default function JobPlanner({
                 {onOpenSettings && (
                     <button
                         onClick={() => onOpenSettings('extensions')}
-                        className="p-2.5 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                        className="p-2.5 rounded-xl text-t2-ink-3 hover:text-t2-ink  hover:bg-t2-hover  transition-colors"
                         title="Plugin-Einstellungen öffnen"
                     >
                         <Settings size={20} />
@@ -200,15 +200,15 @@ export default function JobPlanner({
             {/* Event Quick Create Modal */}
             {createModal.isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-                    <div className="w-full max-w-sm bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl p-5 animate-in fade-in zoom-in-95 duration-150">
-                        <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-white/5">
-                            <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <Clock size={16} className="text-blue-500" />
+                    <div className="w-full max-w-sm bg-t2-surface  border border-t2-line  rounded-2xl shadow-2xl p-5 animate-in fade-in zoom-in-95 duration-150">
+                        <div className="flex items-center justify-between pb-3 border-b border-t2-line-soft ">
+                            <h3 className="text-sm font-bold text-t2-ink  flex items-center gap-2">
+                                <Clock size={16} className="text-t2-accent" />
                                 Neuer Termin
                             </h3>
                             <button
                                 onClick={() => setCreateModal(prev => ({ ...prev, isOpen: false }))}
-                                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                className="p-1 rounded-lg text-t2-ink-3 hover:text-t2-ink-2 "
                             >
                                 <X size={16} />
                             </button>
@@ -216,7 +216,7 @@ export default function JobPlanner({
 
                         <div className="space-y-3 py-4 text-xs">
                             <div>
-                                <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block font-semibold text-t2-ink  mb-1">
                                     Titel
                                 </label>
                                 <input
@@ -224,13 +224,13 @@ export default function JobPlanner({
                                     placeholder="z.B. Mathematik Vorlesung, Schicht A..."
                                     value={createModal.title}
                                     onChange={(e) => setCreateModal(prev => ({ ...prev, title: e.target.value }))}
-                                    className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white outline-none focus:border-blue-500"
+                                    className="w-full px-3 py-2 rounded-xl border border-t2-line  bg-t2-sub  text-t2-ink  outline-none focus:border-t2-accent"
                                     autoFocus
                                 />
                             </div>
 
                             <div>
-                                <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block font-semibold text-t2-ink  mb-1">
                                     Raum / Ort / Notiz
                                 </label>
                                 <input
@@ -238,30 +238,30 @@ export default function JobPlanner({
                                     placeholder="z.B. Raum A1.01, Homeoffice..."
                                     value={createModal.room}
                                     onChange={(e) => setCreateModal(prev => ({ ...prev, room: e.target.value }))}
-                                    className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white outline-none focus:border-blue-500"
+                                    className="w-full px-3 py-2 rounded-xl border border-t2-line  bg-t2-sub  text-t2-ink  outline-none focus:border-t2-accent"
                                 />
                             </div>
 
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    <label className="block font-semibold text-t2-ink  mb-1">
                                         Datum
                                     </label>
                                     <input
                                         type="date"
                                         value={createModal.date}
                                         onChange={(e) => setCreateModal(prev => ({ ...prev, date: e.target.value }))}
-                                        className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white outline-none focus:border-blue-500"
+                                        className="w-full px-3 py-2 rounded-xl border border-t2-line  bg-t2-sub  text-t2-ink  outline-none focus:border-t2-accent"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    <label className="block font-semibold text-t2-ink  mb-1">
                                         Uhrzeit
                                     </label>
                                     <select
                                         value={createModal.startHour}
                                         onChange={(e) => setCreateModal(prev => ({ ...prev, startHour: Number(e.target.value) }))}
-                                        className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white outline-none focus:border-blue-500"
+                                        className="w-full px-3 py-2 rounded-xl border border-t2-line  bg-t2-sub  text-t2-ink  outline-none focus:border-t2-accent"
                                     >
                                         {Array.from({ length: 24 }).map((_, h) => (
                                             <option key={h} value={h}>
@@ -273,17 +273,17 @@ export default function JobPlanner({
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 dark:border-white/5">
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-t2-line-soft ">
                             <button
                                 onClick={() => setCreateModal(prev => ({ ...prev, isOpen: false }))}
-                                className="px-3 py-1.5 text-xs font-semibold rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                                className="px-3 py-1.5 text-xs font-semibold rounded-xl text-t2-ink-2  hover:bg-t2-hover  transition-colors"
                             >
                                 Abbrechen
                             </button>
                             <button
                                 onClick={handleSaveNewEvent}
                                 disabled={!createModal.title.trim()}
-                                className="px-4 py-1.5 text-xs font-semibold rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-xs"
+                                className="px-4 py-1.5 text-xs font-semibold rounded-xl bg-t2-accent text-t2-accent-ink hover:opacity-90 disabled:opacity-50 transition-colors shadow-xs"
                             >
                                 Speichern
                             </button>

@@ -224,14 +224,14 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
       {/* Header: Live Month/Year indicator & Quick-jump return to today */}
       <div className="flex items-center justify-between px-2 pb-1.5">
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-black tracking-wider uppercase text-zinc-900 dark:text-white">
+          <span className="text-[11px] font-black tracking-wider uppercase text-t2-ink ">
             {format(activeDate, 'MMMM yyyy', { locale: de })}
           </span>
           {selectedDate && (
             <button
               type="button"
               onClick={() => onSelectDate(null)}
-              className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors cursor-pointer"
+              className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-t2-sub  text-t2-accent  hover:bg-t2-sub  transition-colors cursor-pointer"
             >
               Alle anzeigen
             </button>
@@ -242,7 +242,7 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
           <button
             type="button"
             onClick={handleJumpToToday}
-            className="h-6 px-2 flex items-center gap-1 rounded-lg text-[10px] font-bold tracking-tight bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300 border border-gray-200/80 dark:border-white/10 transition-transform active:scale-95 cursor-pointer shrink-0"
+            className="h-6 px-2 flex items-center gap-1 rounded-lg text-[10px] font-bold tracking-tight bg-t2-hover  hover:bg-t2-hover  text-t2-ink  border border-t2-line  transition-transform active:scale-95 cursor-pointer shrink-0"
             title={isAfter(today, activeDate) ? 'Vor zu Heute' : 'Zurück zu Heute'}
           >
             <span>Heute</span>
@@ -301,8 +301,8 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
                 <span
                   className={`text-[10px] uppercase tracking-wider ${
                     isActive || isDateToday
-                      ? 'text-black dark:text-white font-black'
-                      : 'text-zinc-700 dark:text-zinc-300 font-bold'
+                      ? 'text-t2-ink font-black'
+                      : 'text-t2-ink  font-bold'
                   }`}
                 >
                   {weekday}
@@ -310,8 +310,8 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
                 <span
                   className={`text-lg leading-none mt-0.5 ${
                     isActive || isDateToday
-                      ? 'text-black dark:text-white font-black'
-                      : 'text-zinc-700 dark:text-zinc-300 font-bold'
+                      ? 'text-t2-ink font-black'
+                      : 'text-t2-ink  font-bold'
                   }`}
                 >
                   {format(d, 'd')}
@@ -324,7 +324,7 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
                       ? 'bg-transparent'
                       : dayStat?.hasOverdue
                       ? 'bg-rose-500'
-                      : 'bg-blue-500'
+                      : 'bg-t2-accent'
                   }`}
                 />
               </button>

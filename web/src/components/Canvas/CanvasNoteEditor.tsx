@@ -689,13 +689,13 @@ export default function CanvasNoteEditor({
             </div>
 
             {/* Zoom controls */}
-            <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-white/90 dark:bg-gray-900/90 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 shadow-sm z-10">
-                <button onClick={() => zoomBy(-0.1)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors" aria-label="Zoom out">
-                    <ZoomOut size={14} className="text-gray-500 dark:text-slate-400" />
+            <div className="absolute bottom-4 right-4 flex items-center gap-1 bg-t2-surface  border border-t2-line  rounded-lg px-2 py-1 shadow-sm z-10">
+                <button onClick={() => zoomBy(-0.1)} className="p-1 hover:bg-t2-hover  rounded transition-colors" aria-label="Zoom out">
+                    <ZoomOut size={14} className="text-t2-ink-2 " />
                 </button>
-                <span className="text-xs text-gray-500 dark:text-slate-400 w-10 text-center">{Math.round(zoom * 100)}%</span>
-                <button onClick={() => zoomBy(0.1)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors" aria-label="Zoom in">
-                    <ZoomIn size={14} className="text-gray-500 dark:text-slate-400" />
+                <span className="text-xs text-t2-ink-2  w-10 text-center">{Math.round(zoom * 100)}%</span>
+                <button onClick={() => zoomBy(0.1)} className="p-1 hover:bg-t2-hover  rounded transition-colors" aria-label="Zoom in">
+                    <ZoomIn size={14} className="text-t2-ink-2 " />
                 </button>
             </div>
         </div>

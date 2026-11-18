@@ -23,8 +23,8 @@ export const NoteVersionDiffView: React.FC<NoteVersionDiffViewProps> = ({
     // 1. Loading state
     if (isLoading) {
         return (
-            <div className="flex flex-col items-center justify-center p-12 min-h-[220px] text-gray-500 dark:text-gray-400 select-none">
-                <Loader2 className="w-6 h-6 animate-spin mb-3 text-blue-500" />
+            <div className="flex flex-col items-center justify-center p-12 min-h-[220px] text-t2-ink-2  select-none">
+                <Loader2 className="w-6 h-6 animate-spin mb-3 text-t2-accent" />
                 <p className="text-sm">Speicherstand wird geladen und entschlüsselt...</p>
             </div>
         );
@@ -57,11 +57,11 @@ export const NoteVersionDiffView: React.FC<NoteVersionDiffViewProps> = ({
         return (
             <div className="w-full">
                 {isEmpty ? (
-                    <div className="text-sm italic text-gray-400 dark:text-gray-500 py-6 text-center select-none">
+                    <div className="text-sm italic text-t2-ink-3  py-6 text-center select-none">
                         Diese Version ist leer.
                     </div>
                 ) : (
-                    <div className="w-full max-w-none prose prose-sm sm:prose-base dark:prose-invert font-sans leading-relaxed whitespace-pre-wrap select-text text-gray-800 dark:text-gray-200">
+                    <div className="w-full max-w-none prose prose-sm sm:prose-base dark:prose-invert font-sans leading-relaxed whitespace-pre-wrap select-text text-t2-ink ">
                         {liveText}
                     </div>
                 )}
@@ -78,11 +78,11 @@ export const NoteVersionDiffView: React.FC<NoteVersionDiffViewProps> = ({
         <div className="w-full">
             {/* Diff content or empty notice */}
             {isCompletelyEmpty ? (
-                <div className="text-sm italic text-gray-400 dark:text-gray-500 py-6 text-center select-none">
+                <div className="text-sm italic text-t2-ink-3  py-6 text-center select-none">
                     Diese Version ist leer.
                 </div>
             ) : (
-                <div className="w-full max-w-none prose prose-sm sm:prose-base dark:prose-invert font-sans leading-relaxed whitespace-pre-wrap select-text text-gray-800 dark:text-gray-200">
+                <div className="w-full max-w-none prose prose-sm sm:prose-base dark:prose-invert font-sans leading-relaxed whitespace-pre-wrap select-text text-t2-ink ">
                     {diffChanges.map((change, i) => {
                         if (change.type === 'added') {
                             return (
@@ -105,7 +105,7 @@ export const NoteVersionDiffView: React.FC<NoteVersionDiffViewProps> = ({
                             );
                         }
                         return (
-                            <span key={i} className="text-gray-800 dark:text-gray-200">
+                            <span key={i} className="text-t2-ink ">
                                 {change.text}
                             </span>
                         );

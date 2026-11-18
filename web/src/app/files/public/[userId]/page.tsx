@@ -132,7 +132,7 @@ export default function PublicProfilePage() {
                 <h1 className="text-2xl font-bold">Public Files: {userId}</h1>
                 <button
                     onClick={() => router.push("/")}
-                    className="px-4 py-2 border dark:border-slate-700 rounded hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                    className="px-4 py-2 border dark:border-slate-700 rounded hover:bg-t2-hover  transition-colors"
                 >
                     Go to My Dashboard
                 </button>
@@ -150,24 +150,24 @@ export default function PublicProfilePage() {
 
             <div className="grid gap-4">
                 {files.length === 0 ? (
-                    <div className="text-gray-500 dark:text-slate-400 text-center py-12">No public files found.</div>
+                    <div className="text-t2-ink-2  text-center py-12">No public files found.</div>
                 ) : (
                     files.map(file => (
                         <div key={file.id}
-                            className="p-4 border border-gray-100 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm flex justify-between items-center cursor-pointer hover:shadow-md hover:border-blue-200 dark:hover:border-blue-800 transition-all active:scale-[0.99]"
+                            className="p-4 border border-t2-line-soft  rounded-xl bg-t2-surface  shadow-sm flex justify-between items-center cursor-pointer hover:shadow-md hover:border-t2-line  transition-all active:scale-[0.99]"
                             onClick={() => handlePreview(file)}
                         >
                             <div className="flex-1 min-w-0 pr-4">
-                                <div className="font-bold text-lg text-gray-900 dark:text-slate-100 truncate">
+                                <div className="font-bold text-lg text-t2-ink  truncate">
                                     {file.public_meta?.name || file.public_meta?.title || "Untitled"}
                                 </div>
-                                <div className="text-sm text-gray-500 dark:text-slate-400">
+                                <div className="text-sm text-t2-ink-2 ">
                                     {file.type} • {(file.size / 1024).toFixed(1)} KB • {new Date(file.updated_at).toLocaleDateString()}
                                 </div>
                             </div>
                             <button
                                 onClick={(e) => { e.stopPropagation(); handleCopy(file.id); }}
-                                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-semibold px-4 py-1.5 border border-blue-100 dark:border-blue-800/40 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors shrink-0"
+                                className="text-t2-accent  hover:text-t2-accent  font-semibold px-4 py-1.5 border border-t2-line  rounded-lg hover:bg-t2-sub  transition-colors shrink-0"
                                 title="Copy to my vault"
                             >
                                 Copy to Vault
@@ -180,26 +180,26 @@ export default function PublicProfilePage() {
             {/* Preview Modal */}
             {previewFile && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-                    <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className="p-4 border-b border-gray-100 dark:border-white/5 flex justify-between items-center">
-                            <h3 className="font-bold text-xl text-gray-900 dark:text-white">
+                    <div className="bg-t2-surface  rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                        <div className="p-4 border-b border-t2-line-soft  flex justify-between items-center">
+                            <h3 className="font-bold text-xl text-t2-ink ">
                                 {previewFile.public_meta?.name || previewFile.public_meta?.title || "Untitled"}
                             </h3>
-                            <button onClick={closePreview} className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">✕</button>
+                            <button onClick={closePreview} className="w-8 h-8 rounded-full flex items-center justify-center text-t2-ink-3 hover:text-t2-ink-2  hover:bg-t2-hover  transition-colors">✕</button>
                         </div>
-                        <div className="p-6 flex-1 overflow-auto bg-gray-50 dark:bg-black/20 font-mono text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+                        <div className="p-6 flex-1 overflow-auto bg-t2-sub  font-mono text-sm whitespace-pre-wrap text-t2-ink ">
                             {isPreviewLoading ? (
-                                <div className="flex flex-col items-center justify-center h-full gap-3 text-gray-400">
-                                    <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                <div className="flex flex-col items-center justify-center h-full gap-3 text-t2-ink-3">
+                                    <div className="w-6 h-6 border-2 border-t2-accent border-t-transparent rounded-full animate-spin"></div>
                                     <span>Loading content...</span>
                                 </div>
                             ) : previewContent}
                         </div>
-                        <div className="p-4 border-t border-gray-100 dark:border-white/5 flex justify-end gap-3 bg-gray-50/50 dark:bg-white/5">
-                            <button onClick={closePreview} className="px-5 py-2.5 border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-white dark:hover:bg-white/5 transition-colors">
+                        <div className="p-4 border-t border-t2-line-soft  flex justify-end gap-3 bg-t2-sub ">
+                            <button onClick={closePreview} className="px-5 py-2.5 border border-t2-line  rounded-xl text-sm font-medium text-t2-ink-2  hover:bg-t2-surface  transition-colors">
                                 Close
                             </button>
-                            <button onClick={handleKeepFromPreview} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 transition-all hover:scale-105 active:scale-95">
+                            <button onClick={handleKeepFromPreview} className="px-5 py-2.5 bg-t2-accent hover:opacity-90 text-t2-accent-ink rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 transition-all hover:scale-105 active:scale-95">
                                 Keep (Copy to Vault)
                             </button>
                         </div>

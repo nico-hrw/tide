@@ -635,7 +635,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                     className={`
                                     group flex items-center justify-between relative overflow-hidden
                                     w-full text-xs font-semibold px-2 py-1 rounded cursor-pointer transition-all
-                                    ${isHighlightedEvent ? 'ring-2 ring-purple-500 ring-offset-1 dark:ring-offset-[#1A1A1A]' : 'opacity-90 hover:opacity-100'}
+                                    ${isHighlightedEvent ? 'ring-2 ring-t2-accent ring-offset-1 dark:ring-offset-[#1A1A1A]' : 'opacity-90 hover:opacity-100'}
                                     ${event.is_cancelled ? 'opacity-40 line-through grayscale font-normal' : ''}
                                 `}
                                     style={{ 
@@ -733,8 +733,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                                     className={`
                                                     group flex items-center justify-between relative overflow-hidden
                                                     text-xs font-semibold px-2 py-1 rounded cursor-pointer transition-all
-                                                    ${isSubtask ? 'pl-4 ml-2 border-l-2 border-indigo-400/30 dark:border-indigo-500/30 w-[calc(100%-8px)]' : 'w-full'}
-                                                    ${isHighlightedEvent ? 'ring-2 ring-purple-500 ring-offset-1 dark:ring-offset-[#1A1A1A]' : 'opacity-90 hover:opacity-100'}
+                                                    ${isSubtask ? 'pl-4 ml-2 border-l-2 border-t2-accent  w-[calc(100%-8px)]' : 'w-full'}
+                                                    ${isHighlightedEvent ? 'ring-2 ring-t2-accent ring-offset-1 dark:ring-offset-[#1A1A1A]' : 'opacity-90 hover:opacity-100'}
                                                     ${event.is_cancelled ? 'opacity-40 line-through grayscale font-normal' : ''}
                                                     ${isCompleted ? 'opacity-60' : ''}
                                                 `}
@@ -948,7 +948,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 {Array.from({ length: 24 }).map((_, i) => (
                     <div
                         key={i}
-                        className={`border-b border-dashed ${isToday ? 'border-indigo-200 dark:border-indigo-800' : 'border-t2-line '} ${hoveredHour === i ? 'bg-t2-hover ' : 'bg-transparent'}`}
+                        className={`border-b border-dashed ${isToday ? 'border-t2-line ' : 'border-t2-line '} ${hoveredHour === i ? 'bg-t2-hover ' : 'bg-transparent'}`}
                         style={{ height: 'var(--hour-height, 48px)' }}
                         onMouseEnter={() => onHourHover && onHourHover(i)}
                         onMouseLeave={() => onHourHover && onHourHover(null)}

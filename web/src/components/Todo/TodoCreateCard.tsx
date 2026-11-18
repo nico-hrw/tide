@@ -39,14 +39,14 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
   isSubmitting, handleAddTask, handleAddCustomTag, handleRemoveCustomTag, onClose,
 }) => {
   return (
-            <div className="bg-white dark:bg-[#1a1a1a] border border-blue-500/30 dark:border-blue-500/30 rounded-2xl p-4 sm:p-5 shadow-2xs transition-all">
+            <div className="bg-t2-surface  border border-t2-accent  rounded-2xl p-4 sm:p-5 shadow-2xs transition-all">
               <form onSubmit={handleAddTask} className="flex flex-col gap-3 sm:gap-3.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Plus size={16} className="text-blue-500" />
-                    <h3 className="text-sm font-bold text-gray-900 dark:text-white">Neue Aufgabe erstellen</h3>
+                    <Plus size={16} className="text-t2-accent" />
+                    <h3 className="text-sm font-bold text-t2-ink ">Neue Aufgabe erstellen</h3>
                   </div>
-                  <button type="button" onClick={() => onClose()} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-lg transition-colors cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center" aria-label="Schließen">
+                  <button type="button" onClick={() => onClose()} className="p-1.5 text-t2-ink-3 hover:text-t2-ink-2  rounded-lg transition-colors cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center" aria-label="Schließen">
                     <X size={16} />
                   </button>
                 </div>
@@ -55,19 +55,19 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                   ref={titleInputRef}
                   type="text" value={draft.title} onChange={(e) => setDraft((p) => ({ ...p, title: e.target.value }))}
                   placeholder="Was möchtest du erledigen?..." autoFocus
-                  className="w-full px-4 py-2.5 text-sm bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 min-h-[40px]"
+                  className="w-full px-4 py-2.5 text-sm bg-t2-sub  border border-t2-line  rounded-xl text-t2-ink  placeholder-t2-ink-3  focus:outline-none focus:ring-2 focus:ring-t2-accent min-h-[40px]"
                 />
 
                 <textarea
                   value={draft.description} onChange={(e) => setDraft((p) => ({ ...p, description: e.target.value }))}
                   placeholder="Optionale Notiz oder Beschreibung..." rows={2}
-                  className="w-full px-4 py-2 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
+                  className="w-full px-4 py-2 text-xs bg-t2-sub  border border-t2-line  rounded-xl text-t2-ink  placeholder-t2-ink-3  focus:outline-none focus:ring-2 focus:ring-t2-accent resize-none"
                 />
 
                 {/* Tag selector chips in Create Form */}
                 <div className="flex flex-col gap-1.5 pt-0.5">
-                  <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 font-medium">
-                    <Tag size={13} className="text-blue-500" />
+                  <div className="flex items-center gap-1.5 text-xs text-t2-ink-2  font-medium">
+                    <Tag size={13} className="text-t2-accent" />
                     <span>Tags:</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -85,20 +85,20 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                           }}
                           className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
                             isSelected
-                              ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/40 shadow-2xs'
-                              : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'
+                              ? 'bg-t2-sub text-t2-accent  border-t2-accent shadow-2xs'
+                              : 'bg-t2-hover  text-t2-ink-2  border-t2-line  hover:border-t2-line '
                           }`}
                         >
                           <span>#{tag}</span>
                           {isSelected ? (
-                            <Check size={11} className="text-blue-500" />
+                            <Check size={11} className="text-t2-accent" />
                           ) : customTags.includes(tag) ? (
                             <span
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleRemoveCustomTag(tag);
                               }}
-                              className="text-gray-400 hover:text-rose-500 ml-0.5 p-0.5 transition-colors"
+                              className="text-t2-ink-3 hover:text-rose-500 ml-0.5 p-0.5 transition-colors"
                               title={`Tag "${tag}" löschen`}
                             >
                               <X size={10} />
@@ -108,8 +108,8 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                       );
                     })}
 
-                    <div className="inline-flex items-center gap-1 bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-lg px-2 py-0.5">
-                      <span className="text-xs text-gray-400">#</span>
+                    <div className="inline-flex items-center gap-1 bg-t2-sub  border border-t2-line  rounded-lg px-2 py-0.5">
+                      <span className="text-xs text-t2-ink-3">#</span>
                       <input
                         type="text"
                         value={newTagInput}
@@ -128,7 +128,7 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                           }
                         }}
                         placeholder="Neuer Tag..."
-                        className="w-20 sm:w-24 text-xs bg-transparent text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none py-0.5"
+                        className="w-20 sm:w-24 text-xs bg-transparent text-t2-ink  placeholder-t2-ink-3  focus:outline-none py-0.5"
                       />
                       {newTagInput.trim() && (
                         <button
@@ -143,7 +143,7 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                               setNewTagInput('');
                             }
                           }}
-                          className="text-blue-600 dark:text-blue-400 hover:text-blue-700 p-0.5 cursor-pointer"
+                          className="text-t2-accent  hover:text-t2-accent p-0.5 cursor-pointer"
                           title="Tag hinzufügen"
                         >
                           <Plus size={12} />
@@ -153,25 +153,25 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                   </div>
                 </div>
 
-                <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-1 border-t border-gray-100 dark:border-white/5">
+                <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-1 border-t border-t2-line-soft ">
                   <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
                     <select
                       value={draft.priority} onChange={(e) => setDraft((p) => ({ ...p, priority: e.target.value as Priority }))}
-                      className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer min-h-[36px]"
+                      className="px-3 py-1.5 text-xs font-medium bg-t2-sub  border border-t2-line  rounded-xl text-t2-ink  focus:outline-none focus:ring-2 focus:ring-t2-accent cursor-pointer min-h-[36px]"
                       aria-label="Priorität"
                     >
                       {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
 
                     <div className="flex items-center gap-1.5 flex-1 sm:flex-none min-w-[130px]">
-                      <Folder size={14} className="text-blue-500 shrink-0" />
+                      <Folder size={14} className="text-t2-accent shrink-0" />
                       <input
                         list="todo-folder-options"
                         type="text"
                         value={draft.folder}
                         onChange={(e) => setDraft((p) => ({ ...p, folder: e.target.value }))}
                         placeholder="Ordner (optional)"
-                        className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 w-full sm:w-44 min-h-[36px]"
+                        className="px-3 py-1.5 text-xs font-medium bg-t2-sub  border border-t2-line  rounded-xl text-t2-ink  placeholder-t2-ink-3  focus:outline-none focus:ring-2 focus:ring-t2-accent w-full sm:w-44 min-h-[36px]"
                       />
                       <datalist id="todo-folder-options">
                         {allFolders.map((f) => (
@@ -182,7 +182,7 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                         <button
                           type="button"
                           onClick={() => setDraft((p) => ({ ...p, folder: '' }))}
-                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 min-w-[28px] min-h-[28px] flex items-center justify-center"
+                          className="text-t2-ink-3 hover:text-t2-ink-2  p-1 min-w-[28px] min-h-[28px] flex items-center justify-center"
                           title="Ordner entfernen"
                         >
                           <X size={12} />
@@ -192,14 +192,14 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
 
                     <input
                       type="date" value={draft.dueDate} onChange={(e) => setDraft((p) => ({ ...p, dueDate: e.target.value }))}
-                      className="px-3 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer min-h-[36px]"
+                      className="px-3 py-1.5 text-xs font-medium bg-t2-sub  border border-t2-line  rounded-xl text-t2-ink  focus:outline-none focus:ring-2 focus:ring-t2-accent cursor-pointer min-h-[36px]"
                       aria-label="Fälligkeitsdatum"
                     />
                     <div className="flex items-center gap-1.5">
-                      <Repeat size={14} className="text-purple-500 shrink-0" />
+                      <Repeat size={14} className="text-t2-accent shrink-0" />
                       <select
                         value={draft.recurrence} onChange={(e) => setDraft((p) => ({ ...p, recurrence: e.target.value as RecurrenceType }))}
-                        className="px-3 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer min-h-[36px]"
+                        className="px-3 py-1.5 text-xs bg-t2-sub  border border-t2-line  rounded-xl text-t2-ink  focus:outline-none cursor-pointer min-h-[36px]"
                         aria-label="Wiederholung"
                       >
                         {RECURRENCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -207,32 +207,32 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                     </div>
                     {draft.recurrence !== 'none' && (
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs text-gray-500 dark:text-gray-400">Bis:</span>
+                        <span className="text-xs text-t2-ink-2 ">Bis:</span>
                         <input
                           type="date" value={draft.recurrenceEnd} onChange={(e) => setDraft((p) => ({ ...p, recurrenceEnd: e.target.value }))}
-                          className="px-3 py-1.5 text-xs bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none cursor-pointer min-h-[36px]"
+                          className="px-3 py-1.5 text-xs bg-t2-sub  border border-t2-line  rounded-xl text-t2-ink  focus:outline-none cursor-pointer min-h-[36px]"
                           aria-label="Wiederholen bis"
                         />
                       </div>
                     )}
 
-                    <label className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#242424] border border-gray-200 dark:border-white/10 rounded-xl text-gray-700 dark:text-gray-300 cursor-pointer min-h-[36px] select-none hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
-                      <Calendar size={14} className="text-blue-500 shrink-0" />
+                    <label className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium bg-t2-sub  border border-t2-line  rounded-xl text-t2-ink  cursor-pointer min-h-[36px] select-none hover:bg-t2-hover  transition-colors">
+                      <Calendar size={14} className="text-t2-accent shrink-0" />
                       <span>Im Kalender anzeigen</span>
                       <input
                         type="checkbox"
                         checked={draft.showInCalendar}
                         onChange={(e) => setDraft((p) => ({ ...p, showInCalendar: e.target.checked }))}
-                        className="rounded border-gray-300 dark:border-white/20 text-blue-600 focus:ring-blue-500/40 cursor-pointer h-3.5 w-3.5 ml-1"
+                        className="rounded border-t2-line  text-t2-accent focus:ring-t2-accent cursor-pointer h-3.5 w-3.5 ml-1"
                       />
                     </label>
                   </div>
 
                   <div className="flex items-center justify-end gap-2 w-full sm:w-auto pt-2 sm:pt-0">
-                    <button type="button" onClick={() => onClose()} className="flex-1 sm:flex-none px-3 py-2 text-xs rounded-xl font-medium bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer min-h-[36px]">
+                    <button type="button" onClick={() => onClose()} className="flex-1 sm:flex-none px-3 py-2 text-xs rounded-xl font-medium bg-t2-hover hover:bg-t2-stage   text-t2-ink  transition-colors cursor-pointer min-h-[36px]">
                       Abbrechen
                     </button>
-                    <button type="submit" disabled={!draft.title.trim() || isSubmitting} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-xs cursor-pointer min-h-[36px]">
+                    <button type="submit" disabled={!draft.title.trim() || isSubmitting} className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-xs cursor-pointer min-h-[36px]">
                       <Plus size={14} /><span>Aufgabe hinzufügen</span>
                     </button>
                   </div>

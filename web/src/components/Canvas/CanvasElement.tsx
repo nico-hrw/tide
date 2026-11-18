@@ -237,23 +237,23 @@ function TextWidget({ element, onUpdate }: { element: TextWidgetElement; onUpdat
                 <div className="absolute -bottom-10 left-0 hidden group-hover/text:flex items-center gap-1.5 p-1 rounded-lg bg-gray-900/90 border border-white/10 backdrop-blur-md z-[1001] shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
                     <button 
                         onClick={() => onUpdate(element.id, { colorMode: 'black' })}
-                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 ${colorMode === 'black' ? 'ring-2 ring-indigo-500 ring-offset-1 ring-offset-gray-900' : ''}`}
+                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 ${colorMode === 'black' ? 'ring-2 ring-t2-accent ring-offset-1 ring-offset-gray-900' : ''}`}
                         style={{ background: '#000' }}
                         title="Black"
                     />
                     <button 
                         onClick={() => onUpdate(element.id, { colorMode: 'white' })}
-                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 ${colorMode === 'white' ? 'ring-2 ring-indigo-500 ring-offset-1 ring-offset-gray-900' : ''}`}
+                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 ${colorMode === 'white' ? 'ring-2 ring-t2-accent ring-offset-1 ring-offset-gray-900' : ''}`}
                         style={{ background: '#fff' }}
                         title="White"
                     />
                     <button 
                         onClick={() => onUpdate(element.id, { colorMode: 'inverse' })}
-                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 flex items-center justify-center overflow-hidden group/inv ${colorMode === 'inverse' ? 'ring-2 ring-indigo-500 ring-offset-1 ring-offset-gray-900' : ''}`}
+                        className={`w-6 h-6 rounded-md border border-white/20 transition-all hover:scale-110 flex items-center justify-center overflow-hidden group/inv ${colorMode === 'inverse' ? 'ring-2 ring-t2-accent ring-offset-1 ring-offset-gray-900' : ''}`}
                         title="Smart Inverse"
                     >
                         <div className="w-full h-full flex flex-col">
-                            <div className="flex-1 bg-white" />
+                            <div className="flex-1 bg-t2-surface" />
                             <div className="flex-1 bg-black" />
                         </div>
                     </button>
@@ -267,7 +267,7 @@ function TextWidget({ element, onUpdate }: { element: TextWidgetElement; onUpdat
                 onFocus={() => setIsEditing(true)}
                 onBlur={handleBlur}
                 style={textStyle}
-                className={`transition-all duration-200 ${isEditing ? 'ring-1 ring-indigo-500/50 bg-indigo-500/[0.02]' : 'hover:ring-1 hover:ring-white/10'}`}
+                className={`transition-all duration-200 ${isEditing ? 'ring-1 ring-t2-accent bg-t2-sub' : 'hover:ring-1 hover:ring-white/10'}`}
                 onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                         e.currentTarget.blur();
@@ -549,10 +549,10 @@ export default function CanvasElementComponent({
                 {!isMobile && pos !== null && !isBindingMode && (
                     <div className="absolute -top-7 left-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity
             bg-gray-900/80 backdrop-blur-sm rounded-lg px-1.5 py-0.5 border border-white/10 z-10 whitespace-nowrap">
-                        <GripVertical size={12} className="text-gray-400 dark:text-slate-500" />
-                        <span className="text-xs text-gray-400 select-none">{isImageElement(element) ? 'Image' : 'Text'}</span>
+                        <GripVertical size={12} className="text-t2-ink-3 " />
+                        <span className="text-xs text-t2-ink-3 select-none">{isImageElement(element) ? 'Image' : 'Text'}</span>
                         {isUnbound && <span className="text-xs text-amber-400 ml-1">· unbound</span>}
-                        <button className="ml-1 text-gray-400 hover:text-red-400 transition-colors"
+                        <button className="ml-1 text-t2-ink-3 hover:text-red-400 transition-colors"
                             onMouseDown={(e) => { e.stopPropagation(); onRemove(element.id); }}>
                             <X size={12} />
                         </button>

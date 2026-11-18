@@ -212,7 +212,7 @@ function SegmentedDigitInput({
                     onKeyDown={(e) => handleKeyDown(i, e)}
                     onPaste={handlePaste}
                     className={`${inputClassName} rounded-none bg-transparent border-0 border-b-2 ${
-                        hasError ? "border-b-red-500 text-red-900" : "border-b-gray-300 text-gray-900 focus:border-b-gray-900"
+                        hasError ? "border-b-red-500 text-red-900" : "border-b-gray-300 text-t2-ink focus:border-b-gray-900"
                     } focus:outline-none transition-colors duration-200`}
                 />
             ))}
@@ -225,11 +225,11 @@ function ActionButton({ loading, disabled, label }: { loading: boolean; disabled
         <button
             type="submit"
             disabled={disabled}
-            className="group flex items-center text-gray-900 text-lg tracking-wide hover:text-gray-600 transition-colors duration-300 focus:outline-none disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+            className="group flex items-center text-t2-ink text-lg tracking-wide hover:text-t2-ink-2 transition-colors duration-300 focus:outline-none disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
         >
             <span className="font-medium mr-4">{label}</span>
             {loading ? (
-                <Loader2 className="w-6 h-6 animate-spin text-gray-600" />
+                <Loader2 className="w-6 h-6 animate-spin text-t2-ink-2" />
             ) : (
                 <svg
                     className="w-6 h-6 transform transition-transform duration-300 group-hover:translate-x-2"
@@ -673,12 +673,12 @@ function AuthContent() {
             {/* Container with generous whitespace towards the right */}
             <div className="w-full max-w-7xl mx-auto px-8 md:px-16 lg:px-24 py-12 flex flex-col items-start relative z-10">
                 <div className="max-w-xl w-full">
-                    <span className="text-sm font-bold tracking-[0.4em] text-gray-900 uppercase mb-3 sm:mb-4 block select-none">
+                    <span className="text-sm font-bold tracking-[0.4em] text-t2-ink uppercase mb-3 sm:mb-4 block select-none">
                         TIDE
                     </span>
 
                     {devCode && (
-                        <div className="mb-8 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-50/80 border border-blue-200/80 text-xs text-blue-700">
+                        <div className="mb-8 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-t2-sub border border-t2-line text-xs text-t2-accent">
                             <span className="font-semibold">Bestätigungscode (Dev):</span>
                             <span className="font-mono tracking-widest font-bold">{devCode}</span>
                             {step === "code" && (
@@ -690,7 +690,7 @@ function AuthContent() {
                                         chars.forEach((c, idx) => { next[idx] = c; });
                                         setCodeDigits(next);
                                     }}
-                                    className="underline hover:text-blue-900 ml-1 text-[11px] font-medium cursor-pointer"
+                                    className="underline hover:text-t2-accent ml-1 text-[11px] font-medium cursor-pointer"
                                 >
                                     Ausfüllen
                                 </button>
@@ -701,7 +701,7 @@ function AuthContent() {
                     {/* ─── Step 1: Identifier (Email) ─────────────────────────────── */}
                     {step === "identifier" && (
                         <div>
-                            <h1 className="text-5xl md:text-6xl font-medium tracking-tight text-gray-900 mb-12 leading-tight">
+                            <h1 className="text-5xl md:text-6xl font-medium tracking-tight text-t2-ink mb-12 leading-tight">
                                 Dein Studium, <br />
                                 endlich im Flow.
                             </h1>
@@ -723,9 +723,9 @@ function AuthContent() {
                                         }}
                                         className={`w-full bg-transparent border-0 border-b ${
                                             errorMessage
-                                                ? "border-b-red-500 text-gray-900 focus:border-b-red-500"
-                                                : "border-b-gray-300 focus:border-b-gray-900 text-gray-800"
-                                        } py-2 px-0 text-xl font-light placeholder:text-gray-300 focus:outline-none transition-colors duration-300`}
+                                                ? "border-b-red-500 text-t2-ink focus:border-b-red-500"
+                                                : "border-b-gray-300 focus:border-b-gray-900 text-t2-ink"
+                                        } py-2 px-0 text-xl font-light placeholder:text-t2-ink-3 focus:outline-none transition-colors duration-300`}
                                     />
                                     <div
                                         className={`absolute left-0 top-full mt-2 text-sm text-red-500 transition-opacity duration-300 pointer-events-none ${
@@ -748,7 +748,7 @@ function AuthContent() {
                                 />
                             </form>
 
-                            <p className="text-lg text-gray-500 font-light leading-relaxed max-w-md">
+                            <p className="text-lg text-t2-ink-2 font-light leading-relaxed max-w-md">
                                 Notizen, Termine und Todos in einer minimalistischen App vereint, um deinen Kopf frei zu halten.
                             </p>
 
@@ -758,7 +758,7 @@ function AuthContent() {
                                         <span>🛠️ Dev / Demo Schnellzugriff</span>
                                         <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20">Kein OTP / PIN</span>
                                     </div>
-                                    <p className="text-gray-500 dark:text-gray-400 mb-3 text-[11px]">
+                                    <p className="text-t2-ink-2  mb-3 text-[11px]">
                                         Direkter 1-Klick Login für schnelle Tests und Entwicklung ohne E-Mail.
                                     </p>
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -766,7 +766,7 @@ function AuthContent() {
                                             type="button"
                                             onClick={() => handleDevQuickLogin('disposable')}
                                             disabled={isDevLoggingIn}
-                                            className="px-2.5 py-2 rounded-xl bg-white dark:bg-white/5 border border-amber-500/30 hover:border-amber-500 font-medium text-gray-800 dark:text-gray-200 transition-colors text-center cursor-pointer"
+                                            className="px-2.5 py-2 rounded-xl bg-t2-surface  border border-amber-500/30 hover:border-amber-500 font-medium text-t2-ink  transition-colors text-center cursor-pointer"
                                         >
                                             ⚡ Einmal-Gast
                                         </button>
@@ -774,7 +774,7 @@ function AuthContent() {
                                             type="button"
                                             onClick={() => handleDevQuickLogin('persistent', 'Dev Alice')}
                                             disabled={isDevLoggingIn}
-                                            className="px-2.5 py-2 rounded-xl bg-white dark:bg-white/5 border border-amber-500/30 hover:border-amber-500 font-medium text-gray-800 dark:text-gray-200 transition-colors text-center cursor-pointer"
+                                            className="px-2.5 py-2 rounded-xl bg-t2-surface  border border-amber-500/30 hover:border-amber-500 font-medium text-t2-ink  transition-colors text-center cursor-pointer"
                                         >
                                             👤 Dev Alice
                                         </button>
@@ -782,7 +782,7 @@ function AuthContent() {
                                             type="button"
                                             onClick={() => handleDevQuickLogin('persistent', 'Dev Bob')}
                                             disabled={isDevLoggingIn}
-                                            className="px-2.5 py-2 rounded-xl bg-white dark:bg-white/5 border border-amber-500/30 hover:border-amber-500 font-medium text-gray-800 dark:text-gray-200 transition-colors text-center cursor-pointer"
+                                            className="px-2.5 py-2 rounded-xl bg-t2-surface  border border-amber-500/30 hover:border-amber-500 font-medium text-t2-ink  transition-colors text-center cursor-pointer"
                                         >
                                             👥 Dev Bob
                                         </button>
@@ -795,19 +795,19 @@ function AuthContent() {
                     {/* ─── Step 2: Code Verification ──────────────────────────────── */}
                     {step === "code" && (
                         <div>
-                            <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-gray-900 mb-4 sm:mb-6 leading-tight">
+                            <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-t2-ink mb-4 sm:mb-6 leading-tight">
                                 Bestätigungscode
                             </h1>
 
-                            <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
-                                Mail an <span className="font-medium text-gray-900">{identifier}</span> gesendet. Nicht deine Mail?{" "}
+                            <p className="text-base sm:text-lg text-t2-ink-2 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
+                                Mail an <span className="font-medium text-t2-ink">{identifier}</span> gesendet. Nicht deine Mail?{" "}
                                 <button
                                     type="button"
                                     onClick={() => {
                                         setStep("identifier");
                                         setErrorMessage("");
                                     }}
-                                    className="font-medium text-gray-900 underline underline-offset-4 hover:text-gray-600 transition-colors cursor-pointer"
+                                    className="font-medium text-t2-ink underline underline-offset-4 hover:text-t2-ink-2 transition-colors cursor-pointer"
                                 >
                                     Mail ändern
                                 </button>
@@ -852,11 +852,11 @@ function AuthContent() {
                     {/* ─── Step 3: PIN Unlock (Vault) ─────────────────────────────── */}
                     {step === "pin" && (
                         <div>
-                            <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-gray-900 mb-4 sm:mb-6 leading-tight">
+                            <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-t2-ink mb-4 sm:mb-6 leading-tight">
                                 Tresor entsperren
                             </h1>
 
-                            <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
+                            <p className="text-base sm:text-lg text-t2-ink-2 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
                                 Gib deinen 5-stelligen PIN ein, um deinen privaten Tresor zu entschlüsseln.
                             </p>
 
@@ -896,7 +896,7 @@ function AuthContent() {
                                             setStep("code");
                                             setErrorMessage("");
                                         }}
-                                        className="text-sm font-medium text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                                        className="text-sm font-medium text-t2-ink-3 hover:text-t2-ink transition-colors cursor-pointer"
                                     >
                                         Zurück
                                     </button>
@@ -908,23 +908,23 @@ function AuthContent() {
                     {/* ─── Step 4: Register Flow (Konto erstellen) ────────────────── */}
                     {step === "details" && (
                         <div>
-                            <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-gray-900 mb-4 sm:mb-6 leading-tight">
+                            <h1 className="text-4xl sm:text-5xl font-medium tracking-tight text-t2-ink mb-4 sm:mb-6 leading-tight">
                                 Konto erstellen
                             </h1>
 
-                            <p className="text-base sm:text-lg text-gray-500 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
+                            <p className="text-base sm:text-lg text-t2-ink-2 font-light leading-relaxed max-w-md mb-8 sm:mb-10">
                                 Wähle deinen Namen und erstelle einen sicheren 5-stelligen PIN für deinen privaten Tresor.
                             </p>
 
-                            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/70 backdrop-blur-md border border-gray-200/80 mb-6 text-sm text-gray-700 max-w-sm">
-                                <span className="font-medium text-gray-900 truncate">{identifier}</span>
+                            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-t2-surface backdrop-blur-md border border-t2-line mb-6 text-sm text-t2-ink max-w-sm">
+                                <span className="font-medium text-t2-ink truncate">{identifier}</span>
                                 <button
                                     type="button"
                                     onClick={() => {
                                         setStep("identifier");
                                         setErrorMessage("");
                                     }}
-                                    className="text-xs font-semibold text-gray-500 hover:text-gray-900 underline ml-3 shrink-0 cursor-pointer"
+                                    className="text-xs font-semibold text-t2-ink-2 hover:text-t2-ink underline ml-3 shrink-0 cursor-pointer"
                                 >
                                     Ändern
                                 </button>
@@ -932,7 +932,7 @@ function AuthContent() {
 
                             <form onSubmit={handleFinalSubmit} className="w-full relative mb-12" noValidate>
                                 <div className="mb-6 max-w-sm">
-                                    <label className="block text-xs font-semibold tracking-wider uppercase text-gray-500 mb-2">
+                                    <label className="block text-xs font-semibold tracking-wider uppercase text-t2-ink-2 mb-2">
                                         Dein Name
                                     </label>
                                     <input
@@ -944,15 +944,15 @@ function AuthContent() {
                                             setName(e.target.value);
                                             if (errorMessage) setErrorMessage("");
                                         }}
-                                        className="w-full bg-transparent border-0 border-b border-gray-300 focus:border-b-gray-900 py-2.5 px-0 text-xl font-light text-gray-900 placeholder:text-gray-300 focus:outline-none transition-colors duration-300"
+                                        className="w-full bg-transparent border-0 border-b border-t2-line focus:border-b-gray-900 py-2.5 px-0 text-xl font-light text-t2-ink placeholder:text-t2-ink-3 focus:outline-none transition-colors duration-300"
                                     />
                                 </div>
 
                                 <div className="mb-8 max-w-sm">
-                                    <label className="block text-xs font-semibold tracking-wider uppercase text-gray-500 mb-2">
+                                    <label className="block text-xs font-semibold tracking-wider uppercase text-t2-ink-2 mb-2">
                                         5-stelliger PIN
                                     </label>
-                                    <p className="text-xs text-gray-500 mb-3 font-light">
+                                    <p className="text-xs text-t2-ink-2 mb-3 font-light">
                                         Mit diesem PIN wird dein privater Tresor auf deinem Gerät verschlüsselt.
                                     </p>
                                     <div className="relative w-fit">
@@ -984,7 +984,7 @@ function AuthContent() {
                                             setStep("identifier");
                                             setErrorMessage("");
                                         }}
-                                        className="text-sm font-medium text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                                        className="text-sm font-medium text-t2-ink-3 hover:text-t2-ink transition-colors cursor-pointer"
                                     >
                                         Abbrechen
                                     </button>
@@ -1000,7 +1000,7 @@ function AuthContent() {
 
 export default function Auth() {
     return (
-        <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400">Laden...</div>}>
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-t2-ink-3">Laden...</div>}>
             <AuthContent />
         </Suspense>
     );

@@ -270,7 +270,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
         <button
           type="button"
           onClick={handleCancel}
-          className="text-blue-500 font-medium text-[16px] hover:text-blue-600 transition-colors px-2 py-1 cursor-pointer"
+          className="text-t2-accent font-medium text-[16px] hover:text-t2-accent transition-colors px-2 py-1 cursor-pointer"
         >
           Abbrechen
         </button>
@@ -288,8 +288,8 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
           onClick={() => handleSubmit()}
           className={`font-semibold text-[16px] transition-colors px-2 py-1 ${
             title.trim() && !isSubmitting
-              ? 'text-blue-500 hover:text-blue-600 cursor-pointer'
-              : 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
+              ? 'text-t2-accent hover:text-t2-accent cursor-pointer'
+              : 'text-t2-ink-3  cursor-not-allowed'
           }`}
         >
           Hinzufügen
@@ -312,7 +312,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
           <div className="flex items-center gap-4">
             {/* Color Swatch & Native Color Picker */}
             <div
-              className="relative shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700 cursor-pointer transition-transform active:scale-95"
+              className="relative shrink-0 w-8 h-8 rounded-full overflow-hidden shadow-sm border border-t2-line  cursor-pointer transition-transform active:scale-95"
               style={{ backgroundColor: color }}
               title="Farbe wählen"
             >
@@ -332,7 +332,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Titel"
-              className="w-full text-2xl font-semibold outline-none bg-transparent placeholder-gray-300 dark:placeholder-gray-600"
+              className="w-full text-2xl font-semibold outline-none bg-transparent placeholder-t2-ink-3 "
               style={{ color: isDark ? '#ffffff' : '#111827' }}
             />
           </div>
@@ -379,7 +379,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                 style={{ borderColor: isDark ? '#262b38' : '#f3f4f6' }}
               >
                 <div className="flex items-center gap-2.5">
-                  <Calendar size={18} className="text-blue-500" />
+                  <Calendar size={18} className="text-t2-accent" />
                   <span
                     className="text-[16px]"
                     style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
@@ -391,7 +391,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                   type="date"
                   value={dateStr}
                   onChange={(e) => setDateStr(e.target.value)}
-                  className="text-right text-[16px] text-gray-500 dark:text-gray-400 bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer"
+                  className="text-right text-[16px] text-t2-ink-2  bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer"
                   style={{ colorScheme: isDark ? 'dark' : 'light' }}
                 />
               </div>
@@ -402,7 +402,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                 style={{ borderColor: isDark ? '#262b38' : '#f3f4f6' }}
               >
                 <div className="flex items-center gap-2.5">
-                  <Clock size={18} className="text-blue-500" />
+                  <Clock size={18} className="text-t2-accent" />
                   <span
                     className="text-[16px]"
                     style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
@@ -414,7 +414,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="text-right text-[16px] text-gray-500 dark:text-gray-400 bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer"
+                  className="text-right text-[16px] text-t2-ink-2  bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer"
                   style={{ colorScheme: isDark ? 'dark' : 'light' }}
                 />
               </div>
@@ -422,7 +422,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
               {/* Event End Time */}
               <div className="flex justify-between items-center px-4 py-3.5">
                 <div className="flex items-center gap-2.5">
-                  <Clock size={18} className="text-blue-400 opacity-60" />
+                  <Clock size={18} className="text-t2-accent opacity-60" />
                   <span
                     className="text-[16px]"
                     style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
@@ -434,7 +434,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="text-right text-[16px] text-gray-500 dark:text-gray-400 bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer"
+                  className="text-right text-[16px] text-t2-ink-2  bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer"
                   style={{ colorScheme: isDark ? 'dark' : 'light' }}
                 />
               </div>
@@ -459,7 +459,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                   type="date"
                   value={dueDateStr}
                   onChange={(e) => setDueDateStr(e.target.value)}
-                  className="text-right text-[16px] text-gray-500 dark:text-gray-400 bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer"
+                  className="text-right text-[16px] text-t2-ink-2  bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer"
                   style={{ colorScheme: isDark ? 'dark' : 'light' }}
                 />
               </div>
@@ -479,7 +479,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                   type="time"
                   value={dueTimeStr}
                   onChange={(e) => setDueTimeStr(e.target.value)}
-                  className="text-right text-[16px] text-gray-500 dark:text-gray-400 bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer"
+                  className="text-right text-[16px] text-t2-ink-2  bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer"
                   style={{ colorScheme: isDark ? 'dark' : 'light' }}
                 />
               </div>
@@ -526,8 +526,8 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                     onClick={() => setPriority(item.id)}
                     className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                       priority === item.id
-                        ? 'bg-white dark:bg-gray-800 text-blue-600 dark:text-blue-400 shadow-xs'
-                        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                        ? 'bg-t2-surface  text-t2-accent  shadow-xs'
+                        : 'text-t2-ink-2 hover:text-t2-ink '
                     }`}
                   >
                     {item.label}
@@ -542,7 +542,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
               style={{ borderColor: isDark ? '#262b38' : '#f3f4f6' }}
             >
               <div className="flex items-center gap-2.5">
-                <Tag size={18} className="text-gray-400" />
+                <Tag size={18} className="text-t2-ink-3" />
                 <span
                   className="text-[16px]"
                   style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
@@ -555,7 +555,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                 value={tagsInput}
                 onChange={(e) => setTagsInput(e.target.value)}
                 placeholder="#Hinzufügen"
-                className="text-right text-[16px] text-gray-500 dark:text-gray-400 bg-transparent outline-none w-auto flex-1 ml-4"
+                className="text-right text-[16px] text-t2-ink-2  bg-transparent outline-none w-auto flex-1 ml-4"
               />
             </div>
 
@@ -571,7 +571,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                 type="checkbox"
                 checked={showInCalendar}
                 onChange={(e) => setShowInCalendar(e.target.checked)}
-                className="h-5 w-5 accent-blue-600 rounded cursor-pointer"
+                className="h-5 w-5 accent-t2-accent rounded cursor-pointer"
               />
             </div>
           </div>
@@ -587,7 +587,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
         >
           <div className="flex justify-between items-center px-4 py-3.5">
             <div className="flex items-center gap-2.5">
-              <Repeat size={18} className="text-purple-500" />
+              <Repeat size={18} className="text-t2-accent" />
               <span
                 className="text-[16px]"
                 style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
@@ -598,7 +598,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
             <select
               value={repeatOption}
               onChange={(e) => setRepeatOption(e.target.value as RecurrenceType)}
-              className="text-right text-[16px] text-gray-500 dark:text-gray-400 bg-transparent outline-none cursor-pointer appearance-none pr-1"
+              className="text-right text-[16px] text-t2-ink-2  bg-transparent outline-none cursor-pointer appearance-none pr-1"
             >
               <option value="nie">Nie</option>
               <option value="daily">Täglich</option>
@@ -629,7 +629,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                   Intervall
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-500 text-sm">alle</span>
+                  <span className="text-t2-ink-2 text-sm">alle</span>
                   <input
                     type="number"
                     min={1}
@@ -638,14 +638,14 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                     onChange={(e) =>
                       setRepeatInterval(Math.max(1, parseInt(e.target.value, 10) || 1))
                     }
-                    className="w-14 text-center border rounded-md py-1 text-[16px] outline-none focus:border-blue-400"
+                    className="w-14 text-center border rounded-md py-1 text-[16px] outline-none focus:border-t2-accent"
                     style={{
                       background: isDark ? '#20242d' : '#ffffff',
                       borderColor: isDark ? '#374151' : '#e5e7eb',
                       color: isDark ? '#ffffff' : '#111827',
                     }}
                   />
-                  <span className="text-gray-500 text-sm w-[60px] text-right">
+                  <span className="text-t2-ink-2 text-sm w-[60px] text-right">
                     {repeatUnitLabel}
                   </span>
                 </div>
@@ -663,7 +663,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                   type="date"
                   value={repeatEndDate}
                   onChange={(e) => setRepeatEndDate(e.target.value)}
-                  className="text-right text-[16px] text-gray-500 dark:text-gray-400 bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer"
+                  className="text-right text-[16px] text-t2-ink-2  bg-transparent outline-none w-auto flex-1 ml-4 cursor-pointer"
                   style={{ colorScheme: isDark ? 'dark' : 'light' }}
                 />
               </div>

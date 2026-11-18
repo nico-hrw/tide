@@ -428,7 +428,7 @@ export default function CalendarView({
                             size={20}
                             strokeWidth={2.5}
                             style={{ transform: `rotate(${todayAngle}deg)` }}
-                            className="transition-transform duration-150 text-indigo-600 dark:text-indigo-400 group-hover:scale-110"
+                            className="transition-transform duration-150 text-t2-accent  group-hover:scale-110"
                         />
                         <span className="text-[10px] font-bold uppercase tracking-wider">Today</span>
                     </button>

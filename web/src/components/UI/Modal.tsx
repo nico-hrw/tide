@@ -81,7 +81,7 @@ export const Modal: React.FC<ModalProps> = ({
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className={`w-full ${maxWidth} max-h-[calc(100vh-64px)] flex flex-col bg-white dark:bg-[#18181b] rounded-modal border border-border shadow-modal overflow-hidden ${className}`.trim()}
+            className={`w-full ${maxWidth} max-h-[calc(100vh-64px)] flex flex-col bg-t2-surface  rounded-modal border border-border shadow-modal overflow-hidden ${className}`.trim()}
           >
             {(title || description || showCloseButton) && (
               <div
@@ -94,7 +94,7 @@ export const Modal: React.FC<ModalProps> = ({
                     typeof title === 'string' ? (
                       <h2
                         id="modal-title"
-                        className="text-2xl font-semibold leading-9 text-[#111827] dark:text-white"
+                        className="text-2xl font-semibold leading-9 text-t2-ink "
                       >
                         {title}
                       </h2>
@@ -106,7 +106,7 @@ export const Modal: React.FC<ModalProps> = ({
                     typeof description === 'string' ? (
                       <p
                         id="modal-description"
-                        className="text-base leading-6 text-[#596170] dark:text-zinc-400 mt-1"
+                        className="text-base leading-6 text-t2-ink-2  mt-1"
                       >
                         {description}
                       </p>
@@ -120,7 +120,7 @@ export const Modal: React.FC<ModalProps> = ({
                     type="button"
                     onClick={onClose}
                     aria-label="Close dialog"
-                    className="h-[44px] w-[44px] shrink-0 rounded-[12px] bg-[#f9fafb] hover:bg-[#f3f4f6] dark:bg-zinc-800 dark:hover:bg-zinc-700 border border-border flex items-center justify-center transition-colors text-[#111827] dark:text-zinc-200 cursor-pointer"
+                    className="h-[44px] w-[44px] shrink-0 rounded-[12px] bg-t2-sub hover:bg-t2-hover   border border-border flex items-center justify-center transition-colors text-t2-ink  cursor-pointer"
                   >
                     <X size={20} strokeWidth={1.7} />
                   </button>

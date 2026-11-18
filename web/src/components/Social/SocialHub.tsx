@@ -176,30 +176,30 @@ export default function SocialHub({
         const isAlreadySent = Boolean(sentRequests[targetId] || localSent[targetId]);
 
         return (
-            <div key={key} className="bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 p-5 rounded-2xl shadow-xs hover:border-gray-300 dark:hover:border-white/20 transition-all flex flex-col justify-between gap-4">
+            <div key={key} className="bg-t2-surface  border border-t2-line  p-5 rounded-2xl shadow-xs hover:border-t2-line  transition-all flex flex-col justify-between gap-4">
                 <div>
                     <div className="flex items-center gap-3">
                         <Avatar seed={(user.avatar_seed || user.username || targetId) + (user.avatar_salt || '')} style={user.avatar_style} size={48} />
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
-                                <h3 className="font-bold text-gray-900 dark:text-white text-sm truncate">{user.username || 'Benutzer'}</h3>
+                                <h3 className="font-bold text-t2-ink  text-sm truncate">{user.username || 'Benutzer'}</h3>
                                 {user.owner_is_verified && <CheckCircle2 className="w-3.5 h-3.5 fill-green-500 text-white shrink-0" />}
                             </div>
-                            {user.title && <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider truncate">{user.title}</p>}
+                            {user.title && <p className="text-[10px] font-semibold text-t2-ink-3 uppercase tracking-wider truncate">{user.title}</p>}
                         </div>
                     </div>
-                    {user.bio && <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mt-3 italic">&ldquo;{user.bio}&rdquo;</p>}
+                    {user.bio && <p className="text-xs text-t2-ink-2  line-clamp-2 mt-3 italic">&ldquo;{user.bio}&rdquo;</p>}
                 </div>
-                <div className="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-white/5">
-                    <button onClick={() => handleViewProfile(targetId, user.username)} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-800 dark:text-gray-200 transition-colors">
+                <div className="flex items-center gap-2 pt-2 border-t border-t2-line-soft ">
+                    <button onClick={() => handleViewProfile(targetId, user.username)} className="flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-t2-hover hover:bg-t2-stage   text-t2-ink  transition-colors">
                         <span>Profil ansehen</span>
                     </button>
                     {isAlreadyContact ? (
-                        <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 px-3 py-2 text-center">Verbunden</span>
+                        <span className="text-[11px] font-semibold text-t2-ink-3  px-3 py-2 text-center">Verbunden</span>
                     ) : isAlreadySent ? (
                         <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-xl px-2.5 py-2 text-center">✓ Gesendet</span>
                     ) : (
-                        <button onClick={(e) => handleAddContact(e, targetId)} className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors">
+                        <button onClick={(e) => handleAddContact(e, targetId)} className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-t2-accent hover:opacity-90 text-t2-accent-ink shadow-xs transition-colors">
                             <UserPlus size={13} />
                             <span>Vernetzen</span>
                         </button>
@@ -212,9 +212,9 @@ export default function SocialHub({
     return (
         <div className="flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto relative select-none">
             {/* Sticky Header Bar following Job & Uni Planer philosophy */}
-            <div className="sticky top-0 z-30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 md:px-10 py-5 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md">
+            <div className="sticky top-0 z-30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 md:px-10 py-5 border-b border-t2-line  bg-t2-surface  backdrop-blur-md">
                 <div className="flex items-center gap-3">
-                    <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
+                    <h1 className="text-xl font-bold text-t2-ink  leading-tight">
                         Social & Kontakte
                     </h1>
                 </div>
@@ -222,7 +222,7 @@ export default function SocialHub({
                 <div className="flex items-center gap-2.5 flex-wrap">
                     {/* Header Quick Search */}
                     <div className="relative hidden lg:block w-56">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-t2-ink-3" />
                         <input
                             type="text"
                             placeholder="Schnellsuche..."
@@ -232,25 +232,25 @@ export default function SocialHub({
                                 if (activeTab !== 'discover') setActiveTab('discover');
                                 if (isChatMode) setIsChatMode(false);
                             }}
-                            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:border-blue-500 transition-all"
+                            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-xl bg-t2-hover  border border-t2-line  text-t2-ink  placeholder-t2-ink-3 outline-none focus:border-t2-accent transition-all"
                         />
                     </div>
 
                     {/* Segmented Control / Tabs */}
-                    <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-white/5 rounded-xl border border-gray-200/60 dark:border-white/10">
+                    <div className="flex items-center gap-1 p-1 bg-t2-hover  rounded-xl border border-t2-line ">
                         <button
                             onClick={() => { setActiveTab('contacts'); setIsChatMode(false); }}
                             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                                 activeTab === 'contacts' && !isChatMode
-                                    ? 'bg-white dark:bg-[#1e1e1e] text-gray-900 dark:text-white shadow-xs'
-                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                                    ? 'bg-t2-surface  text-t2-ink  shadow-xs'
+                                    : 'text-t2-ink-2  hover:text-t2-ink '
                             }`}
                         >
                             <span>Kontakte</span>
                             <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
                                 activeTab === 'contacts' && !isChatMode
-                                    ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300'
-                                    : 'bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-400'
+                                    ? 'bg-t2-sub  text-t2-accent '
+                                    : 'bg-t2-stage  text-t2-ink-2 '
                             }`}>
                                 {contacts.length}
                             </span>
@@ -260,8 +260,8 @@ export default function SocialHub({
                             onClick={() => { setActiveTab('discover'); setIsChatMode(false); }}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                                 activeTab === 'discover' && !isChatMode
-                                    ? 'bg-white dark:bg-[#1e1e1e] text-gray-900 dark:text-white shadow-xs'
-                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                                    ? 'bg-t2-surface  text-t2-ink  shadow-xs'
+                                    : 'text-t2-ink-2  hover:text-t2-ink '
                             }`}
                         >
                             <Search size={13} />
@@ -272,8 +272,8 @@ export default function SocialHub({
                             onClick={() => { setActiveTab('requests'); setIsChatMode(false); }}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                                 activeTab === 'requests' && !isChatMode
-                                    ? 'bg-white dark:bg-[#1e1e1e] text-gray-900 dark:text-white shadow-xs'
-                                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                                    ? 'bg-t2-surface  text-t2-ink  shadow-xs'
+                                    : 'text-t2-ink-2  hover:text-t2-ink '
                             }`}
                         >
                             <UserPlus size={13} />
@@ -289,10 +289,10 @@ export default function SocialHub({
                     {/* Chat shortcut button */}
                     <button
                         onClick={() => setIsChatMode((prev) => !prev)}
-                        className={`p-2 rounded-xl border border-gray-200/80 dark:border-white/10 transition-colors shadow-xs ${
+                        className={`p-2 rounded-xl border border-t2-line  transition-colors shadow-xs ${
                             isChatMode
-                                ? 'bg-blue-600 text-white border-transparent'
-                                : 'bg-white dark:bg-[#1a1a1a] text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-white/5'
+                                ? 'bg-t2-accent text-t2-accent-ink border-transparent'
+                                : 'bg-t2-surface  text-t2-ink-2 hover:text-t2-ink  hover:bg-t2-sub '
                         }`}
                         title={isChatMode ? 'Zurück zur Übersicht' : 'Chat-Ansicht öffnen'}
                     >
@@ -338,11 +338,11 @@ export default function SocialHub({
                         {activeTab === 'contacts' && (
                             <div className="flex flex-col gap-4">
                                 {contacts.length === 0 ? (
-                                    <div className="text-center py-20 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200/80 dark:border-white/10 p-8 flex flex-col items-center shadow-xs">
-                                        <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/20 text-blue-500 flex items-center justify-center mb-4"><Users size={26} /></div>
-                                        <h3 className="font-bold text-gray-900 dark:text-white text-base">Noch keine Kontakte</h3>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mt-1 mb-5">Finde andere Tide-Nutzer, vernetze dich und tausche Notizen oder Nachrichten aus.</p>
-                                        <button onClick={() => setActiveTab('discover')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors">
+                                    <div className="text-center py-20 bg-t2-surface  rounded-2xl border border-t2-line  p-8 flex flex-col items-center shadow-xs">
+                                        <div className="w-14 h-14 rounded-2xl bg-t2-sub  text-t2-accent flex items-center justify-center mb-4"><Users size={26} /></div>
+                                        <h3 className="font-bold text-t2-ink  text-base">Noch keine Kontakte</h3>
+                                        <p className="text-xs text-t2-ink-2  max-w-sm mt-1 mb-5">Finde andere Tide-Nutzer, vernetze dich und tausche Notizen oder Nachrichten aus.</p>
+                                        <button onClick={() => setActiveTab('discover')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-t2-accent hover:opacity-90 text-t2-accent-ink text-xs font-semibold shadow-xs transition-colors">
                                             <Search size={14} />
                                             <span>Personen entdecken</span>
                                         </button>
@@ -367,7 +367,7 @@ export default function SocialHub({
                         {activeTab === 'discover' && (
                             <div className="flex flex-col gap-6">
                                 <div className="relative w-full">
-                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-t2-ink-3">
                                         <Search size={18} />
                                     </div>
                                     <input
@@ -375,19 +375,19 @@ export default function SocialHub({
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         placeholder="Personen nach Name, E-Mail oder Rolle suchen..."
-                                        className="w-full bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 rounded-2xl py-3.5 pl-11 pr-10 text-sm text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-xs"
+                                        className="w-full bg-t2-surface  border border-t2-line  rounded-2xl py-3.5 pl-11 pr-10 text-sm text-t2-ink  placeholder-t2-ink-3 outline-none focus:border-t2-accent focus:ring-2 focus:ring-t2-accent transition-all shadow-xs"
                                         autoFocus
                                     />
                                     {searchQuery && (
-                                        <button onClick={() => setSearchQuery('')} className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                                        <button onClick={() => setSearchQuery('')} className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-t2-ink-3 hover:text-t2-ink-2 ">
                                             <X size={16} />
                                         </button>
                                     )}
                                 </div>
 
                                 {isSearching && (
-                                    <div className="flex items-center justify-center gap-2 py-12 text-gray-400 text-xs">
-                                        <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+                                    <div className="flex items-center justify-center gap-2 py-12 text-t2-ink-3 text-xs">
+                                        <Loader2 className="w-5 h-5 animate-spin text-t2-accent" />
                                         <span>Suche nach Tide-Mitgliedern...</span>
                                     </div>
                                 )}
@@ -395,13 +395,13 @@ export default function SocialHub({
                                 {!isSearching && searchQuery.trim() && (
                                     <div className="flex flex-col gap-3">
                                         <div className="flex items-center justify-between">
-                                            <h2 className="text-sm font-bold text-gray-900 dark:text-white">Suchergebnisse</h2>
-                                            <span className="text-xs text-gray-400">{results.length} Ergebnis{results.length !== 1 ? 'se' : ''}</span>
+                                            <h2 className="text-sm font-bold text-t2-ink ">Suchergebnisse</h2>
+                                            <span className="text-xs text-t2-ink-3">{results.length} Ergebnis{results.length !== 1 ? 'se' : ''}</span>
                                         </div>
                                         {results.length === 0 ? (
-                                            <div className="text-center py-16 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-dashed border-gray-200 dark:border-white/10 p-8">
-                                                <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">Keine Benutzer für «{searchQuery.trim()}» gefunden.</p>
-                                                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Nutzer werden nur angezeigt, wenn ihr Profil öffentlich ist.</p>
+                                            <div className="text-center py-16 bg-t2-surface  rounded-2xl border border-dashed border-t2-line  p-8">
+                                                <p className="text-t2-ink-2  text-sm font-medium">Keine Benutzer für «{searchQuery.trim()}» gefunden.</p>
+                                                <p className="text-xs text-t2-ink-3  mt-1">Nutzer werden nur angezeigt, wenn ihr Profil öffentlich ist.</p>
                                             </div>
                                         ) : (
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -414,8 +414,8 @@ export default function SocialHub({
                                 {!searchQuery.trim() && suggestions.length > 0 && (
                                     <div className="flex flex-col gap-3">
                                         <div className="flex items-center gap-2">
-                                            <Sparkles className="w-4 h-4 text-blue-500" />
-                                            <h2 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">Community & Empfehlungen</h2>
+                                            <Sparkles className="w-4 h-4 text-t2-accent" />
+                                            <h2 className="text-sm font-bold text-t2-ink  uppercase tracking-wider">Community & Empfehlungen</h2>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             {suggestions.map((s, i) => renderDiscoverCard(s, s.id || `sug-${i}`))}
@@ -429,31 +429,31 @@ export default function SocialHub({
                         {activeTab === 'requests' && (
                             <div className="flex flex-col gap-4">
                                 {pendingRequests.length === 0 ? (
-                                    <div className="text-center py-20 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200/80 dark:border-white/10 p-8 flex flex-col items-center shadow-xs">
-                                        <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-white/5 flex items-center justify-center text-gray-400 mb-4"><Users size={24} /></div>
-                                        <h3 className="font-bold text-gray-900 dark:text-white text-base">Keine offenen Kontaktanfragen</h3>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mt-1">Sobald dir andere Nutzer eine Kontaktanfrage schicken, kannst du sie hier direkt bestätigen oder ablehnen.</p>
+                                    <div className="text-center py-20 bg-t2-surface  rounded-2xl border border-t2-line  p-8 flex flex-col items-center shadow-xs">
+                                        <div className="w-14 h-14 rounded-2xl bg-t2-hover  flex items-center justify-center text-t2-ink-3 mb-4"><Users size={24} /></div>
+                                        <h3 className="font-bold text-t2-ink  text-base">Keine offenen Kontaktanfragen</h3>
+                                        <p className="text-xs text-t2-ink-2  max-w-sm mt-1">Sobald dir andere Nutzer eine Kontaktanfrage schicken, kannst du sie hier direkt bestätigen oder ablehnen.</p>
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                         {pendingRequests.map((req) => (
-                                            <div key={req.id} className="bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 p-5 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                            <div key={req.id} className="bg-t2-surface  border border-t2-line  p-5 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                                 <div className="flex items-center gap-3 min-w-0 flex-1">
                                                     <Avatar seed={(req.avatar_seed || req.user_id) + (req.avatar_salt || '')} style={req.avatar_style === 'openPeeps' ? 'openPeeps' : 'notionists'} size={48} className="shrink-0" />
                                                     <div className="min-w-0">
-                                                        <h3 className="font-bold text-gray-900 dark:text-white text-sm truncate">{req.username || 'Neuer Tide-Nutzer'}</h3>
-                                                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate sm:whitespace-normal">Möchte sich mit dir vernetzen</p>
+                                                        <h3 className="font-bold text-t2-ink  text-sm truncate">{req.username || 'Neuer Tide-Nutzer'}</h3>
+                                                        <p className="text-xs text-t2-ink-2  truncate sm:whitespace-normal">Möchte sich mit dir vernetzen</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2 shrink-0">
-                                                    <button onClick={() => handleViewProfile(req.user_id, req.username)} className="px-3 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
+                                                    <button onClick={() => handleViewProfile(req.user_id, req.username)} className="px-3 py-2 rounded-xl text-xs font-semibold text-t2-ink-2  hover:bg-t2-hover  transition-colors">
                                                         Profil
                                                     </button>
                                                     <button onClick={async () => { await acceptRequest(req.id); }} className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors">
                                                         <Check size={14} />
                                                         <span>Annehmen</span>
                                                     </button>
-                                                    <button onClick={async () => { await declineRequest(req.id); }} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-300 transition-colors">
+                                                    <button onClick={async () => { await declineRequest(req.id); }} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-t2-hover hover:bg-t2-stage   text-t2-ink  transition-colors">
                                                         <X size={14} />
                                                         <span>Ablehnen</span>
                                                     </button>

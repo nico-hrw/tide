@@ -716,7 +716,7 @@ export default function WeekView({
 
                             return (
                                 <div
-                                    className="absolute px-2 py-1.5 cursor-pointer overflow-hidden outline transition-all outline-2 outline-indigo-500/50 shadow-2xl scale-[1.01] z-[1000] font-medium rounded-xl"
+                                    className="absolute px-2 py-1.5 cursor-pointer overflow-hidden outline transition-all outline-2 outline-t2-accent shadow-2xl scale-[1.01] z-[1000] font-medium rounded-xl"
                                     style={{
                                         top: `${dragState.currentTop}px`,
                                         height: `${Math.max(durationMinutes, 15)}px`,

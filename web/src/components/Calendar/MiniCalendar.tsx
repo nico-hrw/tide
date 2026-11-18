@@ -164,14 +164,14 @@ export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, ev
                     let className = "text-[11px] h-7 flex flex-col items-center justify-center cursor-pointer transition-all relative mx-auto";
 
                     if (isDayToday) {
-                        className += " w-7 bg-blue-600 text-white font-bold rounded-full shadow-xs";
+                        className += " w-7 bg-t2-accent text-t2-accent-ink font-bold rounded-full shadow-xs";
                         if (isVisibleInGrid) {
-                            className += " ring-2 ring-purple-400/80 dark:ring-purple-300/80";
+                            className += " ring-2 ring-t2-accent ";
                         }
                     } else if (isSelectedDay) {
-                        className += " w-7 bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold rounded-full ring-1.5 ring-blue-500/50";
+                        className += " w-7 bg-t2-sub text-t2-accent  font-bold rounded-full ring-1.5 ring-t2-accent";
                     } else if (isVisibleInGrid) {
-                        className += ` w-full bg-purple-500/25 dark:bg-purple-500/35 text-purple-950 dark:text-purple-100 font-semibold ring-1 ring-purple-500/40 dark:ring-purple-400/50 hover:bg-purple-500/35 dark:hover:bg-purple-500/45 ${stripRounded}`;
+                        className += ` w-full bg-t2-sub  text-t2-accent  font-semibold ring-1 ring-t2-accent  hover:bg-purple-500/35 dark:hover:bg-purple-500/45 ${stripRounded}`;
                         if (!isCurrentMonth) {
                             className += " opacity-70";
                         }

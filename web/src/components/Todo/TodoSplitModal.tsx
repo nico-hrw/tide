@@ -135,20 +135,20 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="relative w-full max-w-lg bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+            className="relative w-full max-w-lg bg-t2-surface  border border-t2-line  rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/10">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-t2-line-soft ">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-t2-sub  text-t2-accent  flex items-center justify-center shrink-0">
                   <GitFork size={18} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                  <h3 className="text-sm font-bold text-t2-ink ">
                     Aufgabe aufteilen
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-t2-ink-2 ">
                     Erstelle mehrere Unteraufgaben für diese Aufgabe
                   </p>
                 </div>
@@ -156,7 +156,7 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-t2-ink-3 hover:text-t2-ink-2  hover:bg-t2-hover  transition-colors cursor-pointer"
                 aria-label="Schließen"
               >
                 <X size={16} />
@@ -166,19 +166,19 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
             {/* Modal Content - Scrollable */}
             <div className="p-5 flex-1 overflow-y-auto flex flex-col gap-4">
               {/* Parent Task Card */}
-              <div className="p-3 rounded-xl bg-gray-50 dark:bg-[#252525] border border-gray-200 dark:border-white/10 flex flex-col gap-1">
-                <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">
+              <div className="p-3 rounded-xl bg-t2-sub  border border-t2-line  flex flex-col gap-1">
+                <span className="text-[11px] font-semibold text-t2-ink-3  uppercase tracking-wider">
                   Übergeordnete Aufgabe
                 </span>
-                <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                <span className="text-sm font-semibold text-t2-ink  truncate">
                   {parentTask.title}
                 </span>
 
                 {/* Show badges if parent task has folder or tags */}
                 {(parentTask.folder || (parentTask.tags && parentTask.tags.length > 0)) && (
-                  <div className="flex flex-wrap items-center gap-1.5 mt-1 pt-1 border-t border-gray-200/60 dark:border-white/5">
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1 pt-1 border-t border-t2-line ">
                     {parentTask.folder && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-t2-sub text-t2-accent ">
                         <Folder size={10} />
                         <span>{parentTask.folder}</span>
                       </span>
@@ -186,7 +186,7 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
                     {parentTask.tags?.map((tag) => (
                       <span
                         key={tag}
-                        className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+                        className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-t2-sub text-t2-accent "
                       >
                         <Tag size={10} />
                         <span>#{tag}</span>
@@ -199,10 +199,10 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
               {/* Subtask Input Area (Textarea) */}
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                  <label className="text-xs font-semibold text-t2-ink ">
                     Unteraufgaben eingeben (eine pro Zeile)
                   </label>
-                  <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                  <span className="text-[11px] text-t2-ink-3 ">
                     {parsedSubtasks.length}{' '}
                     {parsedSubtasks.length === 1 ? 'Aufgabe' : 'Aufgaben'}
                   </span>
@@ -213,7 +213,7 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
                   onChange={(e) => setRawText(e.target.value)}
                   placeholder={`Recherche durchführen\nErsten Entwurf schreiben\nFeedback einholen`}
                   rows={4}
-                  className="w-full px-3 py-2.5 text-xs bg-gray-50 dark:bg-[#252525] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none font-mono"
+                  className="w-full px-3 py-2.5 text-xs bg-t2-sub  border border-t2-line  rounded-xl text-t2-ink  placeholder-t2-ink-3  focus:outline-none focus:ring-2 focus:ring-t2-accent resize-none font-mono"
                 />
               </div>
 
@@ -231,13 +231,13 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
                     }
                   }}
                   placeholder="Einzelne Aufgabe schnell hinzufügen..."
-                  className="flex-1 px-3 py-2 text-xs bg-gray-50 dark:bg-[#252525] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                  className="flex-1 px-3 py-2 text-xs bg-t2-sub  border border-t2-line  rounded-xl text-t2-ink  placeholder-t2-ink-3  focus:outline-none focus:ring-2 focus:ring-t2-accent"
                 />
                 <button
                   type="button"
                   onClick={handleAddQuickInput}
                   disabled={!quickInput.trim()}
-                  className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-900/40 border border-blue-200 dark:border-blue-900/40 rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0 min-h-[36px]"
+                  className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-t2-accent  bg-t2-sub hover:bg-t2-sub   border border-t2-line  rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shrink-0 min-h-[36px]"
                 >
                   <Plus size={14} />
                   <span>Hinzufügen</span>
@@ -247,28 +247,28 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
               {/* Live Preview List */}
               {parsedSubtasks.length > 0 && (
                 <div className="flex flex-col gap-1.5 pt-1">
-                  <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
-                    <ListTree size={13} className="text-blue-500" />
+                  <span className="text-[11px] font-semibold text-t2-ink-2  flex items-center gap-1.5">
+                    <ListTree size={13} className="text-t2-accent" />
                     <span>Vorschau der neuen Unteraufgaben:</span>
                   </span>
-                  <div className="max-h-36 overflow-y-auto p-2 bg-gray-50 dark:bg-[#252525] border border-gray-200 dark:border-white/10 rounded-xl flex flex-col gap-1">
+                  <div className="max-h-36 overflow-y-auto p-2 bg-t2-sub  border border-t2-line  rounded-xl flex flex-col gap-1">
                     {parsedSubtasks.map((taskTitle, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-white dark:bg-[#1e1e1e] border border-gray-200/60 dark:border-white/5 rounded-lg text-xs group"
+                        className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-t2-surface  border border-t2-line  rounded-lg text-xs group"
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className="w-4 h-4 rounded-full border border-gray-300 dark:border-white/20 flex items-center justify-center text-[9px] text-gray-400 shrink-0">
+                          <span className="w-4 h-4 rounded-full border border-t2-line  flex items-center justify-center text-[9px] text-t2-ink-3 shrink-0">
                             {idx + 1}
                           </span>
-                          <span className="truncate font-medium text-gray-800 dark:text-gray-200">
+                          <span className="truncate font-medium text-t2-ink ">
                             {taskTitle}
                           </span>
                         </div>
                         <button
                           type="button"
                           onClick={() => handleRemoveSubtask(idx)}
-                          className="text-gray-400 hover:text-rose-500 transition-colors p-0.5 cursor-pointer opacity-70 group-hover:opacity-100 shrink-0"
+                          className="text-t2-ink-3 hover:text-rose-500 transition-colors p-0.5 cursor-pointer opacity-70 group-hover:opacity-100 shrink-0"
                           title="Entfernen"
                         >
                           <X size={12} />
@@ -280,10 +280,10 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
               )}
 
               {/* Settings / Options */}
-              <div className="pt-2 border-t border-gray-100 dark:border-white/10 flex flex-col gap-3">
+              <div className="pt-2 border-t border-t2-line-soft  flex flex-col gap-3">
                 {/* Priority Option */}
                 <div className="flex items-center justify-between gap-3">
-                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                  <label className="text-xs font-semibold text-t2-ink ">
                     Priorität der Unteraufgaben
                   </label>
                   <select
@@ -291,7 +291,7 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
                     onChange={(e) =>
                       setPriorityChoice(e.target.value as Priority | 'inherit')
                     }
-                    className="px-2.5 py-1.5 text-xs font-medium bg-gray-50 dark:bg-[#252525] border border-gray-200 dark:border-white/10 rounded-xl text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/40 cursor-pointer min-h-[34px]"
+                    className="px-2.5 py-1.5 text-xs font-medium bg-t2-sub  border border-t2-line  rounded-xl text-t2-ink  focus:outline-none focus:ring-2 focus:ring-t2-accent cursor-pointer min-h-[34px]"
                   >
                     <option value="inherit">Wie übergeordnete Aufgabe</option>
                     {PRIORITY_OPTIONS.map((opt) => (
@@ -303,12 +303,12 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
                 </div>
 
                 {/* Inherit Metadata Checkbox */}
-                <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none">
+                <label className="inline-flex items-center gap-2 text-xs font-medium text-t2-ink  cursor-pointer select-none">
                   <input
                     type="checkbox"
                     checked={inheritMeta}
                     onChange={(e) => setInheritMeta(e.target.checked)}
-                    className="rounded border-gray-300 dark:border-white/20 text-blue-600 focus:ring-blue-500/40 cursor-pointer h-4 w-4"
+                    className="rounded border-t2-line  text-t2-accent focus:ring-t2-accent cursor-pointer h-4 w-4"
                   />
                   <span>Ordner & Tags der übergeordneten Aufgabe übernehmen</span>
                 </label>
@@ -324,8 +324,8 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-[#1a1a1a]/50">
-              <span className="text-[11px] text-gray-500 dark:text-gray-400">
+            <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-t2-line-soft  bg-t2-sub ">
+              <span className="text-[11px] text-t2-ink-2 ">
                 {parsedSubtasks.length > 0
                   ? `${parsedSubtasks.length} ${
                       parsedSubtasks.length === 1
@@ -340,7 +340,7 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
                   type="button"
                   onClick={onClose}
                   disabled={isSubmitting}
-                  className="px-3.5 py-2 text-xs font-medium rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 transition-colors cursor-pointer min-h-[36px]"
+                  className="px-3.5 py-2 text-xs font-medium rounded-xl bg-t2-hover hover:bg-t2-stage   text-t2-ink  transition-colors cursor-pointer min-h-[36px]"
                 >
                   Abbrechen
                 </button>
@@ -348,7 +348,7 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
                   type="button"
                   onClick={handleConfirm}
                   disabled={parsedSubtasks.length === 0 || isSubmitting}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl text-white bg-blue-600 hover:bg-blue-700 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer min-h-[36px] shadow-xs"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl text-t2-accent-ink bg-t2-accent hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer min-h-[36px] shadow-xs"
                 >
                   <Check size={14} />
                   <span>

@@ -46,6 +46,8 @@ module.exports = {
                     'line-soft': 'var(--t2-line-soft)',
                     hover: 'var(--t2-hover)',
                     blue: 'var(--t2-blue)',
+                    accent: 'var(--t2-accent)',
+                    'accent-ink': 'var(--t2-accent-ink)',
                     now: 'var(--t2-now)',
                     late: 'var(--t2-late)',
                     stage: 'var(--t2-stage)',

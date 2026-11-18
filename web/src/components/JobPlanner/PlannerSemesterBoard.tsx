@@ -5,10 +5,10 @@ import { Plus, X, Check, Trash2 } from 'lucide-react';
 import { useJobPlannerStore } from '@/store/useJobPlannerStore';
 
 const COLOR_OPTIONS = [
-    { name: 'gray', bg: 'bg-gray-100 dark:bg-white/10 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-white/10' },
-    { name: 'blue', bg: 'bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800/40' },
+    { name: 'gray', bg: 'bg-t2-hover  text-t2-ink  border-t2-line ' },
+    { name: 'blue', bg: 'bg-t2-sub  text-t2-accent  border-t2-line ' },
     { name: 'green', bg: 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800/40' },
-    { name: 'purple', bg: 'bg-purple-50 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800/40' },
+    { name: 'purple', bg: 'bg-t2-sub  text-t2-accent  border-t2-line ' },
     { name: 'orange', bg: 'bg-orange-50 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 border-orange-200 dark:border-orange-800/40' },
 ];
 
@@ -90,10 +90,10 @@ export default function PlannerSemesterBoard() {
         : 'Prüfung hinzufügen';
 
     return (
-        <div className="w-full bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
+        <div className="w-full bg-t2-surface  border border-t2-line  rounded-2xl p-5 shadow-sm flex flex-col gap-4">
             {/* Header matching Figma */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                <h3 className="text-base font-bold text-t2-ink ">
                     {sectionTitle}
                 </h3>
 
@@ -105,12 +105,12 @@ export default function PlannerSemesterBoard() {
                         value={newSemesterTitle}
                         onChange={(e) => setNewSemesterTitle(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddSemester()}
-                        className="px-3.5 py-1.5 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-xs text-gray-900 dark:text-white outline-none focus:border-blue-500 w-44 md:w-56 transition-colors placeholder:text-gray-400"
+                        className="px-3.5 py-1.5 rounded-xl border border-t2-line  bg-t2-sub  text-xs text-t2-ink  outline-none focus:border-t2-accent w-44 md:w-56 transition-colors placeholder:text-t2-ink-3"
                     />
                     <button
                         onClick={handleAddSemester}
                         disabled={!newSemesterTitle.trim()}
-                        className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center hover:bg-blue-700 disabled:opacity-40 transition-colors shadow-sm shadow-blue-500/20 cursor-pointer"
+                        className="w-8 h-8 rounded-xl bg-t2-accent text-t2-accent-ink flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition-colors shadow-sm shadow-blue-500/20 cursor-pointer"
                         title="Hinzufügen"
                     >
                         <Plus size={16} />
@@ -125,10 +125,10 @@ export default function PlannerSemesterBoard() {
                         key={semester.id}
                         onDragOver={handleDragOver}
                         onDrop={(e) => handleDrop(e, semester.id, semester.exams.length)}
-                        className="bg-white dark:bg-[#141414] border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden flex flex-col shadow-2xs hover:shadow-sm transition-all"
+                        className="bg-t2-surface  border border-t2-line  rounded-xl overflow-hidden flex flex-col shadow-2xs hover:shadow-sm transition-all"
                     >
                         {/* Semester Header */}
-                        <div className="flex items-center justify-between px-4 py-3 bg-gray-50/60 dark:bg-white/[0.02] border-b border-gray-100 dark:border-white/5">
+                        <div className="flex items-center justify-between px-4 py-3 bg-t2-sub  border-b border-t2-line-soft ">
                             {editingSemesterId === semester.id ? (
                                 <div className="flex items-center gap-1.5 flex-1 mr-2">
                                     <input
@@ -143,7 +143,7 @@ export default function PlannerSemesterBoard() {
                                             }
                                             if (e.key === 'Escape') setEditingSemesterId(null);
                                         }}
-                                        className="w-full text-xs font-bold px-2 py-1 rounded bg-white dark:bg-black border border-blue-500 text-gray-900 dark:text-white outline-none"
+                                        className="w-full text-xs font-bold px-2 py-1 rounded bg-t2-bg border border-t2-accent text-t2-ink  outline-none"
                                     />
                                     <button
                                         onClick={() => {
@@ -161,7 +161,7 @@ export default function PlannerSemesterBoard() {
                                         setEditingSemesterId(semester.id);
                                         setEditSemesterTitle(semester.title);
                                     }}
-                                    className="text-xs md:text-sm font-semibold text-gray-900 dark:text-white cursor-pointer hover:text-blue-600 truncate"
+                                    className="text-xs md:text-sm font-semibold text-t2-ink  cursor-pointer hover:text-t2-accent truncate"
                                     title="Klicken zum Umbenennen"
                                 >
                                     {semester.title}
@@ -169,7 +169,7 @@ export default function PlannerSemesterBoard() {
                             )}
 
                             <div className="flex items-center gap-1">
-                                <span className="text-[10px] font-mono font-bold text-gray-400 bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">
+                                <span className="text-[10px] font-mono font-bold text-t2-ink-3 bg-t2-hover  px-1.5 py-0.5 rounded">
                                     {semester.exams.length}
                                 </span>
                                 <button
@@ -178,7 +178,7 @@ export default function PlannerSemesterBoard() {
                                             deleteSemester(semester.id);
                                         }
                                     }}
-                                    className="p-1 text-gray-400 hover:text-rose-500 rounded transition-colors"
+                                    className="p-1 text-t2-ink-3 hover:text-rose-500 rounded transition-colors"
                                     title="Löschen"
                                 >
                                     <Trash2 size={13} />
@@ -211,7 +211,7 @@ export default function PlannerSemesterBoard() {
 
                                         <button
                                             onClick={() => deleteExam(semester.id, exam.id)}
-                                            className="opacity-0 group-hover:opacity-100 p-1 text-gray-400 hover:text-rose-500 rounded transition-opacity"
+                                            className="opacity-0 group-hover:opacity-100 p-1 text-t2-ink-3 hover:text-rose-500 rounded transition-opacity"
                                             title="Löschen"
                                         >
                                             <X size={12} />
@@ -222,7 +222,7 @@ export default function PlannerSemesterBoard() {
 
                             {/* Inline input if adding */}
                             {addingToSemester === semester.id ? (
-                                <div className="p-2.5 rounded-xl border border-blue-500 bg-blue-50/20 dark:bg-blue-900/10 flex items-center gap-1.5 animate-in fade-in duration-150">
+                                <div className="p-2.5 rounded-xl border border-t2-accent bg-t2-sub  flex items-center gap-1.5 animate-in fade-in duration-150">
                                     <input
                                         ref={inputRef}
                                         type="text"
@@ -233,17 +233,17 @@ export default function PlannerSemesterBoard() {
                                             if (e.key === 'Enter') handleAddExam(semester.id);
                                             if (e.key === 'Escape') setAddingToSemester(null);
                                         }}
-                                        className="w-full text-xs bg-transparent outline-none text-gray-900 dark:text-white placeholder:text-gray-400"
+                                        className="w-full text-xs bg-transparent outline-none text-t2-ink  placeholder:text-t2-ink-3"
                                     />
                                     <button
                                         onClick={() => handleAddExam(semester.id)}
-                                        className="p-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs shrink-0"
+                                        className="p-1 bg-t2-accent text-t2-accent-ink rounded-lg hover:opacity-90 text-xs shrink-0"
                                     >
                                         <Check size={12} />
                                     </button>
                                     <button
                                         onClick={() => setAddingToSemester(null)}
-                                        className="p-1 text-gray-400 hover:text-gray-600 rounded-lg text-xs shrink-0"
+                                        className="p-1 text-t2-ink-3 hover:text-t2-ink-2 rounded-lg text-xs shrink-0"
                                     >
                                         <X size={12} />
                                     </button>
@@ -255,7 +255,7 @@ export default function PlannerSemesterBoard() {
                                         setAddingToSemester(semester.id);
                                         setNewExamTitle('');
                                     }}
-                                    className="border border-dashed border-gray-200 dark:border-white/15 hover:border-blue-400 dark:hover:border-blue-500 rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-50/50 dark:hover:bg-white/[0.02] cursor-pointer transition-all mt-auto"
+                                    className="border border-dashed border-t2-line  hover:border-t2-accent  rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 text-t2-ink-3  hover:text-t2-accent  hover:bg-t2-sub  cursor-pointer transition-all mt-auto"
                                 >
                                     <Plus size={16} />
                                     <span className="text-xs font-medium">

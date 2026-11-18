@@ -114,7 +114,7 @@ export default function DesktopMonthView({
                                 onClick={() => onDayClick(day)}
                                 className={`group relative flex flex-col p-1.5 transition-colors cursor-pointer min-h-[96px] ${
                                     isTod
-                                        ? "rounded-xl bg-blue-50/90 dark:bg-blue-950/40 border-2 border-blue-500/80 dark:border-blue-400 shadow-xs hover:border-blue-600 dark:hover:border-blue-300 z-[2]"
+                                        ? "rounded-xl bg-t2-sub  border-2 border-t2-accent  shadow-xs hover:border-t2-accent  z-[2]"
                                         : isCurMonth
                                         ? "rounded-xl bg-t2-surface  border border-t2-line  shadow-xs hover:border-t2-line "
                                         : "rounded-xl bg-t2-sub  border border-t2-line  text-t2-ink-3  hover:border-t2-line "
@@ -126,7 +126,7 @@ export default function DesktopMonthView({
                                         <span
                                             className={`inline-flex items-center justify-center text-xs font-bold transition-transform ${
                                                 isTod
-                                                    ? "w-6 h-6 rounded-full bg-blue-600 text-white shadow-sm ring-2 ring-blue-400/40"
+                                                    ? "w-6 h-6 rounded-full bg-t2-accent text-t2-accent-ink shadow-sm ring-2 ring-t2-accent"
                                                     : isCurMonth
                                                     ? "text-t2-ink  group-hover:scale-105"
                                                     : "text-t2-ink-3 "
@@ -135,7 +135,7 @@ export default function DesktopMonthView({
                                             {format(day, "d")}
                                         </span>
                                         {isTod && (
-                                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-600 text-white shadow-xs">
+                                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-t2-accent text-t2-accent-ink shadow-xs">
                                                 Heute
                                             </span>
                                         )}
@@ -169,7 +169,7 @@ export default function DesktopMonthView({
                                         className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-t2-hover  hover:bg-t2-stage  shadow-xs ${
                                             allCompleted
                                                 ? "border-emerald-500 text-t2-ink-2 "
-                                                : "border-blue-500 text-t2-ink "
+                                                : "border-t2-accent text-t2-ink "
                                         }`}
                                         title={`Todos: ${tasks.length}`}
                                     >
@@ -187,7 +187,7 @@ export default function DesktopMonthView({
                                             {allCompleted ? (
                                                 <CheckSquare size={11} className="text-emerald-500 dark:text-emerald-400 shrink-0" />
                                             ) : (
-                                                <Square size={11} className="text-blue-500 dark:text-blue-400 shrink-0" />
+                                                <Square size={11} className="text-t2-accent  shrink-0" />
                                             )}
                                         </button>
                                         <span
@@ -245,7 +245,7 @@ export default function DesktopMonthView({
                                             e.stopPropagation();
                                             onDayClick(day);
                                         }}
-                                        className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline px-1 pt-0.5 cursor-pointer"
+                                        className="text-[10px] font-bold text-t2-accent  hover:underline px-1 pt-0.5 cursor-pointer"
                                     >
                                         +{hiddenCount} weitere
                                     </div>

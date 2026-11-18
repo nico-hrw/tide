@@ -529,7 +529,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 boxShadow: DT.shadowFloat,
                 ...style,
             }}
-            className={`absolute right-0 top-full mt-2 z-50 w-72 sm:w-80 p-2.5 bg-white/95 dark:bg-[#18181b]/95 backdrop-blur-md border border-gray-200/80 dark:border-zinc-800 text-gray-900 dark:text-gray-100 select-none transition-all duration-150 animate-in fade-in zoom-in-95 ${className}`}
+            className={`absolute right-0 top-full mt-2 z-50 w-72 sm:w-80 p-2.5 bg-t2-surface  backdrop-blur-md border border-t2-line  text-t2-ink  select-none transition-all duration-150 animate-in fade-in zoom-in-95 ${className}`}
         >
             {/* Hidden file input for file import */}
             <input
@@ -542,7 +542,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
 
             {/* SECTION 1: Format selection */}
             <div className="px-2 py-1 mb-1">
-                <div className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                <div className="text-[11px] font-semibold text-t2-ink-2  uppercase tracking-wider mb-1.5">
                     Seitenformat
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -556,25 +556,25 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                                 onClick={() => handleSelectLayout(opt.id)}
                                 className={`flex items-center gap-2 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all text-left border ${
                                     isSelected
-                                        ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 shadow-xs'
-                                        : 'bg-transparent hover:bg-gray-100 dark:hover:bg-zinc-800/60 text-gray-700 dark:text-gray-300 border-transparent'
+                                        ? 'bg-t2-sub  text-t2-accent  border-t2-line  shadow-xs'
+                                        : 'bg-transparent hover:bg-t2-hover  text-t2-ink  border-transparent'
                                 }`}
                                 title={opt.label}
                             >
-                                <Icon size={14} className={isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'} />
+                                <Icon size={14} className={isSelected ? 'text-t2-accent ' : 'text-t2-ink-3'} />
                                 <span className="truncate flex-1">{opt.shortLabel}</span>
-                                {isSelected && <Check size={12} className="text-blue-600 dark:text-blue-400 shrink-0" />}
+                                {isSelected && <Check size={12} className="text-t2-accent  shrink-0" />}
                             </button>
                         );
                     })}
                 </div>
             </div>
 
-            <div className="my-1.5 border-t border-gray-100 dark:border-zinc-800/80" />
+            <div className="my-1.5 border-t border-t2-line-soft " />
 
             {/* SECTION 2: Paper Pattern */}
             <div className="px-2 py-1 mb-1">
-                <div className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                <div className="text-[11px] font-semibold text-t2-ink-2  uppercase tracking-wider mb-1.5">
                     Papier-Muster
                 </div>
                 <div className="grid grid-cols-3 gap-1">
@@ -588,11 +588,11 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                                 onClick={() => handleSelectPattern(opt.id)}
                                 className={`flex flex-col items-center justify-center gap-1 py-1.5 px-2 text-xs font-medium rounded-lg transition-all border ${
                                     isSelected
-                                        ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 shadow-xs'
-                                        : 'bg-transparent hover:bg-gray-100 dark:hover:bg-zinc-800/60 text-gray-700 dark:text-gray-300 border-transparent'
+                                        ? 'bg-t2-sub  text-t2-accent  border-t2-line  shadow-xs'
+                                        : 'bg-transparent hover:bg-t2-hover  text-t2-ink  border-transparent'
                                 }`}
                             >
-                                <Icon size={14} className={isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'} />
+                                <Icon size={14} className={isSelected ? 'text-t2-accent ' : 'text-t2-ink-3'} />
                                 <span>{opt.label}</span>
                             </button>
                         );
@@ -600,20 +600,20 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 </div>
             </div>
 
-            <div className="my-1.5 border-t border-gray-100 dark:border-zinc-800/80" />
+            <div className="my-1.5 border-t border-t2-line-soft " />
 
             {/* SECTION 3: Guidelines toggle */}
             <div className="px-2 py-1 mb-1">
                 <button
                     type="button"
                     onClick={handleToggleGuidelines}
-                    className="w-full flex items-center justify-between gap-2 p-1.5 -mx-1 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800/60 transition-colors text-left"
+                    className="w-full flex items-center justify-between gap-2 p-1.5 -mx-1 rounded-lg hover:bg-t2-hover  transition-colors text-left"
                 >
                     <div className="flex flex-col">
-                        <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                        <span className="text-xs font-medium text-t2-ink ">
                             A4-Hilfslinien anzeigen
                         </span>
-                        <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                        <span className="text-[10px] text-t2-ink-3 ">
                             Seitenumbrüche & Schnittmarken
                         </span>
                     </div>
@@ -621,12 +621,12 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                     <div
                         className={`w-9 h-5 rounded-full transition-colors relative flex items-center p-0.5 ${
                             activeShowBreaks
-                                ? 'bg-blue-600 dark:bg-blue-500'
-                                : 'bg-gray-300 dark:bg-zinc-700'
+                                ? 'bg-t2-accent '
+                                : 'bg-t2-line '
                         }`}
                     >
                         <div
-                            className={`w-4 h-4 rounded-full bg-white shadow-xs transition-transform transform ${
+                            className={`w-4 h-4 rounded-full bg-t2-surface shadow-xs transition-transform transform ${
                                 activeShowBreaks ? 'translate-x-4' : 'translate-x-0'
                             }`}
                         />
@@ -634,34 +634,34 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 </button>
             </div>
 
-            <div className="my-1.5 border-t border-gray-100 dark:border-zinc-800/80" />
+            <div className="my-1.5 border-t border-t2-line-soft " />
 
             {/* SECTION 4: Standard File Export */}
             <div className="px-1 py-1">
-                <div className="px-1 text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+                <div className="px-1 text-[11px] font-semibold text-t2-ink-2  uppercase tracking-wider mb-1">
                     Exportieren
                 </div>
                 <button
                     type="button"
                     onClick={handlePdfExport}
-                    className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800/60 transition-colors text-left cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-t2-ink  hover:bg-t2-hover  transition-colors text-left cursor-pointer"
                 >
-                    <Printer size={15} className="text-gray-500 dark:text-gray-400 shrink-0" />
+                    <Printer size={15} className="text-t2-ink-2  shrink-0" />
                     <span className="truncate">Als PDF exportieren / Drucken</span>
                 </button>
                 <button
                     type="button"
                     onClick={handleMarkdownExport}
-                    className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800/60 transition-colors text-left cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-t2-ink  hover:bg-t2-hover  transition-colors text-left cursor-pointer"
                 >
-                    <FileCode size={15} className="text-gray-500 dark:text-gray-400 shrink-0" />
+                    <FileCode size={15} className="text-t2-ink-2  shrink-0" />
                     <span className="truncate">Als Markdown (.md) exportieren</span>
                 </button>
                 <button
                     type="button"
                     onClick={handleCopyApiUrl}
                     disabled={isProcessing}
-                    className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800/60 transition-colors text-left cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-t2-ink  hover:bg-t2-hover  transition-colors text-left cursor-pointer"
                 >
                     {copiedApi ? (
                         <>
@@ -670,7 +670,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                         </>
                     ) : (
                         <>
-                            <Code size={15} className="text-gray-500 dark:text-gray-400 shrink-0" />
+                            <Code size={15} className="text-t2-ink-2  shrink-0" />
                             <span className="truncate flex-1">API-Adresse kopieren</span>
                             {isUnencrypted && (
                                 <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 shrink-0">
@@ -710,7 +710,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                                 type="button"
                                 disabled={isProcessing}
                                 onClick={() => setShowUnencryptedWarning(false)}
-                                className="px-2 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-gray-700 dark:text-gray-300 font-medium text-[11px] transition-colors cursor-pointer"
+                                className="px-2 py-1.5 rounded-md bg-t2-hover hover:bg-t2-stage   text-t2-ink  font-medium text-[11px] transition-colors cursor-pointer"
                             >
                                 Abbrechen
                             </button>
@@ -748,10 +748,10 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
             {/* SECTION 5: Extended File Support (active when enabledExtensions.includes('file_support')) */}
             {hasFileSupport && (
                 <>
-                    <div className="my-1.5 border-t border-gray-100 dark:border-zinc-800/80" />
+                    <div className="my-1.5 border-t border-t2-line-soft " />
                     <div className="px-1 py-1">
                         <div className="px-1 flex items-center justify-between mb-1">
-                            <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            <span className="text-[11px] font-semibold text-t2-ink-2  uppercase tracking-wider">
                                 Datei-Erweiterungen
                             </span>
                             <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -762,15 +762,15 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                         <button
                             type="button"
                             onClick={handleDocxExport}
-                            className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800/60 transition-colors text-left cursor-pointer"
+                            className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-t2-ink  hover:bg-t2-hover  transition-colors text-left cursor-pointer"
                         >
-                            <FileSpreadsheet size={15} className="text-blue-500 shrink-0" />
+                            <FileSpreadsheet size={15} className="text-t2-accent shrink-0" />
                             <span className="truncate">Als Word (.docx) exportieren</span>
                         </button>
                         <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
-                            className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800/60 transition-colors text-left cursor-pointer"
+                            className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-t2-ink  hover:bg-t2-hover  transition-colors text-left cursor-pointer"
                         >
                             <Upload size={15} className="text-amber-500 shrink-0" />
                             <span className="truncate">Datei importieren (PDF, DOCX, MD)</span>
@@ -778,9 +778,9 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                         <button
                             type="button"
                             onClick={handleTideBundleExport}
-                            className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800/60 transition-colors text-left cursor-pointer"
+                            className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg text-xs font-medium text-t2-ink  hover:bg-t2-hover  transition-colors text-left cursor-pointer"
                         >
-                            <Package size={15} className="text-indigo-500 shrink-0" />
+                            <Package size={15} className="text-t2-accent shrink-0" />
                             <span className="truncate">Tide-Paket (.tide.json) exportieren</span>
                         </button>
                     </div>

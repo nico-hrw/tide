@@ -62,7 +62,7 @@ interface TreeItem {
 
 function BranchCurve() {
     return (
-        <svg className="w-3.5 h-5 text-gray-300/80 dark:text-neutral-700/80 absolute -left-3.5 top-0 pointer-events-none" viewBox="0 0 14 20" fill="none">
+        <svg className="w-3.5 h-5 text-t2-ink-3  absolute -left-3.5 top-0 pointer-events-none" viewBox="0 0 14 20" fill="none">
             <path d="M 0 0 V 10 Q 0 16 6 16 H 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
     );
@@ -119,14 +119,14 @@ function TreeNodeItemView({ node, activeSlug, rootSlug }: { node: TreeItem; acti
             <div className="relative flex items-center min-h-[22px]">
                 <BranchCurve />
                 {isActive ? (
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-900 dark:text-gray-100 truncate py-0.5" title={node.title}>
-                        <span className="w-1 h-1 rounded-full bg-neutral-400 dark:bg-neutral-500 shrink-0" />
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-t2-ink  truncate py-0.5" title={node.title}>
+                        <span className="w-1 h-1 rounded-full bg-t2-ink-3  shrink-0" />
                         <span className="truncate">{node.title}</span>
                     </div>
                 ) : (
                     <Link
                         href={`/notes/${encodeURIComponent(node.slug)}${rootSlug ? `?root=${encodeURIComponent(rootSlug)}` : ''}`}
-                        className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 truncate transition-colors py-0.5 max-w-full"
+                        className="flex items-center gap-1.5 text-xs text-t2-ink-2  hover:text-t2-ink  truncate transition-colors py-0.5 max-w-full"
                         title={node.title}
                     >
                         <span className="truncate">{node.title}</span>
@@ -134,7 +134,7 @@ function TreeNodeItemView({ node, activeSlug, rootSlug }: { node: TreeItem; acti
                 )}
             </div>
             {node.children.length > 0 && (
-                <div className="relative ml-3.5 pl-3.5 border-l border-gray-300/80 dark:border-neutral-700/80 space-y-1 mt-1">
+                <div className="relative ml-3.5 pl-3.5 border-l border-t2-line  space-y-1 mt-1">
                     {node.children.map((child) => (
                         <TreeNodeItemView key={child.slug} node={child} activeSlug={activeSlug} rootSlug={rootSlug} />
                     ))}
@@ -470,10 +470,10 @@ export default function QuicknotePage() {
             />
             {/* Visual drop overlay */}
             {isDragging && (
-                <div className="fixed inset-4 z-50 backdrop-blur-sm bg-blue-50/80 dark:bg-neutral-900/80 border-2 border-dashed border-blue-500 rounded-2xl flex flex-col items-center justify-center pointer-events-none animate-in fade-in duration-150">
-                    <UploadCloud className="w-12 h-12 text-blue-500 mb-3 animate-bounce" />
-                    <p className="text-lg font-semibold text-blue-600 dark:text-blue-400">Dateien hier ablegen zum Hochladen</p>
-                    <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">Dateien werden direkt an diese Notiz angehängt</p>
+                <div className="fixed inset-4 z-50 backdrop-blur-sm bg-t2-sub  border-2 border-dashed border-t2-accent rounded-2xl flex flex-col items-center justify-center pointer-events-none animate-in fade-in duration-150">
+                    <UploadCloud className="w-12 h-12 text-t2-accent mb-3 animate-bounce" />
+                    <p className="text-lg font-semibold text-t2-accent ">Dateien hier ablegen zum Hochladen</p>
+                    <p className="text-xs text-t2-ink-2  mt-1">Dateien werden direkt an diese Notiz angehängt</p>
                 </div>
             )}
             {/* Left Directory Hierarchy (Baumstruktur mit Ästen) */}
@@ -484,22 +484,22 @@ export default function QuicknotePage() {
                 {rootNode && (
                     <>
                         {rootNode.slug === slug ? (
-                            <div className="flex items-center gap-2 font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">
-                                <span className="w-1.5 h-1.5 rounded-full bg-neutral-400 dark:bg-neutral-500 shrink-0" />
+                            <div className="flex items-center gap-2 font-semibold text-sm text-t2-ink  truncate">
+                                <span className="w-1.5 h-1.5 rounded-full bg-t2-ink-3  shrink-0" />
                                 <span className="truncate" title={rootNode.title}>{rootNode.title}</span>
                             </div>
                         ) : (
                             <Link
                                 href={`/notes/${encodeURIComponent(rootNode.slug)}${rootSlug ? `?root=${encodeURIComponent(rootSlug)}` : ''}`}
-                                className="flex items-center gap-2 font-medium text-sm text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 truncate transition-colors group"
+                                className="flex items-center gap-2 font-medium text-sm text-t2-ink-2  hover:text-t2-ink  truncate transition-colors group"
                                 title={rootNode.title}
                             >
-                                <span className="w-1.5 h-1.5 rounded-full bg-neutral-300 dark:bg-neutral-600 shrink-0 group-hover:bg-neutral-500 transition-colors" />
+                                <span className="w-1.5 h-1.5 rounded-full bg-t2-line  shrink-0 group-hover:bg-t2-ink-3 transition-colors" />
                                 <span className="truncate">{rootNode.title}</span>
                             </Link>
                         )}
 
-                        <div className="relative ml-2 pl-3.5 border-l border-gray-300/80 dark:border-neutral-700/80 space-y-1 mt-2">
+                        <div className="relative ml-2 pl-3.5 border-l border-t2-line  space-y-1 mt-2">
                             {rootNode.children.length > 0 ? (
                                 rootNode.children.map((child) => (
                                     <TreeNodeItemView key={child.slug} node={child} activeSlug={slug} rootSlug={rootSlug} />
@@ -507,7 +507,7 @@ export default function QuicknotePage() {
                             ) : (
                                 <div className="relative flex items-center min-h-[22px]">
                                     <BranchCurve />
-                                    <span className="text-[11px] text-gray-400 dark:text-neutral-500 italic select-none">
+                                    <span className="text-[11px] text-t2-ink-3  italic select-none">
                                         Tippe @ um Notizen zu verlinken
                                     </span>
                                 </div>
@@ -516,18 +516,18 @@ export default function QuicknotePage() {
                     </>
                 )}
                 {/* Outline: Files / Attachments */}
-                <div className="mt-8 pt-4 border-t border-gray-200/80 dark:border-neutral-800/80">
+                <div className="mt-8 pt-4 border-t border-t2-line ">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 flex items-center gap-1.5">
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3  flex items-center gap-1.5">
                                 Dateien ({attachments.length})
-                                {isUploading && <Loader2 className="w-3 h-3 animate-spin text-blue-500" />}
+                                {isUploading && <Loader2 className="w-3 h-3 animate-spin text-t2-accent" />}
                             </span>
                             <button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isUploading}
-                                className="text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-0.5 transition-colors cursor-pointer disabled:opacity-50"
+                                className="text-[11px] font-medium text-t2-accent  hover:text-t2-accent  flex items-center gap-0.5 transition-colors cursor-pointer disabled:opacity-50"
                                 title="Datei hinzufügen"
                             >
                                 <Plus className="w-3 h-3" />
@@ -535,7 +535,7 @@ export default function QuicknotePage() {
                             </button>
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-neutral-400 dark:text-neutral-500">
+                            <span className="text-[10px] text-t2-ink-3 ">
                                 {(attachments.reduce((acc, f) => acc + f.size, 0) / (1024 * 1024)).toFixed(1)} MB / 250 MB
                             </span>
                         </div>
@@ -546,31 +546,31 @@ export default function QuicknotePage() {
                             {attachments.map((att) => (
                                 <div
                                     key={att.id}
-                                    className="w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg text-xs text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors group"
+                                    className="w-full flex items-center justify-between gap-1.5 px-2 py-1.5 rounded-lg text-xs text-t2-ink  hover:bg-t2-hover  transition-colors group"
                                 >
                                     <button
                                         type="button"
                                         onClick={() => window.open(getQuicknoteFileDownloadUrl(slug, att.id), '_blank')}
-                                        className="flex-1 flex items-center justify-between gap-1.5 min-w-0 text-left hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer"
+                                        className="flex-1 flex items-center justify-between gap-1.5 min-w-0 text-left hover:text-t2-accent  transition-colors cursor-pointer"
                                         title={`Herunterladen: ${att.name}`}
                                     >
                                         <div className="flex items-center gap-1.5 min-w-0">
-                                            <Paperclip className="w-3.5 h-3.5 text-neutral-400 group-hover:text-blue-500 shrink-0" />
+                                            <Paperclip className="w-3.5 h-3.5 text-t2-ink-3 group-hover:text-t2-accent shrink-0" />
                                             <span className="truncate">{att.name}</span>
                                         </div>
-                                        <div className="flex items-center gap-1 shrink-0 text-[10px] text-neutral-400">
+                                        <div className="flex items-center gap-1 shrink-0 text-[10px] text-t2-ink-3">
                                             <span>
                                                 {att.size < 1024 * 1024
                                                     ? `${Math.round(att.size / 1024)} KB`
                                                     : `${(att.size / (1024 * 1024)).toFixed(1)} MB`}
                                             </span>
-                                            <Download className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500 transition-opacity" />
+                                            <Download className="w-3 h-3 opacity-0 group-hover:opacity-100 text-t2-accent transition-opacity" />
                                         </div>
                                     </button>
                                     <button
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); handleDeleteAttachment(att.id); }}
-                                        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 text-neutral-400 dark:text-neutral-500 rounded transition-opacity shrink-0 cursor-pointer"
+                                        className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 text-t2-ink-3  rounded transition-opacity shrink-0 cursor-pointer"
                                         title="Löschen"
                                         aria-label="Löschen"
                                     >
@@ -583,7 +583,7 @@ export default function QuicknotePage() {
                         <button
                             type="button"
                             onClick={() => fileInputRef.current?.click()}
-                            className="w-full text-left py-2 px-2.5 rounded-lg border border-dashed border-gray-300 dark:border-neutral-700 hover:border-blue-500 dark:hover:border-blue-400 text-[11px] text-neutral-400 dark:text-neutral-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-1.5 cursor-pointer"
+                            className="w-full text-left py-2 px-2.5 rounded-lg border border-dashed border-t2-line  hover:border-t2-accent  text-[11px] text-t2-ink-3  hover:text-t2-accent  transition-colors flex items-center gap-1.5 cursor-pointer"
                         >
                             <Paperclip className="w-3 h-3" />
                             <span>Dateien hier ablegen oder klicken</span>
@@ -601,12 +601,12 @@ export default function QuicknotePage() {
                     <div className="flex-1 text-sm">
                         <p className="leading-snug">{toast.text}</p>
                         {toast.authLink && (
-                            <Link href={toast.authLink} className="inline-block mt-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+                            <Link href={toast.authLink} className="inline-block mt-2 text-xs font-semibold text-t2-accent  hover:underline">
                                 Jetzt anmelden &rarr;
                             </Link>
                         )}
                     </div>
-                    <button type="button" onClick={() => setToast(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-0.5 rounded transition-colors" aria-label="Schließen">
+                    <button type="button" onClick={() => setToast(null)} className="text-t2-ink-3 hover:text-t2-ink-2  p-0.5 rounded transition-colors" aria-label="Schließen">
                         <X className="w-4 h-4" />
                     </button>
                 </aside>
@@ -615,8 +615,8 @@ export default function QuicknotePage() {
             {/* Main Editor Body */}
             <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 md:px-8 py-10 sm:py-16">
                 {loading ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-gray-400 dark:text-slate-500 min-h-[50vh]">
-                        <Loader2 className="w-8 h-8 animate-spin text-blue-500 mb-3" />
+                    <div className="flex-1 flex flex-col items-center justify-center text-t2-ink-3  min-h-[50vh]">
+                        <Loader2 className="w-8 h-8 animate-spin text-t2-accent mb-3" />
                         <span className="font-medium text-sm">Lade Quicknote...</span>
                     </div>
                 ) : (
@@ -626,7 +626,7 @@ export default function QuicknotePage() {
                             value={title}
                             onChange={(e) => handleTitleChange(e.target.value)}
                             placeholder="Notiztitel..."
-                            className="text-4xl sm:text-5xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-700 pb-2 leading-tight w-full mb-6 focus:ring-0"
+                            className="text-4xl sm:text-5xl font-bold bg-transparent border-none outline-none text-t2-ink  placeholder-t2-ink-3  pb-2 leading-tight w-full mb-6 focus:ring-0"
                         />
                         <Editor
                             activeTabId={`quicknote:${slug}`}
@@ -658,24 +658,24 @@ export default function QuicknotePage() {
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploading}
-                    className="xl:hidden w-11 h-11 rounded-full flex items-center justify-center bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 shadow-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-neutral-800 hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                    className="xl:hidden w-11 h-11 rounded-full flex items-center justify-center bg-t2-surface  border border-t2-line  shadow-lg text-t2-ink  hover:bg-t2-sub  hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
                     title="Datei hinzufügen"
                     aria-label="Datei hinzufügen"
                 >
-                    {isUploading ? <Loader2 className="w-5 h-5 animate-spin text-blue-500" /> : <Paperclip className="w-5 h-5" />}
+                    {isUploading ? <Loader2 className="w-5 h-5 animate-spin text-t2-accent" /> : <Paperclip className="w-5 h-5" />}
                 </button>
 
                 {/* Share Button */}
                 <div className="relative">
                     {copied && (
-                        <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 rounded-lg bg-gray-900 text-white dark:bg-neutral-100 dark:text-neutral-900 text-xs font-medium shadow-md whitespace-nowrap select-none pointer-events-none">
+                        <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 rounded-lg bg-t2-ink text-white  dark:text-neutral-900 text-xs font-medium shadow-md whitespace-nowrap select-none pointer-events-none">
                             Link kopiert! ✓
                         </div>
                     )}
                     <button
                         type="button"
                         onClick={handleShare}
-                        className="w-11 h-11 rounded-full flex items-center justify-center bg-white dark:bg-neutral-900 border border-gray-200 dark:border-neutral-800 shadow-lg text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-neutral-800 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                        className="w-11 h-11 rounded-full flex items-center justify-center bg-t2-surface  border border-t2-line  shadow-lg text-t2-ink  hover:bg-t2-sub  hover:scale-105 active:scale-95 transition-all cursor-pointer"
                         title="Link teilen"
                         aria-label="Link teilen"
                     >
@@ -689,7 +689,7 @@ export default function QuicknotePage() {
                         <button
                             type="button"
                             onClick={() => setProfileMenuOpen((prev) => !prev)}
-                            className="w-11 h-11 rounded-full overflow-hidden shadow-lg border-2 border-white dark:border-neutral-800 hover:scale-105 active:scale-95 transition-transform flex items-center justify-center bg-gray-100 dark:bg-neutral-800 cursor-pointer"
+                            className="w-11 h-11 rounded-full overflow-hidden shadow-lg border-2 border-t2-line  hover:scale-105 active:scale-95 transition-transform flex items-center justify-center bg-t2-hover  cursor-pointer"
                             title="Profil & Optionen"
                             aria-label="Profil und Optionen"
                         >
@@ -697,14 +697,14 @@ export default function QuicknotePage() {
                         </button>
 
                         {profileMenuOpen && (
-                            <div className="absolute bottom-full right-0 mb-3 w-52 rounded-xl bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border border-gray-200 dark:border-neutral-800 shadow-xl py-1.5 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                            <div className="absolute bottom-full right-0 mb-3 w-52 rounded-xl bg-t2-surface  backdrop-blur-md border border-t2-line  shadow-xl py-1.5 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
                                 <button
                                     type="button"
                                     onClick={() => { setProfileMenuOpen(false); void handleCopyToVault(); }}
                                     disabled={copyStatus === 'copying'}
-                                    className="w-full px-3.5 py-2.5 text-left text-sm flex items-center gap-2.5 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-800 transition-colors disabled:opacity-50 cursor-pointer"
+                                    className="w-full px-3.5 py-2.5 text-left text-sm flex items-center gap-2.5 text-t2-ink  hover:bg-t2-hover  transition-colors disabled:opacity-50 cursor-pointer"
                                 >
-                                    {copyStatus === 'copying' ? <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" /> : copyStatus === 'success' ? <Check className="w-4 h-4 text-emerald-500 shrink-0" /> : <FolderInput className="w-4 h-4 text-gray-500 dark:text-gray-400 shrink-0" />}
+                                    {copyStatus === 'copying' ? <Loader2 className="w-4 h-4 animate-spin text-t2-accent shrink-0" /> : copyStatus === 'success' ? <Check className="w-4 h-4 text-emerald-500 shrink-0" /> : <FolderInput className="w-4 h-4 text-t2-ink-2  shrink-0" />}
                                     <span className="font-medium">Für mich speichern</span>
                                 </button>
                             </div>

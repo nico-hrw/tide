@@ -140,18 +140,18 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
     <div className="w-full max-w-3xl mx-auto flex flex-col gap-5 sm:gap-6 py-2">
       {/* Top Bar: Breadcrumb + Minimieren Button */}
       <div className="flex items-center justify-between gap-3 w-full">
-        <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-gray-500 dark:text-gray-400 min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-t2-ink-2  min-w-0">
           <button
             type="button"
             onClick={onMinimize}
-            className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 rounded-xl text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors font-semibold cursor-pointer shrink-0"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 py-1.5 rounded-xl text-t2-ink-2  hover:text-t2-accent  hover:bg-t2-hover  transition-colors font-semibold cursor-pointer shrink-0"
             title="Zurück zur Gesamtübersicht (Esc)"
           >
             <ArrowLeft size={15} />
             <span>Aufgaben</span>
           </button>
-          <span className="text-gray-300 dark:text-gray-600 select-none">/</span>
-          <span className="font-bold text-gray-900 dark:text-white truncate">
+          <span className="text-t2-ink-3  select-none">/</span>
+          <span className="font-bold text-t2-ink  truncate">
             {liveParent.title}
           </span>
         </div>
@@ -159,12 +159,12 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
         <button
           type="button"
           onClick={onMinimize}
-          className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-200 bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 shadow-2xs hover:shadow-xs transition-all cursor-pointer shrink-0"
+          className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl text-xs sm:text-sm font-semibold text-t2-ink  bg-t2-surface  border border-t2-line  hover:border-t2-line  shadow-2xs hover:shadow-xs transition-all cursor-pointer shrink-0"
           title="Gruppe minimieren (Esc)"
         >
-          <Minimize2 size={14} className="text-blue-500" />
+          <Minimize2 size={14} className="text-t2-accent" />
           <span>Minimieren</span>
-          <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-white/5 rounded border border-gray-200 dark:border-white/10">
+          <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono text-t2-ink-3  bg-t2-hover  rounded border border-t2-line ">
             Esc
           </kbd>
         </button>
@@ -176,34 +176,34 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
         initial={{ opacity: 0, y: 15, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.3 }}
-        className="bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm p-4 sm:p-6 flex flex-col gap-4"
+        className="bg-t2-surface  rounded-2xl border border-t2-line  shadow-sm p-4 sm:p-6 flex flex-col gap-4"
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 flex-1 min-w-0">
             <button
               type="button"
               onClick={() => onToggleTask(liveParent)}
-              className="mt-0.5 p-1 -ml-1 text-gray-400 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400 transition-colors shrink-0 cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center"
+              className="mt-0.5 p-1 -ml-1 text-t2-ink-3 hover:text-t2-accent   transition-colors shrink-0 cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center"
               aria-label={isParentCompleted ? 'Als unvollständig markieren' : 'Als erledigt markieren'}
             >
               {isParentCompleted ? (
                 <CheckCircle2 className="w-6 h-6 text-emerald-500 fill-emerald-500/20" />
               ) : (
-                <Circle className="w-6 h-6 hover:text-blue-500 transition-colors" />
+                <Circle className="w-6 h-6 hover:text-t2-accent transition-colors" />
               )}
             </button>
 
             <div className="flex flex-col gap-1 min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
-                  <Layers size={11} className="text-blue-500" />
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-t2-sub text-t2-accent  border border-t2-accent shrink-0">
+                  <Layers size={11} className="text-t2-accent" />
                   <span>Gruppe</span>
                 </span>
                 <h1
                   className={`text-lg sm:text-xl font-bold tracking-tight truncate ${
                     isParentCompleted
-                      ? 'line-through text-gray-400 dark:text-gray-500'
-                      : 'text-gray-900 dark:text-white'
+                      ? 'line-through text-t2-ink-3 '
+                      : 'text-t2-ink '
                   }`}
                 >
                   {liveParent.title}
@@ -211,7 +211,7 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
               </div>
 
               {liveParent.description && (
-                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 whitespace-pre-wrap mt-0.5">
+                <p className="text-xs sm:text-sm text-t2-ink-2  whitespace-pre-wrap mt-0.5">
                   {liveParent.description}
                 </p>
               )}
@@ -247,15 +247,15 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
         {((liveParent.tags && liveParent.tags.length > 0) || liveParent.folder) && (
           <div className="flex flex-wrap items-center gap-1.5 pl-9">
             {liveParent.folder && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-white/10">
-                <Folder size={11} className="text-gray-500" />
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-t2-hover  text-t2-ink-2  border border-t2-line ">
+                <Folder size={11} className="text-t2-ink-2" />
                 <span>{liveParent.folder}</span>
               </span>
             )}
             {liveParent.tags?.map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-xs font-medium bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20"
+                className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-xs font-medium bg-t2-sub text-t2-accent  border border-t2-accent"
               >
                 <Tag size={10} />
                 <span>{tag}</span>
@@ -265,10 +265,10 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
         )}
 
         {/* Progress Bar & Subtasks Count */}
-        <div className="flex flex-col gap-2 pt-3 border-t border-gray-100 dark:border-white/5">
-          <div className="flex items-center justify-between text-xs font-medium text-gray-500 dark:text-gray-400">
-            <span className="flex items-center gap-1.5 font-semibold text-gray-700 dark:text-gray-300">
-              <Layers size={13} className="text-blue-500" />
+        <div className="flex flex-col gap-2 pt-3 border-t border-t2-line-soft ">
+          <div className="flex items-center justify-between text-xs font-medium text-t2-ink-2 ">
+            <span className="flex items-center gap-1.5 font-semibold text-t2-ink ">
+              <Layers size={13} className="text-t2-accent" />
               <span>Unteraufgaben</span>
             </span>
             <span>
@@ -276,10 +276,10 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
             </span>
           </div>
 
-          <div className="w-full bg-gray-100 dark:bg-white/10 h-2.5 rounded-full overflow-hidden">
+          <div className="w-full bg-t2-hover  h-2.5 rounded-full overflow-hidden">
             <motion.div
               className={`h-full rounded-full transition-all duration-300 ${
-                percent === 100 ? 'bg-emerald-500' : 'bg-blue-600 dark:bg-blue-500'
+                percent === 100 ? 'bg-emerald-500' : 'bg-t2-accent '
               }`}
               initial={{ width: 0 }}
               animate={{ width: `${percent}%` }}
@@ -292,9 +292,9 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
       {/* Inline Quick-Add for New Subtasks */}
       <form
         onSubmit={handleQuickAdd}
-        className="flex items-center gap-2 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-200 dark:border-white/10 shadow-2xs p-2 sm:p-2.5 focus-within:border-blue-500/60 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all"
+        className="flex items-center gap-2 bg-t2-surface  rounded-2xl border border-t2-line  shadow-2xs p-2 sm:p-2.5 focus-within:border-t2-accent focus-within:ring-2 focus-within:ring-t2-accent transition-all"
       >
-        <div className="p-1 text-blue-500 shrink-0">
+        <div className="p-1 text-t2-accent shrink-0">
           <Plus size={18} />
         </div>
         <input
@@ -303,12 +303,12 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
           value={newSubtaskTitle}
           onChange={(e) => setNewSubtaskTitle(e.target.value)}
           placeholder="Neue Unteraufgabe hinzufügen... (Enter zum Speichern)"
-          className="flex-1 bg-transparent text-xs sm:text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none min-w-0"
+          className="flex-1 bg-transparent text-xs sm:text-sm text-t2-ink  placeholder-t2-ink-3  focus:outline-none min-w-0"
         />
         <button
           type="submit"
           disabled={!newSubtaskTitle.trim() || isAdding}
-          className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shadow-xs shrink-0"
+          className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-t2-accent-ink bg-t2-accent hover:opacity-90 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer shadow-xs shrink-0"
         >
           Hinzufügen
         </button>
@@ -317,7 +317,7 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
       {/* Subtasks List */}
       <div className="flex flex-col gap-2.5">
         {totalSubtasks === 0 ? (
-          <div className="py-8 text-center text-xs sm:text-sm text-gray-400 dark:text-gray-500 bg-white/40 dark:bg-white/[0.02] border border-dashed border-gray-200 dark:border-white/10 rounded-2xl">
+          <div className="py-8 text-center text-xs sm:text-sm text-t2-ink-3  bg-white/40 dark:bg-white/[0.02] border border-dashed border-t2-line  rounded-2xl">
             Keine Unteraufgaben vorhanden. Füge oben die erste Unteraufgabe hinzu.
           </div>
         ) : (
@@ -342,10 +342,10 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
                   }}
                   className={`group relative flex items-center justify-between gap-2.5 p-3 sm:p-3.5 rounded-2xl border transition-all duration-150 ${
                     isSubtaskCompleted
-                      ? 'border-gray-100 dark:border-white/5 bg-gray-50/60 dark:bg-[#161616] opacity-75'
+                      ? 'border-t2-line-soft  bg-t2-sub  opacity-75'
                       : subtask.status === 'in_progress'
                       ? 'bg-amber-500/[0.04] dark:bg-amber-500/[0.06] border-amber-500/40 dark:border-amber-500/30 shadow-2xs'
-                      : 'bg-white dark:bg-[#1a1a1a] border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 shadow-2xs hover:shadow-xs'
+                      : 'bg-t2-surface  border-t2-line  hover:border-t2-line  shadow-2xs hover:shadow-xs'
                   }`}
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -353,7 +353,7 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
                     <button
                       type="button"
                       onClick={() => onToggleTask(subtask)}
-                      className="p-1 -ml-1 text-gray-400 hover:text-blue-600 dark:text-gray-500 dark:hover:text-blue-400 transition-colors shrink-0 cursor-pointer min-w-[28px] min-h-[28px] flex items-center justify-center"
+                      className="p-1 -ml-1 text-t2-ink-3 hover:text-t2-accent   transition-colors shrink-0 cursor-pointer min-w-[28px] min-h-[28px] flex items-center justify-center"
                       aria-label={
                         isSubtaskCompleted ? 'Als unvollständig markieren' : 'Als erledigt markieren'
                       }
@@ -361,7 +361,7 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
                       {isSubtaskCompleted ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-500 fill-emerald-500/20" />
                       ) : (
-                        <Circle className="w-4 h-4 hover:text-blue-500 transition-colors" />
+                        <Circle className="w-4 h-4 hover:text-t2-accent transition-colors" />
                       )}
                     </button>
 
@@ -372,7 +372,7 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
                       className={`p-1 rounded-lg transition-all shrink-0 cursor-pointer min-w-[26px] min-h-[26px] flex items-center justify-center ${
                         subtask.status === 'in_progress'
                           ? 'text-amber-500 bg-amber-500/20 ring-1 ring-amber-500/40 shadow-xs'
-                          : 'text-gray-400 hover:text-amber-500 hover:bg-amber-500/10'
+                          : 'text-t2-ink-3 hover:text-amber-500 hover:bg-amber-500/10'
                       }`}
                       title={
                         subtask.status === 'in_progress'
@@ -399,7 +399,7 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
                             if (e.key === 'Enter') handleSaveEdit(subtask.id);
                             if (e.key === 'Escape') setEditingSubtaskId(null);
                           }}
-                          className="flex-1 px-2 py-1 text-xs sm:text-sm bg-gray-50 dark:bg-white/5 border border-blue-500 rounded-lg text-gray-900 dark:text-white focus:outline-none"
+                          className="flex-1 px-2 py-1 text-xs sm:text-sm bg-t2-sub  border border-t2-accent rounded-lg text-t2-ink  focus:outline-none"
                         />
                         <button
                           type="button"
@@ -412,7 +412,7 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
                         <button
                           type="button"
                           onClick={() => setEditingSubtaskId(null)}
-                          className="p-1 rounded-md text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer"
+                          className="p-1 rounded-md text-t2-ink-3 hover:bg-t2-hover  transition-colors cursor-pointer"
                           title="Abbrechen"
                         >
                           <X size={14} />
@@ -423,8 +423,8 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
                         onClick={() => handleStartEdit(subtask)}
                         className={`text-xs sm:text-sm font-medium truncate flex-1 min-w-0 cursor-text select-text ${
                           isSubtaskCompleted
-                            ? 'line-through text-gray-400 dark:text-gray-500'
-                            : 'text-gray-800 dark:text-gray-200'
+                            ? 'line-through text-t2-ink-3 '
+                            : 'text-t2-ink '
                         }`}
                         title="Klicken zum Bearbeiten"
                       >
@@ -439,7 +439,7 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
                       <button
                         type="button"
                         onClick={() => handleStartEdit(subtask)}
-                        className="p-1 rounded-lg text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer"
+                        className="p-1 rounded-lg text-t2-ink-3 hover:text-t2-accent  hover:bg-t2-hover  transition-colors cursor-pointer"
                         title="Bearbeiten"
                       >
                         <Edit2 size={13} />
@@ -447,7 +447,7 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
                       <button
                         type="button"
                         onClick={() => onDeleteTask(subtask.id)}
-                        className="p-1 rounded-lg text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                        className="p-1 rounded-lg text-t2-ink-3 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
                         title="Löschen"
                       >
                         <Trash2 size={13} />

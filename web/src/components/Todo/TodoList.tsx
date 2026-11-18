@@ -774,7 +774,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   ]);
 
   return (
-    <div className={`w-full h-full flex flex-col ${isDesktopVariant ? 'bg-t2-bg' : 'bg-[#f8f9fa] dark:bg-[#121212]'} relative overflow-hidden ${className || ''}`}>
+    <div className={`w-full h-full flex flex-col ${isDesktopVariant ? 'bg-t2-bg' : 'bg-[#f8f9fa] '} relative overflow-hidden ${className || ''}`}>
       <TodoListHeader
         viewMode={viewMode}
         setViewMode={setViewMode}
@@ -987,13 +987,13 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 8 }}
               transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-              className="fixed bottom-20 right-4 sm:right-6 md:bottom-22 md:right-8 z-50 w-[310px] sm:w-[340px] max-w-[calc(100vw-2.5rem)] max-h-[75vh] overflow-y-auto bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-xl border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] p-4 flex flex-col gap-4 text-xs text-gray-700 dark:text-gray-300"
+              className="fixed bottom-20 right-4 sm:right-6 md:bottom-22 md:right-8 z-50 w-[310px] sm:w-[340px] max-w-[calc(100vw-2.5rem)] max-h-[75vh] overflow-y-auto bg-t2-surface  backdrop-blur-xl border border-t2-line  rounded-2xl shadow-[0_12px_36px_rgba(0,0,0,0.18)] dark:shadow-[0_12px_36px_rgba(0,0,0,0.5)] p-4 flex flex-col gap-4 text-xs text-t2-ink "
             >
                       {/* Header */}
-                      <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-white/10">
+                      <div className="flex items-center justify-between pb-2 border-b border-t2-line-soft ">
                         <div className="flex items-center gap-2">
-                          <SlidersHorizontal size={15} className="text-blue-500" />
-                          <span className="font-semibold text-sm text-gray-900 dark:text-white">Ansicht & Filter</span>
+                          <SlidersHorizontal size={15} className="text-t2-accent" />
+                          <span className="font-semibold text-sm text-t2-ink ">Ansicht & Filter</span>
                         </div>
                         <div className="flex items-center gap-2">
                           {(filterPriority !== 'all' || selectedTag !== null || filterStatus !== 'all' || searchQuery.trim() !== '' || selectedDateFilter !== null) && (
@@ -1006,7 +1006,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                                 setSearchQuery('');
                                 setSelectedDateFilter(null);
                               }}
-                              className="text-[11px] text-blue-600 dark:text-blue-400 hover:underline px-1 py-0.5 rounded cursor-pointer"
+                              className="text-[11px] text-t2-accent  hover:underline px-1 py-0.5 rounded cursor-pointer"
                             >
                               Zurücksetzen
                             </button>
@@ -1014,7 +1014,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                           <button
                             type="button"
                             onClick={() => setIsFilterMenuOpen(false)}
-                            className="p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg transition-colors cursor-pointer"
+                            className="p-1 text-t2-ink-3 hover:text-t2-ink  rounded-lg transition-colors cursor-pointer"
                             aria-label="Schließen"
                           >
                             <X size={15} />
@@ -1025,19 +1025,19 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                       {!isDesktopVariant && (
                       <>
                       <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-t2-ink-3" />
                         <input
                           type="text"
                           placeholder="Aufgaben durchsuchen..."
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                          className="w-full pl-8 pr-7 py-1.5 bg-gray-100 dark:bg-white/5 border border-gray-200/80 dark:border-white/10 rounded-xl text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          className="w-full pl-8 pr-7 py-1.5 bg-t2-hover  border border-t2-line  rounded-xl text-xs text-t2-ink  placeholder-t2-ink-3 focus:outline-none focus:ring-1 focus:ring-t2-accent"
                         />
                         {searchQuery && (
                           <button
                             type="button"
                             onClick={() => setSearchQuery('')}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-t2-ink-3 hover:text-t2-ink-2  cursor-pointer"
                           >
                             <X size={12} />
                           </button>
@@ -1048,10 +1048,10 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
                       {/* View Mode Switcher */}
                       <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3  mb-1.5">
                           Ansicht
                         </div>
-                        <div className="grid grid-cols-2 gap-1.5 bg-gray-100 dark:bg-white/5 p-1 rounded-xl border border-gray-200/60 dark:border-white/10">
+                        <div className="grid grid-cols-2 gap-1.5 bg-t2-hover  p-1 rounded-xl border border-t2-line ">
                           <button
                             type="button"
                             onClick={() => {
@@ -1060,8 +1060,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                             }}
                             className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                               viewMode === 'tasks'
-                                ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
-                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                                ? 'bg-t2-surface  text-t2-accent  shadow-xs'
+                                : 'text-t2-ink-2  hover:text-t2-ink '
                             }`}
                           >
                             <ListTodo size={14} />
@@ -1075,14 +1075,14 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                             }}
                             className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                               viewMode === 'folders'
-                                ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
-                                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                                ? 'bg-t2-surface  text-t2-accent  shadow-xs'
+                                : 'text-t2-ink-2  hover:text-t2-ink '
                             }`}
                           >
                             <Folder size={14} />
                             <span>Ordner</span>
                             {allFolders.length > 0 && (
-                              <span className="px-1 py-0.2 rounded-full text-[9px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-semibold">
+                              <span className="px-1 py-0.2 rounded-full text-[9px] bg-t2-sub  text-t2-accent  font-semibold">
                                 {allFolders.length}
                               </span>
                             )}
@@ -1092,7 +1092,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
                       {/* Filter nach Status */}
                       <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3  mb-1.5">
                           Status
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -1113,7 +1113,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                                 filterStatus === item.id
                                   ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
-                                  : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                                  : 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage '
                               }`}
                             >
                               {item.label}
@@ -1124,12 +1124,12 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
                       {/* Filter nach Priorität */}
                       <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3  mb-1.5">
                           Priorität
                         </div>
                         <div className="grid grid-cols-2 gap-1.5">
                           {[
-                            { id: 'all' as const, label: 'Alle', colorDot: 'bg-gray-400' },
+                            { id: 'all' as const, label: 'Alle', colorDot: 'bg-t2-ink-3' },
                             { id: 'high' as const, label: 'P3 (Hoch)', colorDot: 'bg-red-500' },
                             { id: 'medium' as const, label: 'P2 (Mittel)', colorDot: 'bg-amber-500' },
                             { id: 'low' as const, label: 'P1 (Niedrig)', colorDot: 'bg-emerald-500' },
@@ -1144,7 +1144,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                               className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                                 filterPriority === item.id
                                   ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
-                                  : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10'
+                                  : 'bg-t2-hover  text-t2-ink  hover:bg-t2-stage '
                               }`}
                             >
                               <span className={`w-2 h-2 rounded-full ${item.colorDot} shrink-0`} />
@@ -1156,7 +1156,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
                       {/* Filter nach Tags */}
                       <div>
-                        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3  mb-1.5">
                           <span className="flex items-center gap-1">
                             <Tag size={12} />
                             Tags
@@ -1168,14 +1168,14 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                                 setSelectedTag(null);
                                 setIsFilterMenuOpen(false);
                               }}
-                              className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline capitalize cursor-pointer"
+                              className="text-[10px] text-t2-accent  hover:underline capitalize cursor-pointer"
                             >
                               Tag entfernen
                             </button>
                           )}
                         </div>
                         {allTags.length === 0 ? (
-                          <p className="text-[11px] text-gray-400 dark:text-gray-500 italic py-1">
+                          <p className="text-[11px] text-t2-ink-3  italic py-1">
                             Keine Tags vorhanden
                           </p>
                         ) : (
@@ -1189,7 +1189,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                                 selectedTag === null
                                   ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
-                                  : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                                  : 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage '
                               }`}
                             >
                               Alle Tags
@@ -1204,8 +1204,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                                 }}
                                 className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                                   selectedTag === tag
-                                    ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                                    : 'bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10'
+                                    ? 'bg-t2-accent text-t2-accent-ink shadow-xs font-semibold'
+                                    : 'bg-t2-hover  text-t2-ink  hover:bg-t2-stage '
                                 }`}
                               >
                                 #{tag}
@@ -1217,7 +1217,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
                       {/* Filter nach Datum */}
                       <div>
-                        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5">
+                        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3  mb-1.5">
                           <span className="flex items-center gap-1">
                             <Calendar size={12} />
                             Datum
@@ -1229,7 +1229,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                                 setSelectedDateFilter(null);
                                 setIsFilterMenuOpen(false);
                               }}
-                              className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                              className="text-[10px] text-t2-accent  hover:underline cursor-pointer"
                             >
                               Zurücksetzen
                             </button>
@@ -1245,7 +1245,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                             className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                               selectedDateFilter === null
                                 ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
-                                : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                                : 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage '
                             }`}
                           >
                             Alle
@@ -1258,8 +1258,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                             }}
                             className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                               selectedDateFilter && isToday(selectedDateFilter)
-                                ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                                : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                                ? 'bg-t2-accent text-t2-accent-ink shadow-xs font-semibold'
+                                : 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage '
                             }`}
                           >
                             Heute
@@ -1272,8 +1272,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                             }}
                             className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                               selectedDateFilter && isTomorrow(selectedDateFilter)
-                                ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                                : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                                ? 'bg-t2-accent text-t2-accent-ink shadow-xs font-semibold'
+                                : 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage '
                             }`}
                           >
                             Morgen
@@ -1297,9 +1297,9 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               setIsFilterMenuOpen((prev) => !prev);
               setIsAddMenuOpen(false);
             }}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-md hover:bg-gray-50 dark:hover:bg-[#252528] text-gray-700 dark:text-gray-200 border border-gray-200/80 dark:border-white/10 rounded-xl shadow-lg transition-all active:scale-95 font-medium text-sm cursor-pointer select-none"
+            className="flex items-center gap-2 px-4 py-2.5 bg-t2-surface  backdrop-blur-md hover:bg-t2-sub  text-t2-ink  border border-t2-line  rounded-xl shadow-lg transition-all active:scale-95 font-medium text-sm cursor-pointer select-none"
           >
-            <SlidersHorizontal size={16} className="text-gray-500 dark:text-gray-400" />
+            <SlidersHorizontal size={16} className="text-t2-ink-2 " />
             <span>Filter</span>
           </button>
 
@@ -1312,22 +1312,22 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 8 }}
                   transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                  className="absolute bottom-full right-0 mb-3 w-48 bg-white/95 dark:bg-[#1a1a1a]/95 backdrop-blur-xl border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-xl p-1.5 flex flex-col gap-1 z-50 text-xs"
+                  className="absolute bottom-full right-0 mb-3 w-48 bg-t2-surface  backdrop-blur-xl border border-t2-line  rounded-2xl shadow-xl p-1.5 flex flex-col gap-1 z-50 text-xs"
                 >
                   <button
                     type="button"
                     onClick={handleOpenCreateTask}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-xl text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors font-medium cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-xl text-t2-ink  hover:bg-t2-hover  transition-colors font-medium cursor-pointer"
                   >
-                    <Plus size={15} className="text-blue-500" />
+                    <Plus size={15} className="text-t2-accent" />
                     <span>Aufgabe erstellen</span>
                   </button>
                   <button
                     type="button"
                     onClick={handleOpenCreateFolder}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-xl text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors font-medium cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-xl text-t2-ink  hover:bg-t2-hover  transition-colors font-medium cursor-pointer"
                   >
-                    <FolderPlus size={15} className="text-purple-500" />
+                    <FolderPlus size={15} className="text-t2-accent" />
                     <span>Ordner erstellen</span>
                   </button>
                 </motion.div>
@@ -1341,7 +1341,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                 setIsAddMenuOpen((prev) => !prev);
                 setIsFilterMenuOpen(false);
               }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-xl shadow-lg transition-all active:scale-95 font-medium text-sm cursor-pointer select-none"
+              className="flex items-center gap-2 px-4 py-2.5 bg-t2-accent hover:opacity-90   text-t2-accent-ink rounded-xl shadow-lg transition-all active:scale-95 font-medium text-sm cursor-pointer select-none"
             >
               <Plus size={18} />
               <span>Aufgabe</span>

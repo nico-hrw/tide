@@ -47,8 +47,8 @@ interface CheckboxProps {
 }
 
 export const TodoCheckbox: React.FC<CheckboxProps> = ({ checked, onClick, size = 18, onDark, label }) => {
-  const ring = onDark ? 'border-white' : 'border-t2-ink-3';
-  const fill = onDark ? 'bg-white text-cal-praktikum' : 'bg-t2-ink text-t2-bg';
+  const ring = onDark ? 'border-t2-line' : 'border-t2-ink-3';
+  const fill = onDark ? 'bg-t2-surface text-cal-praktikum' : 'bg-t2-ink text-t2-bg';
   return (
     <button
       type="button"

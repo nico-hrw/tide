@@ -138,26 +138,26 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
     }, [filtered.length, counts, circ]);
 
     return (
-        <div className={`space-y-6 text-gray-900 dark:text-gray-100 ${className}`}>
+        <div className={`space-y-6 text-t2-ink  ${className}`}>
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-gray-200 dark:border-gray-800">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-t2-line ">
                 <div>
                     <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                        <Sparkles className="w-6 h-6 text-blue-500" />
+                        <Sparkles className="w-6 h-6 text-t2-accent" />
                         Stimmungs- & Umfrage-Analyse
                     </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="text-sm text-t2-ink-2  mt-1">
                         Visualisiere dein Wohlbefinden und erkenne Muster im Tages- und Wochenverlauf
                     </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                    <div className="inline-flex rounded-lg bg-gray-100 dark:bg-gray-800 p-1 border border-gray-200 dark:border-gray-700">
+                    <div className="inline-flex rounded-lg bg-t2-hover  p-1 border border-t2-line ">
                         {(['7d', '30d', 'all'] as const).map((p) => (
                             <button
                                 key={p}
                                 type="button"
                                 onClick={() => setFilter(p)}
-                                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${filter === p ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'}`}
+                                className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${filter === p ? 'bg-t2-surface  text-t2-ink  shadow-sm' : 'text-t2-ink-2  hover:text-t2-ink'}`}
                             >
                                 {p === '7d' ? 'Letzte 7 Tage' : p === '30d' ? 'Letzte 30 Tage' : 'Alle'}
                             </button>
@@ -166,7 +166,7 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
                     <button
                         type="button"
                         onClick={() => setIsPopupOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-colors"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-t2-accent hover:opacity-90 text-t2-accent-ink shadow-sm transition-colors"
                     >
                         <Plus className="w-4 h-4" /> Stimmung jetzt erfassen
                     </button>
@@ -175,44 +175,44 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
 
             {/* Stat Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="p-4 rounded-xl bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
+                <div className="p-4 rounded-xl bg-t2-surface  border border-t2-line  shadow-sm flex items-center justify-between">
                     <div>
-                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Aktuelle Stimmung</div>
+                        <div className="text-xs font-medium text-t2-ink-2 ">Aktuelle Stimmung</div>
                         <div className="text-xl font-bold mt-1 flex items-center gap-2">
-                            {latestMood ? <>{MOOD_MAP[latestMood.mood].emoji} {MOOD_MAP[latestMood.mood].label}</> : <span className="text-sm text-gray-400">Keine Daten</span>}
+                            {latestMood ? <>{MOOD_MAP[latestMood.mood].emoji} {MOOD_MAP[latestMood.mood].label}</> : <span className="text-sm text-t2-ink-3">Keine Daten</span>}
                         </div>
-                        <div className="text-xs text-gray-400 mt-1">{latest ? new Date(latest.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Noch kein Eintrag'}</div>
+                        <div className="text-xs text-t2-ink-3 mt-1">{latest ? new Date(latest.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'Noch kein Eintrag'}</div>
                     </div>
-                    <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"><Smile className="w-6 h-6" /></div>
+                    <div className="p-3 rounded-xl bg-t2-sub  text-t2-accent "><Smile className="w-6 h-6" /></div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
+                <div className="p-4 rounded-xl bg-t2-surface  border border-t2-line  shadow-sm flex items-center justify-between">
                     <div>
-                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Häufigste Stimmung</div>
+                        <div className="text-xs font-medium text-t2-ink-2 ">Häufigste Stimmung</div>
                         <div className="text-xl font-bold mt-1 flex items-center gap-2">
-                            {filtered.length ? <>{MOOD_MAP[dominantMood].emoji} {MOOD_MAP[dominantMood].label}</> : <span className="text-sm text-gray-400">—</span>}
+                            {filtered.length ? <>{MOOD_MAP[dominantMood].emoji} {MOOD_MAP[dominantMood].label}</> : <span className="text-sm text-t2-ink-3">—</span>}
                         </div>
-                        <div className="text-xs text-gray-400 mt-1">{filtered.length ? `${dominantPct}% aller Einträge` : 'Im Zeitraum'}</div>
+                        <div className="text-xs text-t2-ink-3 mt-1">{filtered.length ? `${dominantPct}% aller Einträge` : 'Im Zeitraum'}</div>
                     </div>
-                    <div className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400"><TrendingUp className="w-6 h-6" /></div>
+                    <div className="p-3 rounded-xl bg-t2-sub  text-t2-accent "><TrendingUp className="w-6 h-6" /></div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
+                <div className="p-4 rounded-xl bg-t2-surface  border border-t2-line  shadow-sm flex items-center justify-between">
                     <div>
-                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Check-in Streak</div>
+                        <div className="text-xs font-medium text-t2-ink-2 ">Check-in Streak</div>
                         <div className="text-2xl font-bold mt-1 flex items-center gap-1.5 text-amber-500">
                             <Flame className="w-5 h-5 fill-amber-500" /> {streak} {streak === 1 ? 'Tag' : 'Tage'}
                         </div>
-                        <div className="text-xs text-gray-400 mt-1">{streak > 0 ? 'Kontinuierlich erfasst' : 'Starte heute'}</div>
+                        <div className="text-xs text-t2-ink-3 mt-1">{streak > 0 ? 'Kontinuierlich erfasst' : 'Starte heute'}</div>
                     </div>
                     <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400"><Calendar className="w-6 h-6" /></div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 shadow-sm flex items-center justify-between">
+                <div className="p-4 rounded-xl bg-t2-surface  border border-t2-line  shadow-sm flex items-center justify-between">
                     <div>
-                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Gesamte Einträge</div>
+                        <div className="text-xs font-medium text-t2-ink-2 ">Gesamte Einträge</div>
                         <div className="text-2xl font-bold mt-1">{filtered.length}</div>
-                        <div className="text-xs text-gray-400 mt-1">{filter === '7d' ? 'Letzte 7 Tage' : filter === '30d' ? 'Letzte 30 Tage' : 'Insgesamt'}</div>
+                        <div className="text-xs text-t2-ink-3 mt-1">{filter === '7d' ? 'Letzte 7 Tage' : filter === '30d' ? 'Letzte 30 Tage' : 'Insgesamt'}</div>
                     </div>
                     <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"><BarChart3 className="w-6 h-6" /></div>
                 </div>
@@ -220,10 +220,10 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
 
             {/* Empty State */}
             {filtered.length === 0 ? (
-                <div className="p-8 rounded-2xl bg-white dark:bg-gray-800/60 border border-dashed border-gray-300 dark:border-gray-700 text-center">
-                    <div className="inline-flex p-4 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-500 mb-3"><Smile className="w-8 h-8" /></div>
+                <div className="p-8 rounded-2xl bg-t2-surface  border border-dashed border-t2-line  text-center">
+                    <div className="inline-flex p-4 rounded-full bg-t2-sub  text-t2-accent mb-3"><Smile className="w-8 h-8" /></div>
                     <h3 className="text-lg font-semibold">Noch keine Stimmungs-Check-ins erfasst</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mt-1 mb-6">
+                    <p className="text-sm text-t2-ink-2  max-w-md mx-auto mt-1 mb-6">
                         Erfasse mit einem Klick deine aktuelle Stimmung, um Trends im Zeitverlauf zu analysieren.
                     </p>
                     <div className="flex items-center justify-center gap-3 flex-wrap">
@@ -244,10 +244,10 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
                     {/* Charts */}
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         {/* Timeline */}
-                        <div className="lg:col-span-2 p-5 rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 shadow-sm relative">
+                        <div className="lg:col-span-2 p-5 rounded-2xl bg-t2-surface  border border-t2-line  shadow-sm relative">
                             <div className="mb-4">
-                                <h3 className="font-semibold text-base flex items-center gap-2"><TrendingUp className="w-4 h-4 text-blue-500" /> Stimmungsverlauf</h3>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Verlauf im Zeitablauf (Super, Okay, Schlecht)</p>
+                                <h3 className="font-semibold text-base flex items-center gap-2"><TrendingUp className="w-4 h-4 text-t2-accent" /> Stimmungsverlauf</h3>
+                                <p className="text-xs text-t2-ink-2 ">Verlauf im Zeitablauf (Super, Okay, Schlecht)</p>
                             </div>
                             <div className="relative w-full overflow-hidden">
                                 <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-44 sm:h-52 overflow-visible select-none">
@@ -261,7 +261,7 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
                                         const y = padY + (3 - s) * (plotH / 2);
                                         return (
                                             <g key={s}>
-                                                <line x1={padX} y1={y} x2={svgW - padX} y2={y} stroke="currentColor" strokeDasharray="4 4" className="text-gray-200 dark:text-gray-700/60" strokeWidth="1" />
+                                                <line x1={padX} y1={y} x2={svgW - padX} y2={y} stroke="currentColor" strokeDasharray="4 4" className="text-t2-ink-3 " strokeWidth="1" />
                                                 <text x={padX - 8} y={y + 4} textAnchor="end" className="fill-gray-400 dark:fill-gray-500 text-[10px]">
                                                     {s === 3 ? 'Super' : s === 2 ? 'Okay' : 'Schlecht'}
                                                 </text>
@@ -287,24 +287,24 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
                                 </svg>
                                 {hovered && (
                                     <div
-                                        className="absolute z-10 pointer-events-none transform -translate-x-1/2 -translate-y-full px-2.5 py-1.5 rounded-lg bg-gray-900 text-white text-xs shadow-lg mb-2"
+                                        className="absolute z-10 pointer-events-none transform -translate-x-1/2 -translate-y-full px-2.5 py-1.5 rounded-lg bg-t2-ink text-white text-xs shadow-lg mb-2"
                                         style={{ left: `${(hovered.x / svgW) * 100}%`, top: `${(hovered.y / svgH) * 100}%` }}
                                     >
                                         <div className="font-semibold flex items-center gap-1">
                                             <span>{hovered.label}</span>
-                                            <span className="text-gray-400 font-normal">({hovered.date}, {hovered.time})</span>
+                                            <span className="text-t2-ink-3 font-normal">({hovered.date}, {hovered.time})</span>
                                         </div>
-                                        {hovered.note && <div className="text-[11px] text-gray-300 mt-0.5 truncate max-w-[150px]">„{hovered.note}“</div>}
+                                        {hovered.note && <div className="text-[11px] text-t2-ink-3 mt-0.5 truncate max-w-[150px]">„{hovered.note}“</div>}
                                     </div>
                                 )}
                             </div>
                         </div>
 
                         {/* Distribution */}
-                        <div className="p-5 rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col justify-between">
+                        <div className="p-5 rounded-2xl bg-t2-surface  border border-t2-line  shadow-sm flex flex-col justify-between">
                             <div>
-                                <h3 className="font-semibold text-base flex items-center gap-2"><BarChart3 className="w-4 h-4 text-blue-500" /> Stimmungsverteilung</h3>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Prozentualer Anteil je Kategorie</p>
+                                <h3 className="font-semibold text-base flex items-center gap-2"><BarChart3 className="w-4 h-4 text-t2-accent" /> Stimmungsverteilung</h3>
+                                <p className="text-xs text-t2-ink-2  mb-3">Prozentualer Anteil je Kategorie</p>
                                 <div className="flex items-center justify-center my-2">
                                     <div className="relative w-28 h-28">
                                         <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
@@ -314,7 +314,7 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
                                         </svg>
                                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                                             <span className="text-xl font-bold">{filtered.length}</span>
-                                            <span className="text-[9px] text-gray-400 uppercase tracking-wider">Logs</span>
+                                            <span className="text-[9px] text-t2-ink-3 uppercase tracking-wider">Logs</span>
                                         </div>
                                     </div>
                                 </div>
@@ -324,9 +324,9 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
                                     <div key={s.k} className="space-y-1">
                                         <div className="flex items-center justify-between text-xs font-medium">
                                             <span className="flex items-center gap-1.5"><span>{s.meta.emoji}</span><span>{s.meta.label}</span></span>
-                                            <span className="text-gray-500 dark:text-gray-400">{s.count} ({s.pct}%)</span>
+                                            <span className="text-t2-ink-2 ">{s.count} ({s.pct}%)</span>
                                         </div>
-                                        <div className="h-2 w-full rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                                        <div className="h-2 w-full rounded-full bg-t2-hover  overflow-hidden">
                                             <div className="h-full rounded-full transition-all duration-500" style={{ width: `${s.pct}%`, backgroundColor: s.meta.color }} />
                                         </div>
                                     </div>
@@ -336,28 +336,28 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
                     </div>
 
                     {/* Time of Day */}
-                    <div className="p-5 rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <div className="p-5 rounded-2xl bg-t2-surface  border border-t2-line  shadow-sm">
                         <div className="mb-4">
-                            <h3 className="font-semibold text-base flex items-center gap-2"><Clock className="w-4 h-4 text-blue-500" /> Tageszeiten-Muster</h3>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Durchschnittlicher Score (1: Schlecht, 2: Okay, 3: Super)</p>
+                            <h3 className="font-semibold text-base flex items-center gap-2"><Clock className="w-4 h-4 text-t2-accent" /> Tageszeiten-Muster</h3>
+                            <p className="text-xs text-t2-ink-2 ">Durchschnittlicher Score (1: Schlecht, 2: Okay, 3: Super)</p>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             {slots.map((s) => {
                                 const fill = s.scoreNum > 0 ? ((s.scoreNum - 1) / 2) * 100 : 0;
                                 return (
-                                    <div key={s.id} className="p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-200/70 dark:border-gray-800 flex flex-col justify-between">
+                                    <div key={s.id} className="p-3.5 rounded-xl bg-t2-sub  border border-t2-line  flex flex-col justify-between">
                                         <div>
                                             <div className="flex items-center justify-between">
                                                 <span className="font-medium text-sm">{s.label}</span>
-                                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{s.avgStr !== '—' ? `${s.avgStr} / 3.0` : '—'}</span>
+                                                <span className="text-xs font-bold text-t2-accent ">{s.avgStr !== '—' ? `${s.avgStr} / 3.0` : '—'}</span>
                                             </div>
-                                            <div className="text-[11px] text-gray-400 mt-0.5">{s.range}</div>
+                                            <div className="text-[11px] text-t2-ink-3 mt-0.5">{s.range}</div>
                                         </div>
                                         <div className="mt-3">
-                                            <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                                <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${Math.max(fill, 5)}%` }} />
+                                            <div className="h-1.5 w-full bg-t2-stage  rounded-full overflow-hidden">
+                                                <div className="h-full bg-t2-accent rounded-full transition-all duration-500" style={{ width: `${Math.max(fill, 5)}%` }} />
                                             </div>
-                                            <div className="text-[10px] text-gray-400 mt-1.5 text-right">{s.count} {s.count === 1 ? 'Eintrag' : 'Einträge'}</div>
+                                            <div className="text-[10px] text-t2-ink-3 mt-1.5 text-right">{s.count} {s.count === 1 ? 'Eintrag' : 'Einträge'}</div>
                                         </div>
                                     </div>
                                 );
@@ -366,26 +366,26 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
                     </div>
 
                     {/* History */}
-                    <div className="p-5 rounded-2xl bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700 shadow-sm">
-                        <h3 className="font-semibold text-base flex items-center gap-2 mb-4"><Calendar className="w-4 h-4 text-blue-500" /> Erfasste Einträge ({filtered.length})</h3>
-                        <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                    <div className="p-5 rounded-2xl bg-t2-surface  border border-t2-line  shadow-sm">
+                        <h3 className="font-semibold text-base flex items-center gap-2 mb-4"><Calendar className="w-4 h-4 text-t2-accent" /> Erfasste Einträge ({filtered.length})</h3>
+                        <div className="divide-y divide-t2-line-soft ">
                             {filtered.slice(0, 15).map((r) => {
                                 const mood = parseMoodData(r);
                                 const meta = MOOD_MAP[mood.mood];
                                 const d = new Date(r.created_at);
                                 const isDel = deleteConfirmId === r.id;
                                 return (
-                                    <div key={r.id} className="py-3 flex items-center justify-between gap-3 text-sm hover:bg-gray-50/50 dark:hover:bg-gray-900/30 px-2 rounded-lg transition-colors">
+                                    <div key={r.id} className="py-3 flex items-center justify-between gap-3 text-sm hover:bg-t2-sub  px-2 rounded-lg transition-colors">
                                         <div className="flex items-center gap-3 min-w-0">
                                             <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${meta.bgBadge}`}>
                                                 <span>{meta.emoji}</span><span>{meta.label}</span>
                                             </span>
                                             <div className="truncate">
-                                                <div className="font-medium text-xs sm:text-sm text-gray-800 dark:text-gray-200">
+                                                <div className="font-medium text-xs sm:text-sm text-t2-ink ">
                                                     {d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })}{' '}
-                                                    <span className="text-gray-400 font-normal">{d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                    <span className="text-t2-ink-3 font-normal">{d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
                                                 </div>
-                                                {mood.note && <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{mood.note}</p>}
+                                                {mood.note && <p className="text-xs text-t2-ink-2  truncate mt-0.5">{mood.note}</p>}
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -393,10 +393,10 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
                                                 <div className="inline-flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/60 p-1 rounded-lg border border-rose-200 dark:border-rose-900">
                                                     <span className="text-[11px] text-rose-600 dark:text-rose-400 font-medium px-1">Löschen?</span>
                                                     <button type="button" onClick={() => void deleteResponse(r.id)} className="p-1 rounded hover:bg-rose-200 dark:hover:bg-rose-800 text-rose-700 dark:text-rose-300" title="Bestätigen"><Check className="w-3.5 h-3.5" /></button>
-                                                    <button type="button" onClick={() => setDeleteConfirmId(null)} className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500" title="Abbrechen"><X className="w-3.5 h-3.5" /></button>
+                                                    <button type="button" onClick={() => setDeleteConfirmId(null)} className="p-1 rounded hover:bg-t2-stage  text-t2-ink-2" title="Abbrechen"><X className="w-3.5 h-3.5" /></button>
                                                 </div>
                                             ) : (
-                                                <button type="button" onClick={() => setDeleteConfirmId(r.id)} className="p-1.5 text-gray-400 hover:text-rose-500 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title="Eintrag löschen"><Trash2 className="w-4 h-4" /></button>
+                                                <button type="button" onClick={() => setDeleteConfirmId(r.id)} className="p-1.5 text-t2-ink-3 hover:text-rose-500 rounded-lg hover:bg-t2-hover  transition-colors" title="Eintrag löschen"><Trash2 className="w-4 h-4" /></button>
                                             )}
                                         </div>
                                     </div>

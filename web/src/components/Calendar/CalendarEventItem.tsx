@@ -597,7 +597,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     setIsLinkingMode(false);
                 }
             }}
-            className={`event-item group absolute ${isTimePoint ? 'px-1.5 py-0 overflow-visible rounded-sm' : isShortEvent ? 'px-2.5 py-0 overflow-hidden' : durationMinutes < 45 ? 'px-3 py-1.5 overflow-hidden' : 'px-3.5 py-3 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-purple-500 z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-[opacity,transform] duration-150 ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''} ${shouldGlow ? 'event-shimmer' : ''}`}
+            className={`event-item group absolute ${isTimePoint ? 'px-1.5 py-0 overflow-visible rounded-sm' : isShortEvent ? 'px-2.5 py-0 overflow-hidden' : durationMinutes < 45 ? 'px-3 py-1.5 overflow-hidden' : 'px-3.5 py-3 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-t2-accent z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-[opacity,transform] duration-150 ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''} ${shouldGlow ? 'event-shimmer' : ''}`}
             onClick={(e) => {
                 e.stopPropagation();
 
@@ -654,7 +654,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                         useDataStore.getState().groupOverlappingEvents(event.id);
                     }}
                     title="Make Group"
-                    className={`absolute ${isShortEvent ? 'top-0.5 right-[2.2rem]' : 'top-1 right-[2.2rem]'} opacity-0 group-hover:opacity-100 z-50 p-1 text-t2-ink-2 hover:text-indigo-600 transition-colors`}
+                    className={`absolute ${isShortEvent ? 'top-0.5 right-[2.2rem]' : 'top-1 right-[2.2rem]'} opacity-0 group-hover:opacity-100 z-50 p-1 text-t2-ink-2 hover:text-t2-accent transition-colors`}
                 >
                     <Layers size={isShortEvent ? 12 : 14} />
                 </button>
@@ -665,7 +665,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     if (onEventShare) onEventShare(e, event.id);
                 }}
                 title="Share Event"
-                className={`absolute ${isShortEvent ? 'top-0.5 right-5' : 'top-1 right-5'} opacity-0 group-hover:opacity-100 z-50 p-0.5 text-t2-ink-3 hover:text-blue-500 transition-colors`}
+                className={`absolute ${isShortEvent ? 'top-0.5 right-5' : 'top-1 right-5'} opacity-0 group-hover:opacity-100 z-50 p-0.5 text-t2-ink-3 hover:text-t2-accent transition-colors`}
             >
                 <svg xmlns="http://www.w3.org/2000/svg" width={isShortEvent ? 11 : 13} height={isShortEvent ? 11 : 13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
             </button>

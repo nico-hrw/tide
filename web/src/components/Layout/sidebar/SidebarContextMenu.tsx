@@ -34,16 +34,16 @@ export default function SidebarContextMenu({
                 const clampedY = typeof window !== 'undefined' ? Math.max(8, Math.min(contextMenu.y, window.innerHeight - 340)) : contextMenu.y;
                 return createPortal(
                     <div
-                        className="context-menu fixed z-[9999] w-56 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
+                        className="context-menu fixed z-[9999] w-56 bg-t2-surface  border border-t2-line  rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
                         style={{ left: clampedX, top: clampedY }}
                     >
                         <div className="px-2 py-1.5 flex flex-col gap-0.5">
                         {/* 1. Rename */}
                         <button
                             onClick={(e) => { setContextMenu(null); onRenameNote(e, contextMenu.id, ""); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-t2-ink  hover:bg-t2-hover  rounded-lg transition-colors group"
                         >
-                            <Edit3 size={15} className="text-gray-400 group-hover:text-blue-500" />
+                            <Edit3 size={15} className="text-t2-ink-3 group-hover:text-t2-accent" />
                             <span className="font-medium">Umbenennen</span>
                         </button>
 
@@ -58,10 +58,10 @@ export default function SidebarContextMenu({
                                             setContextMenu(null); 
                                             onNewNote(parentId);
                                         }}
-                                        className="flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-slate-800/80 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors border border-gray-200/50 dark:border-slate-700/50"
+                                        className="flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-t2-ink  bg-t2-sub  hover:bg-t2-hover  rounded-lg transition-colors border border-t2-line "
                                         title="Neue Notiz"
                                     >
-                                        <Plus size={14} className="text-blue-500" />
+                                        <Plus size={14} className="text-t2-accent" />
                                         <span>Notiz</span>
                                     </button>
                                     <button
@@ -69,7 +69,7 @@ export default function SidebarContextMenu({
                                             setContextMenu(null);
                                             onCreateFolder?.(parentId);
                                         }}
-                                        className="flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-slate-800/80 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg transition-colors border border-gray-200/50 dark:border-slate-700/50"
+                                        className="flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium text-t2-ink  bg-t2-sub  hover:bg-t2-hover  rounded-lg transition-colors border border-t2-line "
                                         title="Neuer Ordner"
                                     >
                                         <FolderPlus size={14} className="text-amber-500" />
@@ -80,7 +80,7 @@ export default function SidebarContextMenu({
                         })()}
 
                         {/* 3. Trennlinie */}
-                        <div className="h-px bg-gray-100 dark:bg-slate-800 my-1" />
+                        <div className="h-px bg-t2-hover  my-1" />
 
                         {/* In meine Notizen kopieren (für geteilte Notizen) */}
                         {(() => {
@@ -91,9 +91,9 @@ export default function SidebarContextMenu({
                             return (
                                 <button
                                     onClick={() => handleCopyToMyNotes(targetFile)}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-t2-ink  hover:bg-t2-hover  rounded-lg transition-colors group"
                                 >
-                                    <Copy size={15} className="text-gray-400 group-hover:text-blue-500" />
+                                    <Copy size={15} className="text-t2-ink-3 group-hover:text-t2-accent" />
                                     <span className="font-medium">In meine Notizen kopieren</span>
                                 </button>
                             );
@@ -109,9 +109,9 @@ export default function SidebarContextMenu({
                             return (
                         <button
                             onClick={(e) => { setContextMenu(null); onShare(e, contextMenu.id); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-t2-ink  hover:bg-t2-hover  rounded-lg transition-colors group"
                         >
-                            <Share2 size={15} className="text-gray-400 group-hover:text-blue-500" />
+                            <Share2 size={15} className="text-t2-ink-3 group-hover:text-t2-accent" />
                             <span className="font-medium">Teilen</span>
                         </button>
 
@@ -129,12 +129,12 @@ export default function SidebarContextMenu({
                                         setContextMenu(null);
                                         handleOpenSecuritySettings(targetId);
                                     }}
-                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-t2-ink  hover:bg-t2-hover  rounded-lg transition-colors group"
                                 >
                                     {isProtected ? (
                                         <ShieldCheck size={15} className="text-amber-500 group-hover:text-amber-600" />
                                     ) : (
-                                        <Lock size={15} className="text-gray-400 group-hover:text-purple-500" />
+                                        <Lock size={15} className="text-t2-ink-3 group-hover:text-t2-accent" />
                                     )}
                                     <span className="font-medium">
                                         {isProtected ? "PIN-Schutz verwalten" : "Sichern"}
@@ -156,13 +156,13 @@ export default function SidebarContextMenu({
                                         e.stopPropagation();
                                         setShowSafeSubmenu((v) => !v);
                                     }}
-                                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group cursor-pointer"
+                                    className="w-full flex items-center justify-between px-3 py-2 text-sm text-t2-ink  hover:bg-t2-hover  rounded-lg transition-colors group cursor-pointer"
                                 >
                                     <div className="flex items-center gap-3">
-                                        <Archive size={15} className="text-gray-400 group-hover:text-blue-500" />
+                                        <Archive size={15} className="text-t2-ink-3 group-hover:text-t2-accent" />
                                         <span className="font-medium">In Workspace verschieben</span>
                                     </div>
-                                    <ChevronRight size={14} className="text-gray-400 group-hover:text-gray-600 dark:group-hover:text-slate-300" />
+                                    <ChevronRight size={14} className="text-t2-ink-3 group-hover:text-t2-ink-2 " />
                                 </button>
 
                                 {showSafeSubmenu && (() => {
@@ -174,9 +174,9 @@ export default function SidebarContextMenu({
                                         <div
                                             className={`context-menu absolute ${
                                                 isLeft ? 'right-full mr-1' : 'left-full ml-1'
-                                            } top-0 w-44 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 z-[10000] animate-in fade-in zoom-in-95 duration-100`}
+                                            } top-0 w-44 bg-t2-surface  border border-t2-line  rounded-xl shadow-2xl py-1 z-[10000] animate-in fade-in zoom-in-95 duration-100`}
                                         >
-                                            <div className="px-2.5 py-1 text-[10px] font-semibold text-gray-400 dark:text-slate-400 uppercase tracking-wider border-b border-gray-100 dark:border-slate-800 mb-1">
+                                            <div className="px-2.5 py-1 text-[10px] font-semibold text-t2-ink-3  uppercase tracking-wider border-b border-t2-line-soft  mb-1">
                                                 Workspace wählen
                                             </div>
                                             <div className="px-1 flex flex-col gap-0.5">
@@ -200,13 +200,13 @@ export default function SidebarContextMenu({
                                                             }}
                                                             className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs rounded-lg transition-colors cursor-pointer ${
                                                                 isCurrent
-                                                                    ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-medium'
-                                                                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800'
+                                                                    ? 'bg-t2-sub  text-t2-accent  font-medium'
+                                                                    : 'text-t2-ink  hover:bg-t2-hover '
                                                             }`}
                                                         >
                                                             <span className="truncate">{label}</span>
                                                             {isCurrent && (
-                                                                <Check size={13} className="text-blue-500 shrink-0 ml-1.5" />
+                                                                <Check size={13} className="text-t2-accent shrink-0 ml-1.5" />
                                                             )}
                                                         </button>
                                                     );
@@ -219,17 +219,17 @@ export default function SidebarContextMenu({
                         )}
 
                         {/* 6. Export & Import */}
-                        <div className="h-px bg-gray-100 dark:bg-slate-800 my-1" />
+                        <div className="h-px bg-t2-hover  my-1" />
                         <button
                             onClick={() => {
                                 const targetId = contextMenu.id;
                                 setContextMenu(null);
                                 handleExport(targetId, 'bundle');
                             }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-t2-ink  hover:bg-t2-hover  rounded-lg transition-colors group"
                             title="Exportiert als komplettes Bundle inklusive interner Referenzen"
                         >
-                            <Download size={15} className="text-gray-400 group-hover:text-blue-500" />
+                            <Download size={15} className="text-t2-ink-3 group-hover:text-t2-accent" />
                             <span className="font-medium">Export (.tide.json)</span>
                         </button>
                         {contextMenu.type === 'file' && (
@@ -239,10 +239,10 @@ export default function SidebarContextMenu({
                                     setContextMenu(null);
                                     handleExport(targetId, 'markdown');
                                 }}
-                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-t2-ink  hover:bg-t2-hover  rounded-lg transition-colors group"
                                 title="Exportiert reines Markdown"
                             >
-                                <FileText size={15} className="text-gray-400 group-hover:text-blue-500" />
+                                <FileText size={15} className="text-t2-ink-3 group-hover:text-t2-accent" />
                                 <span className="font-medium">Export (.md)</span>
                             </button>
                         )}
@@ -253,15 +253,15 @@ export default function SidebarContextMenu({
                                 setContextMenu(null);
                                 handleImport(targetFolder);
                             }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-lg transition-colors group"
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-t2-ink  hover:bg-t2-hover  rounded-lg transition-colors group"
                             title="Importiert Notizen oder Bundles direkt an diese Stelle"
                         >
-                            <Upload size={15} className="text-gray-400 group-hover:text-blue-500" />
+                            <Upload size={15} className="text-t2-ink-3 group-hover:text-t2-accent" />
                             <span className="font-medium">Hier importieren</span>
                         </button>
 
                         {/* 7. Trennlinie */}
-                        <div className="h-px bg-gray-100 dark:bg-slate-800 my-1" />
+                        <div className="h-px bg-t2-hover  my-1" />
 
                         {/* 8. Delete */}
                         {(() => {
@@ -293,39 +293,39 @@ export default function SidebarContextMenu({
 
             {sidebarContextMenu && typeof document !== 'undefined' && createPortal(
                 <div
-                    className="context-menu fixed z-[9999] w-56 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
+                    className="context-menu fixed z-[9999] w-56 bg-t2-surface  border border-t2-line  rounded-xl shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
                     style={{ left: sidebarContextMenu.x, top: sidebarContextMenu.y }}
                 >
                     <div className="px-2 py-1.5 flex flex-col gap-0.5">
                         <button
                             onClick={() => { setSidebarContextMenu(null); onNewNote(); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-t2-ink hover:bg-t2-hover rounded-lg transition-colors group"
                         >
-                            <Plus size={16} className="text-gray-400 group-hover:text-blue-500" />
+                            <Plus size={16} className="text-t2-ink-3 group-hover:text-t2-accent" />
                             <span className="font-medium">Neue Notiz</span>
                         </button>
                         {onNewCanvasNote && (
                             <button
                                 onClick={() => { setSidebarContextMenu(null); onNewCanvasNote(); }}
-                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-t2-ink hover:bg-t2-hover rounded-lg transition-colors group"
                             >
-                                <Layout size={16} className="text-gray-400 group-hover:text-blue-500" />
+                                <Layout size={16} className="text-t2-ink-3 group-hover:text-t2-accent" />
                                 <span className="font-medium">Neue Leinwand</span>
                             </button>
                         )}
                         <button
                             onClick={() => { setSidebarContextMenu(null); onCreateFolder && onCreateFolder(null); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-t2-ink hover:bg-t2-hover rounded-lg transition-colors group"
                         >
-                            <FolderPlus size={16} className="text-gray-400 group-hover:text-blue-500" />
+                            <FolderPlus size={16} className="text-t2-ink-3 group-hover:text-t2-accent" />
                             <span className="font-medium">Neuer Ordner</span>
                         </button>
-                        <div className="h-px bg-gray-100 my-1" />
+                        <div className="h-px bg-t2-hover my-1" />
                         <button
                             onClick={() => { setSidebarContextMenu(null); handleImport(); }}
-                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors group"
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-t2-ink hover:bg-t2-hover rounded-lg transition-colors group"
                         >
-                            <Upload size={16} className="text-gray-400 group-hover:text-blue-500" />
+                            <Upload size={16} className="text-t2-ink-3 group-hover:text-t2-accent" />
                             <span className="font-medium">Importieren (.tide.json, .md)</span>
                         </button>
                     </div>

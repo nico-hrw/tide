@@ -149,44 +149,44 @@ export default function PlannerWeekCalendar({
     const currentTimeTopPercent = ((currentHourDecimal - minHour) / totalHours) * 100;
 
     return (
-        <div className="w-full bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 rounded-2xl shadow-xs overflow-hidden flex flex-col transition-all">
+        <div className="w-full bg-t2-surface  border border-t2-line  rounded-2xl shadow-xs overflow-hidden flex flex-col transition-all">
             {/* Clean, uncluttered Calendar Header */}
-            <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-white/5 gap-3 bg-white dark:bg-[#1a1a1a]">
+            <div className="flex flex-wrap items-center justify-between px-5 py-3 border-b border-t2-line-soft  gap-3 bg-t2-surface ">
                 <div className="flex items-center gap-3">
-                    <span className="bg-gray-100 dark:bg-white/10 px-2.5 py-1 rounded-lg text-[11px] font-bold text-gray-700 dark:text-gray-300 font-mono">
+                    <span className="bg-t2-hover  px-2.5 py-1 rounded-lg text-[11px] font-bold text-t2-ink  font-mono">
                         KW {weekNumber}
                     </span>
 
                     {/* Navigation Controls */}
-                    <div className="flex items-center gap-1 bg-gray-50 dark:bg-white/5 p-0.5 rounded-xl border border-gray-100 dark:border-white/5">
+                    <div className="flex items-center gap-1 bg-t2-sub  p-0.5 rounded-xl border border-t2-line-soft ">
                         <button
                             onClick={prevWeek}
-                            className="p-1 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/10 transition-colors cursor-pointer"
+                            className="p-1 rounded-lg text-t2-ink-2 hover:text-t2-ink  hover:bg-t2-surface  transition-colors cursor-pointer"
                             title="Vorherige Woche"
                         >
                             <ChevronLeft size={16} />
                         </button>
                         <button
                             onClick={goToToday}
-                            className="px-2.5 py-1 text-xs font-semibold rounded-lg text-gray-700 dark:text-gray-200 hover:bg-white dark:hover:bg-white/10 transition-colors cursor-pointer"
+                            className="px-2.5 py-1 text-xs font-semibold rounded-lg text-t2-ink  hover:bg-t2-surface  transition-colors cursor-pointer"
                         >
                             Heute
                         </button>
                         <button
                             onClick={nextWeek}
-                            className="p-1 rounded-lg text-gray-500 hover:text-gray-900 dark:hover:text-white hover:bg-white dark:hover:bg-white/10 transition-colors cursor-pointer"
+                            className="p-1 rounded-lg text-t2-ink-2 hover:text-t2-ink  hover:bg-t2-surface  transition-colors cursor-pointer"
                             title="Nächste Woche"
                         >
                             <ChevronRight size={16} />
                         </button>
                     </div>
 
-                    <span className="text-xs text-gray-400 dark:text-gray-500 font-mono hidden sm:inline">
+                    <span className="text-xs text-t2-ink-3  font-mono hidden sm:inline">
                         {String(minHour).padStart(2, '0')}:00 – {String(maxHour).padStart(2, '0')}:00 Uhr
                     </span>
                 </div>
 
-                <div className="text-xs font-medium text-gray-500 dark:text-gray-400 font-mono">
+                <div className="text-xs font-medium text-t2-ink-2  font-mono">
                     {formattedDateTime}
                 </div>
             </div>
@@ -195,8 +195,8 @@ export default function PlannerWeekCalendar({
             <div className="w-full overflow-x-auto">
                 <div className="min-w-[620px] flex flex-col">
                     {/* Day Column Headers */}
-                    <div className="flex border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.02]">
-                        <div className="w-16 shrink-0 py-2.5 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                    <div className="flex border-b border-t2-line-soft  bg-t2-sub ">
+                        <div className="w-16 shrink-0 py-2.5 text-center text-[10px] font-bold text-t2-ink-3 uppercase tracking-wider">
                             Zeit
                         </div>
                         {weekDays.map((d, index) => {
@@ -206,14 +206,14 @@ export default function PlannerWeekCalendar({
                             return (
                                 <div
                                     key={index}
-                                    className={`flex-1 py-2 text-center border-l border-gray-100 dark:border-white/5 ${
-                                        isToday ? 'bg-blue-50/30 dark:bg-blue-900/10' : ''
+                                    className={`flex-1 py-2 text-center border-l border-t2-line-soft  ${
+                                        isToday ? 'bg-t2-sub ' : ''
                                     }`}
                                 >
                                     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-xs font-bold ${
                                         isToday 
-                                            ? 'bg-blue-600 text-white shadow-2xs' 
-                                            : 'text-gray-700 dark:text-gray-300'
+                                            ? 'bg-t2-accent text-t2-accent-ink shadow-2xs' 
+                                            : 'text-t2-ink '
                                     }`}>
                                         <span>{dayName}</span>
                                         <span className="opacity-70 font-normal">·</span>
@@ -227,10 +227,10 @@ export default function PlannerWeekCalendar({
                     {/* Hour Rows & Grid */}
                     <div className="relative flex min-h-[460px] select-none">
                         {/* Time labels column */}
-                        <div className="w-16 shrink-0 flex flex-col justify-between py-2 border-r border-gray-100 dark:border-white/5">
+                        <div className="w-16 shrink-0 flex flex-col justify-between py-2 border-r border-t2-line-soft ">
                             {hoursList.map((hour) => (
                                 <div key={hour} className="h-10 text-right pr-3 -mt-2">
-                                    <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 font-mono">
+                                    <span className="text-[11px] font-semibold text-t2-ink-3  font-mono">
                                         {String(hour).padStart(2, '0')}:00
                                     </span>
                                 </div>
@@ -244,7 +244,7 @@ export default function PlannerWeekCalendar({
                                 {hoursList.map((hour) => (
                                     <div
                                         key={hour}
-                                        className="h-10 border-b border-gray-100 dark:border-white/5 w-full"
+                                        className="h-10 border-b border-t2-line-soft  w-full"
                                     />
                                 ))}
                             </div>
@@ -276,8 +276,8 @@ export default function PlannerWeekCalendar({
                                                 onCreateEvent(dayDate, clickedHour);
                                             }
                                         }}
-                                        className={`flex-1 relative border-r border-gray-100 dark:border-white/5 hover:bg-gray-50/40 dark:hover:bg-white/[0.01] transition-colors cursor-pointer ${
-                                            isToday ? 'bg-blue-50/15 dark:bg-blue-900/5' : ''
+                                        className={`flex-1 relative border-r border-t2-line-soft  hover:bg-t2-sub  transition-colors cursor-pointer ${
+                                            isToday ? 'bg-t2-sub ' : ''
                                         }`}
                                     >
                                         {/* Current time indicator line on today's column */}

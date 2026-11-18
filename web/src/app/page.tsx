@@ -31,7 +31,7 @@ import { getFolderColor, loadTodoFoldersMeta, isTaskVisibleInCalendar } from '..
 
 const Editor = dynamic(() => import('@/components/Editor'), {
     ssr: false,
-    loading: () => <div className="min-h-[500px] w-full animate-pulse bg-gray-50 dark:bg-gray-800/50 rounded-lg"></div>
+    loading: () => <div className="min-h-[500px] w-full animate-pulse bg-t2-sub  rounded-lg"></div>
 });
 
 const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEditor'), { ssr: false });
@@ -3026,12 +3026,12 @@ export default function Dashboard() {
         }
     };
     if (status === "loading") return (
-        <div className="flex flex-col items-center justify-center h-screen bg-white dark:bg-[#0F172A] gap-4">
+        <div className="flex flex-col items-center justify-center h-screen bg-t2-surface  gap-4">
             <div className="relative w-8 h-8">
-                <div className="absolute inset-0 rounded-full border-2 border-gray-100 dark:border-white/10" />
+                <div className="absolute inset-0 rounded-full border-2 border-t2-line-soft " />
                 <div className="absolute inset-0 rounded-full border-2 border-t-gray-800 dark:border-t-white/60 animate-spin" />
             </div>
-            <span className="text-[11px] font-semibold text-gray-300 dark:text-white/20 tracking-[0.3em] uppercase">tide</span>
+            <span className="text-[11px] font-semibold text-t2-ink-3  tracking-[0.3em] uppercase">tide</span>
         </div>
     );
 
@@ -3122,7 +3122,7 @@ export default function Dashboard() {
 
                         if (activeFileType === 'canvas') {
                             return canvasNoteData === null ? (
-                                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
+                                <div className="flex-1 flex flex-col items-center justify-center text-t2-ink-3 h-[50vh] mt-20">
                                     <span className="font-medium text-sm">Lade...</span>
                                 </div>
                             ) : (
@@ -3157,7 +3157,7 @@ export default function Dashboard() {
                         ));
 
                         return editorContent === null ? (
-                            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
+                            <div className="flex-1 flex flex-col items-center justify-center text-t2-ink-3 h-[50vh] mt-20">
                                 <span className="font-medium text-sm">Lade...</span>
                             </div>
                         ) : (
@@ -3271,7 +3271,7 @@ export default function Dashboard() {
                 {shouldShowSidebar && (
                     <div
                         onMouseDown={startSidebarDrag}
-                        className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-indigo-500/30 active:bg-indigo-500/50 transition-colors z-20"
+                        className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-t2-sub active:bg-indigo-500/50 transition-colors z-20"
                         title="Drag to resize sidebar"
                     />
                 )}

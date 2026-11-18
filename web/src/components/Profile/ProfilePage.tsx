@@ -251,13 +251,13 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
     if (loading) {
         return (
             <div className="flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto animate-pulse">
-                <div className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 py-4 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md">
-                    <div className="h-8 w-24 bg-gray-200 dark:bg-white/10 rounded-xl" />
-                    <div className="h-6 w-32 bg-gray-200 dark:bg-white/10 rounded-lg" />
+                <div className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 py-4 border-b border-t2-line  bg-t2-surface  backdrop-blur-md">
+                    <div className="h-8 w-24 bg-t2-stage  rounded-xl" />
+                    <div className="h-6 w-32 bg-t2-stage  rounded-lg" />
                 </div>
                 <div className="max-w-6xl w-full mx-auto px-4 md:px-8 py-6 flex flex-col gap-6">
-                    <div className="h-44 w-full bg-gray-200 dark:bg-white/5 rounded-3xl" />
-                    <div className="h-96 w-full bg-gray-200 dark:bg-white/5 rounded-2xl" />
+                    <div className="h-44 w-full bg-t2-stage  rounded-3xl" />
+                    <div className="h-96 w-full bg-t2-stage  rounded-2xl" />
                 </div>
             </div>
         );
@@ -265,10 +265,10 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
 
     if (!profile) {
         return (
-            <div className="flex-1 flex flex-col items-center justify-center h-full text-gray-500 bg-[#f8f9fa] dark:bg-[#121212]">
-                <User size={48} className="mb-4 opacity-40 text-gray-400" />
+            <div className="flex-1 flex flex-col items-center justify-center h-full text-t2-ink-2 bg-[#f8f9fa] dark:bg-[#121212]">
+                <User size={48} className="mb-4 opacity-40 text-t2-ink-3" />
                 <p className="text-sm font-semibold">Profil konnte nicht geladen werden</p>
-                <button type="button" onClick={handleBack} className="mt-4 px-4 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-50 transition-colors">
+                <button type="button" onClick={handleBack} className="mt-4 px-4 py-2 rounded-xl text-xs font-semibold bg-t2-surface  border border-t2-line  text-t2-ink  hover:bg-t2-sub transition-colors">
                     Zurück
                 </button>
             </div>
@@ -278,17 +278,17 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
     return (
         <div className="flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto relative select-none">
             {/* Sticky Header with Back Button */}
-            <div className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 py-4 border-b border-gray-200 dark:border-white/10 bg-white/90 dark:bg-[#121212]/90 backdrop-blur-md">
+            <div className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 py-4 border-b border-t2-line  bg-t2-surface  backdrop-blur-md">
                 <div className="flex items-center gap-3">
-                    <button type="button" onClick={handleBack} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer border border-transparent hover:border-gray-200 dark:hover:border-white/10" title="Zurück">
+                    <button type="button" onClick={handleBack} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold text-t2-ink-2  hover:text-t2-ink  hover:bg-t2-hover  transition-colors cursor-pointer border border-transparent hover:border-t2-line " title="Zurück">
                         <ArrowLeft size={16} />
                         <span>Zurück</span>
                     </button>
-                    <span className="text-sm font-bold text-gray-900 dark:text-white hidden sm:inline">Öffentliches Profil</span>
+                    <span className="text-sm font-bold text-t2-ink  hidden sm:inline">Öffentliches Profil</span>
                 </div>
                 {isOwnProfile && (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/40">
-                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-t2-sub  text-t2-accent  border border-t2-line ">
+                        <span className="w-1.5 h-1.5 rounded-full bg-t2-accent" />
                         <span>Eigenes Profil</span>
                     </span>
                 )}
@@ -297,32 +297,32 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
             {/* Layout Container */}
             <div className="flex-1 max-w-6xl w-full mx-auto px-4 md:px-8 py-6 flex flex-col gap-6">
                 {/* Profile Card */}
-                <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 rounded-3xl p-6 sm:p-8 shadow-xs flex flex-col md:flex-row items-center md:items-start gap-6 transition-all">
+                <div className="bg-t2-surface  border border-t2-line  rounded-3xl p-6 sm:p-8 shadow-xs flex flex-col md:flex-row items-center md:items-start gap-6 transition-all">
                     <div className="shrink-0">
                         <Avatar seed={(profile.avatar_seed || profile.user_id) + (profile.avatar_salt || '')} style={profile.avatar_style} size={92} verified={profile.is_verified} />
                     </div>
 
                     <div className="flex-1 min-w-0 flex flex-col items-center md:items-start text-center md:text-left">
                         <div className="flex items-center gap-2 flex-wrap justify-center md:justify-start">
-                            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">{profile.username || 'Benutzer'}</h1>
+                            <h1 className="text-2xl sm:text-3xl font-extrabold text-t2-ink  tracking-tight">{profile.username || 'Benutzer'}</h1>
                             {profile.is_verified && (
                                 <span title="Verifiziertes Profil" className="inline-flex items-center">
                                     <CheckCircle size={22} className="text-emerald-500 fill-emerald-500/10 shrink-0" />
                                 </span>
                             )}
                         </div>
-                        {profile.title && <p className="text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mt-1">{profile.title}</p>}
+                        {profile.title && <p className="text-xs font-bold uppercase tracking-wider text-t2-accent  mt-1">{profile.title}</p>}
                         <div className="mt-2.5 max-w-xl">
-                            {profile.bio ? <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{profile.bio}</p> : <p className="text-xs text-gray-400 italic">Keine Biografie hinterlegt.</p>}
+                            {profile.bio ? <p className="text-sm text-t2-ink-2  leading-relaxed whitespace-pre-wrap">{profile.bio}</p> : <p className="text-xs text-t2-ink-3 italic">Keine Biografie hinterlegt.</p>}
                         </div>
 
                         {/* Quick counters */}
                         <div className="flex items-center gap-3 mt-4 flex-wrap justify-center md:justify-start">
-                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 text-xs font-medium text-gray-700 dark:text-gray-300">
-                                <CalendarIcon size={14} className="text-blue-500 shrink-0" />
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-t2-sub  border border-t2-line  text-xs font-medium text-t2-ink ">
+                                <CalendarIcon size={14} className="text-t2-accent shrink-0" />
                                 <span>{events.length} Termin{events.length === 1 ? '' : 'e'}</span>
                             </div>
-                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 text-xs font-medium text-gray-700 dark:text-gray-300">
+                            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-t2-sub  border border-t2-line  text-xs font-medium text-t2-ink ">
                                 <FileText size={14} className="text-amber-500 shrink-0" />
                                 <span>{publicFiles.length} Notiz{publicFiles.length === 1 ? '' : 'en'}</span>
                             </div>
@@ -332,7 +332,7 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
                     {/* Action buttons (if not own profile) */}
                     {!isOwnProfile && (
                         <div className="flex md:flex-col gap-2.5 w-full md:w-auto shrink-0 md:ml-auto">
-                            <button type="button" onClick={() => onMessage?.(userId)} className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs hover:shadow-md transition-all cursor-pointer">
+                            <button type="button" onClick={() => onMessage?.(userId)} className="flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-t2-accent hover:opacity-90 text-t2-accent-ink shadow-xs hover:shadow-md transition-all cursor-pointer">
                                 <MessageSquare size={15} />
                                 <span>Nachricht senden</span>
                             </button>
@@ -342,10 +342,10 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
                                 disabled={requestSent}
                                 className={`flex-1 md:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                                     isContact
-                                        ? 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-700 dark:text-gray-300 hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-800/40'
+                                        ? 'border-t2-line  bg-t2-sub  text-t2-ink  hover:bg-rose-50 dark:hover:bg-rose-900/20 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-800/40'
                                         : requestSent
                                         ? 'border-emerald-200 dark:border-emerald-800/40 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 cursor-default'
-                                        : 'border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-800 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10'
+                                        : 'border-t2-line  bg-t2-surface  text-t2-ink  hover:bg-t2-sub '
                                 }`}
                             >
                                 {isContact ? (<><UserMinus size={15} /><span>Kontakt entfernen</span></>) : requestSent ? (<><Check size={15} /><span>Anfrage gesendet</span></>) : (<><UserPlus size={15} /><span>Kontakt anfragen</span></>)}
@@ -358,13 +358,13 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
                 <section className="flex flex-col gap-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5">
-                            <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500"><CalendarIcon size={18} /></div>
+                            <div className="p-2 rounded-xl bg-t2-sub text-t2-accent"><CalendarIcon size={18} /></div>
                             <div>
-                                <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">Öffentlicher Kalender</h2>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Wochenübersicht aller von {profile.username} freigegebenen Termine</p>
+                                <h2 className="text-lg font-bold text-t2-ink  leading-tight">Öffentlicher Kalender</h2>
+                                <p className="text-xs text-t2-ink-2 ">Wochenübersicht aller von {profile.username} freigegebenen Termine</p>
                             </div>
                         </div>
-                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/40">
+                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-t2-sub  text-t2-accent  border border-t2-line ">
                             {events.length} Termin{events.length === 1 ? '' : 'e'}
                         </span>
                     </div>
@@ -378,8 +378,8 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
                         <div className="flex items-center gap-2.5">
                             <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500"><FileText size={18} /></div>
                             <div>
-                                <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">Öffentliche Notizen & Dokumente</h2>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">Öffentlich freigegebene Notizen und Dokumente von {profile.username}</p>
+                                <h2 className="text-lg font-bold text-t2-ink  leading-tight">Öffentliche Notizen & Dokumente</h2>
+                                <p className="text-xs text-t2-ink-2 ">Öffentlich freigegebene Notizen und Dokumente von {profile.username}</p>
                             </div>
                         </div>
                         <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border border-amber-100 dark:border-amber-800/40">
@@ -388,10 +388,10 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
                     </div>
 
                     {publicFiles.length === 0 ? (
-                        <div className="py-14 text-center border-2 border-dashed border-gray-200 dark:border-white/10 rounded-2xl bg-white/40 dark:bg-white/[0.02]">
-                            <FileText className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600 mb-3" />
-                            <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Keine öffentlichen Notizen vorhanden</p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Dieser Benutzer hat aktuell keine Notizen oder Dokumente freigegeben.</p>
+                        <div className="py-14 text-center border-2 border-dashed border-t2-line  rounded-2xl bg-white/40 dark:bg-white/[0.02]">
+                            <FileText className="mx-auto h-10 w-10 text-t2-ink-3  mb-3" />
+                            <p className="text-sm font-medium text-t2-ink-2 ">Keine öffentlichen Notizen vorhanden</p>
+                            <p className="text-xs text-t2-ink-3  mt-1">Dieser Benutzer hat aktuell keine Notizen oder Dokumente freigegeben.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -401,25 +401,25 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
                                 const formattedDate = file.updated_at ? new Date(file.updated_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Unbekannt';
 
                                 return (
-                                    <div key={file.id} className="bg-white dark:bg-[#1a1a1a] border border-gray-200/80 dark:border-white/10 rounded-2xl p-5 shadow-xs hover:border-gray-300 dark:hover:border-white/20 transition-all flex flex-col justify-between group">
+                                    <div key={file.id} className="bg-t2-surface  border border-t2-line  rounded-2xl p-5 shadow-xs hover:border-t2-line  transition-all flex flex-col justify-between group">
                                         <div>
                                             <div className="flex items-start justify-between gap-3 mb-3">
                                                 <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-500 group-hover:bg-amber-500/20 transition-colors">
                                                     <FileText size={20} />
                                                 </div>
-                                                <span className="text-[11px] font-mono text-gray-400 dark:text-gray-500">{formattedDate}</span>
+                                                <span className="text-[11px] font-mono text-t2-ink-3 ">{formattedDate}</span>
                                             </div>
-                                            <h3 className="font-bold text-sm text-gray-900 dark:text-white line-clamp-2 leading-snug">{file.title}</h3>
-                                            {file.size > 0 && <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>}
+                                            <h3 className="font-bold text-sm text-t2-ink  line-clamp-2 leading-snug">{file.title}</h3>
+                                            {file.size > 0 && <p className="text-[11px] text-t2-ink-3  mt-1">{(file.size / 1024).toFixed(1)} KB</p>}
                                         </div>
 
-                                        <div className="flex items-center gap-2 pt-4 mt-4 border-t border-gray-100 dark:border-white/5">
-                                            <button type="button" onClick={() => handlePreviewFile(file)} className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer border border-gray-200/60 dark:border-white/10">
+                                        <div className="flex items-center gap-2 pt-4 mt-4 border-t border-t2-line-soft ">
+                                            <button type="button" onClick={() => handlePreviewFile(file)} className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold text-t2-ink  bg-t2-sub  hover:bg-t2-hover  transition-colors cursor-pointer border border-t2-line ">
                                                 <Eye size={14} />
                                                 <span>Vorschau</span>
                                             </button>
                                             {!isOwnProfile && (
-                                                <button type="button" onClick={() => handleAdoptFile(file)} disabled={isCopying || isCopied} className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${isCopied ? 'bg-emerald-600 text-white cursor-default' : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-xs'} disabled:opacity-85`} title="In Tresor übernehmen">
+                                                <button type="button" onClick={() => handleAdoptFile(file)} disabled={isCopying || isCopied} className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs ${isCopied ? 'bg-emerald-600 text-t2-accent-ink cursor-default' : 'bg-t2-accent hover:opacity-90 text-t2-accent-ink hover:shadow-xs'} disabled:opacity-85`} title="In Tresor übernehmen">
                                                     {isCopying ? <Loader2 size={14} className="animate-spin" /> : isCopied ? (<><Check size={14} /><span>Übernommen</span></>) : (<><Download size={14} /><span>Übernehmen</span></>)}
                                                 </button>
                                             )}
@@ -435,24 +435,24 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
             {/* File Preview Modal */}
             {previewModalFile && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200" onClick={() => setPreviewModalFile(null)}>
-                    <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 text-gray-900 dark:text-white" onClick={(e) => e.stopPropagation()}>
-                        <div className="px-6 py-4 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
+                    <div className="bg-t2-surface  border border-t2-line  rounded-2xl sm:rounded-3xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 text-t2-ink " onClick={(e) => e.stopPropagation()}>
+                        <div className="px-6 py-4 border-b border-t2-line-soft  flex items-center justify-between">
                             <div className="flex items-center gap-2.5 min-w-0 pr-4">
                                 <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 shrink-0"><FileText size={18} /></div>
                                 <div className="min-w-0">
                                     <h3 className="font-bold text-base truncate">{previewModalFile.title}</h3>
-                                    <p className="text-[11px] text-gray-400 dark:text-gray-500">Öffentliche Vorschau</p>
+                                    <p className="text-[11px] text-t2-ink-3 ">Öffentliche Vorschau</p>
                                 </div>
                             </div>
-                            <button type="button" onClick={() => setPreviewModalFile(null)} className="p-1.5 rounded-xl text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer" title="Schließen">
+                            <button type="button" onClick={() => setPreviewModalFile(null)} className="p-1.5 rounded-xl text-t2-ink-3 hover:text-t2-ink  hover:bg-t2-hover  transition-colors cursor-pointer" title="Schließen">
                                 <X size={18} />
                             </button>
                         </div>
 
-                        <div className="p-6 flex-1 overflow-auto bg-gray-50 dark:bg-black/30 text-xs sm:text-sm font-mono whitespace-pre-wrap text-gray-700 dark:text-gray-300 leading-relaxed">
+                        <div className="p-6 flex-1 overflow-auto bg-t2-sub  text-xs sm:text-sm font-mono whitespace-pre-wrap text-t2-ink  leading-relaxed">
                             {isPreviewLoading ? (
-                                <div className="flex flex-col items-center justify-center h-48 gap-3 text-gray-400">
-                                    <Loader2 size={24} className="animate-spin text-blue-500" />
+                                <div className="flex flex-col items-center justify-center h-48 gap-3 text-t2-ink-3">
+                                    <Loader2 size={24} className="animate-spin text-t2-accent" />
                                     <span className="text-xs">Lade Inhalt...</span>
                                 </div>
                             ) : (
@@ -460,12 +460,12 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
                             )}
                         </div>
 
-                        <div className="px-6 py-4 border-t border-gray-100 dark:border-white/5 flex items-center justify-end gap-3 bg-white dark:bg-[#1a1a1a]">
-                            <button type="button" onClick={() => setPreviewModalFile(null)} className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors cursor-pointer">
+                        <div className="px-6 py-4 border-t border-t2-line-soft  flex items-center justify-end gap-3 bg-t2-surface ">
+                            <button type="button" onClick={() => setPreviewModalFile(null)} className="px-4 py-2 rounded-xl text-xs font-semibold text-t2-ink-2  hover:bg-t2-hover  transition-colors cursor-pointer">
                                 Schließen
                             </button>
                             {onOpenFile && (
-                                <button type="button" onClick={() => { onOpenFile(previewModalFile.id, previewModalFile.title); setPreviewModalFile(null); }} className="px-4 py-2 rounded-xl text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer">
+                                <button type="button" onClick={() => { onOpenFile(previewModalFile.id, previewModalFile.title); setPreviewModalFile(null); }} className="px-4 py-2 rounded-xl text-xs font-semibold text-t2-accent  hover:bg-t2-sub  transition-colors cursor-pointer">
                                     In Tide öffnen
                                 </button>
                             )}
@@ -474,7 +474,7 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
                                     type="button"
                                     onClick={() => { if (previewModalFile) handleAdoptFile(previewModalFile); }}
                                     disabled={copyingFileIds.has(previewModalFile.id) || copiedFileIds.has(previewModalFile.id)}
-                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white transition-all cursor-pointer shadow-xs disabled:opacity-85"
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-t2-accent hover:opacity-90 text-t2-accent-ink transition-all cursor-pointer shadow-xs disabled:opacity-85"
                                 >
                                     {copiedFileIds.has(previewModalFile.id) ? (<><Check size={14} /><span>Übernommen</span></>) : (<><Download size={14} /><span>In Tresor übernehmen</span></>)}
                                 </button>

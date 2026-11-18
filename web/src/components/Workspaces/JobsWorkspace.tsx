@@ -4,7 +4,7 @@ import React from 'react';
 import dynamic from 'next/dynamic';
 
 const JobPlanner = dynamic(() => import('@/components/JobPlanner/JobPlanner'), {
-    loading: () => <div className="flex-1 flex items-center justify-center p-8 text-gray-400">Loading planner...</div>
+    loading: () => <div className="flex-1 flex items-center justify-center p-8 text-t2-ink-3">Loading planner...</div>
 });
 
 export interface JobsWorkspaceProps {

@@ -56,8 +56,8 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
     <div
       className={`sticky top-0 z-10 ${
         hideProgress
-          ? 'hidden md:block px-4 sm:px-6 py-3.5 border-b border-gray-200 dark:border-white/10'
-          : 'px-4 sm:px-6 py-1.5 sm:py-2 border-b border-gray-200 dark:border-white/10'
+          ? 'hidden md:block px-4 sm:px-6 py-3.5 border-b border-t2-line '
+          : 'px-4 sm:px-6 py-1.5 sm:py-2 border-b border-t2-line '
       } bg-[#f8f9fa]/90 dark:bg-[#121212]/90 backdrop-blur-md`}
     >
       {/* Desktop & iPad Header */}
@@ -67,7 +67,7 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
             <button
               type="button"
               onClick={handleBack}
-              className="p-1.5 -ml-1.5 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-200/60 dark:hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+              className="p-1.5 -ml-1.5 rounded-xl text-t2-ink-2 hover:text-t2-ink   hover:bg-t2-stage  transition-colors cursor-pointer shrink-0"
               title="Zurück zur Übersicht"
               aria-label="Zurück zur Übersicht"
             >
@@ -80,21 +80,21 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
               <button
                 type="button"
                 onClick={handleBack}
-                className="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white hover:opacity-80 transition-opacity cursor-pointer text-left"
+                className="text-3xl font-extrabold tracking-tight text-t2-ink  hover:opacity-80 transition-opacity cursor-pointer text-left"
                 title="Zurück zur Übersicht"
               >
                 Todos
               </button>
             ) : (
-              <h1 className="text-3xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+              <h1 className="text-3xl font-extrabold tracking-tight text-t2-ink ">
                 Todos
               </h1>
             )}
 
             {hideProgress && (
               <>
-                <ChevronRight size={18} className="text-gray-400 dark:text-gray-600" />
-                <span className="text-xl font-bold text-gray-500 dark:text-gray-400">
+                <ChevronRight size={18} className="text-t2-ink-3 " />
+                <span className="text-xl font-bold text-t2-ink-2 ">
                   Details
                 </span>
               </>
@@ -102,7 +102,7 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
           </div>
 
           {props.selectedFolder && (
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 font-semibold">
+            <span className="text-xs px-2.5 py-0.5 rounded-full bg-t2-sub  text-t2-accent  font-semibold">
               {props.selectedFolder}
             </span>
           )}
@@ -112,20 +112,20 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
           <button
             type="button"
             onClick={handleBack}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white bg-white dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/15 border border-gray-200/80 dark:border-white/10 rounded-xl transition-all shadow-2xs cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-t2-ink-2  hover:text-t2-ink  bg-t2-surface  hover:bg-t2-hover  border border-t2-line  rounded-xl transition-all shadow-2xs cursor-pointer"
           >
             <ArrowLeft size={14} />
             <span>Zurück</span>
           </button>
         ) : (
-          <div className="inline-flex items-center p-1 bg-gray-200/70 dark:bg-white/10 rounded-xl">
+          <div className="inline-flex items-center p-1 bg-t2-stage  rounded-xl">
             <button
               type="button"
               onClick={() => props.setViewMode('tasks')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                 props.viewMode === 'tasks'
-                  ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-t2-surface  text-t2-accent  shadow-xs'
+                  : 'text-t2-ink-2  hover:text-t2-ink '
               }`}
             >
               Liste
@@ -135,8 +135,8 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
               onClick={() => props.setViewMode('folders')}
               className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
                 props.viewMode === 'folders'
-                  ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-t2-surface  text-t2-accent  shadow-xs'
+                  : 'text-t2-ink-2  hover:text-t2-ink '
               }`}
             >
               Ordner
@@ -153,25 +153,25 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
               <button
                 type="button"
                 onClick={handleBack}
-                className="p-1 rounded-lg text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white cursor-pointer shrink-0"
+                className="p-1 rounded-lg text-t2-ink-2 hover:text-t2-ink   cursor-pointer shrink-0"
                 title="Zurück zur Übersicht"
                 aria-label="Zurück zur Übersicht"
               >
                 <ArrowLeft size={18} />
               </button>
             )}
-            <h1 className="text-xl font-black tracking-tight text-gray-900 dark:text-white">
+            <h1 className="text-xl font-black tracking-tight text-t2-ink ">
               Todos
             </h1>
           </div>
-          <div className="inline-flex items-center p-0.5 bg-gray-200/70 dark:bg-white/10 rounded-xl">
+          <div className="inline-flex items-center p-0.5 bg-t2-stage  rounded-xl">
             <button
               type="button"
               onClick={() => props.setViewMode('tasks')}
               className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
                 props.viewMode === 'tasks'
-                  ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
-                  : 'text-gray-600 dark:text-gray-400'
+                  ? 'bg-t2-surface  text-t2-accent  shadow-xs'
+                  : 'text-t2-ink-2 '
               }`}
             >
               Liste
@@ -181,8 +181,8 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
               onClick={() => props.setViewMode('folders')}
               className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
                 props.viewMode === 'folders'
-                  ? 'bg-white dark:bg-[#282828] text-blue-600 dark:text-blue-400 shadow-xs'
-                  : 'text-gray-600 dark:text-gray-400'
+                  ? 'bg-t2-surface  text-t2-accent  shadow-xs'
+                  : 'text-t2-ink-2 '
               }`}
             >
               Ordner
@@ -194,9 +194,9 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
       {!hideProgress && (
         <>
           {/* Progress Bar */}
-          <div className="w-full h-2.5 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden flex">
+          <div className="w-full h-2.5 bg-t2-hover  rounded-full overflow-hidden flex">
             <div
-              className="h-full rounded-full bg-blue-500 transition-all duration-500 ease-out"
+              className="h-full rounded-full bg-t2-accent transition-all duration-500 ease-out"
               style={{ width: `${(activeCycleCompletedCount / Math.max(activeCycleTotal, 1)) * 100}%` }}
             />
             <div
@@ -209,7 +209,7 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
           <div className="flex items-center justify-between mt-1.5">
             {archivedCount > 0 ? (
               <span
-                className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 font-medium"
+                className="text-[10px] px-1.5 py-0.5 rounded-full bg-t2-hover  text-t2-ink-2  font-medium"
                 title={`${archivedCount} archivierte Aufgaben (> 7 Tage)`}
               >
                 +{archivedCount} archiviert
@@ -217,7 +217,7 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
             ) : (
               <span />
             )}
-            <p className="text-[11px] font-medium text-gray-400 dark:text-gray-500 text-right">
+            <p className="text-[11px] font-medium text-t2-ink-3  text-right">
               {activeCycleCompletedCount} von {activeCycleTotal} erledigt
             </p>
           </div>

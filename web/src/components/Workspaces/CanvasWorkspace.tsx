@@ -27,7 +27,7 @@ const NoteSettingsMenu = NoteSettingsMenuComponent as React.ComponentType<any>;
 
 const Editor = dynamic(() => import('@/components/Editor'), {
     ssr: false,
-    loading: () => <div className="min-h-[500px] w-full animate-pulse bg-gray-50 dark:bg-gray-800/50 rounded-lg" />
+    loading: () => <div className="min-h-[500px] w-full animate-pulse bg-t2-sub  rounded-lg" />
 });
 const CanvasLayer = dynamic(() => import('@/components/Canvas/CanvasLayer'), { ssr: false });
 const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEditor'), { ssr: false });
@@ -321,7 +321,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                 />
             )}
             {isLoadingContent ? (
-                <div className="flex items-center justify-center h-full text-gray-400">Loading content...</div>
+                <div className="flex items-center justify-center h-full text-t2-ink-3">Loading content...</div>
             ) : (
                 <div className={`mx-auto min-h-[500px] py-12 px-8 lg:px-24 transition-all duration-300 ${
                     noteLayout === 'thin' ? 'max-w-2xl' : noteLayout === 'normal' ? 'max-w-4xl' : noteLayout === 'wide' ? 'max-w-6xl' : 'max-w-full'
@@ -384,14 +384,14 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                             const af = files.find(f => f.id === activeNoteId) as any;
                                             if (af && af.permission === 'view') {
                                                 return (
-                                                    <div className="bg-sky-50/80 dark:bg-sky-950/40 border border-sky-200/80 dark:border-sky-800/60 rounded-xl p-3.5 mb-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                                                        <div className="flex items-center gap-3 text-sky-900 dark:text-sky-200">
-                                                            <div className="p-2 rounded-xl bg-sky-100 dark:bg-sky-900/60 text-sky-600 dark:text-sky-400 shrink-0">
+                                                    <div className="bg-t2-sub  border border-t2-line  rounded-xl p-3.5 mb-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                                                        <div className="flex items-center gap-3 text-t2-accent ">
+                                                            <div className="p-2 rounded-xl bg-t2-sub  text-t2-accent  shrink-0">
                                                                 <GraduationCap size={20} />
                                                             </div>
                                                             <div>
-                                                                <div className="text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">Lehrseite / Schreibgeschützt</div>
-                                                                <div className="text-xs text-sky-800/80 dark:text-sky-300/80">Du hast Lesezugriff auf dieses Dokument. Verlinkungen und Event-Referenzen sind interaktiv.</div>
+                                                                <div className="text-xs font-bold uppercase tracking-wider text-t2-accent ">Lehrseite / Schreibgeschützt</div>
+                                                                <div className="text-xs text-t2-accent ">Du hast Lesezugriff auf dieses Dokument. Verlinkungen und Event-Referenzen sind interaktiv.</div>
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
@@ -402,7 +402,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                                     await useDataStore.getState().fetchDirectory(null, true);
                                                                     handleFileSelect(newId, newTitle);
                                                                 }}
-                                                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 border border-sky-200 dark:border-sky-700/80 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                                                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-t2-surface  border border-t2-line  text-t2-accent  hover:bg-t2-sub  transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer"
                                                                 title="Erstelle deine eigene bearbeitbare Kopie dieser Notiz"
                                                             >
                                                                 <Copy size={13} />
@@ -421,7 +421,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                                     document.body.removeChild(a);
                                                                     URL.revokeObjectURL(url);
                                                                 }}
-                                                                className="p-1.5 rounded-lg text-xs bg-white dark:bg-slate-800 border border-sky-200 dark:border-sky-700/80 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
+                                                                className="p-1.5 rounded-lg text-xs bg-t2-surface  border border-t2-line  text-t2-accent  hover:bg-t2-sub  transition-colors shadow-xs flex items-center gap-1 cursor-pointer"
                                                                 title="Als Markdown herunterladen"
                                                             >
                                                                 <Download size={14} />
@@ -445,7 +445,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                             <div className="w-8 h-8 rounded-full border-2 overflow-hidden shadow-sm transition-transform hover:scale-110" style={{ borderColor: u?.color || '#ccc' }}>
                                                                 <Avatar seed={u?.seed || 'guest'} size={28} />
                                                             </div>
-                                                            <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">
+                                                            <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-t2-ink text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">
                                                                 {u?.name || 'User'}
                                                             </div>
                                                         </div>
@@ -515,7 +515,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                     }
                                                 }}
                                                 placeholder={getTranslation(useDataStore.getState().language || 'de', 'common', 'newNote')}
-                                                className="text-4xl font-bold bg-transparent border-none outline-none text-gray-900 dark:text-gray-100 placeholder-gray-300 dark:placeholder-gray-700 pb-1 leading-normal overflow-visible flex-1"
+                                                className="text-4xl font-bold bg-transparent border-none outline-none text-t2-ink  placeholder-t2-ink-3  pb-1 leading-normal overflow-visible flex-1"
                                             />
                                             <div className="flex items-center gap-1 shrink-0 self-end mb-2">
                                                 {(() => {
@@ -590,7 +590,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                     <button
                                                         type="button"
                                                         onClick={() => setShowNoteSettingsMenu(prev => !prev)}
-                                                        className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                                                        className="p-1.5 rounded-lg hover:bg-t2-hover  text-t2-ink-2 hover:text-t2-ink  transition-colors"
                                                         title="Notiz-Optionen & Export"
                                                     >
                                                         <MoreHorizontal size={16} />
@@ -638,7 +638,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                     const isShared = isSharedFile(files.find(f => f.id === activeNoteId), myId);
 
                                     return editorContent === null ? (
-                                        <div className="flex-1 flex flex-col items-center justify-center text-gray-400 h-[50vh] mt-20">
+                                        <div className="flex-1 flex flex-col items-center justify-center text-t2-ink-3 h-[50vh] mt-20">
                                             <span className="font-medium text-sm">Lade...</span>
                                         </div>
                                     ) : (
@@ -718,9 +718,9 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 }}
                                             >
                                                 {isDraggingEditorFile && (
-                                                    <div className="absolute inset-0 z-50 pointer-events-none bg-blue-50/80 dark:bg-neutral-900/80 backdrop-blur-sm border-2 border-dashed border-blue-500 rounded-xl flex flex-col items-center justify-center gap-3">
-                                                        <UploadCloud className="w-10 h-10 text-blue-500 animate-bounce" />
-                                                        <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                                                    <div className="absolute inset-0 z-50 pointer-events-none bg-t2-sub  backdrop-blur-sm border-2 border-dashed border-t2-accent rounded-xl flex flex-col items-center justify-center gap-3">
+                                                        <UploadCloud className="w-10 h-10 text-t2-accent animate-bounce" />
+                                                        <div className="text-sm font-semibold text-t2-accent ">
                                                             Dateien hier ablegen zum Anhängen an diese Notiz...
                                                         </div>
                                                     </div>

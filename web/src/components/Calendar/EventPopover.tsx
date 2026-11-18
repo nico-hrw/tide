@@ -57,7 +57,7 @@ function ModernDropdown({
             </button>
 
             {open && (
-                <div className="absolute top-full mt-1 left-0 right-0 z-[1050] bg-t2-surface dark:bg-[#222222] border border-t2-line-soft  rounded-xl shadow-xl p-1 flex flex-col gap-0.5 max-h-48 overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-100">
+                <div className="absolute top-full mt-1 left-0 right-0 z-[1050] bg-t2-surface  border border-t2-line-soft  rounded-xl shadow-xl p-1 flex flex-col gap-0.5 max-h-48 overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-100">
                     {options.map(opt => {
                         const isSelected = opt.value === value;
                         return (
@@ -70,7 +70,7 @@ function ModernDropdown({
                                 }}
                                 className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left ${
                                     isSelected
-                                        ? 'bg-violet-50 dark:bg-violet-500/20 text-violet-600 dark:text-violet-300'
+                                        ? 'bg-t2-sub  text-t2-accent '
                                         : 'text-t2-ink  hover:bg-t2-sub '
                                 }`}
                             >
@@ -80,7 +80,7 @@ function ModernDropdown({
                                     )}
                                     <span className="truncate">{opt.label}</span>
                                 </div>
-                                {isSelected && <Check size={11} className="text-violet-600 dark:text-violet-300 shrink-0" />}
+                                {isSelected && <Check size={11} className="text-t2-accent  shrink-0" />}
                             </button>
                         );
                     })}
@@ -299,7 +299,7 @@ export default function EventPopover({
         <div
             id="active-event-popover"
             ref={popoverRef}
-            className="fixed z-[1000] w-[320px] bg-t2-surface dark:bg-[#1C1C1C] rounded-3xl shadow-2xl border border-t2-line-soft  p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150"
+            className="fixed z-[1000] w-[320px] bg-t2-surface  rounded-3xl shadow-2xl border border-t2-line-soft  p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150"
             style={{ top: `${pos.top}px`, left: `${pos.left}px` }}
         >
             {/* ── Header ── */}
@@ -372,7 +372,7 @@ export default function EventPopover({
                         <button
                             key={c}
                             onClick={() => setColor(c)}
-                            className={`w-5 h-5 rounded-full transition-all ${color === c ? 'ring-2 ring-violet-500 ring-offset-1 dark:ring-offset-[#1C1C1C] scale-110' : 'hover:scale-110'}`}
+                            className={`w-5 h-5 rounded-full transition-all ${color === c ? 'ring-2 ring-t2-accent ring-offset-1 dark:ring-offset-[#1C1C1C] scale-110' : 'hover:scale-110'}`}
                             style={{ backgroundColor: c }}
                         />
                     ))}
@@ -446,7 +446,7 @@ export default function EventPopover({
                                         key={id}
                                         className={`flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg text-xs font-semibold border transition-all ${
                                             isPrimary
-                                                ? 'bg-violet-50 dark:bg-violet-500/15 border-violet-200 dark:border-violet-500/30 text-violet-700 dark:text-violet-300'
+                                                ? 'bg-t2-sub  border-t2-line  text-t2-accent '
                                                 : 'bg-t2-surface  border-t2-line  text-t2-ink '
                                         }`}
                                     >
@@ -459,7 +459,7 @@ export default function EventPopover({
                                         </span>
                                         {isPrimary ? (
                                             <span
-                                                className="text-[8px] font-bold uppercase tracking-wider bg-violet-200/60 dark:bg-violet-500/30 text-violet-800 dark:text-violet-200 px-1 py-0.5 rounded"
+                                                className="text-[8px] font-bold uppercase tracking-wider bg-t2-hover  text-t2-accent  px-1 py-0.5 rounded"
                                                 title="Stil / Hauptgruppe"
                                             >
                                                 Stil / Hauptgruppe
@@ -471,7 +471,7 @@ export default function EventPopover({
                                                     const next = [id, ...selectedGroupIds.filter(gId => gId !== id)];
                                                     updateGroupIds(next);
                                                 }}
-                                                className="text-[9px] text-t2-ink-3 hover:text-violet-600 dark:hover:text-violet-300 hover:bg-t2-hover  px-1 py-0.5 rounded font-medium transition-colors"
+                                                className="text-[9px] text-t2-ink-3 hover:text-t2-accent  hover:bg-t2-hover  px-1 py-0.5 rounded font-medium transition-colors"
                                                 title="Als Stil / Hauptgruppe festlegen"
                                             >
                                                 ↑ Stil
@@ -546,7 +546,7 @@ export default function EventPopover({
                                 if (isNaN(v) || v < 1) v = 1; 
                                 updateRecurrence(freq, v); 
                             }}
-                            className="w-8 text-center bg-t2-sub  border border-t2-line  rounded-md py-0.5 text-xs font-bold text-violet-500 font-mono outline-none focus:ring-1 focus:ring-violet-500" 
+                            className="w-8 text-center bg-t2-sub  border border-t2-line  rounded-md py-0.5 text-xs font-bold text-t2-accent font-mono outline-none focus:ring-1 focus:ring-t2-accent" 
                         />
                         <span>{freq === 'daily' ? 'Tag(e)' : freq === 'weekly' ? 'Woche(n)' : freq === 'monthly' ? 'Monat(e)' : 'Jahr(e)'}</span>
                     </div>
@@ -592,7 +592,7 @@ export default function EventPopover({
                 onBlur={() => handleSave()}
                 placeholder="Notizen hinzufügen…"
                 rows={2}
-                className="w-full bg-transparent border border-t2-line-soft  rounded-2xl p-3 text-xs leading-relaxed text-t2-ink-2  focus:ring-1 focus:ring-violet-500/20 outline-none resize-none transition-all placeholder:text-t2-ink-3 "
+                className="w-full bg-transparent border border-t2-line-soft  rounded-2xl p-3 text-xs leading-relaxed text-t2-ink-2  focus:ring-1 focus:ring-t2-accent outline-none resize-none transition-all placeholder:text-t2-ink-3 "
             />
 
             {/* ── Expand toggle ── */}
@@ -648,7 +648,7 @@ export default function EventPopover({
                                         onChange={(e) => { const next = [...tags]; next[idx] = e.target.value; setTags(next); }}
                                         onBlur={() => handleSave()}
                                         placeholder={`Hinweis ${idx + 1}…`}
-                                        className="w-full bg-t2-sub  border border-t2-line-soft  rounded-xl px-3 py-1.5 text-xs text-t2-ink-2  focus:ring-1 focus:ring-violet-500/20 outline-none placeholder:text-t2-ink-3 "
+                                        className="w-full bg-t2-sub  border border-t2-line-soft  rounded-xl px-3 py-1.5 text-xs text-t2-ink-2  focus:ring-1 focus:ring-t2-accent outline-none placeholder:text-t2-ink-3 "
                                     />
                                 ))}
                             </div>
@@ -662,12 +662,12 @@ export default function EventPopover({
                             className="flex items-center justify-between py-1.5 px-1 rounded-xl cursor-pointer hover:bg-t2-sub  transition-colors group/row"
                         >
                             <div className="flex items-center gap-2">
-                                <div className={`p-1.5 rounded-lg transition-colors ${isTask ? 'bg-violet-100 text-violet-600 dark:bg-violet-500/10' : 'bg-t2-hover text-t2-ink-3  group-hover/row:bg-t2-stage'}`}>
+                                <div className={`p-1.5 rounded-lg transition-colors ${isTask ? 'bg-t2-sub text-t2-accent ' : 'bg-t2-hover text-t2-ink-3  group-hover/row:bg-t2-stage'}`}>
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                                 </div>
                                 <span className="text-xs font-bold text-t2-ink ">Als Aufgabe</span>
                             </div>
-                            <div className={`relative w-8 h-5 rounded-full transition-all duration-300 ${isTask ? 'bg-violet-500' : 'bg-t2-stage '}`}>
+                            <div className={`relative w-8 h-5 rounded-full transition-all duration-300 ${isTask ? 'bg-t2-accent' : 'bg-t2-stage '}`}>
                                 <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-t2-surface shadow-sm transition-transform duration-300 ${isTask ? 'translate-x-3' : 'translate-x-0'}`} />
                             </div>
                         </div>
@@ -677,7 +677,7 @@ export default function EventPopover({
                                 className="flex items-center justify-between py-1.5 px-1 rounded-xl cursor-pointer hover:bg-t2-sub  transition-colors group/row animate-in slide-in-from-top-1 duration-150"
                             >
                                 <div className="flex items-center gap-2">
-                                    <div className={`w-1.5 h-1.5 rounded-full ${isCompleted ? 'bg-green-500' : 'bg-violet-400 animate-pulse'}`} />
+                                    <div className={`w-1.5 h-1.5 rounded-full ${isCompleted ? 'bg-green-500' : 'bg-t2-accent animate-pulse'}`} />
                                     <span className="text-xs font-bold text-t2-ink ">Abgeschlossen</span>
                                 </div>
                                 <div className={`relative w-8 h-5 rounded-full transition-all duration-300 ${isCompleted ? 'bg-green-500' : 'bg-t2-stage '}`}>

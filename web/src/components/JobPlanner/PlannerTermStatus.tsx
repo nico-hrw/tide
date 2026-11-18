@@ -80,29 +80,29 @@ export default function PlannerTermStatus({
             {/* Aktueller Termin Card matching Figma */}
             <div
                 onClick={() => currentEvent && onEventClick?.(currentEvent)}
-                className={`bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-4 flex flex-col justify-between shadow-2xs transition-all ${
-                    currentEvent ? 'cursor-pointer hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-xs' : ''
+                className={`bg-t2-surface  border border-t2-line  rounded-2xl p-4 flex flex-col justify-between shadow-2xs transition-all ${
+                    currentEvent ? 'cursor-pointer hover:border-t2-line  hover:shadow-xs' : ''
                 }`}
             >
                 <div>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                    <span className="text-[10px] font-bold text-t2-ink-3 uppercase tracking-wider block mb-1">
                         Aktueller Termin
                     </span>
                     {currentEvent ? (
                         <>
-                            <h3 className="text-sm font-bold text-gray-900 dark:text-white leading-tight truncate">
+                            <h3 className="text-sm font-bold text-t2-ink  leading-tight truncate">
                                 {currentEvent.title}
                             </h3>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
+                            <p className="text-xs text-t2-ink-2  mt-1 truncate">
                                 {currentEvent.description || 'Kein Raum angegeben'} · {new Date(currentEvent.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}–{new Date(currentEvent.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>
                         </>
                     ) : (
                         <>
-                            <h3 className="text-sm font-medium text-gray-400 dark:text-gray-500 leading-tight">
+                            <h3 className="text-sm font-medium text-t2-ink-3  leading-tight">
                                 Kein aktiver Termin
                             </h3>
-                            <p className="text-xs text-gray-400/80 dark:text-gray-600 mt-1">
+                            <p className="text-xs text-t2-ink-3  mt-1">
                                 Du hast gerade Freizeit oder Pause.
                             </p>
                         </>
@@ -116,7 +116,7 @@ export default function PlannerTermStatus({
                             {currentEventBadge}
                         </div>
                     ) : (
-                        <div className="bg-gray-100 dark:bg-white/5 text-gray-500 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
+                        <div className="bg-t2-hover  text-t2-ink-2 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
                             <CheckCircle2 size={12} className="text-emerald-500" />
                             <span>Bereit</span>
                         </div>
@@ -127,29 +127,29 @@ export default function PlannerTermStatus({
             {/* Nächster Termin Card matching Figma */}
             <div
                 onClick={() => nextEvent && onEventClick?.(nextEvent)}
-                className={`bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 rounded-2xl p-4 flex flex-col justify-between shadow-2xs transition-all ${
-                    nextEvent ? 'cursor-pointer hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-xs' : ''
+                className={`bg-t2-surface  border border-t2-line  rounded-2xl p-4 flex flex-col justify-between shadow-2xs transition-all ${
+                    nextEvent ? 'cursor-pointer hover:border-t2-line  hover:shadow-xs' : ''
                 }`}
             >
                 <div>
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">
+                    <span className="text-[10px] font-bold text-t2-ink-3 uppercase tracking-wider block mb-1">
                         Nächster Termin
                     </span>
                     {nextEvent ? (
                         <>
-                            <h3 className="text-sm font-bold text-gray-900 dark:text-white leading-tight truncate">
+                            <h3 className="text-sm font-bold text-t2-ink  leading-tight truncate">
                                 {nextEvent.title}
                             </h3>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">
+                            <p className="text-xs text-t2-ink-2  mt-1 truncate">
                                 {nextEvent.description || 'Kein Raum angegeben'} · {new Date(nextEvent.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}–{new Date(nextEvent.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>
                         </>
                     ) : (
                         <>
-                            <h3 className="text-sm font-medium text-gray-400 dark:text-gray-500 leading-tight">
+                            <h3 className="text-sm font-medium text-t2-ink-3  leading-tight">
                                 Kein weiterer Termin heute
                             </h3>
-                            <p className="text-xs text-gray-400/80 dark:text-gray-600 mt-1">
+                            <p className="text-xs text-t2-ink-3  mt-1">
                                 Keine weiteren Termine mehr für den heutigen Tag geplant.
                             </p>
                         </>
@@ -158,12 +158,12 @@ export default function PlannerTermStatus({
 
                 <div className="mt-3 flex items-center">
                     {nextEvent && nextEventBadge ? (
-                        <div className="bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900/40 px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 shadow-2xs">
+                        <div className="bg-t2-sub  text-t2-accent  border border-t2-line  px-2.5 py-0.5 rounded-full text-[11px] font-bold flex items-center gap-1.5 shadow-2xs">
                             <Clock size={12} />
                             {nextEventBadge}
                         </div>
                     ) : (
-                        <div className="bg-gray-100 dark:bg-white/5 text-gray-500 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
+                        <div className="bg-t2-hover  text-t2-ink-2 text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
                             <Calendar size={12} />
                             <span>Feierabend</span>
                         </div>

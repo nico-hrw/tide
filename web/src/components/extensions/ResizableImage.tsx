@@ -87,18 +87,18 @@ const ImageNodeView = ({ node, updateAttributes, selected }: any) => {
             {selected && (
                 <>
                     <div
-                        className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-10 bg-purple-500 rounded-full cursor-ew-resize opacity-100 transition-opacity z-20 flex items-center justify-center shadow-md select-none touch-none"
+                        className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-10 bg-t2-accent rounded-full cursor-ew-resize opacity-100 transition-opacity z-20 flex items-center justify-center shadow-md select-none touch-none"
                         onPointerDown={(e) => handlePointerDown(e, 'right')}
                         style={{ touchAction: 'none' }}
                     >
-                        <div className="w-0.5 h-5 bg-white/80 rounded-full" />
+                        <div className="w-0.5 h-5 bg-t2-surface rounded-full" />
                     </div>
                     <div
-                        className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-10 bg-purple-500 rounded-full cursor-ew-resize opacity-100 transition-opacity z-20 flex items-center justify-center shadow-md select-none touch-none"
+                        className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-10 bg-t2-accent rounded-full cursor-ew-resize opacity-100 transition-opacity z-20 flex items-center justify-center shadow-md select-none touch-none"
                         onPointerDown={(e) => handlePointerDown(e, 'left')}
                         style={{ touchAction: 'none' }}
                     >
-                        <div className="w-0.5 h-5 bg-white/80 rounded-full" />
+                        <div className="w-0.5 h-5 bg-t2-surface rounded-full" />
                     </div>
                 </>
             )}

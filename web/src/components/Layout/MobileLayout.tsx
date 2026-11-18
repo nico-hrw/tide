@@ -142,7 +142,7 @@ const NoteRow = React.memo(function NoteRow(props: {
       onClick={onOpen}
       className={`w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-xl transition-all duration-150 ${
         isActive
-          ? 'bg-blue-100/90 dark:bg-blue-950/60 font-semibold ring-1 ring-blue-400/40'
+          ? 'bg-t2-sub  font-semibold ring-1 ring-t2-accent'
           : 'hover:bg-[var(--hover-bg)] active:opacity-70'
       }`}
       style={{
@@ -185,7 +185,7 @@ const NoteRow = React.memo(function NoteRow(props: {
           <FileText size={15} />
         )}
         {isLocked && (
-          <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[1px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
+          <span title="PIN-geschützt" className="absolute -bottom-1 -right-1 flex items-center justify-center p-[1px] bg-t2-surface  rounded-full shadow-xs">
             <Lock size={8} className="text-amber-500" strokeWidth={2.5} />
           </span>
         )}
@@ -197,7 +197,7 @@ const NoteRow = React.memo(function NoteRow(props: {
 
       {isShared && (
         <span
-          className="shrink-0 w-1.5 h-1.5 rounded-full bg-sky-400"
+          className="shrink-0 w-1.5 h-1.5 rounded-full bg-t2-accent"
           title="Geteilte Notiz"
         />
       )}
@@ -347,7 +347,7 @@ const FolderItem = React.memo(function FolderItem({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden relative ml-3 pl-2.5 border-l border-violet-200/60 dark:border-violet-800/40 space-y-0.5 mt-0.5"
+            className="overflow-hidden relative ml-3 pl-2.5 border-l border-t2-line  space-y-0.5 mt-0.5"
           >
             {children.filter(f => f.type === 'folder').map(s => (
               <FolderItem
@@ -447,9 +447,9 @@ const NoteCard = React.memo(function NoteCard(props: {
     <button
       type="button"
       onClick={onOpen}
-      className={`group relative flex flex-col items-center justify-between cursor-pointer select-none p-1.5 rounded-xl transition-all active:scale-95 hover:bg-gray-100/50 dark:hover:bg-white/5 active:bg-gray-100/50 dark:active:bg-white/5 w-full ${
+      className={`group relative flex flex-col items-center justify-between cursor-pointer select-none p-1.5 rounded-xl transition-all active:scale-95 hover:bg-t2-hover  active:bg-t2-hover  w-full ${
         isActive
-          ? 'ring-2 ring-blue-500/80 bg-blue-500/10 dark:bg-blue-500/15'
+          ? 'ring-2 ring-t2-accent bg-t2-sub '
           : ''
       }`}
       onTouchStart={() => {
@@ -474,7 +474,7 @@ const NoteCard = React.memo(function NoteCard(props: {
       <div className="relative flex flex-col items-center">
         {isCanvas ? (
           <Layout
-            className="w-9 h-11 text-purple-500 dark:text-purple-400 transition-transform group-active:scale-105"
+            className="w-9 h-11 text-t2-accent  transition-transform group-active:scale-105"
             fill="currentColor"
             fillOpacity={0.06}
             strokeWidth={1.25}
@@ -483,8 +483,8 @@ const NoteCard = React.memo(function NoteCard(props: {
           <FileText
             className={`w-9 h-11 transition-transform group-active:scale-105 ${
               isActive
-                ? 'text-blue-500 dark:text-blue-400'
-                : 'text-slate-500 dark:text-slate-400 group-hover:text-blue-500'
+                ? 'text-t2-accent '
+                : 'text-t2-ink-2  group-hover:text-t2-accent'
             }`}
             fill="currentColor"
             fillOpacity={0.06}
@@ -492,7 +492,7 @@ const NoteCard = React.memo(function NoteCard(props: {
           />
         )}
         {isLocked && (
-          <span title="PIN-geschützt" className="absolute -top-1 -right-1 flex items-center justify-center p-[2px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
+          <span title="PIN-geschützt" className="absolute -top-1 -right-1 flex items-center justify-center p-[2px] bg-t2-surface  rounded-full shadow-xs">
             <Lock size={11} className="text-amber-500" strokeWidth={2.5} />
           </span>
         )}
@@ -500,18 +500,18 @@ const NoteCard = React.memo(function NoteCard(props: {
 
       <span
         className={`text-[11px] leading-tight font-semibold text-center line-clamp-2 max-w-[84px] mt-1.5 transition-colors ${
-          isActive ? 'text-blue-600 dark:text-blue-400 font-bold' : 'text-gray-800 dark:text-gray-200'
+          isActive ? 'text-t2-accent  font-bold' : 'text-t2-ink '
         }`}
       >
         {displayTitle}
       </span>
 
       {isShared ? (
-        <span className="mt-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-950/80 dark:text-sky-300 leading-none">
+        <span className="mt-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-t2-sub text-t2-accent   leading-none">
           Geteilt
         </span>
       ) : dateStr ? (
-        <span className="mt-1 text-[10px] text-gray-400 dark:text-gray-500 leading-none">
+        <span className="mt-1 text-[10px] text-t2-ink-3  leading-none">
           {dateStr}
         </span>
       ) : null}
@@ -671,7 +671,7 @@ const FolderCard = React.memo(function FolderCard({
     <button
       type="button"
       onClick={handleToggle}
-      className="group relative flex flex-col items-center justify-between cursor-pointer select-none p-1.5 rounded-xl transition-all active:scale-95 hover:bg-gray-100/50 dark:hover:bg-white/5 active:bg-gray-100/50 dark:active:bg-white/5 w-full"
+      className="group relative flex flex-col items-center justify-between cursor-pointer select-none p-1.5 rounded-xl transition-all active:scale-95 hover:bg-t2-hover  active:bg-t2-hover  w-full"
       onTouchStart={() => {
         movedRef.current = false;
         holdRef.current = setTimeout(() => {
@@ -698,7 +698,7 @@ const FolderCard = React.memo(function FolderCard({
           strokeWidth={1.4}
         />
         {isLocked && (
-          <span title="PIN-geschützt" className="absolute -top-1 -right-1 flex items-center justify-center p-[2px] bg-white dark:bg-slate-900 rounded-full shadow-xs">
+          <span title="PIN-geschützt" className="absolute -top-1 -right-1 flex items-center justify-center p-[2px] bg-t2-surface  rounded-full shadow-xs">
             <Lock size={11} className="text-amber-500" strokeWidth={2.5} />
           </span>
         )}
@@ -713,7 +713,7 @@ const FolderCard = React.memo(function FolderCard({
       </div>
 
       <span
-        className="text-[11px] leading-tight font-semibold text-center line-clamp-2 max-w-[84px] mt-1.5 text-gray-800 dark:text-gray-200 transition-colors"
+        className="text-[11px] leading-tight font-semibold text-center line-clamp-2 max-w-[84px] mt-1.5 text-t2-ink  transition-colors"
       >
         {displayTitle}
       </span>
@@ -1389,7 +1389,7 @@ export default function MobileLayout({
                   className="relative h-6 w-11 shrink-0 rounded-full transition-colors"
                   style={{ background: animatedEmojiOn ? T.accent : T.brd }}
                 >
-                  <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${animatedEmojiOn ? 'translate-x-5' : ''}`} />
+                  <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-t2-surface shadow transition-transform ${animatedEmojiOn ? 'translate-x-5' : ''}`} />
                 </button>
               </div>
             </div>
@@ -2085,12 +2085,12 @@ export default function MobileLayout({
                         />
                       </span>
                       {isSharedFolderOpen ? (
-                        <FolderOpen size={16} className="text-violet-400 shrink-0" />
+                        <FolderOpen size={16} className="text-t2-accent shrink-0" />
                       ) : (
-                        <Folder size={16} className="text-violet-400 shrink-0" />
+                        <Folder size={16} className="text-t2-accent shrink-0" />
                       )}
                       <span className="text-sm font-semibold flex-1 truncate" style={{ color: T.pri }}>Geteilt mit mir</span>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-200">
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  ">
                         {sharedNotes.length}
                       </span>
                     </button>
@@ -2121,7 +2121,7 @@ export default function MobileLayout({
                           ))}
                         </div>
                       ) : (
-                        <div className="relative mt-1 ml-3 pl-2.5 border-l border-violet-200/60 dark:border-violet-800/40 space-y-0.5">
+                        <div className="relative mt-1 ml-3 pl-2.5 border-l border-t2-line  space-y-0.5">
                           {sharedNotes.map(f => (
                             f.type === 'folder' ? (
                               <FolderItem
@@ -2340,14 +2340,14 @@ export default function MobileLayout({
           }}
         >
           {/* Central Pill: Abbrechen, Löschen, Fertig */}
-          <div className="pointer-events-auto bg-white/85 dark:bg-neutral-900/85 backdrop-blur-md border border-neutral-200/80 dark:border-neutral-800 rounded-full p-1.5 shadow-lg flex items-center gap-1.5">
+          <div className="pointer-events-auto bg-t2-surface  backdrop-blur-md border border-t2-line  rounded-full p-1.5 shadow-lg flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => {
                 setEditingTodoId(null);
                 window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit', { detail: { source: 'mobile' } }));
               }}
-              className="h-10 px-3.5 flex items-center gap-1.5 rounded-full text-xs font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all active:scale-95 shrink-0 cursor-pointer"
+              className="h-10 px-3.5 flex items-center gap-1.5 rounded-full text-xs font-semibold text-t2-ink-2  hover:text-t2-ink  hover:bg-t2-hover  transition-all active:scale-95 shrink-0 cursor-pointer"
               title="Abbrechen"
             >
               <X size={15} />
@@ -2374,7 +2374,7 @@ export default function MobileLayout({
                 setEditingTodoId(null);
                 window.dispatchEvent(new CustomEvent('tide:todo-save-edit', { detail: { id: idToSave } }));
               }}
-              className="h-10 px-4 flex items-center gap-1.5 rounded-full text-xs font-semibold bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 shadow-sm transition-all active:scale-95 shrink-0 cursor-pointer hover:bg-neutral-800 dark:hover:bg-neutral-100"
+              className="h-10 px-4 flex items-center gap-1.5 rounded-full text-xs font-semibold bg-t2-ink text-white  dark:text-neutral-900 shadow-sm transition-all active:scale-95 shrink-0 cursor-pointer hover:bg-t2-ink "
               title="Fertig"
             >
               <Check size={15} strokeWidth={2.4} />
@@ -2389,7 +2389,7 @@ export default function MobileLayout({
               window.dispatchEvent(new CustomEvent('tide:new-subtask'));
             }}
             aria-label="Unteraufgabe hinzufügen"
-            className="pointer-events-auto w-[52px] h-[52px] rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 flex items-center justify-center shadow-lg hover:bg-neutral-800 dark:hover:bg-neutral-100 active:scale-95 transition-all cursor-pointer shrink-0"
+            className="pointer-events-auto w-[52px] h-[52px] rounded-full bg-t2-ink text-white  dark:text-neutral-900 flex items-center justify-center shadow-lg hover:bg-t2-ink  active:scale-95 transition-all cursor-pointer shrink-0"
             title="Unteraufgabe hinzufügen"
           >
             <Plus size={24} />
@@ -2445,10 +2445,10 @@ export default function MobileLayout({
                     setCreateModalMode('event');
                     setIsCreateModalOpen(true);
                   }}
-                  className="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                  className="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold rounded-xl transition-colors cursor-pointer hover:bg-t2-sub "
                   style={{ color: theme === 'dark' ? '#f3f4f6' : '#1f2937' }}
                 >
-                  <CalendarPlus className="w-5 h-5 text-blue-500 shrink-0" />
+                  <CalendarPlus className="w-5 h-5 text-t2-accent shrink-0" />
                   <span>Termin</span>
                 </button>
 
@@ -2459,7 +2459,7 @@ export default function MobileLayout({
                     setCreateModalMode('todo');
                     setIsCreateModalOpen(true);
                   }}
-                  className="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                  className="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold rounded-xl transition-colors cursor-pointer hover:bg-t2-sub "
                   style={{ color: theme === 'dark' ? '#f3f4f6' : '#1f2937' }}
                 >
                   <CheckSquare className="w-5 h-5 text-green-500 shrink-0" />
@@ -2479,10 +2479,10 @@ export default function MobileLayout({
                         setIsEditingNote(true);
                         setIsPlusMenuOpen(false);
                       }}
-                      className="flex items-center gap-3 w-full text-left px-3 py-2 text-[14px] font-medium rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                      className="flex items-center gap-3 w-full text-left px-3 py-2 text-[14px] font-medium rounded-xl transition-colors cursor-pointer hover:bg-t2-sub "
                       style={{ color: theme === 'dark' ? '#9ca3af' : '#4b5563' }}
                     >
-                      <PenLine size={16} className="text-purple-500 shrink-0" />
+                      <PenLine size={16} className="text-t2-accent shrink-0" />
                       <span>Notiz</span>
                     </button>
                     <button
@@ -2491,10 +2491,10 @@ export default function MobileLayout({
                         onNewFolder?.();
                         setIsPlusMenuOpen(false);
                       }}
-                      className="flex items-center gap-3 w-full text-left px-3 py-2 text-[14px] font-medium rounded-xl transition-colors cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5"
+                      className="flex items-center gap-3 w-full text-left px-3 py-2 text-[14px] font-medium rounded-xl transition-colors cursor-pointer hover:bg-t2-sub "
                       style={{ color: theme === 'dark' ? '#9ca3af' : '#4b5563' }}
                     >
-                      <FolderPlus size={16} className="text-purple-500 shrink-0" />
+                      <FolderPlus size={16} className="text-t2-accent shrink-0" />
                       <span>Ordner</span>
                     </button>
                   </>

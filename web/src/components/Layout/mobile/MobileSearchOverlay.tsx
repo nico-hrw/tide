@@ -118,7 +118,7 @@ function renderPriorityBadge(priority?: string) {
   }
   if (p === 'low' || p === 'v') {
     return (
-      <span className="w-5 h-5 rounded-md bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 text-[11px] font-black flex items-center justify-center shrink-0">
+      <span className="w-5 h-5 rounded-md bg-t2-sub text-t2-accent   text-[11px] font-black flex items-center justify-center shrink-0">
         v
       </span>
     );
@@ -137,25 +137,25 @@ function EventRow({
   return (
     <div
       onClick={onClick}
-      className="flex items-center justify-between hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80 rounded-2xl px-2 py-1.5 transition-colors cursor-pointer"
+      className="flex items-center justify-between hover:bg-t2-hover  rounded-2xl px-2 py-1.5 transition-colors cursor-pointer"
     >
       <div className="flex items-center gap-2.5 min-w-0">
         <span
-          className={`w-2.5 h-2.5 rounded-full ${item.dotColor || 'bg-blue-500'} shrink-0`}
+          className={`w-2.5 h-2.5 rounded-full ${item.dotColor || 'bg-t2-accent'} shrink-0`}
         />
         <div className="min-w-0">
-          <p className="text-[13px] font-black text-neutral-900 dark:text-neutral-100 truncate">
+          <p className="text-[13px] font-black text-t2-ink  truncate">
             {item.title}
           </p>
           {timeText ? (
-            <p className="text-[11px] font-semibold text-neutral-400 dark:text-neutral-500 truncate">
+            <p className="text-[11px] font-semibold text-t2-ink-3  truncate">
               {timeText}
             </p>
           ) : null}
         </div>
       </div>
       {item.tag && (
-        <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100/90 dark:bg-neutral-800 px-2 py-0.5 rounded-lg shrink-0">
+        <span className="text-[10px] font-bold text-t2-ink-2  bg-t2-hover  px-2 py-0.5 rounded-lg shrink-0">
           {item.tag}
         </span>
       )}
@@ -176,7 +176,7 @@ function TodoRow({
   return (
     <div
       onClick={onClick}
-      className="flex items-center justify-between hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80 rounded-2xl px-2 py-1.5 transition-colors cursor-pointer"
+      className="flex items-center justify-between hover:bg-t2-hover  rounded-2xl px-2 py-1.5 transition-colors cursor-pointer"
     >
       <div className="flex items-center gap-2.5 min-w-0">
         <button
@@ -189,7 +189,7 @@ function TodoRow({
           className={`w-4 h-4 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
             done
               ? 'bg-emerald-500 border-emerald-500 text-white'
-              : 'border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800'
+              : 'border-t2-line  bg-t2-surface '
           }`}
         >
           {done && <Check className="w-3 h-3 stroke-[3]" />}
@@ -197,8 +197,8 @@ function TodoRow({
         <span
           className={`text-[13px] font-bold truncate ${
             done
-              ? 'line-through text-neutral-400 dark:text-neutral-500'
-              : 'text-neutral-900 dark:text-neutral-100'
+              ? 'line-through text-t2-ink-3 '
+              : 'text-t2-ink '
           }`}
         >
           {item.title}
@@ -207,7 +207,7 @@ function TodoRow({
       <div className="flex items-center gap-1.5 shrink-0">
         {renderPriorityBadge(item.priority)}
         {item.tag && (
-          <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100/90 dark:bg-neutral-800 px-2 py-0.5 rounded-lg">
+          <span className="text-[10px] font-bold text-t2-ink-2  bg-t2-hover  px-2 py-0.5 rounded-lg">
             {item.tag}
           </span>
         )}
@@ -226,23 +226,23 @@ function NoteRow({
   return (
     <div
       onClick={onClick}
-      className="flex items-center justify-between hover:bg-neutral-100/80 dark:hover:bg-neutral-800/80 rounded-2xl px-2 py-1.5 transition-colors cursor-pointer gap-2"
+      className="flex items-center justify-between hover:bg-t2-hover  rounded-2xl px-2 py-1.5 transition-colors cursor-pointer gap-2"
     >
       <div className="flex items-center gap-2.5 min-w-0">
         <FileText className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400 shrink-0" />
         <div className="min-w-0">
-          <p className="text-[13px] font-black text-neutral-900 dark:text-neutral-100 truncate">
+          <p className="text-[13px] font-black text-t2-ink  truncate">
             {item.title}
           </p>
           {item.preview && (
-            <p className="text-[11px] font-medium text-neutral-400 dark:text-neutral-500 truncate">
+            <p className="text-[11px] font-medium text-t2-ink-3  truncate">
               {item.preview}
             </p>
           )}
         </div>
       </div>
       {item.tag && (
-        <span className="text-[10px] font-bold text-neutral-500 dark:text-neutral-400 bg-neutral-100/90 dark:bg-neutral-800 px-2 py-0.5 rounded-lg shrink-0">
+        <span className="text-[10px] font-bold text-t2-ink-2  bg-t2-hover  px-2 py-0.5 rounded-lg shrink-0">
           {item.tag}
         </span>
       )}
@@ -399,7 +399,7 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
-          className="fixed inset-0 z-40 bg-white/70 dark:bg-neutral-950/70 backdrop-blur-xl flex flex-col justify-end p-4 pb-6 transition-[padding-bottom] duration-150 ease-out"
+          className="fixed inset-0 z-40 bg-t2-surface  backdrop-blur-xl flex flex-col justify-end p-4 pb-6 transition-[padding-bottom] duration-150 ease-out"
           style={{
             paddingBottom: keyboardOffset > 0 ? `${keyboardOffset + 12}px` : undefined,
           }}
@@ -420,19 +420,19 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
                 style={{
                   maxHeight: keyboardOffset > 0 ? `calc(100dvh - ${keyboardOffset + 180}px)` : undefined,
                 }}
-                className="bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md rounded-3xl border border-neutral-200/80 dark:border-neutral-800 shadow-xl p-4 flex flex-col max-h-[60vh] overflow-y-auto mb-2.5"
+                className="bg-t2-surface  backdrop-blur-md rounded-3xl border border-t2-line  shadow-xl p-4 flex flex-col max-h-[60vh] overflow-y-auto mb-2.5"
               >
                 {/* Section 1: Termine */}
                 {hasRemainingEvents && (
                   <div className="flex flex-col">
                     <div className="flex items-center justify-between px-1.5 mb-1.5">
                       <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                        <Calendar className="w-3.5 h-3.5 text-t2-accent " />
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-t2-ink-3 ">
                           Termine
                         </span>
                       </div>
-                      <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500">
+                      <span className="text-[10px] font-bold text-t2-ink-3 ">
                         {remainingEvents.length}
                       </span>
                     </div>
@@ -452,17 +452,17 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
                 {hasRemainingTodos && (
                   <div
                     className={`flex flex-col ${
-                      hasRemainingEvents ? 'border-t border-neutral-100 dark:border-neutral-800/80 pt-3 mt-1' : ''
+                      hasRemainingEvents ? 'border-t border-t2-line-soft  pt-3 mt-1' : ''
                     }`}
                   >
                     <div className="flex items-center justify-between px-1.5 mb-1.5">
                       <div className="flex items-center gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-t2-ink-3 ">
                           Todos
                         </span>
                       </div>
-                      <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500">
+                      <span className="text-[10px] font-bold text-t2-ink-3 ">
                         {remainingTodos.length}
                       </span>
                     </div>
@@ -484,18 +484,18 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
                   <div
                     className={`flex flex-col ${
                       hasRemainingEvents || hasRemainingTodos
-                        ? 'border-t border-neutral-100 dark:border-neutral-800/80 pt-3 mt-1'
+                        ? 'border-t border-t2-line-soft  pt-3 mt-1'
                         : ''
                     }`}
                   >
                     <div className="flex items-center justify-between px-1.5 mb-1.5">
                       <div className="flex items-center gap-1.5">
                         <FileText className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-t2-ink-3 ">
                           Notizen
                         </span>
                       </div>
-                      <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500">
+                      <span className="text-[10px] font-bold text-t2-ink-3 ">
                         {remainingNotes.length}
                       </span>
                     </div>
@@ -515,18 +515,18 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
 
             {/* Top Result ("Bester Treffer") Card - Prominently placed directly above search bar */}
             {topResult && (
-              <div className="bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md rounded-2xl border border-neutral-200/90 dark:border-neutral-800 shadow-xl p-3 mb-2.5 transition-all">
+              <div className="bg-t2-surface  backdrop-blur-md rounded-2xl border border-t2-line  shadow-xl p-3 mb-2.5 transition-all">
                 <div className="flex items-center justify-between gap-2 mb-1.5 px-0.5">
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20" />
                     <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
                       Bester Treffer
                     </span>
-                    <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500">
+                    <span className="text-[10px] font-semibold text-t2-ink-3 ">
                       • {topResult.type === 'event' ? 'Termin' : topResult.type === 'todo' ? 'Todo' : 'Notiz'}
                     </span>
                   </div>
-                  <span className="text-[10px] font-bold text-neutral-400 dark:text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] font-bold text-t2-ink-3  bg-t2-hover  px-1.5 py-0.5 rounded">
                     Öffnen
                   </span>
                 </div>
@@ -557,20 +557,20 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
 
             {/* Empty state when query is provided but yields no results */}
             {totalResults === 0 && hasQuery && (
-              <div className="bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border border-neutral-200/80 dark:border-neutral-800 rounded-3xl p-5 text-center shadow-xl mb-3">
-                <SearchX className="w-7 h-7 text-neutral-300 dark:text-neutral-600 mx-auto mb-1" />
-                <p className="text-[13px] font-extrabold text-neutral-700 dark:text-neutral-200">
+              <div className="bg-t2-surface  backdrop-blur-md border border-t2-line  rounded-3xl p-5 text-center shadow-xl mb-3">
+                <SearchX className="w-7 h-7 text-t2-ink-3  mx-auto mb-1" />
+                <p className="text-[13px] font-extrabold text-t2-ink ">
                   Keine Treffer gefunden
                 </p>
-                <p className="text-[11px] font-medium text-neutral-400 dark:text-neutral-500 mt-0.5">
+                <p className="text-[11px] font-medium text-t2-ink-3  mt-0.5">
                   Versuche einen anderen Suchbegriff.
                 </p>
               </div>
             )}
 
             {/* Sticky bottom search bar */}
-            <div className="bg-white dark:bg-neutral-900 border border-neutral-200/90 dark:border-neutral-800 rounded-full px-3.5 py-2 shadow-2xl flex items-center gap-2">
-              <Search className="w-4 h-4 text-neutral-900 dark:text-neutral-100 shrink-0" />
+            <div className="bg-t2-surface  border border-t2-line  rounded-full px-3.5 py-2 shadow-2xl flex items-center gap-2">
+              <Search className="w-4 h-4 text-t2-ink  shrink-0" />
               <input
                 ref={inputRef}
                 type="search"
@@ -597,14 +597,14 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
                 data-form-type="other"
                 data-lpignore="true"
                 data-1p-ignore="true"
-                className="flex-1 bg-transparent text-[13px] font-semibold text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 outline-none min-w-0 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
+                className="flex-1 bg-transparent text-[13px] font-semibold text-t2-ink  placeholder:text-t2-ink-3 outline-none min-w-0 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
               />
               {query.length > 0 && (
                 <button
                   type="button"
                   title="Eingabe löschen"
                   onClick={() => onQueryChange('')}
-                  className="w-6 h-6 rounded-full bg-neutral-200/80 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 flex items-center justify-center transition-colors shrink-0"
+                  className="w-6 h-6 rounded-full bg-t2-stage  hover:bg-t2-line  text-t2-ink-2  flex items-center justify-center transition-colors shrink-0"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -612,7 +612,7 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3 py-1 rounded-full bg-neutral-900 text-white dark:bg-white dark:text-neutral-900 text-[11px] font-bold hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors shrink-0"
+                className="px-3 py-1 rounded-full bg-t2-ink text-white  dark:text-neutral-900 text-[11px] font-bold hover:bg-t2-ink  transition-colors shrink-0"
               >
                 Fertig
               </button>
