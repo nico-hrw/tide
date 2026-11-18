@@ -15,7 +15,7 @@ import { isSameDay, format, startOfWeek, addDays, isAfter } from 'date-fns';
 import { de } from 'date-fns/locale';
 import MiniCalendar from '../Calendar/MiniCalendar';
 import MobileWeekGrid from './MobileWeekGrid';
-import { useDataStore } from '@/store/useDataStore';
+import { useDataStore, useWeekStartsOn } from '@/store/useDataStore';
 import dynamic from 'next/dynamic';
 import { pickGreetingTemplate, formatGreeting, NextEventCountdown, fireConfetti } from './MobileHeaderWidgets';
 import TodoList from '../Todo/TodoList';
@@ -770,6 +770,7 @@ export default function MobileLayout({
   const [selectedStatus, setSelectedStatus] = useState<StatusOption | string | null>(null);
   const [dateFilter, setDateFilter] = useState<DateFilterOption>('all');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const weekStartsOn = useWeekStartsOn();
   const tasks = useDataStore((s) => s.tasks);
   const [notesViewMode, setNotesViewMode] = useState<'list' | 'grid'>(() => {
     try {
@@ -890,7 +891,7 @@ export default function MobileLayout({
     setDayViewDays(prev => {
       const hasToday = prev.some(d => isSameDay(d, today));
       if (hasToday) return prev;
-      const ws = startOfWeek(today, { weekStartsOn: 1 });
+      const ws = startOfWeek(today, { weekStartsOn });
       return Array.from({ length: 30 }, (_, i) => addDays(ws, i));
     });
 
@@ -898,7 +899,7 @@ export default function MobileLayout({
       const el = document.getElementById(`day-${format(today, 'yyyy-MM-dd')}`);
       el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 60);
-  }, []);
+  }, [weekStartsOn]);
 
   const storedName = typeof window !== 'undefined' ? (localStorage.getItem('tide_user_name') || sessionStorage.getItem('tide_user_name')) : null;
   const emailPrefix = (userProfile?.email || '').split('@')[0];
@@ -1085,7 +1086,7 @@ export default function MobileLayout({
     return () => window.removeEventListener('mobile_edit_event', handleEditEvent);
   }, [expandedEvents, events]);
 
-  const weekStart = useMemo(() => startOfWeek(activeDate, { weekStartsOn: 1 }), [activeDate]);
+  const weekStart = useMemo(() => startOfWeek(activeDate, { weekStartsOn }), [activeDate, weekStartsOn]);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const weekStartStr = weekStart.toISOString().slice(0, 10);
 
@@ -1123,7 +1124,7 @@ export default function MobileLayout({
 
   // Reset day-view list when the calendar week changes
   useEffect(() => {
-    const ws = startOfWeek(activeDate, { weekStartsOn: 1 });
+    const ws = startOfWeek(activeDate, { weekStartsOn });
     setDayViewDays(Array.from({ length: 30 }, (_, i) => addDays(ws, i)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStartStr]);
@@ -1706,7 +1707,7 @@ export default function MobileLayout({
                 if (calViewMode === 'agenda') {
                   setDayViewDays(prev => {
                     if (prev.some(day => isSameDay(day, d))) return prev;
-                    const ws = startOfWeek(d, { weekStartsOn: 1 });
+                    const ws = startOfWeek(d, { weekStartsOn });
                     return Array.from({ length: 30 }, (_, i) => addDays(ws, i));
                   });
                   setTimeout(() => {

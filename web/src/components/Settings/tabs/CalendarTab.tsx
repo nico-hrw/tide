@@ -5,6 +5,7 @@ import {
     type CalendarColorPalette,
     type CalendarHolidayPackage,
 } from '@/store/useDataStore';
+import { useTranslation } from '@/lib/i18n';
 import { useJobPlannerStore } from '@/store/useJobPlannerStore';
 import CalendarImportModal from '@/components/Calendar/CalendarImportModal';
 
@@ -171,10 +172,12 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
     const {
         calendarColorPalette,
         setCalendarColorPalette,
-        calendarWeekScroll,
-        setCalendarWeekScroll,
         calendarOverlapMode,
         setCalendarOverlapMode,
+        calendarScrollMode,
+        setCalendarScrollMode,
+        weekStartsOn,
+        setWeekStartsOn,
         calendarHolidaysEnabled,
         setCalendarHolidaysEnabled,
         calendarHolidayPackage,
@@ -185,6 +188,7 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
         setEventMentionPreview,
     } = useDataStore();
 
+    const { t } = useTranslation();
     const plannerGroupId = useJobPlannerStore((state) => state.pluginGroupId);
     const isJobPlannerActive = enabledExtensions.includes('job_planner');
     const [newGroupName, setNewGroupName] = useState('');
@@ -246,20 +250,29 @@ export const CalendarTab: React.FC<CalendarTabProps> = ({
                     </div>
 
                     <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
-                        <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">Week view</h4>
-                        <p className="text-xs text-gray-500 mb-3">Scroll endlessly through weeks, or show exactly one week at a time.</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <OptionCard id="infinite" label="Infinite scroll" desc="Weeks load as you scroll" active={calendarWeekScroll === 'infinite'} onClick={setCalendarWeekScroll} />
-                            <OptionCard id="single" label="One week" desc="Navigate week by week" active={calendarWeekScroll === 'single'} onClick={setCalendarWeekScroll} />
-                        </div>
-                    </div>
-
-                    <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
                         <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">Event Arrangement</h4>
                         <p className="text-xs text-gray-500 mb-3">Decide how overlapping events are displayed.</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <OptionCard id="stack" label="Side-by-Side" desc="Equal split width" active={overlap === 'stack'} onClick={setCalendarOverlapMode} />
                             <OptionCard id="overlap" label="Overlap / Stacking" desc="Layered cards" active={overlap === 'overlap'} onClick={setCalendarOverlapMode} />
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">{t('calendar', 'scrollModeTitle')}</h4>
+                        <p className="text-xs text-gray-500 mb-3">{t('calendar', 'scrollModeDesc')}</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <OptionCard id="infinite" label={t('calendar', 'scrollModeInfinite')} desc={t('calendar', 'scrollModeInfiniteDesc')} active={calendarScrollMode === 'infinite'} onClick={setCalendarScrollMode} />
+                            <OptionCard id="fixed" label={t('calendar', 'scrollModeFixed')} desc={t('calendar', 'scrollModeFixedDesc')} active={calendarScrollMode === 'fixed'} onClick={setCalendarScrollMode} />
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl">
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">{t('calendar', 'weekStartTitle')}</h4>
+                        <p className="text-xs text-gray-500 mb-3">{t('calendar', 'weekStartDesc')}</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <OptionCard id="monday" label={t('calendar', 'weekStartMonday')} desc="" active={weekStartsOn === 1} onClick={() => setWeekStartsOn(1)} />
+                            <OptionCard id="sunday" label={t('calendar', 'weekStartSunday')} desc="" active={weekStartsOn === 0} onClick={() => setWeekStartsOn(0)} />
                         </div>
                     </div>
 

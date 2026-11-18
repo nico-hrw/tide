@@ -102,12 +102,12 @@ Exceptions allow individual occurrences of an infinite recurring series to be ca
 
 ### 3.1 Ephemeral On-The-Fly Generation (`useEventsByDay.ts`)
 
-Instead of pre-generating rows into the database, `useEventsByDay` computes occurrences lazily for the active date range (`loadedWeeks`).
+Instead of pre-generating rows into the database, `useEventsByDay` computes occurrences lazily for the active date range (`range`, the rendered weeks; end exclusive).
 
 ```typescript
-// Active window bounding box:
-const minDate = startOfDay(loadedWeeks[0]);
-const maxDate = startOfDay(addDays(loadedWeeks[loadedWeeks.length - 1], 7));
+// Active window bounding box (range comes from useWeekWindow or weeksForViewMode):
+const minDate = startOfDay(range.start);
+const maxDate = startOfDay(range.end);
 ```
 
 #### The Expansion Algorithm
@@ -494,5 +494,5 @@ flowchart TD
 
 1. **Memory Ceiling:** Ephemeral instances are capped at 1,000 iterations per master event per viewport render (`count < 1000` in `useEventsByDay.ts`) to prevent infinite loop locking from malformed recurrence rules.
 2. **Zero-DB Leakage:** Virtual instances (`${id}_${timestamp}`) are never passed to the persistence layer (`apiFetch` / `sqlite.go`). Any update to a virtual instance is translated by `page.tsx` into an `exdates` mutation or a new detached master event before network dispatch.
-3. **Memoization:** Recurrence expansion is guarded by `useMemo([events, loadedWeeks, selectedGroupId])`. Panning the time grid within the same 3-week buffer avoids re-evaluating the recurrence engine.
+3. **Memoization:** Recurrence expansion is guarded by `useMemo([events, range start/end, selectedGroupId])`. Panning the time grid without changing the set of rendered weeks avoids re-evaluating the recurrence engine.
 4. **Timezone Resilience:** All internal timestamps persist in UTC ISO-8601 strings. Timezone resolution occurs deterministically at the display or import boundary.

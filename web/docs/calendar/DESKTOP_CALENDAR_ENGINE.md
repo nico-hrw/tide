@@ -28,21 +28,16 @@ The Tide Desktop Calendar operates as a unified state machine orchestrating four
 The active view mode is managed via a synchronized dual-state pattern:
 - **Controlled Mode:** Prop `viewMode: CalendarViewMode` (`'week' | 'day' | 'month' | 'agenda'`).
 - **Uncontrolled Mode:** Internal state `internalViewMode` initialized to `'week'`.
-- **Mode Switching:** Handled by `handleViewModeChange(mode)`. When returning to `'week'` mode from any other view, `hasInitializedScroll.current` is reset to `false` to trigger automatic re-centering of the time container to the user's current time or workday morning (08:00).
+- **Mode Switching:** Handled by `handleViewModeChange(mode)`. When the week container mounts again (returning to `'week'`), `useWeekWindow` re-centers horizontally on `date` and restores the vertical position (`tide_calendar_scroll_y`, else two hours before now).
 
-### 1.2 Multi-Week Sliding Window Buffer
-To ensure 60fps horizontal pagination and week switching, `CalendarView` maintains a 3-week sliding window buffer in `loadedWeeks`:
-```typescript
-const [loadedWeeks, setLoadedWeeks] = useState<Date[]>(() => {
-    const currentStart = startOfWeek(date, { weekStartsOn: 1 });
-    return [
-        subWeeks(currentStart, 1), // Previous Week
-        currentStart,              // Active Week
-        addWeeks(currentStart, 1)  // Next Week
-    ];
-});
-```
-- In `CalendarWeekTimeGrid`, `loadedWeeks` is flattened into 21 discrete day keys (`yyyy-MM-dd`) using `date-fns/addDays`.
+### 1.2 Virtual Week Window (`useWeekWindow.ts`)
+`date` (props) is the single source of truth; there is no week list in state. Week math lives in `web/src/lib/calendarWeeks.ts`.
+- Every week has a fixed position relative to an anchor week (`±WEEK_RANGE` = 520 weeks). Scroll content = 60px time column + `(index + 520) * 7 * dayWidth`.
+- Only the visible weeks ± `RENDER_BUFFER_WEEKS` (2) are rendered; `leftSpacerPx` / `rightSpacerPx` divs inside the `gridDaysRef` wrapper keep the total scroll width constant, so nothing is prepended and `scrollLeft` is never compensated.
+- **No feedback loop:** a programmatic `date` change scrolls (smooth up to 4 weeks, instant beyond); user scrolling reports the viewport-center day via `onDateChange` only after 150 ms of rest. The reported day is remembered (`lastEmittedKeyRef`) so its echo through props does not scroll again.
+- Jumps of more than 26 weeks re-anchor (no animation); a `weekStartsOn` change re-normalizes the anchor to the week of `date`.
+- Month and continuous views use `weeksForViewMode(date, mode, weekStartsOn)` (6 resp. 8 weeks); the day view uses the week of `date` ± 1.
+- In `CalendarWeekTimeGrid`, the rendered weeks are flattened into day keys (`yyyy-MM-dd`) using `date-fns/addDays`.
 - Event queries are pre-indexed into two discrete hash maps using `useEventsByDay`:
   - `timedMap: Map<string, CalendarEvent[]>` — Events with explicit start/end hour boundaries.
   - `allDayMap: Map<string, CalendarEvent[]>` — All-day events, deadlines, and linked task milestones.
@@ -326,7 +321,7 @@ sequenceDiagram
     participant AE as arrangeEvents()
     participant PL as CalendarProjectionLayer
 
-    CV->>EBD: Filter events by loadedWeeks (21 days)
+    CV->>EBD: Filter events by the rendered week range
     EBD-->>WTG: Return timedMap & allDayMap
     WTG->>DC: Render DayColumn for each active day
     DC->>AE: Pass timedEvents + day date

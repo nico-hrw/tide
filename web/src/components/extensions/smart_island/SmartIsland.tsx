@@ -6,7 +6,7 @@ import { Check, Calendar as CalendarIcon, MessageSquare, Bell, TrendingUp, Spark
 import { motion, AnimatePresence } from 'framer-motion';
 import SmartIslandCalendar from './SmartIslandCalendar';
 import { useIslandStore, IslandView } from './useIslandStore';
-import { useDataStore } from '@/store/useDataStore';
+import { useDataStore, useWeekStartsOn } from '@/store/useDataStore';
 import { format, isSameDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval } from 'date-fns';
 import { de } from 'date-fns/locale';
 import WeekStrip from './WeekStrip';
@@ -874,6 +874,7 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
         )
     );
 
+    const weekStartsOn = useWeekStartsOn();
     const [calendarMonth, setCalendarMonth] = useState<Date>(() => selectedDate || new Date());
     useEffect(() => {
         if (selectedDate) {
@@ -884,14 +885,14 @@ export default function SmartIsland({ selectedDate, onSelect, userName, compact 
     const calendarHeightClass = useMemo(() => {
         const monthStart = startOfMonth(calendarMonth);
         const monthEnd = endOfMonth(monthStart);
-        const start = startOfWeek(monthStart, { weekStartsOn: 1 });
-        const end = endOfWeek(monthEnd, { weekStartsOn: 1 });
+        const start = startOfWeek(monthStart, { weekStartsOn });
+        const end = endOfWeek(monthEnd, { weekStartsOn });
         const days = eachDayOfInterval({ start, end });
         const weeks = Math.round(days.length / 7);
         if (weeks <= 4) return 'h-[188px]';
         if (weeks === 5) return 'h-[208px]';
         return 'h-[228px]';
-    }, [calendarMonth]);
+    }, [calendarMonth, weekStartsOn]);
 
     // Live 1-second interval ticker for countdowns
     const [currentTime, setCurrentTime] = useState(() => new Date());

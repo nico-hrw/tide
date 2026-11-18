@@ -3,7 +3,8 @@ import React, { useState, useRef } from 'react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isToday, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useDataStore } from '@/store/useDataStore';
+import { useDataStore, useWeekStartsOn } from '@/store/useDataStore';
+import { rotateWeekdayLabels } from '@/lib/calendarWeeks';
 
 export interface MiniCalendarProps {
     selectedDate?: Date;
@@ -20,15 +21,16 @@ export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, ev
     const touchGridY = useRef<number | null>(null);
 
     const visibleCalendarRange = useDataStore(s => s.visibleCalendarRange);
+    const weekStartsOn = useWeekStartsOn();
 
     const effectiveRange = React.useMemo(() => {
         if (visibleCalendarRange) return visibleCalendarRange;
         const baseDate = selectedDate || new Date();
         return {
-            start: format(startOfWeek(baseDate, { weekStartsOn: 1 }), "yyyy-MM-dd"),
-            end: format(endOfWeek(baseDate, { weekStartsOn: 1 }), "yyyy-MM-dd"),
+            start: format(startOfWeek(baseDate, { weekStartsOn }), "yyyy-MM-dd"),
+            end: format(endOfWeek(baseDate, { weekStartsOn }), "yyyy-MM-dd"),
         };
-    }, [visibleCalendarRange, selectedDate]);
+    }, [visibleCalendarRange, selectedDate, weekStartsOn]);
 
     React.useEffect(() => {
         if (selectedDate && !isSameMonth(selectedDate, currentDateInternal)) {
@@ -51,13 +53,13 @@ export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, ev
 
     const monthStart = startOfMonth(displayDate);
     const monthEnd = endOfMonth(monthStart);
-    const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
-    const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    const startDate = startOfWeek(monthStart, { weekStartsOn });
+    const endDate = endOfWeek(monthEnd, { weekStartsOn });
 
     const dateFormat = "d";
     const days = eachDayOfInterval({ start: startDate, end: endDate });
 
-    const weekDays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    const weekDays = rotateWeekdayLabels(['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'], weekStartsOn);
 
     return (
         <div

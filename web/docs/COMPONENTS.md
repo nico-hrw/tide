@@ -139,8 +139,13 @@
 | Component | File | Role |
 |-----------|------|------|
 | CalendarView | `web/src/components/Calendar/CalendarView.tsx` | Main month/week view + global drag state |
+| useWeekWindow | `web/src/components/Calendar/useWeekWindow.ts` | Virtual week window for the infinite week view: renders visible weeks ± 2 between spacer divs, scrolls on programmatic `date` changes, reports the center day after 150 ms scroll rest (no feedback loop), re-anchors beyond 26 weeks. Week math in `web/src/lib/calendarWeeks.ts`. |
+| useFixedWeekNavigation | `web/src/components/Calendar/useFixedWeekNavigation.ts` | Fixed one-week mode (`calendarScrollMode === 'fixed'`): ←/→ (not in text fields) and horizontal wheel/touch gestures move `date` by ±7 days, one week per gesture via `swipeGate.ts` (80 px, 400 ms lock); disabled while an event is dragged. `CalendarView` renders one fluid-width week (`DayColumn fluid`), `useWeekWindow` is `enabled: false`. |
+| CalendarToolbar | `web/src/components/Calendar/CalendarToolbar.tsx` | Title row, view-mode pills, import button and group chips extracted from `CalendarView`; shows prev / next / today buttons when `fixedWeekNav` is given. |
+| useCalendarScroll | `web/src/components/Calendar/useCalendarScroll.ts` | Popover state + dismissal, `calendar:scroll-to` / `editingEventId` navigation, day-view initial scroll, `tide_calendar_scroll_y` persistence, visible range, directional "Today" button |
 | WeekView | `web/src/components/Calendar/WeekView.tsx` | Week grid |
 | DayColumn | `web/src/components/Calendar/DayColumn.tsx` | Single-day column (pure reflector, no drag logic) |
+| DayEventsSkeleton | `web/src/components/Calendar/DayEventsSkeleton.tsx` | Three pulsing grey bars (fixed positions, `--hover-bg`) shown by `DayColumn` while `eventsLoaded` is false and the day has no events. `eventsLoaded` is set by `fetchDirectory(root)` / `loadAllMetadata` after the first response or on error. |
 | CalendarEventItem | `web/src/components/Calendar/CalendarEventItem.tsx` | Event pill rendering. **Z-index overlap**: `zIndex = 10 + startMinutes` so later-starting events render on top of earlier ones when they overlap. |
 | DragGhost | `web/src/components/Calendar/DragGhost.tsx` | Visual ghost for creation drag |
 | EventDragGhost | `web/src/components/Calendar/EventDragGhost.tsx` | Visual ghost for event move drag |

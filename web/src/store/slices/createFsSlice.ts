@@ -285,6 +285,7 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                     events: mergedEvents,
                     ...(finalMergedTasks !== undefined ? { tasks: finalMergedTasks } : {}),
                     metadataCache: mergedCache,
+                    ...(dirKey === 'root' ? { eventsLoaded: true } : {}),
                     loadedDirectories: new Set([...s.loadedDirectories, dirKey]),
                     fetchingDirectories: new Set([...s.fetchingDirectories].filter(d => d !== dirKey)),
                 };
@@ -301,6 +302,7 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                 next.delete(dirKey);
                 return {
                     fetchingDirectories: next,
+                    ...(dirKey === 'root' ? { eventsLoaded: true } : {}),
                     ...(finalMergedTasks !== undefined ? { tasks: finalMergedTasks } : {}),
                 };
             });
@@ -410,6 +412,7 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                     notes: finalNotes,
                     events: finalEvents,
                     metadataCache: { ...s.metadataCache, ...newMetaCache },
+                    eventsLoaded: true,
                 };
             });
 
@@ -422,6 +425,7 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
             });
         } catch (e) {
             console.error('[STATE-AUDIT ERROR] loadAllMetadata |', e);
+            set({ eventsLoaded: true });
         }
     },
 });

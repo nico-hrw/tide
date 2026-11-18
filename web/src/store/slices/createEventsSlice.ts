@@ -1,9 +1,10 @@
 import { apiFetch } from '@/lib/api';
+import type { WeekStart } from '@/lib/calendarWeeks';
 import type {
     CalendarColorPalette,
-    CalendarWeekScroll,
     CalendarHolidayPackage,
     CalendarOverlapMode,
+    CalendarScrollMode,
     DataItem,
     DataStoreSlice,
     EventMentionPreview,
@@ -31,8 +32,29 @@ export function saveEventsToOfflineCache(events: DataItem[]): void {
     }
 }
 
+function loadCalendarScrollMode(): CalendarScrollMode {
+    if (typeof window === 'undefined') return 'infinite';
+    try {
+        return localStorage.getItem('tide_calendar_scroll_mode') === 'fixed'
+            ? 'fixed'
+            : 'infinite';
+    } catch {
+        return 'infinite';
+    }
+}
+
+function loadWeekStartsOn(): WeekStart {
+    if (typeof window === 'undefined') return 1;
+    try {
+        return localStorage.getItem('tide_calendar_week_start') === '0' ? 0 : 1;
+    } catch {
+        return 1;
+    }
+}
+
 export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
     events: loadCachedEvents(),
+    eventsLoaded: false,
     eventMentionStyle:
         (typeof window !== 'undefined' &&
             (localStorage.getItem('tide_event_mention_style') as EventMentionStyle)) ||
@@ -47,16 +69,14 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
                   'tide_calendar_color_palette'
               ) as CalendarColorPalette) || 'balsam')
             : 'balsam',
-    calendarWeekScroll:
-        typeof window !== 'undefined' && localStorage.getItem('tide_calendar_week_scroll') === 'single'
-            ? 'single'
-            : 'infinite',
     calendarOverlapMode:
         typeof window !== 'undefined'
             ? ((localStorage.getItem(
                   'tide_calendar_overlap_mode'
               ) as CalendarOverlapMode) || 'stack')
             : 'stack',
+    calendarScrollMode: loadCalendarScrollMode(),
+    weekStartsOn: loadWeekStartsOn(),
     visibleCalendarRange: null,
     calendarHolidaysEnabled:
         typeof window !== 'undefined'
@@ -73,6 +93,8 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
         saveEventsToOfflineCache(events);
         set({ events });
     },
+
+    setEventsLoaded: (loaded: boolean) => set({ eventsLoaded: loaded }),
 
     setEventMentionStyle: (style: EventMentionStyle) => {
         if (typeof window !== 'undefined') {
@@ -96,14 +118,6 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
             return { calendarColorPalette: palette };
         }),
 
-    setCalendarWeekScroll: (mode: CalendarWeekScroll) =>
-        set(() => {
-            if (typeof window !== 'undefined') {
-                localStorage.setItem('tide_calendar_week_scroll', mode);
-            }
-            return { calendarWeekScroll: mode };
-        }),
-
     setCalendarOverlapMode: (mode: CalendarOverlapMode) =>
         set(() => {
             if (typeof window !== 'undefined') {
@@ -111,6 +125,24 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
             }
             return { calendarOverlapMode: mode };
         }),
+
+    setCalendarScrollMode: (mode: CalendarScrollMode) => {
+        try {
+            localStorage.setItem('tide_calendar_scroll_mode', mode);
+        } catch (e) {
+            console.warn('Failed to persist calendar scroll mode', e);
+        }
+        set({ calendarScrollMode: mode });
+    },
+
+    setWeekStartsOn: (w: WeekStart) => {
+        try {
+            localStorage.setItem('tide_calendar_week_start', String(w));
+        } catch (e) {
+            console.warn('Failed to persist week start', e);
+        }
+        set({ weekStartsOn: w });
+    },
 
     setVisibleCalendarRange: (
         range: { start: string; end: string } | null

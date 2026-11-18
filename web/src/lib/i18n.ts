@@ -50,6 +50,18 @@ export const translations = {
             todaysSchedule: "Heutiger Tagesplan",
             sideBySide: "Nebeneinander",
             overlap: "Überlappend",
+            scrollModeTitle: "Scrollen",
+            scrollModeDesc: "Lege fest, wie im Kalender gescrollt wird.",
+            scrollModeInfinite: "Unendlich",
+            scrollModeInfiniteDesc: "Fließend durch die Wochen scrollen",
+            scrollModeFixed: "Eine Woche",
+            scrollModeFixedDesc: "Wochenweise blättern",
+            weekStartTitle: "Woche beginnt",
+            weekStartDesc: "Wähle den ersten Tag der Woche.",
+            weekStartMonday: "Montag",
+            weekStartSunday: "Sonntag",
+            previousWeek: "Vorherige Woche",
+            nextWeek: "Nächste Woche",
         }
     },
     en: {
@@ -99,6 +111,18 @@ export const translations = {
             todaysSchedule: "Today's Schedule",
             sideBySide: "Side-by-Side",
             overlap: "Overlap",
+            scrollModeTitle: "Scrolling",
+            scrollModeDesc: "Choose how the calendar scrolls.",
+            scrollModeInfinite: "Infinite",
+            scrollModeInfiniteDesc: "Scroll smoothly through weeks",
+            scrollModeFixed: "One week",
+            scrollModeFixedDesc: "Page week by week",
+            weekStartTitle: "Week starts on",
+            weekStartDesc: "Choose the first day of the week.",
+            weekStartMonday: "Monday",
+            weekStartSunday: "Sunday",
+            previousWeek: "Previous week",
+            nextWeek: "Next week",
         }
     }
 } as const;

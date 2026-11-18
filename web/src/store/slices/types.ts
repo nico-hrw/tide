@@ -1,4 +1,5 @@
 import type { StateCreator } from 'zustand';
+import type { WeekStart } from '@/lib/calendarWeeks';
 
 export interface DataItem {
     id: string;
@@ -58,9 +59,8 @@ export type ThemePreference = 'light' | 'dark' | 'system';
 export type AppTheme = 'light' | 'dark';
 export type AppLanguage = 'en' | 'de';
 export type CalendarColorPalette = 'balsam' | 'modern-dark' | 'soft-pastels' | 'classic-tide';
-/** Wochenansicht: 'infinite' scrollt endlos weiter, 'single' zeigt genau eine Woche. */
-export type CalendarWeekScroll = 'infinite' | 'single';
 export type CalendarOverlapMode = 'overlap' | 'stack';
+export type CalendarScrollMode = 'infinite' | 'fixed';
 export type CalendarHolidayPackage = 'DE' | 'AT' | 'CH' | 'US';
 export type EventMentionStyle = 'blue' | 'calendar';
 export type EventMentionPreview = 'always' | 'hover' | 'off';
@@ -104,21 +104,26 @@ export interface NotesSlice {
 
 export interface EventsSlice {
     events: DataItem[];
+    /** True once the first server events response arrived (or the request failed). */
+    eventsLoaded: boolean;
     eventMentionStyle: EventMentionStyle;
     eventMentionPreview: EventMentionPreview;
     calendarColorPalette: CalendarColorPalette;
-    calendarWeekScroll: CalendarWeekScroll;
     calendarOverlapMode: CalendarOverlapMode;
+    calendarScrollMode: CalendarScrollMode;
+    weekStartsOn: WeekStart;
     visibleCalendarRange?: { start: string; end: string } | null;
     calendarHolidaysEnabled: boolean;
     calendarHolidayPackage: CalendarHolidayPackage;
 
     setEvents: (events: DataItem[]) => void;
+    setEventsLoaded: (loaded: boolean) => void;
     setEventMentionStyle: (style: EventMentionStyle) => void;
     setEventMentionPreview: (preview: EventMentionPreview) => void;
     setCalendarColorPalette: (palette: CalendarColorPalette) => void;
-    setCalendarWeekScroll: (mode: CalendarWeekScroll) => void;
     setCalendarOverlapMode: (mode: CalendarOverlapMode) => void;
+    setCalendarScrollMode: (mode: CalendarScrollMode) => void;
+    setWeekStartsOn: (w: WeekStart) => void;
     setVisibleCalendarRange: (range: { start: string; end: string } | null) => void;
     setCalendarHolidaysEnabled: (enabled: boolean) => void;
     setCalendarHolidayPackage: (pkg: CalendarHolidayPackage) => void;

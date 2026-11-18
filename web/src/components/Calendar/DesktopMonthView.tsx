@@ -13,6 +13,8 @@ import { Plus, CheckSquare, Square } from "lucide-react";
 import { getHolidayForDate } from "@/lib/holidays";
 import { getEventGroupIds } from "@/lib/calendarUtils";
 import { useJobPlannerStore } from "@/store/useJobPlannerStore";
+import { useWeekStartsOn } from "@/store/useDataStore";
+import { rotateWeekdayLabels } from "@/lib/calendarWeeks";
 import type { CalendarEvent } from "./types";
 
 interface DesktopMonthViewProps {
@@ -38,6 +40,8 @@ export default function DesktopMonthView({
     themes = [],
 }: DesktopMonthViewProps) {
     const jobPluginGroupId = useJobPlannerStore((state) => state.pluginGroupId);
+    const weekStartsOn = useWeekStartsOn();
+    const weekdays = rotateWeekdayLabels(WEEKDAYS, weekStartsOn);
 
     const isJobOrUniEvent = (e: CalendarEvent) => {
         if (jobPluginGroupId && (e.parent_id === jobPluginGroupId || e.groupIds?.includes(jobPluginGroupId))) {
@@ -51,8 +55,8 @@ export default function DesktopMonthView({
 
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(monthStart);
-    const startDate = startOfWeek(monthStart, { weekStartsOn: 1 });
-    const endDate = endOfWeek(monthEnd, { weekStartsOn: 1 });
+    const startDate = startOfWeek(monthStart, { weekStartsOn });
+    const endDate = endOfWeek(monthEnd, { weekStartsOn });
 
     const days = eachDayOfInterval({ start: startDate, end: endDate });
 
@@ -71,11 +75,11 @@ export default function DesktopMonthView({
             <div className="flex-1 flex flex-col rounded-2xl border-2 border-gray-300 dark:border-slate-700 overflow-hidden shadow-md bg-gray-100/90 dark:bg-slate-950">
                 {/* Weekday Header */}
                 <div className="grid grid-cols-7 border-b border-gray-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 z-10 px-2">
-                    {WEEKDAYS.map((wd, i) => (
+                    {weekdays.map((wd, i) => (
                         <div
                             key={wd}
                             className={`py-2 text-center text-xs font-bold uppercase tracking-wider ${
-                                i >= 5 ? "text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-300"
+                                (wd === "Sa" || wd === "So") ? "text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-300"
                             }`}
                         >
                             {wd}
