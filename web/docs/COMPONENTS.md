@@ -196,6 +196,19 @@
 |-----------|------|------|
 | JobPlanner | `web/src/components/JobPlanner/JobPlanner.tsx` | Job & study planning module |
 
+## Public API Docs (no login)
+
+Public page `/docs/api` plus plain-Markdown edition `/docs/api.md` (Route Handler, `text/markdown`). Both are generated from ONE data tree in `web/src/lib/apiDocs/`; edit the content there, never in the components. `/docs/api` is allow-listed in `AuthGuard` (`PUBLIC_PATHS` logic); `/docs/api.md` is a route handler and bypasses it. Content must stay in sync with the Go handlers in `cloud/internal/api/` (`external.go`, `todos.go`, `api_tokens.go`); mark anything not provable from code as `unverified`.
+
+| Component | File | Role |
+|-----------|------|------|
+| ApiDocsView | `web/src/components/Docs/ApiDocsView.tsx` | Page shell (server component): header with "Öffentlich, ohne Login erreichbar", "Link kopieren", Markdown link, TOC + sections. t2 tokens only. |
+| DocSectionView | `web/src/components/Docs/DocBlocks.tsx` | Renders `DocBlock`s (paragraph, list, note, table, code with copy button, endpoint). Inline syntax: `` `code` `` and `**bold**`. |
+| DocToc | `web/src/components/Docs/DocToc.tsx` | Sticky TOC (desktop) / chip bar (mobile), scroll-spy highlight |
+| CopyButton | `web/src/components/Docs/CopyButton.tsx` | Clipboard button (`text` or `currentUrl`) with "Kopiert" feedback |
+| apiDocs content | `web/src/lib/apiDocs/content*.ts`, `types.ts` | Structured doc data (`API_DOC`), base URL `https://hrw.rocks/api/v1` |
+| toMarkdown | `web/src/lib/apiDocs/markdown.ts` | `ApiDoc` → Markdown (tested in `lib/__tests__/apiDocsMarkdown.test.ts`) |
+
 ## Settings
 
 | Component | File | Role |
