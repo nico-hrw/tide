@@ -360,7 +360,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                             } catch (e) { console.error("[Canvas] Failed to insert anchor", e); return null; }
                         }}
                     >
-                        <div className={`w-full mx-auto flex flex-row items-start min-h-[500px] py-12 px-4 sm:px-8 note-layout-${noteLayout || 'normal'}`}>
+                        <div className={`w-full mx-auto flex flex-row items-start min-h-[500px] py-12 ${noteLayout === 'a4' ? '' : 'px-4 sm:px-8'} note-layout-${noteLayout || 'normal'}`}>
                             <EditorGutter
                                 elements={canvasSidecar.elements}
                                 onPinClick={(bid) => {
@@ -374,7 +374,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                 isLinkingMode={isLinkingMode}
                                 contentVersion={editorVersion}
                             />
-                            <div className={`relative flex-1 min-w-0 flex flex-col paper-${paperPattern || 'blanko'}`}>
+                            <div className={`relative flex flex-col paper-${paperPattern || 'blanko'} ${noteLayout === 'a4' ? 'a4-sheet' : 'flex-1 min-w-0'}`}>
                                 {noteLayout === 'a4' && showPageBreaks && (
                                     <div className="a4-page-breaks-overlay pointer-events-none absolute inset-0 z-0" />
                                 )}

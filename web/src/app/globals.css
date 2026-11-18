@@ -633,9 +633,37 @@ ul[data-type="taskList"] li>div>p {
   max-width: 100% !important;
 }
 
+/* DIN A4 page: a sheet of 794 px (210 mm at 96 dpi) centred in the note area. The 32 px gutter for
+   pins sits to the left of the sheet, outside its edge. */
 .note-layout-a4 {
-  max-width: 794px !important;
+  max-width: 826px !important;
   width: 100%;
+}
+
+.a4-sheet {
+  flex: 0 0 794px;
+  width: 794px;
+  min-height: 1123px;
+  box-sizing: border-box;
+  padding: 96px 96px; /* 25 mm margins */
+  border-radius: 3px;
+  background: var(--t2-surface);
+  box-shadow: 0 0 0 1px var(--t2-line), 0 12px 36px rgba(0, 0, 0, 0.07);
+}
+
+@media (max-width: 860px) {
+  .note-layout-a4 {
+    max-width: 100% !important;
+  }
+  .a4-sheet {
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 0;
+    padding: 32px 24px;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
 }
 
 /* ─── Paper Patterns ─────────────────────────────────────────────────────── */
