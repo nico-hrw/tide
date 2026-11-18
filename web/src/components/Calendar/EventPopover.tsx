@@ -299,7 +299,7 @@ export default function EventPopover({
         <div
             id="active-event-popover"
             ref={popoverRef}
-            className="fixed z-[1000] w-[320px] bg-t2-surface  rounded-3xl shadow-2xl border border-t2-line-soft  p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150"
+            className="fixed z-[1000] w-[320px] bg-t2-surface rounded-[16px] shadow-[0_0_0_1px_var(--t2-line),0_14px_36px_rgba(0,0,0,0.12)] p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150"
             style={{ top: `${pos.top}px`, left: `${pos.left}px` }}
         >
             {/* ── Header ── */}
@@ -325,12 +325,12 @@ export default function EventPopover({
                     onClick={() => setIsImportant(!isImportant)}
                     className={`p-1.5 rounded-full transition-all ${
                         isImportant
-                            ? 'text-amber-500 bg-amber-50 dark:bg-amber-500/20 ring-1 ring-amber-400/40 shadow-xs'
-                            : 'text-t2-ink-3 hover:text-amber-500 hover:bg-t2-hover '
+                            ? 'text-t2-accent bg-t2-sub'
+                            : 'text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover'
                     }`}
                     title={isImportant ? 'Wichtig entfernen' : 'Als wichtig markieren'}
                 >
-                    <Star size={14} className={isImportant ? 'fill-amber-500 stroke-amber-500' : ''} />
+                    <Star size={14} className={isImportant ? 'fill-current' : ''} />
                 </button>
                 {/* Cancel icon - clearly visually highlighted when active */}
                 <button
@@ -338,8 +338,8 @@ export default function EventPopover({
                     onClick={handleToggleCancel}
                     className={`p-1.5 rounded-full transition-all ${
                         isCancelled
-                            ? 'text-red-600 bg-red-100 dark:bg-red-500/25 ring-1 ring-red-400/50 shadow-xs font-bold'
-                            : 'text-t2-ink-3 hover:text-red-500 hover:bg-t2-hover '
+                            ? 'text-t2-now bg-t2-sub font-bold'
+                            : 'text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover'
                     }`}
                     title={isCancelled ? (isOccurrence ? 'Absage für diesen Tag aufheben' : 'Absage rückgängig') : (isOccurrence ? 'Diesen Termin absagen' : 'Termin absagen')}
                 >
@@ -349,7 +349,7 @@ export default function EventPopover({
                 <button
                     type="button"
                     onClick={() => { onEventDelete?.(event.id); }}
-                    className="p-1.5 rounded-full text-t2-ink-3 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all"
+                    className="p-1.5 rounded-full text-t2-ink-3 hover:text-t2-now hover:bg-t2-hover transition-all"
                     title="Löschen"
                 >
                     <Trash2 size={14} />

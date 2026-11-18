@@ -28,6 +28,10 @@ import { useDataStore } from '@/store/useDataStore';
 import type { NoteLayout, PaperPattern } from '@/store/slices/types';
 import { tipTapToMarkdown, exportTideBundle } from '@/lib/bundleImportExport';
 
+// One look for every section of the note settings: title, divider.
+const NS_TITLE = 'px-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3 mb-1.5';
+const NS_DIVIDER = 'my-2 border-t border-t2-line-soft';
+
 export interface NoteSettingsMenuProps {
     isOpen: boolean;
     onClose: () => void;
@@ -544,7 +548,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
 
             {/* SECTION 1: Format selection */}
             <div className="px-2 py-1 mb-1">
-                <div className="text-[11px] font-semibold text-t2-ink-2  uppercase tracking-wider mb-1.5">
+                <div className={NS_TITLE}>
                     Seitenformat
                 </div>
                 <div className="grid grid-cols-2 gap-1.5">
@@ -572,11 +576,11 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 </div>
             </div>
 
-            <div className="my-1.5 border-t border-t2-line-soft " />
+            <div className={NS_DIVIDER} />
 
             {/* SECTION 2: Paper Pattern */}
             <div className="px-2 py-1 mb-1">
-                <div className="text-[11px] font-semibold text-t2-ink-2  uppercase tracking-wider mb-1.5">
+                <div className={NS_TITLE}>
                     Papier-Muster
                 </div>
                 <div className="grid grid-cols-3 gap-1">
@@ -602,7 +606,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 </div>
             </div>
 
-            <div className="my-1.5 border-t border-t2-line-soft " />
+            <div className={NS_DIVIDER} />
 
             {/* Heading numbering toggle (1, 1.1, 1.1.1 by CSS counters) */}
             <div className="px-2 py-1 mb-1">
@@ -653,11 +657,11 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 </button>
             </div>
 
-            <div className="my-1.5 border-t border-t2-line-soft " />
+            <div className={NS_DIVIDER} />
 
             {/* SECTION 4: Standard File Export */}
             <div className="px-1 py-1">
-                <div className="px-1 text-[11px] font-semibold text-t2-ink-2  uppercase tracking-wider mb-1">
+                <div className={NS_TITLE}>
                     Exportieren
                 </div>
                 <button
@@ -767,10 +771,10 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
             {/* SECTION 5: Extended File Support (active when enabledExtensions.includes('file_support')) */}
             {hasFileSupport && (
                 <>
-                    <div className="my-1.5 border-t border-t2-line-soft " />
+                    <div className={NS_DIVIDER} />
                     <div className="px-1 py-1">
                         <div className="px-1 flex items-center justify-between mb-1">
-                            <span className="text-[11px] font-semibold text-t2-ink-2  uppercase tracking-wider">
+                            <span className={NS_TITLE}>
                                 Datei-Erweiterungen
                             </span>
                             <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
