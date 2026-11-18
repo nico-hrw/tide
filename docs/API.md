@@ -1,239 +1,264 @@
-# Tide REST API — Developer & Integration Guide
+<!-- Generated from web/src/lib/apiDocs (same source as the public page /docs/api).
+     Do not edit by hand. Rewrite with: UPDATE_API_MD=1 npx vitest run apiDocsFile (in web/). -->
 
-The Tide REST API enables external applications, third-party integrations (such as Obsidian sync, Raycast extensions, Apple Shortcuts, Home Assistant, Python/Node.js bots, LLM agents, CI/CD pipelines, and backup scripts) to programmatically interact with Tide Notes, Todos, and Calendar Events.
+# Tide API
 
----
+Öffentliche Referenz der HTTP-Schnittstelle für Notizen, Todos und Termine. Ohne Login lesbar und so formuliert, dass auch KI-Assistenten damit arbeiten können.
 
-## Table of Contents
+## Inhalt
 
-1. [Overview & Base URLs](#1-overview--base-urls)
-2. [Authentication](#2-authentication)
-3. [Scopes & Permissions](#3-scopes--permissions)
-4. [Notes API](#4-notes-api)
-   - [UI Shortcut: "API-Adresse kopieren"](#41-ui-shortcut-api-adresse-kopieren)
-   - [Data Model](#42-note-data-model)
-   - [List & Search Notes (`GET /external/notes`)](#43-list--search-notes)
-   - [Create a Note (`POST /external/notes`)](#44-create-a-note)
-   - [Get a Single Note (`GET /external/notes/{id}`)](#45-get-a-single-note)
-   - [Update a Note (`PUT` / `PATCH /external/notes/{id}`)](#46-update-a-note)
-   - [Delete a Note (`DELETE /external/notes/{id}`)](#47-delete-a-note)
-5. [Todos API](#5-todos-api)
-   - [Data Model](#51-todo-data-model)
-   - [List & Filter Todos (`GET /todos`)](#52-list--filter-todos)
-   - [Create a Todo (`POST /todos`)](#53-create-a-todo)
-   - [Get Single Todo (`GET /todos/{id}`)](#54-get-single-todo)
-   - [Update a Todo (`PUT` / `PATCH /todos/{id}`)](#55-update-a-todo)
-   - [Delete a Todo (`DELETE /todos/{id}`)](#56-delete-a-todo)
-6. [Calendar Events API](#6-calendar-events-api)
-   - [Data Model](#61-event-data-model)
-   - [List Events (`GET /external/events`)](#62-list-events)
-   - [Get Single Event (`GET /external/events/{id}`)](#63-get-single-event)
-7. [HTTP Status Codes & Error Handling](#7-http-status-codes--error-handling)
+1. Überblick
+2. Authentifizierung
+3. Rechte
+4. Notizen
+5. Todos
+6. Termine
+7. Fehlercodes
+8. Limits
+9. Verschlüsselung
 
----
+## 1. Überblick
 
-## 1. Overview & Base URLs
+Die Tide-API ist eine REST-Schnittstelle mit JSON. Mit ihr lassen sich Notizen, Todos (Aufgaben) und Termine eines Tide-Kontos abfragen und teilweise ändern. Alle Routen liegen unter `/api/v1`.
 
-All API routes are served under the `/api/v1` namespace.
+|  | Basis-URL |
+| --- | --- |
+| Produktion | `https://hrw.rocks/api/v1` |
 
-| Environment | Base URL |
-|---|---|
-| **Production** | `https://go-tide.app/api/v1` |
-| **Local Development** | `http://localhost:8080/api/v1` |
+| Ressource | Pfad (relativ zur Basis-URL) | Methoden |
+| --- | --- | --- |
+| Notizen | `/external/notes`, `/external/notes/{id}` | GET, POST, PUT, PATCH, DELETE |
+| Todos | `/todos`, `/todos/{id}` (Alias: `/external/todos`) | GET, POST, PUT, PATCH, DELETE |
+| Termine | `/external/events`, `/external/events/{id}` | nur GET |
 
-### Route Prefix Summary
+### Konventionen
 
-| Resource | Primary Endpoint | Aliases |
-|---|---|---|
-| **Notes** | `/api/v1/external/notes` | — |
-| **Todos** | `/api/v1/todos` | `/api/v1/external/todos` |
-| **Events** | `/api/v1/external/events` | — |
+- Anfragen mit Body senden JSON und den Header `Content-Type: application/json`.
+- Antworten sind JSON. IDs sind Zeichenketten (UUIDs). Zeitstempel wie `created_at` sind RFC 3339.
+- Jede Anfrage braucht einen persönlichen Zugriffstoken (siehe Authentifizierung).
+- Ein Token wirkt immer im Namen des Kontos, das ihn erstellt hat.
 
----
+### Kürzestes Beispiel
 
-## 2. Authentication
+**Offene Todos abrufen**
 
-External API calls are authenticated using **Personal Access Tokens (PATs)**.
-
-### Token Format
-Tokens start with the `tide_pat_` prefix followed by 64 hexadecimal characters:
-```
-tide_pat_a1b2c3d4e5f6...
+```bash
+curl -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
+  "https://hrw.rocks/api/v1/todos?completed=false"
 ```
 
-### Managing Tokens in the Web UI
-1. Open Tide and navigate to **Settings (gear icon) → API Access** (or **Zugriff**).
-2. Click **Create New Token** (`Neuen Token erstellen`).
-3. Enter a label (e.g., `Home Assistant`, `Raycast Extension`, `Backup Bot`).
-4. Select the permissions / scopes required for your integration.
-5. Choose an expiration duration (`30 days`, `60 days`, `90 days`, `1 year`, or `No expiration`).
-6. Copy the generated token immediately. **Tide stores only a secure SHA-256 hash of the token on the server; the token plaintext cannot be retrieved after creation.**
+> **Hinweis:** Beispielwerte (IDs, Titel, Daten) sind ausgedacht. Pfade, Feldnamen, Statuscodes und Verhalten entsprechen dem Server-Code. Was sich daraus nicht belegen ließ, ist mit "Nicht verifiziert" markiert.
 
-### Supported Authentication Headers
+## 2. Authentifizierung
 
-Tide accepts tokens through three methods:
+Die API nutzt **Personal Access Tokens**. Ein Mensch erstellt den Token in Tide und gibt ihn dem Skript oder dem KI-Assistenten.
 
-#### 1. Standard Bearer Authorization Header (Recommended)
+### Token erstellen
+
+- In Tide die Einstellungen öffnen, Bereich **Zugriff**, neuen Token anlegen.
+- Einen Namen vergeben und die benötigten Rechte wählen (siehe Rechte).
+- Die Gültigkeit wählen: 30, 60 oder 90 Tage, 1 Jahr oder kein Ablauf.
+- Den Token sofort kopieren. Er wird nur einmal angezeigt.
+
+Ein Token beginnt mit `tide_pat_` und hat danach 64 Hexadezimalzeichen. Der Server speichert nur einen SHA-256-Hash, der Klartext ist später nicht mehr abrufbar. In Tide lässt sich ein Token jederzeit widerrufen, externe Dienste verlieren dann sofort den Zugriff.
+
+### Token mitsenden
+
+Drei Wege werden akzeptiert. Der Server prüft sie in dieser Reihenfolge: `Authorization`-Header, `X-API-Key`-Header, Query-Parameter.
+
+**Empfohlen: Bearer-Header**
+
 ```http
-Authorization: Bearer tide_pat_a1b2c3d4...
+Authorization: Bearer tide_pat_DEIN_TOKEN
 ```
 
-#### 2. X-API-Key Header
+**Alternative: X-API-Key**
+
 ```http
-X-API-Key: tide_pat_a1b2c3d4...
+X-API-Key: tide_pat_DEIN_TOKEN
 ```
 
-#### 3. URL Query Parameter
-Useful for webhooks, widgets, or environments where setting custom headers is constrained:
+**Notlösung: Query-Parameter**
+
 ```http
-https://go-tide.app/api/v1/todos?api_token=tide_pat_a1b2c3d4...
+GET https://hrw.rocks/api/v1/todos?api_token=tide_pat_DEIN_TOKEN
 ```
 
----
+> **Achtung:** Ein Token in der URL kann in Server- und Proxy-Logs landen. Nutze den Query-Parameter nur, wenn keine Header möglich sind, etwa bei Widgets oder Webhooks.
 
-## 3. Scopes & Permissions
+Ein fehlender, unbekannter oder abgelaufener Token führt zu `401`, ein Token ohne passendes Recht zu `403` (siehe Fehlercodes).
 
-Tokens enforce granular permission scoping. Access is denied with `403 Forbidden` if an endpoint is called without an authorized scope.
+## 3. Rechte
 
-### Core Permission Scopes
+Ein Token darf nur, was ihm beim Erstellen erlaubt wurde. Ein Endpunkt akzeptiert je nach Route eines von mehreren Rechten. Es genügt, wenn der Token mindestens eines davon trägt oder das Recht `*` hat.
 
-| Scope | Category | Description | Granted Endpoints |
-|---|---|---|---|
-| `todos:read` | Todos | Read and filter todos | `GET /api/v1/todos`, `GET /api/v1/todos/{id}` |
-| `todos:create` | Todos | Add new todos | `POST /api/v1/todos` |
-| `todos:edit` | Todos | Modify todos and update completion status | `PUT /api/v1/todos/{id}`, `PATCH /api/v1/todos/{id}` |
-| `todos:delete` | Todos | Delete todos | `DELETE /api/v1/todos/{id}` |
-| `todos:write` | Todos | Full todo management | All `POST`, `PUT`, `PATCH`, `DELETE` operations on todos |
-| `notes:read` | Notes | Read-only access to list, search, and view notes | `GET /api/v1/external/notes`, `GET /api/v1/external/notes/{id}` |
-| `notes:write` | Notes | Full note management (create, update, delete) | All methods on `/api/v1/external/notes` |
-| `events:read` | Events | Read-only access to calendar events | `GET /api/v1/external/events`, `GET /api/v1/external/events/{id}` |
-| `events:write` | Events | Create, modify, and delete calendar events *(in rollout)* | Write operations on events |
-| `*` | Superuser | Full access to all API endpoints | All methods across all modules |
+| Recht (Klartext) | Technischer Name | Erlaubt |
+| --- | --- | --- |
+| Termine lesen | `events:read` | `GET /external/events`, `GET /external/events/{id}` |
+| Termine ändern | `events:write` | Wird als Recht angenommen, aber es gibt derzeit keine schreibenden Termin-Endpunkte (vom Server als nicht umgesetzt gekennzeichnet). |
+| Notizen lesen | `notes:read` | `GET /external/notes`, `GET /external/notes/{id}` |
+| Notizen ändern | `notes:write` | Notizen erstellen, ändern, löschen. Schließt Lesen ein. |
+| Aufgaben lesen | `todos:read` | `GET /todos`, `GET /todos/{id}` |
+| Aufgaben erstellen | `todos:create` | `POST /todos` |
+| Aufgaben bearbeiten | `todos:edit` | `PUT /todos/{id}`, `PATCH /todos/{id}` (inklusive Abhaken) |
+| Aufgaben löschen | `todos:delete` | `DELETE /todos/{id}` |
+| Aufgaben vollständig verwalten | `todos:write` | Alle Todo-Endpunkte (lesen, erstellen, bearbeiten, löschen) |
+| Alles | `*` | Voller Zugriff auf alle Endpunkte dieser Seite |
+| Große Uploads | `storage:expand` | Betrifft das Upload-Limit der App, hat keinen Endpunkt in dieser Dokumentation. |
 
-### Workspace & Safe Scoping (`safe:<name>`)
+> **Nicht verifiziert:** Der Server nimmt `*` beim Erstellen eines Tokens an. Ob die Tide-Oberfläche es zur Auswahl anbietet, ist nicht verifiziert (in der Rechte-Auswahl der App fehlt es laut Code).
 
-Tide supports workspace compartmentalization via **Safes** (e.g. `main`, `work`, `personal`). Tokens can be constrained to a specific safe:
+### Bereichs-Rechte für Notizen: safe und folder
 
-- **Format**: `safe:<safe_name>` (e.g., `safe:work`, `safe:personal`, `safe:finance`)
-- **Behavior**: When a token carries a `safe:<name>` scope, operations are restricted to resources within that vault or namespace. Notes or items created inherit this safe assignment automatically.
-- **Combining Scopes**: Safe scopes can be combined with functional scopes:
-  ```json
-  ["notes:read", "notes:write", "safe:work"]
-  ```
+Ein Token kann zusätzlich auf einen Safe (`safe:<name>`, z. B. `safe:work`) oder einen Ordner (`folder:<id>`) beschränkt werden. Die Rechte werden kombiniert, zum Beispiel:
 
-### Scope Error Response (`403 Forbidden`)
+**Rechte eines eingeschränkten Tokens**
 
 ```json
-{
-  "error": "Forbidden",
-  "message": "Token lacks required scope",
-  "required_scopes": ["notes:read", "notes:write"],
-  "token_scopes": ["events:read"]
-}
+["notes:read", "notes:write", "safe:work"]
 ```
 
----
+- Gilt nur für Notizen. Für Todos und Termine haben `safe:` und `folder:` keine Wirkung, dort sind die jeweiligen Todo- und Termin-Rechte nötig.
+- Notizen außerhalb des Bereichs fehlen in der Liste. Beim direkten Zugriff antwortet die API mit `403` und der Meldung "Note does not belong to scoped workspace or folder".
+- Neue Notizen landen im Safe des Tokens, bei `folder:` im Ordner (ohne `parent_id` im ersten Ordner des Tokens). Ein Ordner-Token kann Notizen nicht in die Wurzel verschieben.
+- Ein Ordner-Bereich umfasst nach dem Code den Ordner und seine Unterordner bis fünf Ebenen tief.
 
-## 4. Notes API
+> **Achtung:** Nach dem Server-Code besteht ein Token, das nur `safe:` oder `folder:` trägt, die Rechteprüfung aller Notiz-Endpunkte, auch der schreibenden. Gib solche Tokens nur weiter, wenn schreibender Zugriff auf den Bereich gewollt ist.
 
-### 4.1 UI Shortcut: "API-Adresse kopieren"
+## 4. Notizen
 
-For rapid integration with scripts or shortcuts:
-1. In the Tide web UI, locate any note in the sidebar tree or list.
-2. Click the **3-dot menu** (`...`) next to the note title.
-3. Select **"API-Adresse kopieren"**.
-4. The direct API URL (`https://go-tide.app/api/v1/external/notes/{id}`) is copied directly to your clipboard.
+Notizen haben einen Titel, einen Inhalt (Markdown oder Text) und optional einen Elternordner. Abgefragt werden eigene Notizen und mit dir geteilte, angenommene Notizen.
 
-### 4.2 Note Data Model
+### Felder
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | `string` (UUID) | Unique identifier for the note |
-| `title` | `string` | Title of the note |
-| `content` | `string` | Full Markdown or plain text note content |
-| `parent_id` | `string \| null` | UUID of the parent folder containing the note (or `null` if root) |
-| `created_at` | `string` (RFC 3339) | Timestamp when the note was created |
-| `updated_at` | `string` (RFC 3339) | Timestamp when the note was last modified |
+| Feld | Typ | Beschreibung |
+| --- | --- | --- |
+| `id` | string | ID der Notiz |
+| `title` | string | Titel der Notiz |
+| `content` | string | Inhalt. Fehlt bei verschlüsselten Notizen und in der Liste. |
+| `parent_id` | string oder null | ID des Elternordners, `null` ohne Elternordner |
+| `encrypted` | boolean | `true`, wenn die Notiz Ende-zu-Ende-verschlüsselt ist (siehe Verschlüsselung) |
+| `created_at`, `updated_at` | string (RFC 3339) | Erstellt und zuletzt geändert. Die Liste enthält nur `updated_at`. |
+| `note` | object | Antworten zu einer einzelnen Notiz wiederholen die Felder zusätzlich unter `note`. |
 
----
+#### `GET /external/notes`
 
-### 4.3 List & Search Notes
+Benötigtes Recht: `notes:read` oder `notes:write`. Notizen auflisten und nach Titel durchsuchen.
 
-- **Endpoint**: `GET /api/v1/external/notes`
-- **Required Scope**: `notes:read` or `notes:write` (or `*`)
+| Parameter | Typ | Beschreibung |
+| --- | --- | --- |
+| `q` oder `search` | string | Teil des Titels, Groß- und Kleinschreibung egal |
+| `limit` | integer | Standard 100, höchstens 500 |
 
-#### Query Parameters
+Die Liste ist nach `updated_at` absteigend sortiert und enthält nur `id`, `title`, `parent_id` und `updated_at`, keinen Inhalt. Den Inhalt liefert `GET /external/notes/{id}`.
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `q` or `search` | `string` | — | Case-insensitive title search query |
-| `limit` | `integer` | `100` | Maximum results to return (max `500`) |
+**Anfrage**
 
-#### Example Request
 ```bash
-curl -X GET "https://go-tide.app/api/v1/external/notes?q=architecture&limit=10" \
-  -H "Authorization: Bearer tide_pat_YOUR_TOKEN"
+curl -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
+  "https://hrw.rocks/api/v1/external/notes?q=woche&limit=10"
 ```
 
-#### Example Response (`200 OK`)
+**Antwort 200**
+
 ```json
 {
   "count": 1,
   "notes": [
     {
-      "id": "e304b8d7-740e-4364-bbcf-c3f2bb01c77f",
-      "title": "System Architecture Overview",
-      "content": "# System Architecture\n\nTide uses an end-to-end encrypted SQLite vault...",
-      "parent_id": "4a7f05b8-d227-440f-90db-2b6214a1c5d9",
-      "created_at": "2026-11-01T10:00:00Z",
+      "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "title": "Wochenplanung",
+      "parent_id": null,
       "updated_at": "2026-11-05T14:32:00Z"
     }
   ]
 }
 ```
 
----
+#### `GET /external/notes/{id}`
 
-### 4.4 Create a Note
+Benötigtes Recht: `notes:read` oder `notes:write`. Eine Notiz mit Inhalt abrufen.
 
-- **Endpoint**: `POST /api/v1/external/notes`
-- **Required Scope**: `notes:write` (or `*`)
-- **Headers**: `Content-Type: application/json`
+**Anfrage**
 
-#### Request Body Schema
-```json
-{
-  "title": "String (optional, defaults to 'Untitled Note')",
-  "content": "String (markdown or plain text content)",
-  "parent_id": "UUID string (optional, parent folder ID)"
-}
-```
-
-#### Example Request
 ```bash
-curl -X POST "https://go-tide.app/api/v1/external/notes" \
-  -H "Authorization: Bearer tide_pat_YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Weekly Standup Notes",
-    "content": "## Agenda\n- Discuss cloud API token rollout\n- Review Smart Island improvements",
-    "parent_id": "4a7f05b8-d227-440f-90db-2b6214a1c5d9"
-  }'
+curl -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
+  "https://hrw.rocks/api/v1/external/notes/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
 ```
 
-#### Example Response (`201 Created`)
+**Antwort 200 (unverschlüsselte Notiz)**
+
 ```json
 {
   "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-  "title": "Weekly Standup Notes",
-  "content": "## Agenda\n- Discuss cloud API token rollout\n- Review Smart Island improvements",
+  "title": "Wochenplanung",
+  "content": "## Montag\n- Review vorbereiten",
   "parent_id": "4a7f05b8-d227-440f-90db-2b6214a1c5d9",
+  "encrypted": false,
+  "created_at": "2026-11-01T10:00:00Z",
+  "updated_at": "2026-11-05T14:32:00Z",
+  "note": {
+    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "title": "Wochenplanung",
+    "content": "## Montag\n- Review vorbereiten",
+    "parent_id": "4a7f05b8-d227-440f-90db-2b6214a1c5d9",
+    "created_at": "2026-11-01T10:00:00Z",
+    "updated_at": "2026-11-05T14:32:00Z"
+  }
+}
+```
+
+**Antwort 200 (verschlüsselte Notiz, ohne Inhalt)**
+
+```json
+{
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "title": "Tagebuch",
+  "encrypted": true,
+  "message": "This note is end-to-end encrypted and cannot be decrypted without the user's private key",
+  "parent_id": null,
+  "created_at": "2026-11-01T10:00:00Z",
+  "updated_at": "2026-11-05T14:32:00Z",
+  "note": { "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d", "title": "Tagebuch", "encrypted": true }
+}
+```
+
+> **Hinweis:** Im Beispiel ist `note` bei der verschlüsselten Antwort gekürzt. Der Server wiederholt dort `message`, `parent_id`, `created_at` und `updated_at`.
+
+#### `POST /external/notes`
+
+Benötigtes Recht: `notes:write`. Eine neue Notiz anlegen.
+
+| Feld im Body | Typ | Beschreibung |
+| --- | --- | --- |
+| `title` | string, optional | Ohne Angabe: "Untitled Note" |
+| `content` | string, optional | Inhalt als Markdown oder Text |
+| `parent_id` | string, optional | ID eines Ordners, in dem die Notiz liegen soll. Er muss existieren und schreibbar sein, sonst `400` oder `403`. |
+
+**Anfrage**
+
+```bash
+curl -X POST -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Standup", "content": "## Agenda\n- API-Tokens", "parent_id": "4a7f05b8-d227-440f-90db-2b6214a1c5d9"}' \
+  "https://hrw.rocks/api/v1/external/notes"
+```
+
+**Antwort 201**
+
+```json
+{
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+  "title": "Standup",
+  "content": "## Agenda\n- API-Tokens",
+  "parent_id": "4a7f05b8-d227-440f-90db-2b6214a1c5d9",
+  "encrypted": false,
   "created_at": "2026-11-11T15:30:00Z",
   "updated_at": "2026-11-11T15:30:00Z",
   "note": {
     "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-    "title": "Weekly Standup Notes",
-    "content": "## Agenda\n- Discuss cloud API token rollout\n- Review Smart Island improvements",
+    "title": "Standup",
+    "content": "## Agenda\n- API-Tokens",
     "parent_id": "4a7f05b8-d227-440f-90db-2b6214a1c5d9",
     "created_at": "2026-11-11T15:30:00Z",
     "updated_at": "2026-11-11T15:30:00Z"
@@ -241,306 +266,205 @@ curl -X POST "https://go-tide.app/api/v1/external/notes" \
 }
 ```
 
----
+> **Achtung:** Per API erstellte Notizen werden unverschlüsselt gespeichert (siehe Verschlüsselung).
 
-### 4.5 Get a Single Note
+#### `PATCH /external/notes/{id}`
 
-- **Endpoint**: `GET /api/v1/external/notes/{id}`
-- **Required Scope**: `notes:read` or `notes:write` (or `*`)
+Benötigtes Recht: `notes:write`. Eine Notiz ändern. `PUT` verhält sich identisch.
 
-#### Example Request
+Es werden nur die gesendeten Felder geändert, fehlende Felder bleiben unverändert. Erlaubt sind `title`, `content` und `parent_id`.
+
+- `parent_id` als leere Zeichenkette `""` verschiebt die Notiz in die oberste Ebene. `null` oder ein weggelassenes Feld lässt den Elternordner unverändert.
+- Den `content` einer verschlüsselten Notiz kann die API nicht ändern und antwortet mit `400` und `"encrypted": true`. Der Titel lässt sich ändern.
+
+**Anfrage**
+
 ```bash
-curl -X GET "https://go-tide.app/api/v1/external/notes/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" \
-  -H "Authorization: Bearer tide_pat_YOUR_TOKEN"
-```
-
-#### Example Response (`200 OK`)
-```json
-{
-  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-  "title": "Weekly Standup Notes",
-  "content": "## Agenda\n- Discuss cloud API token rollout\n- Review Smart Island improvements",
-  "parent_id": "4a7f05b8-d227-440f-90db-2b6214a1c5d9",
-  "created_at": "2026-11-11T15:30:00Z",
-  "updated_at": "2026-11-11T15:30:00Z",
-  "note": {
-    "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-    "title": "Weekly Standup Notes",
-    "content": "## Agenda\n- Discuss cloud API token rollout\n- Review Smart Island improvements",
-    "parent_id": "4a7f05b8-d227-440f-90db-2b6214a1c5d9",
-    "created_at": "2026-11-11T15:30:00Z",
-    "updated_at": "2026-11-11T15:30:00Z"
-  }
-}
-```
-
----
-
-### 4.6 Update a Note
-
-- **Endpoint**: `PUT /api/v1/external/notes/{id}` or `PATCH /api/v1/external/notes/{id}`
-- **Required Scope**: `notes:write` (or `*`)
-- **Headers**: `Content-Type: application/json`
-
-Partial updates are supported. Only supplied fields are updated; omitted fields remain unchanged.
-
-#### Request Body Schema
-```json
-{
-  "title": "String (optional)",
-  "content": "String (optional)",
-  "parent_id": "UUID string | null (optional, pass null to move to root)"
-}
-```
-
-#### Example Request
-```bash
-curl -X PUT "https://go-tide.app/api/v1/external/notes/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" \
-  -H "Authorization: Bearer tide_pat_YOUR_TOKEN" \
+curl -X PATCH -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "title": "Weekly Standup Notes — Action Items",
-    "content": "## Agenda\n- Discuss cloud API token rollout\n\n### Action Items\n- [x] Merge PR #42\n- [ ] Release docs"
-  }'
+  -d '{"content": "## Agenda\n- API-Tokens\n- Release"}' \
+  "https://hrw.rocks/api/v1/external/notes/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
 ```
 
-#### Example Response (`200 OK`)
-```json
-{
-  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-  "title": "Weekly Standup Notes — Action Items",
-  "content": "## Agenda\n- Discuss cloud API token rollout\n\n### Action Items\n- [x] Merge PR #42\n- [ ] Release docs",
-  "parent_id": "4a7f05b8-d227-440f-90db-2b6214a1c5d9",
-  "created_at": "2026-11-11T15:30:00Z",
-  "updated_at": "2026-11-11T16:00:00Z"
-}
-```
+Die Antwort `200` hat dieselbe Form wie beim Abrufen einer Notiz, mit dem neuen Stand.
 
----
+#### `DELETE /external/notes/{id}`
 
-### 4.7 Delete a Note
+Benötigtes Recht: `notes:write`. Eine Notiz löschen.
 
-- **Endpoint**: `DELETE /api/v1/external/notes/{id}`
-- **Required Scope**: `notes:write` (or `*`)
+**Anfrage**
 
-#### Example Request
 ```bash
-curl -X DELETE "https://go-tide.app/api/v1/external/notes/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" \
-  -H "Authorization: Bearer tide_pat_YOUR_TOKEN"
+curl -X DELETE -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
+  "https://hrw.rocks/api/v1/external/notes/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
 ```
 
-#### Example Response (`200 OK`)
+**Antwort 200**
+
 ```json
 {
   "success": true,
-  "message": "Note deleted successfully"
+  "message": "Note deleted successfully",
+  "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
 }
 ```
 
----
+> **Achtung:** Der Server löscht die Notiz endgültig aus seiner Datenbank. Im Server-Code dieses Pfads ist kein Papierkorb vorgesehen. Frage vor dem Löschen nach, wenn ein Mensch dahintersteht.
 
-## 5. Todos API
+## 5. Todos
 
-The Todos API allows management of tasks, priorities, tags, due dates, and completion status.
+Todos sind Aufgaben mit Titel, Priorität, Fälligkeit und Tags. Sie gehören immer genau einem Konto. Unter `/external/todos` sind dieselben Endpunkte ein zweites Mal erreichbar.
 
-### 5.1 Todo Data Model
+### Felder
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | `string` (UUID) | Unique task identifier |
-| `user_id` | `string` (UUID) | Owner user UUID |
-| `title` | `string` | Task title (*required*) |
-| `description` | `string` | Markdown or plain text description |
-| `status` | `string` | `"todo"`, `"in_progress"`, or `"completed"` |
-| `priority` | `string` | `"low"`, `"medium"`, or `"high"` |
-| `due_date` | `string \| null` | Target date in `YYYY-MM-DD` or RFC 3339 format |
-| `scheduled_date` | `string \| null` | Planned work date in `YYYY-MM-DD` format |
-| `tags` | `string[]` | Array of labels e.g. `["backend", "deploy"]` |
-| `color` | `string` | Hex color code (e.g. `#ef4444`) or token |
-| `is_completed` | `boolean` | `true` if completed, `false` otherwise |
-| `completed_at` | `string \| null` | RFC 3339 timestamp when completed |
-| `is_overdue` | `boolean` | Computed dynamically: `true` if uncompleted and `due_date < today` |
-| `created_at` | `string` (RFC 3339) | Creation timestamp |
-| `updated_at` | `string` (RFC 3339) | Last update timestamp |
+| Feld | Typ | Beschreibung |
+| --- | --- | --- |
+| `id`, `user_id` | string | ID des Todos und des Besitzers |
+| `title` | string | Titel, Pflichtfeld beim Erstellen |
+| `description` | string | Beschreibung, leer wenn nicht gesetzt |
+| `status` | string | `todo` (Standard), `in_progress` oder `completed` |
+| `priority` | string | `low`, `medium` (Standard) oder `high` |
+| `due_date` | string | Fälligkeit, empfohlen `YYYY-MM-DD`. Leer wenn nicht gesetzt. |
+| `scheduled_date` | string | Geplantes Datum, empfohlen `YYYY-MM-DD`. Leer wenn nicht gesetzt. |
+| `tags` | string[] | Liste von Tags, leer wenn keine |
+| `color` | string | Farbangabe als Text, leer wenn nicht gesetzt |
+| `is_completed` | boolean | `true`, wenn erledigt |
+| `completed_at` | string (RFC 3339) | Zeitpunkt der Erledigung. Fehlt, solange das Todo offen ist. |
+| `is_overdue` | boolean | Vom Server berechnet: offen und Fälligkeit liegt in der Vergangenheit |
+| `created_at`, `updated_at` | string (RFC 3339) | Erstellt und zuletzt geändert |
 
----
+> **Nicht verifiziert:** Der Server prüft `status` und `priority` nicht gegen eine feste Liste und akzeptiert auch andere Texte. Verwende die oben genannten Werte, nur sie haben eine definierte Bedeutung. Auch das Datumsformat wird nicht geprüft.
 
-### 5.2 List & Filter Todos
+#### `GET /todos`
 
-- **Endpoint**: `GET /api/v1/todos` (or alias `GET /api/v1/external/todos`)
-- **Required Scope**: `todos:read` or `todos:write` (or `*`)
+Benötigtes Recht: `todos:read` oder `todos:write`. Todos auflisten und filtern. Antwort ist eine JSON-Liste ohne Umschlag.
 
-#### Query Parameters
+| Parameter | Beispiel | Beschreibung |
+| --- | --- | --- |
+| `date` | `2026-11-15` | Todos, deren `due_date` oder `scheduled_date` diesem Tag entspricht |
+| `priority` oder `prio` | `high` | Nach Priorität filtern |
+| `tag` | `work` | Todos, die genau diesen Tag tragen |
+| `q`, `search` oder `description` | `deploy` | Teiltext in Titel oder Beschreibung, Groß- und Kleinschreibung egal |
+| `overdue` | `true` | Nur überfällige, noch offene Todos. Nur `true` oder `1` schalten den Filter ein. |
+| `status` | `in_progress` | Nach Status filtern |
+| `completed` | `false` | `true` oder `1` für erledigte, jeder andere Wert für offene Todos |
+| `limit` | `50` | Standard 100, höchstens 500 |
+| `offset` | `100` | Anzahl zu überspringender Todos zum Blättern |
 
-| Parameter | Type | Example | Description |
-|---|---|---|---|
-| `date` | `string` | `2026-11-15` | Filters where `due_date` or `scheduled_date` matches this date |
-| `prio` or `priority` | `string` | `high` | Filter by priority (`low`, `medium`, `high`) |
-| `tag` | `string` | `work` | Filter by exact tag name within the `tags` array |
-| `q`, `search`, `description` | `string` | `deploy` | Substring search across `title` and `description` |
-| `overdue` | `boolean` | `true` | Filter for incomplete items with `due_date < today` |
-| `status` | `string` | `todo` | Filter by status (`todo`, `in_progress`, `completed`) |
-| `completed` | `boolean` | `false` | Filter by completion boolean (`true` or `false`) |
-| `limit` | `integer` | `50` | Maximum items to return (default: `100`, max: `500`) |
-| `offset` | `integer` | `0` | Pagination offset |
+Die Liste ist nach Fälligkeit aufsteigend sortiert, Todos ohne Fälligkeit stehen am Ende.
 
-#### Example Request: List Incomplete High-Priority Todos
+**Anfrage: offene Todos mit hoher Priorität**
+
 ```bash
-curl -X GET "https://go-tide.app/api/v1/todos?prio=high&completed=false" \
-  -H "Authorization: Bearer tide_pat_YOUR_TOKEN"
+curl -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
+  "https://hrw.rocks/api/v1/todos?priority=high&completed=false"
 ```
 
-#### Example Response (`200 OK`)
+**Antwort 200**
+
 ```json
 [
   {
-    "id": "e304b8d7-740e-4364-bbcf-c3f2bb01c77f",
+    "id": "7df4ba62-a567-4e78-9584-f7b58c743bc1",
     "user_id": "893d59a2-5b94-4dc4-8399-5ef6ee15c103",
-    "title": "Deploy API Gateway updates",
-    "description": "Apply token scopes validation to ingress proxy",
+    "title": "Sicherheitsbericht prüfen",
+    "description": "Token-Hashing und Rechte kontrollieren",
     "status": "todo",
-    "priority": "high",
-    "due_date": "2026-11-20",
-    "scheduled_date": "2026-11-19",
-    "tags": ["deploy", "cloud"],
-    "color": "#ef4444",
-    "is_completed": false,
-    "completed_at": null,
-    "is_overdue": false,
-    "created_at": "2026-11-10T10:00:00Z",
-    "updated_at": "2026-11-10T10:00:00Z"
-  }
-]
-```
-
----
-
-### 5.3 Create a Todo
-
-- **Endpoint**: `POST /api/v1/todos`
-- **Required Scope**: `todos:create` or `todos:write` (or `*`)
-- **Headers**: `Content-Type: application/json`
-
-#### Request Body Schema
-```json
-{
-  "title": "String (required)",
-  "description": "String (optional)",
-  "priority": "low | medium | high (default: medium)",
-  "status": "todo | in_progress | completed (default: todo)",
-  "due_date": "YYYY-MM-DD or RFC 3339 (optional)",
-  "scheduled_date": "YYYY-MM-DD (optional)",
-  "tags": ["String"] (optional),
-  "color": "String hex code (optional)",
-  "is_completed": false (optional)
-}
-```
-
-#### Example Request
-```bash
-curl -X POST "https://go-tide.app/api/v1/todos" \
-  -H "Authorization: Bearer tide_pat_YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Review Q4 security audit report",
-    "description": "Verify PAT hashing and rate limits",
     "priority": "high",
     "due_date": "2026-11-25",
     "scheduled_date": "2026-11-24",
     "tags": ["security", "audit"],
-    "color": "#3b82f6"
-  }'
+    "color": "",
+    "is_completed": false,
+    "is_overdue": false,
+    "created_at": "2026-11-11T12:00:00Z",
+    "updated_at": "2026-11-11T12:00:00Z"
+  }
+]
 ```
 
-#### Example Response (`201 Created`)
-```json
-{
-  "id": "7df4ba62-a567-4e78-9584-f7b58c743bc1",
-  "user_id": "893d59a2-5b94-4dc4-8399-5ef6ee15c103",
-  "title": "Review Q4 security audit report",
-  "description": "Verify PAT hashing and rate limits",
-  "status": "todo",
-  "priority": "high",
-  "due_date": "2026-11-25",
-  "scheduled_date": "2026-11-24",
-  "tags": ["security", "audit"],
-  "color": "#3b82f6",
-  "is_completed": false,
-  "completed_at": null,
-  "is_overdue": false,
-  "created_at": "2026-11-11T12:00:00Z",
-  "updated_at": "2026-11-11T12:00:00Z"
-}
-```
+#### `POST /todos`
 
----
+Benötigtes Recht: `todos:create` oder `todos:write`. Ein Todo anlegen.
 
-### 5.4 Get Single Todo
+Pflicht ist nur `title`. Optional sind `description`, `status`, `priority`, `due_date`, `scheduled_date`, `tags`, `color` und `is_completed`. Ein fehlender `title` führt zu `400` mit "Title is required". Ist `is_completed` gesetzt oder `status` gleich `completed`, trägt der Server `completed_at` ein.
 
-- **Endpoint**: `GET /api/v1/todos/{id}`
-- **Required Scope**: `todos:read` or `todos:write` (or `*`)
+**Anfrage**
 
-#### Example Request
 ```bash
-curl -X GET "https://go-tide.app/api/v1/todos/7df4ba62-a567-4e78-9584-f7b58c743bc1" \
-  -H "Authorization: Bearer tide_pat_YOUR_TOKEN"
-```
-
-#### Example Response (`200 OK`)
-```json
-{
-  "id": "7df4ba62-a567-4e78-9584-f7b58c743bc1",
-  "user_id": "893d59a2-5b94-4dc4-8399-5ef6ee15c103",
-  "title": "Review Q4 security audit report",
-  "description": "Verify PAT hashing and rate limits",
-  "status": "todo",
-  "priority": "high",
-  "due_date": "2026-11-25",
-  "scheduled_date": "2026-11-24",
-  "tags": ["security", "audit"],
-  "color": "#3b82f6",
-  "is_completed": false,
-  "completed_at": null,
-  "is_overdue": false,
-  "created_at": "2026-11-11T12:00:00Z",
-  "updated_at": "2026-11-11T12:00:00Z"
-}
-```
-
----
-
-### 5.5 Update a Todo
-
-- **Endpoint**: `PUT /api/v1/todos/{id}` or `PATCH /api/v1/todos/{id}`
-- **Required Scope**: `todos:edit` or `todos:write` (or `*`)
-- **Headers**: `Content-Type: application/json`
-
-Both `PUT` and `PATCH` support partial updates. Setting `is_completed: true` or `status: "completed"` automatically sets `completed_at` to the current timestamp.
-
-#### Example Request: Mark Completed
-```bash
-curl -X PATCH "https://go-tide.app/api/v1/todos/7df4ba62-a567-4e78-9584-f7b58c743bc1" \
-  -H "Authorization: Bearer tide_pat_YOUR_TOKEN" \
+curl -X POST -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{
-    "is_completed": true,
-    "status": "completed"
-  }'
+  -d '{"title": "Sicherheitsbericht prüfen", "description": "Token-Hashing und Rechte kontrollieren", "priority": "high", "due_date": "2026-11-25", "scheduled_date": "2026-11-24", "tags": ["security", "audit"]}' \
+  "https://hrw.rocks/api/v1/todos"
 ```
 
-#### Example Response (`200 OK`)
+**Antwort 201**
+
 ```json
 {
   "id": "7df4ba62-a567-4e78-9584-f7b58c743bc1",
   "user_id": "893d59a2-5b94-4dc4-8399-5ef6ee15c103",
-  "title": "Review Q4 security audit report",
-  "description": "Verify PAT hashing and rate limits",
+  "title": "Sicherheitsbericht prüfen",
+  "description": "Token-Hashing und Rechte kontrollieren",
+  "status": "todo",
+  "priority": "high",
+  "due_date": "2026-11-25",
+  "scheduled_date": "2026-11-24",
+  "tags": ["security", "audit"],
+  "color": "",
+  "is_completed": false,
+  "is_overdue": false,
+  "created_at": "2026-11-11T12:00:00Z",
+  "updated_at": "2026-11-11T12:00:00Z"
+}
+```
+
+#### `GET /todos/{id}`
+
+Benötigtes Recht: `todos:read` oder `todos:write`. Ein einzelnes Todo abrufen. Antwort `200` ist das Todo-Objekt, `404` wenn es nicht existiert.
+
+**Anfrage**
+
+```bash
+curl -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
+  "https://hrw.rocks/api/v1/todos/7df4ba62-a567-4e78-9584-f7b58c743bc1"
+```
+
+#### `PATCH /todos/{id}`
+
+Benötigtes Recht: `todos:edit` oder `todos:write`. Ein Todo ändern oder abhaken. `PUT` verhält sich identisch.
+
+Es werden nur die gesendeten Felder geändert. Zu beachten:
+
+- `is_completed: true` setzt `completed_at` auf die aktuelle Zeit und macht aus dem Status `todo` den Status `completed`.
+- `is_completed: false` entfernt `completed_at` und setzt den Status `completed` zurück auf `todo`.
+- `status: "completed"` markiert das Todo ebenfalls als erledigt.
+- Ein leerer `title` führt zu `400` mit "Title cannot be empty".
+- `tags` ersetzt die komplette Liste.
+
+**Anfrage: als erledigt markieren**
+
+```bash
+curl -X PATCH -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"is_completed": true}' \
+  "https://hrw.rocks/api/v1/todos/7df4ba62-a567-4e78-9584-f7b58c743bc1"
+```
+
+**Antwort 200**
+
+```json
+{
+  "id": "7df4ba62-a567-4e78-9584-f7b58c743bc1",
+  "user_id": "893d59a2-5b94-4dc4-8399-5ef6ee15c103",
+  "title": "Sicherheitsbericht prüfen",
+  "description": "Token-Hashing und Rechte kontrollieren",
   "status": "completed",
   "priority": "high",
   "due_date": "2026-11-25",
   "scheduled_date": "2026-11-24",
   "tags": ["security", "audit"],
-  "color": "#3b82f6",
+  "color": "",
   "is_completed": true,
   "completed_at": "2026-11-11T14:15:00Z",
   "is_overdue": false,
@@ -549,70 +473,56 @@ curl -X PATCH "https://go-tide.app/api/v1/todos/7df4ba62-a567-4e78-9584-f7b58c74
 }
 ```
 
----
+#### `DELETE /todos/{id}`
 
-### 5.6 Delete a Todo
+Benötigtes Recht: `todos:delete` oder `todos:write`. Ein Todo löschen. Antwort `204` ohne Body, `404` wenn es nicht existiert.
 
-- **Endpoint**: `DELETE /api/v1/todos/{id}`
-- **Required Scope**: `todos:delete` or `todos:write` (or `*`)
+**Anfrage**
 
-#### Example Request
 ```bash
-curl -X DELETE "https://go-tide.app/api/v1/todos/7df4ba62-a567-4e78-9584-f7b58c743bc1" \
-  -H "Authorization: Bearer tide_pat_YOUR_TOKEN"
+curl -X DELETE -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
+  "https://hrw.rocks/api/v1/todos/7df4ba62-a567-4e78-9584-f7b58c743bc1"
 ```
 
-#### Example Response (`204 No Content`)
-Returns HTTP status `204 No Content` with an empty response body.
+## 6. Termine
 
----
+Termine sind Kalendereinträge. Die API ist hier **nur lesend**: Es gibt keine Endpunkte zum Erstellen, Ändern oder Löschen. Abgefragt werden eigene und mit dir geteilte, angenommene Termine.
 
-## 6. Calendar Events API
+### Felder
 
-The Calendar Events API provides external access to user calendar events, supporting scheduling dashboards, smart home integrations, and external calendar sync.
+| Feld | Typ | Beschreibung |
+| --- | --- | --- |
+| `id` | string | ID des Termins |
+| `title` | string | Titel. Fehlt er, liefert der Server "Untitled Event". |
+| `start`, `end` | string | Beginn und Ende, so wie sie im Termin gespeichert sind (in der Regel ISO 8601) |
+| `all_day` | boolean | `true` bei ganztägigen Terminen |
+| `color`, `description`, `location` | string | Farbe, Beschreibung, Ort. Das Feld fehlt in der Antwort, wenn es leer ist. |
+| `parent_id` | string | ID eines übergeordneten Ordners. Fehlt, wenn es keinen gibt. |
+| `source` | string | `tide` für in Tide erstellte Termine, `gcal` für aus Google Kalender übernommene |
+| `created_at`, `updated_at` | string (RFC 3339) | Erstellt und zuletzt geändert |
 
-### 6.1 Event Data Model
+#### `GET /external/events`
 
-| Field | Type | Description |
-|---|---|---|
-| `id` | `string` (UUID) | Unique event identifier |
-| `title` | `string` | Event summary / title |
-| `start` | `string` (ISO 8601) | Event start timestamp (e.g. `2026-11-15T09:00:00.000Z`) |
-| `end` | `string` (ISO 8601) | Event end timestamp (e.g. `2026-11-15T10:00:00.000Z`) |
-| `all_day` | `boolean` | `true` for all-day events |
-| `color` | `string` | Hex color code (e.g. `#3b82f6`) |
-| `description` | `string` | Event details or meeting links |
-| `location` | `string` | Physical location or virtual link |
-| `parent_id` | `string \| null` | Associated parent project or folder ID |
-| `source` | `string` | Event source (e.g. `"tide"`) |
-| `created_at` | `string` (RFC 3339) | Creation timestamp |
-| `updated_at` | `string` (RFC 3339) | Last update timestamp |
+Benötigtes Recht: `events:read`. Termine auflisten, aufsteigend nach Beginn sortiert.
 
----
+| Parameter | Beispiel | Beschreibung |
+| --- | --- | --- |
+| `start` oder `from` | `2026-11-01` | Nur Termine, die nicht vor diesem Zeitpunkt enden |
+| `end` oder `to` | `2026-11-30` | Nur Termine, die nicht nach diesem Zeitpunkt beginnen. Bei einem reinen Datum zählt der ganze Tag. |
+| `q` oder `search` | `sprint` | Teiltext in Titel, Beschreibung oder Ort, Groß- und Kleinschreibung egal |
+| `limit` | `50` | Standard 100, höchstens 500 |
 
-### 6.2 List Events
+`start` und `end` akzeptieren ein Datum (`2026-11-01`) oder einen Zeitpunkt nach RFC 3339 (`2026-11-01T00:00:00Z`). Andere Formate führen zu `400`.
 
-- **Endpoint**: `GET /api/v1/external/events`
-- **Required Scope**: `events:read` (or `*`)
+**Anfrage: Termine im November**
 
-Returns a list of events sorted chronologically by start time.
-
-#### Query Parameters
-
-| Parameter | Type | Example | Description |
-|---|---|---|---|
-| `start` or `from` | `string` (ISO 8601) | `2026-11-01` | Filter events ending on or after this date |
-| `end` or `to` | `string` (ISO 8601) | `2026-11-30` | Filter events starting on or before this date |
-| `q` or `search` | `string` | `standup` | Substring search across `title`, `description`, and `location` |
-| `limit` | `integer` | `25` | Maximum number of events (default: `100`, max: `500`) |
-
-#### Example Request: List Month's Events
 ```bash
-curl -X GET "https://go-tide.app/api/v1/external/events?start=2026-11-01&end=2026-11-30&limit=50" \
-  -H "Authorization: Bearer tide_pat_YOUR_TOKEN"
+curl -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
+  "https://hrw.rocks/api/v1/external/events?start=2026-11-01&end=2026-11-30&limit=50"
 ```
 
-#### Example Response (`200 OK`)
+**Antwort 200**
+
 ```json
 {
   "count": 1,
@@ -624,9 +534,8 @@ curl -X GET "https://go-tide.app/api/v1/external/events?start=2026-11-01&end=202
       "end": "2026-11-16T11:30:00.000Z",
       "all_day": false,
       "color": "#3b82f6",
-      "description": "Review backlog and commit to sprint scope",
-      "location": "Conference Room A / Hybrid",
-      "parent_id": null,
+      "description": "Backlog sichten",
+      "location": "Raum A",
       "source": "tide",
       "created_at": "2026-11-10T14:00:00Z",
       "updated_at": "2026-11-10T14:00:00Z"
@@ -635,20 +544,19 @@ curl -X GET "https://go-tide.app/api/v1/external/events?start=2026-11-01&end=202
 }
 ```
 
----
+#### `GET /external/events/{id}`
 
-### 6.3 Get Single Event
+Benötigtes Recht: `events:read`. Einen einzelnen Termin abrufen. `404`, wenn er nicht existiert.
 
-- **Endpoint**: `GET /api/v1/external/events/{id}`
-- **Required Scope**: `events:read` (or `*`)
+**Anfrage**
 
-#### Example Request
 ```bash
-curl -X GET "https://go-tide.app/api/v1/external/events/e4b3c9a0-1234-4567-89ab-cdef01234567" \
-  -H "Authorization: Bearer tide_pat_YOUR_TOKEN"
+curl -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
+  "https://hrw.rocks/api/v1/external/events/e4b3c9a0-1234-4567-89ab-cdef01234567"
 ```
 
-#### Example Response (`200 OK`)
+**Antwort 200**
+
 ```json
 {
   "event": {
@@ -658,9 +566,8 @@ curl -X GET "https://go-tide.app/api/v1/external/events/e4b3c9a0-1234-4567-89ab-
     "end": "2026-11-16T11:30:00.000Z",
     "all_day": false,
     "color": "#3b82f6",
-    "description": "Review backlog and commit to sprint scope",
-    "location": "Conference Room A / Hybrid",
-    "parent_id": null,
+    "description": "Backlog sichten",
+    "location": "Raum A",
     "source": "tide",
     "created_at": "2026-11-10T14:00:00Z",
     "updated_at": "2026-11-10T14:00:00Z"
@@ -668,24 +575,26 @@ curl -X GET "https://go-tide.app/api/v1/external/events/e4b3c9a0-1234-4567-89ab-
 }
 ```
 
----
+> **Nicht verifiziert:** Das Verhalten schreibender Methoden auf `/external/events` ist nicht dokumentiert, weil der Server dafür keine Handler hat. Die konkrete Fehlerantwort stammt vom Router, nicht aus dem Handler-Code, und ist nicht verifiziert.
 
-## 7. HTTP Status Codes & Error Handling
+## 7. Fehlercodes
 
-Standard HTTP status codes are used throughout the API:
+| Status | Bedeutung | Typische Ursache |
+| --- | --- | --- |
+| `200` | Erfolg | Abfrage oder Änderung erfolgreich, Antwort mit Inhalt |
+| `201` | Erstellt | Notiz oder Todo wurde angelegt |
+| `204` | Kein Inhalt | Todo gelöscht, Antwort ohne Body |
+| `400` | Ungültige Anfrage | Ungültiges JSON, fehlender Titel beim Todo, ungültiges Datumsformat bei Terminen, Elternordner nicht gefunden, Inhalt einer verschlüsselten Notiz ändern |
+| `401` | Nicht authentifiziert | Token fehlt, ist unbekannt oder abgelaufen |
+| `403` | Recht fehlt | Dem Token fehlt das nötige Recht, oder die Notiz liegt außerhalb des Token-Bereichs |
+| `404` | Nicht gefunden | Eintrag existiert nicht oder gehört nicht zu diesem Konto |
+| `500` | Serverfehler | Unerwarteter Fehler beim Lesen oder Speichern |
 
-| Status Code | Reason | Description |
-|---|---|---|
-| `200 OK` | Success | The request succeeded and the requested payload is returned |
-| `201 Created` | Created | A new resource was successfully created |
-| `204 No Content` | Deleted | The resource was deleted successfully (empty body) |
-| `400 Bad Request` | Validation Error | Missing required fields, invalid JSON, or malformed ID |
-| `401 Unauthorized` | Authentication Failed | Missing, malformed, or expired API token |
-| `403 Forbidden` | Missing Scope | The token lacks the scope required for this endpoint |
-| `404 Not Found` | Not Found | The requested resource does not exist or does not belong to the user |
-| `500 Internal Error` | Server Error | An unexpected server error occurred |
+### Fehlerformat
 
-### Standard Error Body
+Fehler kommen als JSON mit den Feldern `error` (Statustext) und `message` (Beschreibung auf Englisch).
+
+**400 Bad Request**
 
 ```json
 {
@@ -693,3 +602,58 @@ Standard HTTP status codes are used throughout the API:
   "message": "Title is required"
 }
 ```
+
+Bei `401` lauten die Meldungen "Missing API token", "Invalid API token" oder "API token has expired" (bei Todos zusätzlich "Missing or invalid API token").
+
+### Fehlendes Recht (403)
+
+Die Antwort nennt die Rechte des Tokens. Das Feld mit dem benötigten Recht heißt bei Notizen und Terminen `required_scope` (eine Zeichenkette), bei Todos `required_scopes` (eine Liste).
+
+**403 bei Notizen oder Terminen**
+
+```json
+{
+  "error": "Forbidden",
+  "message": "Token lacks required scope 'notes:write'",
+  "required_scope": "notes:write",
+  "token_scopes": ["notes:read"]
+}
+```
+
+**403 bei Todos**
+
+```json
+{
+  "error": "Forbidden",
+  "message": "Token lacks required scope",
+  "required_scopes": ["todos:create", "todos:write"],
+  "token_scopes": ["todos:read"]
+}
+```
+
+> **Nicht verifiziert:** In seltenen Fehlerpfaden verwendet der Server-Code eine Klartext-Antwort statt JSON (zum Beispiel bei fehlender Nutzerzuordnung). Behandle einen Body, der kein JSON ist, deshalb nicht als Programmfehler.
+
+## 8. Limits
+
+| Angabe | Wert | Gilt für |
+| --- | --- | --- |
+| `limit` (Standard) | 100 | Notizen, Termine, Todos |
+| `limit` (Höchstwert) | 500, größere Werte werden auf 500 gekürzt | Notizen, Termine, Todos |
+| `offset` | nur bei Todos verfügbar | Todos |
+| Gültigkeit eines Tokens | 30, 60, 90 Tage, 1 Jahr oder unbegrenzt (Auswahl in der App) | Tokens |
+| Länge des Token-Namens | höchstens 100 Zeichen | Tokens |
+
+Zu Rate-Limits (Anfragen pro Zeit) und zur Größe von Anfrage-Bodies sind **keine festen Limits dokumentiert**. Im Server-Code ist für diese Endpunkte kein Rate-Limit eingerichtet.
+
+> **Nicht verifiziert:** Ob ein vorgeschalteter Proxy oder Hosting-Dienst eigene Grenzen setzt (zum Beispiel für Anfragehäufigkeit oder Body-Größe), ist nicht verifiziert. Sende Anfragen trotzdem in vernünftigem Takt und lies lieber mit `limit` und Filtern gezielt, statt alles wiederholt abzufragen.
+
+## 9. Verschlüsselung
+
+Notizen in Tide sind Ende-zu-Ende-verschlüsselt, sofern sie nicht ausdrücklich als unverschlüsselt gespeichert sind. Ein API-Token ist kein Schlüssel und kann nichts entschlüsseln. Daraus ergibt sich, was die API bei Notizen kann.
+
+- **Verschlüsselte Notizen:** Die API liefert nur Metadaten (`id`, `title`, `parent_id`, Zeitstempel) und `"encrypted": true`, aber keinen `content`. Den Inhalt zu ändern geht nicht (`400`). Titel und Elternordner lassen sich ändern.
+- **Über die API erstellte Notizen:** Sie werden vom Server unverschlüsselt gespeichert und sind für ihn lesbar. Inhalte, die du per API sendest, sind also nicht Ende-zu-Ende-verschlüsselt. Solche Notizen liefern `"encrypted": false` samt `content`.
+- **Todos:** Der Server speichert Titel und Beschreibung nach dem Code als normale Felder, die auch die API im Klartext liefert.
+- **Termine:** Die API liest sie aus den Metadaten, die der Server lesen kann. Fehlt ein Titel, liefert sie "Untitled Event".
+
+> **Nicht verifiziert:** Nicht verifiziert: ob die Tide-App Todo- oder Termin-Inhalte vor dem Hochladen zusätzlich verschlüsselt und die API dann Platzhalter oder Chiffretext liefern könnte. Aus den Quellen dieser Seite ist dazu keine Aussage belegbar.

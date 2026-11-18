@@ -470,7 +470,7 @@ const X=id=>EXT.find(e=>e.id===id);
 const DOCS=[['d-start','Überblick'],['d-auth','Authentifizierung'],['d-rights','Rechte'],['d-notes','Notizen'],['d-todos','Todos'],['d-events','Termine'],['d-errors','Fehlercodes'],['d-limits','Limits'],['d-e2e','Verschlüsselung']];
 const DOC=`<div class="subpage" data-sub="apidoc"><div class="crumb"><button data-subback>${ic('back','s')}Zugriff</button><span>/</span><span>Dokumentation</span></div>
  <div class="doc">
-  <div class="doc-bar"><span class="url">${ic('globe','s')}<span id="docurl">go-tide.app/docs/api</span></span><span class="chip"><i></i>Öffentlich, ohne Login erreichbar</span>${copyBtn('docurl','Link kopieren')}</div>
+  <div class="doc-bar"><span class="url">${ic('globe','s')}<span id="docurl">hrw.rocks/docs/api</span></span><span class="chip"><i></i>Öffentlich, ohne Login erreichbar</span>${copyBtn('docurl','Link kopieren')}</div>
   <div class="doc-body">
    <nav class="toc" aria-label="Inhalt"><small>Inhalt</small>${DOCS.map(([id,t])=>`<button data-toc="${id}">${t}</button>`).join('')}</nav>
    <article class="art">
@@ -479,7 +479,7 @@ const DOC=`<div class="subpage" data-sub="apidoc"><div class="crumb"><button dat
 
     <h2 id="d-start">Überblick</h2>
     <p>Die API ist eine REST-Schnittstelle mit JSON. Alle Routen liegen unter <code class="i">/api/v1</code>.</p>
-    <div class="tbl-w"><table class="tbl"><tr><th>Basis-URL</th><th></th></tr><tr><td>Produktion</td><td><code>https://go-tide.app/api/v1</code></td></tr></table></div>
+    <div class="tbl-w"><table class="tbl"><tr><th>Basis-URL</th><th></th></tr><tr><td>Produktion</td><td><code>https://hrw.rocks/api/v1</code></td></tr></table></div>
     <div class="tbl-w"><table class="tbl"><tr><th>Ressource</th><th>Pfad</th></tr>
      <tr><td>Notizen</td><td><code>/external/notes</code></td></tr>
      <tr><td>Todos</td><td><code>/todos</code> (Alias <code>/external/todos</code>)</td></tr>
@@ -516,19 +516,19 @@ const DOC=`<div class="subpage" data-sub="apidoc"><div class="crumb"><button dat
      <tr><td>DELETE</td><td><code>/external/notes/{id}</code></td><td>Notizen ändern</td></tr></table></div>
     <p>Suche per <code class="i">q</code>, Begrenzung per <code class="i">limit</code> (Standard 100, höchstens 500). Eine Notiz hat <code class="i">id</code>, <code class="i">title</code>, <code class="i">content</code>, <code class="i">parent_id</code>, <code class="i">created_at</code> und <code class="i">updated_at</code>.</p>
 <div class="code"><span class="c"># Notizen durchsuchen</span>
-curl "https://go-tide.app/api/v1/external/notes?q=seminar&amp;limit=10" \
+curl "https://hrw.rocks/api/v1/external/notes?q=seminar&amp;limit=10" \
   -H "Authorization: Bearer tide_pat_…"</div>
 
     <h2 id="d-todos">Todos</h2>
     <p>Lesen, erstellen, ändern und löschen unter <code class="i">/todos</code>. Filter: <code class="i">date</code>, <code class="i">priority</code> (low, medium, high), <code class="i">tag</code>, <code class="i">q</code>, <code class="i">overdue</code>, <code class="i">status</code> (todo, in_progress, completed), <code class="i">completed</code>, dazu <code class="i">limit</code> und <code class="i">offset</code> zum Blättern.</p>
 <div class="code"><span class="c"># Offene Todos mit hoher Priorität</span>
-curl "https://go-tide.app/api/v1/todos?priority=high&amp;completed=false" \
+curl "https://hrw.rocks/api/v1/todos?priority=high&amp;completed=false" \
   -H "Authorization: Bearer tide_pat_…"</div>
 
     <h2 id="d-events">Termine</h2>
     <p><code class="i">GET /external/events</code> liefert Termine in zeitlicher Reihenfolge. Filter: <code class="i">start</code>, <code class="i">end</code>, <code class="i">q</code>, <code class="i">limit</code>. Ein einzelner Termin kommt über <code class="i">GET /external/events/{id}</code>. Felder: <code class="i">id</code>, <code class="i">title</code>, <code class="i">start</code>, <code class="i">end</code>, <code class="i">all_day</code>, <code class="i">color</code>, <code class="i">description</code>, <code class="i">location</code>.</p>
 <div class="code"><span class="c"># Termine im November</span>
-curl "https://go-tide.app/api/v1/external/events?start=2026-11-01&amp;end=2026-11-30" \
+curl "https://hrw.rocks/api/v1/external/events?start=2026-11-01&amp;end=2026-11-30" \
   -H "Authorization: Bearer tide_pat_…"</div>
 
     <h2 id="d-errors">Fehlercodes</h2>

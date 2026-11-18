@@ -80,7 +80,7 @@ X-API-Key: tide_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 ### Methode 3: URL-Query-Parameter (z. B. für Webhooks oder einfache GET-Links)
 ```http
-https://go-tide.app/api/v1/external/events?api_token=tide_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+https://hrw.rocks/api/v1/external/events?api_token=tide_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 ---
@@ -110,7 +110,7 @@ Gibt eine Liste aller Termine des Nutzers zurück, sortiert nach Startzeitpunkt 
 #### Beispiel-Anfrage
 ```bash
 curl -H "Authorization: Bearer tide_pat_your_token_here" \
-  "https://go-tide.app/api/v1/external/events?start=2026-10-13&end=2026-10-20&limit=10"
+  "https://hrw.rocks/api/v1/external/events?start=2026-10-13&end=2026-10-20&limit=10"
 ```
 
 #### Beispiel-Antwort (`200 OK`)
@@ -162,7 +162,7 @@ Gibt die Detailinformationen zu einem einzelnen Termin zurück.
 #### Beispiel-Anfrage
 ```bash
 curl -H "Authorization: Bearer tide_pat_your_token_here" \
-  "https://go-tide.app/api/v1/external/events/e4b3c9a0-1234-4567-89ab-cdef01234567"
+  "https://hrw.rocks/api/v1/external/events/e4b3c9a0-1234-4567-89ab-cdef01234567"
 ```
 
 #### Beispiel-Antwort (`200 OK`)
@@ -213,11 +213,11 @@ curl -H "Authorization: Bearer tide_pat_your_token_here" \
 # 1. Alle Termine für heute abfragen
 TODAY=$(date +%Y-%m-%d)
 curl -s -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
-  "https://go-tide.app/api/v1/external/events?start=${TODAY}&end=${TODAY}" | jq .
+  "https://hrw.rocks/api/v1/external/events?start=${TODAY}&end=${TODAY}" | jq .
 
 # 2. Termine nach Stichwort durchsuchen
 curl -s -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
-  "https://go-tide.app/api/v1/external/events?q=Projekt" | jq .
+  "https://hrw.rocks/api/v1/external/events?q=Projekt" | jq .
 ```
 
 ---
@@ -229,7 +229,7 @@ import os
 import requests
 from datetime import datetime, timedelta
 
-API_URL = "https://go-tide.app/api/v1/external/events"
+API_URL = "https://hrw.rocks/api/v1/external/events"
 TOKEN = os.getenv("TIDE_API_TOKEN", "tide_pat_DEIN_TOKEN")
 
 headers = {
@@ -266,7 +266,7 @@ else:
 ### JavaScript / TypeScript / Node.js
 
 ```typescript
-const TIDE_BASE_URL = 'https://go-tide.app/api/v1/external';
+const TIDE_BASE_URL = 'https://hrw.rocks/api/v1/external';
 const API_TOKEN = process.env.TIDE_API_TOKEN || 'tide_pat_DEIN_TOKEN';
 
 interface TideEvent {
@@ -322,7 +322,7 @@ In deiner `configuration.yaml` kannst du Tide als RESTful Sensor einbinden, um z
 sensor:
   - platform: rest
     name: "Tide Nächste Termine"
-    resource: "https://go-tide.app/api/v1/external/events"
+    resource: "https://hrw.rocks/api/v1/external/events"
     headers:
       Authorization: "Bearer tide_pat_DEIN_TOKEN"
     params:
