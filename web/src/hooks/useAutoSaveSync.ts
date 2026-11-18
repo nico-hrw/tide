@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import * as Y from "yjs";
 import { useDataStore } from "@/store/useDataStore";
 import { useActiveNoteStore } from "@/store/activeNoteStore";
+import { whyNotSavable } from '@/lib/ydocRegistry';
 import { Tab } from "@/components/Layout/TabList";
 import { apiFetch } from "@/lib/api";
 import * as cryptoLib from "@/lib/crypto";
@@ -179,6 +180,14 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
             const ydoc = options.ydoc || useActiveNoteStore.getState().activeYDoc || (window as any).__tideActiveYDoc;
             if (!ydoc) {
                 console.warn(`[Compaction] No active Y.Doc found for ${noteId}, skipping snapshot`);
+                if (noteId === activeNoteIdRef.current) setSaveStatus("saved");
+                return;
+            }
+
+            // Never save a doc that belongs to another note or whose server state could not be loaded
+            const unsafeReason = whyNotSavable(ydoc, noteId);
+            if (unsafeReason) {
+                console.warn(`[Compaction] Skipped for ${noteId}: ${unsafeReason}`);
                 if (noteId === activeNoteIdRef.current) setSaveStatus("saved");
                 return;
             }
@@ -449,6 +458,9 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
         const onOverlayChanged = () => {
             const id = activeNoteIdRef.current;
             if (!id) return;
+            // An overlay edit in a doc that is not the note's loaded doc must not be saved over the note
+            const doc = options.ydoc || useActiveNoteStore.getState().activeYDoc;
+            if (!doc || whyNotSavable(doc, id)) return;
             unsavedNotesRef.current.add(id);
             setSaveStatus("unsaved");
             if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
@@ -458,7 +470,7 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
         };
         window.addEventListener("tide:overlay-changed", onOverlayChanged);
         return () => window.removeEventListener("tide:overlay-changed", onOverlayChanged);
-    }, [setSaveStatus, triggerCompaction]);
+    }, [setSaveStatus, triggerCompaction, options.ydoc]);
 
     // Backward-compatible triggerSave maps to checkpoint compaction
     const triggerSave = useCallback(async (noteId: string, fileKey?: CryptoKey | null, _content?: any) => {

@@ -27,6 +27,7 @@ import { TodoList } from '../components/Todo/TodoList';
 import { getEventGroupIds, getEventsForDate } from '../lib/calendarUtils';
 import { CALENDAR_DATE_STORAGE_KEY, parseStoredCalendarDate, serializeCalendarDate } from '@/lib/calendarWeeks';
 import { MobileSmartIsland } from '@/components/Layout/MobileSmartIsland';
+import { serializeTabsForStorage, sanitizeRestoredTabs, canReuseTabCache } from '@/lib/tabStorage';
 import { getFolderColor, loadTodoFoldersMeta, isTaskVisibleInCalendar } from '../lib/folderColors';
 
 const Editor = dynamic(() => import('@/components/Editor'), {
@@ -576,11 +577,11 @@ export default function Dashboard() {
             const existingTab = openTabs.find(t => t.id === newId);
             const finalTitle = forcedTitle || existingTab?.title || "";
             setFileName(finalTitle);
-            if (existingTab && existingTab.content) {
+            if (existingTab && canReuseTabCache(existingTab)) {
                 setEditorContent(existingTab.content);
                 initialContentRef.current = existingTab.content;
                 userHasTypedRef.current = false;
-                if (existingTab._fileKey) setActiveFileKey(existingTab._fileKey);
+                setActiveFileKey(existingTab._fileKey ?? null);
                 setSaveStatus(existingTab._saveStatus || 'saved');
             } else {
                 userHasTypedRef.current = false;
@@ -772,7 +773,7 @@ export default function Dashboard() {
     useEffect(() => {
         if (!isRestored) return;
         // Tabs are sessionStorage only — each browser window stays independent
-        sessionStorage.setItem('tide_open_tabs', JSON.stringify(openTabs));
+        sessionStorage.setItem('tide_open_tabs', serializeTabsForStorage(openTabs as unknown as Record<string, unknown>[]));
         sessionStorage.setItem('tide_active_tab_id', activeTabId);
         // Layout stays in localStorage — it's a cross-window preference
         localStorage.setItem('tide_note_layout', noteLayout);
@@ -1434,7 +1435,8 @@ export default function Dashboard() {
 
                 if (savedTabs) {
                     try {
-                        let parsed = JSON.parse(savedTabs);
+                        // Cached content and keys are never restored: a note tab is loaded from the server
+                        let parsed = Array.isArray(JSON.parse(savedTabs)) ? sanitizeRestoredTabs(JSON.parse(savedTabs)) : JSON.parse(savedTabs);
                         if (Array.isArray(parsed) && parsed.length > 0) {
                             const navMode = localStorage.getItem('tide_navigation_mode');
                             if (navMode === 'folders' && !parsed.some((t: { id?: string }) => t?.id === 'folders')) {

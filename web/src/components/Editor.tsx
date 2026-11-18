@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { EditorContent } from '@tiptap/react';
 import * as Y from 'yjs';
 import { YjsE2EEProvider } from '@/lib/yjsE2EEProvider';
+import { isCryptoKey } from '@/lib/tabStorage';
+import { setDocNote } from '@/lib/ydocRegistry';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
 import { derivePublicNoteDEK } from '@/lib/cryptoV2';
 
@@ -107,7 +109,9 @@ function CollaborativeEditor(props: EditorProps) {
 
     const storeDEK = useActiveNoteStore((s) => s.activeDEK);
     const storeEpoch = useActiveNoteStore((s) => s.keyEpoch);
-    const activeDek = dek || storeDEK || useActiveNoteStore.getState().activeDEK || null;
+    // Only a real CryptoKey can decrypt; a `{}` left by a JSON round trip must count as "no key yet".
+    const dekCandidate = dek || storeDEK || useActiveNoteStore.getState().activeDEK || null;
+    const activeDek = isCryptoKey(dekCandidate) ? dekCandidate : null;
     const activeEpoch = keyEpoch || storeEpoch || useActiveNoteStore.getState().keyEpoch || 1;
 
     const userProfileRef = useRef(userProfile);
@@ -120,6 +124,7 @@ function CollaborativeEditor(props: EditorProps) {
         const token = sessionStorage.getItem('tide_session_token') || localStorage.getItem('tide_session_token') || '';
         const isLoggedIn = Boolean(token || (myId && myId !== 'anonymous') || useDataStore.getState().myId);
 
+        setDocNote(docToUse, activeTabId);
         const e2eeProvider = new YjsE2EEProvider(activeTabId, docToUse, key, {
             keyEpoch: activeEpoch,
             token,

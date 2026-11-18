@@ -20,6 +20,7 @@ import {
 import { base64ToArrayBuffer } from './crypto';
 import { apiFetch, getApiBase } from './api';
 import { activeNoteStore, NotePermission } from '@/store/activeNoteStore';
+import { setDocHydrated } from './ydocRegistry';
 
 export interface YjsE2EEProviderOptions {
     keyEpoch?: number;
@@ -151,6 +152,8 @@ export class YjsE2EEProvider {
     /**
      * Bootstrap CRDT state from server REST snapshot + WAL
      */
+    private hydrationFailed = false;
+
     public async bootstrap(): Promise<void> {
         if (this.destroyed) return;
         if (this.bootstrapPromise) {
@@ -186,6 +189,7 @@ export class YjsE2EEProvider {
 
                 if (!res.ok) {
                     console.warn(`[YjsE2EEProvider] CRDT bootstrap fetch returned HTTP ${res.status}`);
+                    setDocHydrated(this.ydoc, false);
                     this.markSynced(true);
                     return;
                 }
@@ -202,6 +206,9 @@ export class YjsE2EEProvider {
                 this.keyEpoch = keyEpoch;
                 activeNoteStore.getState().setKeyEpoch(keyEpoch);
 
+                // Stays true only if everything the server has could be read with this key.
+                let hydrated = true;
+
                 // 1. Decrypt snapshot if present
                 if (snapIv && snapCiphertext && !this.destroyed) {
                     try {
@@ -216,6 +223,7 @@ export class YjsE2EEProvider {
                             Y.applyUpdate(this.ydoc, plaintextSnapshot, 'remote');
                         }
                     } catch (snapErr) {
+                        hydrated = false;
                         console.error('[YjsE2EEProvider] Failed to decrypt snapshot:', snapErr);
                     }
                 }
@@ -250,17 +258,21 @@ export class YjsE2EEProvider {
 
                         if (seqId > maxSeqId) maxSeqId = seqId;
                     } catch (walErr) {
+                        hydrated = false;
                         console.warn('[YjsE2EEProvider] Skipping unreadable WAL entry (key mismatch):', walErr);
                     }
                 }
 
                 if (!this.destroyed) {
+                    this.hydrationFailed = !hydrated;
+                    setDocHydrated(this.ydoc, hydrated);
                     activeNoteStore.getState().setLastCompactedSeqId(maxSeqId);
                     this.markSynced(true);
                 }
             } catch (err) {
                 console.error('[YjsE2EEProvider] Bootstrap failed:', err);
                 if (!this.destroyed) {
+                    setDocHydrated(this.ydoc, false);
                     this.markSynced(true);
                 }
             } finally {
@@ -762,12 +774,19 @@ export class YjsE2EEProvider {
         if (!newDek || !(newDek instanceof CryptoKey)) {
             return;
         }
+        const keyChanged = newDek !== this.dek;
         this.dek = newDek;
         if (newKeyEpoch !== undefined) {
             this.keyEpoch = newKeyEpoch;
             activeNoteStore.getState().setKeyEpoch(newKeyEpoch);
         }
         activeNoteStore.getState().setActiveDEK(newDek);
+
+        // The first bootstrap ran with a key that could not read the server state: try again with the right one.
+        if (keyChanged && this.hydrationFailed && !this.destroyed) {
+            this.bootstrapPromise = null;
+            void this.bootstrap();
+        }
     }
 
     public destroy(): void {
