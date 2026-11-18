@@ -148,7 +148,9 @@ export default function DesktopDayView({
     };
 
     return (
-        <div className="flex-1 flex max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 w-full gap-10 min-h-full py-4">
+        // self-start: the parent scroller is a flex row that would stretch this to the visible height,
+        // which makes the sticky detail panel scroll away with it instead of staying in view.
+        <div className="flex-1 flex self-start max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 w-full gap-10 min-h-full py-4">
             {/* Left / Center Column (24h timeline grid and DayColumn) */}
             <div className="flex-1 md:flex-none md:w-[520px] min-w-[300px] md:min-w-0 flex relative min-h-full">
                 {selectedLines.map((t, i) => (
@@ -163,14 +165,14 @@ export default function DesktopDayView({
                     </div>
                 ))}
                 {/* Time Column (Sticky Left) */}
-                <div className="w-[60px] flex-shrink-0 sticky left-0 z-[400] bg-white dark:bg-slate-950 border-r border-gray-100/80 dark:border-slate-900/50 h-fit min-h-full pb-[40px]">
-                    <div className="h-[50px] border-b border-gray-100/80 dark:border-slate-900/50 sticky top-0 z-[410] bg-white dark:bg-slate-950" />
+                <div className="w-[60px] flex-shrink-0 sticky left-0 z-[400] bg-t2-bg border-r border-t2-line-soft  h-fit min-h-full pb-[40px]">
+                    <div className="h-[50px] border-b border-t2-line-soft  sticky top-0 z-[410] bg-t2-bg" />
                     {Array.from({ length: 24 }).map((_, i) => (
                         <div
                             key={i}
-                            className="h-[48px] relative group border-b border-dashed border-gray-100/50 dark:border-slate-900/40"
+                            className="h-[48px] relative group border-b border-dashed border-t2-line-soft "
                         >
-                            <span className="absolute -top-3 right-3 text-[11px] font-semibold text-gray-400 dark:text-gray-500 z-[10]">
+                            <span className="absolute -top-3 right-3 text-[11px] font-semibold text-t2-ink-3  z-[10]">
                                 {i}:00
                             </span>
                         </div>
@@ -186,6 +188,7 @@ export default function DesktopDayView({
                         allEvents={events}
                         isToday={isSameDay(day, new Date())}
                         dayIndexOffset={0}
+                        fluid
                         currentTime={currentTime}
                         hoveredHour={hoveredHour}
                         onHourHover={setHoveredHour}

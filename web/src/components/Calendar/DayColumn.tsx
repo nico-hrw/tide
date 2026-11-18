@@ -452,7 +452,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     return (
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
-            className={`${fluid ? 'flex-1 min-w-0' : `${FIXED_COLUMN_WIDTH} flex-shrink-0`} border-r border-gray-100/80 dark:border-slate-900/50 relative z-[10] bg-transparent`}
+            className={`${fluid ? 'flex-1 min-w-0' : `${FIXED_COLUMN_WIDTH} flex-shrink-0`} border-r border-t2-line-soft  relative z-[10] bg-transparent`}
             style={{ '--hour-height': `${hourHeight}px` } as React.CSSProperties}
             onMouseMove={(e) => {
                 physicalMouseRef.current = { x: e.clientX, y: e.clientY };
@@ -466,10 +466,10 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
         >
             <div
                 className={`
-                 h-[50px] border-b border-gray-100/80 dark:border-slate-900/50
+                 h-[50px] border-b border-t2-line-soft 
                  sticky top-0 z-[2000]
-                 flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-900 transition-colors
-                 bg-white dark:bg-slate-950
+                 flex items-center justify-center gap-2 cursor-pointer hover:bg-t2-sub  transition-colors
+                 bg-t2-bg
              `}
                 onClick={() => {
                     if (readOnly) return;
@@ -556,17 +556,17 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 title="Click to add all-day event"
             >
                 {isToday ? (
-                    <div className="px-3.5 py-1.5 rounded-full bg-black dark:bg-white text-white dark:text-black text-xs font-bold flex items-center justify-center gap-1 shadow-sm select-none">
+                    <div className="px-3.5 py-1.5 rounded-full bg-t2-ink text-t2-bg text-xs font-bold flex items-center justify-center gap-1 shadow-sm select-none">
                         <span>{format(day, "d")}</span>
                         <span className="opacity-60 uppercase text-[9px] font-black">–</span>
                         <span className="opacity-80 uppercase text-[9px] tracking-wide font-black">{format(day, "EEE")}</span>
                     </div>
                 ) : (
                     <div className="flex items-center gap-1 select-none">
-                        <span className="text-[20px] font-bold text-gray-800 dark:text-gray-200">
+                        <span className="text-[20px] font-bold text-t2-ink ">
                             {format(day, "d")}
                         </span>
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-t2-ink-3 ">
                             {format(day, "EEE")}
                         </span>
                     </div>
@@ -590,7 +590,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             {/* Today column — subtle solid gray overlay */}
             {isToday && (
                 <div
-                    className="absolute inset-0 pointer-events-none z-[1] bg-gray-50/50 dark:bg-white/[0.015]"
+                    className="absolute inset-0 pointer-events-none z-[1] bg-t2-sub "
                     style={{
                         top: '50px',
                     }}
@@ -600,7 +600,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             {/* All-Day Events Area */}
             {allDayEvents.length > 0 && (
                 <div className="sticky top-[50px] z-[65] w-full h-0 pointer-events-auto">
-                    <div className={`absolute top-0 left-0 right-0 ${fluid ? '' : FIXED_COLUMN_WIDTH} bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm p-1 flex flex-col gap-1 border-b border-gray-200/60 dark:border-slate-800/60 rounded-b-xl`}>
+                    <div className={`absolute top-0 left-0 right-0 ${fluid ? '' : FIXED_COLUMN_WIDTH} bg-t2-surface  backdrop-blur-sm p-1 flex flex-col gap-1 border-b border-t2-line  rounded-b-xl`}>
                         {regularAllDayEvents.map(event => {
                             const theme = getEventTheme(event, calendarColorPalette);
                             const isHighlightedEvent = isHighlighted(event.id, 'event');
@@ -948,7 +948,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 {Array.from({ length: 24 }).map((_, i) => (
                     <div
                         key={i}
-                        className={`border-b border-dashed ${isToday ? 'border-indigo-200 dark:border-indigo-800' : 'border-gray-200 dark:border-slate-800'} ${hoveredHour === i ? 'bg-black/[0.01] dark:bg-white/[0.01]' : 'bg-transparent'}`}
+                        className={`border-b border-dashed ${isToday ? 'border-indigo-200 dark:border-indigo-800' : 'border-t2-line '} ${hoveredHour === i ? 'bg-t2-hover ' : 'bg-transparent'}`}
                         style={{ height: 'var(--hour-height, 48px)' }}
                         onMouseEnter={() => onHourHover && onHourHover(i)}
                         onMouseLeave={() => onHourHover && onHourHover(null)}
@@ -992,15 +992,15 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 {/* Creation Preview */}
                 {creationDrag && isSameDay(creationDrag.startDay, day) && (
                     <motion.div
-                        className={`absolute left-1 right-1 rounded-lg bg-gray-500/30 border-2 border-dashed border-gray-500 z-50 backdrop-blur-sm pointer-events-none ${isMagnified ? 'opacity-20' : ''}`}
+                        className={`absolute left-1 right-1 rounded-lg bg-gray-500/30 border-2 border-dashed border-t2-ink-3 z-50 backdrop-blur-sm pointer-events-none ${isMagnified ? 'opacity-20' : ''}`}
                         style={{ top: creationPreviewTop, height: creationPreviewHeight }}
                     >
                         <div className="flex flex-col gap-0 p-1.5">
-                            <div className="text-[10px] font-bold text-gray-700 dark:text-gray-200 leading-tight">New Event</div>
+                            <div className="text-[10px] font-bold text-t2-ink  leading-tight">New Event</div>
                             <div className="flex items-center gap-0.5 mt-0.5">
-                                <span className="text-[10px] font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{creationStartTimeStr}</span>
-                                <span className="text-[9px] text-gray-400 mx-0.5">–</span>
-                                <motion.span className="text-[10px] font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{creationEndTimeLabel}</motion.span>
+                                <span className="text-[10px] font-semibold text-t2-ink-2  tabular-nums">{creationStartTimeStr}</span>
+                                <span className="text-[9px] text-t2-ink-3 mx-0.5">–</span>
+                                <motion.span className="text-[10px] font-semibold text-t2-ink-2  tabular-nums">{creationEndTimeLabel}</motion.span>
                             </div>
                         </div>
                     </motion.div>
@@ -1019,7 +1019,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         
                         {/* Minimal Label */}
                         {currentEventInfo && (
-                            <div className="absolute left-3 -top-[14px] text-[9px] font-semibold text-red-500 dark:text-red-400 bg-white dark:bg-slate-950 px-1 rounded shadow-sm">
+                            <div className="absolute left-3 -top-[14px] text-[9px] font-semibold text-red-500 dark:text-red-400 bg-t2-bg px-1 rounded shadow-sm">
                                 {currentEventInfo} left
                             </div>
                         )}
@@ -1033,7 +1033,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     const nextTimeTop = (getHours(new Date(upcomingEvent.start)) * 60 + getMinutes(new Date(upcomingEvent.start))) * (hourHeight / 60);
                     return (
                         <div 
-                            className="absolute left-1 z-[60] pointer-events-none text-[10px] font-medium text-gray-400 dark:text-gray-500"
+                            className="absolute left-1 z-[60] pointer-events-none text-[10px] font-medium text-t2-ink-3 "
                             style={{ top: `${nextTimeTop - 16}px` }}
                         >
                             {nextEventInfo}
@@ -1044,7 +1044,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             </div>
 
             {/* End of Day visual boundary */}
-            <div className="h-[1px] w-[1440px] relative shrink-0 bg-gray-200 dark:bg-gray-800 hidden"></div>
+            <div className="h-[1px] w-[1440px] relative shrink-0 bg-t2-stage  hidden"></div>
         </div>
     );
 };

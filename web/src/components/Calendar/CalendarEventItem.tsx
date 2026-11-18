@@ -654,7 +654,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                         useDataStore.getState().groupOverlappingEvents(event.id);
                     }}
                     title="Make Group"
-                    className={`absolute ${isShortEvent ? 'top-0.5 right-[2.2rem]' : 'top-1 right-[2.2rem]'} opacity-0 group-hover:opacity-100 z-50 p-1 text-gray-500 hover:text-indigo-600 transition-colors`}
+                    className={`absolute ${isShortEvent ? 'top-0.5 right-[2.2rem]' : 'top-1 right-[2.2rem]'} opacity-0 group-hover:opacity-100 z-50 p-1 text-t2-ink-2 hover:text-indigo-600 transition-colors`}
                 >
                     <Layers size={isShortEvent ? 12 : 14} />
                 </button>
@@ -665,7 +665,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     if (onEventShare) onEventShare(e, event.id);
                 }}
                 title="Share Event"
-                className={`absolute ${isShortEvent ? 'top-0.5 right-5' : 'top-1 right-5'} opacity-0 group-hover:opacity-100 z-50 p-0.5 text-gray-400 hover:text-blue-500 transition-colors`}
+                className={`absolute ${isShortEvent ? 'top-0.5 right-5' : 'top-1 right-5'} opacity-0 group-hover:opacity-100 z-50 p-0.5 text-t2-ink-3 hover:text-blue-500 transition-colors`}
             >
                 <svg xmlns="http://www.w3.org/2000/svg" width={isShortEvent ? 11 : 13} height={isShortEvent ? 11 : 13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
             </button>
@@ -674,7 +674,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     e.stopPropagation();
                     onEventDelete?.(event.id);
                 }}
-                className={`absolute ${isShortEvent ? 'top-0.5 right-1' : 'top-1 right-1'} opacity-0 group-hover:opacity-100 z-50 p-0.5 text-gray-400 hover:text-red-500 transition-colors`}
+                className={`absolute ${isShortEvent ? 'top-0.5 right-1' : 'top-1 right-1'} opacity-0 group-hover:opacity-100 z-50 p-0.5 text-t2-ink-3 hover:text-red-500 transition-colors`}
             >
                 <svg xmlns="http://www.w3.org/2000/svg" width={isShortEvent ? 12 : 14} height={isShortEvent ? 12 : 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
@@ -810,7 +810,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 {isShared && durationMinutes >= 35 && (
                     <div className="mt-1 mb-0.5 flex items-center relative z-[90]">
                         <span 
-                            className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-black/10 dark:bg-white/15 border border-black/10 dark:border-white/20 text-current opacity-90 truncate max-w-full"
+                            className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-t2-hover  border border-t2-line  text-current opacity-90 truncate max-w-full"
                             title={attributionText}
                         >
                             <Users size={9} className="shrink-0 opacity-80" />

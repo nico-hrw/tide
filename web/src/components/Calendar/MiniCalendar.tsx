@@ -85,33 +85,33 @@ export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, ev
                     else if (dx > 30) prevMonth();
                 }}
             >
-                <span className="text-[13px] font-semibold text-neutral-800 dark:text-zinc-100 cursor-ew-resize py-0.5" title="Wischen oder Scrollen zum Wechseln">
+                <span className="text-[13px] font-semibold text-t2-ink  cursor-ew-resize py-0.5" title="Wischen oder Scrollen zum Wechseln">
                     {format(displayDate, "MMMM yyyy", { locale: de })}
                 </span>
                 <div className="flex gap-1">
                     <button
                         onClick={(e) => { e.stopPropagation(); prevMonth(); }}
-                        className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
+                        className="p-1 hover:bg-t2-hover  rounded-full transition-colors"
                         title="Vorheriger Monat"
                     >
-                        <ChevronLeft size={13} className="text-neutral-600 dark:text-zinc-400 hover:text-neutral-900 dark:hover:text-white" />
+                        <ChevronLeft size={13} className="text-t2-ink-2  hover:text-t2-ink " />
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); nextMonth(); }}
-                        className="p-1 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors"
+                        className="p-1 hover:bg-t2-hover  rounded-full transition-colors"
                         title="Nächster Monat"
                     >
-                        <ChevronRight size={13} className="text-neutral-600 dark:text-zinc-400 hover:text-neutral-900 dark:hover:text-white" />
+                        <ChevronRight size={13} className="text-t2-ink-2  hover:text-t2-ink " />
                     </button>
                 </div>
             </div>
 
             {/* Subtle divider line */}
-            <div className="h-px bg-black/[0.06] dark:bg-white/[0.08] mb-2" />
+            <div className="h-px bg-t2-hover  mb-2" />
 
             <div className="grid grid-cols-7 gap-0.5 text-center mb-1">
                 {weekDays.map(day => (
-                    <div key={day} className="text-[9px] font-semibold text-neutral-500 dark:text-zinc-400 uppercase tracking-[0.5px]">
+                    <div key={day} className="text-[9px] font-semibold text-t2-ink-2  uppercase tracking-[0.5px]">
                         {day}
                     </div>
                 ))}
@@ -176,9 +176,9 @@ export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, ev
                             className += " opacity-70";
                         }
                     } else if (!isCurrentMonth) {
-                        className += " w-7 text-neutral-400 dark:text-zinc-500 font-medium rounded-full hover:bg-black/5 dark:hover:bg-white/10";
+                        className += " w-7 text-t2-ink-3  font-medium rounded-full hover:bg-t2-hover ";
                     } else {
-                        className += " w-7 text-neutral-800 dark:text-zinc-100 font-medium rounded-full hover:bg-black/5 dark:hover:bg-white/10";
+                        className += " w-7 text-t2-ink  font-medium rounded-full hover:bg-t2-hover ";
                     }
 
                     return (

@@ -220,16 +220,16 @@ export default function EventPreview({
     if (isMinimized) {
         return (
             <div
-                className="w-[200px] h-[40px] bg-white dark:bg-gray-800 rounded-t-xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] border border-b-0 border-gray-200 dark:border-gray-700 flex items-center justify-between px-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                className="w-[200px] h-[40px] bg-t2-surface  rounded-t-xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)] border border-b-0 border-t2-line  flex items-center justify-between px-3 cursor-pointer hover:bg-t2-sub  transition-colors"
                 onClick={onMaximize}
             >
                 <div className="flex items-center gap-2 truncate">
                     <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: theme.bg }} />
                     {isShared && <Users size={12} className="text-indigo-500 shrink-0" />}
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{title}</span>
+                    <span className="text-sm font-medium text-t2-ink  truncate">{title}</span>
                 </div>
                 <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-gray-400 hover:text-gray-600">
+                    <button onClick={onClose} className="p-1 hover:bg-t2-stage  rounded-full text-t2-ink-3 hover:text-t2-ink-2">
                         <X size={12} />
                     </button>
                 </div>
@@ -238,10 +238,10 @@ export default function EventPreview({
     }
 
     return (
-        <div className="w-[320px] bg-white dark:bg-gray-800 rounded-t-2xl shadow-[0_-8px_30px_rgba(0,0,0,0.15)] border border-b-0 border-gray-200 dark:border-gray-700 flex flex-col animate-in slide-in-from-bottom-10 duration-300 relative overflow-hidden">
+        <div className="w-[320px] bg-t2-surface  rounded-t-2xl shadow-[0_-8px_30px_rgba(0,0,0,0.15)] border border-b-0 border-t2-line  flex flex-col animate-in slide-in-from-bottom-10 duration-300 relative overflow-hidden">
 
             {/* Colored Header Bar (Title + Controls) */}
-            <div className="p-4 flex items-start justify-between gap-2 border-b border-black/5" style={{ backgroundColor: theme.bg, color: theme.text }}>
+            <div className="p-4 flex items-start justify-between gap-2 border-b border-t2-line" style={{ backgroundColor: theme.bg, color: theme.text }}>
                 <div className="flex-1 min-w-0">
                     <input
                         autoFocus
@@ -263,7 +263,7 @@ export default function EventPreview({
                 <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                         onClick={onPin}
-                        className={`p-1.5 rounded-lg transition-colors ${isPinned ? 'bg-black/10' : 'opacity-70 hover:bg-black/10 hover:opacity-100'}`}
+                        className={`p-1.5 rounded-lg transition-colors ${isPinned ? 'bg-t2-hover' : 'opacity-70 hover:bg-t2-hover hover:opacity-100'}`}
                         title={isPinned ? "Unpin" : "Pin"}
                     >
                         <Pin size={14} className={isPinned ? "fill-current" : ""} />
@@ -271,7 +271,7 @@ export default function EventPreview({
                     {onShare && (
                         <button
                             onClick={(e) => onShare(e, event.id)}
-                            className="p-1.5 opacity-70 hover:opacity-100 hover:bg-black/10 rounded-lg transition-colors"
+                            className="p-1.5 opacity-70 hover:opacity-100 hover:bg-t2-hover rounded-lg transition-colors"
                             title="Share Event"
                         >
                             <Share2 size={14} />
@@ -279,14 +279,14 @@ export default function EventPreview({
                     )}
                     <button
                         onClick={onMinimize}
-                        className="p-1.5 opacity-70 hover:opacity-100 hover:bg-black/10 rounded-lg transition-colors"
+                        className="p-1.5 opacity-70 hover:opacity-100 hover:bg-t2-hover rounded-lg transition-colors"
                         title="Minimize"
                     >
                         <Minus size={14} />
                     </button>
                     <button
                         onClick={onClose}
-                        className="p-1.5 opacity-70 hover:opacity-100 hover:bg-black/10 rounded-lg transition-colors"
+                        className="p-1.5 opacity-70 hover:opacity-100 hover:bg-t2-hover rounded-lg transition-colors"
                         title="Close"
                     >
                         <X size={14} />
@@ -305,7 +305,7 @@ export default function EventPreview({
                 )}
 
                 {/* Time Display */}
-                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/50 p-2 rounded-lg">
+                <div className="flex items-center gap-2 text-sm text-t2-ink-2  bg-t2-sub  p-2 rounded-lg">
                     <Calendar size={14} />
                     <span>
                         {new Date(event.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(event.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -313,10 +313,10 @@ export default function EventPreview({
                 </div>
 
                 {/* Theme Selector */}
-                <div className="relative group flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 bg-transparent px-2">
+                <div className="relative group flex items-center gap-2 text-sm text-t2-ink-2  bg-transparent px-2">
                     <Folder size={14} className="flex-shrink-0" />
                     <select
-                        className="flex-1 bg-transparent border-none py-1 appearance-none focus:ring-0 outline-none cursor-pointer text-gray-700 dark:text-gray-300"
+                        className="flex-1 bg-transparent border-none py-1 appearance-none focus:ring-0 outline-none cursor-pointer text-t2-ink "
                         value={selectedThemeId || ""}
                         onChange={(e) => {
                             const newVal = e.target.value || null;
@@ -349,7 +349,7 @@ export default function EventPreview({
 
                 {/* Shading */}
                 <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400 font-semibold w-16 shrink-0">Shading</span>
+                    <span className="text-xs text-t2-ink-3 font-semibold w-16 shrink-0">Shading</span>
                     <div className="flex items-center gap-1.5">
                         {[0, 1, 2, 3, 4].map(level => (
                             <button
@@ -367,7 +367,7 @@ export default function EventPreview({
                                     borderColor: level === 0 ? '#d1d5db' : `rgba(90,90,90,${0.3 + level * 0.15})`
                                 }}
                             >
-                                {level === 0 && <span className="text-[8px] text-gray-400 leading-none flex items-center justify-center w-full h-full">✕</span>}
+                                {level === 0 && <span className="text-[8px] text-t2-ink-3 leading-none flex items-center justify-center w-full h-full">✕</span>}
                             </button>
                         ))}
                     </div>
@@ -375,7 +375,7 @@ export default function EventPreview({
 
                 {/* Hints / Tags */}
                 <div className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-400 font-semibold">Hinweise</span>
+                    <span className="text-xs text-t2-ink-3 font-semibold">Hinweise</span>
                     {[0, 1, 2].map(idx => (
                         <input
                             key={idx}
@@ -388,7 +388,7 @@ export default function EventPreview({
                                 scheduleSave();
                             }}
                             placeholder={`Hinweis ${idx + 1}...`}
-                            className="w-full bg-transparent border border-dashed border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-indigo-400 text-gray-700 dark:text-gray-300 placeholder:text-gray-300 dark:placeholder:text-gray-600"
+                            className="w-full bg-transparent border border-dashed border-t2-line  rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-indigo-400 text-t2-ink  placeholder:text-t2-ink-3 "
                         />
                     ))}
                 </div>
@@ -406,10 +406,10 @@ export default function EventPreview({
                             onChange={handleDescriptionChange}
                             onBlur={() => { setIsDescFocused(false); }}
                             placeholder="Add details..."
-                            className="w-full h-full bg-transparent border-none p-0 text-sm px-2 focus:ring-0 outline-none text-gray-700 dark:text-gray-300 resize-none placeholder:text-gray-400 leading-relaxed"
+                            className="w-full h-full bg-transparent border-none p-0 text-sm px-2 focus:ring-0 outline-none text-t2-ink  resize-none placeholder:text-t2-ink-3 leading-relaxed"
                         />
                     ) : (
-                        <div className="w-full h-full text-sm px-2 text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap cursor-text">
+                        <div className="w-full h-full text-sm px-2 text-t2-ink  leading-relaxed whitespace-pre-wrap cursor-text">
                             {description.split(/(\[[^\[\]]+\]\(tide:\/\/[^/]+\/[^)]+\))/g).map((part, i) => {
                                 const match = part.match(/\[([^\[\]]+)\]\(tide:\/\/([^/]+)\/([^)]+)\)/);
                                 if (match) {

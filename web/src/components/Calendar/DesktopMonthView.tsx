@@ -72,14 +72,14 @@ export default function DesktopMonthView({
 
     return (
         <div className="flex-1 flex flex-col h-full select-none overflow-hidden bg-transparent p-3 sm:p-4">
-            <div className="flex-1 flex flex-col rounded-2xl border-2 border-gray-300 dark:border-slate-700 overflow-hidden shadow-md bg-gray-100/90 dark:bg-slate-950">
+            <div className="flex-1 flex flex-col rounded-2xl border-2 border-t2-line  overflow-hidden shadow-md bg-t2-hover ">
                 {/* Weekday Header */}
-                <div className="grid grid-cols-7 border-b border-gray-200/90 dark:border-slate-800 bg-white dark:bg-slate-900 z-10 px-2">
+                <div className="grid grid-cols-7 border-b border-t2-line  bg-t2-surface  z-10 px-2">
                     {weekdays.map((wd, i) => (
                         <div
                             key={wd}
                             className={`py-2 text-center text-xs font-bold uppercase tracking-wider ${
-                                (wd === "Sa" || wd === "So") ? "text-gray-400 dark:text-gray-500" : "text-gray-700 dark:text-gray-300"
+                                (wd === "Sa" || wd === "So") ? "text-t2-ink-3 " : "text-t2-ink "
                             }`}
                         >
                             {wd}
@@ -116,8 +116,8 @@ export default function DesktopMonthView({
                                     isTod
                                         ? "rounded-xl bg-blue-50/90 dark:bg-blue-950/40 border-2 border-blue-500/80 dark:border-blue-400 shadow-xs hover:border-blue-600 dark:hover:border-blue-300 z-[2]"
                                         : isCurMonth
-                                        ? "rounded-xl bg-white dark:bg-slate-900 border border-gray-200/90 dark:border-slate-800 shadow-xs hover:border-gray-300 dark:hover:border-slate-700"
-                                        : "rounded-xl bg-gray-50 dark:bg-slate-950 border border-gray-200/60 dark:border-slate-900 text-gray-400 dark:text-gray-600 hover:border-gray-300 dark:hover:border-slate-800"
+                                        ? "rounded-xl bg-t2-surface  border border-t2-line  shadow-xs hover:border-t2-line "
+                                        : "rounded-xl bg-t2-sub  border border-t2-line  text-t2-ink-3  hover:border-t2-line "
                                 }`}
                             >
                                 {/* Cell Header: Date Number + Holiday + Quick Add */}
@@ -128,8 +128,8 @@ export default function DesktopMonthView({
                                                 isTod
                                                     ? "w-6 h-6 rounded-full bg-blue-600 text-white shadow-sm ring-2 ring-blue-400/40"
                                                     : isCurMonth
-                                                    ? "text-gray-800 dark:text-gray-200 group-hover:scale-105"
-                                                    : "text-gray-400 dark:text-gray-500"
+                                                    ? "text-t2-ink  group-hover:scale-105"
+                                                    : "text-t2-ink-3 "
                                             }`}
                                         >
                                             {format(day, "d")}
@@ -152,7 +152,7 @@ export default function DesktopMonthView({
                                 <button
                                     onClick={(e) => handleCreateOnDay(e, day)}
                                     title="Termin hinzufügen"
-                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-full transition-opacity text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-white"
+                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-t2-hover  rounded-full transition-opacity text-t2-ink-2  hover:text-t2-ink "
                                 >
                                     <Plus size={13} strokeWidth={2.5} />
                                 </button>
@@ -166,10 +166,10 @@ export default function DesktopMonthView({
                                             e.stopPropagation();
                                             onDayClick(day);
                                         }}
-                                        className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 shadow-xs ${
+                                        className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-t2-hover  hover:bg-t2-stage  shadow-xs ${
                                             allCompleted
-                                                ? "border-emerald-500 text-gray-500 dark:text-gray-400"
-                                                : "border-blue-500 text-gray-800 dark:text-gray-200"
+                                                ? "border-emerald-500 text-t2-ink-2 "
+                                                : "border-blue-500 text-t2-ink "
                                         }`}
                                         title={`Todos: ${tasks.length}`}
                                     >
@@ -181,7 +181,7 @@ export default function DesktopMonthView({
                                                     tasks.forEach((t) => onTaskToggle(t.id, !allCompleted));
                                                 }
                                             }}
-                                            className="shrink-0 p-0.5 -m-0.5 rounded hover:bg-gray-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center"
+                                            className="shrink-0 p-0.5 -m-0.5 rounded hover:bg-t2-stage  transition-colors flex items-center justify-center"
                                             title={allCompleted ? "Todos als unerledigt markieren" : "Alle Todos als erledigt markieren"}
                                         >
                                             {allCompleted ? (
@@ -218,18 +218,18 @@ export default function DesktopMonthView({
                                             style={{
                                                 borderLeftColor: eventColor,
                                             }}
-                                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 shadow-xs ${
+                                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-t2-hover  hover:bg-t2-stage  shadow-xs ${
                                                 isCancelled ? "opacity-50 line-through" : ""
                                             } ${isCompleted ? "opacity-60" : ""}`}
                                             title={`${ev.title}${isTimed ? ` (${format(new Date(ev.start), "HH:mm")})` : ""}`}
                                         >
                                             {isTimed && (
-                                                <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 shrink-0">
+                                                <span className="text-[10px] font-semibold text-t2-ink-2  shrink-0">
                                                     {format(new Date(ev.start), "HH:mm")}
                                                 </span>
                                             )}
                                             <span
-                                                className={`truncate text-gray-800 dark:text-gray-200 ${
+                                                className={`truncate text-t2-ink  ${
                                                     isCompleted ? "line-through" : ""
                                                 }`}
                                             >

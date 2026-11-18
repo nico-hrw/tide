@@ -45,7 +45,7 @@ function ModernDropdown({
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between bg-gray-50/80 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl px-2.5 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-all text-left"
+                className="w-full flex items-center justify-between bg-t2-sub  border border-t2-line-soft  rounded-xl px-2.5 py-1.5 text-xs font-bold text-t2-ink  hover:bg-t2-hover  transition-all text-left"
             >
                 <div className="flex items-center gap-1.5 truncate">
                     {selectedOption?.color && (
@@ -53,11 +53,11 @@ function ModernDropdown({
                     )}
                     <span className="truncate">{selectedOption?.label || placeholder}</span>
                 </div>
-                <ChevronDown size={11} className={`text-gray-400 shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
+                <ChevronDown size={11} className={`text-t2-ink-3 shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
             </button>
 
             {open && (
-                <div className="absolute top-full mt-1 left-0 right-0 z-[1050] bg-white dark:bg-[#222222] border border-gray-100 dark:border-white/10 rounded-xl shadow-xl p-1 flex flex-col gap-0.5 max-h-48 overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-100">
+                <div className="absolute top-full mt-1 left-0 right-0 z-[1050] bg-t2-surface dark:bg-[#222222] border border-t2-line-soft  rounded-xl shadow-xl p-1 flex flex-col gap-0.5 max-h-48 overflow-y-auto animate-in fade-in-50 zoom-in-95 duration-100">
                     {options.map(opt => {
                         const isSelected = opt.value === value;
                         return (
@@ -71,7 +71,7 @@ function ModernDropdown({
                                 className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors text-left ${
                                     isSelected
                                         ? 'bg-violet-50 dark:bg-violet-500/20 text-violet-600 dark:text-violet-300'
-                                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5'
+                                        : 'text-t2-ink  hover:bg-t2-sub '
                                 }`}
                             >
                                 <div className="flex items-center gap-1.5 truncate">
@@ -299,7 +299,7 @@ export default function EventPopover({
         <div
             id="active-event-popover"
             ref={popoverRef}
-            className="fixed z-[1000] w-[320px] bg-white dark:bg-[#1C1C1C] rounded-3xl shadow-2xl border border-gray-100 dark:border-white/10 p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150"
+            className="fixed z-[1000] w-[320px] bg-t2-surface dark:bg-[#1C1C1C] rounded-3xl shadow-2xl border border-t2-line-soft  p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150"
             style={{ top: `${pos.top}px`, left: `${pos.left}px` }}
         >
             {/* ── Header ── */}
@@ -316,7 +316,7 @@ export default function EventPopover({
                     onChange={(e) => setTitle(e.target.value)}
                     onBlur={() => handleSave()}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
-                    className={`flex-1 text-sm font-bold bg-transparent border-none focus:ring-0 p-0 outline-none placeholder:text-gray-400 transition-all ${isCancelled ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}
+                    className={`flex-1 text-sm font-bold bg-transparent border-none focus:ring-0 p-0 outline-none placeholder:text-t2-ink-3 transition-all ${isCancelled ? 'line-through text-t2-ink-3 ' : 'text-t2-ink '}`}
                     placeholder="Was passiert?"
                 />
                 {/* Wichtig Toggle (Icon only) */}
@@ -326,7 +326,7 @@ export default function EventPopover({
                     className={`p-1.5 rounded-full transition-all ${
                         isImportant
                             ? 'text-amber-500 bg-amber-50 dark:bg-amber-500/20 ring-1 ring-amber-400/40 shadow-xs'
-                            : 'text-gray-300 hover:text-amber-500 hover:bg-gray-100 dark:hover:bg-white/10'
+                            : 'text-t2-ink-3 hover:text-amber-500 hover:bg-t2-hover '
                     }`}
                     title={isImportant ? 'Wichtig entfernen' : 'Als wichtig markieren'}
                 >
@@ -339,7 +339,7 @@ export default function EventPopover({
                     className={`p-1.5 rounded-full transition-all ${
                         isCancelled
                             ? 'text-red-600 bg-red-100 dark:bg-red-500/25 ring-1 ring-red-400/50 shadow-xs font-bold'
-                            : 'text-gray-300 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-white/10'
+                            : 'text-t2-ink-3 hover:text-red-500 hover:bg-t2-hover '
                     }`}
                     title={isCancelled ? (isOccurrence ? 'Absage für diesen Tag aufheben' : 'Absage rückgängig') : (isOccurrence ? 'Diesen Termin absagen' : 'Termin absagen')}
                 >
@@ -349,7 +349,7 @@ export default function EventPopover({
                 <button
                     type="button"
                     onClick={() => { onEventDelete?.(event.id); }}
-                    className="p-1.5 rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all"
+                    className="p-1.5 rounded-full text-t2-ink-3 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-all"
                     title="Löschen"
                 >
                     <Trash2 size={14} />
@@ -358,7 +358,7 @@ export default function EventPopover({
                 <button 
                     type="button"
                     onClick={handleClose} 
-                    className="p-1.5 rounded-full text-gray-300 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
+                    className="p-1.5 rounded-full text-t2-ink-3 hover:text-t2-ink-2  hover:bg-t2-hover  transition-all"
                     title="Schließen"
                 >
                     <X size={14} />
@@ -367,7 +367,7 @@ export default function EventPopover({
 
             {/* Color picker */}
             {showColorPicker && (
-                <div className="bg-gray-50 dark:bg-black/20 p-3 rounded-2xl flex flex-wrap gap-2 animate-in slide-in-from-top-2 duration-150">
+                <div className="bg-t2-sub  p-3 rounded-2xl flex flex-wrap gap-2 animate-in slide-in-from-top-2 duration-150">
                     {['#ef4444','#f97316','#f59e0b','#10b981','#06b6d4','#3b82f6','#6366f1','#8b5cf6','#d946ef','#ec4899','#64748b'].map(c => (
                         <button
                             key={c}
@@ -390,9 +390,9 @@ export default function EventPopover({
             )}
 
             {/* Time & Date */}
-            <div className="flex items-center justify-between bg-gray-50/70 dark:bg-white/5 rounded-xl px-3 py-2 border border-gray-100/50 dark:border-white/5">
+            <div className="flex items-center justify-between bg-t2-sub  rounded-xl px-3 py-2 border border-t2-line-soft ">
                 <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                    <span className="text-xs font-semibold text-t2-ink ">
                         {(() => {
                             try {
                                 return event.start ? format(new Date(event.start), "d. MMM yyyy") : "";
@@ -407,16 +407,16 @@ export default function EventPopover({
                         </span>
                     )}
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                <div className="flex items-center gap-1.5 text-xs text-t2-ink-2 ">
                     {event.allDay ? (
-                        <span className="font-bold uppercase tracking-wider text-[10px] bg-gray-200/80 dark:bg-white/10 px-2 py-0.5 rounded-full">Ganztägig</span>
+                        <span className="font-bold uppercase tracking-wider text-[10px] bg-t2-stage  px-2 py-0.5 rounded-full">Ganztägig</span>
                     ) : (
                         <>
-                            <Clock size={12} className="text-gray-400 dark:text-gray-500" />
+                            <Clock size={12} className="text-t2-ink-3 " />
                             <span className="font-medium">{format(new Date(event.start), "HH:mm")}</span>
-                            <span className="text-gray-300 dark:text-gray-600">→</span>
+                            <span className="text-t2-ink-3 ">→</span>
                             <span className="font-medium">{format(new Date(event.end), "HH:mm")}</span>
-                            <span className="text-[10px] text-gray-500 dark:text-gray-400 bg-gray-200/70 dark:bg-white/10 px-1.5 py-0.5 rounded-full font-bold ml-0.5">
+                            <span className="text-[10px] text-t2-ink-2  bg-t2-stage  px-1.5 py-0.5 rounded-full font-bold ml-0.5">
                                 {(() => { const m = Math.round((new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000); return m >= 60 ? `${Math.floor(m / 60)}h${m % 60 > 0 ? ` ${m % 60}m` : ''}` : `${m}m`; })()}
                             </span>
                         </>
@@ -429,15 +429,15 @@ export default function EventPopover({
                 {/* Groups / Tags */}
                 <div className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between px-1">
-                        <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Gruppen / Tags</span>
+                        <span className="text-[9px] font-bold text-t2-ink-3 uppercase tracking-widest">Gruppen / Tags</span>
                         {selectedGroupIds.length > 1 && (
-                            <span className="text-[9px] text-gray-400 dark:text-gray-500 font-medium">1. Tag = Stil</span>
+                            <span className="text-[9px] text-t2-ink-3  font-medium">1. Tag = Stil</span>
                         )}
                     </div>
 
                     {/* Chips */}
                     {selectedGroupIds.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5 p-1.5 bg-gray-50/70 dark:bg-white/5 rounded-xl border border-gray-100/60 dark:border-white/5">
+                        <div className="flex flex-wrap gap-1.5 p-1.5 bg-t2-sub  rounded-xl border border-t2-line-soft ">
                             {selectedGroupIds.map((id, index) => {
                                 const theme = themes.find(t => t.id === id);
                                 const isPrimary = index === 0;
@@ -447,7 +447,7 @@ export default function EventPopover({
                                         className={`flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg text-xs font-semibold border transition-all ${
                                             isPrimary
                                                 ? 'bg-violet-50 dark:bg-violet-500/15 border-violet-200 dark:border-violet-500/30 text-violet-700 dark:text-violet-300'
-                                                : 'bg-white dark:bg-white/10 border-gray-200/60 dark:border-white/10 text-gray-700 dark:text-gray-300'
+                                                : 'bg-t2-surface  border-t2-line  text-t2-ink '
                                         }`}
                                     >
                                         <span
@@ -471,7 +471,7 @@ export default function EventPopover({
                                                     const next = [id, ...selectedGroupIds.filter(gId => gId !== id)];
                                                     updateGroupIds(next);
                                                 }}
-                                                className="text-[9px] text-gray-400 hover:text-violet-600 dark:hover:text-violet-300 hover:bg-gray-100 dark:hover:bg-white/10 px-1 py-0.5 rounded font-medium transition-colors"
+                                                className="text-[9px] text-t2-ink-3 hover:text-violet-600 dark:hover:text-violet-300 hover:bg-t2-hover  px-1 py-0.5 rounded font-medium transition-colors"
                                                 title="Als Stil / Hauptgruppe festlegen"
                                             >
                                                 ↑ Stil
@@ -483,7 +483,7 @@ export default function EventPopover({
                                                 const next = selectedGroupIds.filter(gId => gId !== id);
                                                 updateGroupIds(next);
                                             }}
-                                            className="text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20 p-0.5 rounded transition-colors"
+                                            className="text-t2-ink-3 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20 p-0.5 rounded transition-colors"
                                             title="Gruppe entfernen"
                                         >
                                             <X size={11} />
@@ -493,7 +493,7 @@ export default function EventPopover({
                             })}
                         </div>
                     ) : (
-                        <div className="text-[11px] text-gray-400 dark:text-gray-500 italic px-1">
+                        <div className="text-[11px] text-t2-ink-3  italic px-1">
                             Keine Gruppen zugeordnet
                         </div>
                     )}
@@ -516,7 +516,7 @@ export default function EventPopover({
 
                 {/* Wiederholen */}
                 <div className="flex flex-col gap-1">
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest px-1">Wiederholen</span>
+                    <span className="text-[9px] font-bold text-t2-ink-3 uppercase tracking-widest px-1">Wiederholen</span>
                     <ModernDropdown
                         value={freq}
                         options={[
@@ -532,7 +532,7 @@ export default function EventPopover({
                 </div>
             </div>
             {freq !== 'none' && (
-                <div className="flex items-center justify-between px-1 -mt-1 text-[11px] text-gray-500 dark:text-gray-400 font-medium">
+                <div className="flex items-center justify-between px-1 -mt-1 text-[11px] text-t2-ink-2  font-medium">
                     <span>Intervall:</span>
                     <div className="flex items-center gap-1.5">
                         <span>Alle</span>
@@ -546,7 +546,7 @@ export default function EventPopover({
                                 if (isNaN(v) || v < 1) v = 1; 
                                 updateRecurrence(freq, v); 
                             }}
-                            className="w-8 text-center bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-md py-0.5 text-xs font-bold text-violet-500 font-mono outline-none focus:ring-1 focus:ring-violet-500" 
+                            className="w-8 text-center bg-t2-sub  border border-t2-line  rounded-md py-0.5 text-xs font-bold text-violet-500 font-mono outline-none focus:ring-1 focus:ring-violet-500" 
                         />
                         <span>{freq === 'daily' ? 'Tag(e)' : freq === 'weekly' ? 'Woche(n)' : freq === 'monthly' ? 'Monat(e)' : 'Jahr(e)'}</span>
                     </div>
@@ -554,7 +554,7 @@ export default function EventPopover({
             )}
             {freq !== 'none' && (
                 <div className="flex flex-col gap-1 -mt-0.5">
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest px-1">Endet am (Optional)</span>
+                    <span className="text-[9px] font-bold text-t2-ink-3 uppercase tracking-widest px-1">Endet am (Optional)</span>
                     <div className="relative flex items-center">
                         <input 
                             type="date"
@@ -569,13 +569,13 @@ export default function EventPopover({
                                 }
                             }}
                             onBlur={() => handleSave()}
-                            className="bg-gray-50/80 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl px-2.5 py-1.5 text-xs font-bold text-gray-700 dark:text-gray-300 outline-none w-full [color-scheme:light_dark] cursor-pointer hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                            className="bg-t2-sub  border border-t2-line-soft  rounded-xl px-2.5 py-1.5 text-xs font-bold text-t2-ink  outline-none w-full [color-scheme:light_dark] cursor-pointer hover:bg-t2-hover  transition-colors"
                         />
                         {recurrenceEnd && (
                             <button
                                 type="button"
                                 onClick={() => { setRecurrenceEnd(''); handleSave(); }}
-                                className="absolute right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-0.5 rounded-full"
+                                className="absolute right-2 text-t2-ink-3 hover:text-t2-ink-2  p-0.5 rounded-full"
                                 title="Datum löschen"
                             >
                                 <X size={12} />
@@ -592,15 +592,15 @@ export default function EventPopover({
                 onBlur={() => handleSave()}
                 placeholder="Notizen hinzufügen…"
                 rows={2}
-                className="w-full bg-transparent border border-gray-100 dark:border-white/5 rounded-2xl p-3 text-xs leading-relaxed text-gray-600 dark:text-gray-400 focus:ring-1 focus:ring-violet-500/20 outline-none resize-none transition-all placeholder:text-gray-300 dark:placeholder:text-gray-700"
+                className="w-full bg-transparent border border-t2-line-soft  rounded-2xl p-3 text-xs leading-relaxed text-t2-ink-2  focus:ring-1 focus:ring-violet-500/20 outline-none resize-none transition-all placeholder:text-t2-ink-3 "
             />
 
             {/* ── Expand toggle ── */}
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="flex items-center justify-center gap-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 transition-colors group"
+                className="flex items-center justify-center gap-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-t2-ink-3  hover:text-t2-ink-2  transition-colors group"
             >
-                <div className="flex-1 h-px bg-gray-100 dark:bg-white/5" />
+                <div className="flex-1 h-px bg-t2-hover " />
                 <span className="flex items-center gap-1.5">
                     <svg
                         width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
@@ -610,7 +610,7 @@ export default function EventPopover({
                     </svg>
                     {isExpanded ? 'Weniger' : 'Mehr'}
                 </span>
-                <div className="flex-1 h-px bg-gray-100 dark:bg-white/5" />
+                <div className="flex-1 h-px bg-t2-hover " />
             </button>
 
             {/* ── Expanded section ── */}
@@ -619,10 +619,10 @@ export default function EventPopover({
                     {/* Hints / Tags */}
                     <div className="flex flex-col gap-1.5">
                         <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Hinweise</span>
+                            <span className="text-[9px] font-bold text-t2-ink-3 uppercase tracking-widest">Hinweise</span>
                             <button
                                 onClick={() => setShowHints(!showHints)}
-                                className="w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 dark:bg-white/10 text-gray-500 hover:bg-gray-200 dark:hover:bg-white/20 transition-all"
+                                className="w-5 h-5 flex items-center justify-center rounded-full bg-t2-hover  text-t2-ink-2 hover:bg-t2-stage  transition-all"
                                 title="Hinweise"
                             >
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -634,7 +634,7 @@ export default function EventPopover({
                         {!showHints && existingTags.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                                 {existingTags.map((tag, i) => (
-                                    <span key={i} className="text-[10px] bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-full font-medium">{tag}</span>
+                                    <span key={i} className="text-[10px] bg-t2-hover  text-t2-ink-2  px-2 py-0.5 rounded-full font-medium">{tag}</span>
                                 ))}
                             </div>
                         )}
@@ -648,7 +648,7 @@ export default function EventPopover({
                                         onChange={(e) => { const next = [...tags]; next[idx] = e.target.value; setTags(next); }}
                                         onBlur={() => handleSave()}
                                         placeholder={`Hinweis ${idx + 1}…`}
-                                        className="w-full bg-gray-50/50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-xl px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 focus:ring-1 focus:ring-violet-500/20 outline-none placeholder:text-gray-300 dark:placeholder:text-gray-700"
+                                        className="w-full bg-t2-sub  border border-t2-line-soft  rounded-xl px-3 py-1.5 text-xs text-t2-ink-2  focus:ring-1 focus:ring-violet-500/20 outline-none placeholder:text-t2-ink-3 "
                                     />
                                 ))}
                             </div>
@@ -656,32 +656,32 @@ export default function EventPopover({
                     </div>
 
                     {/* Convert to Task */}
-                    <div className="flex flex-col gap-1 border-t border-gray-50 dark:border-white/5 pt-2">
+                    <div className="flex flex-col gap-1 border-t border-t2-line-soft  pt-2">
                         <div
                             onClick={() => handleTaskToggle(!isTask)}
-                            className="flex items-center justify-between py-1.5 px-1 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group/row"
+                            className="flex items-center justify-between py-1.5 px-1 rounded-xl cursor-pointer hover:bg-t2-sub  transition-colors group/row"
                         >
                             <div className="flex items-center gap-2">
-                                <div className={`p-1.5 rounded-lg transition-colors ${isTask ? 'bg-violet-100 text-violet-600 dark:bg-violet-500/10' : 'bg-gray-100 text-gray-400 dark:bg-white/5 group-hover/row:bg-gray-200'}`}>
+                                <div className={`p-1.5 rounded-lg transition-colors ${isTask ? 'bg-violet-100 text-violet-600 dark:bg-violet-500/10' : 'bg-t2-hover text-t2-ink-3  group-hover/row:bg-t2-stage'}`}>
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
                                 </div>
-                                <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Als Aufgabe</span>
+                                <span className="text-xs font-bold text-t2-ink ">Als Aufgabe</span>
                             </div>
-                            <div className={`relative w-8 h-5 rounded-full transition-all duration-300 ${isTask ? 'bg-violet-500' : 'bg-gray-200 dark:bg-white/10'}`}>
-                                <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${isTask ? 'translate-x-3' : 'translate-x-0'}`} />
+                            <div className={`relative w-8 h-5 rounded-full transition-all duration-300 ${isTask ? 'bg-violet-500' : 'bg-t2-stage '}`}>
+                                <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-t2-surface shadow-sm transition-transform duration-300 ${isTask ? 'translate-x-3' : 'translate-x-0'}`} />
                             </div>
                         </div>
                         {isTask && (
                             <div
                                 onClick={() => setIsCompleted(!isCompleted)}
-                                className="flex items-center justify-between py-1.5 px-1 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group/row animate-in slide-in-from-top-1 duration-150"
+                                className="flex items-center justify-between py-1.5 px-1 rounded-xl cursor-pointer hover:bg-t2-sub  transition-colors group/row animate-in slide-in-from-top-1 duration-150"
                             >
                                 <div className="flex items-center gap-2">
                                     <div className={`w-1.5 h-1.5 rounded-full ${isCompleted ? 'bg-green-500' : 'bg-violet-400 animate-pulse'}`} />
-                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">Abgeschlossen</span>
+                                    <span className="text-xs font-bold text-t2-ink ">Abgeschlossen</span>
                                 </div>
-                                <div className={`relative w-8 h-5 rounded-full transition-all duration-300 ${isCompleted ? 'bg-green-500' : 'bg-gray-200 dark:bg-white/10'}`}>
-                                    <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-300 ${isCompleted ? 'translate-x-3' : 'translate-x-0'}`} />
+                                <div className={`relative w-8 h-5 rounded-full transition-all duration-300 ${isCompleted ? 'bg-green-500' : 'bg-t2-stage '}`}>
+                                    <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-t2-surface shadow-sm transition-transform duration-300 ${isCompleted ? 'translate-x-3' : 'translate-x-0'}`} />
                                 </div>
                             </div>
                         )}

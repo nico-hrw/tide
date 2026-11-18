@@ -47,7 +47,7 @@ export function CalendarToolbar({
     return (
         // position:relative + zIndex:500 creates a stacking context above
         // all sticky calendar elements (time col z-[160], day headers z-[150]).
-        <div className="flex flex-col bg-transparent border-b border-gray-200/60 dark:border-white/10" style={{ position: 'relative', zIndex: 500 }}>
+        <div className="flex flex-col bg-transparent border-b border-t2-line " style={{ position: 'relative', zIndex: 500 }}>
             <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                 <div className="flex items-center gap-2">
                     <h2 className="text-lg font-bold tracking-tight text-t2-ink sm:text-xl">
@@ -143,11 +143,11 @@ export function CalendarToolbar({
             </div>
 
             {/* Row 2 (Categories & Themes) */}
-            <div className="flex items-center gap-1.5 px-4 py-2 border-t border-gray-200/40 dark:border-white/5 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-1.5 px-4 py-2 border-t border-t2-line  overflow-x-auto scrollbar-none">
                 <button
                     type="button"
                     onClick={() => onSelectGroup(null)}
-                    className={`px-3 py-1 text-xs font-bold rounded-full shadow-sm cursor-pointer hover:opacity-90 transition-all flex items-center gap-1 shrink-0 ${!selectedGroupId ? 'bg-black dark:bg-white text-white dark:text-black' : 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300'}`}
+                    className={`px-3 py-1 text-xs font-bold rounded-full shadow-sm cursor-pointer hover:opacity-90 transition-all flex items-center gap-1 shrink-0 ${!selectedGroupId ? 'bg-t2-ink text-t2-bg' : 'bg-t2-hover  text-t2-ink-2 '}`}
                 >
                     {!selectedGroupId && (
                         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -159,7 +159,7 @@ export function CalendarToolbar({
                         type="button"
                         key={group.id}
                         onClick={() => onSelectGroup(group.id)}
-                        className={`px-3 py-1 text-xs font-semibold rounded-full cursor-pointer transition-all shrink-0 flex items-center gap-1.5 ${selectedGroupId === group.id ? 'bg-black dark:bg-white text-white dark:text-black font-bold shadow-sm' : 'bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-white/10 dark:hover:bg-white/15 dark:text-gray-300'}`}
+                        className={`px-3 py-1 text-xs font-semibold rounded-full cursor-pointer transition-all shrink-0 flex items-center gap-1.5 ${selectedGroupId === group.id ? 'bg-t2-ink text-t2-bg font-bold shadow-sm' : 'bg-t2-hover hover:bg-t2-stage text-t2-ink-2   '}`}
                     >
                         {group.color && (
                             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: group.color }} />

@@ -77,7 +77,7 @@ export default function DailySummary({
                     animate={{ scale: 1, opacity: 1, y: 0 }}
                     exit={{ scale: 0.8, opacity: 0, y: 50 }}
                     transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-                    className="relative w-full max-w-sm bg-white dark:bg-[#18181b] rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] overflow-hidden border border-[#e5e7eb] dark:border-zinc-800 p-8 flex flex-col items-center pointer-events-auto"
+                    className="relative w-full max-w-sm bg-t2-surface dark:bg-[#18181b] rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] overflow-hidden border border-[#e5e7eb] dark:border-zinc-800 p-8 flex flex-col items-center pointer-events-auto"
                 >
                     {/* Close Button */}
                     <button
@@ -109,7 +109,7 @@ export default function DailySummary({
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.3 }}
-                            className="text-5xl font-black text-gray-900 dark:text-white mb-2"
+                            className="text-5xl font-black text-t2-ink  mb-2"
                         >
                             {streak}
                         </motion.h2>
@@ -128,7 +128,7 @@ export default function DailySummary({
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         transition={{ delay: 0.5 }}
-                        className="bg-gray-50 dark:bg-white/5 p-4 rounded-2xl mb-8 text-center italic text-gray-600 dark:text-gray-300 w-full"
+                        className="bg-t2-sub  p-4 rounded-2xl mb-8 text-center italic text-t2-ink-2  w-full"
                     >
                         "{quote}"
                     </motion.div>
@@ -137,12 +137,12 @@ export default function DailySummary({
                     <div className="grid grid-cols-2 gap-4 w-full mb-8">
                         <div className="bg-blue-50 dark:bg-blue-500/10 p-4 rounded-3xl border border-blue-100 dark:border-blue-500/20 flex flex-col items-center gap-1">
                             <Calendar className="w-5 h-5 text-blue-500 mb-1" />
-                            <span className="text-lg font-bold text-gray-900 dark:text-white">{eventsToday}</span>
+                            <span className="text-lg font-bold text-t2-ink ">{eventsToday}</span>
                             <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tighter">Events Today</span>
                         </div>
                         <div className="bg-emerald-50 dark:bg-emerald-500/10 p-4 rounded-3xl border border-emerald-100 dark:border-emerald-500/20 flex flex-col items-center gap-1">
                             <CheckCircle2 className="w-5 h-5 text-emerald-500 mb-1" />
-                            <span className="text-lg font-bold text-gray-900 dark:text-white">{completedTasksToday}</span>
+                            <span className="text-lg font-bold text-t2-ink ">{completedTasksToday}</span>
                             <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter">Tasks Done</span>
                         </div>
                     </div>

@@ -420,7 +420,7 @@ export default function CalendarView({
                     style={{ zIndex: 490 }}
                 >
                     <button
-                        className="pointer-events-auto flex flex-col items-center gap-1 px-3 py-3 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-2xl shadow-xl hover:bg-gray-50 dark:hover:bg-slate-800 transition-all text-gray-800 dark:text-gray-200 group"
+                        className="pointer-events-auto flex flex-col items-center gap-1 px-3 py-3 bg-t2-surface  border border-t2-line  rounded-2xl shadow-xl hover:bg-t2-sub  transition-all text-t2-ink  group"
                         onClick={handleScrollToToday}
                         title="Zu heute"
                     >

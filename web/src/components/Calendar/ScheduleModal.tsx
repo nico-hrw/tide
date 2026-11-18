@@ -167,72 +167,72 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
             {/* Events List — first */}
             <div className="flex-1 overflow-y-auto p-6 space-y-3 max-h-[50vh]">
                 {events.map((event, index) => (
-                    <div key={event.id} className="group relative flex flex-col md:flex-row items-start md:items-center gap-3 bg-gray-50/50 dark:bg-[#151515] border border-gray-200 dark:border-slate-800/80 rounded-2xl p-3 pl-4 transition-all hover:border-gray-300 dark:hover:border-slate-700/80">
-                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gray-200 dark:bg-slate-800 rounded-l-2xl group-hover:bg-blue-400 dark:group-hover:bg-blue-600 transition-colors"></div>
+                    <div key={event.id} className="group relative flex flex-col md:flex-row items-start md:items-center gap-3 bg-t2-sub dark:bg-[#151515] border border-t2-line  rounded-2xl p-3 pl-4 transition-all hover:border-t2-line ">
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-t2-stage  rounded-l-2xl group-hover:bg-blue-400 dark:group-hover:bg-blue-600 transition-colors"></div>
 
-                        <span className="text-xs font-bold text-gray-400 w-5 shrink-0 select-none">{index + 1}.</span>
+                        <span className="text-xs font-bold text-t2-ink-3 w-5 shrink-0 select-none">{index + 1}.</span>
 
                         <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-4 gap-3">
                             <input
                                 type="text"
                                 placeholder="Event Title..."
                                 value={event.title}
-                                className="col-span-1 md:col-span-1 bg-white dark:bg-black/40 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-full"
+                                className="col-span-1 md:col-span-1 bg-t2-surface  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-full"
                                 onChange={(e) => updateEvent(event.id, { title: e.target.value })}
                             />
                             <input
                                 type="text"
                                 placeholder="Description (optional)"
                                 value={event.description}
-                                className="col-span-1 md:col-span-1 bg-transparent border border-dashed border-gray-300 dark:border-slate-700/50 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500/50 focus:bg-white dark:focus:bg-black/40 w-full"
+                                className="col-span-1 md:col-span-1 bg-transparent border border-dashed border-t2-line  rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500/50 focus:bg-t2-surface  w-full"
                                 onChange={(e) => updateEvent(event.id, { description: e.target.value })}
                             />
 
                             <div className="col-span-1 md:col-span-2 relative flex flex-col justify-end gap-2">
                                 <button
                                     onClick={() => setActiveDateSettings(activeDateSettings === event.id ? null : event.id)}
-                                    className="w-full flex items-center justify-between px-3 py-2 bg-white dark:bg-black/40 border border-gray-200 dark:border-slate-800 rounded-xl text-xs font-medium hover:bg-gray-50 focus:outline-none transition-colors border-dashed"
+                                    className="w-full flex items-center justify-between px-3 py-2 bg-t2-surface  border border-t2-line  rounded-xl text-xs font-medium hover:bg-t2-sub focus:outline-none transition-colors border-dashed"
                                 >
-                                    <span className="truncate text-gray-600 dark:text-gray-300">
+                                    <span className="truncate text-t2-ink-2 ">
                                         {event.dateOverride ? new Date(event.dateOverride).toLocaleDateString('de-DE', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Kein Datum'}
                                         {!event.allDay ? ` • ${event.startTime} - ${event.endTime}` : ' • Ganztags'}
                                         {event.recurrence !== 'none' && ` • Wiederholt: ${event.recurrence}`}
                                     </span>
-                                    <svg className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${activeDateSettings === event.id ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                    <svg className={`w-4 h-4 text-t2-ink-3 shrink-0 transition-transform ${activeDateSettings === event.id ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                 </button>
 
                                 {activeDateSettings === event.id && (
-                                    <div className="w-full bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-slate-700 rounded-2xl p-4 flex flex-col gap-3 transition-all">
-                                        <div className="flex justify-between items-center pb-2 border-b border-gray-100 dark:border-slate-800">
-                                            <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Zeit & Datum</span>
+                                    <div className="w-full bg-t2-surface dark:bg-[#1A1A1A] border border-t2-line  rounded-2xl p-4 flex flex-col gap-3 transition-all">
+                                        <div className="flex justify-between items-center pb-2 border-b border-t2-line-soft ">
+                                            <span className="text-xs font-bold text-t2-ink-2 uppercase tracking-widest">Zeit & Datum</span>
                                         </div>
 
-                                        <label className="flex flex-col gap-1 text-xs font-semibold text-gray-500">
+                                        <label className="flex flex-col gap-1 text-xs font-semibold text-t2-ink-2">
                                             Datum einstellen
                                             <input
                                                 type="date"
                                                 value={event.dateOverride || ''}
                                                 onChange={(e) => updateEvent(event.id, { dateOverride: e.target.value })}
-                                                className="mt-1 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                className="mt-1 bg-t2-sub  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             />
                                         </label>
 
-                                        <label className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-black/20 rounded-xl border border-gray-100 dark:border-slate-800 cursor-pointer">
+                                        <label className="flex items-center gap-2 p-2 bg-t2-sub  rounded-xl border border-t2-line-soft  cursor-pointer">
                                             <input
                                                 type="checkbox"
-                                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 accent-blue-500"
+                                                className="h-4 w-4 rounded border-t2-line text-blue-600 focus:ring-blue-500 accent-blue-500"
                                                 checked={event.allDay}
                                                 onChange={(e) => updateEvent(event.id, { allDay: e.target.checked })}
                                             />
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Ganztägig</span>
+                                            <span className="text-sm font-medium text-t2-ink ">Ganztägig</span>
                                         </label>
 
-                                        <label className="flex flex-col gap-1 text-xs font-semibold text-gray-500">
+                                        <label className="flex flex-col gap-1 text-xs font-semibold text-t2-ink-2">
                                             Wiederholung
                                             <select
                                                 value={event.recurrence}
                                                 onChange={(e) => updateEvent(event.id, { recurrence: e.target.value as any })}
-                                                className="mt-1 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                className="mt-1 bg-t2-sub  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             >
                                                 <option value="none">Nie</option>
                                                 <option value="daily">Täglich</option>
@@ -243,7 +243,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                         </label>
 
                                         {event.recurrence !== 'none' && (
-                                            <label className="flex flex-col gap-1 text-xs font-semibold text-gray-500">
+                                            <label className="flex flex-col gap-1 text-xs font-semibold text-t2-ink-2">
                                                 Endet am (Optional)
                                                 <input
                                                     type="date"
@@ -257,7 +257,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                                             updateEvent(event.id, { recurrenceEnd: undefined });
                                                         }
                                                     }}
-                                                    className="mt-1 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                    className="mt-1 bg-t2-sub  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
                                                 />
                                             </label>
                                         )}
@@ -268,14 +268,14 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                                     type="time"
                                                     value={event.startTime}
                                                     onChange={(e) => updateEvent(event.id, { startTime: e.target.value })}
-                                                    className="flex-1 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-slate-800 rounded-xl px-2 py-2 text-sm font-medium focus:outline-none text-center"
+                                                    className="flex-1 bg-t2-sub  border border-t2-line  rounded-xl px-2 py-2 text-sm font-medium focus:outline-none text-center"
                                                 />
-                                                <span className="text-gray-400 font-bold">-</span>
+                                                <span className="text-t2-ink-3 font-bold">-</span>
                                                 <input
                                                     type="time"
                                                     value={event.endTime}
                                                     onChange={(e) => updateEvent(event.id, { endTime: e.target.value })}
-                                                    className="flex-1 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-slate-800 rounded-xl px-2 py-2 text-sm font-medium focus:outline-none text-center"
+                                                    className="flex-1 bg-t2-sub  border border-t2-line  rounded-xl px-2 py-2 text-sm font-medium focus:outline-none text-center"
                                                 />
                                             </div>
                                         )}
@@ -287,7 +287,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                         <button
                             onClick={() => removeEvent(event.id)}
                             disabled={events.length === 1}
-                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors disabled:opacity-30 disabled:hover:bg-transparent shrink-0"
+                            className="p-2 text-t2-ink-3 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors disabled:opacity-30 disabled:hover:bg-transparent shrink-0"
                             title="Remove Event"
                         >
                             <Trash2 size={16} />
@@ -297,10 +297,10 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
             </div>
 
             {/* Add event + Apply */}
-            <div className="px-6 py-3 border-t border-gray-100 dark:border-slate-800/50 flex flex-col gap-2">
+            <div className="px-6 py-3 border-t border-t2-line-soft  flex flex-col gap-2">
                 <button
                     onClick={addEvent}
-                    className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 dark:border-slate-800 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 dark:hover:border-blue-500/50 rounded-2xl text-sm font-bold text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-all cursor-pointer"
+                    className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-t2-line  hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 dark:hover:border-blue-500/50 rounded-2xl text-sm font-bold text-t2-ink-2 hover:text-blue-600  dark:hover:text-blue-400 transition-all cursor-pointer"
                 >
                     <Plus size={16} /> Add Event
                 </button>
@@ -315,12 +315,12 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
 
             {/* Verknüpfte Notiz */}
             {notes && notes.length > 0 && (
-                <div className="border-t border-gray-100 dark:border-slate-800/50 px-6 py-3 flex items-center gap-3">
-                    <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider shrink-0">Verknüpfte Notiz</span>
+                <div className="border-t border-t2-line-soft  px-6 py-3 flex items-center gap-3">
+                    <span className="text-xs font-bold text-t2-ink-2  uppercase tracking-wider shrink-0">Verknüpfte Notiz</span>
                     <select
                         value={noteLinkId}
                         onChange={e => setNoteLinkId(e.target.value)}
-                        className="flex-1 bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                        className="flex-1 bg-t2-sub  border border-t2-line  rounded-xl px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-purple-500/50"
                     >
                         <option value="">Keine</option>
                         {notes.map(n => (
@@ -331,13 +331,13 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
             )}
 
             {/* Group / Theme — collapsible */}
-            <div className="border-t border-gray-100 dark:border-slate-800/50">
+            <div className="border-t border-t2-line-soft ">
                 <button
                     onClick={() => setThemeExpanded(v => !v)}
-                    className="w-full flex items-center justify-between px-6 py-3 text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:bg-gray-50 dark:hover:bg-slate-800/30 transition-colors"
+                    className="w-full flex items-center justify-between px-6 py-3 text-xs font-bold text-t2-ink-2  uppercase tracking-wider hover:bg-t2-sub  transition-colors"
                 >
                     <span>Group / Theme</span>
-                    <svg className={`w-4 h-4 text-gray-400 transition-transform ${themeExpanded ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    <svg className={`w-4 h-4 text-t2-ink-3 transition-transform ${themeExpanded ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                 </button>
             {themeExpanded && (
             <div className="px-6 pb-4">
@@ -345,7 +345,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                 <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-end">
                     <div className="flex-1 w-full max-w-sm">
                         <select
-                            className="w-full bg-gray-50 dark:bg-black/40 border border-gray-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                            className="w-full bg-t2-sub  border border-t2-line  rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/50"
                             value={theme}
                             onChange={(e) => setTheme(e.target.value)}
                         >
@@ -357,19 +357,19 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                             </optgroup>
                         </select>
                         {theme === 'new-theme' && (
-                            <div className="mt-3 flex flex-col gap-3 p-4 bg-gray-50/50 dark:bg-black/20 rounded-2xl border border-gray-200 dark:border-slate-800">
+                            <div className="mt-3 flex flex-col gap-3 p-4 bg-t2-sub  rounded-2xl border border-t2-line ">
                                 <input
                                     type="text"
                                     placeholder="Theme Name..."
                                     maxLength={30}
                                     value={themeName}
                                     onChange={(e) => setThemeName(e.target.value)}
-                                    className="w-full bg-white dark:bg-[#2A2A2A] border border-gray-200 dark:border-slate-700 rounded-xl px-4 py-2 text-sm font-semibold focus:outline-none focus:border-blue-500 shadow-sm"
+                                    className="w-full bg-t2-surface dark:bg-[#2A2A2A] border border-t2-line  rounded-xl px-4 py-2 text-sm font-semibold focus:outline-none focus:border-blue-500 shadow-sm"
                                 />
 
                                 <div className="flex flex-col md:flex-row gap-4">
                                     <div className="flex-1">
-                                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Color</label>
+                                        <label className="block text-[10px] font-bold text-t2-ink-3 uppercase tracking-widest mb-1.5 ml-1">Color</label>
                                         <div className="flex flex-wrap gap-2">
                                             {['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'].map(c => (
                                                 <button
@@ -383,11 +383,11 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                     </div>
 
                                     <div className="w-full md:w-32">
-                                        <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 ml-1">Effect</label>
+                                        <label className="block text-[10px] font-bold text-t2-ink-3 uppercase tracking-widest mb-1.5 ml-1">Effect</label>
                                         <select
                                             value={themeEffect}
                                             onChange={(e) => setThemeEffect(e.target.value)}
-                                            className="w-full bg-white dark:bg-[#2A2A2A] border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs font-bold outline-none cursor-pointer"
+                                            className="w-full bg-t2-surface dark:bg-[#2A2A2A] border border-t2-line  rounded-xl px-3 py-2 text-xs font-bold outline-none cursor-pointer"
                                         >
                                             <option value="none">Kein Muster</option>
                                             <option value="stripes">Gestreift</option>
@@ -416,7 +416,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                         />
                         <label
                             htmlFor="schedule-import-input"
-                            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-semibold hover:bg-gray-200 dark:hover:bg-slate-700 cursor-pointer transition-colors"
+                            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-t2-hover  text-t2-ink  rounded-xl text-sm font-semibold hover:bg-t2-stage  cursor-pointer transition-colors"
                         >
                             <Upload size={16} /> Import
                         </label>
@@ -453,15 +453,15 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
     return (
         <div className="fixed inset-0 z-[500] flex items-center justify-center pointer-events-auto">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose}></div>
-            <div className="relative bg-white dark:bg-[#1A1A1A] w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-float flex flex-col m-4 border border-gray-200 dark:border-slate-800">
+            <div className="relative bg-t2-surface dark:bg-[#1A1A1A] w-full max-w-4xl max-h-[90vh] rounded-3xl shadow-float flex flex-col m-4 border border-t2-line ">
 
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-slate-800/80">
-                    <h2 className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-t2-line-soft ">
+                    <h2 className="text-xl font-bold tracking-tight text-t2-ink  flex items-center gap-2">
                         <ListPlus size={22} className="text-blue-500" />
                         Schedule Builder
                     </h2>
-                    <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-full hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors">
+                    <button onClick={onClose} className="p-2 text-t2-ink-3 hover:text-t2-ink-2  rounded-full hover:bg-t2-hover  transition-colors">
                         <X size={20} />
                     </button>
                 </div>
