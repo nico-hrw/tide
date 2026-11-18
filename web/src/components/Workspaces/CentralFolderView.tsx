@@ -18,7 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { FOLDER_PALETTE, getFolderColor } from '../../lib/folderColors';
-import type { CountdownEvent } from '../Layout/MobileSmartIsland';
+import type { CountdownEvent } from '../Layout/MobileHeaderWidgets';
 import { useSafes } from '@/store/useDataStore';
 
 export interface CentralFolderItem {

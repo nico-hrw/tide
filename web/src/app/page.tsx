@@ -24,9 +24,10 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { JSONContent } from '@tiptap/react';
 import { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import { TodoList } from '../components/Todo/TodoList';
-import { getEventGroupIds, getEventsForDate } from '../lib/calendarUtils';
+import { getEventGroupIds } from '../lib/calendarUtils';
 import { CALENDAR_DATE_STORAGE_KEY, parseStoredCalendarDate, serializeCalendarDate } from '@/lib/calendarWeeks';
-import { MobileSmartIsland } from '@/components/Layout/MobileSmartIsland';
+import DesktopIsland from '@/components/island/DesktopIsland';
+import { useIslandActionsStore } from '@/store/useIslandActionsStore';
 import { serializeTabsForStorage, sanitizeRestoredTabs, canReuseTabCache } from '@/lib/tabStorage';
 import { getFolderColor, loadTodoFoldersMeta, isTaskVisibleInCalendar } from '../lib/folderColors';
 
@@ -42,7 +43,6 @@ import { MoodPopup } from "@/components/Surveys/MoodPopup";
 import MobileLayout from "@/components/Layout/MobileLayout";
 import { Clock, Settings, LogOut, Users, Trash2, GraduationCap, Copy, ListTodo, GripVertical } from 'lucide-react';
 import Avatar from "@/components/Profile/Avatar";
-import CalendarCaptureIsland from "@/components/SmartIsland";
 import { tipTapToMarkdown } from "@/lib/bundleImportExport";
 import TrashPanel from "@/components/TrashPanel";
 
@@ -2510,6 +2510,18 @@ export default function Dashboard() {
     // syncingTaskIdsRef declared at component top
     const handleEventCreateRef = useLatestRef(handleEventCreate);
 
+    // Smart Island: Termin anlegen bzw. im Editor öffnen (die Island kennt die Schlüssel nicht selbst)
+    useEffect(() => {
+        useIslandActionsStore.getState().register({
+            createEvent: (start, end, title) => handleEventCreateRef.current(start, end, false, { title }),
+            editEvent: (start) => {
+                setScheduleInitialStart(start);
+                setScheduleModalOpen(true);
+            },
+        });
+        return () => useIslandActionsStore.getState().unregister();
+    }, [handleEventCreateRef]);
+
     useEffect(() => {
         if (!privateKey || !publicKey || !loadedDirectories.has('root') || !tasks || tasks.length === 0) return;
 
@@ -2882,27 +2894,6 @@ export default function Dashboard() {
     const validUsername = userProfile?.username && userProfile.username !== emailPrefix ? userProfile.username : null;
     const displayName = (userProfile as any)?.displayName || (userProfile as any)?.name || validUsername || storedName || userProfile?.username || emailPrefix || '';
 
-    const handleCountdownTap = useCallback((eventId: string) => {
-        const ev = (events as any[]).find(e => e.id === eventId);
-        if (ev?.start) {
-            handleDateSelect(new Date(ev.start));
-        } else {
-            handleTabSelect('calendar', 'calendar');
-        }
-    }, [handleTabSelect, events]);
-
-    const expandedEvents = useMemo(() => {
-        const today = new Date();
-        const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-        const todayEvts = getEventsForDate(today, events as any);
-        const tomorrowEvts = getEventsForDate(tomorrow, events as any);
-        const map = new Map<string, any>();
-        for (const e of [...todayEvts, ...tomorrowEvts, ...(events as any[])]) {
-            if (!map.has(e.id)) map.set(e.id, e);
-        }
-        return Array.from(map.values());
-    }, [events]);
-
     const handleMagicLinkClick = async (target: any) => {
         const targetIsEvent = target.type === 'event' || useDataStore.getState().events?.some((e: any) => e.id === target.id);
         if (targetIsEvent) {
@@ -3045,28 +3036,6 @@ export default function Dashboard() {
             <CloudStatusBanner />
             {/* Global drag ghost — rendered via Portal so it sits above sidebar/calendar/editor */}
             <EventDragGhost />
-            <div className="hidden md:block">
-            <CalendarCaptureIsland
-                onConfirm={(parsedData, text) => {
-                    const now = new Date();
-                    const startMins = parsedData.startMins !== null ? parsedData.startMins : (now.getHours() * 60 + now.getMinutes());
-                    const endMins = parsedData.endMins !== null ? parsedData.endMins : startMins + 60;
-                    
-                    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), Math.floor(startMins / 60), startMins % 60);
-                    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), Math.floor(endMins / 60), endMins % 60);
-                    
-                    handleEventCreate(start, end, false, { title: parsedData.title || text });
-                }}
-                onEdit={(parsedData, text) => {
-                    const now = new Date();
-                    const startMins = parsedData.startMins !== null ? parsedData.startMins : (now.getHours() * 60 + now.getMinutes());
-                    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), Math.floor(startMins / 60), startMins % 60);
-                    setScheduleInitialStart(start);
-                    // Pass initial title via a state or just rely on a new feature? For now just open modal
-                    setScheduleModalOpen(true);
-                }}
-            />
-            </div>
             {/* Mobile Layout Wrapper */}
             <MobileLayout
                 events={events}
@@ -3310,16 +3279,13 @@ export default function Dashboard() {
                     }}
                 />
 
-                {/* Tablet Mode Dynamic Island (Bottom-Left) */}
+                {/* Tablet: Island als schwebendes Quadrat unten links (Seitenleiste eingeklappt) */}
                 {navigationMode === 'folders' && (
-                    <div className="fixed bottom-5 left-4 z-40">
-                        <MobileSmartIsland
-                            placement="bottom-left"
-                            events={expandedEvents}
-                            onTap={handleCountdownTap}
-                            userName={userProfile?.username || displayName}
-                        />
-                    </div>
+                    <DesktopIsland
+                        slotClassName="fixed bottom-5 left-4 z-40 block h-[200px] w-[200px]"
+                        selectedDate={calendarDate}
+                        onSelectDate={handleDateSelect}
+                    />
                 )}
 
                 {/* Main Workspace Body */}

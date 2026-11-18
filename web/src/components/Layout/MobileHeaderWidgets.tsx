@@ -1,10 +1,21 @@
 'use client';
 
 import React from 'react';
-import { MobileSmartIsland, type CountdownEvent, type MobileSmartIslandProps } from './MobileSmartIsland';
 
-export { MobileSmartIsland };
-export type { CountdownEvent, MobileSmartIslandProps };
+/** Termin-Struktur für Ansichten, die laufende/kommende Termine auswerten. */
+export interface CountdownEvent {
+  id: string;
+  title?: string;
+  start: string;
+  end?: string;
+  allDay?: boolean;
+  color?: string;
+  is_completed?: boolean;
+  is_all_day?: boolean;
+  is_task?: boolean;
+  isCompleted?: boolean;
+  completed_dates?: string[];
+}
 
 const NIGHT_TEMPLATES: readonly string[] = [
   'Gute Nacht{name} – noch wach?', 'Späte Stunde{name}!', 'Schlaf gut{name}!',
@@ -80,10 +91,6 @@ export function formatGreeting(template: string, name: string): string {
   const replacement = trimmed ? `, ${trimmed}` : '';
   return template.split('{name}').join(replacement);
 }
-
-export const NextEventCountdown = React.memo(function NextEventCountdown(props: MobileSmartIslandProps) {
-  return <MobileSmartIsland {...props} />;
-});
 
 interface ConfettiParticle {
   x: number;

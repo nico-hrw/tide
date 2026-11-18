@@ -17,7 +17,8 @@ import MiniCalendar from '../Calendar/MiniCalendar';
 import MobileWeekGrid from './MobileWeekGrid';
 import { useDataStore, useWeekStartsOn } from '@/store/useDataStore';
 import dynamic from 'next/dynamic';
-import { pickGreetingTemplate, formatGreeting, NextEventCountdown, fireConfetti } from './MobileHeaderWidgets';
+import { pickGreetingTemplate, formatGreeting, fireConfetti } from './MobileHeaderWidgets';
+import MobileIsland from '@/components/island/MobileIsland';
 import TodoList from '../Todo/TodoList';
 import MobileTodoView from '../Todo/MobileTodoView';
 import { MobileTodoStyleProvider } from '../Todo/MobileTodoStyle';
@@ -871,18 +872,6 @@ export default function MobileLayout({
 
   const [greetingTemplate] = useState(() => pickGreetingTemplate(new Date()));
 
-  const handleCountdownTap = useCallback((eventId: string) => {
-    setEditingTodoId(null);
-    window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit', { detail: { source: 'mobile' } }));
-    setActiveTab('calendar');
-    setCalViewMode('day');
-    setActiveDate(new Date());
-    setTimeout(() => {
-      const el = document.getElementById('ev-' + eventId);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 150);
-  }, [setActiveTab, setCalViewMode, setActiveDate]);
-
   const handleGoToToday = useCallback(() => {
     const today = new Date();
     setActiveDate(today);
@@ -1693,7 +1682,7 @@ export default function MobileLayout({
               </h1>
             </div>
             <div className="shrink-0">
-              <NextEventCountdown events={expandedEvents} onTap={handleCountdownTap} className="-mt-1.5" userName={displayName} />
+              <MobileIsland className="-mt-1.5" />
             </div>
           </div>
 

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { parseGermanDate, ParseResult } from '@/lib/dateParser';
 import { useIslandStore } from '@/components/extensions/smart_island/useIslandStore';
-import type { EventSuggestionPayload } from '@/components/extensions/smart_island/EventSuggestionView';
+import type { EventSuggestionPayload } from '@/components/island/islandTypes';
 
 export type DateDetectionMode = 'auto' | 'manual';
 
