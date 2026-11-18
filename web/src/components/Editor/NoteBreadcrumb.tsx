@@ -7,7 +7,7 @@ interface NoteBreadcrumbProps {
     files: Array<{ id: string; title?: string; parent_id?: string | null; type?: string }>;
 }
 
-/** Small, pale folder path above the note title (e.g. "Mails / TUD"). */
+/** Pale folder path above the note title, always with a leading slash: "/" at the top level, "/Mails/TUD/" inside folders. */
 export default function NoteBreadcrumb({ noteId, files }: NoteBreadcrumbProps) {
     const trail = useMemo(() => {
         const out: string[] = [];
@@ -23,10 +23,10 @@ export default function NoteBreadcrumb({ noteId, files }: NoteBreadcrumbProps) {
         return out;
     }, [noteId, files]);
 
-    if (trail.length === 0) return null;
+    const path = "/" + trail.map((name) => `${name}/`).join("");
     return (
         <nav aria-label="Pfad" className="mb-1 text-xs font-normal text-t2-ink-3 truncate">
-            {trail.join(" / ")}
+            {path}
         </nav>
     );
 }

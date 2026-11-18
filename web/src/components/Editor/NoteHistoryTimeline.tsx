@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
 import type { NoteBackupPoint } from "@/hooks/useNoteBackups";
 import "./noteChrome.css";
 
@@ -15,6 +16,8 @@ interface NoteHistoryTimelineProps {
     onRestore: () => void;
     /** Selected version content is loaded and can be restored. */
     canRestore: boolean;
+    /** Closes the timeline (close button and Escape). */
+    onClose?: () => void;
 }
 
 const MIN_GAP = 88;
@@ -39,10 +42,17 @@ function sourceOf(p: NoteBackupPoint): string {
 
 /** Vertical on-page timeline: a line grows down the right edge, save points sit at heights proportional to their age. */
 export default function NoteHistoryTimeline({
-    open, points, activeIndex, onSelectIndex, isLoading = false, error, onView, onRestore, canRestore,
+    open, points, activeIndex, onSelectIndex, isLoading = false, error, onView, onRestore, canRestore, onClose,
 }: NoteHistoryTimelineProps) {
     const wrapRef = useRef<HTMLDivElement>(null);
     const [height, setHeight] = useState(600);
+
+    useEffect(() => {
+        if (!open || !onClose) return;
+        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [open, onClose]);
 
     useEffect(() => {
         // The direct parent is a zero-height sticky anchor, so measure the scrolling container around it.
@@ -82,12 +92,20 @@ export default function NoteHistoryTimeline({
         <div className="sticky top-0 h-0 z-30 pointer-events-none">
             <div
                 ref={wrapRef}
-                className={`t2-vtl ${open ? "open pointer-events-auto" : ""} absolute right-14 top-0 w-60 overflow-y-auto overflow-x-hidden [scrollbar-width:none]`}
+                className={`t2-vtl ${open ? "open pointer-events-auto" : ""} absolute right-4 top-20 w-56 overflow-y-auto overflow-x-hidden [scrollbar-width:none]`}
                 style={{ height }}
                 role="region"
                 aria-label="Versionsverlauf"
                 aria-hidden={!open}
             >
+                <div className={`flex items-center justify-between pb-2 pr-1 ${open ? "" : "hidden"}`}>
+                    <span className="text-[12px] font-semibold uppercase tracking-wide text-t2-ink-3">Versionsverlauf</span>
+                    {onClose && (
+                        <button type="button" onClick={onClose} aria-label="Versionsverlauf schließen" title="Schließen (Esc)" className="rounded-[8px] p-1 text-t2-ink-3 hover:bg-t2-hover hover:text-t2-ink">
+                            <X size={14} />
+                        </button>
+                    )}
+                </div>
                 <div className="relative" style={{ height: trackHeight }}>
                     <div className="t2-vline absolute right-[5px] top-0 w-0.5 rounded-sm bg-t2-line" style={open ? { height: "100%" } : undefined} />
                     {points.map((p, i) => {

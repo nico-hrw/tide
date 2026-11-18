@@ -175,6 +175,9 @@ export interface UiSlice {
     setNavigationMode: (mode: NavigationMode) => void;
     setPaperPattern: (pattern: PaperPattern) => void;
     setShowPageBreaks: (show: boolean) => void;
+    /** Numbers headings and sub-headings (1, 1.1, 1.1.1) by CSS counters; the text is not changed. */
+    headingNumbering: boolean;
+    setHeadingNumbering: (on: boolean) => void;
 }
 
 export interface FsSlice {

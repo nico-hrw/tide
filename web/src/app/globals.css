@@ -633,6 +633,24 @@ ul[data-type="taskList"] li>div>p {
   max-width: 100% !important;
 }
 
+/* Page break from two quick Tab presses: a dashed rule that reads as the end of a page. */
+.ProseMirror hr {
+  border: none;
+  border-top: 1px dashed var(--t2-line);
+  margin: 2.25rem 0;
+}
+
+/* Heading numbering (setting "Überschriften nummerieren"). Counters only change the display. */
+.heading-numbered .ProseMirror {
+  counter-reset: hn1 hn2 hn3;
+}
+.heading-numbered .ProseMirror h1 { counter-increment: hn1; counter-reset: hn2 hn3; }
+.heading-numbered .ProseMirror h2 { counter-increment: hn2; counter-reset: hn3; }
+.heading-numbered .ProseMirror h3 { counter-increment: hn3; }
+.heading-numbered .ProseMirror h1::before { content: counter(hn1) ". "; color: var(--t2-ink-3); font-weight: 500; }
+.heading-numbered .ProseMirror h2::before { content: counter(hn1) "." counter(hn2) " "; color: var(--t2-ink-3); font-weight: 500; }
+.heading-numbered .ProseMirror h3::before { content: counter(hn1) "." counter(hn2) "." counter(hn3) " "; color: var(--t2-ink-3); font-weight: 500; }
+
 /* DIN A4 page: a sheet of 794 px (210 mm at 96 dpi) centred in the note area. The 32 px gutter for
    pins sits to the left of the sheet, outside its edge. */
 .note-layout-a4 {

@@ -224,7 +224,17 @@ export function useNoteBackups(
             return !isNaN(tA) && !isNaN(tB) && tA !== tB ? tB - tA : FIXED_SLOTS.indexOf(a.slot_name!.trim()) - FIXED_SLOTS.indexOf(b.slot_name!.trim());
         });
 
-        const history: NoteBackupPoint[] = valid.map(s => {
+        // Several slots can hold the same save (no edits in between). Show each save once, under the
+        // newest slot that carries it, so the timeline does not repeat one version four times.
+        const bySavedAt = new Map<string, typeof valid[number]>();
+        for (const s of valid) {
+            const key = s.updated_at || "";
+            if (!key || isNaN(new Date(key).getTime()) || bySavedAt.has(key)) continue;
+            bySavedAt.set(key, s);
+        }
+        const unique = Array.from(bySavedAt.values());
+
+        const history: NoteBackupPoint[] = unique.map(s => {
             const slotName = s.slot_name!.trim();
             const d = new Date(s.updated_at || "");
             const ok = !isNaN(d.getTime());

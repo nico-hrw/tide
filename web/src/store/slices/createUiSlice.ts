@@ -102,6 +102,11 @@ function getInitialShowPageBreaks(): boolean {
     return stored !== null ? stored === 'true' : true;
 }
 
+function getInitialHeadingNumbering(): boolean {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('tide_heading_numbering') === 'true';
+}
+
 export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     isSettingsModalOpen: false,
     settingsModalTab: 'account',
@@ -114,6 +119,12 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     navigationMode: getInitialNavigationMode(),
     paperPattern: getInitialPaperPattern(),
     showPageBreaks: getInitialShowPageBreaks(),
+    headingNumbering: getInitialHeadingNumbering(),
+    setHeadingNumbering: (on: boolean) =>
+        set(() => {
+            if (typeof window !== 'undefined') localStorage.setItem('tide_heading_numbering', String(on));
+            return { headingNumbering: on };
+        }),
 
     setSettingsModalOpen: (open: boolean, tab?: SettingsModalTab) =>
         set((state) => ({

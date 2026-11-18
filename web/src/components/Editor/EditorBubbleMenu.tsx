@@ -192,11 +192,13 @@ export function EditorBubbleMenu({
     return (
         <BubbleMenu
             editor={editor}
-            className="flex bg-t2-surface  border border-[var(--border-ui)] rounded-[var(--radius)] overflow-visible p-1 gap-1 items-center"
-            style={{ boxShadow: 'var(--shadow-float)' }}
+            className="flex flex-col items-start gap-1.5"
+            style={{ overflow: 'visible' }}
         >
+          {/* Blase 1: Textstil und Auszeichnung */}
+          <div className="flex items-center gap-0.5 rounded-[12px] bg-t2-surface p-1 shadow-[0_0_0_1px_var(--t2-line),0_10px_30px_rgba(0,0,0,0.10)]">
             <TextStyleButtons editor={editor} />
-            <div className="w-px h-5 bg-t2-line  mx-1" />
+            <div className="w-px h-5 bg-t2-line mx-1" />
 
             <button onClick={() => editor.chain().focus().toggleBold().run()} className={`${btnBase} ${editor.isActive('bold') ? btnActive : btnInactive}`} title="Bold">
                 <Bold size={16} />
@@ -210,6 +212,10 @@ export function EditorBubbleMenu({
             <button onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()} className={`${btnBase} ${btnInactive} flex items-center justify-center`} title="Clear Formatting" onMouseDown={(e) => e.preventDefault()}>
                 <Eraser size={16} />
             </button>
+          </div>
+
+          {/* Blase 2: Schrift, Farbe, Einfügen */}
+          <div className="flex items-center gap-0.5 rounded-[12px] bg-t2-surface p-1 shadow-[0_0_0_1px_var(--t2-line),0_10px_30px_rgba(0,0,0,0.10)]">
 
             <div className="w-px h-5 bg-t2-line  mx-1" />
 
@@ -397,6 +403,7 @@ export function EditorBubbleMenu({
                     </button>
                 </>
             )}
+          </div>
         </BubbleMenu>
     );
 }

@@ -146,6 +146,8 @@ export const useUiActions = () =>
             language: s.language,
             paperPattern: s.paperPattern,
             showPageBreaks: s.showPageBreaks,
+            headingNumbering: s.headingNumbering,
+            setHeadingNumbering: s.setHeadingNumbering,
             setSettingsModalOpen: s.setSettingsModalOpen,
             setSettingsModalTab: s.setSettingsModalTab,
             setSmartIsland: s.setSmartIsland,

@@ -291,6 +291,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     const [showNoteSettingsMenu, setShowNoteSettingsMenu] = useState(false);
     const paperPattern = useDataStore((s) => s.paperPattern);
     const showPageBreaks = useDataStore((s) => s.showPageBreaks);
+    const headingNumbering = useDataStore((s) => s.headingNumbering);
     const activeNoteTitle = fileName;
 
     const hoveredElementId = props.hoveredElementId !== undefined ? props.hoveredElementId : internalHoveredElementId;
@@ -310,6 +311,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
             {!isHidden && !isLoadingContent && (
                 <NoteHistoryTimeline
                     open={isHistoryMode}
+                    onClose={handleCancelHistory}
                     points={points}
                     activeIndex={activeIndex}
                     onSelectIndex={setActiveIndex}
@@ -374,7 +376,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                 isLinkingMode={isLinkingMode}
                                 contentVersion={editorVersion}
                             />
-                            <div className={`relative flex flex-col paper-${paperPattern || 'blanko'} ${noteLayout === 'a4' ? 'a4-sheet' : 'flex-1 min-w-0'}`}>
+                            <div className={`relative flex flex-col paper-${paperPattern || 'blanko'} ${noteLayout === 'a4' ? 'a4-sheet' : 'flex-1 min-w-0'} ${headingNumbering ? 'heading-numbered' : ''}`}>
                                 {noteLayout === 'a4' && showPageBreaks && (
                                     <div className="a4-page-breaks-overlay pointer-events-none absolute inset-0 z-0" />
                                 )}
