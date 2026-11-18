@@ -600,7 +600,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             {/* All-Day Events Area */}
             {allDayEvents.length > 0 && (
                 <div className="sticky top-[50px] z-[65] w-full h-0 pointer-events-auto">
-                    <div className={`absolute top-0 left-0 right-0 ${fluid ? '' : FIXED_COLUMN_WIDTH} bg-t2-surface  backdrop-blur-sm p-1 flex flex-col gap-1 border-b border-t2-line  rounded-b-xl`}>
+                    <div className={`absolute top-0 left-0 right-0 ${fluid ? '' : FIXED_COLUMN_WIDTH} bg-t2-bg p-1 flex flex-col gap-1 border-b border-t2-line rounded-b-xl`}>
                         {regularAllDayEvents.map(event => {
                             const theme = getEventTheme(event, calendarColorPalette);
                             const isHighlightedEvent = isHighlighted(event.id, 'event');

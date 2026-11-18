@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { format, getISOWeek } from "date-fns";
 import { de } from "date-fns/locale";
-import { ChevronDown, ChevronLeft, ChevronRight, Plus, Upload } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import type { CalendarViewProps, CalendarViewMode } from "./types";
 
@@ -12,7 +12,6 @@ interface CalendarToolbarProps {
     themes: CalendarViewProps['themes'];
     selectedGroupId: string | null;
     onSelectGroup: (id: string | null) => void;
-    onImportClick: () => void;
     /** Steps the visible range by one unit of the current view (day, week or month). */
     onStep: (dir: 1 | -1) => void;
     onToday: () => void;
@@ -35,7 +34,6 @@ export function CalendarToolbar({
     themes = [],
     selectedGroupId,
     onSelectGroup,
-    onImportClick,
     onStep,
     onToday,
     onCreate,
@@ -119,16 +117,6 @@ export function CalendarToolbar({
                             </div>
                         )}
                     </div>
-
-                    <button
-                        type="button"
-                        onClick={onImportClick}
-                        className="rounded-[10px] p-1.5 text-t2-ink-3 transition-colors hover:bg-t2-hover hover:text-t2-ink-2"
-                        title="Google Kalender (.ics) importieren"
-                        aria-label="Importieren"
-                    >
-                        <Upload size={15} />
-                    </button>
 
                     <button
                         type="button"

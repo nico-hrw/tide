@@ -8,7 +8,6 @@ import { useHighlight } from "@/components/HighlightContext";
 import { useDataStore, useWeekStartsOn } from "@/store/useDataStore";
 import { startOfCalendarWeek, weeksForViewMode } from "@/lib/calendarWeeks";
 import { ScheduleModal } from './ScheduleModal';
-import { CalendarImportModal } from './CalendarImportModal';
 import { CalendarWeekTimeGrid } from './CalendarWeekTimeGrid';
 import { CalendarToolbar } from './CalendarToolbar';
 import DesktopMonthView from './DesktopMonthView';
@@ -54,7 +53,6 @@ export default function CalendarView({
 
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date());
 
     // Infinite week view renders a virtual window around `date`; fixed mode exactly the week of
@@ -243,7 +241,6 @@ export default function CalendarView({
                     themes={themes}
                     selectedGroupId={selectedGroupId}
                     onSelectGroup={setSelectedGroupId}
-                    onImportClick={() => setIsImportModalOpen(true)}
                     onStep={handleStep}
                     onToday={() => onDateChange(new Date())}
                     onCreate={handleCreateNow}
@@ -403,13 +400,7 @@ export default function CalendarView({
                 />
             )}
 
-            {isImportModalOpen && (
-                <CalendarImportModal
-                    isOpen={isImportModalOpen}
-                    onClose={() => setIsImportModalOpen(false)}
-                    themes={themes}
-                />
-            )}
+
 
 
 

@@ -172,21 +172,28 @@ export function useCalendarScroll({
                 }
                 if (element && !(fixedWeekKey !== null && link.opened)) {
                     link.opened = true;
-                    // Scroll horizontally, centring the day like useWeekWindow does (incl. the
-                    // time gutter), so the settled viewport centre stays on the event's day.
-                    const dayCol = element.closest('[data-day-col]') as HTMLElement;
-                    if (dayCol) {
-                        const targetScrollX = scrollLeftForColumn({
-                            columnOffsetLeft: dayCol.offsetLeft,
-                            columnWidth: dayCol.offsetWidth,
-                            viewportWidth: container.clientWidth,
-                        });
-                        container.scrollLeft = Math.max(0, targetScrollX);
-                    }
+                    // Only move the view when the event is not on screen yet. Clicking a visible event
+                    // must not re-centre the whole calendar; that is for links that point elsewhere.
+                    const cr = container.getBoundingClientRect();
+                    const er = element.getBoundingClientRect();
+                    const onScreen = er.top >= cr.top && er.bottom <= cr.bottom && er.left >= cr.left && er.right <= cr.right;
+                    if (!onScreen) {
+                        // Scroll horizontally, centring the day like useWeekWindow does (incl. the
+                        // time gutter), so the settled viewport centre stays on the event's day.
+                        const dayCol = element.closest('[data-day-col]') as HTMLElement;
+                        if (dayCol) {
+                            const targetScrollX = scrollLeftForColumn({
+                                columnOffsetLeft: dayCol.offsetLeft,
+                                columnWidth: dayCol.offsetWidth,
+                                viewportWidth: container.clientWidth,
+                            });
+                            container.scrollLeft = Math.max(0, targetScrollX);
+                        }
 
-                    // Scroll vertically
-                    const eventTop = element.offsetTop;
-                    container.scrollTop = Math.max(0, eventTop - 150);
+                        // Scroll vertically
+                        const eventTop = element.offsetTop;
+                        container.scrollTop = Math.max(0, eventTop - 150);
+                    }
 
                     // Open Popover
                     const rect = element.getBoundingClientRect();
