@@ -302,18 +302,12 @@ export const TodoFolderOverview: React.FC<TodoFolderOverviewProps> = ({
             </div>
 
             <div className="mt-4 pt-2">
-              <div className="w-full h-1.5 bg-t2-hover  rounded-full overflow-hidden flex items-stretch">
-                <div
-                  className="h-full bg-amber-500 rounded-full transition-all duration-300"
-                  style={{ width: `${calculateProgress(unfiledCount.completed, unfiledCount.total)}%` }}
-                />
-                {unfiledCount.inProgress !== undefined && unfiledCount.inProgress > 0 && unfiledCount.total > 0 && (
-                  <div
-                    className="h-full bg-amber-400/80 transition-all duration-300"
-                    style={{ width: `${Math.min(100 - calculateProgress(unfiledCount.completed, unfiledCount.total), Math.round((unfiledCount.inProgress / unfiledCount.total) * 100))}%` }}
-                    title={`${unfiledCount.inProgress} in Bearbeitung`}
-                  />
-                )}
+              <div className="flex items-center gap-3">
+                <ProgressCircle percent={calculateProgress(unfiledCount.completed, unfiledCount.total)} />
+                <div className="min-w-0 text-xs text-t2-ink-2">
+                  <div className="font-medium text-t2-ink">{calculateProgress(unfiledCount.completed, unfiledCount.total)}%</div>
+                  <div>{unfiledCount.completed} von {unfiledCount.total} erledigt</div>
+                </div>
               </div>
             </div>
           </div>
@@ -467,18 +461,12 @@ export const TodoFolderOverview: React.FC<TodoFolderOverviewProps> = ({
                   </span>
                   <span>{progress}%</span>
                 </div>
-                <div className="w-full h-1.5 bg-t2-hover  rounded-full overflow-hidden flex items-stretch">
-                  <div
-                    className={`h-full transition-all duration-300 ${progress === 100 ? 'bg-emerald-500' : ''}`}
-                    style={{ width: `${progress}%`, backgroundColor: progress === 100 ? undefined : colorDef.hex }}
-                  />
-                  {f.inProgress !== undefined && f.inProgress > 0 && progress < 100 && f.total > 0 && (
-                    <div
-                      className="h-full bg-amber-500 transition-all duration-300"
-                      style={{ width: `${Math.min(100 - progress, Math.round((f.inProgress / f.total) * 100))}%` }}
-                      title={`${f.inProgress} in Bearbeitung`}
-                    />
-                  )}
+                <div className="flex items-center gap-3">
+                  <ProgressCircle percent={progress} />
+                  <div className="min-w-0 text-xs text-t2-ink-2">
+                    <div className="font-medium text-t2-ink">{progress}%</div>
+                    <div>{f.completed} von {f.total} erledigt</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -488,6 +476,22 @@ export const TodoFolderOverview: React.FC<TodoFolderOverviewProps> = ({
     </div>
   );
 };
+
+/** Round progress indicator (replaces the bar): the arc fills with the percentage. */
+function ProgressCircle({ percent, size = 40 }: { percent: number; size?: number }) {
+  const r = 15;
+  const c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(100, Math.round(percent)));
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" className="shrink-0" role="img" aria-label={`${p}% erledigt`}>
+      <circle cx="20" cy="20" r={r} fill="none" stroke="var(--t2-line)" strokeWidth="3.5" />
+      <circle
+        cx="20" cy="20" r={r} fill="none" stroke="var(--t2-ink)" strokeWidth="3.5" strokeLinecap="round"
+        strokeDasharray={`${(c * p) / 100} ${c}`} transform="rotate(-90 20 20)"
+      />
+    </svg>
+  );
+}
 
 export default TodoFolderOverview;
 
