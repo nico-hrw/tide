@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="de" data-theme="light" data-palette="tide">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tide 2 – Einstellungen (Entwurf)</title>
+<style>
+/* ── Tokens: gleiche Namen wie globals.css (--t2-*), Paletten per [data-palette] ── */
+:root,[data-palette=tide]{
+  --t2-bg:#FFFFFF;--t2-surface:#FFFFFF;--t2-sub:#F6F6F7;--t2-ink:#0E0E10;--t2-ink-2:#5E5E66;--t2-ink-3:#9A9AA3;
+  --t2-line:#E9E9EC;--t2-line-soft:#F1F1F3;--t2-hover:#F1F1F3;--t2-blue:#2563EB;--t2-now:#E5484D;--t2-late:#C4443F;
+  --t2-stage:#EDEDF0;--t2-accent:#0E0E10;--t2-accent-ink:#FFFFFF;
+}
+[data-palette=warm]{
+  --t2-bg:#FBF8F3;--t2-surface:#FFFDF9;--t2-sub:#F4EFE7;--t2-ink:#1F1A15;--t2-ink-2:#62594E;--t2-ink-3:#9C9286;
+  --t2-line:#E8E0D4;--t2-line-soft:#F0EADF;--t2-hover:#EFE8DC;--t2-blue:#3B62C9;--t2-now:#D9534F;--t2-late:#B8443B;
+  --t2-stage:#E9E2D6;--t2-accent:#C15F3C;--t2-accent-ink:#FFFFFF;
+}
+[data-palette=slate]{
+  --t2-bg:#F7F9FA;--t2-surface:#FFFFFF;--t2-sub:#EEF2F5;--t2-ink:#10181D;--t2-ink-2:#55636D;--t2-ink-3:#8E9AA3;
+  --t2-line:#DEE5EA;--t2-line-soft:#E9EEF2;--t2-hover:#E6ECF0;--t2-blue:#2F6FA3;--t2-now:#E5484D;--t2-late:#C4443F;
+  --t2-stage:#E1E8ED;--t2-accent:#3F6B7E;--t2-accent-ink:#FFFFFF;
+}
+[data-theme=dark] [data-palette=tide],[data-theme=dark][data-palette=tide]{
+  --t2-bg:#0B0B0D;--t2-surface:#131316;--t2-sub:#1A1A1E;--t2-ink:#F4F4F5;--t2-ink-2:#A1A1AA;--t2-ink-3:#6E6E78;
+  --t2-line:#26262B;--t2-line-soft:#1D1D21;--t2-hover:#222226;--t2-blue:#6E9BFF;--t2-now:#FF6369;--t2-late:#F0777A;
+  --t2-stage:#050506;--t2-accent:#F4F4F5;--t2-accent-ink:#0B0B0D;
+}
+[data-theme=dark] [data-palette=warm],[data-theme=dark][data-palette=warm]{
+  --t2-bg:#161310;--t2-surface:#1E1A16;--t2-sub:#1B1713;--t2-ink:#F3EDE4;--t2-ink-2:#B2A798;--t2-ink-3:#7C7266;
+  --t2-line:#2E2822;--t2-line-soft:#25201B;--t2-hover:#2A241E;--t2-blue:#8AA8F0;--t2-now:#FF7A70;--t2-late:#F08B84;
+  --t2-stage:#0E0C0A;--t2-accent:#E2896A;--t2-accent-ink:#1A0F0A;
+}
+[data-theme=dark] [data-palette=slate],[data-theme=dark][data-palette=slate]{
+  --t2-bg:#0D1317;--t2-surface:#141C21;--t2-sub:#11181C;--t2-ink:#EAF0F3;--t2-ink-2:#9AA9B3;--t2-ink-3:#66757F;
+  --t2-line:#222C33;--t2-line-soft:#1A2328;--t2-hover:#1F2A30;--t2-blue:#7DB3E0;--t2-now:#FF6369;--t2-late:#F0777A;
+  --t2-stage:#070B0D;--t2-accent:#7FB0C4;--t2-accent-ink:#07151B;
+}
+:root{--t2-r:10px;--t2-r-lg:14px;
+  --cal-praktikum:#5C6E6C;--cal-studium:#A6B7A8;--cal-social:#D2A96A;--cal-uni:#D39D87;--cal-geb:#A9623F;
+  --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--t2-stage);color:var(--t2-ink);font:14px/1.45 var(--font);-webkit-font-smoothing:antialiased;min-height:100vh}
+button,select,input{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer}
+svg.i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+svg.i.s{width:15px;height:15px}
+:focus-visible{outline:2px solid var(--t2-blue);outline-offset:2px}
+small{font-size:12.5px;color:var(--t2-ink-3)}
+
+/* ── Mockup-Rahmen (nicht Teil der App) ── */
+.chrome{position:sticky;top:0;z-index:50;background:var(--t2-surface);border-bottom:1px solid var(--t2-line)}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 16px}
+.bar b{font-weight:600}
+.bar .grp{display:flex;align-items:center;gap:6px;color:var(--t2-ink-3);font-size:12.5px}
+.note{padding:0 16px 12px;color:var(--t2-ink-2);font-size:13px;max-width:900px}
+.note b{color:var(--t2-ink)}
+.stage{padding:24px 16px 48px}
+.frame{width:min(1100px,100%);height:660px;margin:0 auto;border-radius:16px;overflow:hidden;border:1px solid var(--t2-line);background:var(--t2-bg);box-shadow:0 8px 32px rgba(0,0,0,.08);transition:width .25s}
+.frame.mobile{width:min(390px,100%);height:780px;border-radius:32px;border-width:6px;border-color:var(--t2-ink)}
+
+/* ── Bedienelemente ── */
+.seg{display:inline-flex;gap:2px;padding:3px;background:var(--t2-sub);border-radius:var(--t2-r);box-shadow:inset 0 0 0 1px var(--t2-line)}
+.seg button{padding:5px 12px;border-radius:7px;color:var(--t2-ink-2);white-space:nowrap;font-size:13px;display:flex;align-items:center;gap:6px}
+.seg button:hover{color:var(--t2-ink)}
+.seg button[aria-checked=true]{background:var(--t2-surface);color:var(--t2-ink);font-weight:600;box-shadow:0 0 0 1px var(--t2-line),0 1px 2px rgba(0,0,0,.06)}
+.tog{width:40px;height:24px;border-radius:12px;background:var(--t2-line);position:relative;transition:background .18s;flex:none}
+.tog::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .18s}
+.tog[aria-checked=true]{background:var(--t2-accent)}
+.tog[aria-checked=true]::after{transform:translateX(16px);background:var(--t2-accent-ink)}
+.sel{appearance:none;-webkit-appearance:none;background:var(--t2-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239A9AA3' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center;box-shadow:0 0 0 1px var(--t2-line);border:0;border-radius:var(--t2-r);padding:6px 28px 6px 11px;cursor:pointer;color:var(--t2-ink);max-width:100%}
+.sel:hover{background-color:var(--t2-hover)}
+.sel option{background:var(--t2-surface);color:var(--t2-ink)}
+.btn{padding:6px 12px;border-radius:var(--t2-r);box-shadow:0 0 0 1px var(--t2-line);background:var(--t2-surface);font-size:13px;font-weight:500;white-space:nowrap}
+.btn:hover{background:var(--t2-hover)}
+.btn.danger{color:var(--t2-late)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:99px;background:var(--t2-sub);font-size:12.5px;color:var(--t2-ink-2)}
+.chip i{width:7px;height:7px;border-radius:50%;background:#4CAF7A}
+
+/* ── App-Gerüst (Container Queries: bis 640 px mobil) ── */
+.app{container-type:inline-size;height:100%;background:var(--t2-bg)}
+.shell{display:grid;grid-template-columns:230px 1fr;height:100%}
+.list{background:var(--t2-sub);padding:14px 10px;display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto}
+.list h1{font-size:17px;letter-spacing:-.02em;padding:4px 10px 0}
+.q{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--t2-r);background:var(--t2-surface);box-shadow:0 0 0 1px var(--t2-line);color:var(--t2-ink-3)}
+.q input{border:0;outline:0;background:none;flex:1;min-width:0;color:var(--t2-ink)}
+.q input::placeholder{color:var(--t2-ink-3)}
+.q:focus-within{box-shadow:0 0 0 2px var(--t2-blue)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--t2-r);color:var(--t2-ink-2);text-align:left;width:100%}
+.nav button:hover{background:var(--t2-hover)}
+.nav button.on{background:var(--t2-hover);color:var(--t2-ink);font-weight:600}
+.nav .go{margin-left:auto;display:none;color:var(--t2-ink-3)}
+.list .foot{margin-top:auto;padding:8px 10px}
+.foot button{display:flex;gap:8px;align-items:center;color:var(--t2-ink-3);font-size:12.5px;padding:4px 0;border-radius:6px}
+.foot button:hover,.foot button.on{color:var(--t2-ink)}
+.content{overflow:auto;min-height:0;position:relative}
+.col{max-width:660px;margin:0 auto;padding:36px 40px 80px}
+.top{display:none;align-items:center;justify-content:flex-start;padding:8px 6px;position:sticky;top:0;z-index:5;background:var(--t2-bg);border-bottom:1px solid var(--t2-line-soft);min-height:48px}
+.top button{display:flex;align-items:center;gap:2px;padding:6px 8px;border-radius:var(--t2-r);color:var(--t2-blue);font-weight:500}
+.top b{position:absolute;left:50%;transform:translateX(-50%);font-weight:600}
+
+.sec{margin-bottom:44px}
+.sec>h2{font-size:22px;letter-spacing:-.02em;line-height:1.2}
+.sec>p.lead{color:var(--t2-ink-3);margin:2px 0 18px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 0;border-top:1px solid var(--t2-line-soft)}
+.lead+.row,.lead+.block,.lead+.sent,.lead+.who{border-top:0}
+.row .rt{min-width:0}
+.row .rt b{font-weight:500;display:block}
+.row .rt small{display:block;margin-top:1px}
+.row .rc{display:flex;align-items:center;gap:8px;flex:none;max-width:60%}
+.block{padding:14px 0;border-top:1px solid var(--t2-line-soft)}
+.block>b{font-weight:500;display:block;margin-bottom:2px}
+.block>small{display:block;margin-bottom:12px}
+details.more{border-top:1px solid var(--t2-line-soft)}
+details.more>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;padding:13px 0;color:var(--t2-ink-2);font-size:13.5px;border-radius:6px}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary svg{transition:transform .18s}
+details.more[open]>summary svg{transform:rotate(90deg)}
+details.more>summary:hover{color:var(--t2-ink)}
+details.more .row:first-of-type{border-top:0}
+
+/* Paletten-Karten mit Live-Vorschau */
+.pals{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.pal{display:flex;flex-direction:column;gap:2px;text-align:left;padding:8px;border-radius:var(--t2-r-lg);box-shadow:0 0 0 1px var(--t2-line);background:var(--t2-surface);transition:box-shadow .15s}
+.pal:hover{box-shadow:0 0 0 1px var(--t2-ink-3)}
+.pal[aria-pressed=true]{box-shadow:0 0 0 2px var(--t2-accent)}
+.pal b{font-weight:600;padding:8px 4px 0;display:flex;align-items:center;gap:6px}
+.pal b svg{margin-left:auto;color:var(--t2-accent);opacity:0}
+.pal[aria-pressed=true] b svg{opacity:1}
+.pal small{padding:0 4px 4px}
+.mini{display:grid;grid-template-columns:28% 1fr;height:84px;border-radius:8px;overflow:hidden;background:var(--t2-bg);color:var(--t2-ink);box-shadow:0 0 0 1px var(--t2-line)}
+.mini i{display:flex;flex-direction:column;gap:5px;padding:8px 6px}
+.mini .ms{background:var(--t2-sub)}
+.mini u{display:block;height:5px;border-radius:3px;background:var(--t2-line)}
+.mini .ms u:first-child{background:var(--t2-ink-3);width:70%}
+.mini .mm{padding:8px;gap:4px}
+.mini .e1{height:13px;background:var(--cal-praktikum);width:80%}
+.mini .e2{height:13px;background:var(--cal-social);width:55%;margin-left:20%}
+.mini .e3{height:9px;background:var(--cal-uni);width:65%}
+.mini .bt{height:10px;width:34%;background:var(--t2-accent);margin-top:auto;border-radius:5px}
+.sw{display:flex;gap:6px}
+.sw i{width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08)}
+
+/* Konto */
+.who{display:flex;align-items:center;gap:14px;padding:4px 0 18px}
+.av{width:48px;height:48px;border-radius:50%;background:var(--t2-ink);color:var(--t2-bg);display:grid;place-items:center;font-weight:700;flex:none}
+.who b{font-size:16px;font-weight:600;display:block}
+
+/* Variante B: Sätze */
+.sent{font-size:17px;line-height:2.3;letter-spacing:-.005em;color:var(--t2-ink-2);padding:6px 0;border-top:1px solid var(--t2-line-soft)}
+.sent .sel{font-size:15.5px;font-weight:500;background-color:color-mix(in srgb,var(--t2-accent) 9%,var(--t2-surface));box-shadow:none;color:var(--t2-ink);padding:3px 28px 3px 11px;border-radius:99px;margin:0 2px}
+.sent .sel:hover{background-color:color-mix(in srgb,var(--t2-accent) 16%,var(--t2-surface))}
+.hide{display:none!important}
+.empty{display:none;padding:40px 0;color:var(--t2-ink-3);text-align:center}
+.empty.show{display:block}
+
+/* A: nur aktive Gruppe (außer bei Suche) – B: alle Gruppen untereinander */
+.app[data-v=a] .sec{display:none}
+.app[data-v=a] .sec.on,.app[data-v=a].searching .sec{display:block}
+.app[data-v=a] .only-b{display:none}
+.app[data-v=b] .only-a{display:none}
+
+/* ── Mobil ── */
+@container (max-width:640px){
+  .shell{grid-template-columns:1fr;overflow:hidden}
+  .col{padding:18px 20px 60px}
+  .app[data-v=a] .sec>h2{display:none}
+  .row{flex-wrap:wrap;gap:10px}
+  .row .rc{max-width:100%}
+  .row.wide .rc,.row.wide .seg{width:100%}
+  .row.wide .seg button{flex:1;justify-content:center;padding:7px 4px}
+  .sent{font-size:16px}
+  .pals{gap:8px}.pal{padding:6px}.mini{height:64px}.pal small{display:none}.pal b{padding-top:6px}
+  /* A: Liste, dann Unterseite */
+  .app[data-v=a] .list{padding:18px 16px}
+  .app[data-v=a] .list h1{font-size:28px;padding:6px 4px}
+  .app[data-v=a] .nav{background:var(--t2-surface);border-radius:var(--t2-r-lg);box-shadow:0 0 0 1px var(--t2-line);padding:4px}
+  .app[data-v=a] .nav button{padding:12px}
+  .app[data-v=a] .nav button.on{background:none;font-weight:400;color:var(--t2-ink-2)}
+  .app[data-v=a] .nav .go{display:block}
+  .app[data-v=a][data-m=list] .content{display:none}
+  .app[data-v=a][data-m=page] .list{display:none}
+  .app[data-v=a][data-m=page] .top{display:flex}
+  .app[data-v=a].searching .top{display:none}
+  .app[data-v=a].searching .list{display:flex;background:var(--t2-bg);padding-bottom:0;flex:none}
+  .app[data-v=a].searching .content{display:block}
+  .app[data-v=a].searching .shell{grid-template-rows:auto 1fr}
+  .app[data-v=a].searching .list .nav,.app[data-v=a].searching .list h1,.app[data-v=a].searching .list .foot{display:none}
+  /* B: Chips oben, eine Seite */
+  .app[data-v=b] .shell{grid-template-rows:auto 1fr}
+  .app[data-v=b] .list{flex-direction:row;align-items:center;padding:10px 12px;gap:8px;overflow-x:auto;overflow-y:hidden;background:var(--t2-bg);border-bottom:1px solid var(--t2-line-soft);scrollbar-width:none}
+  .app[data-v=b] .list h1,.app[data-v=b] .list .foot{display:none}
+  .app[data-v=b] .q{flex:none;width:40px;padding:8px 11px}.app[data-v=b] .q input{width:0;padding:0}
+  .app[data-v=b] .q:focus-within{width:170px}.app[data-v=b] .q:focus-within input{width:auto}
+  .app[data-v=b] .nav{flex-direction:row;gap:6px}
+  .app[data-v=b] .nav button{width:auto;padding:7px 12px;border-radius:99px;box-shadow:0 0 0 1px var(--t2-line);white-space:nowrap}
+  .app[data-v=b] .nav button svg{display:none}
+  .app[data-v=b] .nav button.on{background:var(--t2-ink);color:var(--t2-bg);box-shadow:none}
+  .app[data-v=b] .sec>h2{font-size:20px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="chrome">
+  <div class="bar">
+    <b>Tide 2 · Einstellungen</b>
+    <div class="grp">Variante <div class="seg" role="radiogroup" aria-label="Variante" data-k="variant"><button role="radio" data-v="a">A · Zeilen</button><button role="radio" data-v="b">B · Sätze</button></div></div>
+    <div class="grp">Modus <div class="seg" role="radiogroup" aria-label="Modus" data-k="theme"><button role="radio" data-v="light">Hell</button><button role="radio" data-v="dark">Dunkel</button></div></div>
+    <div class="grp">Ansicht <div class="seg" role="radiogroup" aria-label="Ansicht" data-k="frame"><button role="radio" data-v="desktop">Desktop</button><button role="radio" data-v="mobile">Mobil</button></div></div>
+  </div>
+  <p class="note" id="note"></p>
+</header>
+<main class="stage"><div class="frame" id="frame"><div class="app" id="app"></div></div></main>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const P={search:'<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',chev:'<path d="m9 6 6 6-6 6"/>',back:'<path d="m15 6-6 6 6 6"/>',
+ palette:'<circle cx="12" cy="12" r="9"/><circle cx="8.5" cy="10.5" r=".8"/><circle cx="12" cy="7.5" r=".8"/><circle cx="15.5" cy="10.5" r=".8"/><path d="M12 21c-1.6 0-2-1.2-1.4-2.2.6-1 1.2-1.5 1.2-2.8 0-1 .9-2 2-2h3.2"/>',
+ cal:'<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+ note:'<path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+ chk:'<rect x="4" y="4" width="16" height="16" rx="4"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>',
+ lock:'<rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+ puz:'<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
+ sun:'<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+ moon:'<path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/>',
+ mon:'<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+ info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/>',ck:'<path d="m5 12.5 4.5 4.5L19 7.5"/>'};
+const ic=(n,c='')=>`<svg class="i ${c}" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
+
+/* ── Zustand ── */
+const st={variant:'a',theme:'light',palette:'tide',frame:'desktop',evstyle:'balsam',emoji:true,dense:'comfy',
+ weekStart:'1',startView:'woche',scroll:'inf',overlap:'side',
+ font:'sans',paper:'none',spell:true,preview:'always',mcolor:'cal',
+ prio:'none',hideDone:'1d',late:true,inGrid:true,
+ focus:'all',summary:'both',
+ sync:true,xIsland:true,xJob:true,xSurvey:false,xMcp:false};
+
+const O={
+ theme:[['light','Hell','sun'],['dark','Dunkel','moon'],['system','System','mon']],
+ evstyle:[['balsam','Balsam'],['pastell','Pastell'],['klassisch','Klassisch']],
+ dense:[['comfy','Ruhig'],['compact','Kompakt']],
+ weekStart:[['1','Montag'],['0','Sonntag']],
+ startView:[['woche','Woche'],['tag','Tag'],['fort','Fortlaufend'],['monat','Monat']],
+ scroll:[['inf','endlos'],['fix','wochenweise']],
+ overlap:[['side','nebeneinander'],['stack','gestapelt']],
+ font:[['sans','Sans'],['serif','Serif'],['mono','Mono']],
+ paper:[['none','Ohne'],['lines','Linien'],['grid','Karo'],['dots','Punkte']],
+ preview:[['always','Immer'],['hover','Beim Überfahren'],['off','Aus']],
+ mcolor:[['cal','Kalenderfarbe'],['blue','Blau']],
+ prio:[['none','keine'],['low','niedrige'],['mid','mittlere'],['high','hohe']],
+ hideDone:[['now','sofort'],['1d','nach einem Tag'],['7d','nach einer Woche'],['never','nie']],
+ late:[['true','hervorgehoben'],['false','nicht hervorgehoben']],
+ inGrid:[['true','im Zeitraster'],['false','nur in der Liste']],
+ focus:[['all','Alle'],['imp','Wichtiges'],['dnd','Nicht stören']],
+ summary:[['off','Aus'],['am','Morgens'],['pm','Abends'],['both','Morgens & abends']],
+ spell:[['true','prüft'],['false','prüft nicht']]
+};
+const seg=k=>`<div class="seg" role="radiogroup" data-k="${k}">${O[k].map(([v,l,i])=>`<button role="radio" data-v="${v}">${i?ic(i,'s'):''}${l}</button>`).join('')}</div>`;
+const sel=(k,label)=>`<select class="sel" data-k="${k}" aria-label="${label||k}">${O[k].map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select>`;
+const tog=(k,label)=>`<button class="tog" role="switch" data-k="${k}" aria-label="${label}"></button>`;
+const row=(t,d,c,w)=>`<div class="row ${w?'wide':''}" data-s="${(t+' '+d).toLowerCase()}"><div class="rt"><b>${t}</b>${d?`<small>${d}</small>`:''}</div><div class="rc">${c}</div></div>`;
+const sent=(html,txt)=>`<p class="sent only-b" data-s="${txt.toLowerCase()}">${html}</p>`;
+const more=(t,inner)=>`<details class="more only-a"><summary>${ic('chev','s')}${t}</summary>${inner}</details>`;
+const pal=(id,n,d)=>`<button class="pal" data-pal="${id}" aria-pressed="false"><span class="mini" data-palette="${id}"><i class="ms"><u></u><u></u><u></u></i><i class="mm"><u class="e1"></u><u class="e2"></u><u class="e3"></u><u class="bt"></u></i></span><b>${n}${ic('ck','s')}</b><small>${d}</small></button>`;
+const swatches=`<span class="sw" aria-hidden="true"><i style="background:var(--cal-praktikum)"></i><i style="background:var(--cal-studium)"></i><i style="background:var(--cal-social)"></i><i style="background:var(--cal-uni)"></i><i style="background:var(--cal-geb)"></i></span>`;
+const only=(c,h)=>`<div class="only-${c}">${h}</div>`;
+
+const G=[
+ {id:'look',t:'Darstellung',ic:'palette',lead:'Wie Tide aussieht. Änderungen sind sofort sichtbar.',
+  html:()=>`
+  ${row('Modus','Hell, Dunkel oder wie dein Gerät.',seg('theme'),1)}
+  <div class="block" data-s="palette farbe design tide warm slate"><b>Palette</b><small>Tippe auf eine Palette, die ganze Seite wechselt sofort.</small>
+   <div class="pals" role="group" aria-label="Palette">${pal('tide','Tide','Kühl, neutral')}${pal('warm','Warm','Cremeweiß, Terrakotta')}${pal('slate','Slate','Blaugrau, ruhig')}</div></div>
+  ${row('Terminfarben','Stil der Termin-Karten.',`${swatches}${sel('evstyle','Terminfarben')}`)}
+  ${more('Mehr Darstellung',row('Dichte','Abstände in Listen und Seitenleiste.',seg('dense'))+row('Animierte Emojis','Emojis in Notizen bewegen sich.',tog('emoji','Animierte Emojis')))}
+  ${only('b',row('Dichte','Abstände in Listen und Seitenleiste.',seg('dense'))+row('Animierte Emojis','Emojis in Notizen bewegen sich.',tog('emoji','Animierte Emojis')))}`},
+ {id:'cal',t:'Kalender',ic:'cal',lead:'Wie dein Kalender startet und sich anfühlt.',
+  html:()=>`
+  ${row('Wochenstart','',sel('weekStart','Wochenstart')).replace('class="row','class="row only-a')}
+  ${row('Ansicht beim Start','',sel('startView','Startansicht')).replace('class="row','class="row only-a')}
+  ${sent(`Meine Woche beginnt am ${sel('weekStart','Wochenstart')}, und Tide öffnet mit der Ansicht ${sel('startView','Startansicht')}.`,'wochenstart ansicht start woche tag')}
+  ${more('Mehr Kalender',row('Scrollen','Wie du zwischen den Wochen wechselst.',sel('scroll','Scrollen'))+row('Gleichzeitige Termine','Wie sie sich im Raster anordnen.',sel('overlap','Überlappung')))}
+  ${sent(`Zwischen den Wochen scrolle ich ${sel('scroll','Scrollen')}, gleichzeitige Termine stehen ${sel('overlap','Überlappung')}.`,'scrollen endlos überlappung nebeneinander gestapelt')}`},
+ {id:'notes',t:'Notizen',ic:'note',lead:'Schrift, Hintergrund und Terminlinks im Text.',
+  html:()=>`
+  ${row('Schrift','',seg('font')).replace('class="row','class="row only-a')}
+  ${row('Rechtschreibung prüfen','',tog('spell','Rechtschreibung')).replace('class="row','class="row only-a')}
+  ${sent(`Notizen setze ich in ${sel('font','Schrift')}, und Tide ${sel('spell','Rechtschreibung')} meine Rechtschreibung.`,'schrift sans serif mono rechtschreibung')}
+  ${more('Mehr Notizen',row('Papier','Hintergrundmuster im Editor.',sel('paper','Papier'))+row('Terminlinks: Vorschau','Wann ein Termin im Text als Karte erscheint.',sel('preview','Vorschau'))+row('Terminlinks: Farbe','',sel('mcolor','Farbe')))}
+  ${sent(`Der Hintergrund ist ${sel('paper','Papier')}. Termine im Text zeigen ihre Vorschau ${sel('preview','Vorschau')}, in der Farbe „${sel('mcolor','Farbe')}“.`,'papier hintergrund terminlink vorschau farbe')}`},
+ {id:'todo',t:'Todos',ic:'chk',lead:'Wie Aufgaben erscheinen und verschwinden.',
+  html:()=>`
+  ${row('Überfällige hervorheben','Rot markiert, damit nichts untergeht.',tog('late','Überfällige hervorheben')).replace('class="row','class="row only-a')}
+  ${row('Erledigte ausblenden','',sel('hideDone','Erledigte ausblenden')).replace('class="row','class="row only-a')}
+  ${sent(`Überfällige Todos sind ${sel('late','Überfällige')}, Erledigtes verschwindet ${sel('hideDone','Erledigte')}.`,'überfällig hervorheben erledigte ausblenden')}
+  ${more('Mehr Todos',row('Standard-Priorität','Für neue Todos.',sel('prio','Priorität'))+row('Todos mit Uhrzeit','Im Zeitraster des Kalenders zeigen.',tog('inGrid','Im Zeitraster')))}
+  ${sent(`Neue Todos haben ${sel('prio','Priorität')} Priorität, und Todos mit Uhrzeit erscheinen ${sel('inGrid','Zeitraster')}.`,'priorität zeitraster uhrzeit')}`},
+ {id:'acc',t:'Konto & Sicherheit',ic:'lock',lead:'Dein Konto, deine Schlüssel, deine Geräte.',
+  html:()=>`
+  <div class="who"><span class="av">NH</span><div><b>Nico Heerwagen</b><small>nico@example.de</small></div><span style="flex:1"></span><button class="btn">Profil</button></div>
+  ${row('Verschlüsselung','Ende-zu-Ende, der Tresor ist entsperrt.',`<span class="chip"><i></i>Entsperrt</span><button class="btn">Verwalten</button>`)}
+  ${row('Synchronisierung','Zuletzt vor 2 Minuten.',tog('sync','Synchronisierung'))}
+  ${more('Mehr Sicherheit',row('Passwort','',`<button class="btn">Ändern</button>`)+row('Geräte','3 angemeldet.',`<button class="btn">Ansehen</button>`)+row('API-Zugriff','Tokens für eigene Werkzeuge.',`<button class="btn">Tokens</button>`))}
+  ${only('b',row('Passwort','',`<button class="btn">Ändern</button>`)+row('Geräte','3 angemeldet.',`<button class="btn">Ansehen</button>`)+row('API-Zugriff','Tokens für eigene Werkzeuge.',`<button class="btn">Tokens</button>`))}
+  ${row('Abmelden','',`<button class="btn danger">Abmelden</button>`)}`},
+ {id:'ext',t:'Erweiterungen',ic:'puz',lead:'Zusätze, die du bei Bedarf einschaltest.',
+  html:()=>`
+  ${row('Smart Island','Fester Platz für Jetzt, Heute und Vorschläge.',tog('xIsland','Smart Island'))}
+  <div class="block" id="islopt" data-s="smart island fokus tageszusammenfassung" style="padding:4px 0 8px 16px;border-left:2px solid var(--t2-line);margin:-6px 0 6px">
+   ${row('Fokus','Welche Hinweise dich erreichen.',seg('focus'),1)}
+   ${row('Tageszusammenfassung','',sel('summary','Tageszusammenfassung'))}</div>
+  ${row('Job Planner','Schichten und Arbeitszeiten planen.',tog('xJob','Job Planner'))}
+  ${row('Umfragen','Kurze Abfragen im Alltag.',tog('xSurvey','Umfragen'))}
+  ${row('MCP-Zugriff','KI-Werkzeuge dürfen Termine lesen.',tog('xMcp','MCP-Zugriff'))}
+  ${row('Kalender importieren','Eine .ics-Datei, z. B. aus Google Kalender.',`<button class="btn">Datei wählen</button>`)}`},
+ {id:'info',t:'Über Tide',ic:'info',lead:'Version und Diagnose.',
+  html:()=>`${row('Version','Tide 2.0 · Entwurf','<button class="btn">Diagnose</button>')}${row('Hilfe & Feedback','','<button class="btn">Öffnen</button>')}`}
+];
+
+const NOTE={
+ a:'<b>Gedanke A, „Zeilen“:</b> Links die Gruppen, rechts immer nur eine ruhige Spalte. Jede Zeile ist ein Name mit einem Satz und genau einem Bedienelement. Seltenes steckt hinter „Mehr …“. Mobil: Liste, dann Unterseite wie in iOS.',
+ b:'<b>Gedanke B, „Sätze“:</b> Eine einzige Seite, die Liste links springt nur zur Gruppe. Einstellungen lesen sich wie Sätze („Meine Woche beginnt am Montag“), jedes Wort in der Pille ist änderbar. Nichts muss ausgeklappt werden. Mobil: Chips oben.'
+};
+
+const app=$('#app');
+function build(){
+  const v=st.variant;
+  app.className='app';app.dataset.v=v;app.dataset.m='list';
+  app.innerHTML=`<div class="shell">
+   <aside class="list"><h1>Einstellungen</h1>
+    <label class="q">${ic('search','s')}<input id="q" type="search" placeholder="Einstellung suchen" aria-label="Einstellung suchen"></label>
+    <nav class="nav" aria-label="Gruppen">${G.filter(g=>g.id!=='info').map(g=>`<button data-g="${g.id}">${ic(g.ic)}${g.t}<span class="go">${ic('chev','s')}</span></button>`).join('')}</nav>
+    <div class="foot"><button data-g="info">${ic('info','s')}Über Tide</button></div>
+   </aside>
+   <div class="content" id="content"><div class="top"><button data-back>${ic('back','s')}Einstellungen</button><b id="ttl"></b></div>
+    <div class="col">${G.map(g=>`<section class="sec" data-g="${g.id}" id="g-${g.id}"><h2>${g.t}</h2><p class="lead">${g.lead}</p>${g.html()}</section>`).join('')}
+     <p class="empty">Keine Einstellung gefunden.</p></div></div></div>`;
+  $('#note').innerHTML=NOTE[v];
+  activate('look',false);sync();
+}
+function activate(id,scroll){
+  app.dataset.g=id;
+  $$('.nav button, .foot [data-g]',app).forEach(b=>b.classList.toggle('on',b.dataset.g===id));
+  $$('.sec',app).forEach(s=>s.classList.toggle('on',s.dataset.g===id));
+  $('#ttl').textContent=G.find(x=>x.id===id).t;
+  const c=$('#content');
+  if(st.variant==='a')c.scrollTop=0;
+  else if(scroll){const sec=$('#g-'+id);c.scrollTo({top:sec.offsetTop-($('.top',c).offsetHeight||0)-(st.frame==='mobile'||app.clientWidth<=640?10:24),behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'})}
+}
+function sync(){
+  const d=document.documentElement.dataset;
+  d.theme=st.theme==='system'?(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'):st.theme;
+  d.palette=st.palette;
+  $('#frame').classList.toggle('mobile',st.frame==='mobile');
+  $$('.seg[data-k]').forEach(s=>{const v=String(st[s.dataset.k]);$$('button',s).forEach(b=>b.setAttribute('aria-checked',b.dataset.v===v))});
+  $$('select[data-k]').forEach(s=>s.value=String(st[s.dataset.k]));
+  $$('.tog[data-k]').forEach(t=>t.setAttribute('aria-checked',String(!!st[t.dataset.k])));
+  $$('.pal').forEach(p=>p.setAttribute('aria-pressed',p.dataset.pal===st.palette));
+  const il=$('#islopt');if(il)il.classList.toggle('hide',!st.xIsland);
+}
+document.addEventListener('click',e=>{
+  const sg=e.target.closest('.seg button');
+  if(sg){const k=sg.parentNode.dataset.k,v=sg.dataset.v;
+    st[k]=v;
+    if(k==='variant'){build();return}
+    if(k==='frame')app.dataset.m='list';
+    sync();return}
+  const t=e.target.closest('.tog');if(t){st[t.dataset.k]=!st[t.dataset.k];sync();return}
+  const p=e.target.closest('.pal');if(p){st.palette=p.dataset.pal;sync();return}
+  const g=e.target.closest('button[data-g]');
+  if(g){const q=$('#q');if(q.value){q.value='';filter()}activate(g.dataset.g,true);app.dataset.m='page';return}
+  if(e.target.closest('[data-back]'))app.dataset.m='list';
+});
+document.addEventListener('change',e=>{const s=e.target.closest('select[data-k]');if(!s)return;const k=s.dataset.k;st[k]=typeof st[k]==='boolean'?s.value==='true':s.value;sync()});
+function filter(){
+  const q=$('#q').value.trim().toLowerCase();app.classList.toggle('searching',!!q);
+  let any=false;
+  $$('.sec',app).forEach(sec=>{let n=0;
+    $$('.row,.sent,.block:not(#islopt)',sec).forEach(r=>{const m=!q||(r.dataset.s||'').includes(q);r.classList.toggle('hide',!m);if(m&&!r.closest('.only-'+(st.variant==='a'?'b':'a'))&&!r.classList.contains('only-'+(st.variant==='a'?'b':'a')))n++});
+    $$('details.more',sec).forEach(d=>{d.open=!!q&&$$('.row',d).some(r=>(r.dataset.s||'').includes(q))});
+    sec.classList.toggle('hide',!!q&&!n);if(!q||n)any=true});
+  $('.empty').classList.toggle('show',!any);
+  if(q&&st.variant==='a')app.dataset.m='page';
+}
+document.addEventListener('input',e=>{if(e.target.id==='q')filter()});
+document.addEventListener('scroll',e=>{if(e.target.id!=='content'||st.variant!=='b')return;const c=e.target;let cur='look';
+  $$('.sec',c).forEach(s=>{if(s.offsetTop-c.scrollTop<140)cur=s.dataset.g});
+  $$('.nav button,.foot [data-g]',app).forEach(b=>b.classList.toggle('on',b.dataset.g===cur))},true);
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change',()=>{if(st.theme==='system')sync()});
+build();
+</script>
+</body>
+</html>

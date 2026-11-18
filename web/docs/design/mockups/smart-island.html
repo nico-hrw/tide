@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="de" data-theme="light" data-palette="tide">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tide 2 – Smart Island (Entwurf)</title>
+<style>
+/* ── Tokens: gleiche Namen wie globals.css (--t2-*), Paletten per [data-palette] ── */
+:root,[data-palette=tide]{
+  --t2-bg:#FFFFFF;--t2-surface:#FFFFFF;--t2-sub:#F6F6F7;--t2-ink:#0E0E10;--t2-ink-2:#5E5E66;--t2-ink-3:#9A9AA3;
+  --t2-line:#E9E9EC;--t2-line-soft:#F1F1F3;--t2-hover:#F1F1F3;--t2-blue:#2563EB;--t2-now:#E5484D;--t2-late:#C4443F;
+  --t2-stage:#EDEDF0;--t2-accent:#0E0E10;--t2-accent-ink:#FFFFFF;
+}
+[data-palette=warm]{
+  --t2-bg:#FBF8F3;--t2-surface:#FFFDF9;--t2-sub:#F4EFE7;--t2-ink:#1F1A15;--t2-ink-2:#62594E;--t2-ink-3:#9C9286;
+  --t2-line:#E8E0D4;--t2-line-soft:#F0EADF;--t2-hover:#EFE8DC;--t2-blue:#3B62C9;--t2-now:#D9534F;--t2-late:#B8443B;
+  --t2-stage:#E9E2D6;--t2-accent:#C15F3C;--t2-accent-ink:#FFFFFF;
+}
+[data-palette=slate]{
+  --t2-bg:#F7F9FA;--t2-surface:#FFFFFF;--t2-sub:#EEF2F5;--t2-ink:#10181D;--t2-ink-2:#55636D;--t2-ink-3:#8E9AA3;
+  --t2-line:#DEE5EA;--t2-line-soft:#E9EEF2;--t2-hover:#E6ECF0;--t2-blue:#2F6FA3;--t2-now:#E5484D;--t2-late:#C4443F;
+  --t2-stage:#E1E8ED;--t2-accent:#3F6B7E;--t2-accent-ink:#FFFFFF;
+}
+[data-theme=dark] [data-palette=tide],[data-theme=dark][data-palette=tide]{
+  --t2-bg:#0B0B0D;--t2-surface:#131316;--t2-sub:#1A1A1E;--t2-ink:#F4F4F5;--t2-ink-2:#A1A1AA;--t2-ink-3:#6E6E78;
+  --t2-line:#26262B;--t2-line-soft:#1D1D21;--t2-hover:#222226;--t2-blue:#6E9BFF;--t2-now:#FF6369;--t2-late:#F0777A;
+  --t2-stage:#050506;--t2-accent:#F4F4F5;--t2-accent-ink:#0B0B0D;
+}
+[data-theme=dark] [data-palette=warm],[data-theme=dark][data-palette=warm]{
+  --t2-bg:#161310;--t2-surface:#1E1A16;--t2-sub:#1B1713;--t2-ink:#F3EDE4;--t2-ink-2:#B2A798;--t2-ink-3:#7C7266;
+  --t2-line:#2E2822;--t2-line-soft:#25201B;--t2-hover:#2A241E;--t2-blue:#8AA8F0;--t2-now:#FF7A70;--t2-late:#F08B84;
+  --t2-stage:#0E0C0A;--t2-accent:#E2896A;--t2-accent-ink:#1A0F0A;
+}
+[data-theme=dark] [data-palette=slate],[data-theme=dark][data-palette=slate]{
+  --t2-bg:#0D1317;--t2-surface:#141C21;--t2-sub:#11181C;--t2-ink:#EAF0F3;--t2-ink-2:#9AA9B3;--t2-ink-3:#66757F;
+  --t2-line:#222C33;--t2-line-soft:#1A2328;--t2-hover:#1F2A30;--t2-blue:#7DB3E0;--t2-now:#FF6369;--t2-late:#F0777A;
+  --t2-stage:#070B0D;--t2-accent:#7FB0C4;--t2-accent-ink:#07151B;
+}
+:root{--t2-r:10px;--t2-r-lg:14px;
+  --cal-praktikum:#5C6E6C;--cal-studium:#A6B7A8;--cal-social:#D2A96A;--cal-uni:#D39D87;--cal-geb:#A9623F;
+  --ease:cubic-bezier(.32,.72,0,1);
+  --font:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--t2-stage);color:var(--t2-ink);font:14px/1.4 var(--font);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;min-height:100vh}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg.i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+:focus-visible{outline:2px solid var(--t2-blue);outline-offset:2px}
+small{font-size:12px}
+
+/* ── Mockup-Rahmen ── */
+.chrome{position:sticky;top:0;z-index:50;background:var(--t2-surface);border-bottom:1px solid var(--t2-line)}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 16px}
+.bar>b{font-weight:600}
+.grp{display:flex;align-items:center;gap:6px;color:var(--t2-ink-3);font-size:12.5px}
+.seg{display:inline-flex;gap:2px;padding:3px;background:var(--t2-sub);border-radius:var(--t2-r);box-shadow:inset 0 0 0 1px var(--t2-line);flex-wrap:wrap}
+.seg button{padding:5px 11px;border-radius:7px;color:var(--t2-ink-2);white-space:nowrap;font-size:13px;display:flex;align-items:center;gap:6px}
+.seg button:hover{color:var(--t2-ink)}
+.seg button[aria-checked=true]{background:var(--t2-surface);color:var(--t2-ink);font-weight:600;box-shadow:0 0 0 1px var(--t2-line),0 1px 2px rgba(0,0,0,.06)}
+.note{padding:0 16px 12px;color:var(--t2-ink-2);font-size:13px;max-width:900px}
+.note b{color:var(--t2-ink)}
+.states{padding:0 16px 12px}
+.stage{padding:24px 16px 56px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;max-width:1280px;margin:0 auto}
+.hint{text-align:center;color:var(--t2-ink-3);font-size:12.5px;padding:0 16px 40px}
+
+/* ── Geräte-Ausschnitte ── */
+.dv{display:flex;flex-direction:column;gap:10px;min-width:0}
+.dv>h3{font-size:13px;font-weight:600;color:var(--t2-ink-2);display:flex;justify-content:space-between}
+.dv>h3 span{font-weight:400;color:var(--t2-ink-3)}
+.scr{position:relative;height:470px;border-radius:18px;overflow:hidden;background:var(--t2-bg);box-shadow:0 0 0 1px var(--t2-line),0 8px 28px rgba(0,0,0,.07);max-width:380px;width:100%;margin:0 auto}
+/* Desktop: Seitenleiste */
+.scr.dsk{display:grid;grid-template-columns:244px 1fr}
+.side{background:var(--t2-sub);padding:12px;display:flex;flex-direction:column;gap:10px;position:relative}
+.side .ws{display:flex;align-items:center;gap:9px;padding:4px 6px;font-weight:600}
+.side .ws i{width:24px;height:24px;border-radius:50%;background:var(--t2-ink);color:var(--t2-bg);font-style:normal;font-size:10.5px;display:grid;place-items:center}
+.side .ni{padding:7px 10px;border-radius:var(--t2-r);color:var(--t2-ink-2);display:flex;gap:9px;align-items:center}
+.side .ni.on{background:var(--t2-hover);color:var(--t2-ink);font-weight:600}
+.side .tr{color:var(--t2-ink-3);font-size:13px;padding:5px 10px;display:flex;gap:8px;align-items:center}
+.main{padding:14px 0 0 12px;display:flex;gap:6px;position:relative;overflow:hidden}
+.main i{flex:1;border-radius:8px 0 0 0;background:var(--t2-line-soft);min-height:60px;position:relative}
+/* Tablet + Handy: Inhalt mit schwebender Island */
+.cal{position:absolute;inset:0;padding:16px 14px 0;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-content:start}
+.cal .h{height:30px;border-radius:8px;background:var(--t2-sub)}
+.cal .col{position:relative;height:380px;border-radius:8px;background:var(--t2-line-soft)}
+.cal .col u{position:absolute;left:3px;right:3px;border-radius:6px;opacity:.9}
+.dock{position:absolute;left:14px;right:14px;bottom:12px;height:50px;border-radius:18px;background:var(--t2-surface);box-shadow:0 0 0 1px var(--t2-line);display:flex;justify-content:space-around;align-items:center;color:var(--t2-ink-3)}
+.dock .on{color:var(--t2-ink)}
+
+/* ── Island: Slot + Panels (nur transform/opacity werden animiert) ── */
+.slot{position:absolute;left:12px;bottom:12px;width:220px;height:48px;z-index:10}
+.tab .slot{left:16px;bottom:16px;width:300px;height:48px}
+.phn .slot{left:14px;bottom:74px;width:60px;height:60px}
+.pn{position:absolute;left:0;bottom:0;transform-origin:0 100%;will-change:transform,opacity;overflow:hidden;
+  background:var(--t2-surface);color:var(--t2-ink);border-radius:14px;
+  box-shadow:0 0 0 1px var(--t2-line),0 1px 2px rgba(0,0,0,.05),0 10px 28px rgba(0,0,0,.10);cursor:pointer;text-align:left}
+.dsk .pn{width:220px}.tab .pn{width:300px}.phn .pn{width:60px}.phn .pn.open{width:min(312px,calc(100vw - 52px))}
+.pc{padding:11px 13px}
+.pc .hd{display:flex;align-items:center;gap:10px}
+.pc .tx{min-width:0;flex:1;display:flex;flex-direction:column;line-height:1.25}
+.pc .tx b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc .tx small,.mut{color:var(--t2-ink-3)}
+.cd{font-weight:700;font-size:17px;letter-spacing:-.01em}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ev,var(--t2-ink-3));flex:none}
+.tm{font-weight:700;font-size:15px;letter-spacing:-.01em}
+.prog{height:3px;border-radius:2px;background:var(--t2-line);margin-top:10px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--ev,var(--t2-ink));transform-origin:0 50%;transform:scaleX(.96)}
+.r1{display:flex;align-items:center;gap:8px;justify-content:space-between;height:26px}
+.r1 .l{display:flex;align-items:center;gap:8px}
+.big{font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.sq{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;height:60px;padding:0}
+.sq small{font-size:10.5px;font-weight:600;letter-spacing:.02em;opacity:.8;line-height:1}
+.sq .big.sm{font-size:15px}
+/* Tag / Mini-Kalender */
+.mh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.mh b{font-weight:600}
+.mg{display:grid;grid-template-columns:repeat(7,1fr);row-gap:1px;text-align:center}
+.mg span{height:25px;display:grid;place-items:center;font-size:12px;position:relative;color:var(--t2-ink-2)}
+.mg .w{font-size:10.5px;color:var(--t2-ink-3);height:20px;font-weight:600}
+.mg .o{color:var(--t2-ink-3);opacity:.55}
+.mg .ev::after{content:"";position:absolute;bottom:1px;width:3px;height:3px;border-radius:50%;background:currentColor;opacity:.55}
+.mg .t{background:var(--now-bg,var(--t2-now));color:#fff;border-radius:50%;width:25px;justify-self:center;font-weight:700}
+.mg .t::after{display:none}
+.ag{margin-top:8px;border-top:1px solid var(--t2-line);padding-top:6px;display:flex;flex-direction:column}
+.ag div{display:flex;align-items:center;gap:8px;height:27px;font-size:12.5px}
+.ag div .tt{width:38px;color:var(--t2-ink-3)}
+.ag .done{opacity:.45}.ag .now b{font-weight:700}
+.ag .dot{width:6px;height:6px}
+/* Erfassen */
+.in{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--t2-sub);box-shadow:inset 0 0 0 1px var(--t2-line)}
+.caret{width:1.5px;height:15px;background:var(--t2-ink);animation:bl 1s steps(1) infinite}
+@keyframes bl{50%{opacity:0}}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin:9px 0}
+.chips span{padding:2px 8px;border-radius:99px;font-size:12px;background:var(--t2-sub);box-shadow:inset 0 0 0 1px var(--t2-line);color:var(--t2-ink-2)}
+.ac{display:flex;gap:6px}
+.b{flex:1;padding:7px 10px;border-radius:9px;font-weight:600;font-size:13px;text-align:center;box-shadow:inset 0 0 0 1px var(--t2-line)}
+.b:hover{background:var(--t2-hover)}
+.b.pri{background:var(--t2-accent);color:var(--t2-accent-ink);box-shadow:none}
+.b.pri:hover{background:var(--t2-accent);filter:brightness(1.1)}
+.x{padding:4px;border-radius:6px;color:var(--t2-ink-3);display:flex}
+.x:hover{background:var(--t2-hover);color:var(--t2-ink)}
+
+/* Terminfarben je Zustand */
+.pn[data-s=laufend]{--ev:var(--cal-praktikum);--ev-ink:#FFFFFF}
+.pn[data-s=naechster]{--ev:var(--cal-social);--ev-ink:#2A1E0B}
+.pn[data-s=hinweis]{--ev:var(--cal-uni);--ev-ink:#2E1810}
+.pn[data-s=tag]{--now-bg:var(--t2-now)}
+
+/* ── Variante A: ruhiges Papier. Quadrat nur leicht in Eventfarbe getönt ── */
+[data-v=a] .pn.sqr[data-s=laufend],[data-v=a] .pn.sqr[data-s=naechster],[data-v=a] .pn.sqr[data-s=hinweis]{
+  background:color-mix(in srgb,var(--ev) 22%,var(--t2-surface));box-shadow:0 0 0 1px color-mix(in srgb,var(--ev) 45%,var(--t2-line)),0 10px 28px rgba(0,0,0,.10)}
+[data-v=a] .pn.sqr{border-radius:16px}
+
+/* ── Variante B: Eventfarbe führt. Kompakt, fast schwarz, Eventfarbe als Fläche ── */
+[data-v=b] .pn{--isl:#17171A;background:var(--isl);color:#fff;border-radius:22px;box-shadow:0 0 0 1px rgba(255,255,255,.06),0 14px 34px rgba(0,0,0,.28)}
+[data-v=b] .pn .tx small,[data-v=b] .pn .mut,[data-v=b] .pn .mg span,[data-v=b] .pn .ag div .tt{color:rgba(255,255,255,.58)}
+[data-v=b] .pn .mg .w,[data-v=b] .pn .mg .o{color:rgba(255,255,255,.4)}
+[data-v=b] .pn .mh .mut{color:#93c5fd}
+[data-v=b] .pn .prog{background:rgba(255,255,255,.15)}
+[data-v=b] .pn .prog i{background:#fff}
+[data-v=b] .pn .in{background:rgba(255,255,255,.08);box-shadow:none}
+[data-v=b] .pn .caret{background:#fff}
+[data-v=b] .pn .chips span{background:rgba(255,255,255,.1);box-shadow:none;color:rgba(255,255,255,.8)}
+[data-v=b] .pn .b{box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);color:#fff}
+[data-v=b] .pn .b:hover{background:rgba(255,255,255,.08)}
+[data-v=b] .pn .b.pri{background:#fff;color:#17171A;box-shadow:none}
+[data-v=b] .pn .x{color:rgba(255,255,255,.6)}
+[data-v=b] .pn .x:hover{background:rgba(255,255,255,.1);color:#fff}
+[data-v=b] .pn .ag{border-color:rgba(255,255,255,.12)}
+[data-v=b] .pn[data-s=laufend],[data-v=b] .pn[data-s=naechster],[data-v=b] .pn[data-s=hinweis]{background:var(--ev);color:var(--ev-ink);box-shadow:0 14px 34px color-mix(in srgb,var(--ev) 45%,transparent)}
+[data-v=b] .pn[data-s=laufend] .tx small,[data-v=b] .pn[data-s=naechster] .tx small,[data-v=b] .pn[data-s=hinweis] .tx small{color:var(--ev-ink);opacity:.75}
+[data-v=b] .pn[data-s=laufend] .prog{background:color-mix(in srgb,var(--ev-ink) 22%,transparent)}
+[data-v=b] .pn[data-s=laufend] .prog i{background:var(--ev-ink)}
+[data-v=b] .pn[data-s=hinweis] .x,[data-v=b] .pn[data-s=naechster] .x{color:var(--ev-ink)}
+[data-v=b] .pn .dot{background:var(--ev,#fff)}
+[data-v=b] .pn[data-s=laufend] .dot,[data-v=b] .pn[data-s=naechster] .dot,[data-v=b] .pn[data-s=hinweis] .dot{background:var(--ev-ink)}
+[data-v=b] .pn.sqr{border-radius:18px}
+[data-v=b] .pn .mg .t{background:var(--t2-now)}
+[data-v=b] .pn .ag .now b{color:#fff}
+
+@media (prefers-reduced-motion:reduce){.caret{animation:none}}
+</style>
+</head>
+<body>
+<header class="chrome">
+  <div class="bar">
+    <b>Tide 2 · Smart Island</b>
+    <div class="grp">Variante <div class="seg" role="radiogroup" aria-label="Variante" data-k="v"><button role="radio" data-val="a">A · Papier</button><button role="radio" data-val="b">B · Eventfarbe</button></div></div>
+    <div class="grp">Modus <div class="seg" role="radiogroup" aria-label="Modus" data-k="theme"><button role="radio" data-val="light">Hell</button><button role="radio" data-val="dark">Dunkel</button></div></div>
+    <div class="grp">Palette <div class="seg" role="radiogroup" aria-label="Palette" data-k="palette"><button role="radio" data-val="tide">Tide</button><button role="radio" data-val="warm">Warm</button><button role="radio" data-val="slate">Slate</button></div></div>
+  </div>
+  <p class="note" id="note"></p>
+  <div class="states bar" style="padding-top:0">
+    <div class="grp">Zustand <div class="seg" role="radiogroup" aria-label="Zustand" data-k="state">
+      <button role="radio" data-val="ruhe">Ruhe</button><button role="radio" data-val="laufend">Laufender Termin</button><button role="radio" data-val="naechster">Nächster Termin</button><button role="radio" data-val="tag">Tagesübersicht</button><button role="radio" data-val="erfassen">Schnell-Erfassung</button><button role="radio" data-val="hinweis">Benachrichtigung</button></div></div>
+    <button class="seg" id="play" style="padding:3px"><span style="padding:5px 12px;font-size:13px;font-weight:600">▶ Ablauf abspielen</span></button>
+  </div>
+</header>
+
+<main class="stage" id="stage">
+  <section class="dv"><h3>Desktop <span>unten links in der Seitenleiste</span></h3>
+    <div class="scr dsk" data-d="dsk">
+      <div class="side"><div class="ws"><i>NH</i>Nico</div><div class="ni on">Studium</div><div class="ni">Todos</div><div class="tr">Notizen</div><div class="tr">▸ tide</div><div class="tr">▾ med</div><div class="tr" style="padding-left:24px">Mails</div>
+        <div class="slot"></div></div>
+      <div class="main"><i></i><i></i></div>
+    </div></section>
+  <section class="dv"><h3>Tablet <span>schwebend, Seitenleiste eingeklappt</span></h3>
+    <div class="scr tab" data-d="tab"><div class="cal"><div class="h"></div><div class="h"></div><div class="h"></div><div class="h"></div>
+      <div class="col"><u style="top:60px;height:80px;background:var(--cal-studium)"></u></div><div class="col"><u style="top:110px;height:100px;background:var(--cal-praktikum)"></u></div><div class="col"><u style="top:40px;height:70px;background:var(--cal-uni)"></u></div><div class="col"><u style="top:150px;height:90px;background:var(--cal-social)"></u></div></div>
+      <div class="slot"></div></div></section>
+  <section class="dv"><h3>Handy <span>Quadrat, tippen zum Öffnen</span></h3>
+    <div class="scr phn" data-d="phn"><div class="cal" style="grid-template-columns:repeat(2,1fr)"><div class="h"></div><div class="h"></div>
+      <div class="col"><u style="top:60px;height:80px;background:var(--cal-studium)"></u><u style="top:220px;height:90px;background:var(--cal-praktikum)"></u></div><div class="col"><u style="top:110px;height:100px;background:var(--cal-uni)"></u></div></div>
+      <div class="dock"><span class="on">▦</span><span>▤</span><span>☑</span></div>
+      <div class="slot"></div></div></section>
+</main>
+<p class="hint">Tippen auf die Island wechselt zum nächsten sinnvollen Zustand. Auf dem Handy öffnet und schließt ein Tippen das Quadrat.</p>
+
+<script>
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const P={plus:'<path d="M12 5v14M5 12h14"/>',x:'<path d="M6 6l12 12M18 6 6 18"/>',bell:'<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 21h4"/>'};
+const ic=n=>`<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
+const REDUCED=matchMedia('(prefers-reduced-motion:reduce)');
+
+const NOTE={
+ a:'<b>Gedanke A, „Papier“:</b> Die Island ist eine ruhige Karte in den Tokens der Seitenleiste. Die Eventfarbe erscheint nur als kleiner Punkt und Fortschrittsstrich, das Handy-Quadrat ist leicht getönt. Fällt nie auf, bis sie gebraucht wird.',
+ b:'<b>Gedanke B, „Eventfarbe“:</b> Die Island ist ein dunkler Körper, der bei Termin und Hinweis ganz die Farbe des Termins annimmt. Eine Farbe heißt „das läuft gerade“, auch aus dem Augenwinkel. Näher an der Dynamic Island.'
+};
+const st={v:'a',theme:'light',palette:'tide',state:'ruhe'};
+const open={phn:false};            // Handy: Quadrat offen/zu
+const sqKey=s=>s;
+
+/* ── Inhalte der Zustände (voll) ── */
+const MG=(()=>{const d=[26,27,28,29,30,31,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,1,2,3,4,5,6];
+ const ev=[16,18,19,21,24,26];
+ return ['Mo','Di','Mi','Do','Fr','Sa','So'].map(w=>`<span class="w">${w}</span>`).join('')+d.map((n,i)=>`<span class="${(i<6||i>=35)?'o':''} ${i===21?'t':''} ${ev.includes(n)&&i>=6&&i<35&&i!==21?'ev':''}">${n}</span>`).join('')})();
+const FULL={
+ ruhe:()=>`<div class="pc"><div class="r1"><span class="l"><span class="dot"></span><b>Mo, 16. Nov</b></span><span class="mut">2 Termine offen</span></div></div>`,
+ laufend:()=>`<div class="pc"><div class="hd"><span class="dot"></span><div class="tx"><b>Arbeit</b><small>endet um 17:00</small></div><span class="cd" data-cd>9:00</span></div><div class="prog"><i data-pr></i></div></div>`,
+ naechster:()=>`<div class="pc"><div class="hd"><span class="tm">18:30</span><div class="tx"><b>Sport</b><small>in 1 h 39 Min · Sporthalle</small></div></div></div>`,
+ tag:()=>`<div class="pc"><div class="mh"><b>November 2026</b><small class="mut">KW 47</small></div><div class="mg">${MG}</div>
+   <div class="ag"><div class="done"><span class="tt">09:00</span><span class="dot" style="--ev:var(--cal-studium)"></span>Seminar</div><div class="now"><span class="tt">13:00</span><span class="dot" style="--ev:var(--cal-praktikum)"></span><b>Arbeit</b></div><div><span class="tt">18:30</span><span class="dot" style="--ev:var(--cal-social)"></span>Sport</div></div></div>`,
+ erfassen:()=>`<div class="pc"><div class="in"><span>Do 14 Uhr Lernen mit Jette</span><span class="caret"></span></div>
+   <div class="chips"><span>Do 19.11.</span><span>14:00</span><span>2 h</span><span>Studium</span></div>
+   <div class="ac"><span class="b pri" role="button" tabindex="0" data-act="ok">Anlegen</span><span class="b" role="button" tabindex="0" data-act="no">Verwerfen</span></div></div>`,
+ hinweis:()=>`<div class="pc"><div class="hd"><span class="dot"></span><div class="tx"><b>Vorlesung verschoben</b><small>Jetzt 10:00 statt 09:30</small></div><span class="x" role="button" tabindex="0" data-act="no" aria-label="Schließen">${ic('x')}</span></div></div>`
+};
+/* Handy: Quadrat (zu) */
+const SQ={
+ ruhe:()=>`<div class="pc sq"><span class="big">16</span><small>MO</small></div>`,
+ laufend:()=>`<div class="pc sq"><span class="big" data-cdm>9</span><small>MIN</small></div>`,
+ naechster:()=>`<div class="pc sq"><span class="big sm">18:30</span><small>SPORT</small></div>`,
+ tag:()=>`<div class="pc sq"><span class="big">2</span><small>HEUTE</small></div>`,
+ erfassen:()=>`<div class="pc sq">${ic('plus')}<small>NEU</small></div>`,
+ hinweis:()=>`<div class="pc sq">${ic('bell')}<small>1 NEU</small></div>`
+};
+const NEXT={ruhe:'tag',laufend:'tag',naechster:'tag',tag:'ruhe',erfassen:'ruhe',hinweis:'ruhe'};
+
+/* ── Panels & Übergänge ── */
+const devs=$$('.scr').map(el=>({el,id:el.dataset.d,slot:$('.slot',el),cur:null}));
+function make(dev,state){
+  const sq=dev.id==='phn'&&!open.phn;
+  const p=document.createElement('div');
+  p.className='pn'+(sq?' sqr':'')+(dev.id==='phn'&&open.phn?' open':'');
+  p.dataset.s=state;p.tabIndex=0;p.setAttribute('role','button');
+  p.setAttribute('aria-label',{ruhe:'Heute',laufend:'Laufender Termin',naechster:'Nächster Termin',tag:'Tagesübersicht',erfassen:'Schnell-Erfassung',hinweis:'Benachrichtigung'}[state]);
+  p.innerHTML=sq?SQ[state]():FULL[state]();
+  return p;
+}
+function show(dev,state,instant){
+  const old=dev.cur,p=make(dev,state);
+  dev.slot.appendChild(p);dev.cur=p;
+  if(!old||instant||REDUCED.matches){if(old)old.remove();return}
+  const ow=old.offsetWidth,oh=old.offsetHeight,nw=p.offsetWidth,nh=p.offsetHeight;
+  const ease='cubic-bezier(.32,.72,0,1)';
+  const kids=[...p.children];
+  // neue Hülle wächst/schrumpft von der alten Größe, Inhalt blendet verzögert ein
+  p.animate([{transform:`scale(${ow/nw},${oh/nh})`},{transform:'scale(1,1)'}],{duration:460,easing:ease});
+  kids.forEach(k=>k.animate([{opacity:0},{opacity:0,offset:.35},{opacity:1}],{duration:460,easing:'ease-out'}));
+  old.style.pointerEvents='none';
+  old.animate([{opacity:1,transform:'scale(1,1)'},{opacity:0,transform:`scale(${nw/ow},${nh/oh})`}],{duration:240,easing:ease,fill:'forwards'}).onfinish=()=>old.remove();
+}
+function renderAll(instant){devs.forEach(d=>show(d,st.state,instant));syncUI()}
+function go(state){st.state=state;open.phn=false;renderAll();}
+
+/* Zähler: aktualisiert nur Text und scaleX */
+let secs=9*60;
+setInterval(()=>{secs=secs>0?secs-1:9*60;
+  const m=Math.floor(secs/60),s=String(secs%60).padStart(2,'0');
+  $$('[data-cd]').forEach(e=>e.textContent=`${m}:${s}`);
+  $$('[data-cdm]').forEach(e=>e.textContent=Math.max(1,Math.ceil(secs/60)));
+  $$('[data-pr]').forEach(e=>e.style.transform=`scaleX(${1-secs/(240*60)})`)},1000);
+
+/* ── Interaktion ── */
+document.addEventListener('click',e=>{
+  const act=e.target.closest('[data-act]');
+  if(act){e.stopPropagation();go(act.dataset.act==='ok'?'hinweis':'ruhe');if(act.dataset.act==='ok'){$$('.pn[data-s=hinweis] small').forEach(s=>s.textContent='Lernen mit Jette · Do 14:00');$$('.pn[data-s=hinweis] b').forEach(b=>b.textContent='Termin angelegt')}return}
+  const pn=e.target.closest('.pn');
+  if(pn){const dev=devs.find(d=>d.el.contains(pn));
+    if(dev.id==='phn'&&!open.phn){open.phn=true;show(dev,st.state);return}
+    if(dev.id==='phn'&&open.phn&&st.state==='ruhe'){open.phn=false;show(dev,st.state);return}
+    go(NEXT[st.state]);return}
+  const sg=e.target.closest('.seg button[data-val]');
+  if(sg){const k=sg.parentNode.dataset.k,v=sg.dataset.val;
+    if(k==='state'){stopPlay();go(v);return}
+    st[k]=v;apply();return}
+  if(e.target.closest('#play'))play();
+});
+document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('.pn,[data-act]')){e.preventDefault();e.target.click()}});
+
+let timer=null;
+function stopPlay(){clearTimeout(timer);timer=null;$('#play span').textContent='▶ Ablauf abspielen'}
+function play(){
+  if(timer){stopPlay();return}
+  const seq=['ruhe','laufend','naechster','tag','erfassen','hinweis'];let i=0;
+  $('#play span').textContent='■ Anhalten';
+  (function step(){go(seq[i%seq.length]);i++;timer=setTimeout(step,2600)})();
+}
+function syncUI(){$$('.seg[data-k=state] button').forEach(b=>b.setAttribute('aria-checked',b.dataset.val===st.state))}
+function apply(){
+  const r=document.documentElement;r.dataset.theme=st.theme;r.dataset.palette=st.palette;r.dataset.v=st.v;
+  $$('.scr').forEach(s=>s.dataset.v=st.v);
+  $$('.seg[data-k]').forEach(s=>{const k=s.dataset.k;if(k==='state')return;$$('button',s).forEach(b=>b.setAttribute('aria-checked',b.dataset.val===st[k]))});
+  $('#note').innerHTML=NOTE[st.v];
+}
+apply();renderAll(true);
+</script>
+</body>
+</html>
