@@ -5,6 +5,50 @@
 
 ---
 
+## 0. Tide 2: Paletten (aktuelle Architektur)
+
+Die Farben der App kommen aus **einem Satz Tokens** (`--t2-*`), der pro **Palette** und pro **Modus** (hell/dunkel) überschrieben wird. Komponenten benutzen nur die Tailwind-Klassen dieser Tokens und enthalten keine `dark:`-Varianten für Neutrale.
+
+| Token | Tailwind | Rolle |
+|---|---|---|
+| `--t2-bg` | `bg-t2-bg` | Seitenhintergrund |
+| `--t2-surface` | `bg-t2-surface` | Karten, Modals, Popover |
+| `--t2-sub` | `bg-t2-sub` | Leise Flächen, Eingabefelder, aktive Segmente |
+| `--t2-hover` | `bg-t2-hover` | Hover-Zustand |
+| `--t2-stage` | `bg-t2-stage` | Bühne hinter Seiten |
+| `--t2-ink` / `-2` / `-3` | `text-t2-ink`, `-ink-2`, `-ink-3` | Text: primär, sekundär, leise |
+| `--t2-line` / `--t2-line-soft` | `border-t2-line`, `-line-soft` | Linien |
+| `--t2-accent` / `--t2-accent-ink` | `bg-t2-accent text-t2-accent-ink` | **Akzent** für aktive Zustände, Hervorhebung, Fokus. Ersetzt jedes harte Blau/Indigo/Violett. |
+| `--t2-blue` | `text-t2-blue` | Alias auf `--t2-accent` (Altname, nicht mehr neu verwenden) |
+| `--t2-now`, `--t2-late` | `text-t2-now`, `-late` | "Jetzt"-Linie, überfällig |
+
+**Abgeleitet (nie direkt setzen):** `--background`, `--foreground`, `--sidebar-bg`, `--border-color`, `--muted-text`, `--surface-modal*`, `--input-*` zeigen in `globals.css` auf die `--t2-*` Tokens, damit auch Altcode die Palette mitmacht.
+
+**Nicht Teil der Palette:** Termin-Farben (`--cal-*`, Einstellung `calendarColorPalette`), vom Nutzer gewählte Farben (Referenzen, Ereignisse, Kollaborations-Cursor) und semantische Farben (Erfolg grün, Gefahr rot).
+
+### Paletten-Mechanik
+- Standard (`tide`): `:root` (hell) und `.dark` in `web/src/app/globals.css`.
+- Weitere Paletten: `web/src/app/palettes.css`, je ein Block `:root[data-palette="name"]` (hell) und `:root[data-palette="name"].dark` (dunkel).
+- Das Attribut `data-palette` auf `<html>` setzt `lib/palette.ts` (`applyPalette`). Beim Start passiert das im Store (`appPalette` in `createUiSlice.ts`), vor dem ersten Paint zusätzlich durch ein kleines Inline-Skript in `layout.tsx` (`PALETTE_BOOT_SCRIPT`).
+- Gespeichert in `localStorage` unter `tide_app_palette`. Hell/Dunkel bleibt getrennt (`themePreference`).
+- Auswahl in den Einstellungen unter Appearance, vorschauchips aus `PALETTE_PREVIEW` in `designTokens.ts`.
+
+### Neue Palette hinzufügen
+1. In `palettes.css` ein Blockpaar kopieren und die Werte ändern (alle Tokens der Tabelle oben, hell und dunkel).
+2. Id in `AppPalette` und `PALETTES` (`lib/palette.ts`) ergänzen, bei Bedarf in `PALETTE_BOOT_SCRIPT`.
+3. Vorschau in `PALETTE_PREVIEW` (`designTokens.ts`) eintragen.
+4. Prüfen: Kalender, Todos, Notiz, Sidebar in Hell und Dunkel.
+
+### Regeln für Komponenten
+- Neutrale Farben nur über `t2-*`-Klassen, nie `gray-*`, `slate-*`, `zinc-*` oder Hex.
+- Akzent nur über `t2-accent`. Auf Akzentflächen `text-t2-accent-ink`. Kein `blue-*`, `indigo-*`, `violet-*`, `purple-*`.
+- Halbtransparente Akzent-Töne in CSS mit `color-mix(in srgb, var(--t2-accent) 14%, transparent)` (Tailwind-Deckkraft funktioniert mit den Variablen nicht).
+- Keine `dark:`-Klassen für Farben, die ein Token abdeckt.
+
+> Die folgenden Abschnitte beschreiben das ältere Token-Modell (bleibt für Radien, Schatten und Highlights gültig).
+
+---
+
 ## 1. Die drei Schaltzentralen
 
 Das Designsystem basiert auf einer dreistufigen, synchronisierten Architektur. Änderungen am Look & Feel werden zentral an diesen drei Stellen gesteuert:

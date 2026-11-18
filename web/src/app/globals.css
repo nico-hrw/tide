@@ -756,17 +756,17 @@ ul[data-type="taskList"] li>div>p {
   /* violet-200 */
 }
 
-/* Event mentions are blue */
+/* Event mentions use the accent colour */
 .mention[data-type="event"] {
-  background-color: #dbeafe;
+  background-color: color-mix(in srgb, var(--t2-accent) 14%, transparent);
   /* blue-100 */
-  color: #1d4ed8;
+  color: var(--t2-accent);
   /* blue-700 */
 }
 
 .dark .mention[data-type="event"] {
-  background-color: rgba(59, 130, 246, 0.2);
-  color: #93c5fd;
+  background-color: color-mix(in srgb, var(--t2-accent) 14%, transparent);
+  color: var(--t2-accent);
 }
 
 .mention[data-type="event"]:hover {
@@ -784,9 +784,9 @@ span.task-mention-pill,
   box-sizing: border-box;
   overflow: hidden;
   text-overflow: ellipsis;
-  background-color: #dbeafe;
+  background-color: color-mix(in srgb, var(--t2-accent) 14%, transparent);
   /* blue-100 */
-  color: #1d4ed8;
+  color: var(--t2-accent);
   /* blue-700 */
   border-radius: 6px;
   /* moderate — matches screenshot */
@@ -806,9 +806,9 @@ span.task-mention-pill,
 
 .dark span.task-mention-pill,
 .dark .task-mention-pill {
-  background-color: rgba(59, 130, 246, 0.15);
-  color: #93c5fd;
-  border-color: rgba(59, 130, 246, 0.3) !important;
+  background-color: color-mix(in srgb, var(--t2-accent) 14%, transparent);
+  color: var(--t2-accent);
+  border-color: color-mix(in srgb, var(--t2-accent) 30%, transparent) !important;
 }
 
 /* Checkbox — same size as surrounding text, tight spacing */
@@ -949,7 +949,7 @@ span.task-mention-pill,
 .collaboration-cursor__selection,
 .collaboration-carets__selection,
 .ProseMirror-yjs-selection {
-  background-color: rgba(168, 85, 247, 0.15);
+  background-color: color-mix(in srgb, var(--t2-accent) 15%, transparent);
   border-radius: 2px;
   display: inline;
   pointer-events: none !important;
@@ -959,7 +959,7 @@ span.task-mention-pill,
 .dark .collaboration-cursor__selection,
 .dark .collaboration-carets__selection,
 .dark .ProseMirror-yjs-selection {
-  background-color: rgba(168, 85, 247, 0.25);
+  background-color: color-mix(in srgb, var(--t2-accent) 25%, transparent);
 }
 
 @keyframes purple-shimmer {

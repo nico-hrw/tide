@@ -37,7 +37,7 @@ export const Anchor = Node.create({
     renderHTML({ HTMLAttributes }) {
         return ['span', mergeAttributes(HTMLAttributes, {
             class: 'inline-anchor',
-            style: 'width: 6px; height: 6px; border-radius: 50%; background: #6366f1; display: inline-block; margin: 0 4px; vertical-align: middle; opacity: 0.6;'
+            style: 'width: 6px; height: 6px; border-radius: 50%; background: var(--t2-accent); display: inline-block; margin: 0 4px; vertical-align: middle; opacity: 0.6;'
         })];
     },
 

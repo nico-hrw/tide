@@ -25,7 +25,7 @@ export const TARGET_BLOCK_TYPES = [
 export const MCP_VISUAL_STYLES = `
 .ai-focus-highlight {
   position: relative;
-  border-left: 3px solid #8b5cf6 !important;
+  border-left: 3px solid var(--t2-accent) !important;
   background-color: rgba(139, 92, 246, 0.06);
   padding-left: 0.5rem;
   border-radius: 0 4px 4px 0;
@@ -43,7 +43,7 @@ export const MCP_VISUAL_STYLES = `
   padding: 2px 6px;
   border-radius: 9999px;
   background-color: rgba(139, 92, 246, 0.15);
-  color: #7c3aed;
+  color: var(--t2-accent);
   pointer-events: none;
   user-select: none;
 }
