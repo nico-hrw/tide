@@ -96,11 +96,12 @@
 | FontSize | `web/src/components/extensions/FontSize.ts` | Font size override |
 | PencilInkExtension | `web/src/components/extensions/PencilInkExtension.ts` | TipTap document-level attribute extension (`inkStrokes`) persisting freehand Apple Pencil vector strokes in ProseMirror JSON. |
 | HighlightContext | `web/src/components/HighlightContext.tsx` | React context for active highlight |
-| NoteOutline | `web/src/components/Editor/NoteOutline.tsx` | Tide 2 outline (Gliederung): H2/H3 bars at the top left beside the text (current section longer + `t2-blue`), hover card lists headings, click scrolls. Mounted inside the scroll container in `CanvasWorkspace`. |
+| NoteOutline | `web/src/components/Editor/NoteOutline.tsx` | Tide 2 outline (Gliederung): H1-H3 bars at the top left beside the text (current section longer + `t2-blue`), hover card lists headings, click scrolls. Mounted inside the scroll container in `CanvasWorkspace`. |
 | SaveStateIcon | `web/src/components/Editor/SaveStateIcon.tsx` | Animated stroke-only save indicator (saved check draws, saving arc spins, failed `!` shakes, shared-live two-people pulses) + tooltip. State logic stays in `CanvasWorkspace` (`saveStatus`). |
 | NoteHistoryLabel | `web/src/components/Editor/NoteHistoryLabel.tsx` | "Zuletzt bearbeitet vor …" in the note header; toggles the on-page version timeline (replaces the clock button). |
 | NoteHistoryTimeline | `web/src/components/Editor/NoteHistoryTimeline.tsx` | On-page vertical timeline at the right edge (line grows, points at heights proportional to age). Selecting a point shows **Ansehen** (opens `NoteVersionDiffView`, state `isViewingVersion`) and **Wiederherstellen** (`handleApplyHistory`). Content column shifts left via `lg:pr-[300px]` on the scroll container. Replaces the removed `NoteVersionTimeline`. |
 | NoteBreadcrumb | `web/src/components/Editor/NoteBreadcrumb.tsx` | Small pale folder path above the note title (`text-t2-ink-3`). |
+| TextStyleButtons | `web/src/components/Editor/TextStyleButtons.tsx` | Text / H1 / H2 / H3 buttons at the start of the bubble menu; act on the whole block around the selection. Heading sizes come from `.ProseMirror h1-h3` in `globals.css` (Tailwind preflight resets headings to body size). |
 | noteChrome.css | `web/src/components/Editor/noteChrome.css` | Keyframes/styles for the three components above, using `--t2-*` tokens. |
 
 ## Smart Island
@@ -125,14 +126,16 @@
 | Component | File | Role |
 |-----------|------|------|
 | CanvasLayer | `web/src/components/Canvas/CanvasLayer.tsx` | Floating element overlay (images, text widgets) |
-| CanvasElement | `web/src/components/Canvas/CanvasElement.tsx` | Single draggable canvas element |
+| CanvasElement | `web/src/components/Canvas/CanvasElement.tsx` | Single draggable canvas element. Drag keeps images inside the page and snaps them to the left/right/top edge (`lib/canvasSnap.ts`, `snapX` is stored and follows the edge when the page width changes). |
+| CanvasImageWidget | `web/src/components/Canvas/CanvasImageWidget.tsx` | Loads and decrypts one note image. New images carry their own key (`bek`) in the encrypted sidecar and open for collaborators; legacy images (`encryptedKey`) open for the owner only. Failures show a message with a retry button. |
+| PageEdgeHatch | `web/src/components/Canvas/PageEdgeHatch.tsx` | Hatched strip in the page margin next to the edge an image touches (while dragging and on hover). |
 | CanvasNoteEditor | `web/src/components/Canvas/CanvasNoteEditor.tsx` | Full free-canvas note mode |
 | CanvasNoteItem | `web/src/components/Canvas/CanvasNoteItem.tsx` | Individual canvas note item |
 | EditorGutter | `web/src/components/Canvas/EditorGutter.tsx` | Right gutter for canvas elements alongside editor |
 | useStyleFile | `web/src/components/Canvas/useStyleFile.ts` | Load/save `.{noteId}_style.json` sidecar |
-| useCanvasImageUpload | `web/src/components/Canvas/useCanvasImageUpload.ts` | Encrypt + upload image to blob store |
+| useCanvasImageUpload | `web/src/components/Canvas/useCanvasImageUpload.ts` | Image upload for the free-canvas note type (keys in the Yjs `assets` map). Note images use `lib/noteImageAssets.ts` (`storeNoteImage` / `loadNoteImage`): per-image key, child file with `parent_file_id` (the server derives collaborator access from it), retries. Edits to the Yjs overlay (images, strokes) dispatch `tide:overlay-changed`, which schedules a save in `useAutoSaveSync`. |
 | PencilInkLayer | `web/src/components/Canvas/PencilInkLayer.tsx` | SVG freehand drawing overlay supporting iPadOS Scribble passthrough (`mode === 'text'`), 240Hz Apple Pencil coalesced sampling, palm rejection, Ballpoint Pen, Highlighter Marker, stroke Eraser, and Lasso Selection tool (point-in-polygon encircling & dragging strokes). |
-| PencilToolbox | `web/src/components/Canvas/PencilToolbox.tsx` | GoodNotes-style bottom floating toolbox for iPad/Apple Pencil with Text (Scribble) vs. Draw mode switcher, Pen/Marker/Eraser/Lasso tools, color & stroke width presets, and Undo/Redo. |
+| PencilToolbox | `web/src/components/Canvas/PencilToolbox.tsx` | Bottom-centre floating toolbar for iPad/Apple Pencil in Tide 2 tokens (no blur, 40px touch targets): Text vs. Draw mode, Pen/Marker/Eraser/Lasso, colour and stroke presets, Undo/Redo, minimize. |
 
 ## Calendar
 

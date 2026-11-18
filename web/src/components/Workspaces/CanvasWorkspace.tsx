@@ -504,8 +504,13 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                         if (editorInstance && !editorInstance.isDestroyed && editorInstance.commands) {
                                                             editorInstance.commands.focus('start');
                                                         } else {
-                                                            // Editor still mounting: fall back to the DOM element
-                                                            document.querySelector<HTMLElement>('.ProseMirror[contenteditable="true"]')?.focus();
+                                                            // Editor still mounting: wait for it (up to ~3 s) and focus it as soon as it exists
+                                                            const focusBody = (tries: number) => {
+                                                                const body = document.querySelector<HTMLElement>('.ProseMirror[contenteditable="true"]');
+                                                                if (body) body.focus();
+                                                                else if (tries < 30) setTimeout(() => focusBody(tries + 1), 100);
+                                                            };
+                                                            focusBody(0);
                                                         }
                                                     }
                                                 }}

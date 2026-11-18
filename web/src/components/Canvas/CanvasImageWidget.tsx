@@ -37,27 +37,26 @@ async function loadLegacyImage(element: ImageElement, privateKey: CryptoKey): Pr
 export function CanvasImageWidget({ element, privateKey, imageBlobCache }: CanvasImageWidgetProps) {
     const [state, setState] = useState<LoadState>({ status: 'loading' });
     const [attempt, setAttempt] = useState(0);
-    const retry = useCallback(() => setAttempt((n) => n + 1), []);
+    const retry = useCallback(() => {
+        setState({ status: 'loading' });
+        setAttempt((n) => n + 1);
+    }, []);
 
     useEffect(() => {
-        if (element.blobId === '__pending__') { setState({ status: 'loading' }); return; }
-        const cached = imageBlobCache.current.get(element.blobId);
-        if (cached) { setState({ status: 'ready', src: cached }); return; }
+        if (element.blobId === '__pending__') return; // still uploading: the spinner stays
 
         const usesOwnKey = !!element.bek;
-        if (!usesOwnKey && !privateKey) {
-            // The vault is still unlocking; this effect runs again as soon as the key arrives.
-            setState({ status: 'loading' });
-            return;
-        }
+        // A legacy image waits for the vault; this effect runs again as soon as the key arrives.
+        if (!usesOwnKey && !privateKey) return;
 
         let cancelled = false;
-        setState({ status: 'loading' });
         (async () => {
             try {
-                const src = usesOwnKey
-                    ? await loadNoteImage({ assetId: element.blobId, bekBase64: element.bek as string, ivBase64: element.iv, mimeType: element.mimeType })
-                    : await loadLegacyImage(element, privateKey as CryptoKey);
+                const cached = imageBlobCache.current.get(element.blobId);
+                const src = cached
+                    ?? (usesOwnKey
+                        ? await loadNoteImage({ assetId: element.blobId, bekBase64: element.bek as string, ivBase64: element.iv, mimeType: element.mimeType })
+                        : await loadLegacyImage(element, privateKey as CryptoKey));
                 imageBlobCache.current.set(element.blobId, src);
                 if (!cancelled) setState({ status: 'ready', src });
             } catch (e) {
