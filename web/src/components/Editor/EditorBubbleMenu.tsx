@@ -15,6 +15,7 @@ import {
     Clock,
     PinIcon,
     Link2,
+  Search,
 } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { useReferenceStore } from '@/store/useReferenceStore';
@@ -198,6 +199,9 @@ export function EditorBubbleMenu({
           {/* Blase 1: Textstil und Auszeichnung */}
           <div className="flex items-center gap-0.5 rounded-[12px] bg-t2-surface p-1 shadow-[0_0_0_1px_var(--t2-line),0_10px_30px_rgba(0,0,0,0.10)]">
             <TextStyleButtons editor={editor} />
+            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => window.dispatchEvent(new CustomEvent('tide:format-search'))} className={`${btnBase} ${btnInactive}`} title="Formatierung suchen (Strg+Shift+F)" aria-label="Formatierung suchen">
+                <Search size={16} />
+            </button>
             <div className="w-px h-5 bg-t2-line mx-1" />
 
             <button onClick={() => editor.chain().focus().toggleBold().run()} className={`${btnBase} ${editor.isActive('bold') ? btnActive : btnInactive}`} title="Bold">

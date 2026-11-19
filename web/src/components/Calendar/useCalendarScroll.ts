@@ -176,7 +176,8 @@ export function useCalendarScroll({
                     // must not re-centre the whole calendar; that is for links that point elsewhere.
                     const cr = container.getBoundingClientRect();
                     const er = element.getBoundingClientRect();
-                    const onScreen = er.top >= cr.top && er.bottom <= cr.bottom && er.left >= cr.left && er.right <= cr.right;
+                    // Any part of the event on screen counts: a partly visible event is not moved.
+                    const onScreen = er.bottom > cr.top && er.top < cr.bottom && er.right > cr.left && er.left < cr.right;
                     if (!onScreen) {
                         // Scroll horizontally, centring the day like useWeekWindow does (incl. the
                         // time gutter), so the settled viewport centre stays on the event's day.

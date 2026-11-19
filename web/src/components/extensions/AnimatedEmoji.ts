@@ -30,6 +30,7 @@ function buildDecorations(doc: PMNode): DecorationSet {
       const to = from + glyph.length;
       decos.push(Decoration.widget(from, () => createAnimatedEmojiElement(glyph), {
         side: -1,
+        ignoreSelection: true,
         key: `tide-emoji-${from}-${glyph}`,
       }));
       decos.push(Decoration.inline(from, to, { class: 'tide-emoji-src' }));

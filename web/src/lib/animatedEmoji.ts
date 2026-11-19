@@ -98,20 +98,33 @@ const animatedUrl = (e: EmojiIndexEntry) => (e.a ? ANIMATED_BASE + encodePath(e.
  * Einstellung bleibt es das Textzeichen. Sonst ein Bild, das bei Hover und alle
  * 20 Sekunden kurz die Animation zeigt.
  */
+/** Static image per glyph, loaded once: edits re-create the widget, but the picture is already decoded. */
+const staticImgCache = new Map<string, HTMLImageElement>();
+
+function staticImageFor(glyph: string): HTMLImageElement {
+  let img = staticImgCache.get(glyph);
+  if (!img) {
+    img = new Image();
+    img.decoding = 'sync';
+    img.src = staticUrl(glyph);
+    staticImgCache.set(glyph, img);
+  }
+  return img.cloneNode() as HTMLImageElement;
+}
+
 export function createAnimatedEmojiElement(glyph: string): HTMLElement {
   const span = document.createElement('span');
   span.className = 'tide-emoji';
+  span.contentEditable = 'false';
   span.textContent = glyph;
 
   const entry = lookupEmoji(glyph);
   if (!entry || !entry.s || !getAnimatedEmojiEnabled()) return span;
 
-  const img = document.createElement('img');
+  const img = staticImageFor(glyph);
   img.className = 'tide-emoji-img';
   img.alt = glyph;
   img.draggable = false;
-  img.decoding = 'async';
-  img.src = staticUrl(glyph);
   span.textContent = '';
   span.appendChild(img);
 

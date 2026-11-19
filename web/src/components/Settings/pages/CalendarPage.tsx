@@ -6,6 +6,7 @@ import { SettingsBlock, SettingsCard, SettingsPage, SettingsPageHeader, Settings
 import { Button, SelectField, Toggle } from '../ui/Controls';
 import { useT } from '../useT';
 import { CalendarEventPreview } from '../calendar/CalendarEventPreview';
+import { CALENDAR_CATEGORIES } from '@/lib/calendarColors';
 import { CalendarGroupsSection, type CalendarGroupsSectionProps } from '../calendar/CalendarGroupsSection';
 
 export interface CalendarPageProps extends Omit<CalendarGroupsSectionProps, 'protectedGroupId'> {
@@ -61,13 +62,15 @@ export function CalendarPage({ enabledExtensions = [], ...groupProps }: Calendar
                                 label={t('cal.eventColors')}
                                 value={calendarColorPalette}
                                 onChange={setCalendarColorPalette}
-                                options={[
-                                    { value: 'balsam', label: 'Balsam' },
-                                    { value: 'modern-dark', label: 'Modern Dark' },
-                                    { value: 'soft-pastels', label: 'Soft Pastels' },
-                                    { value: 'classic-tide', label: 'Classic Tide' },
-                                ]}
+                                options={[{ value: 'balsam', label: 'Balsam (Standard)' }]}
                             />
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                {CALENDAR_CATEGORIES.map((cat) => (
+                                    <span key={cat.key} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium" style={{ background: cat.bg, color: cat.ink }}>
+                                        {cat.name}
+                                    </span>
+                                ))}
+                            </div>
                         </SettingsRow>
                         <SettingsBlock>
                             <CalendarEventPreview palette={calendarColorPalette} overlap={calendarOverlapMode} />

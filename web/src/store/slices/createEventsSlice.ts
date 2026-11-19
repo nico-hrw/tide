@@ -63,12 +63,8 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
         (typeof window !== 'undefined' &&
             (localStorage.getItem('tide_event_mention_preview') as EventMentionPreview)) ||
         'hover',
-    calendarColorPalette:
-        typeof window !== 'undefined'
-            ? ((localStorage.getItem(
-                  'tide_calendar_color_palette'
-              ) as CalendarColorPalette) || 'balsam')
-            : 'balsam',
+    // One colour set now (lib/calendarColors). Older stored palette choices are ignored.
+    calendarColorPalette: 'balsam' as CalendarColorPalette,
     calendarOverlapMode:
         typeof window !== 'undefined'
             ? ((localStorage.getItem(

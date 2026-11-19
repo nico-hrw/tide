@@ -78,6 +78,13 @@ export function FormatSearch({ editor }: { editor: Editor | null }) {
         if (open) requestAnimationFrame(() => inputRef.current?.focus());
     }, [open]);
 
+    // The bubble menu button opens the same search.
+    useEffect(() => {
+        const onOpen = () => { setQuery(''); setActive(0); setOpen(true); };
+        window.addEventListener('tide:format-search', onOpen);
+        return () => window.removeEventListener('tide:format-search', onOpen);
+    }, []);
+
     const names = useMemo(() => new Set(editor?.extensionManager.extensions.map((e) => e.name) ?? []), [editor]);
 
     const available = useMemo(() => COMMANDS.filter((c) => c.needs.every((n) => names.has(n))), [names]);

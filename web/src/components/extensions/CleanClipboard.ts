@@ -29,6 +29,14 @@ export const CleanClipboard = Extension.create({
             new Plugin({
                 key: new PluginKey('cleanClipboard'),
                 props: {
+                    // Plain text: one blank line between blocks, no empty blocks, no page breaks.
+                    clipboardTextSerializer(slice, view) {
+                        const cleaned = cleanFragment(slice.content);
+                        if (cleaned.size === 0) return '';
+                        const holder = view.state.schema.topNodeType.create(null, cleaned);
+                        return holder.textBetween(0, holder.content.size, '\n\n', '');
+                    },
+                    // HTML copy: the same cleaned slice.
                     transformCopied(slice) {
                         const content = cleanFragment(slice.content);
                         if (content.size === 0) return slice;
