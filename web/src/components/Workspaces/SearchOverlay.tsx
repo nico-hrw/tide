@@ -94,7 +94,8 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
             if (item?.id) map.set(item.id, { id: item.id, title: item.title || 'Untitled', type: item.type || 'note', date: item.date });
         }
         for (const n of notes || []) {
-            if (n?.id) map.set(n.id, { id: n.id, title: n.title || 'Untitled Note', type: n.type || 'note', date: (n as any).date });
+            // Folders and groups are navigation, not search results.
+            if (n?.id && n.type !== 'folder' && !(n as any).isGroup) map.set(n.id, { id: n.id, title: n.title || 'Untitled Note', type: n.type || 'note', date: (n as any).date });
         }
         for (const ev of events || []) {
             if (ev?.id) map.set(ev.id, { id: ev.id, title: ev.title || 'Untitled Event', type: 'event', date: (ev as any).start });

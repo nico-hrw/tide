@@ -132,6 +132,7 @@ export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRena
     return (
         <div>
             <motion.div
+                data-folder-id={folder.id}
                 layout
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}

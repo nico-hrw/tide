@@ -640,6 +640,13 @@ ul[data-type="taskList"] li>div>p {
   margin: 2.25rem 0;
 }
 
+/* A folder revealed from search: a short accent outline in the sidebar. */
+[data-folder-id][data-revealed="true"] {
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1.5px var(--t2-accent);
+  transition: box-shadow 0.3s ease;
+}
+
 /* Page break (PageBreakNode): a dashed rule at the top of the break with a small label. Height is set by the node. */
 .tide-page-break {
   position: relative;

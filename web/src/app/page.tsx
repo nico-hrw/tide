@@ -2959,6 +2959,24 @@ export default function Dashboard() {
             switchTab(target.id, 'file', title);
             useDataStore.getState().setActiveNoteId(target.id);
 
+        } else if (target.type === 'folder') {
+            // A folder is not a note: open the sidebar path down to it and show where it is.
+            const store = useDataStore.getState();
+            const seen = new Set<string>();
+            let cur: string | null = target.id;
+            while (cur && !seen.has(cur)) {
+                seen.add(cur);
+                store.toggleFolder(cur, true);
+                cur = store.notes.find((f: any) => f.id === cur)?.parent_id ?? null;
+            }
+            window.setTimeout(() => {
+                const el = document.querySelector<HTMLElement>(`[data-folder-id="${target.id}"]`);
+                if (!el) return;
+                el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                el.setAttribute('data-revealed', 'true');
+                window.setTimeout(() => el.removeAttribute('data-revealed'), 1600);
+            }, 150);
+            return;
         } else if (target.type === 'chat') {
             switchTab(target.id, 'chat', target.title);
         } else {

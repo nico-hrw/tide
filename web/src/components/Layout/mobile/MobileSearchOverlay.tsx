@@ -323,8 +323,10 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
 
   const filteredNotes = useMemo(() => {
     if (!notes) return [];
-    if (!trimmedQuery) return notes;
-    return notes.filter(
+    // Folders are navigation, not search results.
+    const items = notes.filter((n) => (n as any).type !== 'folder');
+    if (!trimmedQuery) return items;
+    return items.filter(
       (n) =>
         n.title.toLowerCase().includes(trimmedQuery) ||
         (n.preview && n.preview.toLowerCase().includes(trimmedQuery)) ||
