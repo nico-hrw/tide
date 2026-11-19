@@ -26,7 +26,7 @@ export interface SearchNoteItem {
   title: string;
   preview?: string;
   tag?: string;
-  updatedAt?: string;
+  updatedAt?: string | number | Date;
 }
 
 export interface MobileSearchOverlayProps {

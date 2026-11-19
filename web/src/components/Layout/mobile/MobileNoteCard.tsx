@@ -5,13 +5,12 @@ import React, { useRef } from 'react';
 export interface MobileNoteCardItem {
   id: string;
   title?: string | null;
-  updated_at?: string;
-  updatedAt?: string;
-  created_at?: string;
-  createdAt?: string;
+  updated_at?: string | number;
+  updatedAt?: string | number | Date;
+  created_at?: string | number;
+  createdAt?: string | number | Date;
   /** Optional plain-text excerpt; shown as a two-line preview when present. */
   previewText?: string;
-  [key: string]: unknown;
 }
 
 interface MobileNoteCardProps<T extends MobileNoteCardItem> {
