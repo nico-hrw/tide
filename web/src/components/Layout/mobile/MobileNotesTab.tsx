@@ -95,7 +95,7 @@ export function MobileNotesTab({
       .filter((f) => f.type !== 'folder')
       .slice()
       .sort((a, b) => getItemTimestamp(b) - getItemTimestamp(a))
-      .slice(0, 3);
+      .slice(0, 12);
     void preloadNotePreviews(latest.map((f) => ({ ...f })));
   }, [files]);
 

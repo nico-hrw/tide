@@ -1,5 +1,6 @@
 import { isSameDay } from 'date-fns';
 import type { CalendarEvent as BaseCalendarEvent } from '@/components/Calendar/types';
+import { getEventGroupIds } from '@/lib/calendarUtils';
 
 export interface EventOverride {
   is_cancelled?: boolean;
@@ -42,12 +43,20 @@ function advanceRecurrenceDate(current: Date, freq: string, interval: number): b
 
 export function expandMobileEvents(
   events: CalendarEvent[],
-  activeDate: Date | string
+  activeDate: Date | string,
+  themes?: Array<{ id: string; effect?: string }>
 ): CalendarEvent[] {
   const anchor = parseAnchorDate(activeDate);
   const minDate = new Date(anchor.getFullYear(), anchor.getMonth() - 2, 1);
   const maxDate = new Date(anchor.getFullYear(), anchor.getMonth() + 3, 1);
   const expanded: CalendarEvent[] = [];
+
+  // The event's pattern comes from its group (theme), as on the desktop calendar.
+  const themeEffectFor = (evt: CalendarEvent): string | undefined => {
+    const gid = getEventGroupIds(evt)[0];
+    const t = gid ? themes?.find((x) => x.id === gid) : undefined;
+    return t?.effect || evt.effect;
+  };
 
   const processEvent = (evt: CalendarEvent, initialStart: Date) => {
     let start = initialStart;
@@ -64,6 +73,7 @@ export function expandMobileEvents(
 
     expanded.push({
       ...evt,
+      effect: themeEffectFor(evt),
       id: start.getTime() === new Date(evt.start).getTime() ? evt.id : `${evt.id}_${start.getTime()}`,
       start: start.toISOString(),
       end: end.toISOString(),

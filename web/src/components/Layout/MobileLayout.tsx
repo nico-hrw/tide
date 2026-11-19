@@ -155,7 +155,10 @@ export default function MobileLayout({
     }));
   }, [themes, files]);
 
-  const expandedEvents = useMemo(() => expandMobileEvents(events, activeDate), [events, activeDate]);
+  const expandedEvents = useMemo(
+    () => expandMobileEvents(events, activeDate, resolvedThemes),
+    [events, activeDate, resolvedThemes]
+  );
 
   useEffect(() => {
     const onEditEvent = (e: Event) => {
